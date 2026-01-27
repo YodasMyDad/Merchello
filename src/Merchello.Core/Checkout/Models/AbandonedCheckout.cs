@@ -15,7 +15,7 @@ public class AbandonedCheckout
     /// <summary>
     /// The ID of the basket that was abandoned.
     /// </summary>
-    public Guid BasketId { get; set; }
+    public Guid? BasketId { get; set; }
 
     /// <summary>
     /// The ID of the customer, if known.

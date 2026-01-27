@@ -11,6 +11,8 @@ public class ProductWarehousePriceOverrideDbMapping : IEntityTypeConfiguration<P
         builder.ToTable("merchelloProductWarehousePriceOverride");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).IsRequired();
+        builder.Property(x => x.Price).HasPrecision(18, 4);
+        builder.Property(x => x.CostOfGoods).HasPrecision(18, 4);
 
         builder.HasOne(d => d.Warehouse)
             .WithMany(p => p.ProductWarehousePriceOverrides)

@@ -8,7 +8,7 @@ namespace Merchello.Core.Checkout.Dtos;
 public class AbandonedCheckoutDetailDto
 {
     public Guid Id { get; set; }
-    public Guid BasketId { get; set; }
+    public Guid? BasketId { get; set; }
     public Guid? CustomerId { get; set; }
     public string? CustomerEmail { get; set; }
     public string? CustomerName { get; set; }

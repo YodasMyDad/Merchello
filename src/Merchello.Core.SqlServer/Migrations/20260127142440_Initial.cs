@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Merchello.Core.Sqlite.Migrations
+namespace Merchello.Core.SqlServer.Migrations
 {
     /// <inheritdoc />
     public partial class Initial : Migration
@@ -15,22 +15,22 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloBaskets",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    LineItems = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ConcurrencyStamp = table.Column<string>(type: "TEXT", maxLength: 36, nullable: false),
-                    Currency = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    CurrencySymbol = table.Column<string>(type: "TEXT", maxLength: 3, nullable: true),
-                    SubTotal = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    Discount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    AdjustedSubTotal = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    Tax = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    Total = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    Shipping = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    BillingAddress = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    ShippingAddress = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    LineItems = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ConcurrencyStamp = table.Column<string>(type: "nvarchar(36)", maxLength: 36, nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    CurrencySymbol = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: true),
+                    SubTotal = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    Discount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    AdjustedSubTotal = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    Tax = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    Total = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    Shipping = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    BillingAddress = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ShippingAddress = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -41,18 +41,18 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloCustomers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Email = table.Column<string>(type: "TEXT", maxLength: 254, nullable: false),
-                    MemberKey = table.Column<Guid>(type: "TEXT", nullable: true),
-                    FirstName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    LastName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    IsFlagged = table.Column<bool>(type: "INTEGER", nullable: false),
-                    AcceptsMarketing = table.Column<bool>(type: "INTEGER", nullable: false),
-                    HasAccountTerms = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
-                    PaymentTermsDays = table.Column<int>(type: "INTEGER", nullable: true),
-                    CreditLimit = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(254)", maxLength: 254, nullable: false),
+                    MemberKey = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    FirstName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    LastName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsFlagged = table.Column<bool>(type: "bit", nullable: false),
+                    AcceptsMarketing = table.Column<bool>(type: "bit", nullable: false),
+                    HasAccountTerms = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    PaymentTermsDays = table.Column<int>(type: "int", nullable: true),
+                    CreditLimit = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -63,17 +63,17 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloCustomerSegments",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 300, nullable: false),
-                    Description = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    SegmentType = table.Column<int>(type: "INTEGER", nullable: false),
-                    CriteriaJson = table.Column<string>(type: "TEXT", nullable: true),
-                    MatchMode = table.Column<int>(type: "INTEGER", nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IsSystemSegment = table.Column<bool>(type: "INTEGER", nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<Guid>(type: "TEXT", nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    SegmentType = table.Column<int>(type: "int", nullable: false),
+                    CriteriaJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    MatchMode = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsSystemSegment = table.Column<bool>(type: "bit", nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -84,35 +84,35 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloDiscounts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 300, nullable: false),
-                    Description = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false),
-                    Category = table.Column<int>(type: "INTEGER", nullable: false),
-                    Method = table.Column<int>(type: "INTEGER", nullable: false),
-                    Code = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    ValueType = table.Column<int>(type: "INTEGER", nullable: false),
-                    Value = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    ApplyAfterTax = table.Column<bool>(type: "INTEGER", nullable: false),
-                    StartsAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    EndsAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    Timezone = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    TotalUsageLimit = table.Column<int>(type: "INTEGER", nullable: true),
-                    PerCustomerUsageLimit = table.Column<int>(type: "INTEGER", nullable: true),
-                    PerOrderUsageLimit = table.Column<int>(type: "INTEGER", nullable: true),
-                    RequirementType = table.Column<int>(type: "INTEGER", nullable: false),
-                    RequirementValue = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    CanCombineWithProductDiscounts = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CanCombineWithOrderDiscounts = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CanCombineWithShippingDiscounts = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Priority = table.Column<int>(type: "INTEGER", nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<Guid>(type: "TEXT", nullable: true),
-                    TargetRulesJson = table.Column<string>(type: "TEXT", nullable: true),
-                    EligibilityRulesJson = table.Column<string>(type: "TEXT", nullable: true),
-                    BuyXGetYConfigJson = table.Column<string>(type: "TEXT", nullable: true),
-                    FreeShippingConfigJson = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    Category = table.Column<int>(type: "int", nullable: false),
+                    Method = table.Column<int>(type: "int", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    ValueType = table.Column<int>(type: "int", nullable: false),
+                    Value = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    ApplyAfterTax = table.Column<bool>(type: "bit", nullable: false),
+                    StartsAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndsAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Timezone = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    TotalUsageLimit = table.Column<int>(type: "int", nullable: true),
+                    PerCustomerUsageLimit = table.Column<int>(type: "int", nullable: true),
+                    PerOrderUsageLimit = table.Column<int>(type: "int", nullable: true),
+                    RequirementType = table.Column<int>(type: "int", nullable: false),
+                    RequirementValue = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    CanCombineWithProductDiscounts = table.Column<bool>(type: "bit", nullable: false),
+                    CanCombineWithOrderDiscounts = table.Column<bool>(type: "bit", nullable: false),
+                    CanCombineWithShippingDiscounts = table.Column<bool>(type: "bit", nullable: false),
+                    Priority = table.Column<int>(type: "int", nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    TargetRulesJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    EligibilityRulesJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    BuyXGetYConfigJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FreeShippingConfigJson = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -123,18 +123,18 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloDownloadLinks",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    InvoiceId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    LineItemId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    MediaId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    FileName = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    Token = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
-                    ExpiresUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    MaxDownloads = table.Column<int>(type: "INTEGER", nullable: true),
-                    DownloadCount = table.Column<int>(type: "INTEGER", nullable: false),
-                    LastDownloadUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false, defaultValueSql: "GETUTCDATE()")
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    InvoiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    LineItemId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    MediaId = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    FileName = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Token = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    ExpiresUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    MaxDownloads = table.Column<int>(type: "int", nullable: true),
+                    DownloadCount = table.Column<int>(type: "int", nullable: false),
+                    LastDownloadUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "GETUTCDATE()")
                 },
                 constraints: table =>
                 {
@@ -145,24 +145,24 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloEmailConfigurations",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
-                    Topic = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    Enabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    TemplatePath = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    ToExpression = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
-                    CcExpression = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    BccExpression = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    FromExpression = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    SubjectExpression = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    Description = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateModified = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    TotalSent = table.Column<int>(type: "INTEGER", nullable: false),
-                    TotalFailed = table.Column<int>(type: "INTEGER", nullable: false),
-                    LastSentUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false),
-                    AttachmentAliases = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Topic = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Enabled = table.Column<bool>(type: "bit", nullable: false),
+                    TemplatePath = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ToExpression = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    CcExpression = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    BccExpression = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    FromExpression = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    SubjectExpression = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateModified = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    TotalSent = table.Column<int>(type: "int", nullable: false),
+                    TotalFailed = table.Column<int>(type: "int", nullable: false),
+                    LastSentUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
+                    AttachmentAliases = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -173,14 +173,14 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloExchangeRateProviders",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderAlias = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ConfigurationJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    LastFetchedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    LastRatesJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    CreateDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    ConfigurationJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    LastFetchedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastRatesJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -191,15 +191,15 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloFulfilmentProviderConfigurations",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderKey = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                    DisplayName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
-                    IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
-                    InventorySyncMode = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    SettingsJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    CreateDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    DisplayName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    InventorySyncMode = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    SettingsJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    SortOrder = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -210,15 +210,15 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloPaymentProviders",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderAlias = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    DisplayName = table.Column<string>(type: "TEXT", maxLength: 250, nullable: false),
-                    IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    IsTestMode = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Configuration = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    DisplayName = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: false),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    IsTestMode = table.Column<bool>(type: "bit", nullable: false),
+                    Configuration = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -229,8 +229,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductCollections",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -241,9 +241,9 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductFilterGroups",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
-                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    SortOrder = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -254,9 +254,9 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductTypes",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: true),
-                    Alias = table.Column<string>(type: "TEXT", nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Alias = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -267,14 +267,14 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShippingProviderConfigurations",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderKey = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                    DisplayName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
-                    IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    SettingsJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreateDate = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    DisplayName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    SettingsJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    SortOrder = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -285,16 +285,16 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloSigningKeys",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    KeyId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: false),
-                    ExpiredAt = table.Column<DateTimeOffset>(type: "TEXT", nullable: true),
-                    PrivateKeyPem = table.Column<string>(type: "TEXT", nullable: false),
-                    PublicKeyX = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                    PublicKeyY = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                    Algorithm = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false, defaultValue: "ES256"),
-                    CurveName = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false, defaultValue: "P-256")
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    KeyId = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    ExpiredAt = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    PrivateKeyPem = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PublicKeyX = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    PublicKeyY = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    Algorithm = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false, defaultValue: "ES256"),
+                    CurveName = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false, defaultValue: "P-256")
                 },
                 constraints: table =>
                 {
@@ -305,11 +305,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloTaxGroups",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 300, nullable: true),
-                    TaxPercentage = table.Column<decimal>(type: "TEXT", precision: 5, scale: 2, nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    TaxPercentage = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -320,13 +320,13 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloTaxProviders",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderAlias = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
-                    ConfigurationJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false),
-                    CreateDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    ConfigurationJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -337,17 +337,17 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloWarehouseProviderConfigs",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderKey = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                    IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
-                    DefaultMarkupPercent = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false, defaultValue: 0m),
-                    ServiceMarkupsJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    ExcludedServiceTypesJson = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    DefaultDaysFromOverride = table.Column<int>(type: "INTEGER", nullable: true),
-                    DefaultDaysToOverride = table.Column<int>(type: "INTEGER", nullable: true),
-                    CreateDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    DefaultMarkupPercent = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false, defaultValue: 0m),
+                    ServiceMarkupsJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    ExcludedServiceTypesJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    DefaultDaysFromOverride = table.Column<int>(type: "int", nullable: true),
+                    DefaultDaysToOverride = table.Column<int>(type: "int", nullable: true),
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -358,29 +358,29 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloWebhookSubscriptions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
-                    Topic = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    TargetUrl = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: false),
-                    Secret = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    AuthType = table.Column<int>(type: "INTEGER", nullable: false),
-                    AuthHeaderName = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    AuthHeaderValue = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Format = table.Column<int>(type: "INTEGER", nullable: false),
-                    ApiVersion = table.Column<string>(type: "TEXT", maxLength: 20, nullable: true),
-                    TimeoutSeconds = table.Column<int>(type: "INTEGER", nullable: false),
-                    FilterExpression = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    Headers = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false),
-                    SuccessCount = table.Column<int>(type: "INTEGER", nullable: false),
-                    FailureCount = table.Column<int>(type: "INTEGER", nullable: false),
-                    LastTriggeredUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    LastSuccessUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    LastFailureUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    LastErrorMessage = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Topic = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    TargetUrl = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
+                    Secret = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    AuthType = table.Column<int>(type: "int", nullable: false),
+                    AuthHeaderName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    AuthHeaderValue = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    Format = table.Column<int>(type: "int", nullable: false),
+                    ApiVersion = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    TimeoutSeconds = table.Column<int>(type: "int", nullable: false),
+                    FilterExpression = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    Headers = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
+                    SuccessCount = table.Column<int>(type: "int", nullable: false),
+                    FailureCount = table.Column<int>(type: "int", nullable: false),
+                    LastTriggeredUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastSuccessUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastFailureUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastErrorMessage = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ExtendedData = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -391,28 +391,28 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloAbandonedCheckouts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    BasketId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    Email = table.Column<string>(type: "TEXT", maxLength: 254, nullable: true),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    LastActivityUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateAbandoned = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    DateRecovered = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    DateConverted = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    DateExpired = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    RecoveredInvoiceId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    RecoveryToken = table.Column<string>(type: "TEXT", maxLength: 64, nullable: true),
-                    RecoveryTokenExpiresUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    RecoveryEmailsSent = table.Column<int>(type: "INTEGER", nullable: false),
-                    LastRecoveryEmailSentUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    BasketTotal = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    CurrencyCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    CurrencySymbol = table.Column<string>(type: "TEXT", maxLength: 5, nullable: true),
-                    ItemCount = table.Column<int>(type: "INTEGER", nullable: false),
-                    CustomerName = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BasketId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Email = table.Column<string>(type: "nvarchar(254)", maxLength: 254, nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    LastActivityUtc = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateAbandoned = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DateRecovered = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DateConverted = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DateExpired = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RecoveredInvoiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    RecoveryToken = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    RecoveryTokenExpiresUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RecoveryEmailsSent = table.Column<int>(type: "int", nullable: false),
+                    LastRecoveryEmailSentUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    BasketTotal = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    CurrencyCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    CurrencySymbol = table.Column<string>(type: "nvarchar(5)", maxLength: 5, nullable: true),
+                    ItemCount = table.Column<int>(type: "int", nullable: false),
+                    CustomerName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -429,10 +429,10 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloCustomerTags",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Tag = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    DateAdded = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Tag = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    DateAdded = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -449,63 +449,63 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloInvoices",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    BasketId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    InvoiceNumber = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
-                    BillingName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    BillingCompany = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    BillingAddressOne = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    BillingAddressTwo = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    BillingTownCity = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    BillingCountyStateName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    BillingCountyStateCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    BillingPostalCode = table.Column<string>(type: "TEXT", maxLength: 20, nullable: true),
-                    BillingCountry = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    BillingCountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    BillingEmail = table.Column<string>(type: "TEXT", maxLength: 254, nullable: true),
-                    BillingPhone = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    ShippingName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    ShippingCompany = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    ShippingAddressOne = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    ShippingAddressTwo = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    ShippingTownCity = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    ShippingCountyStateName = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    ShippingCountyStateCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    ShippingPostalCode = table.Column<string>(type: "TEXT", maxLength: 20, nullable: true),
-                    ShippingCountry = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    ShippingCountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    ShippingEmail = table.Column<string>(type: "TEXT", maxLength: 254, nullable: true),
-                    ShippingPhone = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    Channel = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    PurchaseOrder = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    Notes = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    SubTotal = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    CurrencyCode = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false),
-                    CurrencySymbol = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
-                    StoreCurrencyCode = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false),
-                    PricingExchangeRate = table.Column<decimal>(type: "TEXT", precision: 18, scale: 8, nullable: true),
-                    PricingExchangeRateSource = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    PricingExchangeRateTimestampUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    Discount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    SubTotalInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    DiscountInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    AdjustedSubTotal = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    Tax = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    TaxInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    Total = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    TotalInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DueDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
-                    DateDeleted = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    IsCancelled = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
-                    DateCancelled = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CancellationReason = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    CancelledBy = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    Source = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    BasketId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    InvoiceNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    BillingName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    BillingCompany = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    BillingAddressOne = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    BillingAddressTwo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    BillingTownCity = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    BillingCountyStateName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    BillingCountyStateCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    BillingPostalCode = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    BillingCountry = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    BillingCountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    BillingEmail = table.Column<string>(type: "nvarchar(254)", maxLength: 254, nullable: true),
+                    BillingPhone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    ShippingName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ShippingCompany = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ShippingAddressOne = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ShippingAddressTwo = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ShippingTownCity = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ShippingCountyStateName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ShippingCountyStateCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    ShippingPostalCode = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    ShippingCountry = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ShippingCountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    ShippingEmail = table.Column<string>(type: "nvarchar(254)", maxLength: 254, nullable: true),
+                    ShippingPhone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    Channel = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    PurchaseOrder = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    SubTotal = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    CurrencyCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
+                    CurrencySymbol = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    StoreCurrencyCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
+                    PricingExchangeRate = table.Column<decimal>(type: "decimal(18,8)", precision: 18, scale: 8, nullable: true),
+                    PricingExchangeRateSource = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    PricingExchangeRateTimestampUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    Discount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    SubTotalInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    DiscountInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    AdjustedSubTotal = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    Tax = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    TaxInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    Total = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    TotalInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DueDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DateDeleted = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsCancelled = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DateCancelled = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CancellationReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    CancelledBy = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    Source = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -522,12 +522,12 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloCustomerSegmentMembers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SegmentId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    DateAdded = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    AddedBy = table.Column<Guid>(type: "TEXT", nullable: true),
-                    Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SegmentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DateAdded = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    AddedBy = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -544,16 +544,16 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloFulfilmentSyncLogs",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderConfigurationId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SyncType = table.Column<int>(type: "INTEGER", nullable: false),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ItemsProcessed = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ItemsSucceeded = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ItemsFailed = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ErrorMessage = table.Column<string>(type: "TEXT", nullable: true),
-                    StartedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CompletedAt = table.Column<DateTime>(type: "TEXT", nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderConfigurationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SyncType = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ItemsProcessed = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ItemsSucceeded = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ItemsFailed = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ErrorMessage = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    StartedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -570,13 +570,13 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloFulfilmentWebhookLogs",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProviderConfigurationId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    MessageId = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
-                    EventType = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    Payload = table.Column<string>(type: "TEXT", nullable: true),
-                    ProcessedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ExpiresAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProviderConfigurationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    MessageId = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    EventType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Payload = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProcessedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -593,17 +593,17 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloSuppliers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 250, nullable: false),
-                    Code = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    Address = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    ContactName = table.Column<string>(type: "TEXT", maxLength: 250, nullable: true),
-                    ContactEmail = table.Column<string>(type: "TEXT", maxLength: 250, nullable: true),
-                    ContactPhone = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    DefaultFulfilmentProviderConfigurationId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ContactName = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
+                    ContactEmail = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
+                    ContactPhone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    DefaultFulfilmentProviderConfigurationId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -620,17 +620,17 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloPaymentMethods",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    PaymentProviderSettingId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    MethodAlias = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    DisplayNameOverride = table.Column<string>(type: "TEXT", maxLength: 250, nullable: true),
-                    IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false),
-                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false),
-                    ShowInCheckout = table.Column<bool>(type: "INTEGER", nullable: true),
-                    IconMediaKey = table.Column<Guid>(type: "TEXT", nullable: true),
-                    CheckoutStyleOverride = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PaymentProviderSettingId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    MethodAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    DisplayNameOverride = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    ShowInCheckout = table.Column<bool>(type: "bit", nullable: true),
+                    IconMediaKey = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    CheckoutStyleOverride = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -647,12 +647,12 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductFilters",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
-                    SortOrder = table.Column<int>(type: "INTEGER", nullable: false),
-                    HexColour = table.Column<string>(type: "TEXT", maxLength: 150, nullable: true),
-                    Image = table.Column<Guid>(type: "TEXT", nullable: true),
-                    ProductFilterGroupId = table.Column<Guid>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    HexColour = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    Image = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ProductFilterGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -669,26 +669,26 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductRoots",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    RootName = table.Column<string>(type: "TEXT", nullable: true),
-                    ProductOptions = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    TaxGroupId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProductTypeId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    GoogleShoppingFeedCategory = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    RootImages = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    RootUrl = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    DefaultPackageConfigurations = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false),
-                    IsDigitalProduct = table.Column<bool>(type: "INTEGER", nullable: false),
-                    AllowExternalCarrierShipping = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
-                    Description = table.Column<string>(type: "TEXT", maxLength: 5000, nullable: true),
-                    MetaDescription = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    PageTitle = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    NoIndex = table.Column<bool>(type: "INTEGER", nullable: false),
-                    OpenGraphImage = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    CanonicalUrl = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    ElementPropertyData = table.Column<string>(type: "TEXT", nullable: true),
-                    ViewAlias = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RootName = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProductOptions = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    TaxGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProductTypeId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    GoogleShoppingFeedCategory = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    RootImages = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    RootUrl = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    DefaultPackageConfigurations = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
+                    IsDigitalProduct = table.Column<bool>(type: "bit", nullable: false),
+                    AllowExternalCarrierShipping = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    Description = table.Column<string>(type: "nvarchar(max)", maxLength: 5000, nullable: true),
+                    MetaDescription = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    PageTitle = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    NoIndex = table.Column<bool>(type: "bit", nullable: false),
+                    OpenGraphImage = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    CanonicalUrl = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ElementPropertyData = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ViewAlias = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -711,12 +711,12 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShippingTaxOverrides",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    ShippingTaxGroupId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    ShippingTaxGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -733,13 +733,13 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloTaxGroupRates",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    TaxGroupId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    TaxPercentage = table.Column<decimal>(type: "TEXT", precision: 5, scale: 2, nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TaxGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    TaxPercentage = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -756,31 +756,31 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloOutboundDeliveries",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    DeliveryType = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ConfigurationId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Topic = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    EntityId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    EntityType = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    TargetUrl = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    RequestBody = table.Column<string>(type: "TEXT", nullable: true),
-                    RequestHeaders = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ResponseStatusCode = table.Column<int>(type: "INTEGER", nullable: true),
-                    ResponseBody = table.Column<string>(type: "TEXT", maxLength: 10000, nullable: true),
-                    ResponseHeaders = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: true),
-                    ErrorMessage = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateSent = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    DateCompleted = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    DurationMs = table.Column<int>(type: "INTEGER", nullable: false),
-                    AttemptNumber = table.Column<int>(type: "INTEGER", nullable: false),
-                    NextRetryUtc = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    EmailRecipients = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    EmailSubject = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    EmailFrom = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    EmailBody = table.Column<string>(type: "TEXT", nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DeliveryType = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ConfigurationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Topic = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    EntityId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    EntityType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    TargetUrl = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    RequestBody = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RequestHeaders = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ResponseStatusCode = table.Column<int>(type: "int", nullable: true),
+                    ResponseBody = table.Column<string>(type: "nvarchar(max)", maxLength: 10000, nullable: true),
+                    ResponseHeaders = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
+                    ErrorMessage = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateSent = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DateCompleted = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DurationMs = table.Column<int>(type: "int", nullable: false),
+                    AttemptNumber = table.Column<int>(type: "int", nullable: false),
+                    NextRetryUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    EmailRecipients = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    EmailSubject = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    EmailFrom = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    EmailBody = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -797,12 +797,12 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloDiscountUsages",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    DiscountId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    InvoiceId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    Amount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DiscountId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    InvoiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Amount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -825,37 +825,37 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloOrders",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    InvoiceId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ShippingOptionId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ShippingProviderKey = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    ShippingServiceCode = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    ShippingServiceName = table.Column<string>(type: "TEXT", maxLength: 255, nullable: true),
-                    ShippingServiceCategory = table.Column<int>(type: "INTEGER", nullable: true),
-                    ShippingCost = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    QuotedShippingCost = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    QuotedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    ShippingCostInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    RequestedDeliveryDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    IsDeliveryDateGuaranteed = table.Column<bool>(type: "INTEGER", nullable: true),
-                    DeliveryDateSurcharge = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    DeliveryDateSurchargeInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ProcessingStartedDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    ShippedDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CompletedDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CancelledDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CancellationReason = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    InternalNotes = table.Column<string>(type: "TEXT", maxLength: 2000, nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    FulfilmentProviderConfigurationId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    FulfilmentProviderReference = table.Column<string>(type: "TEXT", maxLength: 255, nullable: true),
-                    FulfilmentSubmittedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    FulfilmentErrorMessage = table.Column<string>(type: "TEXT", nullable: true),
-                    FulfilmentRetryCount = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    InvoiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShippingProviderKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ShippingServiceCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ShippingServiceName = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    ShippingServiceCategory = table.Column<int>(type: "int", nullable: true),
+                    ShippingCost = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    QuotedShippingCost = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    QuotedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ShippingCostInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    RequestedDeliveryDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsDeliveryDateGuaranteed = table.Column<bool>(type: "bit", nullable: true),
+                    DeliveryDateSurcharge = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    DeliveryDateSurchargeInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    Status = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ProcessingStartedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ShippedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CompletedDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CancelledDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CancellationReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    InternalNotes = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    FulfilmentProviderConfigurationId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    FulfilmentProviderReference = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
+                    FulfilmentSubmittedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    FulfilmentErrorMessage = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    FulfilmentRetryCount = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -878,29 +878,29 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloPayments",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    InvoiceId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Amount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    CurrencyCode = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false),
-                    AmountInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    SettlementCurrencyCode = table.Column<string>(type: "TEXT", maxLength: 3, nullable: true),
-                    SettlementExchangeRate = table.Column<decimal>(type: "TEXT", precision: 18, scale: 8, nullable: true),
-                    SettlementAmount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    SettlementExchangeRateSource = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    PaymentMethod = table.Column<string>(type: "TEXT", maxLength: 350, nullable: true),
-                    PaymentProviderAlias = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    PaymentType = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    TransactionId = table.Column<string>(type: "TEXT", maxLength: 350, nullable: true),
-                    FraudResponse = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    RiskScore = table.Column<decimal>(type: "TEXT", precision: 5, scale: 2, nullable: true),
-                    RiskScoreSource = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    Description = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    PaymentSuccess = table.Column<bool>(type: "INTEGER", nullable: false),
-                    RefundReason = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    ParentPaymentId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    IdempotencyKey = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    WebhookEventId = table.Column<string>(type: "TEXT", maxLength: 255, nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    InvoiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    CurrencyCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
+                    AmountInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    SettlementCurrencyCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: true),
+                    SettlementExchangeRate = table.Column<decimal>(type: "decimal(18,8)", precision: 18, scale: 8, nullable: true),
+                    SettlementAmount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    SettlementExchangeRateSource = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    PaymentMethod = table.Column<string>(type: "nvarchar(350)", maxLength: 350, nullable: true),
+                    PaymentProviderAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    PaymentType = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    TransactionId = table.Column<string>(type: "nvarchar(350)", maxLength: 350, nullable: true),
+                    FraudResponse = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    RiskScore = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: true),
+                    RiskScoreSource = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    PaymentSuccess = table.Column<bool>(type: "bit", nullable: false),
+                    RefundReason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ParentPaymentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IdempotencyKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    WebhookEventId = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -923,16 +923,16 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloWarehouses",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    SupplierId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    FulfilmentProviderConfigurationId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 250, nullable: true),
-                    Code = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    Address = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    AutomationMethod = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    SupplierId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    FulfilmentProviderConfigurationId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
+                    Code = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    AutomationMethod = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -955,8 +955,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductRootCollections",
                 columns: table => new
                 {
-                    CollectionId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProductRootId = table.Column<Guid>(type: "TEXT", nullable: false)
+                    CollectionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProductRootId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -979,34 +979,34 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProducts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProductRootId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Default = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 500, nullable: false),
-                    CostOfGoods = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    Price = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    OnSale = table.Column<bool>(type: "INTEGER", nullable: false),
-                    PreviousPrice = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    AvailableForPurchase = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CanPurchase = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Images = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
-                    ExcludeRootProductImages = table.Column<bool>(type: "INTEGER", nullable: false),
-                    Gtin = table.Column<string>(type: "TEXT", maxLength: 150, nullable: true),
-                    Sku = table.Column<string>(type: "TEXT", maxLength: 150, nullable: true),
-                    SupplierSku = table.Column<string>(type: "TEXT", maxLength: 150, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ShoppingFeedTitle = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
-                    ShoppingFeedDescription = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    ShoppingFeedColour = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    ShoppingFeedMaterial = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    ShoppingFeedSize = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    RemoveFromFeed = table.Column<bool>(type: "INTEGER", nullable: false),
-                    VariantOptionsKey = table.Column<string>(type: "TEXT", maxLength: 1500, nullable: true),
-                    Url = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
-                    ShippingRestrictionMode = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    HsCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: true),
-                    PackageConfigurations = table.Column<string>(type: "TEXT", maxLength: 4000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProductRootId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Default = table.Column<bool>(type: "bit", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    CostOfGoods = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    Price = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    OnSale = table.Column<bool>(type: "bit", nullable: false),
+                    PreviousPrice = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    AvailableForPurchase = table.Column<bool>(type: "bit", nullable: false),
+                    CanPurchase = table.Column<bool>(type: "bit", nullable: false),
+                    Images = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    ExcludeRootProductImages = table.Column<bool>(type: "bit", nullable: false),
+                    Gtin = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    Sku = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    SupplierSku = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ShoppingFeedTitle = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    ShoppingFeedDescription = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ShoppingFeedColour = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ShoppingFeedMaterial = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    ShoppingFeedSize = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    RemoveFromFeed = table.Column<bool>(type: "bit", nullable: false),
+                    VariantOptionsKey = table.Column<string>(type: "nvarchar(1500)", maxLength: 1500, nullable: true),
+                    Url = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ShippingRestrictionMode = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    HsCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: true),
+                    PackageConfigurations = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1023,27 +1023,27 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloLineItems",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    InvoiceId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    OrderId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    Sku = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
-                    ProductId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    DependantLineItemSku = table.Column<string>(type: "TEXT", nullable: true),
-                    LineItemType = table.Column<int>(type: "INTEGER", nullable: false),
-                    Quantity = table.Column<int>(type: "INTEGER", nullable: false),
-                    Amount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    AmountInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    Cost = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
-                    CostInStoreCurrency = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    OriginalAmount = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    OriginalAmountInStoreCurrency = table.Column<decimal>(type: "TEXT", nullable: true),
-                    IsTaxable = table.Column<bool>(type: "INTEGER", nullable: false),
-                    TaxRate = table.Column<decimal>(type: "TEXT", precision: 5, scale: 2, nullable: false),
-                    TaxGroupId = table.Column<Guid>(type: "TEXT", nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    InvoiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    OrderId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Sku = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ProductId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DependantLineItemSku = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    LineItemType = table.Column<int>(type: "int", nullable: false),
+                    Quantity = table.Column<int>(type: "int", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    AmountInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    Cost = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
+                    CostInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    OriginalAmount = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    OriginalAmountInStoreCurrency = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    IsTaxable = table.Column<bool>(type: "bit", nullable: false),
+                    TaxRate = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    TaxGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ExtendedData = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1065,9 +1065,9 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductRootWarehouse",
                 columns: table => new
                 {
-                    ProductRootId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    PriorityOrder = table.Column<int>(type: "INTEGER", nullable: false)
+                    ProductRootId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PriorityOrder = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1090,22 +1090,22 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShipments",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    OrderId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    LineItems = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    Address = table.Column<string>(type: "TEXT", maxLength: 1500, nullable: false),
-                    CourierId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    TrackingNumber = table.Column<string>(type: "TEXT", nullable: true),
-                    TrackingUrl = table.Column<string>(type: "TEXT", nullable: true),
-                    Carrier = table.Column<string>(type: "TEXT", nullable: true),
-                    RequestedDeliveryDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    IsDeliveryDateGuaranteed = table.Column<bool>(type: "INTEGER", nullable: true),
-                    ActualDeliveryDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    ExtendedData = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    Status = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    ShippedDate = table.Column<DateTime>(type: "TEXT", nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    OrderId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    LineItems = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    Address = table.Column<string>(type: "nvarchar(1500)", maxLength: 1500, nullable: false),
+                    CourierId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    TrackingNumber = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TrackingUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Carrier = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RequestedDeliveryDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsDeliveryDateGuaranteed = table.Column<bool>(type: "bit", nullable: true),
+                    ActualDeliveryDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ExtendedData = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    ShippedDate = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1128,27 +1128,27 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShippingOptions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", maxLength: 350, nullable: true),
-                    ProviderKey = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false, defaultValue: "flat-rate"),
-                    ProviderSettings = table.Column<string>(type: "TEXT", nullable: true),
-                    ServiceType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    IsEnabled = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
-                    FixedCost = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: true),
-                    CalculationMethod = table.Column<string>(type: "TEXT", maxLength: 1500, nullable: true),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    DaysFrom = table.Column<int>(type: "INTEGER", nullable: false),
-                    DaysTo = table.Column<int>(type: "INTEGER", nullable: false),
-                    IsNextDay = table.Column<bool>(type: "INTEGER", nullable: false),
-                    NextDayCutOffTime = table.Column<TimeSpan>(type: "TEXT", nullable: true),
-                    AllowsDeliveryDateSelection = table.Column<bool>(type: "INTEGER", nullable: false),
-                    MinDeliveryDays = table.Column<int>(type: "INTEGER", nullable: true),
-                    MaxDeliveryDays = table.Column<int>(type: "INTEGER", nullable: true),
-                    AllowedDaysOfWeek = table.Column<string>(type: "TEXT", nullable: true),
-                    IsDeliveryDateGuaranteed = table.Column<bool>(type: "INTEGER", nullable: false),
-                    DeliveryDatePricingMethod = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreateDate = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(350)", maxLength: 350, nullable: true),
+                    ProviderKey = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false, defaultValue: "flat-rate"),
+                    ProviderSettings = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ServiceType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    FixedCost = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    CalculationMethod = table.Column<string>(type: "nvarchar(1500)", maxLength: 1500, nullable: true),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    DaysFrom = table.Column<int>(type: "int", nullable: false),
+                    DaysTo = table.Column<int>(type: "int", nullable: false),
+                    IsNextDay = table.Column<bool>(type: "bit", nullable: false),
+                    NextDayCutOffTime = table.Column<TimeSpan>(type: "time", nullable: true),
+                    AllowsDeliveryDateSelection = table.Column<bool>(type: "bit", nullable: false),
+                    MinDeliveryDays = table.Column<int>(type: "int", nullable: true),
+                    MaxDeliveryDays = table.Column<int>(type: "int", nullable: true),
+                    AllowedDaysOfWeek = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IsDeliveryDateGuaranteed = table.Column<bool>(type: "bit", nullable: false),
+                    DeliveryDatePricingMethod = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1165,11 +1165,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloWarehouseServiceRegions",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
-                    IsExcluded = table.Column<bool>(type: "INTEGER", nullable: false)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    IsExcluded = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1186,8 +1186,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductFiltersProducts",
                 columns: table => new
                 {
-                    FilterId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProductId = table.Column<Guid>(type: "TEXT", nullable: false)
+                    FilterId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProductId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1210,14 +1210,14 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductWarehouse",
                 columns: table => new
                 {
-                    ProductId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Stock = table.Column<int>(type: "INTEGER", nullable: false),
-                    ReorderPoint = table.Column<int>(type: "INTEGER", nullable: true),
-                    ReorderQuantity = table.Column<int>(type: "INTEGER", nullable: true),
-                    TrackStock = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
-                    ReservedStock = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    RowVersion = table.Column<byte[]>(type: "BLOB", nullable: false)
+                    ProductId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Stock = table.Column<int>(type: "int", nullable: false),
+                    ReorderPoint = table.Column<int>(type: "int", nullable: true),
+                    ReorderQuantity = table.Column<int>(type: "int", nullable: true),
+                    TrackStock = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    ReservedStock = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    RowVersion = table.Column<byte[]>(type: "varbinary(max)", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1240,11 +1240,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductWarehousePriceOverride",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProductId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Price = table.Column<decimal>(type: "TEXT", nullable: true),
-                    CostOfGoods = table.Column<decimal>(type: "TEXT", nullable: true)
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProductId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Price = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    CostOfGoods = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1267,8 +1267,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductAllowedShippingOptions",
                 columns: table => new
                 {
-                    AllowedShippingOptionsId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ProductId = table.Column<Guid>(type: "TEXT", nullable: false)
+                    AllowedShippingOptionsId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ProductId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1291,8 +1291,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductExcludedShippingOptions",
                 columns: table => new
                 {
-                    ExcludedShippingOptionsId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    Product1Id = table.Column<Guid>(type: "TEXT", nullable: false)
+                    ExcludedShippingOptionsId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Product1Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1315,8 +1315,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloProductRootShippingOptions",
                 columns: table => new
                 {
-                    ProductRootId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ShippingOptionId = table.Column<Guid>(type: "TEXT", nullable: false)
+                    ProductRootId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1339,11 +1339,11 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShippingCosts",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     Cost = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
-                    ShippingOptionId = table.Column<Guid>(type: "TEXT", nullable: false)
+                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1360,10 +1360,10 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShippingOptionCountries",
                 columns: table => new
                 {
-                    ShippingOptionId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
-                    Country_Name = table.Column<string>(type: "TEXT", nullable: true),
-                    Country_CountryCode = table.Column<string>(type: "TEXT", nullable: true)
+                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    Country_Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Country_CountryCode = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1380,15 +1380,15 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShippingWeightTiers",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "TEXT", nullable: false),
-                    ShippingOptionId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CountryCode = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
+                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     MinWeightKg = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
                     MaxWeightKg = table.Column<decimal>(type: "decimal(18,4)", nullable: true),
                     Surcharge = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
-                    CreateDate = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1405,17 +1405,18 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "merchelloShippingOptionCountries_CountyStates",
                 columns: table => new
                 {
-                    CountryShippingOptionCountryShippingOptionId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    CountryShippingOptionCountryCountryCode = table.Column<string>(type: "TEXT", nullable: false),
-                    Id = table.Column<int>(type: "INTEGER", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: true),
-                    RegionCode = table.Column<string>(type: "TEXT", nullable: true)
+                    CountryShippingOptionCountryShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    CountryShippingOptionCountryCountryCode = table.Column<string>(type: "nvarchar(10)", nullable: false),
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RegionCode = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_merchelloShippingOptionCountries_CountyStates", x => new { x.CountryShippingOptionCountryShippingOptionId, x.CountryShippingOptionCountryCountryCode, x.Id });
                     table.ForeignKey(
-                        name: "FK_merchelloShippingOptionCountries_CountyStates_merchelloShippingOptionCountries_CountryShippingOptionCountryShippingOptionId_CountryShippingOptionCountryCountryCode",
+                        name: "FK_merchelloShippingOptionCountries_CountyStates_merchelloShippingOptionCountries_CountryShippingOptionCountryShippingOptionId_~",
                         columns: x => new { x.CountryShippingOptionCountryShippingOptionId, x.CountryShippingOptionCountryCountryCode },
                         principalTable: "merchelloShippingOptionCountries",
                         principalColumns: new[] { "ShippingOptionId", "CountryCode" },
@@ -1938,7 +1939,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "IX_merchelloShippingTaxOverrides_CountryCode_StateOrProvinceCode",
                 table: "merchelloShippingTaxOverrides",
                 columns: new[] { "CountryCode", "StateOrProvinceCode" },
-                unique: true);
+                unique: true,
+                filter: "[StateOrProvinceCode] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloShippingTaxOverrides_ShippingTaxGroupId",
@@ -1975,7 +1977,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "IX_merchelloTaxGroupRates_TaxGroupId_CountryCode_StateOrProvinceCode",
                 table: "merchelloTaxGroupRates",
                 columns: new[] { "TaxGroupId", "CountryCode", "StateOrProvinceCode" },
-                unique: true);
+                unique: true,
+                filter: "[StateOrProvinceCode] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloTaxProviders_IsActive",
@@ -1998,7 +2001,8 @@ namespace Merchello.Core.Sqlite.Migrations
                 name: "IX_merchelloWarehouses_Code",
                 table: "merchelloWarehouses",
                 column: "Code",
-                unique: true);
+                unique: true,
+                filter: "[Code] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloWarehouses_FulfilmentProviderConfigurationId",

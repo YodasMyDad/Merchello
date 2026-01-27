@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.Sqlite.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20260125091338_Initial")]
+    [Migration("20260127142435_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -237,6 +237,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("OriginalAmountInStoreCurrency")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("ProductId")
@@ -619,7 +620,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("BasketId")
+                    b.Property<Guid?>("BasketId")
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("BasketTotal")
@@ -1874,9 +1875,11 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("CostOfGoods")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("Price")
+                        .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ProductId")

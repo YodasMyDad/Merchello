@@ -11,6 +11,7 @@ using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Payment;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -171,9 +172,12 @@ public class DigitalProductPaymentHandler(
         if (productIds.Count == 0)
             return false;
 
-        // Batch load all products to avoid N+1 queries
-        var products = await Task.WhenAll(
-            productIds.Select(id => productService.GetProductRoot(id, cancellationToken: ct)));
+        // Load products sequentially - EFCore scopes are not thread-safe for concurrent access
+        var products = new List<ProductRoot?>();
+        foreach (var id in productIds)
+        {
+            products.Add(await productService.GetProductRoot(id, cancellationToken: ct));
+        }
 
         return products.Any(p => p != null && p.IsDigitalProduct && p.HasDigitalFiles());
     }

@@ -7,6 +7,7 @@ using Merchello.Core.DigitalProducts.Factories;
 using Merchello.Core.DigitalProducts.Models;
 using Merchello.Core.DigitalProducts.Services.Interfaces;
 using Merchello.Core.DigitalProducts.Services.Parameters;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -103,12 +104,14 @@ public class DigitalProductService(
             .Distinct()
             .ToList();
 
-        // Batch load all products to avoid N+1 queries
-        var productTasks = productIds.Select(id => productService.GetProductRoot(id, cancellationToken: ct));
-        var productsArray = await Task.WhenAll(productTasks);
-        var products = productIds.Zip(productsArray, (id, product) => (id, product))
-            .Where(x => x.product != null)
-            .ToDictionary(x => x.id, x => x.product!);
+        // Load products sequentially - EFCore scopes are not thread-safe for concurrent access
+        var products = new Dictionary<Guid, ProductRoot>();
+        foreach (var id in productIds)
+        {
+            var product = await productService.GetProductRoot(id, cancellationToken: ct);
+            if (product != null)
+                products[id] = product;
+        }
 
         foreach (var lineItem in lineItems.Where(li => li.ProductId.HasValue))
         {
@@ -384,9 +387,12 @@ public class DigitalProductService(
         if (productIds.Count == 0)
             return false;
 
-        // Batch load all products to avoid N+1 queries
-        var productsArray = await Task.WhenAll(
-            productIds.Select(id => productService.GetProductRoot(id, cancellationToken: ct)));
+        // Load products sequentially - EFCore scopes are not thread-safe for concurrent access
+        var productsArray = new List<ProductRoot?>();
+        foreach (var id in productIds)
+        {
+            productsArray.Add(await productService.GetProductRoot(id, cancellationToken: ct));
+        }
 
         // Return false if any product is physical (not digital)
         return productsArray.All(p => p == null || p.IsDigitalProduct);
