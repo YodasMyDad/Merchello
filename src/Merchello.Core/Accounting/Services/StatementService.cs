@@ -104,8 +104,8 @@ public class StatementService(
                         transactions.Add((
                             Date: payment.DateCreated,
                             Type: isRefund ? "Refund" : "Payment",
-                            Reference: payment.TransactionId ?? $"PMT-{payment.Id.ToString()[..8]}",
-                            Description: GetPaymentDescription(payment, invoice.InvoiceNumber),
+                            Reference: invoice.InvoiceNumber,
+                            Description: payment.PaymentMethod ?? payment.PaymentProviderAlias ?? "Payment",
                             Debit: isRefund ? Math.Abs(payment.Amount) : null,
                             Credit: isRefund ? null : payment.Amount
                         ));
@@ -465,12 +465,6 @@ public class StatementService(
         return orderCount > 0
             ? $"Invoice for {orderCount} order{(orderCount > 1 ? "s" : "")}"
             : "Invoice";
-    }
-
-    private static string GetPaymentDescription(Payment payment, string invoiceNumber)
-    {
-        var method = payment.PaymentMethod ?? payment.PaymentProviderAlias ?? "Payment";
-        return $"{method} - {invoiceNumber}";
     }
 
     private static string GetCustomerName(string? firstName, string? lastName, string email)
