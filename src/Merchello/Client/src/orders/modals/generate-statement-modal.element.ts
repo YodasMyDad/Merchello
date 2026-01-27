@@ -102,7 +102,9 @@ export class MerchelloGenerateStatementModalElement extends UmbModalBaseElement<
     const link = document.createElement("a");
     link.href = url;
     link.download = filename ?? "statement.pdf";
+    link.style.display = "none";
     document.body.appendChild(link);
+    link.addEventListener("click", (e) => e.stopPropagation(), { once: true });
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
