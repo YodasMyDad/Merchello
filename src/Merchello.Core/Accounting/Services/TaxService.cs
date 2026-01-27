@@ -80,10 +80,11 @@ public class TaxService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.TaxGroups.Add(taxGroup);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -115,7 +116,7 @@ public class TaxService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.TaxGroups
                 .FirstOrDefaultAsync(tg => tg.Id == taxGroup.Id, cancellationToken);
@@ -123,14 +124,14 @@ public class TaxService(
             if (existing == null)
             {
                 result.AddErrorMessage("Tax group not found");
-                return;
+                return false;
             }
 
             // Validate rate
             if (taxGroup.TaxPercentage < 0 || taxGroup.TaxPercentage > 100)
             {
                 result.AddErrorMessage("Tax rate must be between 0 and 100");
-                return;
+                return false;
             }
 
             existing.Name = taxGroup.Name;
@@ -139,6 +140,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = existing;
+            return true;
         });
         scope.Complete();
 
@@ -170,7 +172,7 @@ public class TaxService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.TaxGroups
                 .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, cancellationToken);
@@ -178,7 +180,7 @@ public class TaxService(
             if (existing == null)
             {
                 result.AddErrorMessage("Tax group not found");
-                return;
+                return false;
             }
 
             // Publish saving notification (cancelable)
@@ -186,7 +188,7 @@ public class TaxService(
             if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Tax group update was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             existing.Name = name;
@@ -195,6 +197,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = existing;
+            return true;
         });
         scope.Complete();
 
@@ -218,7 +221,7 @@ public class TaxService(
         string taxGroupName = string.Empty;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var taxGroup = await db.TaxGroups
                 .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, cancellationToken);
@@ -226,7 +229,7 @@ public class TaxService(
             if (taxGroup == null)
             {
                 result.AddErrorMessage("Tax group not found");
-                return;
+                return false;
             }
 
             // Check if tax group is in use
@@ -236,7 +239,7 @@ public class TaxService(
             if (productsUsingTaxGroup)
             {
                 result.AddErrorMessage("Cannot delete tax group - it is in use by products");
-                return;
+                return false;
             }
 
             // Publish deleting notification (cancelable)
@@ -244,7 +247,7 @@ public class TaxService(
             if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Tax group deletion was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             // Capture name for deleted notification (before entity is removed)
@@ -254,6 +257,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -387,7 +391,7 @@ public class TaxService(
         var normalizedState = string.IsNullOrWhiteSpace(stateOrProvinceCode) ? null : stateOrProvinceCode.Trim();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Check if tax group exists
             var taxGroupExists = await db.TaxGroups
@@ -396,7 +400,7 @@ public class TaxService(
             if (!taxGroupExists)
             {
                 result.AddErrorMessage("Tax group not found");
-                return;
+                return false;
             }
 
             // Check for duplicate rate
@@ -410,7 +414,7 @@ public class TaxService(
             if (duplicateExists)
             {
                 result.AddErrorMessage("A rate for this location already exists");
-                return;
+                return false;
             }
 
             var rate = new TaxGroupRate
@@ -425,6 +429,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = rate;
+            return true;
         });
         scope.Complete();
 
@@ -449,7 +454,7 @@ public class TaxService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.TaxGroupRates
                 .FirstOrDefaultAsync(r => r.Id == rateId, cancellationToken);
@@ -457,7 +462,7 @@ public class TaxService(
             if (existing == null)
             {
                 result.AddErrorMessage("Tax rate not found");
-                return;
+                return false;
             }
 
             existing.TaxPercentage = taxPercentage;
@@ -466,6 +471,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = existing;
+            return true;
         });
         scope.Complete();
 
@@ -482,7 +488,7 @@ public class TaxService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var rate = await db.TaxGroupRates
                 .FirstOrDefaultAsync(r => r.Id == rateId, cancellationToken);
@@ -490,13 +496,14 @@ public class TaxService(
             if (rate == null)
             {
                 result.AddErrorMessage("Tax rate not found");
-                return;
+                return false;
             }
 
             db.TaxGroupRates.Remove(rate);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -624,7 +631,7 @@ public class TaxService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Check for duplicate
             var duplicateExists = await db.ShippingTaxOverrides
@@ -636,7 +643,7 @@ public class TaxService(
             if (duplicateExists)
             {
                 result.AddErrorMessage("A shipping tax override for this location already exists");
-                return;
+                return false;
             }
 
             // Validate tax group exists if specified
@@ -648,7 +655,7 @@ public class TaxService(
                 if (!taxGroupExists)
                 {
                     result.AddErrorMessage("Tax group not found");
-                    return;
+                    return false;
                 }
             }
 
@@ -656,6 +663,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = entity;
+            return true;
         });
         scope.Complete();
 
@@ -680,7 +688,7 @@ public class TaxService(
         var result = new CrudResult<ShippingTaxOverride>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.ShippingTaxOverrides
                 .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
@@ -688,7 +696,7 @@ public class TaxService(
             if (existing == null)
             {
                 result.AddErrorMessage("Shipping tax override not found");
-                return;
+                return false;
             }
 
             // Publish saving notification (cancelable)
@@ -696,7 +704,7 @@ public class TaxService(
             if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Shipping tax override update was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             // Validate tax group exists if specified
@@ -708,7 +716,7 @@ public class TaxService(
                 if (!taxGroupExists)
                 {
                     result.AddErrorMessage("Tax group not found");
-                    return;
+                    return false;
                 }
             }
 
@@ -718,6 +726,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = existing;
+            return true;
         });
         scope.Complete();
 
@@ -743,7 +752,7 @@ public class TaxService(
         string? stateOrProvinceCode = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var entity = await db.ShippingTaxOverrides
                 .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
@@ -751,7 +760,7 @@ public class TaxService(
             if (entity == null)
             {
                 result.AddErrorMessage("Shipping tax override not found");
-                return;
+                return false;
             }
 
             // Publish deleting notification (cancelable)
@@ -759,7 +768,7 @@ public class TaxService(
             if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Shipping tax override deletion was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             // Capture details for deleted notification
@@ -770,6 +779,7 @@ public class TaxService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 

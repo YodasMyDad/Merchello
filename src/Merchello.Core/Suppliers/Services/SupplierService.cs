@@ -81,10 +81,11 @@ public class SupplierService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Suppliers.Add(supplier);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -139,10 +140,10 @@ public class SupplierService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var toUpdate = await db.Suppliers.FirstOrDefaultAsync(s => s.Id == parameters.SupplierId, cancellationToken);
-            if (toUpdate == null) return;
+            if (toUpdate == null) return false;
 
             if (parameters.Name != null)
                 toUpdate.Name = parameters.Name;
@@ -170,6 +171,7 @@ public class SupplierService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = toUpdate;
+            return true;
         });
         scope.Complete();
 
@@ -240,13 +242,13 @@ public class SupplierService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var supplier = await db.Suppliers
                 .Include(s => s.Warehouses)
                 .FirstOrDefaultAsync(s => s.Id == supplierId, cancellationToken);
 
-            if (supplier == null) return;
+            if (supplier == null) return false;
 
             // Force delete - unlink warehouses (set SupplierId to null)
             if (supplier.Warehouses.Any())
@@ -268,6 +270,7 @@ public class SupplierService(
             result.ResultObject = true;
 
             logger.LogInformation("Deleted supplier {SupplierId} ({SupplierName})", supplierId, supplier.Name);
+            return true;
         });
         scope.Complete();
 

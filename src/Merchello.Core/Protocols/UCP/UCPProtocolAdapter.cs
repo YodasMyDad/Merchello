@@ -6,6 +6,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
@@ -14,6 +15,7 @@ using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
+using Merchello.Core.Protocols.Notifications;
 using Merchello.Core.Protocols.Payments;
 using Merchello.Core.Protocols.Payments.Interfaces;
 using Merchello.Core.Protocols.UCP.Dtos;
@@ -45,6 +47,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     private readonly ISigningKeyStore _signingKeyStore;
     private readonly IUcpAgentProfileService _agentProfileService;
     private readonly LineItemFactory _lineItemFactory;
+    private readonly IMerchelloNotificationPublisher _notificationPublisher;
     private readonly ILogger<UCPProtocolAdapter> _logger;
     private readonly ProtocolSettings _protocolSettings;
     private readonly MerchelloSettings _merchelloSettings;
@@ -60,6 +63,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         ISigningKeyStore signingKeyStore,
         IUcpAgentProfileService agentProfileService,
         LineItemFactory lineItemFactory,
+        IMerchelloNotificationPublisher notificationPublisher,
         ILogger<UCPProtocolAdapter> logger,
         IOptions<ProtocolSettings> protocolSettings,
         IOptions<MerchelloSettings> merchelloSettings)
@@ -74,6 +78,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         _signingKeyStore = signingKeyStore;
         _agentProfileService = agentProfileService;
         _lineItemFactory = lineItemFactory;
+        _notificationPublisher = notificationPublisher;
         _logger = logger;
         _protocolSettings = protocolSettings.Value;
         _merchelloSettings = merchelloSettings.Value;
@@ -142,6 +147,15 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     {
         try
         {
+            // Publish "Creating" notification - handlers can cancel
+            var creatingNotification = new ProtocolSessionCreatingNotification(
+                request, ProtocolConstants.Protocols.Ucp, agentIdentity);
+            if (await _notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
+            {
+                return ProtocolResponse.BadRequest(
+                    creatingNotification.CancelReason ?? "Session creation cancelled");
+            }
+
             var ucpRequest = request as UcpCreateSessionRequestDto;
 
             // Determine currency - use request currency or store default
@@ -184,6 +198,10 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             {
                 return ProtocolResponse.NotFound("Failed to create session");
             }
+
+            // Publish "Created" notification
+            await _notificationPublisher.PublishAsync(
+                new ProtocolSessionCreatedNotification(sessionState, ProtocolConstants.Protocols.Ucp, agentIdentity), ct);
 
             return ProtocolResponse.Created(WrapInEnvelope(sessionState));
         }
@@ -228,6 +246,15 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
         try
         {
+            // Publish "Updating" notification - handlers can cancel
+            var updatingNotification = new ProtocolSessionUpdatingNotification(
+                sessionId, request, ProtocolConstants.Protocols.Ucp, agentIdentity);
+            if (await _notificationPublisher.PublishCancelableAsync(updatingNotification, ct))
+            {
+                return ProtocolResponse.BadRequest(
+                    updatingNotification.CancelReason ?? "Session update cancelled");
+            }
+
             // Load the basket
             var basket = await _checkoutService.GetBasketByIdAsync(basketId, ct);
             if (basket == null)
@@ -300,6 +327,10 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 return ProtocolResponse.NotFound($"Session '{sessionId}' not found after update");
             }
 
+            // Publish "Updated" notification
+            await _notificationPublisher.PublishAsync(
+                new ProtocolSessionUpdatedNotification(sessionState, ProtocolConstants.Protocols.Ucp, agentIdentity), ct);
+
             return ProtocolResponse.Ok(WrapInEnvelope(sessionState));
         }
         catch (Exception ex)
@@ -323,6 +354,15 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
         try
         {
+            // Publish "Completing" notification - handlers can cancel
+            var completingNotification = new ProtocolSessionCompletingNotification(
+                sessionId, paymentData, ProtocolConstants.Protocols.Ucp, agentIdentity);
+            if (await _notificationPublisher.PublishCancelableAsync(completingNotification, ct))
+            {
+                return ProtocolResponse.BadRequest(
+                    completingNotification.CancelReason ?? "Session completion cancelled");
+            }
+
             // Get basket
             var basket = await _checkoutService.GetBasketByIdAsync(basketId, ct);
             if (basket == null)
@@ -443,6 +483,11 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 sessionId,
                 invoice.Id,
                 invoice.InvoiceNumber);
+
+            // Publish "Completed" notification
+            await _notificationPublisher.PublishAsync(
+                new ProtocolSessionCompletedNotification(
+                    sessionState, invoice.Id.ToString(), ProtocolConstants.Protocols.Ucp, agentIdentity), ct);
 
             // Return UCP-formatted completion response
             return ProtocolResponse.Ok(new

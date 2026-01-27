@@ -712,6 +712,7 @@ export const MerchelloApi = {
       creditLimitExceeded: boolean;
       availableCredit: number | null;
       creditUtilizationPercent: number | null;
+      creditWarningLevel: string;
     }>(`customers/${customerId}/outstanding`),
 
   /** Get outstanding invoices for a specific customer */

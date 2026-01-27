@@ -2,11 +2,8 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
-using Merchello.Core.Checkout.Models;
-using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
-using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -484,7 +481,7 @@ public class StorefrontApiController(
         }
 
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        if (basket == null || basket.LineItems.Count == 0)
+        if (basket == null)
         {
             return Ok(new EstimatedShippingDto
             {
@@ -493,43 +490,22 @@ public class StorefrontApiController(
             });
         }
 
-        // Create minimal checkout session with shipping address
-        var session = new CheckoutSession
+        // Delegate to service for shipping estimation (business logic now centralized)
+        var result = await checkoutService.GetEstimatedShippingAsync(new GetEstimatedShippingParameters
         {
-            BasketId = basket.Id,
-            ShippingAddress = new Address
-            {
-                CountryCode = countryCode,
-                CountyState = new CountyState
-                {
-                    RegionCode = regionCode
-                }
-            }
-        };
+            Basket = basket,
+            CountryCode = countryCode,
+            RegionCode = regionCode
+        }, ct);
 
-        // Get order groups with shipping options
-        var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, session, ct);
-        if (!groupingResult.Success || groupingResult.Groups.Count == 0)
+        if (!result.Success)
         {
             return Ok(new EstimatedShippingDto
             {
                 Success = false,
-                Message = groupingResult.Errors.FirstOrDefault() ?? "Unable to calculate shipping"
+                Message = result.ErrorMessage
             });
         }
-
-        // Auto-select cheapest option for each group
-        var selections = ShippingAutoSelector.SelectOptions(groupingResult.Groups, ShippingAutoSelectStrategy.Cheapest);
-        var estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, selections);
-
-        // Update basket with estimated shipping so basket.Total is consistent
-        // This ensures GetBasket and GetEstimatedShipping return aligned totals
-        await checkoutService.CalculateBasketAsync(new CalculateBasketParameters
-        {
-            Basket = basket,
-            CountryCode = countryCode,
-            ShippingAmountOverride = estimatedShipping
-        }, ct);
 
         // Get full display context for currency conversion and tax-inclusive settings
         var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
@@ -537,13 +513,13 @@ public class StorefrontApiController(
 
         // Use centralized method for basket totals (includes tax-inclusive calculations)
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
-        var displayEstimatedShipping = currencyConversion.Convert(estimatedShipping, displayContext.ExchangeRate, displayContext.CurrencyCode);
+        var displayEstimatedShipping = currencyConversion.Convert(result.EstimatedShipping, displayContext.ExchangeRate, displayContext.CurrencyCode);
 
         return Ok(new EstimatedShippingDto
         {
             Success = true,
-            EstimatedShipping = estimatedShipping,
-            FormattedEstimatedShipping = currencyConversion.Format(estimatedShipping, _settings.CurrencySymbol),
+            EstimatedShipping = result.EstimatedShipping,
+            FormattedEstimatedShipping = currencyConversion.Format(result.EstimatedShipping, _settings.CurrencySymbol),
             DisplayEstimatedShipping = displayEstimatedShipping,
             FormattedDisplayEstimatedShipping = currencyConversion.Format(displayEstimatedShipping, symbol),
             DisplayTotal = displayAmounts.Total,
@@ -559,7 +535,7 @@ public class StorefrontApiController(
             TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
             FormattedTaxInclusiveDisplayDiscount = currencyConversion.Format(displayAmounts.TaxInclusiveDiscount, symbol),
             TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
-            GroupCount = groupingResult.Groups.Count
+            GroupCount = result.GroupCount
         });
     }
 

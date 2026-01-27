@@ -378,73 +378,67 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
   }
 
   override render() {
-    if (this._isLoading) {
-      return html`
-        <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
-            <div class="loading">
-              <uui-loader></uui-loader>
-              <span>Loading payment providers...</span>
-            </div>
-          </div>
-        </umb-body-layout>
-      `;
-    }
-
-    if (this._errorMessage) {
-      return html`
-        <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
-            <uui-box>
-              <div class="error">
-                <uui-icon name="icon-alert"></uui-icon>
-                <span>${this._errorMessage}</span>
-                <uui-button look="primary" label="Retry" @click=${this._loadProviders}>
-                  Retry
-                </uui-button>
-              </div>
-            </uui-box>
-          </div>
-        </umb-body-layout>
-      `;
-    }
-
+    const isReady = !this._isLoading && !this._errorMessage;
     const unconfiguredProviders = this._getUnconfiguredProviders();
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
       <div class="content">
-      <merchello-checkout-payment-preview></merchello-checkout-payment-preview>
-      <uui-box headline="Configured Payment Providers">
-        <p class="section-description">
-          These payment providers are installed and configured.
-          Toggle the switch to show or hide a provider from checkout.
-          Drag to reorder how providers appear.
-        </p>
-        <div class="providers-list configured">
-          ${this._configuredProviders.length === 0
-            ? html`<p class="no-items">No payment providers configured yet.</p>`
-            : this._configuredProviders.map((setting) =>
-                this._renderConfiguredProvider(setting)
-              )}
-        </div>
-      </uui-box>
+        ${this._isLoading
+          ? html`<div class="loading">
+              <uui-loader></uui-loader>
+              <span>Loading payment providers...</span>
+            </div>`
+          : this._errorMessage
+            ? html`<uui-box>
+                <div class="error">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errorMessage}</span>
+                  <uui-button look="primary" label="Retry" @click=${this._loadProviders}>
+                    Retry
+                  </uui-button>
+                </div>
+              </uui-box>`
+            : nothing}
 
-      <uui-box headline="Available Payment Providers">
-        <p class="section-description">
-          These payment providers are available but not yet configured.
-          Click "Install" to configure and add a provider.
-        </p>
-        ${unconfiguredProviders.length === 0
-          ? html`<p class="no-items">All available providers have been configured.</p>`
-          : html`
-              <div class="providers-list">
-                ${unconfiguredProviders.map((provider) =>
-                  this._renderAvailableProvider(provider)
-                )}
-              </div>
-            `}
-      </uui-box>
+        ${isReady
+          ? html`<merchello-checkout-payment-preview></merchello-checkout-payment-preview>`
+          : nothing}
+
+        <uui-box headline="Configured Payment Providers" ?hidden=${!isReady}>
+          <p class="section-description">
+            These payment providers are installed and configured.
+            Toggle the switch to show or hide a provider from checkout.
+            Drag to reorder how providers appear.
+          </p>
+          <!-- Always render container for sorter -->
+          <div class="providers-list configured">
+            ${isReady
+              ? this._configuredProviders.length === 0
+                ? html`<p class="no-items">No payment providers configured yet.</p>`
+                : this._configuredProviders.map((setting) =>
+                    this._renderConfiguredProvider(setting))
+              : nothing}
+          </div>
+        </uui-box>
+
+        ${isReady
+          ? html`<uui-box headline="Available Payment Providers">
+              <p class="section-description">
+                These payment providers are available but not yet configured.
+                Click "Install" to configure and add a provider.
+              </p>
+              ${unconfiguredProviders.length === 0
+                ? html`<p class="no-items">All available providers have been configured.</p>`
+                : html`
+                    <div class="providers-list">
+                      ${unconfiguredProviders.map((provider) =>
+                        this._renderAvailableProvider(provider)
+                      )}
+                    </div>
+                  `}
+            </uui-box>`
+          : nothing}
       </div>
       </umb-body-layout>
     `;

@@ -5,4 +5,5 @@ export * from "./editable-text-list.element.js";
 export * from "./workspace-placeholder.element.js";
 export * from "./product-image.element.js";
 export * from "./tag-input.element.js";
+export * from "./line-item-identity.element.js";
 

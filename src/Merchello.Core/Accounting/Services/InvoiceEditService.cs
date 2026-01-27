@@ -1621,7 +1621,7 @@ public class InvoiceEditService(
             virtualLineItems.Add(LineItemFactory.CreateVirtualForPreview(
                 productId: productDto.ProductId,
                 name: product.Name ?? "Product",
-                sku: product.Sku,
+                sku: product.Sku ?? string.Empty,
                 quantity: productDto.Quantity,
                 unitPrice: product.Price));
 

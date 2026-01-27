@@ -6,6 +6,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Dtos;
 using Merchello.Core.Warehouses.Models;
@@ -21,6 +22,7 @@ namespace Merchello.Core.Warehouses.Services;
 public class WarehouseService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     WarehouseFactory warehouseFactory,
+    ShippingOptionFactory shippingOptionFactory,
     IProductService productService,
     IMerchelloNotificationPublisher notificationPublisher,
     ILogger<WarehouseService> logger) : IWarehouseService
@@ -128,7 +130,7 @@ public class WarehouseService(
             // If stock tracking is disabled for this product-warehouse, always pass stock check
             if (!productWarehouse.TrackStock)
             {
-                logger.LogInformation(
+                logger.LogDebug(
                     "Selected warehouse {WarehouseId} ({WarehouseName}) for product {ProductId} - Stock tracking disabled",
                     warehouse.Id,
                     warehouse.Name,
@@ -153,7 +155,7 @@ public class WarehouseService(
             // If this warehouse has enough stock for full quantity, select it immediately
             if (availableStock >= quantity)
             {
-                logger.LogInformation(
+                logger.LogDebug(
                     "Selected warehouse {WarehouseId} ({WarehouseName}) for product {ProductId} - Available stock: {Available} (Stock: {Stock}, Reserved: {Reserved})",
                     warehouse.Id,
                     warehouse.Name,
@@ -282,25 +284,21 @@ public class WarehouseService(
         {
             foreach (var shippingConfig in parameters.ShippingOptions)
             {
-                var shippingOption = new ShippingOption
-                {
-                    WarehouseId = warehouse.Id,
-                    Name = shippingConfig.Name,
-                    DaysFrom = shippingConfig.DaysFrom,
-                    DaysTo = shippingConfig.DaysTo,
-                    FixedCost = shippingConfig.Cost,
-                    IsNextDay = shippingConfig.IsNextDay,
-                    NextDayCutOffTime = shippingConfig.NextDayCutOffTime,
-                    ProviderKey = shippingConfig.ProviderKey,
-                    ServiceType = shippingConfig.ServiceType,
-                    ProviderSettings = shippingConfig.ProviderSettings,
-                    IsEnabled = shippingConfig.IsEnabled,
-                    CreateDate = DateTime.UtcNow,
-                    UpdateDate = DateTime.UtcNow
-                };
+                var shippingOption = shippingOptionFactory.Create(
+                    shippingConfig.Name,
+                    warehouse.Id,
+                    shippingConfig.ProviderKey,
+                    shippingConfig.ServiceType,
+                    shippingConfig.ProviderSettings,
+                    shippingConfig.IsEnabled,
+                    shippingConfig.Cost,
+                    shippingConfig.DaysFrom,
+                    shippingConfig.DaysTo,
+                    shippingConfig.IsNextDay,
+                    shippingConfig.NextDayCutOffTime);
                 shippingOptions.Add(shippingOption);
 
-                // Build country-specific costs
+                // Build country-specific cost overrides
                 if (shippingConfig.CountrySpecificCosts != null)
                 {
                     foreach (var (countryCode, cost) in shippingConfig.CountrySpecificCosts)
@@ -313,21 +311,11 @@ public class WarehouseService(
                         });
                     }
                 }
-                else
-                {
-                    // Add default wildcard cost
-                    shippingCosts.Add(new ShippingCost
-                    {
-                        ShippingOptionId = shippingOption.Id,
-                        CountryCode = "*",
-                        Cost = shippingConfig.Cost
-                    });
-                }
             }
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Explicitly add all entities - don't rely on cascade
             db.Warehouses.Add(warehouse);
@@ -339,6 +327,7 @@ public class WarehouseService(
                 db.ShippingCosts.AddRange(shippingCosts);
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -363,7 +352,7 @@ public class WarehouseService(
         Warehouse? warehouse = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             warehouse = await db.Warehouses
                 .FirstOrDefaultAsync(w => w.Id == parameters.WarehouseId, cancellationToken);
@@ -375,7 +364,7 @@ public class WarehouseService(
                     Message = "Warehouse not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Publish saving notification (cancelable)
@@ -383,7 +372,7 @@ public class WarehouseService(
             if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Warehouse update was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             if (parameters.Name != null)
@@ -411,6 +400,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = warehouse;
+            return true;
         });
         scope.Complete();
 
@@ -435,7 +425,7 @@ public class WarehouseService(
         string? warehouseName = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var warehouse = await db.Warehouses
                 .Include(w => w.ProductRootWarehouses)
@@ -450,7 +440,7 @@ public class WarehouseService(
                     Message = "Warehouse not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check for dependencies
@@ -477,7 +467,7 @@ public class WarehouseService(
                     });
                 }
 
-                return;
+                return false;
             }
 
             // Publish deleting notification (cancelable)
@@ -485,7 +475,7 @@ public class WarehouseService(
             if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Warehouse deletion was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             // Capture name for deleted notification (before entity is removed)
@@ -517,6 +507,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -547,7 +538,7 @@ public class WarehouseService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Validate product root exists
             var productRootExists = await db.RootProducts
@@ -560,7 +551,7 @@ public class WarehouseService(
                     Message = "Product root not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Validate warehouse exists
@@ -574,7 +565,7 @@ public class WarehouseService(
                     Message = "Warehouse not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check if already exists
@@ -588,7 +579,7 @@ public class WarehouseService(
                     Message = "Warehouse is already assigned to this product root",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var productRootWarehouse = new ProductRootWarehouse
@@ -602,6 +593,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -619,7 +611,7 @@ public class WarehouseService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productRootWarehouse = await db.ProductRootWarehouses
                 .FirstOrDefaultAsync(
@@ -633,7 +625,7 @@ public class WarehouseService(
                     Message = "Warehouse is not assigned to this product root",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Get all products (variants) for this product root
@@ -662,6 +654,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -678,7 +671,7 @@ public class WarehouseService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productRootWarehouse = await db.ProductRootWarehouses
                 .FirstOrDefaultAsync(
@@ -692,13 +685,14 @@ public class WarehouseService(
                     Message = "Warehouse is not assigned to this product root",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             productRootWarehouse.PriorityOrder = parameters.NewPriorityOrder;
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -740,7 +734,7 @@ public class WarehouseService(
         Guid? productRootId = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Validate product exists and get default status
             var product = await db.Products
@@ -753,7 +747,7 @@ public class WarehouseService(
                     Message = "Product not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Validate warehouse exists
@@ -767,7 +761,7 @@ public class WarehouseService(
                     Message = "Warehouse not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Get or create ProductWarehouse record
@@ -836,6 +830,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -863,7 +858,7 @@ public class WarehouseService(
         Guid? productRootId = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
                 .Include(pw => pw.Product)
@@ -878,7 +873,7 @@ public class WarehouseService(
                     Message = "Product stock record not found at this warehouse",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var oldStock = productWarehouse.Stock;
@@ -892,7 +887,7 @@ public class WarehouseService(
                     Message = $"Cannot adjust stock: would result in negative stock ({newStock})",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             productWarehouse.Stock = newStock;
@@ -927,6 +922,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -974,7 +970,7 @@ public class WarehouseService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Get source warehouse stock
             var fromStock = await db.ProductWarehouses
@@ -989,7 +985,7 @@ public class WarehouseService(
                     Message = "Source warehouse does not have this product",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check available stock (Stock - ReservedStock) if tracking is enabled
@@ -1006,7 +1002,7 @@ public class WarehouseService(
                         : $"Insufficient stock in source warehouse: {fromStock.Stock} < {quantity}",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Get or create destination warehouse stock
@@ -1028,7 +1024,7 @@ public class WarehouseService(
                         Message = "Destination warehouse not found",
                         ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                     });
-                    return;
+                    return false;
                 }
 
                 toStock = new ProductWarehouse
@@ -1054,6 +1050,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -1347,7 +1344,7 @@ public class WarehouseService(
         var result = new CrudResult<WarehouseServiceRegion>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Validate warehouse exists
             var warehouse = await db.Warehouses
@@ -1361,7 +1358,7 @@ public class WarehouseService(
                     Message = "Warehouse not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check for duplicate
@@ -1379,7 +1376,7 @@ public class WarehouseService(
                     Message = "A service region with this country and state/province already exists",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var region = new WarehouseServiceRegion
@@ -1396,6 +1393,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = region;
+            return true;
         });
         scope.Complete();
 
@@ -1414,7 +1412,7 @@ public class WarehouseService(
         var result = new CrudResult<WarehouseServiceRegion>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var region = await db.WarehouseServiceRegions
                 .FirstOrDefaultAsync(r => r.Id == regionId && r.WarehouseId == warehouseId, cancellationToken);
@@ -1426,7 +1424,7 @@ public class WarehouseService(
                     Message = "Service region not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var normalizedCountry = dto.CountryCode.ToUpperInvariant();
@@ -1448,7 +1446,7 @@ public class WarehouseService(
                     Message = "A service region with this country and state/province already exists",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             region.CountryCode = normalizedCountry;
@@ -1463,6 +1461,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = region;
+            return true;
         });
         scope.Complete();
 
@@ -1480,7 +1479,7 @@ public class WarehouseService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var region = await db.WarehouseServiceRegions
                 .FirstOrDefaultAsync(r => r.Id == regionId && r.WarehouseId == warehouseId, cancellationToken);
@@ -1492,7 +1491,7 @@ public class WarehouseService(
                     Message = "Service region not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             db.WarehouseServiceRegions.Remove(region);
@@ -1505,6 +1504,7 @@ public class WarehouseService(
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 

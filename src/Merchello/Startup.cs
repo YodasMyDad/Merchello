@@ -335,7 +335,7 @@ public static class Startup
         builder.Services.AddSingleton<IEmailTokenResolver, EmailTokenResolver>();
         builder.Services.AddSingleton<IEmailTemplateDiscoveryService, EmailTemplateDiscoveryService>();
         builder.Services.AddSingleton<IMjmlCompiler, MjmlCompiler>();
-        builder.Services.AddScoped<IEmailAttachmentResolver, EmailAttachmentResolver>();
+        builder.Services.AddSingleton<IEmailAttachmentResolver, EmailAttachmentResolver>();
         builder.Services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -345,7 +345,7 @@ public static class Startup
 
         // Other Scoped
         builder.Services.AddScoped<DbSeeder>();
-        builder.Services.AddScoped<ExtensionManager>();
+        builder.Services.AddSingleton<ExtensionManager>();
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
 
         // Developer Tools
@@ -537,7 +537,10 @@ public static class Startup
         builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
 
-        // 5. Seed US shipping tax overrides (states where shipping is not taxable)
+        // 5. Initialize ProductRootExtensions with singleton services
+        builder.AddNotificationHandler<UmbracoApplicationStartedNotification, InitializeProductRootExtensionsHandler>();
+
+        // 6. Seed US shipping tax overrides (states where shipping is not taxable)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureShippingTaxOverridesHandler>();
 
         // =====================================================

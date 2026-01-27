@@ -5,17 +5,24 @@
   "type": "module",
   "scripts": {
     "watch": "tsc && vite build --watch",
-    "build": "npm run build:backoffice && npm run build:checkout",
+    "build": "npm run test:run && npm run build:backoffice && npm run build:checkout",
     "build:backoffice": "tsc && vite build",
-    "build:checkout": "npx tailwindcss -c ../Styles/tailwind.config.js -i ../Styles/checkout.css -o ../wwwroot/css/checkout.css --minify"
+    "build:checkout": "npx tailwindcss -c ../Styles/tailwind.config.js -i ../Styles/checkout.css -o ../wwwroot/css/checkout.css --minify",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
   },
   "devDependencies": {
+    "@open-wc/testing": "^4.0.0",
     "@umbraco-cms/backoffice": "^17.0.0",
+    "@vitest/ui": "^3.0.0",
     "autoprefixer": "^10.4.21",
+    "jsdom": "^26.0.0",
     "postcss": "^8.5.4",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
-    "vite": "^7.1.9"
+    "vite": "^7.1.9",
+    "vitest": "^3.0.0"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

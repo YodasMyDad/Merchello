@@ -3,71 +3,51 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
-using Merchello.Core.Warehouses.Models;
-using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services;
 using Merchello.Core.Shipping.Services.Parameters;
-using Merchello.Core.Shared.Services.Interfaces;
-using Microsoft.Data.Sqlite;
+using Merchello.Core.Warehouses.Models;
+using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Shouldly;
 using Umbraco.Cms.Core.Notifications;
-using Umbraco.Cms.Core.Scoping;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Shipping.Services;
 
 /// <summary>
-/// Unit tests for ShipmentService using an in-memory SQLite database for real DbContext execution
-/// and Moq for non-database dependencies. Tests cover CreateShipmentAsync, UpdateShipmentStatusAsync,
-/// and DeleteShipmentAsync.
+/// Integration tests for ShipmentService using the shared ServiceTestFixture
+/// with a real SQLite database and Moq for non-database dependencies.
+/// Tests cover CreateShipmentAsync, UpdateShipmentStatusAsync, and DeleteShipmentAsync.
 /// </summary>
-public class ShipmentServiceTests : IDisposable
+[Collection("Integration Tests")]
+public class ShipmentServiceTests
 {
-    private readonly SqliteConnection _connection;
-    private readonly MerchelloDbContext _dbContext;
+    private readonly ServiceTestFixture _fixture;
     private readonly Mock<IInventoryService> _inventoryServiceMock;
     private readonly Mock<IOrderStatusHandler> _statusHandlerMock;
     private readonly Mock<IProductService> _productServiceMock;
-    private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
-    private readonly ShipmentFactory _shipmentFactory;
     private readonly ShipmentService _service;
 
-    public ShipmentServiceTests()
+    public ShipmentServiceTests(ServiceTestFixture fixture)
     {
-        _connection = new SqliteConnection("DataSource=:memory:");
-        _connection.Open();
-
-        var options = new DbContextOptionsBuilder<MerchelloDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _dbContext = new MerchelloDbContext(options);
-        _dbContext.Database.EnsureCreated();
+        _fixture = fixture;
+        _fixture.ResetDatabase();
 
         _inventoryServiceMock = new Mock<IInventoryService>();
         _statusHandlerMock = new Mock<IOrderStatusHandler>();
         _productServiceMock = new Mock<IProductService>();
-        _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
-        _shipmentFactory = new ShipmentFactory();
 
-        // Default: notifications never cancel
-        _notificationPublisherMock
-            .Setup(p => p.PublishCancelableAsync(It.IsAny<ICancelableNotification>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
-        _notificationPublisherMock
-            .Setup(p => p.PublishAsync(It.IsAny<INotification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
+        // Default: notifications never cancel (from fixture)
         // Default: status handler allows all transitions
         _statusHandlerMock
             .Setup(h => h.CanTransitionAsync(It.IsAny<Order>(), It.IsAny<OrderStatus>(), It.IsAny<CancellationToken>()))
@@ -84,18 +64,14 @@ public class ShipmentServiceTests : IDisposable
             .Setup(s => s.AllocateStockAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CrudResult<bool> { ResultObject = true });
 
-        var scopeProvider = CreateScopeProvider();
-
-        var lineItemFactory = new LineItemFactory(new Mock<ICurrencyService>().Object);
-
         _service = new ShipmentService(
-            scopeProvider,
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
             _inventoryServiceMock.Object,
             _statusHandlerMock.Object,
             _productServiceMock.Object,
-            _notificationPublisherMock.Object,
-            _shipmentFactory,
-            lineItemFactory,
+            _fixture.GetService<IMerchelloNotificationPublisher>(),
+            new ShipmentFactory(),
+            _fixture.GetService<LineItemFactory>(),
             NullLogger<ShipmentService>.Instance);
     }
 
@@ -232,8 +208,11 @@ public class ShipmentServiceTests : IDisposable
         // Assert
         result.Successful.ShouldBeTrue();
 
+        // Clear tracker so we get fresh data from the database
+        _fixture.DbContext.ChangeTracker.Clear();
+
         // Reload order to verify status change was persisted
-        var updatedOrder = await _dbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
         updatedOrder.Status.ShouldBe(OrderStatus.Completed);
         updatedOrder.CompletedDate.ShouldNotBeNull();
     }
@@ -255,7 +234,8 @@ public class ShipmentServiceTests : IDisposable
         // Assert
         result.ShouldBeTrue();
 
-        var deletedShipment = await _dbContext.Shipments.FirstOrDefaultAsync(s => s.Id == shipment.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var deletedShipment = await _fixture.DbContext.Shipments.FirstOrDefaultAsync(s => s.Id == shipment.Id);
         deletedShipment.ShouldBeNull();
     }
 
@@ -280,7 +260,8 @@ public class ShipmentServiceTests : IDisposable
         await _service.DeleteShipmentAsync(shipment.Id);
 
         // Assert
-        var updatedOrder = await _dbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
         updatedOrder.Status.ShouldBe(OrderStatus.ReadyToFulfill);
         updatedOrder.ShippedDate.ShouldBeNull();
     }
@@ -310,14 +291,14 @@ public class ShipmentServiceTests : IDisposable
                 CountryCode = "GB"
             }
         };
-        _dbContext.Warehouses.Add(warehouse);
+        _fixture.DbContext.Warehouses.Add(warehouse);
 
         var customer = new Customer
         {
             Id = Guid.NewGuid(),
             Email = $"test-{Guid.NewGuid():N}@example.com"
         };
-        _dbContext.Customers.Add(customer);
+        _fixture.DbContext.Customers.Add(customer);
 
         var invoice = new Invoice
         {
@@ -345,7 +326,7 @@ public class ShipmentServiceTests : IDisposable
                 CountryCode = "GB"
             }
         };
-        _dbContext.Invoices.Add(invoice);
+        _fixture.DbContext.Invoices.Add(invoice);
 
         var order = new Order
         {
@@ -356,7 +337,7 @@ public class ShipmentServiceTests : IDisposable
             Status = status,
             DateCreated = DateTime.UtcNow.AddDays(-1)
         };
-        _dbContext.Orders.Add(order);
+        _fixture.DbContext.Orders.Add(order);
 
         var lineItem = new LineItem
         {
@@ -370,9 +351,9 @@ public class ShipmentServiceTests : IDisposable
             IsTaxable = true,
             TaxRate = 20m
         };
-        _dbContext.LineItems.Add(lineItem);
+        _fixture.DbContext.LineItems.Add(lineItem);
 
-        await _dbContext.SaveChangesAsync();
+        await _fixture.DbContext.SaveChangesAsync();
         return (order, lineItem);
     }
 
@@ -410,55 +391,9 @@ public class ShipmentServiceTests : IDisposable
             ]
         };
 
-        _dbContext.Shipments.Add(shipment);
-        await _dbContext.SaveChangesAsync();
+        _fixture.DbContext.Shipments.Add(shipment);
+        await _fixture.DbContext.SaveChangesAsync();
         return shipment;
-    }
-
-    /// <summary>
-    /// Creates a mock IEFCoreScopeProvider that forwards ExecuteWithContextAsync calls to the real DbContext.
-    /// </summary>
-    private IEFCoreScopeProvider<MerchelloDbContext> CreateScopeProvider()
-    {
-        var scopeProviderMock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
-        scopeProviderMock
-            .Setup(p => p.CreateScope(It.IsAny<RepositoryCacheMode>(), It.IsAny<bool?>()))
-            .Returns(() =>
-            {
-                var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-                // Void-returning pattern: ExecuteWithContextAsync<Task>(Func<DbContext, Task>)
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-                    .Returns((Func<MerchelloDbContext, Task> func) => func(_dbContext));
-
-                // Value-returning patterns
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<bool>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<bool>> func) => func(_dbContext));
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Shipment>>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<List<Shipment>>> func) => func(_dbContext));
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<Invoice?>> func) => func(_dbContext));
-
-                scopeMock.Setup(s => s.Complete()).Returns(true);
-                scopeMock.Setup(s => s.Dispose());
-
-                return scopeMock.Object;
-            });
-
-        return scopeProviderMock.Object;
-    }
-
-    public void Dispose()
-    {
-        _dbContext.Dispose();
-        _connection.Dispose();
-        GC.SuppressFinalize(this);
     }
 
     #endregion

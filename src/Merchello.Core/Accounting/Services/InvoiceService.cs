@@ -64,15 +64,12 @@ public class InvoiceService(
     IOrderStatusHandler statusHandler,
     IPaymentService paymentService,
     ICustomerService customerService,
-    Lazy<ICheckoutService> checkoutService,
     Lazy<ICheckoutDiscountService> checkoutDiscountService,
-    IOrderGroupingStrategyResolver strategyResolver,
     IMerchelloNotificationPublisher notificationPublisher,
     IExchangeRateCache exchangeRateCache,
     ICurrencyService currencyService,
     ILineItemService lineItemService,
     IDiscountService discountService,
-    ITaxService taxService,
     ITaxProviderManager taxProviderManager,
     InvoiceFactory invoiceFactory,
     OrderFactory orderFactory,
@@ -187,7 +184,7 @@ public class InvoiceService(
         basket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
 
         using var scope = efCoreScopeProvider.CreateScope();
-        var invoice = await scope.ExecuteWithContextAsync<Invoice?>(async db =>
+        var (invoice, orders) = await scope.ExecuteWithContextAsync<(Invoice? Invoice, List<Order> Orders)>(async db =>
         {
             // Generate next invoice number using MAX+1 (unique index prevents duplicates)
             var maxNumber = await db.Invoices
@@ -243,7 +240,7 @@ public class InvoiceService(
                 if (pricingQuote == null || pricingQuote.Rate <= 0m)
                 {
                     result.AddErrorMessage($"No exchange rate available to create invoice in '{presentmentCurrency}' (store currency '{storeCurrency}').");
-                    return null;
+                    return (null, []);
                 }
 
                 newInvoice.PricingExchangeRate = pricingQuote.Rate;
@@ -468,7 +465,7 @@ public class InvoiceService(
             if (!orders.Any())
             {
                 result.AddErrorMessage("No orders were created from basket. Check shipping selections.");
-                return null;
+                return (null, []);
             }
 
             // Add order-level discounts (not linked to specific products) to the first order
@@ -505,7 +502,7 @@ public class InvoiceService(
             if (await notificationPublisher.PublishCancelableAsync(invoiceSavingNotification, cancellationToken))
             {
                 result.AddErrorMessage($"Invoice creation cancelled: {invoiceSavingNotification.CancelReason ?? "Cancelled by handler"}");
-                return null;
+                return (null, []);
             }
 
             // Publish OrderCreatingNotification for each order - handlers can validate/modify or cancel
@@ -515,7 +512,7 @@ public class InvoiceService(
                 if (await notificationPublisher.PublishCancelableAsync(orderCreatingNotification, cancellationToken))
                 {
                     result.AddErrorMessage($"Order creation cancelled for warehouse {order.WarehouseId}: {orderCreatingNotification.CancelReason ?? "Cancelled by handler"}");
-                    return null;
+                    return (null, []);
                 }
             }
 
@@ -559,7 +556,7 @@ public class InvoiceService(
                 if (!allReservationsSuccessful)
                 {
                     result.AddErrorMessage($"Failed to reserve stock for order: {string.Join("; ", reservationResults)}");
-                    return null;
+                    return (null, []);
                 }
 
                 order.Status = OrderStatus.ReadyToFulfill;
@@ -607,8 +604,26 @@ public class InvoiceService(
                 }
             }
 
-            // Publish post-persistence notifications
-            await notificationPublisher.PublishAsync(new InvoiceSavedNotification(newInvoice), cancellationToken);
+            logger.LogInformation("Created invoice {InvoiceId} with {OrderCount} orders from {GroupCount} warehouse groups",
+                newInvoice.Id, orders.Count, shippingResult.WarehouseGroups.Count);
+
+            return (newInvoice, orders);
+        });
+
+        if (invoice == null)
+        {
+            return result;
+        }
+
+        scope.Complete();
+
+        // Publish post-persistence notifications AFTER scope completion
+        // This ensures handlers get their own clean DbContext without nesting issues
+        // Wrapped in try-catch: invoice is already committed, notification failures must not
+        // prevent the invoice from being returned to the caller
+        try
+        {
+            await notificationPublisher.PublishAsync(new InvoiceSavedNotification(invoice), cancellationToken);
 
             foreach (var order in orders)
             {
@@ -624,24 +639,18 @@ public class InvoiceService(
             // Publish aggregate notification for the entire checkout operation
             await notificationPublisher.PublishAsync(
                 new InvoiceAggregateChangedNotification(
-                    newInvoice,
+                    invoice,
                     AggregateChangeType.Created,
                     AggregateChangeSource.Invoice,
-                    newInvoice),
+                    invoice),
                 cancellationToken);
-
-            logger.LogInformation("Created invoice {InvoiceId} with {OrderCount} orders from {GroupCount} warehouse groups",
-                newInvoice.Id, orders.Count, shippingResult.WarehouseGroups.Count);
-
-            return newInvoice;
-        });
-
-        if (invoice == null)
-        {
-            return result;
         }
-
-        scope.Complete();
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Error publishing post-save notifications for invoice {InvoiceId}. Invoice was saved successfully.",
+                invoice.Id);
+        }
 
         // Track abandoned cart conversion (if this checkout was tracked for abandonment)
         // We mark as converted for Active, Abandoned, or Recovered statuses:
@@ -700,7 +709,7 @@ public class InvoiceService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var order = await db.Orders
                 .Include(o => o.Invoice)
@@ -713,7 +722,7 @@ public class InvoiceService(
                     Message = $"Order {parameters.OrderId} not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check if transition is allowed
@@ -725,7 +734,7 @@ public class InvoiceService(
                     Message = $"Cannot transition order from {order.Status} to {parameters.NewStatus}",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var oldStatus = order.Status;
@@ -739,7 +748,7 @@ public class InvoiceService(
                     Message = changingNotification.CancelReason ?? "Operation cancelled",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             await statusHandler.OnStatusChangingAsync(order, oldStatus, parameters.NewStatus, cancellationToken);
@@ -773,6 +782,7 @@ public class InvoiceService(
                 parameters.OrderId, oldStatus, parameters.NewStatus);
 
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -787,7 +797,7 @@ public class InvoiceService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var order = await db.Orders
                 .Include(o => o.LineItems)
@@ -800,7 +810,7 @@ public class InvoiceService(
                     Message = $"Order {orderId} not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check if order can be cancelled
@@ -811,7 +821,7 @@ public class InvoiceService(
                     Message = "Cannot cancel an order that has already been shipped or completed",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             if (order.Status == OrderStatus.Cancelled)
@@ -822,7 +832,7 @@ public class InvoiceService(
                     ResultMessageType = ResultMessageType.Warning
                 });
                 result.ResultObject = true;
-                return;
+                return false;
             }
 
             // Release stock reservations for all line items
@@ -888,6 +898,7 @@ public class InvoiceService(
             }
 
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -902,7 +913,7 @@ public class InvoiceService(
         var result = new CrudResult<int>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Load invoice with orders and line items
             var invoice = await db.Invoices
@@ -917,7 +928,7 @@ public class InvoiceService(
                     Message = $"Invoice {parameters.InvoiceId} not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check if already cancelled
@@ -929,7 +940,7 @@ public class InvoiceService(
                     ResultMessageType = ResultMessageType.Warning
                 });
                 result.ResultObject = 0;
-                return;
+                return false;
             }
 
             // Check if already deleted
@@ -940,7 +951,7 @@ public class InvoiceService(
                     Message = "Cannot cancel a deleted invoice",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Get orders that can be cancelled (not shipped or completed)
@@ -961,7 +972,7 @@ public class InvoiceService(
                     Message = cancellingNotification.CancelReason ?? "Invoice cancellation was prevented by a handler",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Cancel each cancellable order (releases stock)
@@ -1028,6 +1039,7 @@ public class InvoiceService(
                 cancellationToken);
 
             result.ResultObject = cancelledCount;
+            return true;
         });
 
         scope.Complete();
@@ -1379,7 +1391,7 @@ public class InvoiceService(
         var result = new CrudResult<InvoiceNote>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
             if (invoice == null)
@@ -1389,7 +1401,7 @@ public class InvoiceService(
                     Message = "Invoice not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var note = new InvoiceNote
@@ -1407,6 +1419,7 @@ public class InvoiceService(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = note;
+            return true;
         });
         scope.Complete();
 
@@ -1422,7 +1435,7 @@ public class InvoiceService(
         var result = new CrudResult<Address>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
             if (invoice == null)
@@ -1432,7 +1445,7 @@ public class InvoiceService(
                     Message = "Invoice not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             invoice.BillingAddress = address;
@@ -1440,6 +1453,7 @@ public class InvoiceService(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = address;
+            return true;
         });
         scope.Complete();
 
@@ -1455,7 +1469,7 @@ public class InvoiceService(
         var result = new CrudResult<Address>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
             if (invoice == null)
@@ -1465,7 +1479,7 @@ public class InvoiceService(
                     Message = "Invoice not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             invoice.ShippingAddress = address;
@@ -1473,6 +1487,7 @@ public class InvoiceService(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = address;
+            return true;
         });
         scope.Complete();
 
@@ -1488,7 +1503,7 @@ public class InvoiceService(
         var result = new CrudResult<string?>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
             if (invoice == null)
@@ -1521,7 +1536,7 @@ public class InvoiceService(
         var result = new CrudResult<Invoice>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
             if (invoice == null)
@@ -1531,7 +1546,7 @@ public class InvoiceService(
                     Message = "Invoice not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             invoice.DueDate = dueDate;
@@ -1539,6 +1554,66 @@ public class InvoiceService(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = invoice;
+            return true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Invoice>> BackdateInvoiceAsync(
+        Guid invoiceId,
+        DateTime dateCreated,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Invoice>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var invoice = await db.Invoices
+                .Include(i => i.Orders!)
+                    .ThenInclude(o => o.LineItems!)
+                .Include(i => i.Orders!)
+                    .ThenInclude(o => o.Shipments!)
+                .Include(i => i.Payments!)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
+
+            if (invoice == null)
+            {
+                result.AddErrorMessage("Invoice not found.");
+                return false;
+            }
+
+            invoice.DateCreated = dateCreated;
+            invoice.DateUpdated = dateCreated;
+
+            foreach (var order in invoice.Orders ?? [])
+            {
+                order.DateCreated = dateCreated;
+                order.DateUpdated = dateCreated;
+
+                foreach (var lineItem in order.LineItems ?? [])
+                    lineItem.DateCreated = dateCreated;
+
+                foreach (var shipment in order.Shipments ?? [])
+                    shipment.DateCreated = dateCreated;
+            }
+
+            foreach (var payment in invoice.Payments ?? [])
+                payment.DateCreated = dateCreated;
+
+            if (invoice.Notes is { Count: > 0 })
+            {
+                foreach (var note in invoice.Notes)
+                    note.DateCreated = dateCreated;
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            result.ResultObject = invoice;
+            return true;
         });
         scope.Complete();
 
@@ -2159,7 +2234,7 @@ public class InvoiceService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices
                 .Include(i => i.Orders)!
@@ -2173,7 +2248,7 @@ public class InvoiceService(
                     Message = "Invoice not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var orders = invoice.Orders?.ToList() ?? [];
@@ -2185,7 +2260,7 @@ public class InvoiceService(
                     Message = cannotEditReason ?? "Invoice cannot be edited",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Check if this discount has already been applied
@@ -2201,7 +2276,7 @@ public class InvoiceService(
                     Message = $"Discount '{discount.Name}' has already been applied to this invoice",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Calculate subtotal for percentage discounts and minimum requirements
@@ -2221,7 +2296,7 @@ public class InvoiceService(
                     Message = $"Minimum purchase of {invoice.CurrencySymbol}{discount.RequirementValue.Value} required for discount '{discount.Name}'",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             if (discount.RequirementType == DiscountRequirementType.MinimumQuantity &&
@@ -2235,7 +2310,7 @@ public class InvoiceService(
                         Message = $"Minimum quantity of {(int)discount.RequirementValue.Value} items required for discount '{discount.Name}'",
                         ResultMessageType = ResultMessageType.Error
                     });
-                    return;
+                    return false;
                 }
             }
 
@@ -2282,7 +2357,7 @@ public class InvoiceService(
                     Message = "Calculated discount amount is zero or negative",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Get first order to attach discount line item
@@ -2294,7 +2369,7 @@ public class InvoiceService(
                     Message = "No order found to attach discount to",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Create the discount line item
@@ -2347,6 +2422,7 @@ public class InvoiceService(
                 discount.Name, discount.Id, invoice.Id, discountAmount);
 
             result.ResultObject = invoice;
+            return true;
         });
         scope.Complete();
 

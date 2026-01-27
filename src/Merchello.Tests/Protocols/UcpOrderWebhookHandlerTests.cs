@@ -53,8 +53,8 @@ public class UcpOrderWebhookHandlerTests
         var httpClient = new HttpClient(_mockHandler);
         _httpClientFactoryMock.Setup(x => x.CreateClient(It.IsAny<string>())).Returns(httpClient);
 
-        _signingKeyStoreMock.Setup(x => x.GetCurrentKeyId()).Returns("test-key-id");
-        _webhookSignerMock.Setup(x => x.Sign(It.IsAny<string>(), It.IsAny<string>())).Returns("test-signature");
+        _signingKeyStoreMock.Setup(x => x.GetCurrentKeyIdAsync(It.IsAny<CancellationToken>())).ReturnsAsync("test-key-id");
+        _webhookSignerMock.Setup(x => x.SignAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync("test-signature");
 
         _settings = new ProtocolSettings
         {

@@ -11,7 +11,7 @@ public interface ISigningKeyStore
     /// <summary>
     /// Gets the ECDSA private key for signing.
     /// </summary>
-    ECDsa GetEcdsaPrivateKey(string keyId);
+    Task<ECDsa> GetEcdsaPrivateKeyAsync(string keyId, CancellationToken ct = default);
 
     /// <summary>
     /// Gets all public keys for verification.
@@ -21,7 +21,7 @@ public interface ISigningKeyStore
     /// <summary>
     /// Gets the current active key ID for signing.
     /// </summary>
-    string GetCurrentKeyId();
+    Task<string> GetCurrentKeyIdAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Rotates the signing keys (creates new key, marks old as expired).

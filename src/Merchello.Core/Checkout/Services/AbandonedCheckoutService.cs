@@ -36,7 +36,7 @@ public class AbandonedCheckoutService(
         if (!_settings.Enabled) return;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.AbandonedCheckouts
                 .FirstOrDefaultAsync(ac => ac.BasketId == basketId, ct);
@@ -59,6 +59,8 @@ public class AbandonedCheckoutService(
 
                 await db.SaveChangesAsync(ct);
             }
+
+            return true;
         });
         scope.Complete();
     }
@@ -68,7 +70,7 @@ public class AbandonedCheckoutService(
         if (!_settings.Enabled) return;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.AbandonedCheckouts
                 .FirstOrDefaultAsync(ac => ac.BasketId == basket.Id, ct);
@@ -129,6 +131,7 @@ public class AbandonedCheckoutService(
             }
 
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
     }
@@ -586,7 +589,7 @@ public class AbandonedCheckoutService(
         if (!_settings.Enabled) return;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var checkouts = await db.AbandonedCheckouts
                 .Where(ac => ac.Status == AbandonedCheckoutStatus.Abandoned)
@@ -619,6 +622,7 @@ public class AbandonedCheckoutService(
             }
 
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
     }

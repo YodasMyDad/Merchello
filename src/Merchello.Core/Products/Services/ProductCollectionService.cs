@@ -1,5 +1,6 @@
 using Merchello.Core.Data;
 using Merchello.Core.Products.Dtos;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
@@ -12,6 +13,7 @@ namespace Merchello.Core.Products.Services;
 
 public class ProductCollectionService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ProductCollectionFactory productCollectionFactory,
     ILogger<ProductCollectionService> logger) : IProductCollectionService
 {
     /// <summary>
@@ -25,16 +27,13 @@ public class ProductCollectionService(
         ProductCollection? collection = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            collection = new ProductCollection
-            {
-                Id = Guid.NewGuid(),
-                Name = name
-            };
+            collection = productCollectionFactory.Create(name);
 
             db.ProductCollections.Add(collection);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -53,7 +52,7 @@ public class ProductCollectionService(
         var result = new CrudResult<ProductCollection>();
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var collection = await db.ProductCollections.FindAsync([id], cancellationToken);
             if (collection == null)
@@ -63,12 +62,13 @@ public class ProductCollectionService(
                     Message = "Collection not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             collection.Name = name;
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = collection;
+            return true;
         });
 
         scope.Complete();
@@ -85,7 +85,7 @@ public class ProductCollectionService(
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var collection = await db.ProductCollections
                 .Include(c => c.Products)
@@ -98,7 +98,7 @@ public class ProductCollectionService(
                     Message = "Collection not found",
                     ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Remove collection from all products (clear the relationship)
@@ -107,6 +107,7 @@ public class ProductCollectionService(
             db.ProductCollections.Remove(collection);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();

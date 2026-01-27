@@ -201,7 +201,7 @@ public class ExchangeRateCache(
     private async Task PersistSnapshotToDatabaseAsync(ExchangeRateSnapshot snapshot, CancellationToken cancellationToken)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var activeSetting = await db.ExchangeRateProviderSettings
                 .FirstOrDefaultAsync(s => s.IsActive, cancellationToken);
@@ -222,6 +222,7 @@ public class ExchangeRateCache(
             activeSetting.LastFetchedAt = DateTime.UtcNow;
             activeSetting.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
     }

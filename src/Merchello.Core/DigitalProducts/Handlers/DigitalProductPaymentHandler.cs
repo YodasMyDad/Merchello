@@ -15,6 +15,7 @@ using Merchello.Core.Products.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Events;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.DigitalProducts.Handlers;
 
@@ -30,7 +31,7 @@ public class DigitalProductPaymentHandler(
     IPaymentService paymentService,
     IProductService productService,
     IMerchelloNotificationPublisher notificationPublisher,
-    MerchelloDbContext dbContext,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<DigitalProductPaymentHandler> logger) : INotificationAsyncHandler<PaymentCreatedNotification>
 {
     public async Task HandleAsync(PaymentCreatedNotification notification, CancellationToken ct)
@@ -119,26 +120,37 @@ public class DigitalProductPaymentHandler(
     /// </summary>
     private async Task AutoCompleteOrdersAsync(Invoice invoice, CancellationToken ct)
     {
-        var orders = await dbContext.Orders
-            .Where(o => o.InvoiceId == invoice.Id)
-            .ToListAsync(ct);
-
-        foreach (var order in orders)
+        using var scope = efCoreScopeProvider.CreateScope();
+        var ordersUpdated = await scope.ExecuteWithContextAsync(async db =>
         {
-            if (order.Status != OrderStatus.Completed && order.Status != OrderStatus.Cancelled)
+            var orders = await db.Orders
+                .Where(o => o.InvoiceId == invoice.Id)
+                .ToListAsync(ct);
+
+            foreach (var order in orders)
             {
-                order.Status = OrderStatus.Completed;
-                order.CompletedDate = DateTime.UtcNow;
-                order.DateUpdated = DateTime.UtcNow;
+                if (order.Status != OrderStatus.Completed && order.Status != OrderStatus.Cancelled)
+                {
+                    order.Status = OrderStatus.Completed;
+                    order.CompletedDate = DateTime.UtcNow;
+                    order.DateUpdated = DateTime.UtcNow;
+                }
             }
-        }
 
-        if (orders.Count > 0)
+            if (orders.Count > 0)
+            {
+                await db.SaveChangesAsync(ct);
+            }
+
+            return orders.Count;
+        });
+        scope.Complete();
+
+        if (ordersUpdated > 0)
         {
-            await dbContext.SaveChangesAsync(ct);
             logger.LogInformation(
                 "Auto-completed {Count} order(s) for digital-only invoice {InvoiceId}",
-                orders.Count, invoice.Id);
+                ordersUpdated, invoice.Id);
         }
     }
 

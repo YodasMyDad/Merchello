@@ -728,8 +728,12 @@ public class StatementService(
                     ? outstandingInvoices.OrderByDescending(x => x.Invoice.InvoiceNumber)
                     : outstandingInvoices.OrderBy(x => x.Invoice.InvoiceNumber),
                 _ => parameters.SortDirection?.ToLower() == "desc"
-                    ? outstandingInvoices.OrderByDescending(x => x.Invoice.DueDate ?? x.Invoice.DateCreated)
-                    : outstandingInvoices.OrderBy(x => x.Invoice.DueDate ?? x.Invoice.DateCreated)
+                    ? outstandingInvoices
+                        .OrderBy(x => x.Invoice.DueDate.HasValue ? 0 : 1)
+                        .ThenByDescending(x => x.Invoice.DueDate ?? x.Invoice.DateCreated)
+                    : outstandingInvoices
+                        .OrderBy(x => x.Invoice.DueDate.HasValue ? 0 : 1)
+                        .ThenBy(x => x.Invoice.DueDate ?? x.Invoice.DateCreated)
             };
 
             var totalCount = outstandingInvoices.Count;

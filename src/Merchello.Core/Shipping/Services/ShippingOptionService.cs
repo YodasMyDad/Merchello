@@ -6,6 +6,7 @@ using Merchello.Core.Notifications.ShippingOptionNotifications;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
@@ -19,6 +20,7 @@ namespace Merchello.Core.Shipping.Services;
 public class ShippingOptionService(
     IEFCoreScopeProvider<MerchelloDbContext> scopeProvider,
     IShippingProviderManager providerManager,
+    ShippingOptionFactory shippingOptionFactory,
     IMerchelloNotificationPublisher notificationPublisher,
     ILogger<ShippingOptionService> logger) : IShippingOptionService
 {
@@ -192,25 +194,23 @@ public class ShippingOptionService(
             providerSettingsJson = JsonSerializer.Serialize(dto.ProviderSettings);
         }
 
-        var option = new ShippingOption
-        {
-            Name = dto.Name,
-            WarehouseId = dto.WarehouseId,
-            ProviderKey = dto.ProviderKey,
-            ServiceType = dto.ServiceType,
-            ProviderSettings = providerSettingsJson,
-            IsEnabled = dto.IsEnabled,
-            FixedCost = dto.FixedCost,
-            DaysFrom = dto.DaysFrom,
-            DaysTo = dto.DaysTo,
-            IsNextDay = dto.IsNextDay,
-            NextDayCutOffTime = dto.NextDayCutOffTime,
-            AllowsDeliveryDateSelection = dto.AllowsDeliveryDateSelection,
-            MinDeliveryDays = dto.MinDeliveryDays,
-            MaxDeliveryDays = dto.MaxDeliveryDays,
-            AllowedDaysOfWeek = dto.AllowedDaysOfWeek,
-            IsDeliveryDateGuaranteed = dto.IsDeliveryDateGuaranteed
-        };
+        var option = shippingOptionFactory.Create(
+            dto.Name,
+            dto.WarehouseId,
+            dto.ProviderKey,
+            dto.ServiceType,
+            providerSettingsJson,
+            dto.IsEnabled,
+            dto.FixedCost,
+            dto.DaysFrom,
+            dto.DaysTo,
+            dto.IsNextDay,
+            dto.NextDayCutOffTime,
+            dto.AllowsDeliveryDateSelection,
+            dto.MinDeliveryDays,
+            dto.MaxDeliveryDays,
+            dto.AllowedDaysOfWeek,
+            dto.IsDeliveryDateGuaranteed);
 
         // Publish "Before" notification - handlers can modify or cancel
         var creatingNotification = new ShippingOptionCreatingNotification(option);
@@ -225,11 +225,12 @@ public class ShippingOptionService(
         }
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.ShippingOptions.Add(option);
             await db.SaveChangesAsync(ct);
             result.ResultObject = option;
+            return true;
         });
         scope.Complete();
 
@@ -283,10 +284,10 @@ public class ShippingOptionService(
         }
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var option = await db.ShippingOptions.FindAsync([id], ct);
-            if (option == null) return;
+            if (option == null) return false;
 
             option.Name = dto.Name;
             option.WarehouseId = dto.WarehouseId;
@@ -308,6 +309,7 @@ public class ShippingOptionService(
 
             await db.SaveChangesAsync(ct);
             result.ResultObject = option;
+            return true;
         });
         scope.Complete();
 
@@ -370,16 +372,17 @@ public class ShippingOptionService(
         }
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var option = await db.ShippingOptions.FindAsync([id], ct);
-            if (option == null) return;
+            if (option == null) return false;
 
             db.ShippingOptions.Remove(option);
             await db.SaveChangesAsync(ct);
             result.ResultObject = true;
 
             logger.LogInformation("Deleted shipping option {Name} ({Id})", option.Name, id);
+            return true;
         });
         scope.Complete();
 
@@ -409,7 +412,7 @@ public class ShippingOptionService(
         };
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Check for duplicate
             var exists = await db.Set<ShippingCost>().AnyAsync(c =>
@@ -424,12 +427,13 @@ public class ShippingOptionService(
                     Message = "A cost for this country/state already exists",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             db.Set<ShippingCost>().Add(cost);
             await db.SaveChangesAsync(ct);
             result.ResultObject = cost;
+            return true;
         });
         scope.Complete();
 
@@ -441,7 +445,7 @@ public class ShippingOptionService(
         var result = new CrudResult<ShippingCost>();
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var cost = await db.Set<ShippingCost>().FindAsync([costId], ct);
             if (cost == null)
@@ -451,7 +455,7 @@ public class ShippingOptionService(
                     Message = "Shipping cost not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             cost.CountryCode = dto.CountryCode.ToUpperInvariant();
@@ -460,6 +464,7 @@ public class ShippingOptionService(
 
             await db.SaveChangesAsync(ct);
             result.ResultObject = cost;
+            return true;
         });
         scope.Complete();
 
@@ -471,7 +476,7 @@ public class ShippingOptionService(
         var result = new CrudResult<bool>();
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var cost = await db.Set<ShippingCost>().FindAsync([costId], ct);
             if (cost == null)
@@ -481,12 +486,13 @@ public class ShippingOptionService(
                     Message = "Shipping cost not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             db.Set<ShippingCost>().Remove(cost);
             await db.SaveChangesAsync(ct);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -522,11 +528,12 @@ public class ShippingOptionService(
         };
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.ShippingWeightTiers.Add(tier);
             await db.SaveChangesAsync(ct);
             result.ResultObject = tier;
+            return true;
         });
         scope.Complete();
 
@@ -548,7 +555,7 @@ public class ShippingOptionService(
         }
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var tier = await db.ShippingWeightTiers.FindAsync([tierId], ct);
             if (tier == null)
@@ -558,7 +565,7 @@ public class ShippingOptionService(
                     Message = "Weight tier not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             tier.CountryCode = dto.CountryCode.ToUpperInvariant();
@@ -570,6 +577,7 @@ public class ShippingOptionService(
 
             await db.SaveChangesAsync(ct);
             result.ResultObject = tier;
+            return true;
         });
         scope.Complete();
 
@@ -581,7 +589,7 @@ public class ShippingOptionService(
         var result = new CrudResult<bool>();
 
         using var scope = scopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var tier = await db.ShippingWeightTiers.FindAsync([tierId], ct);
             if (tier == null)
@@ -591,12 +599,13 @@ public class ShippingOptionService(
                     Message = "Weight tier not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             db.ShippingWeightTiers.Remove(tier);
             await db.SaveChangesAsync(ct);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 

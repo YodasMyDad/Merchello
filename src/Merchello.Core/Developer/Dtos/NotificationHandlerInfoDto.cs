@@ -27,7 +27,7 @@ public record NotificationHandlerInfoDto
     public int Priority { get; init; }
 
     /// <summary>
-    /// Human-readable priority category (Validation, Early, Default, Processing, Business Logic, External Sync).
+    /// Human-readable priority category (Validation, Early Processing, Default, Core Processing, Business Rules, Late / External).
     /// </summary>
     public required string PriorityCategory { get; init; }
 
@@ -35,4 +35,10 @@ public record NotificationHandlerInfoDto
     /// The 1-based execution order within the notification's handler chain.
     /// </summary>
     public int ExecutionOrder { get; init; }
+
+    /// <summary>
+    /// Whether another handler for the same notification shares this priority value.
+    /// Indicates non-deterministic execution ordering between the duplicates.
+    /// </summary>
+    public bool HasDuplicatePriority { get; init; }
 }

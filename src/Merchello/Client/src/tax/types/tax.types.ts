@@ -85,6 +85,8 @@ export interface TaxProviderDto {
   displayName: string;
   /** Icon identifier */
   icon?: string;
+  /** SVG markup for the provider's brand logo */
+  iconSvg?: string;
   /** Description */
   description?: string;
   /** Whether provider supports real-time calculation */

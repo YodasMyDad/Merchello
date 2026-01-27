@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement, html, css, nothing, unsafeHTML } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
@@ -10,6 +10,7 @@ import type { ShippingProviderDto, ShippingProviderConfigurationDto } from "@shi
 import { MERCHELLO_SHIPPING_PROVIDER_CONFIG_MODAL } from "@shipping/modals/shipping-provider-config-modal.token.js";
 import { MERCHELLO_TEST_SHIPPING_PROVIDER_MODAL } from "@shipping/modals/test-provider-modal.token.js";
 import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "@payment-providers/modals/setup-instructions-modal.token.js";
+import { getShippingProviderIconSvg } from "@shipping/utils/brand-icons.js";
 
 @customElement("merchello-shipping-providers-list")
 export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitElement) {
@@ -183,6 +184,14 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     });
   }
 
+  private _renderProviderIcon(key: string, iconSvg?: string, fallbackIcon?: string): unknown {
+    const svg = iconSvg ?? getShippingProviderIconSvg(key);
+    if (svg) {
+      return html`<span class="provider-icon-svg">${unsafeHTML(svg)}</span>`;
+    }
+    return html`<uui-icon name="${fallbackIcon ?? 'icon-truck'}"></uui-icon>`;
+  }
+
   private _renderConfiguredProvider(configuration: ShippingProviderConfigurationDto): unknown {
     const provider = configuration.provider;
 
@@ -190,9 +199,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       <div class="provider-card configured">
         <div class="provider-header">
           <div class="provider-info">
-            ${provider?.icon
-              ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-truck"></uui-icon>`}
+            ${this._renderProviderIcon(configuration.providerKey, provider?.iconSvg, provider?.icon)}
             <div class="provider-details">
               <span class="provider-name">${configuration.displayName}</span>
               <span class="provider-key">${configuration.providerKey}</span>
@@ -257,9 +264,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       <div class="provider-card built-in">
         <div class="provider-header">
           <div class="provider-info">
-            ${provider.icon
-              ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-truck"></uui-icon>`}
+            ${this._renderProviderIcon(provider.key, provider.iconSvg, provider.icon)}
             <div class="provider-details">
               <span class="provider-name">${provider.displayName}</span>
               <span class="provider-key">${provider.key}</span>
@@ -282,9 +287,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       <div class="provider-card available">
         <div class="provider-header">
           <div class="provider-info">
-            ${provider.icon
-              ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-              : html`<uui-icon name="icon-truck"></uui-icon>`}
+            ${this._renderProviderIcon(provider.key, provider.iconSvg, provider.icon)}
             <div class="provider-details">
               <span class="provider-name">${provider.displayName}</span>
               <span class="provider-key">${provider.key}</span>
@@ -507,6 +510,19 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     .provider-info > uui-icon {
       font-size: 1.5rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .provider-icon-svg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+    }
+
+    .provider-icon-svg svg {
+      width: 100%;
+      height: 100%;
     }
 
     .provider-details {

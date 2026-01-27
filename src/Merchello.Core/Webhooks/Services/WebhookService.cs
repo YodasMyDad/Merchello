@@ -89,10 +89,11 @@ public class WebhookService(
         };
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.WebhookSubscriptions.Add(subscription);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -141,10 +142,11 @@ public class WebhookService(
 
         subscription.DateUpdated = DateTime.UtcNow;
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.WebhookSubscriptions.Update(subscription);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -322,7 +324,7 @@ public class WebhookService(
             };
 
             using var scope = efCoreScopeProvider.CreateScope();
-            await scope.ExecuteWithContextAsync<Task>(async db =>
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
                 db.OutboundDeliveries.Add(delivery);
 
@@ -332,6 +334,7 @@ public class WebhookService(
                 sub.DateUpdated = DateTime.UtcNow;
 
                 await db.SaveChangesAsync(ct);
+                return true;
             });
             scope.Complete();
 
@@ -372,7 +375,7 @@ public class WebhookService(
         var result = await dispatcher.SendAsync(delivery, delivery.Subscription, ct);
 
         // Update delivery record
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var del = await db.OutboundDeliveries.FirstAsync(d => d.Id == deliveryId, ct);
             var sub = await db.WebhookSubscriptions.FirstAsync(s => s.Id == delivery.ConfigurationId, ct);
@@ -416,6 +419,7 @@ public class WebhookService(
 
             sub.DateUpdated = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -550,10 +554,11 @@ public class WebhookService(
         };
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.OutboundDeliveries.Add(delivery);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -582,14 +587,15 @@ public class WebhookService(
     public async Task RetryDeliveryAsync(Guid deliveryId, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var delivery = await db.OutboundDeliveries.FirstOrDefaultAsync(d => d.Id == deliveryId, ct);
-            if (delivery == null) return;
+            if (delivery == null) return false;
 
             delivery.Status = OutboundDeliveryStatus.Pending;
             delivery.NextRetryUtc = null;
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 

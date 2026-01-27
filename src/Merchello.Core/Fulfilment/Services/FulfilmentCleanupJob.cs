@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Fulfilment.Services;
 
@@ -89,16 +90,19 @@ public class FulfilmentCleanupJob(
 
     private async Task CleanupOldLogsAsync(CancellationToken stoppingToken)
     {
-        using var scope = serviceScopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<MerchelloDbContext>();
+        using var diScope = serviceScopeFactory.CreateScope();
+        var efCoreScopeProvider = diScope.ServiceProvider.GetRequiredService<IEFCoreScopeProvider<MerchelloDbContext>>();
 
         var now = DateTime.UtcNow;
 
+        using var scope = efCoreScopeProvider.CreateScope();
+
         // Clean up old sync logs based on retention period
         var syncLogCutoff = now.AddDays(-_settings.SyncLogRetentionDays);
-        var deletedSyncLogs = await dbContext.FulfilmentSyncLogs
-            .Where(l => l.StartedAt < syncLogCutoff)
-            .ExecuteDeleteAsync(stoppingToken);
+        var deletedSyncLogs = await scope.ExecuteWithContextAsync(async db =>
+            await db.FulfilmentSyncLogs
+                .Where(l => l.StartedAt < syncLogCutoff)
+                .ExecuteDeleteAsync(stoppingToken));
 
         if (deletedSyncLogs > 0)
         {
@@ -107,14 +111,17 @@ public class FulfilmentCleanupJob(
         }
 
         // Clean up expired webhook logs (they have an explicit ExpiresAt field)
-        var deletedWebhookLogs = await dbContext.FulfilmentWebhookLogs
-            .Where(l => l.ExpiresAt < now)
-            .ExecuteDeleteAsync(stoppingToken);
+        var deletedWebhookLogs = await scope.ExecuteWithContextAsync(async db =>
+            await db.FulfilmentWebhookLogs
+                .Where(l => l.ExpiresAt < now)
+                .ExecuteDeleteAsync(stoppingToken));
 
         if (deletedWebhookLogs > 0)
         {
             logger.LogInformation("Cleaned up {Count} expired fulfilment webhook logs",
                 deletedWebhookLogs);
         }
+
+        scope.Complete();
     }
 }

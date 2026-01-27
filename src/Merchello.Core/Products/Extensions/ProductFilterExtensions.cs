@@ -20,8 +20,11 @@ public static class ProductFilterExtensions
 
         var filters = filterNames.Select((name, index) =>
         {
-            var filter = filterFactory.Create(name, index, defaultHexColour);
-            filter.ProductFilterGroupId = filterGroup.Id;
+            var filter = filterFactory.Create(
+                name,
+                filterGroup.Id,
+                index,
+                string.IsNullOrEmpty(defaultHexColour) ? null : defaultHexColour);
             filter.ParentGroup = filterGroup;
             return filter;
         }).ToList();

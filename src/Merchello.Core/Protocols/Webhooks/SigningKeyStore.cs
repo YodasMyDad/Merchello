@@ -5,6 +5,7 @@ using Merchello.Core.Protocols.Webhooks.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 using Merchello.Core.Protocols.Webhooks.Interfaces;
 
@@ -14,12 +15,12 @@ namespace Merchello.Core.Protocols.Webhooks;
 /// Manages ECDSA signing keys for webhook signatures.
 /// Keys are persisted in the database with in-memory caching for performance.
 /// </summary>
-public class SigningKeyStore : ISigningKeyStore, IDisposable
+public class SigningKeyStore(
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ICacheService cacheService,
+    ILogger<SigningKeyStore> logger) : ISigningKeyStore, IDisposable
 {
-    private readonly MerchelloDbContext _dbContext;
-    private readonly ICacheService _cacheService;
-    private readonly ILogger<SigningKeyStore> _logger;
-    private readonly object _keyLock = new();
+    private readonly SemaphoreSlim _keyLock = new(1, 1);
 
     // In-memory cache of loaded ECDsa keys for fast signing operations
     private readonly Dictionary<string, ECDsa> _keyCache = new();
@@ -27,26 +28,23 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
     private bool _initialized;
     private bool _disposed;
 
-    public SigningKeyStore(
-        MerchelloDbContext dbContext,
-        ICacheService cacheService,
-        ILogger<SigningKeyStore> logger)
-    {
-        _dbContext = dbContext;
-        _cacheService = cacheService;
-        _logger = logger;
-    }
-
     /// <summary>
     /// Disposes all cached ECDsa keys.
     /// </summary>
     public void Dispose()
     {
-        if (_disposed) return;
-
-        lock (_keyLock)
+        if (_disposed)
         {
-            if (_disposed) return;
+            return;
+        }
+
+        _keyLock.Wait();
+        try
+        {
+            if (_disposed)
+            {
+                return;
+            }
 
             foreach (var key in _keyCache.Values)
             {
@@ -55,17 +53,23 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
             _keyCache.Clear();
             _disposed = true;
         }
+        finally
+        {
+            _keyLock.Release();
+        }
 
+        _keyLock.Dispose();
         GC.SuppressFinalize(this);
     }
 
     /// <inheritdoc />
-    public ECDsa GetEcdsaPrivateKey(string keyId)
+    public async Task<ECDsa> GetEcdsaPrivateKeyAsync(string keyId, CancellationToken ct = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        EnsureInitialized();
+        await EnsureInitializedAsync(ct);
 
-        lock (_keyLock)
+        await _keyLock.WaitAsync(ct);
+        try
         {
             // Check in-memory cache first
             if (_keyCache.TryGetValue(keyId, out var cachedKey))
@@ -73,10 +77,13 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
                 return cachedKey;
             }
 
-            // Load from database
-            var signingKey = _dbContext.SigningKeys
-                .AsNoTracking()
-                .FirstOrDefault(k => k.KeyId == keyId);
+            // Load from database using scope
+            using var scope = efCoreScopeProvider.CreateScope();
+            var signingKey = await scope.ExecuteWithContextAsync(async db =>
+                await db.SigningKeys
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(k => k.KeyId == keyId, ct));
+            scope.Complete();
 
             if (signingKey == null)
             {
@@ -94,6 +101,10 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
 
             return key;
         }
+        finally
+        {
+            _keyLock.Release();
+        }
     }
 
     /// <inheritdoc />
@@ -106,9 +117,12 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
 
         // Get all keys from database (small number expected) and filter in memory
         // Note: DateTimeOffset comparisons don't translate well in SQLite provider
-        var allKeys = await _dbContext.SigningKeys
-            .AsNoTracking()
-            .ToListAsync(ct);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var allKeys = await scope.ExecuteWithContextAsync(async db =>
+            await db.SigningKeys
+                .AsNoTracking()
+                .ToListAsync(ct));
+        scope.Complete();
 
         var signingKeys = allKeys
             .Where(k => k.ExpiredAt == null || k.ExpiredAt > now)
@@ -129,14 +143,19 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
     }
 
     /// <inheritdoc />
-    public string GetCurrentKeyId()
+    public async Task<string> GetCurrentKeyIdAsync(CancellationToken ct = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        EnsureInitialized();
+        await EnsureInitializedAsync(ct);
 
-        lock (_keyLock)
+        await _keyLock.WaitAsync(ct);
+        try
         {
             return _currentKeyId!;
+        }
+        finally
+        {
+            _keyLock.Release();
         }
     }
 
@@ -148,11 +167,14 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
 
         var gracePeriod = TimeSpan.FromHours(24);
         var now = DateTimeOffset.UtcNow;
+        var newKeyId = GenerateKeyId();
+        var (privateKey, publicKeyX, publicKeyY) = GenerateKeyMaterial();
 
-        lock (_keyLock)
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Mark current active key as expiring
-            var currentKey = _dbContext.SigningKeys.FirstOrDefault(k => k.IsActive);
+            var currentKey = await db.SigningKeys.FirstOrDefaultAsync(k => k.IsActive, ct);
             if (currentKey != null)
             {
                 currentKey.IsActive = false;
@@ -160,9 +182,6 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
             }
 
             // Generate new key
-            var newKeyId = GenerateKeyId();
-            var (privateKey, publicKeyX, publicKeyY) = GenerateKeyMaterial();
-
             var newSigningKey = new SigningKey
             {
                 KeyId = newKeyId,
@@ -174,7 +193,31 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
                 PublicKeyY = publicKeyY
             };
 
-            _dbContext.SigningKeys.Add(newSigningKey);
+            db.SigningKeys.Add(newSigningKey);
+            await db.SaveChangesAsync(ct);
+
+            // Clean up old expired keys from database
+            // Note: DateTimeOffset comparisons don't translate well in SQLite provider
+            var allKeysForCleanup = await db.SigningKeys.ToListAsync(ct);
+            var expiredKeys = allKeysForCleanup
+                .Where(k => k.ExpiredAt != null && k.ExpiredAt < now)
+                .ToList();
+
+            if (expiredKeys.Count > 0)
+            {
+                db.SigningKeys.RemoveRange(expiredKeys);
+                await db.SaveChangesAsync(ct);
+            }
+
+            logger.LogInformation("Rotated signing keys. New key: {NewKeyId}, Expired cleaned: {ExpiredCount}",
+                newKeyId, expiredKeys.Count);
+            return true;
+        });
+        scope.Complete();
+
+        await _keyLock.WaitAsync(ct);
+        try
+        {
             _currentKeyId = newKeyId;
 
             // Dispose and clear in-memory cache for rotated keys
@@ -184,105 +227,77 @@ public class SigningKeyStore : ISigningKeyStore, IDisposable
             }
             _keyCache.Clear();
         }
-
-        await _dbContext.SaveChangesAsync(ct);
-
-        // Clean up old expired keys from database
-        // Note: DateTimeOffset comparisons don't translate well in SQLite provider
-        var allKeysForCleanup = await _dbContext.SigningKeys.ToListAsync(ct);
-        var expiredKeys = allKeysForCleanup
-            .Where(k => k.ExpiredAt != null && k.ExpiredAt < now)
-            .ToList();
-
-        if (expiredKeys.Count > 0)
+        finally
         {
-            _dbContext.SigningKeys.RemoveRange(expiredKeys);
-            await _dbContext.SaveChangesAsync(ct);
+            _keyLock.Release();
         }
-
-        _logger.LogInformation("Rotated signing keys. New key: {NewKeyId}, Expired cleaned: {ExpiredCount}",
-            _currentKeyId, expiredKeys.Count);
 
         // Invalidate cached manifests that include signing keys
-        await _cacheService.RemoveByTagAsync("protocols", ct);
-    }
-
-    private void EnsureInitialized()
-    {
-        if (_initialized) return;
-
-        lock (_keyLock)
-        {
-            if (_initialized) return;
-
-            // Check if there's an active key in the database
-            var activeKey = _dbContext.SigningKeys
-                .AsNoTracking()
-                .FirstOrDefault(k => k.IsActive);
-
-            if (activeKey != null)
-            {
-                _currentKeyId = activeKey.KeyId;
-                _logger.LogInformation("SigningKeyStore loaded active key {KeyId} from database", _currentKeyId);
-            }
-            else
-            {
-                // No active key exists, create initial key
-                CreateInitialKey();
-            }
-
-            _initialized = true;
-        }
+        await cacheService.RemoveByTagAsync("protocols", ct);
     }
 
     private async Task EnsureInitializedAsync(CancellationToken ct = default)
     {
-        if (_initialized) return;
-
-        // Check if there's an active key in the database
-        var activeKey = await _dbContext.SigningKeys
-            .AsNoTracking()
-            .FirstOrDefaultAsync(k => k.IsActive, ct);
-
-        lock (_keyLock)
+        if (_initialized)
         {
-            if (_initialized) return;
+            return;
+        }
+
+        await _keyLock.WaitAsync(ct);
+        try
+        {
+            if (_initialized)
+            {
+                return;
+            }
+
+            // Check if there's an active key in the database
+            using var scope = efCoreScopeProvider.CreateScope();
+            var activeKey = await scope.ExecuteWithContextAsync(async db =>
+                await db.SigningKeys
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(k => k.IsActive, ct));
 
             if (activeKey != null)
             {
                 _currentKeyId = activeKey.KeyId;
-                _logger.LogInformation("SigningKeyStore loaded active key {KeyId} from database", _currentKeyId);
+                logger.LogInformation("SigningKeyStore loaded active key {KeyId} from database", _currentKeyId);
+                scope.Complete();
             }
             else
             {
                 // No active key exists, create initial key
-                CreateInitialKey();
+                var keyId = GenerateKeyId();
+                var (privateKey, publicKeyX, publicKeyY) = GenerateKeyMaterial();
+
+                var signingKey = new SigningKey
+                {
+                    KeyId = keyId,
+                    IsActive = true,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    PrivateKeyPem = privateKey,
+                    PublicKeyX = publicKeyX,
+                    PublicKeyY = publicKeyY
+                };
+
+                await scope.ExecuteWithContextAsync<bool>(async db =>
+                {
+                    db.SigningKeys.Add(signingKey);
+                    await db.SaveChangesAsync(ct);
+                    return true;
+                });
+                scope.Complete();
+
+                _currentKeyId = keyId;
+                logger.LogInformation("SigningKeyStore created initial key {KeyId}", keyId);
             }
 
             _initialized = true;
         }
-    }
-
-    private void CreateInitialKey()
-    {
-        var keyId = GenerateKeyId();
-        var (privateKey, publicKeyX, publicKeyY) = GenerateKeyMaterial();
-
-        var signingKey = new SigningKey
+        finally
         {
-            KeyId = keyId,
-            IsActive = true,
-            CreatedAt = DateTimeOffset.UtcNow,
-            PrivateKeyPem = privateKey,
-            PublicKeyX = publicKeyX,
-            PublicKeyY = publicKeyY
-        };
-
-        _dbContext.SigningKeys.Add(signingKey);
-        _dbContext.SaveChanges();
-
-        _currentKeyId = keyId;
-        _logger.LogInformation("SigningKeyStore created initial key {KeyId}", keyId);
+            _keyLock.Release();
+        }
     }
 
     private static (string PrivateKeyPem, string PublicKeyX, string PublicKeyY) GenerateKeyMaterial()

@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Data;
 using Merchello.Core.Fulfilment;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Fulfilment.Services;
@@ -364,7 +366,7 @@ public class FulfilmentServiceTests
         var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
         updatedOrder!.Status.ShouldBe(OrderStatus.Shipped);
         updatedOrder.ShippedDate.ShouldNotBeNull();
-        updatedOrder.ExtendedData["Fulfilment:ProviderStatus"].ShouldBe("SHIPPED");
+        updatedOrder.ExtendedData["Fulfilment:ProviderStatus"].ToString().ShouldBe("SHIPPED");
     }
 
     [Fact]
@@ -468,7 +470,7 @@ public class FulfilmentServiceTests
             .ReturnsAsync((RegisteredFulfilmentProvider?)null);
 
         return new FulfilmentService(
-            _fixture.DbContext,
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
             providerManagerMock.Object,
             new ShipmentFactory(),
             Options.Create(new FulfilmentSettings { MaxRetryAttempts = 5 }),
@@ -487,7 +489,7 @@ public class FulfilmentServiceTests
             .ReturnsAsync(registeredProvider);
 
         return new FulfilmentService(
-            _fixture.DbContext,
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
             providerManagerMock.Object,
             new ShipmentFactory(),
             Options.Create(new FulfilmentSettings { MaxRetryAttempts = 5 }),

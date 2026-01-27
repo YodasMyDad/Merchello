@@ -68,7 +68,7 @@ public class WarehouseProviderConfigService(
     public async Task<WarehouseProviderConfig> CreateAsync(WarehouseProviderConfig config, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             config.Id = config.Id == Guid.Empty ? Guid.NewGuid() : config.Id;
             config.CreateDate = DateTime.UtcNow;
@@ -76,6 +76,7 @@ public class WarehouseProviderConfigService(
 
             db.WarehouseProviderConfigs.Add(config);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
         return config;
@@ -84,11 +85,12 @@ public class WarehouseProviderConfigService(
     public async Task<WarehouseProviderConfig> UpdateAsync(WarehouseProviderConfig config, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             config.UpdateDate = DateTime.UtcNow;
             db.WarehouseProviderConfigs.Update(config);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
         return config;
@@ -97,7 +99,7 @@ public class WarehouseProviderConfigService(
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var config = await db.WarehouseProviderConfigs.FindAsync([id], ct);
             if (config != null)
@@ -105,6 +107,7 @@ public class WarehouseProviderConfigService(
                 db.WarehouseProviderConfigs.Remove(config);
                 await db.SaveChangesAsync(ct);
             }
+            return true;
         });
         scope.Complete();
     }

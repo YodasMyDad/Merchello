@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT, type UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { DiscountEligibilityRuleDto } from "@discounts/types/discount.types.js";
+import type { DiscountEligibilityRuleEdit } from "@discounts/types/discount.types.js";
 import { DiscountEligibilityType } from "@discounts/types/discount.types.js";
 import { MERCHELLO_CUSTOMER_PICKER_MODAL } from "@customers/modals/customer-picker-modal.token.js";
 import { MERCHELLO_SEGMENT_PICKER_MODAL } from "@customers/modals/segment-picker-modal.token.js";
@@ -26,10 +26,10 @@ function getEligibilityTypeSelectOptions(currentValue: DiscountEligibilityType):
 
 @customElement("merchello-eligibility-rule-builder")
 export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitElement) {
-  @property({ type: Array }) rules: DiscountEligibilityRuleDto[] = [];
+  @property({ type: Array }) rules: DiscountEligibilityRuleEdit[] = [];
   @property({ type: Boolean }) readonly = false;
 
-  @state() private _editingRule?: { index: number; rule: DiscountEligibilityRuleDto };
+  @state() private _editingRule?: { index: number; rule: DiscountEligibilityRuleEdit };
 
   #modalManager?: UmbModalManagerContext;
 
@@ -51,7 +51,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
   }
 
   private _handleAddRule(): void {
-    const newRule: DiscountEligibilityRuleDto = {
+    const newRule: DiscountEligibilityRuleEdit = {
       id: crypto.randomUUID(),
       eligibilityType: DiscountEligibilityType.AllCustomers,
       eligibilityIds: null,
@@ -71,7 +71,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     this._dispatchChange();
   }
 
-  private _handleUpdateRule(index: number, updates: Partial<DiscountEligibilityRuleDto>): void {
+  private _handleUpdateRule(index: number, updates: Partial<DiscountEligibilityRuleEdit>): void {
     this.rules = this.rules.map((rule, i) => (i === index ? { ...rule, ...updates } : rule));
     this._dispatchChange();
   }
@@ -102,7 +102,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     }
   }
 
-  private async _openCustomerPicker(index: number, rule: DiscountEligibilityRuleDto): Promise<void> {
+  private async _openCustomerPicker(index: number, rule: DiscountEligibilityRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_CUSTOMER_PICKER_MODAL, {
@@ -131,7 +131,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     }
   }
 
-  private async _openSegmentPicker(index: number, rule: DiscountEligibilityRuleDto): Promise<void> {
+  private async _openSegmentPicker(index: number, rule: DiscountEligibilityRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_SEGMENT_PICKER_MODAL, {
@@ -150,7 +150,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     }
   }
 
-  private _removeEligibilityItem(index: number, rule: DiscountEligibilityRuleDto, itemIndex: number): void {
+  private _removeEligibilityItem(index: number, rule: DiscountEligibilityRuleEdit, itemIndex: number): void {
     const newIds = rule.eligibilityIds?.filter((_, i) => i !== itemIndex) ?? [];
     const newNames = rule.eligibilityNames?.filter((_, i) => i !== itemIndex) ?? [];
 
@@ -171,7 +171,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     }
   }
 
-  private async _openPicker(index: number, rule: DiscountEligibilityRuleDto): Promise<void> {
+  private async _openPicker(index: number, rule: DiscountEligibilityRuleEdit): Promise<void> {
     switch (rule.eligibilityType) {
       case DiscountEligibilityType.SpecificCustomers:
         await this._openCustomerPicker(index, rule);
@@ -182,7 +182,7 @@ export class MerchelloEligibilityRuleBuilderElement extends UmbElementMixin(LitE
     }
   }
 
-  private _renderRuleCard(rule: DiscountEligibilityRuleDto, index: number): unknown {
+  private _renderRuleCard(rule: DiscountEligibilityRuleEdit, index: number): unknown {
     const isEditing = this._editingRule?.index === index;
     const hasSelection = rule.eligibilityIds && rule.eligibilityIds.length > 0;
 

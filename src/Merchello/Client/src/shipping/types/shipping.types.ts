@@ -15,6 +15,7 @@ export interface ShippingProviderDto {
   key: string;
   displayName: string;
   icon?: string;
+  iconSvg?: string;
   description?: string;
   supportsRealTimeRates: boolean;
   supportsTracking: boolean;
@@ -56,6 +57,7 @@ export interface AvailableProviderDto {
   key: string;
   displayName: string;
   icon?: string;
+  iconSvg?: string;
   description?: string;
   isAvailable: boolean;
   requiresSetup: boolean;

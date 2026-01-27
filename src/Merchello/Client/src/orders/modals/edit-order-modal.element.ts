@@ -27,7 +27,7 @@ import { MERCHELLO_ADD_DISCOUNT_MODAL } from "./add-discount-modal.token.js";
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 
 // Import shared components
-import "@shared/components/product-image.element.js";
+import "@shared/components/line-item-identity.element.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 
 interface EditableLineItem extends LineItemForEditDto {
@@ -796,25 +796,20 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     return html`
       <div class="line-item ${hasInsufficientStock ? 'has-error' : ''} ${childAddons.length > 0 ? 'has-addons' : ''}">
         <div class="line-item-product">
-          <div class="line-item-image">
-            <merchello-product-image
-              media-key=${lineItem.imageUrl || nothing}
-              size="medium"
-              alt=${lineItem.name || ""}>
-            </merchello-product-image>
-          </div>
-
-          <div class="line-item-details">
-            <div class="line-item-name">${lineItem.name}</div>
-            ${lineItem.sku ? html`<div class="line-item-sku">${lineItem.sku}</div>` : nothing}
-            ${lineItem.isStockTracked && lineItem.availableStock !== null ? html`
-              <div class="stock-info ${hasInsufficientStock ? 'error' : ''}">
-                ${hasInsufficientStock
-                  ? html`<uui-icon name="icon-alert"></uui-icon> Only ${lineItem.availableStock} available`
-                  : html`${lineItem.availableStock} in stock`}
-              </div>
-            ` : nothing}
-          </div>
+          <merchello-line-item-identity
+            media-key=${lineItem.imageUrl || nothing}
+            name=${lineItem.productRootName || lineItem.name || ""}
+            .selectedOptions=${lineItem.selectedOptions ?? []}
+            sku=${lineItem.sku || ""}
+            size="medium">
+          </merchello-line-item-identity>
+          ${lineItem.isStockTracked && lineItem.availableStock !== null ? html`
+            <div class="stock-info ${hasInsufficientStock ? 'error' : ''}">
+              ${hasInsufficientStock
+                ? html`<uui-icon name="icon-alert"></uui-icon> Only ${lineItem.availableStock} available`
+                : html`${lineItem.availableStock} in stock`}
+            </div>
+          ` : nothing}
         </div>
 
         <div class="line-item-price">
@@ -1103,17 +1098,13 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     return html`
       <div class="line-item pending-product">
         <div class="line-item-product">
-          <div class="line-item-image">
-            <merchello-product-image
-              media-key=${product.imageUrl || nothing}
-              size="medium"
-              alt=${product.name || ""}>
-            </merchello-product-image>
-          </div>
-
-          <div class="line-item-details">
-            <div class="line-item-name">${product.name}</div>
-            <div class="line-item-sku">${product.sku ?? "No SKU"}</div>
+          <merchello-line-item-identity
+            media-key=${product.imageUrl || nothing}
+            name=${product.name || ""}
+            sku=${product.sku || ""}
+            size="medium">
+          </merchello-line-item-identity>
+          <div class="pending-product-info">
             <div class="warehouse-info">
               <uui-icon name="icon-home"></uui-icon>
               ${product.warehouseName || "Default warehouse"}
@@ -1565,6 +1556,17 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-3);
       align-items: center;
       min-width: 0;
+    }
+
+    .line-item-product merchello-line-item-identity {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .pending-product-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
     .line-item-image {

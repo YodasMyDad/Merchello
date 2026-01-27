@@ -96,6 +96,11 @@ public interface IInvoiceService
     Task<CrudResult<Invoice>> SetDueDateAsync(Guid invoiceId, DateTime? dueDate, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Backdates an invoice and all related entities to a specific date. Used for seeding realistic test data.
+    /// </summary>
+    Task<CrudResult<Invoice>> BackdateInvoiceAsync(Guid invoiceId, DateTime dateCreated, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Get count of invoices by billing email address
     /// </summary>
     Task<int> GetInvoiceCountByBillingEmailAsync(string email, CancellationToken cancellationToken = default);

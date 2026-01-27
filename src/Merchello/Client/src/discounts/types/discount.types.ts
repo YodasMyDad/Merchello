@@ -162,6 +162,16 @@ export interface DiscountEligibilityRuleDto {
   eligibilityNames?: string[] | null;
 }
 
+/** Local edit type for target rules with id for state management */
+export interface DiscountTargetRuleEdit extends DiscountTargetRuleDto {
+  id: string;
+}
+
+/** Local edit type for eligibility rules with id for state management */
+export interface DiscountEligibilityRuleEdit extends DiscountEligibilityRuleDto {
+  id: string;
+}
+
 /** Buy X Get Y configuration DTO */
 export interface DiscountBuyXGetYConfigDto {
   buyTriggerType: BuyXTriggerType;

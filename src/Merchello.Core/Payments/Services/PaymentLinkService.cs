@@ -138,10 +138,11 @@ public class PaymentLinkService(
 
         invoice.DateUpdated = now;
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Invoices.Update(invoice);
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -282,10 +283,11 @@ public class PaymentLinkService(
         invoice.ExtendedData.Remove(KeyPaymentLinkCreatedBy);
         invoice.DateUpdated = DateTime.UtcNow;
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Invoices.Update(invoice);
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
 

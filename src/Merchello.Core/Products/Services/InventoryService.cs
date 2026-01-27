@@ -58,7 +58,7 @@ public class InventoryService(
             using var scope = efCoreScopeProvider.CreateScope();
             try
             {
-                await scope.ExecuteWithContextAsync<Task>(async db =>
+                await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
                     var productWarehouse = await db.ProductWarehouses
                         .FirstOrDefaultAsync(pw => pw.ProductId == productId && pw.WarehouseId == warehouseId, cancellationToken);
@@ -70,7 +70,7 @@ public class InventoryService(
                             Message = $"Product {productId} not found in warehouse {warehouseId}",
                             ResultMessageType = ResultMessageType.Error
                         });
-                        return;
+                        return false;
                     }
 
                     // If stock tracking is disabled, reservation succeeds immediately
@@ -80,7 +80,7 @@ public class InventoryService(
                             productId, warehouseId);
                         result.ResultObject = true;
                         remainingAvailable = int.MaxValue;
-                        return;
+                        return false;
                     }
 
                     // Check if sufficient stock is available
@@ -92,7 +92,7 @@ public class InventoryService(
                             Message = $"Insufficient stock. Available: {availableStock}, Requested: {quantity}",
                             ResultMessageType = ResultMessageType.Error
                         });
-                        return;
+                        return false;
                     }
 
                     // Reserve the stock
@@ -105,6 +105,7 @@ public class InventoryService(
                         quantity, productId, warehouseId, productWarehouse.ReservedStock, remainingAvailable);
 
                     result.ResultObject = true;
+                    return true;
                 });
 
                 scope.Complete();
@@ -178,7 +179,7 @@ public class InventoryService(
             using var scope = efCoreScopeProvider.CreateScope();
             try
             {
-                await scope.ExecuteWithContextAsync<Task>(async db =>
+                await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
                     var productWarehouse = await db.ProductWarehouses
                         .FirstOrDefaultAsync(pw => pw.ProductId == productId && pw.WarehouseId == warehouseId, cancellationToken);
@@ -190,7 +191,7 @@ public class InventoryService(
                             Message = $"Product {productId} not found in warehouse {warehouseId}",
                             ResultMessageType = ResultMessageType.Error
                         });
-                        return;
+                        return false;
                     }
 
                     // If stock tracking is disabled, release succeeds immediately
@@ -199,7 +200,7 @@ public class InventoryService(
                         logger.LogInformation("Stock reservation release skipped for product {ProductId} in warehouse {WarehouseId} (TrackStock=false)",
                             productId, warehouseId);
                         result.ResultObject = true;
-                        return;
+                        return false;
                     }
 
                     // Release the reservation
@@ -211,6 +212,7 @@ public class InventoryService(
                         quantity, productId, warehouseId, productWarehouse.ReservedStock);
 
                     result.ResultObject = true;
+                    return true;
                 });
 
                 scope.Complete();
@@ -288,7 +290,7 @@ public class InventoryService(
             using var scope = efCoreScopeProvider.CreateScope();
             try
             {
-                await scope.ExecuteWithContextAsync<Task>(async db =>
+                await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
                     var productWarehouse = await db.ProductWarehouses
                         .Include(pw => pw.Product)
@@ -301,7 +303,7 @@ public class InventoryService(
                             Message = $"Product {productId} not found in warehouse {warehouseId}",
                             ResultMessageType = ResultMessageType.Error
                         });
-                        return;
+                        return false;
                     }
 
                     // If stock tracking is disabled, allocation succeeds immediately without modifying stock
@@ -310,7 +312,7 @@ public class InventoryService(
                         logger.LogInformation("Stock allocation skipped for product {ProductId} in warehouse {WarehouseId} (TrackStock=false)",
                             productId, warehouseId);
                         result.ResultObject = true;
-                        return;
+                        return false;
                     }
 
                     // Deduct from both Stock and ReservedStock
@@ -328,6 +330,7 @@ public class InventoryService(
                         quantity, productId, warehouseId, productWarehouse.Stock, productWarehouse.ReservedStock);
 
                     result.ResultObject = true;
+                    return true;
                 });
 
                 scope.Complete();
@@ -422,7 +425,7 @@ public class InventoryService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             List<string> validationErrors = [];
 
@@ -460,10 +463,11 @@ public class InventoryService(
                         ResultMessageType = ResultMessageType.Error
                     });
                 }
-                return;
+                return false;
             }
 
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -515,7 +519,7 @@ public class InventoryService(
             using var scope = efCoreScopeProvider.CreateScope();
             try
             {
-                await scope.ExecuteWithContextAsync<Task>(async db =>
+                await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
                     var productWarehouse = await db.ProductWarehouses
                         .FirstOrDefaultAsync(pw => pw.ProductId == productId && pw.WarehouseId == warehouseId, cancellationToken);
@@ -527,7 +531,7 @@ public class InventoryService(
                             Message = $"Product {productId} not found in warehouse {warehouseId}",
                             ResultMessageType = ResultMessageType.Error
                         });
-                        return;
+                        return false;
                     }
 
                     // If stock tracking is disabled, reversal succeeds immediately without modifying stock
@@ -536,7 +540,7 @@ public class InventoryService(
                         logger.LogInformation("Stock reversal skipped for product {ProductId} in warehouse {WarehouseId} (TrackStock=false)",
                             productId, warehouseId);
                         result.ResultObject = true;
-                        return;
+                        return false;
                     }
 
                     // Capture previous stock for notification
@@ -553,6 +557,7 @@ public class InventoryService(
                         quantity, productId, warehouseId, previousStock, newStock);
 
                     result.ResultObject = true;
+                    return true;
                 });
 
                 scope.Complete();

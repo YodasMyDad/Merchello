@@ -7,7 +7,7 @@ import type { ShipmentEditModalData, ShipmentEditModalValue } from "./shipment-e
 import type { UpdateShipmentDto } from "@orders/types/order.types.js";
 
 // Import shared components
-import "@shared/components/product-image.element.js";
+import "@shared/components/line-item-identity.element.js";
 
 @customElement("merchello-shipment-edit-modal")
 export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
@@ -134,17 +134,13 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
             ${shipment.lineItems.map(
               (item) => html`
                 <div class="item-row">
-                  <div class="item-image">
-                    <merchello-product-image
-                      media-key=${item.imageUrl || nothing}
-                      size="small"
-                      alt=${item.name || ""}>
-                    </merchello-product-image>
-                  </div>
-                  <div class="item-info">
-                    <div class="item-name">${item.name || "Unknown item"}</div>
-                    ${item.sku ? html`<div class="item-sku">${item.sku}</div>` : ""}
-                  </div>
+                  <merchello-line-item-identity
+                    media-key=${item.imageUrl || nothing}
+                    name=${item.productRootName || item.name || ""}
+                    .selectedOptions=${item.selectedOptions ?? []}
+                    sku=${item.sku || ""}
+                    size="small">
+                  </merchello-line-item-identity>
                   <div class="item-qty">x${item.quantity}</div>
                 </div>
               `
@@ -247,29 +243,9 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
       border-bottom: 1px solid var(--uui-color-border);
     }
 
-    .item-image img,
-    .placeholder-image {
-      width: 32px;
-      height: 32px;
-      border-radius: var(--uui-border-radius);
-      object-fit: cover;
-    }
-
-    .placeholder-image {
-      background: var(--uui-color-surface-alt);
-    }
-
-    .item-info {
+    merchello-line-item-identity {
       flex: 1;
-    }
-
-    .item-name {
-      font-size: 0.875rem;
-    }
-
-    .item-sku {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
+      min-width: 0;
     }
 
     .item-qty {

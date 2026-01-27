@@ -2,6 +2,7 @@ using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Shared.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Merchello.Core.Protocols;
@@ -13,10 +14,12 @@ namespace Merchello.Core.Protocols;
 public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
 {
     private readonly ExtensionManager? _extensionManager;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
     private readonly ICacheService _cacheService;
     private readonly ILogger<CommerceProtocolManager> _logger;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyList<ICommerceProtocolAdapter>? _cachedAdapters;
+    private IServiceScope? _adapterScope;
     private bool _disposed;
 
     /// <summary>
@@ -24,10 +27,12 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
     /// </summary>
     public CommerceProtocolManager(
         ExtensionManager extensionManager,
+        IServiceScopeFactory serviceScopeFactory,
         ICacheService cacheService,
         ILogger<CommerceProtocolManager> logger)
     {
         _extensionManager = extensionManager;
+        _serviceScopeFactory = serviceScopeFactory;
         _cacheService = cacheService;
         _logger = logger;
     }
@@ -70,9 +75,16 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
                 return cached;
             }
 
+            // Create a scope that lives as long as the cached adapters
+            _adapterScope?.Dispose();
+            _adapterScope = _serviceScopeFactory?.CreateScope();
+
             // When using internal test constructor, _extensionManager is null but _cachedAdapters is pre-populated
             // This code path only executes when _cachedAdapters is null, so _extensionManager must be set
-            var adapterInstances = _extensionManager!.GetInstances<ICommerceProtocolAdapter>(useCaching: true)
+            var adapterInstances = _extensionManager!.GetInstances<ICommerceProtocolAdapter>(
+                    predicate: null,
+                    useCaching: true,
+                    serviceProvider: _adapterScope?.ServiceProvider)
                 .Where(p => p != null)
                 .Cast<ICommerceProtocolAdapter>()
                 .ToList();
@@ -188,6 +200,8 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
     public void ClearCache()
     {
         DisposeAdapters();
+        _adapterScope?.Dispose();
+        _adapterScope = null;
         _cachedAdapters = null;
     }
 
@@ -219,6 +233,8 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
         _disposed = true;
 
         DisposeAdapters();
+        _adapterScope?.Dispose();
+        _adapterScope = null;
         _cachedAdapters = null;
         _cacheLock.Dispose();
 

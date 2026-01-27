@@ -14,7 +14,7 @@ import type { MerchelloOrdersWorkspaceContext } from "@orders/contexts/orders-wo
 import { MERCHELLO_SHIPMENT_EDIT_MODAL } from "@orders/modals/shipment-edit-modal.token.js";
 
 // Import shared components
-import "@shared/components/product-image.element.js";
+import "@shared/components/line-item-identity.element.js";
 
 /** Tracking info for the inline Mark as Shipped form */
 interface TrackingFormData {
@@ -346,17 +346,13 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
           ${shipment.lineItems.map(
             (item) => html`
               <div class="item-row">
-                <div class="item-image">
-                  <merchello-product-image
-                    media-key=${item.imageUrl || nothing}
-                    size="medium"
-                    alt=${item.name || ""}>
-                  </merchello-product-image>
-                </div>
-                <div class="item-info">
-                  <div class="item-name">${item.name || "Unknown item"}</div>
-                  ${item.sku ? html`<div class="item-sku">${item.sku}</div>` : nothing}
-                </div>
+                <merchello-line-item-identity
+                  media-key=${item.imageUrl || nothing}
+                  name=${item.productRootName || item.name || ""}
+                  .selectedOptions=${item.selectedOptions ?? []}
+                  sku=${item.sku || ""}
+                  size="medium">
+                </merchello-line-item-identity>
                 <div class="item-qty">x${item.quantity}</div>
               </div>
             `
@@ -859,30 +855,9 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       border-bottom: 1px solid var(--uui-color-border);
     }
 
-    .item-image img,
-    .placeholder-image {
-      width: 40px;
-      height: 40px;
-      border-radius: var(--uui-border-radius);
-      object-fit: cover;
-    }
-
-    .placeholder-image {
-      background: var(--uui-color-surface);
-    }
-
-    .item-info {
+    merchello-line-item-identity {
       flex: 1;
-    }
-
-    .item-name {
-      font-weight: 500;
-      font-size: 0.875rem;
-    }
-
-    .item-sku {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
+      min-width: 0;
     }
 
     .item-qty {

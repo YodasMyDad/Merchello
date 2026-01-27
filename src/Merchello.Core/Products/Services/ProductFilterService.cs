@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
@@ -12,6 +13,8 @@ namespace Merchello.Core.Products.Services;
 
 public class ProductFilterService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ProductFilterGroupFactory productFilterGroupFactory,
+    ProductFilterFactory productFilterFactory,
     ILogger<ProductFilterService> logger) : IProductFilterService
 {
     public async Task<List<ProductFilterGroup>> GetFilterGroups(CancellationToken cancellationToken = default)
@@ -78,17 +81,14 @@ public class ProductFilterService(
     {
         var result = new CrudResult<ProductFilterGroup>();
 
-        var filterGroup = new ProductFilterGroup
-        {
-            Id = GuidExtensions.NewSequentialGuid,
-            Name = name
-        };
+        var filterGroup = productFilterGroupFactory.Create(name);
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.ProductFilterGroups.Add(filterGroup);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -106,7 +106,7 @@ public class ProductFilterService(
         var result = new CrudResult<ProductFilter>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Get the current filter count for sort order
             var filterCount = await db.ProductFilters
@@ -119,23 +119,21 @@ public class ProductFilterService(
             if (!filterGroupExists)
             {
                 result.AddErrorMessage("Filter group with ID " + parameters.FilterGroupId + " not found");
-                return;
+                return false;
             }
 
-            var filter = new ProductFilter
-            {
-                Id = GuidExtensions.NewSequentialGuid,
-                Name = parameters.Name,
-                HexColour = parameters.HexColour,
-                Image = parameters.Image,
-                SortOrder = filterCount,
-                ProductFilterGroupId = parameters.FilterGroupId
-            };
+            var filter = productFilterFactory.Create(
+                parameters.Name,
+                parameters.FilterGroupId,
+                filterCount,
+                parameters.HexColour,
+                parameters.Image);
 
             db.ProductFilters.Add(filter);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
             result.ResultObject = filter;
+            return true;
         });
         scope.Complete();
 
@@ -168,7 +166,7 @@ public class ProductFilterService(
         var result = new CrudResult<ProductFilterGroup>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var filterGroup = await db.ProductFilterGroups
                 .Include(fg => fg.Filters)
@@ -177,7 +175,7 @@ public class ProductFilterService(
             if (filterGroup == null)
             {
                 result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
-                return;
+                return false;
             }
 
             if (name != null) filterGroup.Name = name;
@@ -185,6 +183,7 @@ public class ProductFilterService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = filterGroup;
+            return true;
         });
         scope.Complete();
 
@@ -199,7 +198,7 @@ public class ProductFilterService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var filterGroup = await db.ProductFilterGroups
                 .Include(fg => fg.Filters)
@@ -208,7 +207,7 @@ public class ProductFilterService(
             if (filterGroup == null)
             {
                 result.AddErrorMessage($"Filter group with ID {filterGroupId} not found");
-                return;
+                return false;
             }
 
             // Remove all filters in the group first
@@ -217,6 +216,7 @@ public class ProductFilterService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -231,7 +231,7 @@ public class ProductFilterService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var filterGroups = await db.ProductFilterGroups
                 .Where(fg => orderedIds.Contains(fg.Id))
@@ -248,6 +248,7 @@ public class ProductFilterService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -277,7 +278,7 @@ public class ProductFilterService(
         var result = new CrudResult<ProductFilter>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var filter = await db.ProductFilters
                 .FirstOrDefaultAsync(f => f.Id == parameters.FilterId, cancellationToken);
@@ -285,7 +286,7 @@ public class ProductFilterService(
             if (filter == null)
             {
                 result.AddErrorMessage("Filter with ID " + parameters.FilterId + " not found");
-                return;
+                return false;
             }
 
             if (parameters.Name != null) filter.Name = parameters.Name;
@@ -295,6 +296,7 @@ public class ProductFilterService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = filter;
+            return true;
         });
         scope.Complete();
 
@@ -309,7 +311,7 @@ public class ProductFilterService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var filter = await db.ProductFilters
                 .FirstOrDefaultAsync(f => f.Id == filterId, cancellationToken);
@@ -317,12 +319,13 @@ public class ProductFilterService(
             if (filter == null)
             {
                 result.AddErrorMessage($"Filter with ID {filterId} not found");
-                return;
+                return false;
             }
 
             db.ProductFilters.Remove(filter);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -337,7 +340,7 @@ public class ProductFilterService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var filters = await db.ProductFilters
                 .Where(f => f.ProductFilterGroupId == filterGroupId && orderedIds.Contains(f.Id))
@@ -354,6 +357,7 @@ public class ProductFilterService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -368,7 +372,7 @@ public class ProductFilterService(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var product = await db.Products
                 .Include(p => p.Filters)
@@ -377,7 +381,7 @@ public class ProductFilterService(
             if (product == null)
             {
                 result.AddErrorMessage($"Product with ID {productId} not found");
-                return;
+                return false;
             }
 
             // Get the filters to assign
@@ -394,6 +398,7 @@ public class ProductFilterService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 

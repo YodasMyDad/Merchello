@@ -26,7 +26,7 @@ public class PaymentLinksApiController(IPaymentLinkService paymentLinkService) :
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreatePaymentLink(
-        [FromBody] CreatePaymentLinkRequest request,
+        [FromBody] CreatePaymentLinkDto request,
         CancellationToken cancellationToken = default)
     {
         if (request.InvoiceId == Guid.Empty)

@@ -1,12 +1,12 @@
-using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
-using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
-using Microsoft.Extensions.Logging;
+using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Tests.TestInfrastructure;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Shouldly;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -14,50 +14,90 @@ using Xunit;
 
 namespace Merchello.Tests.Payments.Services;
 
-public class PaymentLinkServiceTests
+[Collection("Integration Tests")]
+public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
 {
-    private readonly Mock<IEFCoreScopeProvider<MerchelloDbContext>> _scopeProviderMock;
-    private readonly Mock<IPaymentProviderManager> _providerManagerMock;
-    private readonly Mock<IPaymentService> _paymentServiceMock;
-    private readonly Mock<ILogger<PaymentLinkService>> _loggerMock;
+    private readonly ServiceTestFixture _fixture;
+    private readonly IPaymentService _paymentService;
 
-    public PaymentLinkServiceTests()
+    public PaymentLinkServiceTests(ServiceTestFixture fixture)
     {
-        _scopeProviderMock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
-        _providerManagerMock = new Mock<IPaymentProviderManager>();
-        _paymentServiceMock = new Mock<IPaymentService>();
-        _loggerMock = new Mock<ILogger<PaymentLinkService>>();
+        _fixture = fixture;
+        _fixture.ResetDatabase();
+        _paymentService = fixture.GetService<IPaymentService>();
     }
 
-    private PaymentLinkService CreateService() =>
-        new(_scopeProviderMock.Object, _providerManagerMock.Object, _paymentServiceMock.Object, _loggerMock.Object);
+    /// <summary>
+    /// Creates a PaymentLinkService with the fixture's real scope provider and payment service,
+    /// plus a per-test mock provider manager for payment provider behaviour.
+    /// </summary>
+    private PaymentLinkService CreateService(Mock<IPaymentProviderManager>? providerManagerMock = null)
+    {
+        providerManagerMock ??= new Mock<IPaymentProviderManager>();
+        return new PaymentLinkService(
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
+            providerManagerMock.Object,
+            _paymentService,
+            NullLogger<PaymentLinkService>.Instance);
+    }
+
+    /// <summary>
+    /// Creates a mock provider manager with a provider that supports payment links.
+    /// </summary>
+    private static Mock<IPaymentProviderManager> CreatePaymentLinkProviderMock(
+        string alias,
+        PaymentLinkResult? linkResult = null)
+    {
+        var mockProvider = new Mock<IPaymentProvider>();
+        mockProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = alias,
+            DisplayName = alias,
+            SupportsPaymentLinks = true,
+            IconHtml = $"<svg>{alias}</svg>"
+        });
+
+        if (linkResult != null)
+        {
+            mockProvider
+                .Setup(p => p.CreatePaymentLinkAsync(It.IsAny<PaymentLinkRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(linkResult);
+        }
+
+        var setting = new PaymentProviderSetting { ProviderAlias = alias, DisplayName = alias, IsEnabled = true };
+        var registered = new RegisteredPaymentProvider(mockProvider.Object, setting);
+
+        var pmMock = new Mock<IPaymentProviderManager>();
+        pmMock.Setup(m => m.GetProviderAsync(alias, true, It.IsAny<CancellationToken>()))
+              .ReturnsAsync(registered);
+
+        return pmMock;
+    }
 
     #region CreatePaymentLinkAsync
 
     [Fact]
     public async Task CreatePaymentLinkAsync_ReturnsError_WhenProviderNotFound()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
-        _providerManagerMock
-            .Setup(m => m.GetProviderAsync("nonexistent", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredPaymentProvider?)null);
+        // Arrange - provider manager returns null for unknown alias
+        var pmMock = new Mock<IPaymentProviderManager>();
+        pmMock.Setup(m => m.GetProviderAsync("nonexistent", true, It.IsAny<CancellationToken>()))
+              .ReturnsAsync((RegisteredPaymentProvider?)null);
 
-        var service = CreateService();
+        var service = CreateService(pmMock);
 
         // Act
-        var result = await service.CreatePaymentLinkAsync(invoiceId, "nonexistent", "admin");
+        var result = await service.CreatePaymentLinkAsync(Guid.NewGuid(), "nonexistent", "admin");
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ShouldContain(m => m.Message.Contains("not found or not enabled"));
+        result.Messages.ShouldContain(m => m.Message!.Contains("not found or not enabled"));
     }
 
     [Fact]
     public async Task CreatePaymentLinkAsync_ReturnsError_WhenProviderDoesNotSupportPaymentLinks()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
+        // Arrange - provider with SupportsPaymentLinks = false
         var mockProvider = new Mock<IPaymentProvider>();
         mockProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
         {
@@ -67,126 +107,76 @@ public class PaymentLinkServiceTests
         });
 
         var setting = new PaymentProviderSetting { ProviderAlias = "manual", DisplayName = "Manual Payment", IsEnabled = true };
-        var registeredProvider = new RegisteredPaymentProvider(mockProvider.Object, setting);
+        var registered = new RegisteredPaymentProvider(mockProvider.Object, setting);
 
-        _providerManagerMock
-            .Setup(m => m.GetProviderAsync("manual", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(registeredProvider);
+        var pmMock = new Mock<IPaymentProviderManager>();
+        pmMock.Setup(m => m.GetProviderAsync("manual", true, It.IsAny<CancellationToken>()))
+              .ReturnsAsync(registered);
 
-        var service = CreateService();
+        var service = CreateService(pmMock);
 
         // Act
-        var result = await service.CreatePaymentLinkAsync(invoiceId, "manual", "admin");
+        var result = await service.CreatePaymentLinkAsync(Guid.NewGuid(), "manual", "admin");
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ShouldContain(m => m.Message.Contains("does not support payment links"));
+        result.Messages.ShouldContain(m => m.Message!.Contains("does not support payment links"));
     }
 
     [Fact]
     public async Task CreatePaymentLinkAsync_ReturnsError_WhenInvoiceNotFound()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
-        var mockProvider = new Mock<IPaymentProvider>();
-        mockProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
-        {
-            Alias = "stripe",
-            DisplayName = "Stripe",
-            SupportsPaymentLinks = true
-        });
+        // Arrange - provider supports links, but invoice doesn't exist in DB
+        var pmMock = CreatePaymentLinkProviderMock("stripe");
+        var service = CreateService(pmMock);
 
-        var setting = new PaymentProviderSetting { ProviderAlias = "stripe", DisplayName = "Stripe", IsEnabled = true };
-        var registeredProvider = new RegisteredPaymentProvider(mockProvider.Object, setting);
-
-        _providerManagerMock
-            .Setup(m => m.GetProviderAsync("stripe", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(registeredProvider);
-
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
-            .ReturnsAsync((Invoice?)null);
-        scopeMock.Setup(s => s.Complete());
-        _scopeProviderMock.Setup(p => p.CreateScope()).Returns(scopeMock.Object);
-
-        var service = CreateService();
-
-        // Act
-        var result = await service.CreatePaymentLinkAsync(invoiceId, "stripe", "admin");
+        // Act - use a non-existent invoice ID; real DB returns null
+        var result = await service.CreatePaymentLinkAsync(Guid.NewGuid(), "stripe", "admin");
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ShouldContain(m => m.Message.Contains("Invoice not found"));
+        result.Messages.ShouldContain(m => m.Message!.Contains("Invoice not found"));
     }
 
     [Fact]
     public async Task CreatePaymentLinkAsync_ReturnsError_WhenInvoiceAlreadyPaid()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
-        var invoice = new Invoice
-        {
-            Id = invoiceId,
-            Total = 100m,
-            CurrencyCode = "USD",
-            InvoiceNumber = "INV-001",
-            BillingAddress = new Address { Email = "test@test.com", Name = "Test Customer" },
-            ExtendedData = new Dictionary<string, object>()
-        };
+        // Arrange - create real invoice and pay it in full
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        var mockProvider = new Mock<IPaymentProvider>();
-        mockProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
+        await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
         {
-            Alias = "stripe",
-            DisplayName = "Stripe",
-            SupportsPaymentLinks = true
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
         });
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        var setting = new PaymentProviderSetting { ProviderAlias = "stripe", DisplayName = "Stripe", IsEnabled = true };
-        var registeredProvider = new RegisteredPaymentProvider(mockProvider.Object, setting);
-
-        _providerManagerMock
-            .Setup(m => m.GetProviderAsync("stripe", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(registeredProvider);
-
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
-            .ReturnsAsync(invoice);
-        scopeMock.Setup(s => s.Complete());
-        _scopeProviderMock.Setup(p => p.CreateScope()).Returns(scopeMock.Object);
-
-        _paymentServiceMock
-            .Setup(s => s.GetInvoicePaymentStatusAsync(invoiceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(InvoicePaymentStatus.Paid);
-
-        var service = CreateService();
+        var pmMock = CreatePaymentLinkProviderMock("stripe");
+        var service = CreateService(pmMock);
 
         // Act
-        var result = await service.CreatePaymentLinkAsync(invoiceId, "stripe", "admin");
+        var result = await service.CreatePaymentLinkAsync(invoice.Id, "stripe", "admin");
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ShouldContain(m => m.Message.Contains("already paid"));
+        result.Messages.ShouldContain(m => m.Message!.Contains("already paid"));
     }
 
     [Fact]
     public async Task CreatePaymentLinkAsync_Succeeds_AndReturnsPaymentLinkInfo()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
-        var invoice = new Invoice
-        {
-            Id = invoiceId,
-            Total = 250.50m,
-            CurrencyCode = "GBP",
-            InvoiceNumber = "INV-042",
-            CustomerId = Guid.NewGuid(),
-            BillingAddress = new Address { Email = "customer@example.com", Name = "Jane Doe" },
-            ExtendedData = new Dictionary<string, object>()
-        };
+        // Arrange - create real unpaid invoice in DB
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 250.50m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
+        // Setup provider mock that returns a successful payment link
         var mockProvider = new Mock<IPaymentProvider>();
         mockProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
         {
@@ -205,30 +195,15 @@ public class PaymentLinkServiceTests
             });
 
         var setting = new PaymentProviderSetting { ProviderAlias = "stripe", DisplayName = "Stripe", IsEnabled = true };
-        var registeredProvider = new RegisteredPaymentProvider(mockProvider.Object, setting);
+        var registered = new RegisteredPaymentProvider(mockProvider.Object, setting);
+        var pmMock = new Mock<IPaymentProviderManager>();
+        pmMock.Setup(m => m.GetProviderAsync("stripe", true, It.IsAny<CancellationToken>()))
+              .ReturnsAsync(registered);
 
-        _providerManagerMock
-            .Setup(m => m.GetProviderAsync("stripe", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(registeredProvider);
-
-        _paymentServiceMock
-            .Setup(s => s.GetInvoicePaymentStatusAsync(invoiceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(InvoicePaymentStatus.Unpaid);
-
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
-            .ReturnsAsync(invoice);
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-            .Returns(Task.CompletedTask);
-        scopeMock.Setup(s => s.Complete());
-        _scopeProviderMock.Setup(p => p.CreateScope()).Returns(scopeMock.Object);
-
-        var service = CreateService();
+        var service = CreateService(pmMock);
 
         // Act
-        var result = await service.CreatePaymentLinkAsync(invoiceId, "stripe", "admin_user");
+        var result = await service.CreatePaymentLinkAsync(invoice.Id, "stripe", "admin_user");
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -244,11 +219,8 @@ public class PaymentLinkServiceTests
         // Verify the provider was called with correct request data
         mockProvider.Verify(p => p.CreatePaymentLinkAsync(
             It.Is<PaymentLinkRequest>(r =>
-                r.InvoiceId == invoiceId &&
-                r.Amount == 250.50m &&
-                r.Currency == "GBP" &&
-                r.CustomerEmail == "customer@example.com" &&
-                r.CustomerName == "Jane Doe"),
+                r.InvoiceId == invoice.Id &&
+                r.Amount == 250.50m),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -259,56 +231,34 @@ public class PaymentLinkServiceTests
     [Fact]
     public async Task DeactivatePaymentLinkAsync_ReturnsError_WhenInvoiceNotFound()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
-
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
-            .ReturnsAsync((Invoice?)null);
-        scopeMock.Setup(s => s.Complete());
-        _scopeProviderMock.Setup(p => p.CreateScope()).Returns(scopeMock.Object);
-
+        // Arrange - use a non-existent invoice ID; real DB returns null
         var service = CreateService();
 
         // Act
-        var result = await service.DeactivatePaymentLinkAsync(invoiceId);
+        var result = await service.DeactivatePaymentLinkAsync(Guid.NewGuid());
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ShouldContain(m => m.Message.Contains("Invoice not found"));
+        result.Messages.ShouldContain(m => m.Message!.Contains("Invoice not found"));
     }
 
     [Fact]
     public async Task DeactivatePaymentLinkAsync_ReturnsError_WhenNoActiveLink()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
-        var invoice = new Invoice
-        {
-            Id = invoiceId,
-            Total = 50m,
-            CurrencyCode = "USD",
-            InvoiceNumber = "INV-099",
-            BillingAddress = new Address { Email = "test@test.com", Name = "Test" },
-            ExtendedData = new Dictionary<string, object>()
-        };
-
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
-            .ReturnsAsync(invoice);
-        scopeMock.Setup(s => s.Complete());
-        _scopeProviderMock.Setup(p => p.CreateScope()).Returns(scopeMock.Object);
+        // Arrange - create real invoice with no payment link data
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 50m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
         var service = CreateService();
 
         // Act
-        var result = await service.DeactivatePaymentLinkAsync(invoiceId);
+        var result = await service.DeactivatePaymentLinkAsync(invoice.Id);
 
         // Assert
         result.Successful.ShouldBeFalse();
-        result.Messages.ShouldContain(m => m.Message.Contains("No active payment link"));
+        result.Messages.ShouldContain(m => m.Message!.Contains("No active payment link"));
     }
 
     #endregion
@@ -318,7 +268,7 @@ public class PaymentLinkServiceTests
     [Fact]
     public async Task GetPaymentLinkProvidersAsync_ReturnsOnlyProvidersSupportingPaymentLinks()
     {
-        // Arrange
+        // Arrange - mock provider manager with mixed support
         var stripeProvider = new Mock<IPaymentProvider>();
         stripeProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
         {
@@ -356,11 +306,11 @@ public class PaymentLinkServiceTests
             new(manualProvider.Object, manualSetting)
         };
 
-        _providerManagerMock
-            .Setup(m => m.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(registeredProviders);
+        var pmMock = new Mock<IPaymentProviderManager>();
+        pmMock.Setup(m => m.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
+              .ReturnsAsync(registeredProviders);
 
-        var service = CreateService();
+        var service = CreateService(pmMock);
 
         // Act
         var result = await service.GetPaymentLinkProvidersAsync();

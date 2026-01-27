@@ -205,4 +205,22 @@ namespace Merchello.Composers
             }
         }
     }
+
+    /// <summary>
+    /// Notification handler that initializes ProductRootExtensions on application startup.
+    /// This provides the singleton services needed by the static extension methods.
+    /// </summary>
+    public class InitializeProductRootExtensionsHandler(
+        Umbraco.Cms.Core.Models.PublishedContent.IPublishedValueFallback publishedValueFallback,
+        IOptions<Core.Shared.Models.MerchelloSettings> merchelloSettings,
+        Factories.MerchelloPublishedElementFactory elementFactory,
+        ILogger<InitializeProductRootExtensionsHandler> logger)
+        : INotificationHandler<UmbracoApplicationStartedNotification>
+    {
+        public void Handle(UmbracoApplicationStartedNotification notification)
+        {
+            Extensions.ProductRootExtensions.Initialize(publishedValueFallback, merchelloSettings, elementFactory);
+            logger.LogDebug("ProductRootExtensions initialized");
+        }
+    }
 }

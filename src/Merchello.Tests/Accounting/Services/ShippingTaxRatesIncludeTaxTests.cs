@@ -91,7 +91,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var statusHandler = _fixture.GetService<IOrderStatusHandler>();
         var paymentService = new Mock<IPaymentService>().Object;
         var customerService = new Mock<ICustomerService>().Object;
-        var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
         var checkoutDiscountService = new Lazy<ICheckoutDiscountService>(() => new Mock<ICheckoutDiscountService>().Object);
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
@@ -116,7 +115,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             .Setup(x => x.GetActiveProviderAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(manualTaxProviderMock);
 
-        var strategyResolver = new Mock<IOrderGroupingStrategyResolver>().Object;
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
         var invoiceFactory = new InvoiceFactory(currencyService);
@@ -130,15 +128,12 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             statusHandler,
             paymentService,
             customerService,
-            checkoutService,
             checkoutDiscountService,
-            strategyResolver,
             notificationPublisher,
             exchangeRateCacheMock.Object,
             currencyService,
             lineItemService,
             discountService,
-            taxServiceMock.Object,
             taxProviderManagerMock.Object,
             invoiceFactory,
             orderFactory,
@@ -216,10 +211,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             {
                 var dbContext = _fixture.CreateDbContext();
                 var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-                    .Returns((Func<MerchelloDbContext, Task> func) => func(dbContext));
 
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))
@@ -525,7 +516,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var statusHandler = _fixture.GetService<IOrderStatusHandler>();
         var paymentService = new Mock<IPaymentService>().Object;
         var customerService = new Mock<ICustomerService>().Object;
-        var checkoutService = new Lazy<ICheckoutService>(() => new Mock<ICheckoutService>().Object);
         var checkoutDiscountService = new Lazy<ICheckoutDiscountService>(() => new Mock<ICheckoutDiscountService>().Object);
         var notificationPublisher = new Mock<IMerchelloNotificationPublisher>().Object;
         var exchangeRateCacheMock = new Mock<IExchangeRateCache>();
@@ -557,7 +547,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             .Setup(x => x.GetShippingTaxRateForLocationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((decimal?)null); // null = proportional calculation
 
-        var strategyResolver = new Mock<IOrderGroupingStrategyResolver>().Object;
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 
         var invoiceFactory = new InvoiceFactory(currencyService);
@@ -571,15 +560,12 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             statusHandler,
             paymentService,
             customerService,
-            checkoutService,
             checkoutDiscountService,
-            strategyResolver,
             notificationPublisher,
             exchangeRateCacheMock.Object,
             currencyService,
             lineItemService,
             discountService,
-            taxServiceMock.Object,
             taxProviderManagerMock.Object,
             invoiceFactory,
             orderFactory,
@@ -600,10 +586,6 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             .Returns(() =>
             {
                 var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-                    .Returns((Func<MerchelloDbContext, Task> func) => func(sharedDbContext));
 
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Invoice?>>>()))

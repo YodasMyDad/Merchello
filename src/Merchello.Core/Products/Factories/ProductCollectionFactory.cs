@@ -8,6 +8,7 @@ public class ProductCollectionFactory
     {
         return new ProductCollection
         {
+            Id = Guid.NewGuid(),
             Name = name
         };
     }

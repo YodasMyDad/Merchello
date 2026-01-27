@@ -10,6 +10,7 @@ using Merchello.Core.Shipping.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Fulfilment.Services;
 
@@ -17,7 +18,7 @@ namespace Merchello.Core.Fulfilment.Services;
 /// Service for managing order fulfilment operations.
 /// </summary>
 public class FulfilmentService(
-    MerchelloDbContext dbContext,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IFulfilmentProviderManager providerManager,
     ShipmentFactory shipmentFactory,
     IOptions<FulfilmentSettings> settings,
@@ -30,13 +31,16 @@ public class FulfilmentService(
     {
         var result = new CrudResult<Order>();
 
-        var order = await dbContext.Orders
-            .Include(o => o.Invoice)
-            .Include(o => o.LineItems)
-            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var order = await scope.ExecuteWithContextAsync(async db =>
+            await db.Orders
+                .Include(o => o.Invoice)
+                .Include(o => o.LineItems)
+                .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken));
 
         if (order == null)
         {
+            scope.Complete();
             result.AddErrorMessage($"Order {orderId} not found.");
             return result;
         }
@@ -44,6 +48,7 @@ public class FulfilmentService(
         // Guard: Already submitted
         if (!string.IsNullOrEmpty(order.FulfilmentProviderReference))
         {
+            scope.Complete();
             result.AddWarningMessage("Order has already been submitted to fulfilment provider.");
             result.ResultObject = order;
             return result;
@@ -52,17 +57,19 @@ public class FulfilmentService(
         // Guard: Already processing (submission in progress)
         if (order.Status == OrderStatus.Processing && order.FulfilmentProviderConfigurationId.HasValue)
         {
+            scope.Complete();
             result.AddWarningMessage("Order submission is already in progress.");
             result.ResultObject = order;
             return result;
         }
 
         // Resolve provider configuration
-        var providerConfig = await ResolveProviderForWarehouseAsync(order.WarehouseId, cancellationToken);
+        var providerConfig = await ResolveProviderForWarehouseInternalAsync(scope, order.WarehouseId, cancellationToken);
 
         // If no provider configured, this is manual fulfilment - not an error
         if (providerConfig == null)
         {
+            scope.Complete();
             logger.LogDebug("No fulfilment provider configured for order {OrderId} warehouse {WarehouseId}. Manual fulfilment assumed.",
                 orderId, order.WarehouseId);
             result.ResultObject = order;
@@ -73,6 +80,7 @@ public class FulfilmentService(
         var registeredProvider = await providerManager.GetConfiguredProviderAsync(providerConfig.Id, cancellationToken);
         if (registeredProvider == null)
         {
+            scope.Complete();
             result.AddErrorMessage($"Fulfilment provider configuration {providerConfig.Id} not found.");
             return result;
         }
@@ -80,6 +88,7 @@ public class FulfilmentService(
         // Check if provider is enabled
         if (!registeredProvider.IsEnabled)
         {
+            scope.Complete();
             result.AddErrorMessage($"Fulfilment provider '{registeredProvider.Metadata.Key}' is disabled.");
             return result;
         }
@@ -87,6 +96,7 @@ public class FulfilmentService(
         // Check if provider supports order submission
         if (!registeredProvider.Metadata.SupportsOrderSubmission)
         {
+            scope.Complete();
             logger.LogDebug("Provider {ProviderKey} does not support order submission. Manual fulfilment assumed.",
                 registeredProvider.Metadata.Key);
             result.ResultObject = order;
@@ -99,7 +109,7 @@ public class FulfilmentService(
         order.DateUpdated = DateTime.UtcNow;
 
         // Build fulfilment request
-        var request = await BuildFulfilmentRequestAsync(order, providerConfig, cancellationToken);
+        var request = await BuildFulfilmentRequestInternalAsync(scope, order, providerConfig, cancellationToken);
 
         try
         {
@@ -122,7 +132,12 @@ public class FulfilmentService(
                     }
                 }
 
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await scope.ExecuteWithContextAsync<bool>(async db =>
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                    return true;
+                });
+                scope.Complete();
 
                 logger.LogInformation("Order {OrderId} successfully submitted to {ProviderKey}. Reference: {Reference}",
                     orderId, registeredProvider.Metadata.Key, providerResult.ProviderReference);
@@ -150,7 +165,12 @@ public class FulfilmentService(
                         orderId, order.FulfilmentRetryCount, providerResult.ErrorMessage);
                 }
 
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await scope.ExecuteWithContextAsync<bool>(async db =>
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                    return true;
+                });
+                scope.Complete();
 
                 result.AddErrorMessage(providerResult.ErrorMessage ?? "Failed to submit order to fulfilment provider.");
                 result.ResultObject = order;
@@ -170,7 +190,12 @@ public class FulfilmentService(
                 order.Status = OrderStatus.FulfilmentFailed;
             }
 
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            });
+            scope.Complete();
 
             result.AddErrorMessage($"Exception during fulfilment submission: {ex.Message}");
             result.ResultObject = order;
@@ -184,11 +209,13 @@ public class FulfilmentService(
     {
         var result = new CrudResult<Order>();
 
-        var order = await dbContext.Orders
-            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var order = await scope.ExecuteWithContextAsync(async db =>
+            await db.Orders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken));
 
         if (order == null)
         {
+            scope.Complete();
             result.AddErrorMessage($"Order {orderId} not found.");
             return result;
         }
@@ -197,6 +224,7 @@ public class FulfilmentService(
         if (order.Status != OrderStatus.FulfilmentFailed &&
             string.IsNullOrEmpty(order.FulfilmentErrorMessage))
         {
+            scope.Complete();
             result.AddErrorMessage("Order is not in a retryable state.");
             result.ResultObject = order;
             return result;
@@ -205,6 +233,7 @@ public class FulfilmentService(
         // Already has a provider reference - can't retry
         if (!string.IsNullOrEmpty(order.FulfilmentProviderReference))
         {
+            scope.Complete();
             result.AddWarningMessage("Order has already been submitted successfully.");
             result.ResultObject = order;
             return result;
@@ -214,7 +243,12 @@ public class FulfilmentService(
         order.Status = OrderStatus.Processing;
         order.FulfilmentErrorMessage = null;
         order.DateUpdated = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+        scope.Complete();
 
         return await SubmitOrderAsync(orderId, cancellationToken);
     }
@@ -224,8 +258,10 @@ public class FulfilmentService(
     {
         var result = new CrudResult<Order>();
 
-        var order = await dbContext.Orders
-            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var order = await scope.ExecuteWithContextAsync(async db =>
+            await db.Orders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken));
+        scope.Complete();
 
         if (order == null)
         {
@@ -299,11 +335,13 @@ public class FulfilmentService(
     {
         var result = new CrudResult<Order>();
 
-        var order = await dbContext.Orders
-            .FirstOrDefaultAsync(o => o.FulfilmentProviderReference == update.ProviderReference, cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var order = await scope.ExecuteWithContextAsync(async db =>
+            await db.Orders.FirstOrDefaultAsync(o => o.FulfilmentProviderReference == update.ProviderReference, cancellationToken));
 
         if (order == null)
         {
+            scope.Complete();
             result.AddErrorMessage($"Order with provider reference '{update.ProviderReference}' not found.");
             return result;
         }
@@ -338,7 +376,12 @@ public class FulfilmentService(
                 break;
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+        scope.Complete();
 
         logger.LogInformation("Order {OrderId} status updated from {OldStatus} to {NewStatus} via provider update",
             order.Id, oldStatus, update.MappedStatus);
@@ -352,14 +395,18 @@ public class FulfilmentService(
     {
         var result = new CrudResult<Shipment>();
 
+        using var scope = efCoreScopeProvider.CreateScope();
+
         // Find the order
-        var order = await dbContext.Orders
-            .Include(o => o.Shipments)
-            .Include(o => o.LineItems)
-            .FirstOrDefaultAsync(o => o.FulfilmentProviderReference == update.ProviderReference, cancellationToken);
+        var order = await scope.ExecuteWithContextAsync(async db =>
+            await db.Orders
+                .Include(o => o.Shipments)
+                .Include(o => o.LineItems)
+                .FirstOrDefaultAsync(o => o.FulfilmentProviderReference == update.ProviderReference, cancellationToken));
 
         if (order == null)
         {
+            scope.Complete();
             result.AddErrorMessage($"Order with provider reference '{update.ProviderReference}' not found.");
             return result;
         }
@@ -418,13 +465,23 @@ public class FulfilmentService(
                 shipment.LineItems.AddRange(order.LineItems);
             }
 
-            dbContext.Shipments.Add(shipment);
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                db.Shipments.Add(shipment);
+                return true;
+            });
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
 
         // Update order status based on shipments
-        await UpdateOrderShipmentStatusAsync(order, cancellationToken);
+        await UpdateOrderShipmentStatusInternalAsync(scope, order, cancellationToken);
+
+        scope.Complete();
 
         logger.LogInformation("Processed shipment update for order {OrderId}. Shipment: {ShipmentId}, Tracking: {TrackingNumber}",
             order.Id, shipment.Id, shipment.TrackingNumber);
@@ -436,25 +493,41 @@ public class FulfilmentService(
     /// <inheritdoc />
     public async Task<IReadOnlyList<Order>> GetOrdersForPollingAsync(Guid providerConfigId, CancellationToken cancellationToken = default)
     {
-        return await dbContext.Orders
-            .Where(o => o.FulfilmentProviderConfigurationId == providerConfigId)
-            .Where(o => o.Status == OrderStatus.Processing ||
-                        o.Status == OrderStatus.PartiallyShipped ||
-                        o.Status == OrderStatus.Shipped)
-            .Where(o => !string.IsNullOrEmpty(o.FulfilmentProviderReference))
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var orders = await scope.ExecuteWithContextAsync(async db =>
+            await db.Orders
+                .Where(o => o.FulfilmentProviderConfigurationId == providerConfigId)
+                .Where(o => o.Status == OrderStatus.Processing ||
+                            o.Status == OrderStatus.PartiallyShipped ||
+                            o.Status == OrderStatus.Shipped)
+                .Where(o => !string.IsNullOrEmpty(o.FulfilmentProviderReference))
+                .AsNoTracking()
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return orders;
     }
 
     /// <inheritdoc />
     public async Task<FulfilmentProviderConfiguration?> ResolveProviderForWarehouseAsync(Guid warehouseId, CancellationToken cancellationToken = default)
     {
-        var warehouse = await dbContext.Warehouses
-            .Include(w => w.FulfilmentProviderConfiguration)
-            .Include(w => w.Supplier)
-            .ThenInclude(s => s!.DefaultFulfilmentProviderConfiguration)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await ResolveProviderForWarehouseInternalAsync(scope, warehouseId, cancellationToken);
+        scope.Complete();
+        return result;
+    }
+
+    private async Task<FulfilmentProviderConfiguration?> ResolveProviderForWarehouseInternalAsync(
+        IEfCoreScope<MerchelloDbContext> scope,
+        Guid warehouseId,
+        CancellationToken cancellationToken)
+    {
+        var warehouse = await scope.ExecuteWithContextAsync(async db =>
+            await db.Warehouses
+                .Include(w => w.FulfilmentProviderConfiguration)
+                .Include(w => w.Supplier)
+                .ThenInclude(s => s!.DefaultFulfilmentProviderConfiguration)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken));
 
         if (warehouse == null)
         {
@@ -473,14 +546,17 @@ public class FulfilmentService(
     {
         var now = DateTime.UtcNow;
 
-        var orders = await dbContext.Orders
-            .Where(o => o.Status == OrderStatus.Processing || o.Status == OrderStatus.FulfilmentFailed)
-            .Where(o => !string.IsNullOrEmpty(o.FulfilmentErrorMessage))
-            .Where(o => string.IsNullOrEmpty(o.FulfilmentProviderReference))
-            .Where(o => o.FulfilmentRetryCount < _settings.MaxRetryAttempts)
-            .Where(o => o.FulfilmentProviderConfigurationId != null)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var orders = await scope.ExecuteWithContextAsync(async db =>
+            await db.Orders
+                .Where(o => o.Status == OrderStatus.Processing || o.Status == OrderStatus.FulfilmentFailed)
+                .Where(o => !string.IsNullOrEmpty(o.FulfilmentErrorMessage))
+                .Where(o => string.IsNullOrEmpty(o.FulfilmentProviderReference))
+                .Where(o => o.FulfilmentRetryCount < _settings.MaxRetryAttempts)
+                .Where(o => o.FulfilmentProviderConfigurationId != null)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken));
+        scope.Complete();
 
         // Filter by delay (done in memory as delay calculation depends on retry count)
         return orders.Where(o =>
@@ -491,22 +567,33 @@ public class FulfilmentService(
         }).ToList();
     }
 
-    private async Task<FulfilmentOrderRequest> BuildFulfilmentRequestAsync(
+    private async Task<FulfilmentOrderRequest> BuildFulfilmentRequestInternalAsync(
+        IEfCoreScope<MerchelloDbContext> scope,
         Order order,
         FulfilmentProviderConfiguration providerConfig,
         CancellationToken cancellationToken)
     {
         // Get invoice for customer details
-        var invoice = order.Invoice ?? await dbContext.Invoices
-            .Include(i => i.BillingAddress)
-            .Include(i => i.ShippingAddress)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(i => i.Id == order.InvoiceId, cancellationToken);
+        var invoice = order.Invoice;
+        if (invoice == null)
+        {
+            invoice = await scope.ExecuteWithContextAsync(async db =>
+                await db.Invoices
+                    .Include(i => i.BillingAddress)
+                    .Include(i => i.ShippingAddress)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(i => i.Id == order.InvoiceId, cancellationToken));
+        }
 
-        var lineItems = order.LineItems ?? await dbContext.LineItems
-            .Where(li => li.OrderId == order.Id)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        var lineItems = order.LineItems;
+        if (lineItems == null)
+        {
+            lineItems = await scope.ExecuteWithContextAsync(async db =>
+                await db.LineItems
+                    .Where(li => li.OrderId == order.Id)
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken));
+        }
 
         var fulfilmentLineItems = lineItems.Select(li => new FulfilmentLineItem
         {
@@ -616,21 +703,30 @@ public class FulfilmentService(
         };
     }
 
-    private async Task UpdateOrderShipmentStatusAsync(Order order, CancellationToken cancellationToken)
+    private async Task UpdateOrderShipmentStatusInternalAsync(
+        IEfCoreScope<MerchelloDbContext> scope,
+        Order order,
+        CancellationToken cancellationToken)
     {
         // Reload shipments
-        var shipments = await dbContext.Shipments
-            .Where(s => s.OrderId == order.Id)
-            .ToListAsync(cancellationToken);
+        var shipments = await scope.ExecuteWithContextAsync(async db =>
+            await db.Shipments
+                .Where(s => s.OrderId == order.Id)
+                .ToListAsync(cancellationToken));
 
         if (shipments.Count == 0)
         {
             return;
         }
 
-        var lineItems = order.LineItems ?? await dbContext.LineItems
-            .Where(li => li.OrderId == order.Id)
-            .ToListAsync(cancellationToken);
+        var lineItems = order.LineItems;
+        if (lineItems == null)
+        {
+            lineItems = await scope.ExecuteWithContextAsync(async db =>
+                await db.LineItems
+                    .Where(li => li.OrderId == order.Id)
+                    .ToListAsync(cancellationToken));
+        }
 
         var totalItems = lineItems.Count;
         var shippedItems = shipments
@@ -654,7 +750,11 @@ public class FulfilmentService(
         if (oldStatus != order.Status)
         {
             order.DateUpdated = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            });
 
             logger.LogInformation("Order {OrderId} status updated from {OldStatus} to {NewStatus} based on shipments",
                 order.Id, oldStatus, order.Status);
@@ -664,8 +764,12 @@ public class FulfilmentService(
     /// <inheritdoc />
     public async Task<bool> IsDuplicateWebhookAsync(Guid providerConfigId, string messageId, CancellationToken cancellationToken = default)
     {
-        return await dbContext.FulfilmentWebhookLogs
-            .AnyAsync(l => l.ProviderConfigurationId == providerConfigId && l.MessageId == messageId, cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var isDuplicate = await scope.ExecuteWithContextAsync(async db =>
+            await db.FulfilmentWebhookLogs
+                .AnyAsync(l => l.ProviderConfigurationId == providerConfigId && l.MessageId == messageId, cancellationToken));
+        scope.Complete();
+        return isDuplicate;
     }
 
     /// <inheritdoc />
@@ -681,7 +785,13 @@ public class FulfilmentService(
             ExpiresAt = DateTime.UtcNow.AddDays(_settings.WebhookLogRetentionDays)
         };
 
-        dbContext.FulfilmentWebhookLogs.Add(log);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            db.FulfilmentWebhookLogs.Add(log);
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+        scope.Complete();
     }
 }

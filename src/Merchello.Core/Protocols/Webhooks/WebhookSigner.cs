@@ -15,9 +15,9 @@ public class WebhookSigner(
     ILogger<WebhookSigner> logger) : IWebhookSigner
 {
     /// <inheritdoc />
-    public string Sign(string payload, string keyId)
+    public async Task<string> SignAsync(string payload, string keyId, CancellationToken ct = default)
     {
-        var key = keyStore.GetEcdsaPrivateKey(keyId);
+        var key = await keyStore.GetEcdsaPrivateKeyAsync(keyId, ct);
 
         // Create header with b64=false for RFC 7797 unencoded payload
         var header = new Dictionary<string, object>

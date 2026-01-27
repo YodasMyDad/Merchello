@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Services;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.DigitalProducts.Services;
 
@@ -21,7 +22,7 @@ namespace Merchello.Core.DigitalProducts.Services;
 /// Service for managing digital product downloads.
 /// </summary>
 public class DigitalProductService(
-    MerchelloDbContext dbContext,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IInvoiceService invoiceService,
     IProductService productService,
     IMediaService mediaService,
@@ -38,25 +39,26 @@ public class DigitalProductService(
     {
         var result = new CrudResult<List<DownloadLink>>();
 
-        // Validate configuration
-        var configError = ValidateConfiguration();
-        if (configError != null)
-        {
-            result.Messages.Add(new ResultMessage
-            {
-                ResultMessageType = ResultMessageType.Error,
-                Message = configError
-            });
-            return result;
-        }
-
         // Idempotency check - return existing links if already created
-        var existingLinks = await dbContext.DownloadLinks
-            .Where(l => l.InvoiceId == parameters.InvoiceId)
-            .ToListAsync(ct);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var existingLinks = await scope.ExecuteWithContextAsync(async db =>
+            await db.DownloadLinks
+                .Where(l => l.InvoiceId == parameters.InvoiceId)
+                .ToListAsync(ct));
 
         if (existingLinks.Count > 0)
         {
+            scope.Complete();
+            var configError = ValidateConfiguration();
+            if (configError != null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    ResultMessageType = ResultMessageType.Error,
+                    Message = configError
+                });
+                return result;
+            }
             PopulateDownloadUrls(existingLinks);
             result.ResultObject = existingLinks;
             result.Messages.Add(new ResultMessage
@@ -71,6 +73,7 @@ public class DigitalProductService(
         var invoice = await invoiceService.GetInvoiceAsync(parameters.InvoiceId, ct);
         if (invoice == null)
         {
+            scope.Complete();
             result.Messages.Add(new ResultMessage
             {
                 ResultMessageType = ResultMessageType.Error,
@@ -81,6 +84,7 @@ public class DigitalProductService(
 
         if (invoice.CustomerId == Guid.Empty)
         {
+            scope.Complete();
             result.Messages.Add(new ResultMessage
             {
                 ResultMessageType = ResultMessageType.Error,
@@ -147,20 +151,35 @@ public class DigitalProductService(
             }
         }
 
+        // No digital products in this invoice - return empty success
         if (links.Count == 0)
         {
-            result.Messages.Add(new ResultMessage
-            {
-                ResultMessageType = ResultMessageType.Warning,
-                Message = "No digital products found in invoice"
-            });
+            scope.Complete();
             result.ResultObject = [];
             return result;
         }
 
+        // Only validate configuration when we actually have digital products to process
+        var linkConfigError = ValidateConfiguration();
+        if (linkConfigError != null)
+        {
+            scope.Complete();
+            result.Messages.Add(new ResultMessage
+            {
+                ResultMessageType = ResultMessageType.Error,
+                Message = linkConfigError
+            });
+            return result;
+        }
+
         // Save all links
-        await dbContext.DownloadLinks.AddRangeAsync(links, ct);
-        await dbContext.SaveChangesAsync(ct);
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            await db.DownloadLinks.AddRangeAsync(links, ct);
+            await db.SaveChangesAsync(ct);
+            return true;
+        });
+        scope.Complete();
 
         PopulateDownloadUrls(links);
         result.ResultObject = links;
@@ -193,7 +212,11 @@ public class DigitalProductService(
         }
 
         // Load the download link
-        var link = await dbContext.DownloadLinks.FindAsync([linkId], ct);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var link = await scope.ExecuteWithContextAsync(async db =>
+            await db.DownloadLinks.FindAsync([linkId], ct));
+        scope.Complete();
+
         if (link == null)
         {
             result.Messages.Add(new ResultMessage
@@ -268,9 +291,13 @@ public class DigitalProductService(
     {
         var result = new CrudResult<bool>();
 
-        var link = await dbContext.DownloadLinks.FindAsync([downloadLinkId], ct);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var link = await scope.ExecuteWithContextAsync(async db =>
+            await db.DownloadLinks.FindAsync([downloadLinkId], ct));
+
         if (link == null)
         {
+            scope.Complete();
             result.Messages.Add(new ResultMessage
             {
                 ResultMessageType = ResultMessageType.Error,
@@ -282,7 +309,9 @@ public class DigitalProductService(
         link.DownloadCount++;
         link.LastDownloadUtc = DateTime.UtcNow;
 
-        await dbContext.SaveChangesAsync(ct);
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+            { await db.SaveChangesAsync(ct); return true; });
+        scope.Complete();
 
         result.ResultObject = true;
         result.Messages.Add(new ResultMessage
@@ -299,20 +328,25 @@ public class DigitalProductService(
         GetCustomerDownloadsParameters parameters,
         CancellationToken ct = default)
     {
-        var query = dbContext.DownloadLinks
-            .Where(l => l.CustomerId == parameters.CustomerId);
-
-        if (!parameters.IncludeExpired)
+        using var scope = efCoreScopeProvider.CreateScope();
+        var links = await scope.ExecuteWithContextAsync(async db =>
         {
-            var now = DateTime.UtcNow;
-            query = query.Where(l =>
-                (!l.ExpiresUtc.HasValue || l.ExpiresUtc > now) &&
-                (!l.MaxDownloads.HasValue || l.DownloadCount < l.MaxDownloads));
-        }
+            var query = db.DownloadLinks
+                .Where(l => l.CustomerId == parameters.CustomerId);
 
-        var links = await query
-            .OrderByDescending(l => l.DateCreated)
-            .ToListAsync(ct);
+            if (!parameters.IncludeExpired)
+            {
+                var now = DateTime.UtcNow;
+                query = query.Where(l =>
+                    (!l.ExpiresUtc.HasValue || l.ExpiresUtc > now) &&
+                    (!l.MaxDownloads.HasValue || l.DownloadCount < l.MaxDownloads));
+            }
+
+            return await query
+                .OrderByDescending(l => l.DateCreated)
+                .ToListAsync(ct);
+        });
+        scope.Complete();
 
         PopulateDownloadUrls(links);
         return links;
@@ -321,10 +355,13 @@ public class DigitalProductService(
     /// <inheritdoc />
     public async Task<List<DownloadLink>> GetInvoiceDownloadsAsync(Guid invoiceId, CancellationToken ct = default)
     {
-        var links = await dbContext.DownloadLinks
-            .Where(l => l.InvoiceId == invoiceId)
-            .OrderBy(l => l.FileName)
-            .ToListAsync(ct);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var links = await scope.ExecuteWithContextAsync(async db =>
+            await db.DownloadLinks
+                .Where(l => l.InvoiceId == invoiceId)
+                .OrderBy(l => l.FileName)
+                .ToListAsync(ct));
+        scope.Complete();
 
         PopulateDownloadUrls(links);
         return links;
@@ -363,18 +400,25 @@ public class DigitalProductService(
         var result = new CrudResult<List<DownloadLink>>();
 
         // Delete existing links (invalidates old tokens)
-        var oldLinks = await dbContext.DownloadLinks
-            .Where(l => l.InvoiceId == parameters.InvoiceId)
-            .ToListAsync(ct);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var oldLinks = await scope.ExecuteWithContextAsync(async db =>
+            await db.DownloadLinks
+                .Where(l => l.InvoiceId == parameters.InvoiceId)
+                .ToListAsync(ct));
 
         if (oldLinks.Count > 0)
         {
-            dbContext.DownloadLinks.RemoveRange(oldLinks);
-            await dbContext.SaveChangesAsync(ct);
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                db.DownloadLinks.RemoveRange(oldLinks);
+                await db.SaveChangesAsync(ct);
+                return true;
+            });
             logger.LogInformation(
                 "Invalidated {Count} old download links for invoice {InvoiceId}",
                 oldLinks.Count, parameters.InvoiceId);
         }
+        scope.Complete();
 
         // Create fresh links
         var createResult = await CreateDownloadLinksAsync(
@@ -399,7 +443,10 @@ public class DigitalProductService(
                 link.ExpiresUtc = newExpiry;
             }
 
-            await dbContext.SaveChangesAsync(ct);
+            using var updateScope = efCoreScopeProvider.CreateScope();
+            await updateScope.ExecuteWithContextAsync<bool>(async db =>
+                { await db.SaveChangesAsync(ct); return true; });
+            updateScope.Complete();
         }
 
         result.ResultObject = createResult.ResultObject;

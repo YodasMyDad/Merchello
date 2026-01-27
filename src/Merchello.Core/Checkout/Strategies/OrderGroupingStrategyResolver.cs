@@ -1,6 +1,7 @@
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -10,19 +11,24 @@ namespace Merchello.Core.Checkout.Strategies;
 /// Resolves the active order grouping strategy based on configuration.
 /// Uses ExtensionManager for type discovery, consistent with other provider patterns.
 /// </summary>
-public class OrderGroupingStrategyResolver : IOrderGroupingStrategyResolver
+public class OrderGroupingStrategyResolver : IOrderGroupingStrategyResolver, IDisposable
 {
     private readonly ExtensionManager _extensionManager;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly MerchelloSettings _settings;
     private readonly ILogger<OrderGroupingStrategyResolver> _logger;
     private IReadOnlyCollection<IOrderGroupingStrategy>? _cachedStrategies;
+    private IServiceScope? _strategyScope;
+    private bool _disposed;
 
     public OrderGroupingStrategyResolver(
         ExtensionManager extensionManager,
+        IServiceScopeFactory serviceScopeFactory,
         IOptions<MerchelloSettings> settings,
         ILogger<OrderGroupingStrategyResolver> logger)
     {
         _extensionManager = extensionManager;
+        _serviceScopeFactory = serviceScopeFactory;
         _settings = settings.Value;
         _logger = logger;
     }
@@ -80,7 +86,14 @@ public class OrderGroupingStrategyResolver : IOrderGroupingStrategyResolver
             return _cachedStrategies;
         }
 
-        var strategies = _extensionManager.GetInstances<IOrderGroupingStrategy>(useCaching: true)
+        // Create a scope that lives as long as the cached strategies
+        _strategyScope?.Dispose();
+        _strategyScope = _serviceScopeFactory.CreateScope();
+
+        var strategies = _extensionManager.GetInstances<IOrderGroupingStrategy>(
+                predicate: null,
+                useCaching: true,
+                serviceProvider: _strategyScope.ServiceProvider)
             .Where(s => s != null)
             .Cast<IOrderGroupingStrategy>()
             .ToList();
@@ -133,6 +146,37 @@ public class OrderGroupingStrategyResolver : IOrderGroupingStrategyResolver
             s.GetType().AssemblyQualifiedName?.Equals(configuredValue, StringComparison.OrdinalIgnoreCase) == true);
 
         return byType;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        // Dispose any strategies that implement IDisposable
+        if (_cachedStrategies != null)
+        {
+            foreach (var strategy in _cachedStrategies)
+            {
+                if (strategy is IDisposable disposable)
+                {
+                    try
+                    {
+                        disposable.Dispose();
+                    }
+                    catch
+                    {
+                        // Ignore disposal errors
+                    }
+                }
+            }
+        }
+
+        _strategyScope?.Dispose();
+        _strategyScope = null;
+        _cachedStrategies = null;
+
+        GC.SuppressFinalize(this);
     }
 }
 

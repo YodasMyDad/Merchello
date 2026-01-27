@@ -151,10 +151,11 @@ public class EmailService(
         };
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.OutboundDeliveries.Add(delivery);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -385,10 +386,11 @@ public class EmailService(
             }
         }
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.OutboundDeliveries.Update(delivery);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 

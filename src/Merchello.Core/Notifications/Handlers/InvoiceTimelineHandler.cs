@@ -15,7 +15,7 @@ namespace Merchello.Core.Notifications.Handlers;
 /// Internal handler that automatically adds timeline entries to invoices when changes occur.
 /// This demonstrates dogfooding the notification system for internal Merchello functionality.
 /// </summary>
-[NotificationHandlerPriority(2000)] // Run late, after main business logic
+[NotificationHandlerPriority(2000)] // Run late: internal timeline logging, before email/webhook dispatch
 public class InvoiceTimelineHandler(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ICurrencyService currencyService,
@@ -112,13 +112,13 @@ public class InvoiceTimelineHandler(
         try
         {
             using var scope = efCoreScopeProvider.CreateScope();
-            await scope.ExecuteWithContextAsync<Task>(async db =>
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
                 var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
                 if (invoice == null)
                 {
                     logger.LogWarning("Could not add timeline entry - Invoice {InvoiceId} not found", invoiceId);
-                    return;
+                    return false;
                 }
 
                 invoice.Notes ??= [];
@@ -132,6 +132,7 @@ public class InvoiceTimelineHandler(
 
                 invoice.DateUpdated = DateTime.UtcNow;
                 await db.SaveChangesAsync(cancellationToken);
+                return true;
             });
             scope.Complete();
 

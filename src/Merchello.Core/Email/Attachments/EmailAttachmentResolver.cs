@@ -4,6 +4,7 @@ using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Notifications.Base;
 using Merchello.Core.Shared.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -13,7 +14,7 @@ namespace Merchello.Core.Email.Attachments;
 /// Service that resolves and executes attachment generators.
 /// Discovers attachments via ExtensionManager and validates aliases at registration.
 /// </summary>
-public class EmailAttachmentResolver : IEmailAttachmentResolver
+public class EmailAttachmentResolver : IEmailAttachmentResolver, IDisposable
 {
     private static readonly Regex AliasPattern = new(@"^[a-z][a-z0-9]*(-[a-z0-9]+)*$", RegexOptions.Compiled);
 
@@ -24,9 +25,12 @@ public class EmailAttachmentResolver : IEmailAttachmentResolver
     private readonly IEmailTopicRegistry _topicRegistry;
     private readonly EmailSettings _settings;
     private readonly ILogger<EmailAttachmentResolver> _logger;
+    private readonly IServiceScope _attachmentScope;
+    private bool _disposed;
 
     public EmailAttachmentResolver(
         ExtensionManager extensionManager,
+        IServiceScopeFactory serviceScopeFactory,
         IEmailTopicRegistry topicRegistry,
         IOptions<EmailSettings> emailSettings,
         ILogger<EmailAttachmentResolver> logger)
@@ -35,8 +39,14 @@ public class EmailAttachmentResolver : IEmailAttachmentResolver
         _settings = emailSettings.Value;
         _logger = logger;
 
+        // Create a scope that lives as long as this resolver (singleton lifetime)
+        _attachmentScope = serviceScopeFactory.CreateScope();
+
         // Discover all IEmailAttachment implementations via ExtensionManager
-        var attachments = extensionManager.GetInstances<IEmailAttachment>(useCaching: true);
+        var attachments = extensionManager.GetInstances<IEmailAttachment>(
+            predicate: null,
+            useCaching: true,
+            serviceProvider: _attachmentScope.ServiceProvider);
 
         foreach (var attachment in attachments)
         {
@@ -274,5 +284,31 @@ public class EmailAttachmentResolver : IEmailAttachmentResolver
             results.Count, totalSize);
 
         return results;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        // Dispose any attachments that implement IDisposable
+        foreach (var attachment in _attachmentsByAlias.Values)
+        {
+            if (attachment is IDisposable disposable)
+            {
+                try
+                {
+                    disposable.Dispose();
+                }
+                catch
+                {
+                    // Ignore disposal errors
+                }
+            }
+        }
+
+        _attachmentScope.Dispose();
+
+        GC.SuppressFinalize(this);
     }
 }

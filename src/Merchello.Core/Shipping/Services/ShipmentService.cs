@@ -193,9 +193,11 @@ public class ShipmentService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Shipment>();
+        Shipment? createdShipment = null;
+        Invoice? invoiceForNotification = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var order = await db.Orders
                 .Include(o => o.LineItems)
@@ -211,7 +213,7 @@ public class ShipmentService(
                     Message = "Order not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Validate quantities
@@ -225,7 +227,7 @@ public class ShipmentService(
                         Message = $"Line item {lineItemId} not found in order",
                         ResultMessageType = ResultMessageType.Error
                     });
-                    return;
+                    return false;
                 }
 
                 var alreadyShipped = order.Shipments?
@@ -241,7 +243,7 @@ public class ShipmentService(
                         Message = $"Cannot ship {quantity} of {lineItem.Name}. Only {remaining} remaining",
                         ResultMessageType = ResultMessageType.Error
                     });
-                    return;
+                    return false;
                 }
             }
 
@@ -277,7 +279,7 @@ public class ShipmentService(
                     Message = creatingNotification.CancelReason ?? "Shipment creation cancelled",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             db.Shipments.Add(shipment);
@@ -288,20 +290,25 @@ public class ShipmentService(
 
             await db.SaveChangesAsync(cancellationToken);
 
-            // Publish "After" notification
-            await notificationPublisher.PublishAsync(new ShipmentCreatedNotification(shipment), cancellationToken);
-
-            // Publish aggregate notification
-            if (order.Invoice != null)
-            {
-                await notificationPublisher.PublishAsync(
-                    new InvoiceAggregateChangedNotification(order.Invoice, AggregateChangeType.Created, AggregateChangeSource.Shipment, shipment),
-                    cancellationToken);
-            }
-
             result.ResultObject = shipment;
+            createdShipment = shipment;
+            invoiceForNotification = order.Invoice;
+            return true;
         });
         scope.Complete();
+
+        // Publish notifications AFTER scope completion to avoid nested scope issues
+        if (createdShipment != null)
+        {
+            await notificationPublisher.PublishAsync(new ShipmentCreatedNotification(createdShipment), cancellationToken);
+
+            if (invoiceForNotification != null)
+            {
+                await notificationPublisher.PublishAsync(
+                    new InvoiceAggregateChangedNotification(invoiceForNotification, AggregateChangeType.Created, AggregateChangeSource.Shipment, createdShipment),
+                    cancellationToken);
+            }
+        }
 
         return result;
     }
@@ -315,7 +322,7 @@ public class ShipmentService(
         Shipment? shipment = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Load shipment with order and all sibling shipments for delivery status check
             shipment = await db.Shipments
@@ -330,7 +337,7 @@ public class ShipmentService(
                     Message = "Shipment not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Publish "Before" notification - handlers can modify shipment or cancel
@@ -342,7 +349,7 @@ public class ShipmentService(
                     Message = savingNotification.CancelReason ?? "Shipment update cancelled",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             if (parameters.Carrier != null) shipment.Carrier = parameters.Carrier;
@@ -383,6 +390,7 @@ public class ShipmentService(
             }
 
             result.ResultObject = shipment;
+            return true;
         });
         scope.Complete();
 
@@ -403,9 +411,13 @@ public class ShipmentService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Shipment>();
+        Shipment? updatedShipment = null;
+        ShipmentStatus? oldStatusForNotification = null;
+        ShipmentStatus? newStatusForNotification = null;
+        Invoice? invoiceForNotification = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Load shipment with order and all sibling shipments for status calculations
             var shipment = await db.Shipments
@@ -425,7 +437,7 @@ public class ShipmentService(
                     Message = "Shipment not found",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             var oldStatus = shipment.Status;
@@ -435,7 +447,7 @@ public class ShipmentService(
             if (oldStatus == newStatus)
             {
                 result.ResultObject = shipment;
-                return;
+                return false;
             }
 
             // Validate transition
@@ -446,7 +458,7 @@ public class ShipmentService(
                     Message = "Cannot transition shipment from " + oldStatus.ToLabel() + " to " + newStatus.ToLabel(),
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Publish "Before" notification - handlers can modify shipment or cancel
@@ -458,7 +470,7 @@ public class ShipmentService(
                     Message = changingNotification.CancelReason ?? "Shipment status change cancelled",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             // Update shipment status
@@ -489,25 +501,32 @@ public class ShipmentService(
 
             await db.SaveChangesAsync(cancellationToken);
 
-            // Publish "After" notification
-            await notificationPublisher.PublishAsync(
-                new ShipmentStatusChangedNotification(shipment, oldStatus, newStatus),
-                cancellationToken);
-
-            // Publish aggregate notification
-            if (order?.Invoice != null)
-            {
-                await notificationPublisher.PublishAsync(
-                    new InvoiceAggregateChangedNotification(order.Invoice, AggregateChangeType.Updated, AggregateChangeSource.Shipment, shipment),
-                    cancellationToken);
-            }
-
             logger.LogInformation("Shipment {ShipmentId} status changed from {OldStatus} to {NewStatus}",
                 shipment.Id, oldStatus.ToLabel(), newStatus.ToLabel());
 
             result.ResultObject = shipment;
+            updatedShipment = shipment;
+            oldStatusForNotification = oldStatus;
+            newStatusForNotification = newStatus;
+            invoiceForNotification = order?.Invoice;
+            return true;
         });
         scope.Complete();
+
+        // Publish notifications AFTER scope completion to avoid nested scope issues
+        if (updatedShipment != null && oldStatusForNotification.HasValue && newStatusForNotification.HasValue)
+        {
+            await notificationPublisher.PublishAsync(
+                new ShipmentStatusChangedNotification(updatedShipment, oldStatusForNotification.Value, newStatusForNotification.Value),
+                cancellationToken);
+
+            if (invoiceForNotification != null)
+            {
+                await notificationPublisher.PublishAsync(
+                    new InvoiceAggregateChangedNotification(invoiceForNotification, AggregateChangeType.Updated, AggregateChangeSource.Shipment, updatedShipment),
+                    cancellationToken);
+            }
+        }
 
         return result;
     }

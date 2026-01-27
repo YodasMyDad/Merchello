@@ -1,67 +1,31 @@
-using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services;
+using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
-using Moq;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Payments.Services;
 
-public class PaymentIdempotencyServiceTests
+[Collection("Integration Tests")]
+public class PaymentIdempotencyServiceTests : IClassFixture<ServiceTestFixture>
 {
-    private readonly Mock<IEFCoreScopeProvider<MerchelloDbContext>> _scopeProviderMock;
-    private readonly Mock<ILogger<PaymentIdempotencyService>> _loggerMock;
+    private readonly ServiceTestFixture _fixture;
     private readonly PaymentIdempotencyService _service;
 
-    public PaymentIdempotencyServiceTests()
+    public PaymentIdempotencyServiceTests(ServiceTestFixture fixture)
     {
-        _scopeProviderMock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
-        _loggerMock = new Mock<ILogger<PaymentIdempotencyService>>();
-        _service = new PaymentIdempotencyService(_scopeProviderMock.Object, _loggerMock.Object);
+        _fixture = fixture;
+        _fixture.ResetDatabase();
+        _service = new PaymentIdempotencyService(
+            fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
+            NullLogger<PaymentIdempotencyService>.Instance);
     }
 
-    private string UniqueKey() => $"test-key-{Guid.NewGuid()}";
-
-    private void SetupScopeReturnsNoPayment()
-    {
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Payment?>>>()))
-            .ReturnsAsync((Payment?)null);
-
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<bool>>>()))
-            .ReturnsAsync(false);
-
-        scopeMock.Setup(s => s.Complete());
-
-        _scopeProviderMock
-            .Setup(p => p.CreateScope())
-            .Returns(scopeMock.Object);
-    }
-
-    private void SetupScopeReturnsPayment(Payment payment)
-    {
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Payment?>>>()))
-            .ReturnsAsync(payment);
-
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<bool>>>()))
-            .ReturnsAsync(true);
-
-        scopeMock.Setup(s => s.Complete());
-
-        _scopeProviderMock
-            .Setup(p => p.CreateScope())
-            .Returns(scopeMock.Object);
-    }
+    private static string UniqueKey() => $"test-key-{Guid.NewGuid()}";
 
     #region GetCachedPaymentResultAsync Tests
 
@@ -69,7 +33,6 @@ public class PaymentIdempotencyServiceTests
     public async Task GetCachedPaymentResultAsync_UnknownKey_ReturnsNull()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var key = UniqueKey();
 
         // Act
@@ -82,24 +45,22 @@ public class PaymentIdempotencyServiceTests
     [Fact]
     public async Task GetCachedPaymentResultAsync_ExistingPayment_ReturnsCachedResult()
     {
-        // Arrange
+        // Arrange - create a real payment with an idempotency key in the database
         var key = UniqueKey();
-        var payment = new Payment
-        {
-            Id = Guid.NewGuid(),
-            InvoiceId = Guid.NewGuid(),
-            Amount = 99.99m,
-            PaymentSuccess = true,
-            TransactionId = "txn_12345",
-            PaymentType = PaymentType.Payment,
-            IdempotencyKey = key,
-            SettlementCurrencyCode = "GBP",
-            SettlementExchangeRate = 0.79m,
-            SettlementAmount = 78.99m,
-            RiskScore = 15m,
-            RiskScoreSource = "stripe-radar"
-        };
-        SetupScopeReturnsPayment(payment);
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 99.99m);
+        var payment = dataBuilder.CreatePayment(invoice, amount: 99.99m);
+        payment.IdempotencyKey = key;
+        payment.TransactionId = "txn_12345";
+        payment.PaymentType = PaymentType.Payment;
+        payment.PaymentSuccess = true;
+        payment.SettlementCurrencyCode = "GBP";
+        payment.SettlementExchangeRate = 0.79m;
+        payment.SettlementAmount = 78.99m;
+        payment.RiskScore = 15m;
+        payment.RiskScoreSource = "stripe-radar";
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
         var result = await _service.GetCachedPaymentResultAsync(key);
@@ -125,7 +86,6 @@ public class PaymentIdempotencyServiceTests
     public async Task GetCachedRefundResultAsync_UnknownKey_ReturnsNull()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var key = UniqueKey();
 
         // Act
@@ -138,19 +98,18 @@ public class PaymentIdempotencyServiceTests
     [Fact]
     public async Task GetCachedRefundResultAsync_ExistingRefund_ReturnsCachedResult()
     {
-        // Arrange
+        // Arrange - create a real refund payment in the database
         var key = UniqueKey();
-        var payment = new Payment
-        {
-            Id = Guid.NewGuid(),
-            InvoiceId = Guid.NewGuid(),
-            Amount = -50m,
-            PaymentSuccess = true,
-            TransactionId = "refund_67890",
-            PaymentType = PaymentType.Refund,
-            IdempotencyKey = key
-        };
-        SetupScopeReturnsPayment(payment);
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        var payment = dataBuilder.CreatePayment(invoice, amount: 50m);
+        payment.IdempotencyKey = key;
+        payment.Amount = -50m;
+        payment.TransactionId = "refund_67890";
+        payment.PaymentType = PaymentType.Refund;
+        payment.PaymentSuccess = true;
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
         var result = await _service.GetCachedRefundResultAsync(key);
@@ -170,7 +129,6 @@ public class PaymentIdempotencyServiceTests
     public async Task TryMarkAsProcessingAsync_NewKey_ReturnsTrue()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var key = UniqueKey();
 
         // Act
@@ -187,7 +145,6 @@ public class PaymentIdempotencyServiceTests
     public async Task TryMarkAsProcessingAsync_AlreadyProcessingKey_ReturnsFalse()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var key = UniqueKey();
 
         // First call marks it
@@ -212,7 +169,6 @@ public class PaymentIdempotencyServiceTests
     public async Task ClearProcessingMarker_AllowsKeyToBeMarkedAgain()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var key = UniqueKey();
 
         // Mark as processing
@@ -240,7 +196,6 @@ public class PaymentIdempotencyServiceTests
     public async Task CachePaymentResult_ClearsProcessingMarker()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var key = UniqueKey();
         var paymentResult = PaymentResult.Completed("txn_abc", 100m);
 
@@ -267,7 +222,6 @@ public class PaymentIdempotencyServiceTests
     public async Task CacheRefundResult_ClearsProcessingMarker()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var key = UniqueKey();
         var refundResult = RefundResult.Successful("refund_xyz", 25m);
 
@@ -294,7 +248,6 @@ public class PaymentIdempotencyServiceTests
     public async Task DifferentKeys_DoNotInterfereWithEachOther()
     {
         // Arrange
-        SetupScopeReturnsNoPayment();
         var keyA = UniqueKey();
         var keyB = UniqueKey();
 

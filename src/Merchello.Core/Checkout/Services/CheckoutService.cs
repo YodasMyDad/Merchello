@@ -409,7 +409,7 @@ public class CheckoutService(
             var isNewBasket = false;
 
             using var scope = efCoreScopeProvider.CreateScope();
-            await scope.ExecuteWithContextAsync<Task>(async db =>
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
                 if (basket == null)
                 {
@@ -435,6 +435,7 @@ public class CheckoutService(
 
                 // 3. Save the changes to the database
                 await db.SaveChangesAsync(cancellationToken);
+                return true;
             });
 
             scope.Complete();
@@ -566,10 +567,11 @@ public class CheckoutService(
                 await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
 
                 using var scope = efCoreScopeProvider.CreateScope();
-                await scope.ExecuteWithContextAsync<Task>(async db =>
+                await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
                     db.Baskets.Update(basket);
                     await db.SaveChangesAsync(cancellationToken);
+                    return true;
                 });
                 scope.Complete();
 
@@ -601,10 +603,11 @@ public class CheckoutService(
             basket.DateUpdated = DateTime.UtcNow;
 
             using var scope = efCoreScopeProvider.CreateScope();
-            await scope.ExecuteWithContextAsync<Task>(async db =>
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
                 db.Baskets.Update(basket);
                 await db.SaveChangesAsync(cancellationToken);
+                return true;
             });
             scope.Complete();
 
@@ -618,8 +621,10 @@ public class CheckoutService(
     /// </summary>
     public async Task DeleteBasket(Guid basketId, CancellationToken cancellationToken = default)
     {
+        Basket? deletedBasket = null;
+
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var basketToDelete = await db.Baskets
                 .FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
@@ -629,17 +634,23 @@ public class CheckoutService(
                 var clearingNotification = new BasketClearingNotification(basketToDelete);
                 if (await notificationPublisher.PublishCancelableAsync(clearingNotification, cancellationToken))
                 {
-                    return;
+                    return false;
                 }
 
                 db.Baskets.Remove(basketToDelete);
                 await db.SaveChangesAsync(cancellationToken);
-
-                await notificationPublisher.PublishAsync(
-                    new BasketClearedNotification(basketToDelete), cancellationToken);
+                deletedBasket = basketToDelete;
             }
+            return true;
         });
         scope.Complete();
+
+        // Publish notification AFTER scope completion to avoid nested scope issues
+        if (deletedBasket != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new BasketClearedNotification(deletedBasket), cancellationToken);
+        }
     }
 
     // Convenience facade methods for locations
@@ -1068,10 +1079,11 @@ public class CheckoutService(
 
         // Save to database
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Baskets.Update(basket);
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -1174,7 +1186,7 @@ public class CheckoutService(
         using var scope = efCoreScopeProvider.CreateScope();
         try
         {
-            await scope.ExecuteWithContextAsync<Task>(async db =>
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
                 var exists = await db.Baskets.AnyAsync(b => b.Id == basket.Id, cancellationToken);
                 if (exists)
@@ -1186,6 +1198,7 @@ public class CheckoutService(
                     db.Baskets.Add(basket);
                 }
                 await db.SaveChangesAsync(cancellationToken);
+                return true;
             });
             scope.Complete();
         }
@@ -1195,7 +1208,7 @@ public class CheckoutService(
 
             // Retry once with fresh data
             using var retryScope = efCoreScopeProvider.CreateScope();
-            await retryScope.ExecuteWithContextAsync<Task>(async db =>
+            await retryScope.ExecuteWithContextAsync<bool>(async db =>
             {
                 var freshBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basket.Id, cancellationToken);
                 if (freshBasket != null)
@@ -1211,6 +1224,7 @@ public class CheckoutService(
                     db.Baskets.Add(basket);
                     await db.SaveChangesAsync(cancellationToken);
                 }
+                return true;
             });
             retryScope.Complete();
         }
@@ -1451,10 +1465,11 @@ public class CheckoutService(
 
         // Save basket to database
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Baskets.Update(basket);
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -1811,10 +1826,11 @@ public class CheckoutService(
 
         // Save basket to database
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Baskets.Update(basket);
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -2299,6 +2315,55 @@ public class CheckoutService(
         using var scope = efCoreScopeProvider.CreateScope();
         return await scope.ExecuteWithContextAsync(async db =>
             await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken));
+    }
+
+    /// <inheritdoc />
+    public async Task<GetEstimatedShippingResult> GetEstimatedShippingAsync(
+        GetEstimatedShippingParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var basket = parameters.Basket;
+
+        if (basket.LineItems.Count == 0)
+        {
+            return GetEstimatedShippingResult.Fail("Basket is empty");
+        }
+
+        // Create minimal checkout session with shipping address
+        var session = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            ShippingAddress = new Address
+            {
+                CountryCode = parameters.CountryCode,
+                CountyState = new CountyState
+                {
+                    RegionCode = parameters.RegionCode
+                }
+            }
+        };
+
+        // Get order groups with shipping options
+        var groupingResult = await GetOrderGroupsAsync(basket, session, cancellationToken);
+        if (!groupingResult.Success || groupingResult.Groups.Count == 0)
+        {
+            return GetEstimatedShippingResult.Fail(
+                groupingResult.Errors.FirstOrDefault() ?? "Unable to calculate shipping");
+        }
+
+        // Auto-select cheapest option for each group
+        var selections = ShippingAutoSelector.SelectOptions(groupingResult.Groups, ShippingAutoSelectStrategy.Cheapest);
+        var estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, selections);
+
+        // Update basket with estimated shipping so basket.Total is consistent
+        await CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = parameters.CountryCode,
+            ShippingAmountOverride = estimatedShipping
+        }, cancellationToken);
+
+        return GetEstimatedShippingResult.Ok(estimatedShipping, groupingResult.Groups.Count);
     }
 
     /// <summary>

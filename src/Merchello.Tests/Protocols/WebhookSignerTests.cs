@@ -39,14 +39,14 @@ public class WebhookSignerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Sign_CreatesDetachedJwt()
+    public async Task SignAsync_CreatesDetachedJwt()
     {
         // Arrange
         var payload = """{"orderId": "ord_123", "status": "completed"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature = _signer.Sign(payload, keyId);
+        var signature = await _signer.SignAsync(payload, keyId);
 
         // Assert
         signature.ShouldNotBeNullOrWhiteSpace();
@@ -60,14 +60,14 @@ public class WebhookSignerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Sign_IncludesB64FalseHeader()
+    public async Task SignAsync_IncludesB64FalseHeader()
     {
         // Arrange
         var payload = """{"test": "data"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature = _signer.Sign(payload, keyId);
+        var signature = await _signer.SignAsync(payload, keyId);
 
         // Assert
         var headerBase64 = signature.Split('.')[0];
@@ -77,14 +77,14 @@ public class WebhookSignerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Sign_IncludesCritHeader()
+    public async Task SignAsync_IncludesCritHeader()
     {
         // Arrange
         var payload = """{"test": "data"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature = _signer.Sign(payload, keyId);
+        var signature = await _signer.SignAsync(payload, keyId);
 
         // Assert
         var headerBase64 = signature.Split('.')[0];
@@ -94,14 +94,14 @@ public class WebhookSignerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Sign_IncludesKeyId()
+    public async Task SignAsync_IncludesKeyId()
     {
         // Arrange
         var payload = """{"test": "data"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature = _signer.Sign(payload, keyId);
+        var signature = await _signer.SignAsync(payload, keyId);
 
         // Assert
         var headerBase64 = signature.Split('.')[0];
@@ -111,14 +111,14 @@ public class WebhookSignerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Sign_IncludesES256Algorithm()
+    public async Task SignAsync_IncludesES256Algorithm()
     {
         // Arrange
         var payload = """{"test": "data"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature = _signer.Sign(payload, keyId);
+        var signature = await _signer.SignAsync(payload, keyId);
 
         // Assert
         var headerBase64 = signature.Split('.')[0];
@@ -132,8 +132,8 @@ public class WebhookSignerTests : IAsyncLifetime
     {
         // Arrange
         var payload = """{"orderId": "ord_123", "status": "completed"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
-        var signature = _signer.Sign(payload, keyId);
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
+        var signature = await _signer.SignAsync(payload, keyId);
         var publicKeys = await _keyStore.GetPublicKeysAsync();
 
         // Act
@@ -148,8 +148,8 @@ public class WebhookSignerTests : IAsyncLifetime
     {
         // Arrange
         var originalPayload = """{"orderId": "ord_123", "status": "completed"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
-        var signature = _signer.Sign(originalPayload, keyId);
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
+        var signature = await _signer.SignAsync(originalPayload, keyId);
         var publicKeys = await _keyStore.GetPublicKeysAsync();
 
         var tamperedPayload = """{"orderId": "ord_123", "status": "refunded"}""";
@@ -183,8 +183,8 @@ public class WebhookSignerTests : IAsyncLifetime
     {
         // Arrange
         var payload = """{"test": "data"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
-        var signature = _signer.Sign(payload, keyId);
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
+        var signature = await _signer.SignAsync(payload, keyId);
 
         // Use empty key list (no matching keys)
         var emptyKeys = new List<JsonWebKey>();
@@ -230,13 +230,13 @@ public class WebhookSignerTests : IAsyncLifetime
     {
         // Arrange
         var payload = """{"test": "data"}""";
-        var originalKeyId = _keyStore.GetCurrentKeyId();
-        var originalSignature = _signer.Sign(payload, originalKeyId);
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
+        var originalSignature = await _signer.SignAsync(payload, originalKeyId);
 
         // Rotate keys
         await _keyStore.RotateKeysAsync();
-        var newKeyId = _keyStore.GetCurrentKeyId();
-        var newSignature = _signer.Sign(payload, newKeyId);
+        var newKeyId = await _keyStore.GetCurrentKeyIdAsync();
+        var newSignature = await _signer.SignAsync(payload, newKeyId);
 
         var publicKeys = await _keyStore.GetPublicKeysAsync();
 
@@ -246,23 +246,23 @@ public class WebhookSignerTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Sign_WithDifferentPayloads_ProducesDifferentSignatures()
+    public async Task SignAsync_WithDifferentPayloads_ProducesDifferentSignatures()
     {
         // Arrange
         var payload1 = """{"order": 1}""";
         var payload2 = """{"order": 2}""";
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature1 = _signer.Sign(payload1, keyId);
-        var signature2 = _signer.Sign(payload2, keyId);
+        var signature1 = await _signer.SignAsync(payload1, keyId);
+        var signature2 = await _signer.SignAsync(payload2, keyId);
 
         // Assert
         signature1.ShouldNotBe(signature2);
     }
 
     [Fact]
-    public void Sign_SamePayloadTwice_ProducesSameSignature()
+    public async Task SignAsync_SamePayloadTwice_ProducesValidSignatures()
     {
         // Note: ECDSA with deterministic signing (RFC 6979) would produce same signature,
         // but .NET's ECDsa uses random k by default, so signatures may differ
@@ -270,11 +270,11 @@ public class WebhookSignerTests : IAsyncLifetime
 
         // Arrange
         var payload = """{"consistent": "data"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature1 = _signer.Sign(payload, keyId);
-        var signature2 = _signer.Sign(payload, keyId);
+        var signature1 = await _signer.SignAsync(payload, keyId);
+        var signature2 = await _signer.SignAsync(payload, keyId);
 
         // Assert - both should be valid even if different
         signature1.ShouldNotBeNullOrWhiteSpace();
@@ -295,10 +295,10 @@ public class WebhookSignerTests : IAsyncLifetime
             "totals": {"subtotal": 5000, "total": 5400}
         }
         """;
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var signature = _signer.Sign(payload, keyId);
+        var signature = await _signer.SignAsync(payload, keyId);
         var publicKeys = await _keyStore.GetPublicKeysAsync();
         var isValid = _signer.Verify(payload, signature, publicKeys);
 
@@ -314,8 +314,8 @@ public class WebhookSignerTests : IAsyncLifetime
 
         // Arrange
         var payload = """{"test": "cross-instance"}""";
-        var keyId = _keyStore.GetCurrentKeyId();
-        var signature = _signer.Sign(payload, keyId);
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
+        var signature = await _signer.SignAsync(payload, keyId);
 
         // Get public keys (this creates new ECDsa instances from JWK)
         var publicKeys = await _keyStore.GetPublicKeysAsync();

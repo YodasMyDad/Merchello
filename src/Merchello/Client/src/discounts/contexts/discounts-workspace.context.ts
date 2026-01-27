@@ -174,6 +174,8 @@ export class MerchelloDiscountsWorkspaceContext
       name: "",
       description: null,
       status: DiscountStatus.Draft,
+      statusLabel: "Draft",
+      statusColor: "default",
       category: category,
       method: DiscountMethod.Code,
       code: null,

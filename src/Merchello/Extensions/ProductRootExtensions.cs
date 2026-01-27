@@ -2,9 +2,7 @@ using System.Text.Json;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Factories;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Extensions;
 
@@ -17,15 +15,42 @@ namespace Merchello.Extensions;
 /// </summary>
 public static class ProductRootExtensions
 {
-    // Cache singleton services for performance using thread-safe lazy initialization
-    private static readonly Lazy<IPublishedValueFallback> _publishedValueFallback =
-        new(() => StaticServiceProvider.Instance.GetRequiredService<IPublishedValueFallback>());
+    // Services are initialized during application startup via Initialize()
+    private static IPublishedValueFallback? _publishedValueFallback;
+    private static MerchelloSettings? _merchelloSettings;
+    private static MerchelloPublishedElementFactory? _elementFactory;
 
-    private static readonly Lazy<MerchelloSettings> _merchelloSettings =
-        new(() => StaticServiceProvider.Instance.GetRequiredService<IOptions<MerchelloSettings>>().Value);
+    private static IPublishedValueFallback PublishedValueFallback =>
+        _publishedValueFallback ?? throw new InvalidOperationException(
+            "ProductRootExtensions not initialized. Call ProductRootExtensions.Initialize() during application startup.");
 
-    private static IPublishedValueFallback PublishedValueFallback => _publishedValueFallback.Value;
-    private static MerchelloSettings MerchelloSettings => _merchelloSettings.Value;
+    private static MerchelloSettings MerchelloSettings =>
+        _merchelloSettings ?? throw new InvalidOperationException(
+            "ProductRootExtensions not initialized. Call ProductRootExtensions.Initialize() during application startup.");
+
+    private static MerchelloPublishedElementFactory ElementFactory =>
+        _elementFactory ?? throw new InvalidOperationException(
+            "ProductRootExtensions not initialized. Call ProductRootExtensions.Initialize() during application startup.");
+
+    /// <summary>
+    /// Initializes the static extension methods with required services.
+    /// Call this during application startup (e.g., in a hosted service or notification handler).
+    /// </summary>
+    public static void Initialize(
+        IPublishedValueFallback publishedValueFallback,
+        IOptions<MerchelloSettings> merchelloSettings,
+        MerchelloPublishedElementFactory elementFactory)
+    {
+        _publishedValueFallback = publishedValueFallback;
+        _merchelloSettings = merchelloSettings.Value;
+        _elementFactory = elementFactory;
+    }
+
+    /// <summary>
+    /// Returns true if the extension methods have been initialized.
+    /// </summary>
+    public static bool IsInitialized =>
+        _publishedValueFallback != null && _merchelloSettings != null && _elementFactory != null;
 
     // JSON options matching ProductService for consistent deserialization
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -121,11 +146,7 @@ public static class ProductRootExtensions
         if (propertyValues.Count == 0)
             return null;
 
-        // Resolve factory per-call (scoped service, but stateless operation)
-        var elementFactory = StaticServiceProvider.Instance
-            .GetRequiredService<MerchelloPublishedElementFactory>();
-
-        return elementFactory.CreateElement(
+        return ElementFactory.CreateElement(
             elementTypeAlias,
             productRoot.Id,
             propertyValues);

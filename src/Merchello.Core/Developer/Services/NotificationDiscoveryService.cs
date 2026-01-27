@@ -162,6 +162,21 @@ public class NotificationDiscoveryService(IServiceProvider serviceProvider) : IN
                 });
             }
 
+            // Detect handlers sharing the same priority within this notification
+            var duplicatePriorities = result
+                .GroupBy(h => h.Priority)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToHashSet();
+
+            if (duplicatePriorities.Count > 0)
+            {
+                result = result.Select(h => h with
+                {
+                    HasDuplicatePriority = duplicatePriorities.Contains(h.Priority)
+                }).ToList();
+            }
+
             return result;
         }
         catch
@@ -254,11 +269,11 @@ public class NotificationDiscoveryService(IServiceProvider serviceProvider) : IN
         return priority switch
         {
             < 500 => "Validation",
-            < 1000 => "Early",
+            < 1000 => "Early Processing",
             1000 => "Default",
-            < 1500 => "Processing",
-            < 2000 => "Business Logic",
-            _ => "External Sync"
+            < 1500 => "Core Processing",
+            < 2000 => "Business Rules",
+            _ => "Late / External"
         };
     }
 }

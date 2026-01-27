@@ -102,10 +102,6 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
 
                 scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-                    .Returns((Func<MerchelloDbContext, Task> func) => func(dbContext));
-
-                scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<InvoiceForEditDto?>>>()))
                     .Returns((Func<MerchelloDbContext, Task<InvoiceForEditDto?>> func) => func(dbContext));
 

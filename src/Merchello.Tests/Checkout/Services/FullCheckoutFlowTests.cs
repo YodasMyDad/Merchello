@@ -153,13 +153,13 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         // Assert
         result.Successful.ShouldBeTrue();
         var invoice = result.ResultObject!;
-        invoice.Orders.Count.ShouldBe(2);
+        invoice.Orders!.Count.ShouldBe(2);
 
         var orderA = invoice.Orders.First(o => o.WarehouseId == warehouseA.Id);
-        orderA.LineItems.ShouldContain(li => li.Sku == productA.Sku);
+        orderA.LineItems!.ShouldContain(li => li.Sku == productA.Sku);
 
         var orderB = invoice.Orders.First(o => o.WarehouseId == warehouseB.Id);
-        orderB.LineItems.ShouldContain(li => li.Sku == productB.Sku);
+        orderB.LineItems!.ShouldContain(li => li.Sku == productB.Sku);
     }
 
     [Fact]
@@ -252,8 +252,8 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         // Assert
         result.Successful.ShouldBeTrue();
         var invoice = result.ResultObject!;
-        var order = invoice.Orders.First();
-        order.LineItems.ShouldContain(li => li.Sku == product.Sku && li.Quantity == 3);
+        var order = invoice.Orders!.First();
+        order.LineItems!.ShouldContain(li => li.Sku == product.Sku && li.Quantity == 3);
     }
 
     /// <summary>

@@ -262,10 +262,11 @@ public class DiscountService(
             discount.SetFreeShippingConfig(shippingConfig);
         }
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Discounts.Add(discount);
             await db.SaveChangesAsync(ct);
+            return true;
         });
 
         scope.Complete();
@@ -443,7 +444,7 @@ public class DiscountService(
             discount.SetFreeShippingConfig(shippingConfig);
         }
 
-        await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
+        await scope.ExecuteWithContextAsync<bool>(async db => { await db.SaveChangesAsync(ct); return true; });
         scope.Complete();
 
         // Publish "After" notification
@@ -481,10 +482,11 @@ public class DiscountService(
             return result;
         }
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.Discounts.Remove(discount);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -603,7 +605,7 @@ public class DiscountService(
         discount.Status = newStatus;
         discount.DateUpdated = DateTime.UtcNow;
 
-        await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
+        await scope.ExecuteWithContextAsync<bool>(async db => { await db.SaveChangesAsync(ct); return true; });
         scope.Complete();
 
         // Publish "After" notification
@@ -647,7 +649,7 @@ public class DiscountService(
         discount.Status = newStatus;
         discount.DateUpdated = DateTime.UtcNow;
 
-        await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
+        await scope.ExecuteWithContextAsync<bool>(async db => { await db.SaveChangesAsync(ct); return true; });
         scope.Complete();
 
         // Publish "After" notification
@@ -664,9 +666,12 @@ public class DiscountService(
     public async Task UpdateExpiredDiscountsAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
+        var expiredDiscountsToNotify = new List<Discount>();
+        var activatedDiscountsToNotify = new List<Discount>();
+
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Expire discounts that have passed their end date
             var expiredDiscounts = await db.Discounts
@@ -688,9 +693,7 @@ public class DiscountService(
                 discount.Status = DiscountStatus.Expired;
                 discount.DateUpdated = now;
                 expiredCount++;
-
-                await notificationPublisher.PublishAsync(
-                    new DiscountStatusChangedNotification(discount, DiscountStatus.Active, DiscountStatus.Expired), ct);
+                expiredDiscountsToNotify.Add(discount);
             }
 
             // Activate scheduled discounts that have reached their start date
@@ -712,9 +715,7 @@ public class DiscountService(
                 discount.Status = DiscountStatus.Active;
                 discount.DateUpdated = now;
                 activatedCount++;
-
-                await notificationPublisher.PublishAsync(
-                    new DiscountStatusChangedNotification(discount, DiscountStatus.Scheduled, DiscountStatus.Active), ct);
+                activatedDiscountsToNotify.Add(discount);
             }
 
             if (expiredCount > 0 || activatedCount > 0)
@@ -725,9 +726,24 @@ public class DiscountService(
                     expiredCount,
                     activatedCount);
             }
+
+            return true;
         });
 
         scope.Complete();
+
+        // Publish notifications AFTER scope completion to avoid nested scope issues
+        foreach (var discount in expiredDiscountsToNotify)
+        {
+            await notificationPublisher.PublishAsync(
+                new DiscountStatusChangedNotification(discount, DiscountStatus.Active, DiscountStatus.Expired), ct);
+        }
+
+        foreach (var discount in activatedDiscountsToNotify)
+        {
+            await notificationPublisher.PublishAsync(
+                new DiscountStatusChangedNotification(discount, DiscountStatus.Scheduled, DiscountStatus.Active), ct);
+        }
     }
 
     #endregion
@@ -909,7 +925,7 @@ public class DiscountService(
     public async Task RemoveUsageAsync(Guid discountId, Guid invoiceId, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var usage = await db.DiscountUsages
                 .FirstOrDefaultAsync(u => u.DiscountId == discountId && u.InvoiceId == invoiceId, ct);
@@ -920,6 +936,8 @@ public class DiscountService(
                 await db.SaveChangesAsync(ct);
                 logger.LogInformation("Removed usage of discount {DiscountId} from invoice {InvoiceId}", discountId, invoiceId);
             }
+
+            return true;
         });
         scope.Complete();
     }

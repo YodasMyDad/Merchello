@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT, type UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { DiscountTargetRuleDto } from "@discounts/types/discount.types.js";
+import type { DiscountTargetRuleEdit } from "@discounts/types/discount.types.js";
 import { DiscountTargetType } from "@discounts/types/discount.types.js";
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 import { MERCHELLO_COLLECTION_PICKER_MODAL } from "@collections/modals/collection-picker-modal.token.js";
@@ -41,10 +41,10 @@ function getActionSelectOptions(isExclusion: boolean): Array<{ name: string; val
 
 @customElement("merchello-target-rule-builder")
 export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElement) {
-  @property({ type: Array }) rules: DiscountTargetRuleDto[] = [];
+  @property({ type: Array }) rules: DiscountTargetRuleEdit[] = [];
   @property({ type: Boolean }) readonly = false;
 
-  @state() private _editingRule?: { index: number; rule: DiscountTargetRuleDto };
+  @state() private _editingRule?: { index: number; rule: DiscountTargetRuleEdit };
 
   #modalManager?: UmbModalManagerContext;
 
@@ -66,7 +66,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
   }
 
   private _handleAddRule(): void {
-    const newRule: DiscountTargetRuleDto = {
+    const newRule: DiscountTargetRuleEdit = {
       id: crypto.randomUUID(),
       targetType: DiscountTargetType.AllProducts,
       targetIds: null,
@@ -87,7 +87,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     this._dispatchChange();
   }
 
-  private _handleUpdateRule(index: number, updates: Partial<DiscountTargetRuleDto>): void {
+  private _handleUpdateRule(index: number, updates: Partial<DiscountTargetRuleEdit>): void {
     this.rules = this.rules.map((rule, i) => (i === index ? { ...rule, ...updates } : rule));
     this._dispatchChange();
   }
@@ -105,7 +105,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     return TARGET_TYPE_OPTIONS.find((opt) => opt.value === targetType)?.label ?? "Unknown";
   }
 
-  private async _openProductPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openProductPicker(index: number, rule: DiscountTargetRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
@@ -129,7 +129,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _openCollectionPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openCollectionPicker(index: number, rule: DiscountTargetRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_COLLECTION_PICKER_MODAL, {
@@ -148,7 +148,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _openProductTypePicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openProductTypePicker(index: number, rule: DiscountTargetRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_TYPE_PICKER_MODAL, {
@@ -167,7 +167,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _openSupplierPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openSupplierPicker(index: number, rule: DiscountTargetRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_SUPPLIER_PICKER_MODAL, {
@@ -186,7 +186,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _openWarehousePicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openWarehousePicker(index: number, rule: DiscountTargetRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_WAREHOUSE_PICKER_MODAL, {
@@ -205,7 +205,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _openFilterPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openFilterPicker(index: number, rule: DiscountTargetRuleEdit): Promise<void> {
     if (!this.#modalManager) return;
 
     const modal = this.#modalManager.open(this, MERCHELLO_FILTER_PICKER_MODAL, {
@@ -224,7 +224,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private _removeTargetItem(index: number, rule: DiscountTargetRuleDto, itemIndex: number): void {
+  private _removeTargetItem(index: number, rule: DiscountTargetRuleEdit, itemIndex: number): void {
     const newIds = rule.targetIds?.filter((_, i) => i !== itemIndex) ?? [];
     const newNames = rule.targetNames?.filter((_, i) => i !== itemIndex) ?? [];
 
@@ -272,7 +272,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _openPicker(index: number, rule: DiscountTargetRuleDto): Promise<void> {
+  private async _openPicker(index: number, rule: DiscountTargetRuleEdit): Promise<void> {
     switch (rule.targetType) {
       case DiscountTargetType.SpecificProducts:
         await this._openProductPicker(index, rule);
@@ -295,7 +295,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private _renderRuleCard(rule: DiscountTargetRuleDto, index: number): unknown {
+  private _renderRuleCard(rule: DiscountTargetRuleEdit, index: number): unknown {
     const isEditing = this._editingRule?.index === index;
     const hasSelection = rule.targetIds && rule.targetIds.length > 0;
 

@@ -96,8 +96,11 @@ public class InvoiceReminderService(
 
         // Track that we sent a reminder
         invoice.ExtendedData[LastReminderSentKey] = now.ToString("O");
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-            await db.SaveChangesAsync(cancellationToken));
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
 
         logger.LogDebug("Sent due-soon reminder for invoice {InvoiceNumber} (due in {Days} days)",
             invoice.InvoiceNumber, daysUntilDue);
@@ -149,8 +152,11 @@ public class InvoiceReminderService(
         // Track that we sent an overdue reminder
         invoice.ExtendedData[OverdueReminderCountKey] = reminderNumber.ToString();
         invoice.ExtendedData[LastOverdueReminderSentKey] = now.ToString("O");
-        await scope.ExecuteWithContextAsync<Task>(async db =>
-            await db.SaveChangesAsync(cancellationToken));
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
 
         logger.LogDebug("Sent overdue reminder #{ReminderNumber} for invoice {InvoiceNumber} ({Days} days overdue)",
             reminderNumber, invoice.InvoiceNumber, daysOverdue);

@@ -52,10 +52,11 @@
       "@tax/*": [ "src/tax/*" ],
       "@tree/*": [ "src/tree/*" ],
       "@warehouses/*": [ "src/warehouses/*" ],
-      "@webhooks/*": [ "src/webhooks/*" ]
+      "@webhooks/*": [ "src/webhooks/*" ],
+      "@test-utils/*": [ "src/test-utils/*" ]
     },
 
-    "types": [ "@umbraco-cms/backoffice/extension-types" ]
+    "types": [ "@umbraco-cms/backoffice/extension-types", "vitest/globals" ]
   },
   "include": [ "src" ]
 }

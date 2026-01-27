@@ -14,7 +14,7 @@ import type {
 import type { FulfillmentModalData, FulfillmentModalValue } from "./fulfillment-modal.token.js";
 
 // Import shared components
-import "@shared/components/product-image.element.js";
+import "@shared/components/line-item-identity.element.js";
 
 interface SelectedItem {
   lineItemId: string;
@@ -483,17 +483,13 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
           @change=${() => this._toggleItemSelection(orderId, item)}
           aria-label="Select ${item.name || 'item'}"
         ></uui-checkbox>
-        <div class="item-image">
-          <merchello-product-image
-            media-key=${item.imageUrl || nothing}
-            size="medium"
-            alt=${item.name || ""}>
-          </merchello-product-image>
-        </div>
-        <div class="item-details">
-          <div class="item-name">${item.name || "Unknown item"}</div>
-          <div class="item-sku">${item.sku || "No SKU"}</div>
-        </div>
+        <merchello-line-item-identity
+          media-key=${item.imageUrl || nothing}
+          name=${item.productRootName || item.name || ""}
+          .selectedOptions=${item.selectedOptions ?? []}
+          sku=${item.sku || ""}
+          size="medium">
+        </merchello-line-item-identity>
         <div class="item-quantity">
           ${isSelected
             ? html`
@@ -853,7 +849,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
 
     .item-row {
       display: grid;
-      grid-template-columns: auto 40px 1fr auto;
+      grid-template-columns: auto 1fr auto;
       align-items: center;
       gap: var(--uui-size-space-3);
       padding: var(--uui-size-space-2);
@@ -865,9 +861,9 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
       color: var(--uui-color-selected-contrast, #fff);
     }
 
-    .item-row.selected .item-sku {
-      color: var(--uui-color-selected-contrast, #fff);
-      opacity: 0.8;
+    .item-row.selected merchello-line-item-identity {
+      --line-item-color: var(--uui-color-selected-contrast, #fff);
+      --line-item-secondary-color: var(--uui-color-selected-contrast, #fff);
     }
 
     .item-row.selected .qty-label {
@@ -881,34 +877,9 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
       cursor: pointer;
     }
 
-    .item-image img,
-    .placeholder-image {
-      width: 40px;
-      height: 40px;
-      border-radius: var(--uui-border-radius);
-      object-fit: cover;
-    }
-
-    .placeholder-image {
-      background: var(--uui-color-surface);
-    }
-
-    .item-details {
+    merchello-line-item-identity {
       flex: 1;
       min-width: 0;
-    }
-
-    .item-name {
-      font-weight: 500;
-      font-size: 0.875rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .item-sku {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
     }
 
     .item-quantity {

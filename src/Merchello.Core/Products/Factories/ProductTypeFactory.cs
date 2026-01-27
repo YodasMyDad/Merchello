@@ -8,6 +8,7 @@ public class ProductTypeFactory
     {
         return new ProductType
         {
+            Id = Guid.NewGuid(),
             Name = name,
             Alias = alias
         };

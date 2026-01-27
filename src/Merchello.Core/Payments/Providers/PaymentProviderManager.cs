@@ -7,6 +7,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
@@ -17,11 +18,13 @@ namespace Merchello.Core.Payments.Providers;
 /// </summary>
 public class PaymentProviderManager(
     ExtensionManager extensionManager,
+    IServiceScopeFactory serviceScopeFactory,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<PaymentProviderManager> logger) : IPaymentProviderManager, IDisposable
 {
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyCollection<RegisteredPaymentProvider>? _cachedProviders;
+    private IServiceScope? _providerScope;
     private bool _disposed;
 
     /// <inheritdoc />
@@ -46,8 +49,15 @@ public class PaymentProviderManager(
                 return cached;
             }
 
+            // Create a scope that lives as long as the cached providers
+            _providerScope?.Dispose();
+            _providerScope = serviceScopeFactory.CreateScope();
+
             // Discover all provider implementations from assemblies
-            var providerInstances = extensionManager.GetInstances<IPaymentProvider>(useCaching: true)
+            var providerInstances = extensionManager.GetInstances<IPaymentProvider>(
+                    predicate: null,
+                    useCaching: true,
+                    serviceProvider: _providerScope.ServiceProvider)
                 .Where(p => p != null)
                 .Cast<IPaymentProvider>()
                 .ToList();
@@ -211,7 +221,7 @@ public class PaymentProviderManager(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.PaymentProviderSettings
                 .FirstOrDefaultAsync(s => s.Id == setting.Id, cancellationToken);
@@ -239,7 +249,7 @@ public class PaymentProviderManager(
                         Message = $"A configuration for provider '{setting.ProviderAlias}' already exists.",
                         ResultMessageType = ResultMessageType.Error
                     });
-                    return;
+                    return false;
                 }
 
                 // Create new
@@ -250,6 +260,7 @@ public class PaymentProviderManager(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = setting;
+            return true;
         });
         scope.Complete();
 
@@ -267,7 +278,7 @@ public class PaymentProviderManager(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var setting = await db.PaymentProviderSettings
                 .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
@@ -279,12 +290,13 @@ public class PaymentProviderManager(
                     Message = $"Payment provider setting with ID '{id}' was not found.",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             db.PaymentProviderSettings.Remove(setting);
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -303,7 +315,7 @@ public class PaymentProviderManager(
         var result = new CrudResult<bool>();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var setting = await db.PaymentProviderSettings
                 .FirstOrDefaultAsync(s => s.Id == settingId, cancellationToken);
@@ -315,7 +327,7 @@ public class PaymentProviderManager(
                     Message = $"Payment provider setting with ID '{settingId}' was not found.",
                     ResultMessageType = ResultMessageType.Error
                 });
-                return;
+                return false;
             }
 
             setting.IsEnabled = enabled;
@@ -327,6 +339,7 @@ public class PaymentProviderManager(
                 "Payment provider '{Alias}' has been {Status}.",
                 setting.ProviderAlias,
                 enabled ? "enabled" : "disabled");
+            return true;
         });
         scope.Complete();
 
@@ -345,7 +358,7 @@ public class PaymentProviderManager(
         var idList = orderedIds.ToList();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var settings = await db.PaymentProviderSettings
                 .Where(s => idList.Contains(s.Id))
@@ -363,6 +376,7 @@ public class PaymentProviderManager(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -376,6 +390,8 @@ public class PaymentProviderManager(
     public void RefreshCache()
     {
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
         _cachedProviders = null;
     }
 
@@ -722,7 +738,7 @@ public class PaymentProviderManager(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.PaymentMethodSettings
                 .FirstOrDefaultAsync(ms =>
@@ -754,6 +770,7 @@ public class PaymentProviderManager(
             }
 
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -807,7 +824,7 @@ public class PaymentProviderManager(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var existing = await db.PaymentMethodSettings
                 .FirstOrDefaultAsync(ms =>
@@ -910,6 +927,7 @@ public class PaymentProviderManager(
             }
 
             await db.SaveChangesAsync(cancellationToken);
+            return true;
         });
         scope.Complete();
 
@@ -927,7 +945,7 @@ public class PaymentProviderManager(
         var aliasList = orderedMethodAliases.ToList();
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var settings = await db.PaymentMethodSettings
                 .Where(ms => ms.PaymentProviderSettingId == providerSettingId)
@@ -947,6 +965,7 @@ public class PaymentProviderManager(
 
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = true;
+            return true;
         });
         scope.Complete();
 
@@ -961,7 +980,7 @@ public class PaymentProviderManager(
         const string manualProviderAlias = "manual";
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Check if Manual Payment provider setting exists
             var manualExists = await db.PaymentProviderSettings
@@ -989,6 +1008,7 @@ public class PaymentProviderManager(
                     "Created built-in payment provider '{ProviderAlias}'.",
                     manualProviderAlias);
             }
+            return true;
         });
         scope.Complete();
 
@@ -1029,6 +1049,8 @@ public class PaymentProviderManager(
         _disposed = true;
 
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
         _cachedProviders = null;
         _cacheLock.Dispose();
 

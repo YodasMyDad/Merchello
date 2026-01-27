@@ -18,9 +18,9 @@ namespace Merchello.Core.Email.Handlers;
 
 /// <summary>
 /// Notification handler that processes Merchello notifications and queues email deliveries.
-/// Runs at priority 2000 (after all business logic) to ensure data is finalized before email generation.
+/// Runs at priority 2100 (after timeline logging, before webhooks) to ensure data is finalized before email generation.
 /// </summary>
-[NotificationHandlerPriority(2000)]
+[NotificationHandlerPriority(2100)]
 public class EmailNotificationHandler(
     IEmailConfigurationService configurationService,
     IEmailService emailService,

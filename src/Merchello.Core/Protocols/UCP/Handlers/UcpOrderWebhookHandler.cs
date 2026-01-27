@@ -128,8 +128,8 @@ public class UcpOrderWebhookHandler(
             var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
 
             // Sign the payload
-            var keyId = signingKeyStore.GetCurrentKeyId();
-            var signature = webhookSigner.Sign(payloadJson, keyId);
+            var keyId = await signingKeyStore.GetCurrentKeyIdAsync(ct);
+            var signature = await webhookSigner.SignAsync(payloadJson, keyId, ct);
 
             // Send the webhook
             await SendWebhookAsync(webhookUrl, payloadJson, signature, eventType, invoice.Id, ct);

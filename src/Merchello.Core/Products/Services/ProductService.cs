@@ -53,20 +53,20 @@ public class ProductService(
         ProductRoot? productRoot = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var taxGroup = await db.TaxGroups.FindAsync([parameters.TaxGroupId], cancellationToken);
             if (taxGroup == null)
             {
                 result.AddErrorMessage("Tax group not found");
-                return;
+                return false;
             }
 
             var productType = await db.ProductTypes.FindAsync([parameters.ProductTypeId], cancellationToken);
             if (productType == null)
             {
                 result.AddErrorMessage("Product type not found");
-                return;
+                return false;
             }
 
             var collections = await db.ProductCollections
@@ -84,6 +84,7 @@ public class ProductService(
 
             db.RootProducts.Add(productRoot);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -102,7 +103,7 @@ public class ProductService(
         ProductOption? option = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productRoot = await db.RootProducts
                 .FirstOrDefaultAsync(pr => pr.Id == parameters.ProductRootId, cancellationToken);
@@ -110,7 +111,7 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
-                return;
+                return false;
             }
 
             option = productOptionFactory.Create(parameters);
@@ -120,11 +121,12 @@ public class ProductService(
             if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Product option creation was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             productRoot.ProductOptions.Add(option);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -151,7 +153,7 @@ public class ProductService(
         string optionName = string.Empty;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productRoot = await db.RootProducts
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
@@ -159,14 +161,14 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
-                return;
+                return false;
             }
 
             var option = productRoot.ProductOptions.FirstOrDefault(o => o.Id == optionId);
             if (option == null)
             {
                 result.AddErrorMessage("Option not found");
-                return;
+                return false;
             }
 
             // Publish deleting notification (cancelable)
@@ -174,7 +176,7 @@ public class ProductService(
             if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
             {
                 result.AddErrorMessage("Product option deletion was cancelled by a notification handler");
-                return;
+                return false;
             }
 
             // Capture name for deleted notification (before entity is removed)
@@ -183,6 +185,7 @@ public class ProductService(
             productRoot.ProductOptions.Remove(option);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -222,7 +225,7 @@ public class ProductService(
         var shouldCheckDefaultReassignment = false;
         Guid? productRootId = null;
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productWarehouse = await db.ProductWarehouses
                 .Include(pw => pw.Product)
@@ -294,6 +297,7 @@ public class ProductService(
                 parameters.VariantId, parameters.WarehouseId, parameters.Stock, parameters.TrackStock);
 
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -318,11 +322,12 @@ public class ProductService(
         List<Product>? variants = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             variants = await db.Products
                 .Where(p => p.ProductRootId == parameters.ProductRootId)
                 .ToListAsync(cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -477,7 +482,7 @@ public class ProductService(
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var variant = await db.Products
                 .Include(p => p.ExcludedShippingOptions)
@@ -486,7 +491,7 @@ public class ProductService(
             if (variant == null)
             {
                 result.AddErrorMessage("Variant not found");
-                return;
+                return false;
             }
 
             // Load shipping options to exclude
@@ -513,6 +518,7 @@ public class ProductService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -583,7 +589,7 @@ public class ProductService(
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Get all variants for this product root
             var variants = await db.Products
@@ -594,7 +600,7 @@ public class ProductService(
             if (variants.Count == 0)
             {
                 result.AddErrorMessage("Product not found");
-                return;
+                return false;
             }
 
             // Load shipping options to exclude
@@ -618,6 +624,7 @@ public class ProductService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = result.Successful;
+            return true;
         });
 
         scope.Complete();
@@ -635,7 +642,7 @@ public class ProductService(
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Find the variant with warehouse stock data for availability check
             var targetVariant = await db.Products
@@ -645,14 +652,14 @@ public class ProductService(
             if (targetVariant == null)
             {
                 result.AddErrorMessage("Variant not found");
-                return;
+                return false;
             }
 
             // Validate the variant is available before setting as default
             if (!IsVariantAvailable(targetVariant))
             {
                 result.AddErrorMessage("Cannot set an unavailable variant as the default. The variant must be available for purchase and have stock (if tracked).");
-                return;
+                return false;
             }
 
             // Fetch all variants for that product root
@@ -668,6 +675,7 @@ public class ProductService(
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -685,7 +693,7 @@ public class ProductService(
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Get all variants with their warehouse stock
             var variants = await db.Products
@@ -697,21 +705,21 @@ public class ProductService(
             {
                 // Single product or no variants - nothing to reassign
                 result.ResultObject = true;
-                return;
+                return false;
             }
 
             var currentDefault = variants.FirstOrDefault(v => v.Default);
             if (currentDefault == null)
             {
                 result.ResultObject = true;
-                return;
+                return false;
             }
 
             // Check if current default is available
             if (IsVariantAvailable(currentDefault))
             {
                 result.ResultObject = true;
-                return;
+                return false;
             }
 
             // Find cheapest available variant
@@ -723,11 +731,11 @@ public class ProductService(
             if (newDefault == null)
             {
                 // No available variants - keep current default
-                logger.LogInformation(
+                logger.LogDebug(
                     "Default variant {VariantId} is unavailable but no alternatives exist for product {ProductRootId}",
                     currentDefault.Id, productRootId);
                 result.ResultObject = true;
-                return;
+                return false;
             }
 
             // Reassign default
@@ -740,6 +748,7 @@ public class ProductService(
                 currentDefault.Id, newDefault.Id, productRootId);
 
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -1566,20 +1575,20 @@ public class ProductService(
         ProductRoot? productRoot = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var taxGroup = await db.TaxGroups.FindAsync([request.TaxGroupId], cancellationToken);
             if (taxGroup == null)
             {
                 result.AddErrorMessage("Tax group not found");
-                return;
+                return false;
             }
 
             var productType = await db.ProductTypes.FindAsync([request.ProductTypeId], cancellationToken);
             if (productType == null)
             {
                 result.AddErrorMessage("Product type not found");
-                return;
+                return false;
             }
 
             var collections = request.CollectionIds?.Any() == true
@@ -1593,7 +1602,7 @@ public class ProductService(
                 if (skuExists)
                 {
                     result.AddErrorMessage($"SKU '{request.DefaultVariant.Sku}' already exists");
-                    return;
+                    return false;
                 }
             }
 
@@ -1611,7 +1620,7 @@ public class ProductService(
             if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
             {
                 result.AddErrorMessage(creatingNotification.CancelReason ?? "Product creation cancelled");
-                return;
+                return false;
             }
 
             db.RootProducts.Add(productRoot);
@@ -1633,24 +1642,34 @@ public class ProductService(
             db.Products.Add(defaultVariant);
 
             // Handle warehouse assignments (only for non-digital products)
+            // List order determines PriorityOrder (first = highest priority)
             if (!request.IsDigitalProduct && request.WarehouseIds?.Any() == true)
             {
-                var warehouses = await db.Warehouses
+                var validWarehouseIds = (await db.Warehouses
                     .Where(w => request.WarehouseIds.Contains(w.Id))
-                    .ToListAsync(cancellationToken);
+                    .Select(w => w.Id)
+                    .ToListAsync(cancellationToken))
+                    .ToHashSet();
 
-                foreach (var warehouse in warehouses)
+                var priority = 1;
+                foreach (var warehouseId in request.WarehouseIds)
                 {
-                    var prw = new ProductRootWarehouse
+                    if (!validWarehouseIds.Contains(warehouseId))
+                    {
+                        continue;
+                    }
+
+                    db.ProductRootWarehouses.Add(new ProductRootWarehouse
                     {
                         ProductRootId = productRoot.Id,
-                        WarehouseId = warehouse.Id
-                    };
-                    db.ProductRootWarehouses.Add(prw);
+                        WarehouseId = warehouseId,
+                        PriorityOrder = priority++
+                    });
                 }
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -1676,7 +1695,7 @@ public class ProductService(
         ProductRoot? productRoot = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             productRoot = await db.RootProducts
                 .Include(pr => pr.Collections)
@@ -1687,7 +1706,7 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
-                return;
+                return false;
             }
 
             // Publish "Before" notification - handlers can modify or cancel
@@ -1695,7 +1714,7 @@ public class ProductService(
             if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
             {
                 result.AddErrorMessage(savingNotification.CancelReason ?? "Product update cancelled");
-                return;
+                return false;
             }
 
             // Update simple properties
@@ -1741,7 +1760,7 @@ public class ProductService(
                 if (newTaxGroup == null)
                 {
                     result.AddErrorMessage("Tax group not found");
-                    return;
+                    return false;
                 }
                 productRoot.TaxGroup = newTaxGroup;
                 productRoot.TaxGroupId = request.TaxGroupId.Value;
@@ -1754,7 +1773,7 @@ public class ProductService(
                 if (newProductType == null)
                 {
                     result.AddErrorMessage("Product type not found");
-                    return;
+                    return false;
                 }
                 productRoot.ProductType = newProductType;
                 productRoot.ProductTypeId = request.ProductTypeId.Value;
@@ -1786,22 +1805,24 @@ public class ProductService(
                     db.ProductRootWarehouses.Remove(prw);
                 }
 
-                // Add new warehouse assignments
+                // Add new warehouse assignments - list order determines PriorityOrder
                 if (request.WarehouseIds.Any())
                 {
+                    var priority = 1;
                     foreach (var warehouseId in request.WarehouseIds)
                     {
-                        var prw = new ProductRootWarehouse
+                        db.ProductRootWarehouses.Add(new ProductRootWarehouse
                         {
                             ProductRootId = productRoot.Id,
-                            WarehouseId = warehouseId
-                        };
-                        db.ProductRootWarehouses.Add(prw);
+                            WarehouseId = warehouseId,
+                            PriorityOrder = priority++
+                        });
                     }
                 }
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -1827,7 +1848,7 @@ public class ProductService(
         string? productName = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productRoot = await db.RootProducts
                 .Include(pr => pr.Products)
@@ -1836,7 +1857,7 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
-                return;
+                return false;
             }
 
             // Capture name for notification before deletion
@@ -1847,7 +1868,7 @@ public class ProductService(
             if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
             {
                 result.AddErrorMessage(deletingNotification.CancelReason ?? "Product deletion cancelled");
-                return;
+                return false;
             }
 
             // Remove all products (variants)
@@ -1859,6 +1880,7 @@ public class ProductService(
             db.RootProducts.Remove(productRoot);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();
@@ -1901,7 +1923,7 @@ public class ProductService(
         Product? variant = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             variant = await db.Products
                 .FirstOrDefaultAsync(p => p.ProductRootId == productRootId && p.Id == variantId, cancellationToken);
@@ -1909,7 +1931,7 @@ public class ProductService(
             if (variant == null)
             {
                 result.AddErrorMessage("Variant not found");
-                return;
+                return false;
             }
 
             // Validate SKU uniqueness if being updated
@@ -1919,7 +1941,7 @@ public class ProductService(
                 if (skuExists)
                 {
                     result.AddErrorMessage($"SKU '{request.Sku}' already exists");
-                    return;
+                    return false;
                 }
             }
 
@@ -1997,6 +2019,7 @@ public class ProductService(
             variant.DateUpdated = DateTime.Now;
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -2013,7 +2036,7 @@ public class ProductService(
         List<ProductOption> savedOptions = [];
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productRoot = await db.RootProducts
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
@@ -2021,7 +2044,7 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
-                return;
+                return false;
             }
 
             // Get existing option IDs from request
@@ -2106,6 +2129,7 @@ public class ProductService(
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -2150,7 +2174,7 @@ public class ProductService(
         List<Product>? generatedVariants = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productRoot = await db.RootProducts
                 .Include(pr => pr.Products)
@@ -2159,7 +2183,7 @@ public class ProductService(
             if (productRoot == null)
             {
                 result.AddErrorMessage("Product root not found");
-                return;
+                return false;
             }
 
             var variantOptions = productRoot.ProductOptions.Where(o => o.IsVariant).ToList();
@@ -2214,7 +2238,7 @@ public class ProductService(
                 if (duplicateSkus.Count != 0)
                 {
                     result.AddErrorMessage($"Duplicate SKUs found: {string.Join(", ", duplicateSkus)}");
-                    return;
+                    return false;
                 }
 
                 await db.SaveChangesAsync(cancellationToken);
@@ -2225,6 +2249,7 @@ public class ProductService(
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();

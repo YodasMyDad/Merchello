@@ -1,6 +1,4 @@
-using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
-using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Models;
@@ -10,12 +8,10 @@ using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.RateLimiting;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
-using Merchello.Core.Shared.RateLimiting.Models;
-using Merchello.Core.Shared.Services;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Tests.TestInfrastructure;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
@@ -24,68 +20,74 @@ using Xunit;
 
 namespace Merchello.Tests.Payments.Services;
 
-public class PaymentServiceTests
+[Collection("Integration Tests")]
+public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
 {
-    private readonly Mock<IPaymentProviderManager> _providerManagerMock;
-    private readonly Mock<IEFCoreScopeProvider<MerchelloDbContext>> _scopeProviderMock;
-    private readonly Mock<IOptions<MerchelloSettings>> _settingsMock;
-    private readonly Mock<ILogger<PaymentService>> _loggerMock;
-    private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
-    private readonly Mock<IPaymentIdempotencyService> _idempotencyServiceMock;
-    private readonly Mock<IRateLimiter> _rateLimiterMock;
-    private readonly CurrencyService _currencyService;
-    private readonly PaymentFactory _paymentFactory;
+    private readonly ServiceTestFixture _fixture;
+    private readonly IPaymentService _paymentService;
 
-    public PaymentServiceTests()
+    public PaymentServiceTests(ServiceTestFixture fixture)
     {
-        _providerManagerMock = new Mock<IPaymentProviderManager>();
-        _scopeProviderMock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
-        _settingsMock = new Mock<IOptions<MerchelloSettings>>();
-        _settingsMock.Setup(s => s.Value).Returns(new MerchelloSettings());
-        _loggerMock = new Mock<ILogger<PaymentService>>();
-        _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
-        _idempotencyServiceMock = new Mock<IPaymentIdempotencyService>();
-        _rateLimiterMock = new Mock<IRateLimiter>();
-
-        // Default rate limiter to allow all requests
-        _rateLimiterMock
-            .Setup(r => r.TryAcquire(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<TimeSpan>()))
-            .Returns(RateLimitResult.Allowed(1, 10));
-
-        _currencyService = new CurrencyService(_settingsMock.Object);
-        _paymentFactory = new PaymentFactory(_currencyService);
+        _fixture = fixture;
+        _fixture.ResetDatabase();
+        _paymentService = fixture.GetService<IPaymentService>();
     }
 
-    private PaymentService CreateService() =>
-        new(_providerManagerMock.Object, _scopeProviderMock.Object, _paymentFactory, _currencyService, _notificationPublisherMock.Object, _rateLimiterMock.Object, _idempotencyServiceMock.Object, _settingsMock.Object, _loggerMock.Object);
+    /// <summary>
+    /// Creates a PaymentService with a custom provider manager for tests needing specific provider behaviour.
+    /// All other dependencies use real implementations from the fixture.
+    /// </summary>
+    private PaymentService CreateServiceWithCustomProvider(IPaymentProviderManager providerManager) =>
+        new(
+            providerManager,
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
+            _fixture.GetService<PaymentFactory>(),
+            _fixture.GetService<ICurrencyService>(),
+            _fixture.GetService<IMerchelloNotificationPublisher>(),
+            _fixture.GetService<IRateLimiter>(),
+            _fixture.GetService<IPaymentIdempotencyService>(),
+            _fixture.GetService<IOptions<MerchelloSettings>>(),
+            NullLogger<PaymentService>.Instance);
 
     #region ProcessRefundAsync Tests
 
     [Fact]
     public async Task ProcessRefundAsync_RefundingARefund_ReturnsError()
     {
-        // Arrange
-        var paymentId = Guid.NewGuid();
-        var refundPayment = new Payment
+        // Arrange - create invoice, record payment, process a real refund
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
         {
-            Id = paymentId,
-            InvoiceId = Guid.NewGuid(),
-            Amount = -50m,
-            PaymentType = PaymentType.Refund, // This is a refund, not a payment
-            PaymentSuccess = true,
-            PaymentProviderAlias = "manual"
-        };
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        paymentResult.Successful.ShouldBeTrue();
+        var payment = paymentResult.ResultObject!;
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        SetupScopeForPaymentLookup(refundPayment);
-
-        var service = CreateService();
-
-        // Act
-        var result = await service.ProcessRefundAsync(new ProcessRefundParameters
+        // Process a real refund
+        var refundResult = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
         {
-            PaymentId = paymentId,
+            PaymentId = payment.Id,
+            Amount = 50m,
+            Reason = "Partial refund"
+        });
+        refundResult.Successful.ShouldBeTrue();
+        var refundPayment = refundResult.ResultObject!;
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act - try to refund the refund
+        var result = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = refundPayment.Id,
             Amount = 25m,
-            Reason = "Test refund"
+            Reason = "Test refund of refund"
         });
 
         // Assert
@@ -97,32 +99,39 @@ public class PaymentServiceTests
     [Fact]
     public async Task ProcessRefundAsync_AmountExceedsRefundable_ReturnsError()
     {
-        // Arrange
-        var paymentId = Guid.NewGuid();
-        var originalPayment = new Payment
+        // Arrange - create invoice, pay 100, refund 30
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
         {
-            Id = paymentId,
-            InvoiceId = Guid.NewGuid(),
-            Amount = 100m,
-            PaymentType = PaymentType.Payment,
-            PaymentSuccess = true,
-            PaymentProviderAlias = "manual",
-            Refunds =
-            [
-                new() { Amount = -30m, PaymentType = PaymentType.PartialRefund } // Already refunded 30
-            ]
-        };
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        paymentResult.Successful.ShouldBeTrue();
+        var payment = paymentResult.ResultObject!;
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        SetupScopeForPaymentLookup(originalPayment);
-
-        var service = CreateService();
+        // Refund 30 first
+        var firstRefund = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = payment.Id,
+            Amount = 30m,
+            Reason = "First refund"
+        });
+        firstRefund.Successful.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act - try to refund 80 when only 70 is refundable (100 - 30)
-        var result = await service.ProcessRefundAsync(new ProcessRefundParameters
+        var result = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
         {
-            PaymentId = paymentId,
+            PaymentId = payment.Id,
             Amount = 80m,
-            Reason = "Test refund"
+            Reason = "Second refund"
         });
 
         // Assert
@@ -134,42 +143,37 @@ public class PaymentServiceTests
     [Fact]
     public async Task ProcessRefundAsync_PartialRefund_ProviderDoesNotSupportPartial_ReturnsError()
     {
-        // Arrange
-        var paymentId = Guid.NewGuid();
-        var originalPayment = new Payment
-        {
-            Id = paymentId,
-            InvoiceId = Guid.NewGuid(),
-            Amount = 100m,
-            PaymentType = PaymentType.Payment,
-            PaymentSuccess = true,
-            PaymentProviderAlias = "no-partial-refund-provider",
-            Refunds = null
-        };
-
-        SetupScopeForPaymentLookup(originalPayment);
+        // Arrange - create invoice and insert payment with a custom provider alias
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        var payment = dataBuilder.CreatePayment(invoice, amount: 100m);
+        payment.PaymentProviderAlias = "no-partial-provider";
+        payment.PaymentSuccess = true;
+        payment.PaymentType = PaymentType.Payment;
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Setup provider that supports refunds but NOT partial refunds
         var providerMock = new Mock<IPaymentProvider>();
         providerMock.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
         {
-            Alias = "no-partial-refund-provider",
+            Alias = "no-partial-provider",
             DisplayName = "No Partial Refund Provider",
             SupportsRefunds = true,
-            SupportsPartialRefunds = false // Key: doesn't support partial
+            SupportsPartialRefunds = false
         });
 
-        var registeredProvider = new RegisteredPaymentProvider(providerMock.Object, null);
-        _providerManagerMock
-            .Setup(m => m.GetProviderAsync("no-partial-refund-provider", false, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(registeredProvider);
+        var registered = new RegisteredPaymentProvider(providerMock.Object, null);
+        var pmMock = new Mock<IPaymentProviderManager>();
+        pmMock.Setup(m => m.GetProviderAsync("no-partial-provider", false, It.IsAny<CancellationToken>()))
+              .ReturnsAsync(registered);
 
-        var service = CreateService();
+        var service = CreateServiceWithCustomProvider(pmMock.Object);
 
         // Act - try partial refund of 50 on 100 payment
         var result = await service.ProcessRefundAsync(new ProcessRefundParameters
         {
-            PaymentId = paymentId,
+            PaymentId = payment.Id,
             Amount = 50m,
             Reason = "Partial refund"
         });
@@ -188,19 +192,22 @@ public class PaymentServiceTests
     public async Task GetInvoicePaymentStatusAsync_FullPayment_ReturnsPaid()
     {
         // Arrange
-        var invoiceId = Guid.NewGuid();
-        var invoiceTotal = 100m;
-        List<Payment> payments =
-        [
-            new() { Amount = 100m, PaymentType = PaymentType.Payment, PaymentSuccess = true }
-        ];
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
-
-        var service = CreateService();
+        await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var status = await service.GetInvoicePaymentStatusAsync(invoiceId);
+        var status = await _paymentService.GetInvoicePaymentStatusAsync(invoice.Id);
 
         // Assert
         status.ShouldBe(InvoicePaymentStatus.Paid);
@@ -210,19 +217,22 @@ public class PaymentServiceTests
     public async Task GetInvoicePaymentStatusAsync_PartialPayment_ReturnsPartiallyPaid()
     {
         // Arrange
-        var invoiceId = Guid.NewGuid();
-        var invoiceTotal = 100m;
-        List<Payment> payments =
-        [
-            new() { Amount = 40m, PaymentType = PaymentType.Payment, PaymentSuccess = true }
-        ];
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
-
-        var service = CreateService();
+        await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 40m
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var status = await service.GetInvoicePaymentStatusAsync(invoiceId);
+        var status = await _paymentService.GetInvoicePaymentStatusAsync(invoice.Id);
 
         // Assert
         status.ShouldBe(InvoicePaymentStatus.PartiallyPaid);
@@ -232,20 +242,33 @@ public class PaymentServiceTests
     public async Task GetInvoicePaymentStatusAsync_FullRefund_ReturnsRefunded()
     {
         // Arrange
-        var invoiceId = Guid.NewGuid();
-        var invoiceTotal = 100m;
-        List<Payment> payments =
-        [
-            new() { Amount = 100m, PaymentType = PaymentType.Payment, PaymentSuccess = true },
-            new() { Amount = -100m, PaymentType = PaymentType.Refund, PaymentSuccess = true }
-        ];
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
+        var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        paymentResult.Successful.ShouldBeTrue();
+        var payment = paymentResult.ResultObject!;
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        var service = CreateService();
+        var refundResult = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = payment.Id,
+            Amount = 100m,
+            Reason = "Full refund"
+        });
+        refundResult.Successful.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var status = await service.GetInvoicePaymentStatusAsync(invoiceId);
+        var status = await _paymentService.GetInvoicePaymentStatusAsync(invoice.Id);
 
         // Assert
         status.ShouldBe(InvoicePaymentStatus.Refunded);
@@ -255,20 +278,33 @@ public class PaymentServiceTests
     public async Task GetInvoicePaymentStatusAsync_PartialRefund_ReturnsPartiallyRefunded()
     {
         // Arrange
-        var invoiceId = Guid.NewGuid();
-        var invoiceTotal = 100m;
-        List<Payment> payments =
-        [
-            new() { Amount = 100m, PaymentType = PaymentType.Payment, PaymentSuccess = true },
-            new() { Amount = -30m, PaymentType = PaymentType.PartialRefund, PaymentSuccess = true }
-        ];
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        SetupScopeForStatusCalculation(invoiceId, invoiceTotal, payments);
+        var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        paymentResult.Successful.ShouldBeTrue();
+        var payment = paymentResult.ResultObject!;
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        var service = CreateService();
+        var refundResult = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = payment.Id,
+            Amount = 30m,
+            Reason = "Partial refund"
+        });
+        refundResult.Successful.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
-        var status = await service.GetInvoicePaymentStatusAsync(invoiceId);
+        var status = await _paymentService.GetInvoicePaymentStatusAsync(invoice.Id);
 
         // Assert
         status.ShouldBe(InvoicePaymentStatus.PartiallyRefunded);
@@ -281,19 +317,12 @@ public class PaymentServiceTests
     [Fact]
     public async Task CreatePaymentSessionAsync_ProviderNotEnabled_ReturnsFailedResult()
     {
-        // Arrange
-        var invoiceId = Guid.NewGuid();
-        _providerManagerMock
-            .Setup(m => m.GetProviderAsync("disabled-provider", true, It.IsAny<CancellationToken>()))
-            .ReturnsAsync((RegisteredPaymentProvider?)null);
-
-        var service = CreateService();
-
-        // Act
-        var result = await service.CreatePaymentSessionAsync(
+        // Arrange - the fixture's provider manager only knows "manual",
+        // so "disabled-provider" will return null
+        var result = await _paymentService.CreatePaymentSessionAsync(
             new CreatePaymentSessionParameters
             {
-                InvoiceId = invoiceId,
+                InvoiceId = Guid.NewGuid(),
                 ProviderAlias = "disabled-provider",
                 ReturnUrl = "https://return.url",
                 CancelUrl = "https://cancel.url"
@@ -303,50 +332,6 @@ public class PaymentServiceTests
         result.Success.ShouldBeFalse();
         result.ErrorMessage.ShouldNotBeNull();
         result.ErrorMessage!.ShouldContain("not available or not enabled");
-    }
-
-    #endregion
-
-    #region Helper Methods for Mocking EF Core Scope Provider
-
-    private void SetupScopeForPaymentLookup(Payment payment)
-    {
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-        // For ProcessRefundAsync, the ExecuteWithContextAsync call returns the payment
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Payment?>>>()))
-            .ReturnsAsync(payment);
-
-        // For the second call (recording refund), we need to handle the Task callback
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-            .Returns(Task.CompletedTask);
-
-        scopeMock.Setup(s => s.Complete());
-
-        _scopeProviderMock
-            .Setup(p => p.CreateScope())
-            .Returns(scopeMock.Object);
-    }
-
-    private void SetupScopeForStatusCalculation(Guid invoiceId, decimal invoiceTotal, List<Payment> payments, string currencyCode = "USD")
-    {
-        var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-        // GetInvoicePaymentStatusAsync returns a tuple of (InvoiceTotal, CurrencyCode, Payments)
-        var statusInfo = (InvoiceTotal: invoiceTotal, CurrencyCode: currencyCode, Payments: payments);
-
-        scopeMock
-            .Setup(s => s.ExecuteWithContextAsync(
-                It.IsAny<Func<MerchelloDbContext, Task<(decimal InvoiceTotal, string CurrencyCode, List<Payment> Payments)>>>()))
-            .ReturnsAsync(statusInfo);
-
-        scopeMock.Setup(s => s.Complete());
-
-        _scopeProviderMock
-            .Setup(p => p.CreateScope())
-            .Returns(scopeMock.Object);
     }
 
     #endregion

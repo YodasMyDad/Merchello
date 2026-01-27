@@ -20,9 +20,9 @@ namespace Merchello.Core.Webhooks.Handlers;
 
 /// <summary>
 /// Notification handler that bridges internal Merchello notifications to external webhook deliveries.
-/// Runs at priority 2000 (after all business logic) to ensure data is finalized before dispatch.
+/// Runs at priority 2200 (after timeline logging and email) to ensure data is finalized before dispatch.
 /// </summary>
-[NotificationHandlerPriority(2000)]
+[NotificationHandlerPriority(2200)]
 public class WebhookNotificationHandler(
     IWebhookService webhookService,
     IOptions<WebhookSettings> options,

@@ -548,6 +548,7 @@ public class OrdersApiController(
             IsMultiCurrency = !string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase),
             PaymentStatus = paymentDetails.Status,
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
+            PaymentStatusCssClass = paymentDetails.Status.GetPaymentStatusCssClass(),
             FulfillmentStatus = fulfillmentStatus,
             IsCancelled = invoice.IsCancelled,
             ItemCount = itemCount,

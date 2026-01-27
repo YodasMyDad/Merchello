@@ -253,4 +253,15 @@ public interface ICheckoutService
     Task<Basket?> GetBasketByIdAsync(
         Guid basketId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets estimated shipping for a basket by auto-selecting the cheapest shipping option
+    /// for each warehouse group. Updates the basket totals with the estimated shipping.
+    /// </summary>
+    /// <param name="parameters">Parameters containing basket and shipping destination.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result with estimated shipping amount and group count.</returns>
+    Task<GetEstimatedShippingResult> GetEstimatedShippingAsync(
+        GetEstimatedShippingParameters parameters,
+        CancellationToken cancellationToken = default);
 }

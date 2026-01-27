@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { LitElement, html, css, nothing, unsafeHTML } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
@@ -9,6 +9,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type { TaxProviderDto } from "@tax/types/tax.types.js";
 import { MERCHELLO_TAX_PROVIDER_CONFIG_MODAL } from "../modals/tax-provider-config-modal.token.js";
 import { MERCHELLO_TEST_TAX_PROVIDER_MODAL } from "../modals/test-tax-provider-modal.token.js";
+import { getTaxProviderIconSvg } from "../utils/brand-icons.js";
 
 @customElement("merchello-tax-providers-list")
 export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement) {
@@ -113,15 +114,21 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
     });
   }
 
+  private _renderProviderIcon(alias: string, iconSvg?: string, fallbackIcon?: string): unknown {
+    const svg = iconSvg ?? getTaxProviderIconSvg(alias);
+    if (svg) {
+      return html`<span class="provider-icon-svg">${unsafeHTML(svg)}</span>`;
+    }
+    return html`<uui-icon name="${fallbackIcon ?? 'icon-calculator'}"></uui-icon>`;
+  }
+
   private _renderProvider(provider: TaxProviderDto): unknown {
     return html`
       <div class="provider-card ${provider.isActive ? "active" : ""}">
         <div class="provider-main">
           <div class="provider-info">
             <div class="provider-icon">
-              ${provider.icon
-                ? html`<uui-icon name="${provider.icon}"></uui-icon>`
-                : html`<uui-icon name="icon-calculator"></uui-icon>`}
+              ${this._renderProviderIcon(provider.alias, provider.iconSvg, provider.icon)}
             </div>
             <div class="provider-details">
               <span class="provider-name">${provider.displayName}</span>
@@ -352,6 +359,19 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
     .provider-icon uui-icon {
       font-size: 1.5rem;
       color: var(--uui-color-text-alt);
+    }
+
+    .provider-icon-svg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+    }
+
+    .provider-icon-svg svg {
+      width: 100%;
+      height: 100%;
     }
 
     .provider-card.active .provider-icon {

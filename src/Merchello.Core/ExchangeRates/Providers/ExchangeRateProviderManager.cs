@@ -3,6 +3,7 @@ using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Providers.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
@@ -10,11 +11,13 @@ namespace Merchello.Core.ExchangeRates.Providers;
 
 public class ExchangeRateProviderManager(
     ExtensionManager extensionManager,
+    IServiceScopeFactory serviceScopeFactory,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<ExchangeRateProviderManager> logger) : IExchangeRateProviderManager, IDisposable
 {
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyCollection<RegisteredExchangeRateProvider>? _cachedProviders;
+    private IServiceScope? _providerScope;
     private bool _disposed;
 
     public async Task<IReadOnlyCollection<RegisteredExchangeRateProvider>> GetProvidersAsync(
@@ -35,7 +38,14 @@ public class ExchangeRateProviderManager(
                 return cached;
             }
 
-            var providerInstances = extensionManager.GetInstances<IExchangeRateProvider>(useCaching: true)
+            // Create a scope that lives as long as the cached providers
+            _providerScope?.Dispose();
+            _providerScope = serviceScopeFactory.CreateScope();
+
+            var providerInstances = extensionManager.GetInstances<IExchangeRateProvider>(
+                    predicate: null,
+                    useCaching: true,
+                    serviceProvider: _providerScope.ServiceProvider)
                 .Where(p => p != null)
                 .Cast<IExchangeRateProvider>()
                 .ToList();
@@ -239,6 +249,8 @@ public class ExchangeRateProviderManager(
     private void RefreshCache()
     {
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
         _cachedProviders = null;
     }
 
@@ -269,6 +281,8 @@ public class ExchangeRateProviderManager(
         _disposed = true;
 
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
         _cachedProviders = null;
         _cacheLock.Dispose();
 

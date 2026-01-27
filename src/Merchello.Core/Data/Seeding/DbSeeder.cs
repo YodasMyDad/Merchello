@@ -17,6 +17,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Suppliers.Services.Interfaces;
@@ -72,7 +73,13 @@ public class DbSeeder(
 
         // 1. Create Tax Group (UK VAT 20%) via service
         var taxGroupResult = await taxService.CreateTaxGroup("UK VAT 20%", 20m, cancellationToken);
-        var ukVat = taxGroupResult.ResultObject!;
+        if (!taxGroupResult.Successful || taxGroupResult.ResultObject == null)
+        {
+            taxGroupResult.LogBadMessages(logger);
+            logger.LogWarning("Failed to create tax group, seeding cannot continue");
+            return;
+        }
+        var ukVat = taxGroupResult.ResultObject;
         logger.LogDebug("Created tax group: {Name}", ukVat.Name);
 
         // 1b. Activate Manual Tax Provider (ensures tax calculations use the provider system)
@@ -105,7 +112,7 @@ public class DbSeeder(
 
         // 8. Create customers explicitly (before invoices so we can use them for segments)
         var customers = await CreateCustomersAsync(cancellationToken);
-        logger.LogDebug("Created {Count} customers", customers.Count);
+        logger.LogInformation("Merchello seed data: Created {Count} customers", customers.Count);
 
         // 9. Setup account customers (B2B with payment terms and credit limits)
         var accountCustomers = await SetupAccountCustomersAsync(customers, cancellationToken);
@@ -148,6 +155,11 @@ public class DbSeeder(
             {
                 await discountService.ActivateAsync(vipResult.ResultObject.Id, cancellationToken);
                 logger.LogDebug("Created VIP segment discount: {Name}", vipResult.ResultObject.Name);
+            }
+            else
+            {
+                vipResult.LogBadMessages(logger);
+                logger.LogWarning("Failed to create VIP segment discount");
             }
         }
 
@@ -198,10 +210,22 @@ public class DbSeeder(
         Dictionary<string, ProductType> types = [];
         foreach (var (alias, name) in typeNames)
         {
-            var result = await productTypeService.CreateProductType(name, cancellationToken);
-            if (result.ResultObject != null)
+            try
             {
-                types[alias] = result.ResultObject;
+                var result = await productTypeService.CreateProductType(name, cancellationToken);
+                if (result.ResultObject != null)
+                {
+                    types[alias] = result.ResultObject;
+                }
+                else
+                {
+                    result.LogBadMessages(logger);
+                    logger.LogWarning("Failed to create product type: {Name}", name);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to create product type: {Name}", name);
             }
         }
 
@@ -227,10 +251,22 @@ public class DbSeeder(
         Dictionary<string, ProductCollection> collections = [];
         foreach (var (alias, name) in collectionNames)
         {
-            var result = await productCollectionService.CreateProductCollection(name, cancellationToken);
-            if (result.ResultObject != null)
+            try
             {
-                collections[alias] = result.ResultObject;
+                var result = await productCollectionService.CreateProductCollection(name, cancellationToken);
+                if (result.ResultObject != null)
+                {
+                    collections[alias] = result.ResultObject;
+                }
+                else
+                {
+                    result.LogBadMessages(logger);
+                    logger.LogWarning("Failed to create collection: {Name}", name);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to create collection: {Name}", name);
             }
         }
 
@@ -277,7 +313,19 @@ public class DbSeeder(
             }
         }, cancellationToken);
 
-        return (ukResult.ResultObject!, usResult.ResultObject!);
+        if (!ukResult.Successful || ukResult.ResultObject == null)
+        {
+            ukResult.LogBadMessages(logger);
+            throw new InvalidOperationException("Failed to create UK supplier - seeding cannot continue");
+        }
+
+        if (!usResult.Successful || usResult.ResultObject == null)
+        {
+            usResult.LogBadMessages(logger);
+            throw new InvalidOperationException("Failed to create US supplier - seeding cannot continue");
+        }
+
+        return (ukResult.ResultObject, usResult.ResultObject);
     }
 
     private async Task<Warehouse[]> CreateWarehousesAsync(Supplier ukSupplier, Supplier usSupplier, CancellationToken cancellationToken)
@@ -338,7 +386,12 @@ public class DbSeeder(
         }, cancellationToken);
 
         // Capture UK-only shipping option ID for country-restricted products
-        var ukWarehouse = ukWarehouseResult.ResultObject!;
+        if (!ukWarehouseResult.Successful || ukWarehouseResult.ResultObject == null)
+        {
+            ukWarehouseResult.LogBadMessages(logger);
+            throw new InvalidOperationException("Failed to create UK warehouse - seeding cannot continue");
+        }
+        var ukWarehouse = ukWarehouseResult.ResultObject;
         _ukOnlyShippingOptionId = ukWarehouse.ShippingOptions?
             .FirstOrDefault(so => so.Name == "UK Domestic Only")?.Id ?? Guid.Empty;
 
@@ -499,11 +552,27 @@ public class DbSeeder(
             ]
         }, cancellationToken);
 
+        if (!euWarehouseResult.Successful || euWarehouseResult.ResultObject == null)
+        {
+            euWarehouseResult.LogBadMessages(logger);
+            throw new InvalidOperationException("Failed to create EU warehouse - seeding cannot continue");
+        }
+        if (!usEastWarehouseResult.Successful || usEastWarehouseResult.ResultObject == null)
+        {
+            usEastWarehouseResult.LogBadMessages(logger);
+            throw new InvalidOperationException("Failed to create US East warehouse - seeding cannot continue");
+        }
+        if (!usWestWarehouseResult.Successful || usWestWarehouseResult.ResultObject == null)
+        {
+            usWestWarehouseResult.LogBadMessages(logger);
+            throw new InvalidOperationException("Failed to create US West warehouse - seeding cannot continue");
+        }
+
         return [
-            ukWarehouseResult.ResultObject!,
-            euWarehouseResult.ResultObject!,
-            usEastWarehouseResult.ResultObject!,
-            usWestWarehouseResult.ResultObject!
+            ukWarehouse,
+            euWarehouseResult.ResultObject,
+            usEastWarehouseResult.ResultObject,
+            usWestWarehouseResult.ResultObject
         ];
     }
 
@@ -524,43 +593,91 @@ public class DbSeeder(
             ("Tan", "#D2B48C"), ("Pink", "#FFC0CB"), ("Sky Blue", "#87CEEB")
         };
 
-        var colorGroupResult = await productFilterService.CreateFilterGroup("Color", cancellationToken);
-        if (colorGroupResult.ResultObject != null)
+        try
         {
-            foreach (var (name, hexColour) in colors)
+            var colorGroupResult = await productFilterService.CreateFilterGroup("Color", cancellationToken);
+            if (colorGroupResult.ResultObject != null)
             {
-                var filterResult = await productFilterService.CreateFilter(new CreateFilterParameters
+                foreach (var (name, hexColour) in colors)
                 {
-                    FilterGroupId = colorGroupResult.ResultObject.Id,
-                    Name = name,
-                    HexColour = hexColour
-                }, cancellationToken);
+                    try
+                    {
+                        var filterResult = await productFilterService.CreateFilter(new CreateFilterParameters
+                        {
+                            FilterGroupId = colorGroupResult.ResultObject.Id,
+                            Name = name,
+                            HexColour = hexColour
+                        }, cancellationToken);
 
-                if (filterResult.ResultObject != null)
-                {
-                    colorFilters[name] = filterResult.ResultObject.Id;
+                        if (filterResult.ResultObject != null)
+                        {
+                            colorFilters[name] = filterResult.ResultObject.Id;
+                        }
+                        else
+                        {
+                            filterResult.LogBadMessages(logger);
+                            logger.LogWarning("Failed to create color filter: {Name}", name);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to create color filter: {Name}", name);
+                    }
                 }
             }
+            else
+            {
+                colorGroupResult.LogBadMessages(logger);
+                logger.LogWarning("Failed to create Color filter group");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create color filters");
         }
 
         // Extended sizes including XS
         var sizes = new[] { "XS", "S", "M", "L", "XL", "2XL" };
-        var sizeGroupResult = await productFilterService.CreateFilterGroup("Size", cancellationToken);
-        if (sizeGroupResult.ResultObject != null)
+        try
         {
-            foreach (var size in sizes)
+            var sizeGroupResult = await productFilterService.CreateFilterGroup("Size", cancellationToken);
+            if (sizeGroupResult.ResultObject != null)
             {
-                var filterResult = await productFilterService.CreateFilter(new CreateFilterParameters
+                foreach (var size in sizes)
                 {
-                    FilterGroupId = sizeGroupResult.ResultObject.Id,
-                    Name = size
-                }, cancellationToken);
+                    try
+                    {
+                        var filterResult = await productFilterService.CreateFilter(new CreateFilterParameters
+                        {
+                            FilterGroupId = sizeGroupResult.ResultObject.Id,
+                            Name = size
+                        }, cancellationToken);
 
-                if (filterResult.ResultObject != null)
-                {
-                    sizeFilters[size] = filterResult.ResultObject.Id;
+                        if (filterResult.ResultObject != null)
+                        {
+                            sizeFilters[size] = filterResult.ResultObject.Id;
+                        }
+                        else
+                        {
+                            filterResult.LogBadMessages(logger);
+                            logger.LogWarning("Failed to create size filter: {Name}", size);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Failed to create size filter: {Name}", size);
+                    }
                 }
             }
+            else
+            {
+                sizeGroupResult.LogBadMessages(logger);
+                logger.LogWarning("Failed to create Size filter group");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create size filters");
         }
 
         return (colorFilters, sizeFilters);
@@ -602,6 +719,7 @@ public class DbSeeder(
         var result = await customerSegmentService.CreateAsync(createParams, cancellationToken);
         if (result.ResultObject == null)
         {
+            result.LogBadMessages(logger);
             logger.LogWarning("Failed to create VIP segment");
             return null;
         }
@@ -702,6 +820,7 @@ public class DbSeeder(
         var result = await discountService.CreateAsync(createParams, cancellationToken);
         if (result.ResultObject == null)
         {
+            result.LogBadMessages(logger);
             logger.LogWarning("Failed to create automatic discount");
             return;
         }
@@ -733,9 +852,16 @@ public class DbSeeder(
             string[]? colors, string[]? sizes,
             List<(int warehouseIndex, int minStock, int maxStock, bool trackStock)> stockConfig)
         {
-            await CreateProductAsync(name, description, price, taxGroup, productType,
-                productCollections, weight, colors, sizes, warehouses, stockConfig,
-                colorFilters, sizeFilters);
+            try
+            {
+                await CreateProductAsync(name, description, price, taxGroup, productType,
+                    productCollections, weight, colors, sizes, warehouses, stockConfig,
+                    colorFilters, sizeFilters);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to create product: {Name}", name);
+            }
         }
 
         // ============ T-SHIRTS (6 products) - All 4 warehouses, UK priority ============
@@ -892,9 +1018,8 @@ public class DbSeeder(
 
         // ============ MUGS (2 products) - fragile items ============
 
-        // Ceramic Mug - UK, US warehouses LOW STOCK for multi-warehouse split testing
+        // Ceramic Mug - UK, US warehouses with low US stock
         // US-East has priority 3, US-West has priority 4, so US-East is checked first
-        // Both US warehouses need low stock to force split (neither can fulfill 5 alone)
         await CreateProduct("Ceramic Mug (11oz)",
             "Classic 11oz ceramic mug, dishwasher and microwave safe.",
             12.99m, productTypes["mug"], [collections["drinkware"]],
@@ -925,10 +1050,17 @@ public class DbSeeder(
             [(0, 0, 0, false)]);
 
         // Gift Cards - AMOUNT VARIANTS, DIGITAL
-        await CreateProductWithAmountVariantsAsync("Gift Card",
-            "Digital gift card, delivered via email.",
-            taxGroup, productTypes["digital"], [collections["digital"]],
-            warehouses[0], [25m, 50m, 75m, 100m]);
+        try
+        {
+            await CreateProductWithAmountVariantsAsync("Gift Card",
+                "Digital gift card, delivered via email.",
+                taxGroup, productTypes["digital"], [collections["digital"]],
+                warehouses[0], [25m, 50m, 75m, 100m]);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create product: Gift Card");
+        }
 
         // Custom Print Service - NO VARIANTS, MADE TO ORDER
         await CreateProduct("Custom Print Service",
@@ -942,25 +1074,46 @@ public class DbSeeder(
         // This tests the UI restriction where non-UK customers cannot purchase these items.
 
         // UK Exclusive Vintage Tee - UK delivery ONLY (licensing restrictions)
-        await CreateUkOnlyProductAsync("UK Exclusive Vintage Tee",
-            "Limited edition vintage t-shirt featuring iconic British designs. Only available for UK delivery due to licensing restrictions.",
-            29.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
-            0.25m, ["Black", "White", "Burgundy"], standardSizes,
-            warehouses, [(0, 20, 40, true)], colorFilters, sizeFilters);
+        try
+        {
+            await CreateUkOnlyProductAsync("UK Exclusive Vintage Tee",
+                "Limited edition vintage t-shirt featuring iconic British designs. Only available for UK delivery due to licensing restrictions.",
+                29.99m, taxGroup, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
+                0.25m, ["Black", "White", "Burgundy"], standardSizes,
+                warehouses, [(0, 20, 40, true)], colorFilters, sizeFilters);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create UK-only product: UK Exclusive Vintage Tee");
+        }
 
         // UK Heritage Hoodie - UK delivery ONLY (exclusive collection)
-        await CreateUkOnlyProductAsync("Heritage Collection Hoodie",
-            "Part of our exclusive UK Heritage Collection featuring traditional British craftsmanship. UK delivery only.",
-            69.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
-            0.65m, ["Burgundy", "Forest Green", "Navy"], extendedSizes,
-            warehouses, [(0, 15, 30, true)], colorFilters, sizeFilters);
+        try
+        {
+            await CreateUkOnlyProductAsync("Heritage Collection Hoodie",
+                "Part of our exclusive UK Heritage Collection featuring traditional British craftsmanship. UK delivery only.",
+                69.99m, taxGroup, productTypes["hoodie"], [collections["clothing"], collections["hoodies"]],
+                0.65m, ["Burgundy", "Forest Green", "Navy"], extendedSizes,
+                warehouses, [(0, 15, 30, true)], colorFilters, sizeFilters);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create UK-only product: Heritage Collection Hoodie");
+        }
 
         // UK Collectible Mug - UK delivery ONLY (fragile/limited)
-        await CreateUkOnlyProductAsync("UK Collectible Mug",
-            "Limited edition collectible bone china mug with British heritage designs. Due to fragility, only ships within the UK.",
-            16.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
-            0.4m, ["White", "Black"], null,
-            warehouses, [(0, 30, 50, true)], colorFilters, null);
+        try
+        {
+            await CreateUkOnlyProductAsync("UK Collectible Mug",
+                "Limited edition collectible bone china mug with British heritage designs. Due to fragility, only ships within the UK.",
+                16.99m, taxGroup, productTypes["mug"], [collections["drinkware"]],
+                0.4m, ["White", "Black"], null,
+                warehouses, [(0, 30, 50, true)], colorFilters, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create UK-only product: UK Collectible Mug");
+        }
     }
 
     private async Task CreateProductAsync(
@@ -988,7 +1141,7 @@ public class DbSeeder(
             .Select((s, localIndex) => (localIndex, s.minStock, s.maxStock, s.trackStock))
             .ToList();
 
-        await productService.CreateProductRootWithVariantsAsync(
+        var result = await productService.CreateProductRootWithVariantsAsync(
             productFilterService,
             name,
             description,
@@ -1003,6 +1156,12 @@ public class DbSeeder(
             warehouseStockRanges: remappedStockConfig,
             colorFilters: colorFilters,
             sizeFilters: sizeFilters);
+
+        if (!result.Successful || result.ResultObject == null)
+        {
+            result.LogBadMessages(logger);
+            logger.LogWarning("Failed to create product: {Name}", name);
+        }
     }
 
     private async Task CreateProductWithAmountVariantsAsync(
@@ -1017,7 +1176,7 @@ public class DbSeeder(
         foreach (var amount in amounts)
         {
             var variantName = $"{name} - £{amount:0}";
-            await productService.CreateProductRootWithVariantsAsync(
+            var result = await productService.CreateProductRootWithVariantsAsync(
                 productFilterService,
                 variantName,
                 description,
@@ -1030,6 +1189,12 @@ public class DbSeeder(
                 sizes: null,
                 warehouses: [(warehouse, 1)],
                 warehouseStockRanges: [(0, 0, 0, false)]);
+
+            if (!result.Successful || result.ResultObject == null)
+            {
+                result.LogBadMessages(logger);
+                logger.LogWarning("Failed to create amount variant product: {Name}", variantName);
+            }
         }
     }
 
@@ -1078,9 +1243,16 @@ public class DbSeeder(
             colorFilters: colorFilters,
             sizeFilters: sizeFilters);
 
-        if (result.ResultObject == null || _ukOnlyShippingOptionId == Guid.Empty)
+        if (result.ResultObject == null)
         {
-            logger.LogWarning("Could not create UK-only product: {Name}", name);
+            result.LogBadMessages(logger);
+            logger.LogWarning("Failed to create UK-only product: {Name}", name);
+            return;
+        }
+
+        if (_ukOnlyShippingOptionId == Guid.Empty)
+        {
+            logger.LogWarning("UK-only shipping option not found, cannot restrict product: {Name}", name);
             return;
         }
 
@@ -1109,7 +1281,7 @@ public class DbSeeder(
         List<Product> products,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Merchello seed data: Creating explicit multi-warehouse test invoices...");
+        logger.LogDebug("Merchello seed data: Creating explicit multi-warehouse test invoices...");
 
         var customers = GetSampleCustomers();
         var successCount = 0;
@@ -1132,8 +1304,8 @@ public class DbSeeder(
             logger.LogWarning(ex, "Failed to create multi-warehouse test case 1");
         }
 
-        // Test Case 2: US West Coast customer ordering products from different US warehouses
-        // Tests domestic multi-warehouse scenario
+        // Test Case 2: US West Coast customer ordering from US warehouses
+        // Tests domestic US order routing for West Coast customer
         try
         {
             var usWestCustomer = customers.First(c => c.billing.CountryCode == "US" && 
@@ -1142,7 +1314,7 @@ public class DbSeeder(
                 products,
                 usWestCustomer,
                 new[] { "Ceramic Mug (11oz)", "Performance Polo", "Classic Cotton Tee" },
-                "US West Coast customer (US-East + US-West stock split)",
+                "US West Coast customer (domestic US order)",
                 cancellationToken);
             successCount++;
         }
@@ -1151,7 +1323,7 @@ public class DbSeeder(
             logger.LogWarning(ex, "Failed to create multi-warehouse test case 2");
         }
 
-        logger.LogInformation("Merchello seed data: Created {Count} explicit multi-warehouse test invoices", 
+        logger.LogInformation("Merchello seed data: Created {Count} explicit multi-warehouse test invoices",
             successCount);
     }
 
@@ -1169,9 +1341,9 @@ public class DbSeeder(
         var shippingAddress = customer.shipping ?? customer.billing;
         var countryCode = shippingAddress.CountryCode ?? "US";
 
-        // 1. Find products by name using the already-loaded product list
+        // 1. Find products by name using the already-loaded product list (match on ProductRoot.RootName, not variant Name)
         var selectedProducts = products
-            .Where(p => productNames.Any(name => p.Name?.Contains(name) == true))
+            .Where(p => productNames.Any(name => p.ProductRoot?.RootName?.Contains(name) == true))
             .ToList();
 
         if (selectedProducts.Count == 0)
@@ -1185,8 +1357,8 @@ public class DbSeeder(
         var basket = checkoutService.CreateBasket();
 
         // 3. Add line items via checkout service
-        // For US West test case, order 5 of each to trigger stock-based multi-warehouse split
-        var quantity = testCaseDescription.Contains("US West") ? 5 : 1;
+        // For US West test case, order 2 of each (stock per-variant at US warehouses is low)
+        var quantity = testCaseDescription.Contains("US West") ? 2 : 1;
         foreach (var product in selectedProducts)
         {
             var lineItem = checkoutService.CreateLineItem(product, quantity);
@@ -1214,7 +1386,7 @@ public class DbSeeder(
         // Log if we got the multi-warehouse split we wanted
         if (shippingResult.WarehouseGroups.Count > 1)
         {
-            logger.LogInformation(
+            logger.LogDebug(
                 "✓ Multi-warehouse test case SUCCESS: {Description} - {GroupCount} warehouse groups created", 
                 testCaseDescription, shippingResult.WarehouseGroups.Count);
         }
@@ -1272,7 +1444,10 @@ public class DbSeeder(
             AuthorName = "System - DbSeeder"
         }, cancellationToken);
 
-        logger.LogInformation(
+        // 10. Backdate to ~60 days ago so test cases appear mid-range in the orders list
+        await invoiceService.BackdateInvoiceAsync(invoice.Id, DateTime.UtcNow.AddDays(-60), cancellationToken);
+
+        logger.LogDebug(
             "Created multi-warehouse test invoice {InvoiceNumber} with {OrderCount} orders, {LineItemCount} products",
             invoice.InvoiceNumber, invoice.Orders?.Count ?? 0, selectedProducts.Count);
     }
@@ -1288,6 +1463,8 @@ public class DbSeeder(
         CancellationToken cancellationToken)
     {
         var random = new Random(42); // Fixed seed for reproducibility
+        var now = DateTime.UtcNow;
+        const int seedDateRangeDays = 90;
         var customers = GetSampleCustomers();
         var successCount = 0;
         var multiWarehouseCount = 0;
@@ -1424,7 +1601,7 @@ public class DbSeeder(
                 var status = GetWeightedStatus(i, count, paymentScenario);
                 foreach (var order in invoice.Orders ?? [])
                 {
-                    if (status != OrderStatus.Pending)
+                    if (status != OrderStatus.Pending && status != OrderStatus.ReadyToFulfill)
                     {
                         // Transition through intermediate statuses as required by business rules
                         // Orders start at ReadyToFulfill and must go through Processing before Shipped/Completed
@@ -1449,6 +1626,13 @@ public class DbSeeder(
                     var refundCreated = await ProcessRefundAsync(invoice, payment, random, cancellationToken);
                     if (refundCreated) refundCount++;
                 }
+
+                // 11. Backdate invoice to spread across 90 days (oldest first, newest last)
+                var daysAgo = seedDateRangeDays - (i * seedDateRangeDays / count);
+                var invoiceDate = now.AddDays(-daysAgo).Date
+                    .AddHours(random.Next(8, 20))
+                    .AddMinutes(random.Next(0, 60));
+                await invoiceService.BackdateInvoiceAsync(invoice.Id, invoiceDate, cancellationToken);
 
                 successCount++;
             }
@@ -1490,6 +1674,11 @@ public class DbSeeder(
                         Amount = invoiceTotal,
                         Description = "Stripe payment (seeded)"
                     }, cancellationToken);
+                if (!stripeResult.Successful)
+                {
+                    logger.LogWarning("Seed payment failed for invoice {InvoiceId} (StripeFull): {Error}",
+                        invoice.Id, stripeResult.Messages.FirstOrDefault()?.Message);
+                }
                 return stripeResult.ResultObject;
 
             case PaymentScenario.ManualFull:
@@ -1502,6 +1691,11 @@ public class DbSeeder(
                         PaymentMethod = manualPaymentMethods[random.Next(manualPaymentMethods.Length)],
                         Description = "Manual payment (seeded)"
                     }, cancellationToken);
+                if (!manualResult.Successful)
+                {
+                    logger.LogWarning("Seed payment failed for invoice {InvoiceId} (ManualFull): {Error}",
+                        invoice.Id, manualResult.Messages.FirstOrDefault()?.Message);
+                }
                 return manualResult.ResultObject;
 
             case PaymentScenario.PartialPayment:
@@ -1514,11 +1708,16 @@ public class DbSeeder(
                         PaymentMethod = "Bank Transfer",
                         Description = "Partial payment - deposit (seeded)"
                     }, cancellationToken);
+                if (!partialResult.Successful)
+                {
+                    logger.LogWarning("Seed payment failed for invoice {InvoiceId} (PartialPayment): {Error}",
+                        invoice.Id, partialResult.Messages.FirstOrDefault()?.Message);
+                }
                 return partialResult.ResultObject;
 
             case PaymentScenario.SplitPayment:
                 // Stripe for 80%, manual for 20%
-                await paymentService.RecordPaymentAsync(
+                var splitStripeResult = await paymentService.RecordPaymentAsync(
                     new RecordPaymentParameters
                     {
                         InvoiceId = invoice.Id,
@@ -1527,6 +1726,11 @@ public class DbSeeder(
                         Amount = Math.Round(invoiceTotal * 0.8m, 2),
                         Description = "Stripe payment - split (seeded)"
                     }, cancellationToken);
+                if (!splitStripeResult.Successful)
+                {
+                    logger.LogWarning("Seed payment failed for invoice {InvoiceId} (SplitPayment-Stripe): {Error}",
+                        invoice.Id, splitStripeResult.Messages.FirstOrDefault()?.Message);
+                }
 
                 var splitManualResult = await paymentService.RecordManualPaymentAsync(
                     new RecordManualPaymentParameters
@@ -1536,6 +1740,11 @@ public class DbSeeder(
                         PaymentMethod = "Cash",
                         Description = "Cash top-up - split (seeded)"
                     }, cancellationToken);
+                if (!splitManualResult.Successful)
+                {
+                    logger.LogWarning("Seed payment failed for invoice {InvoiceId} (SplitPayment-Manual): {Error}",
+                        invoice.Id, splitManualResult.Messages.FirstOrDefault()?.Message);
+                }
                 return splitManualResult.ResultObject;
 
             case PaymentScenario.Overpayment:
@@ -1548,6 +1757,11 @@ public class DbSeeder(
                         PaymentMethod = "Bank Transfer",
                         Description = "Overpayment - store credit created (seeded)"
                     }, cancellationToken);
+                if (!overpayResult.Successful)
+                {
+                    logger.LogWarning("Seed payment failed for invoice {InvoiceId} (Overpayment): {Error}",
+                        invoice.Id, overpayResult.Messages.FirstOrDefault()?.Message);
+                }
                 return overpayResult.ResultObject;
 
             case PaymentScenario.PurchaseOrder:
@@ -1570,6 +1784,11 @@ public class DbSeeder(
                             Amount = invoiceTotal,
                             Description = $"Payment received for PO: {poNumber}"
                         }, cancellationToken);
+                    if (!poPaymentResult.Successful)
+                    {
+                        logger.LogWarning("Seed payment failed for invoice {InvoiceId} (PurchaseOrder): {Error}",
+                            invoice.Id, poPaymentResult.Messages.FirstOrDefault()?.Message);
+                    }
                     return poPaymentResult.ResultObject;
                 }
 
@@ -1594,6 +1813,11 @@ public class DbSeeder(
                         Amount = invoiceTotal,
                         Description = "Stripe payment - to be refunded (seeded)"
                     }, cancellationToken);
+                if (!refundableResult.Successful)
+                {
+                    logger.LogWarning("Seed payment failed for invoice {InvoiceId} (Refunded): {Error}",
+                        invoice.Id, refundableResult.Messages.FirstOrDefault()?.Message);
+                }
                 return refundableResult.ResultObject;
 
             case PaymentScenario.Unpaid:
@@ -1640,21 +1864,33 @@ public class DbSeeder(
             var result = await shipmentService.CreateShipmentAsync(shipmentParams, cancellationToken);
 
             // Update shipment status via service (simulating warehouse worker actions)
-            // Distribution: 20% Preparing (default), 40% Shipped, 40% Delivered
+            // Completed orders: all shipments must be Delivered (otherwise handlers regress order to Shipped)
+            // Other orders: Distribution: 20% Preparing (default), 40% Shipped, 40% Delivered
             if (result.Successful && result.ResultObject != null)
             {
-                var statusChance = random.Next(100);
-                if (statusChance >= 20) // 80% get status update
+                if (status == OrderStatus.Completed)
                 {
-                    var newStatus = statusChance < 60
-                        ? Shipping.Models.ShipmentStatus.Shipped
-                        : Shipping.Models.ShipmentStatus.Delivered;
-
                     await shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
                     {
                         ShipmentId = result.ResultObject.Id,
-                        NewStatus = newStatus
+                        NewStatus = Shipping.Models.ShipmentStatus.Delivered
                     }, cancellationToken);
+                }
+                else
+                {
+                    var statusChance = random.Next(100);
+                    if (statusChance >= 20) // 80% get status update
+                    {
+                        var newStatus = statusChance < 60
+                            ? Shipping.Models.ShipmentStatus.Shipped
+                            : Shipping.Models.ShipmentStatus.Delivered;
+
+                        await shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+                        {
+                            ShipmentId = result.ResultObject.Id,
+                            NewStatus = newStatus
+                        }, cancellationToken);
+                    }
                 }
             }
 
@@ -1962,6 +2198,10 @@ public class DbSeeder(
                     }
                     // else: unpaid - just has PO number, awaiting payment per terms
 
+                    // Backdate to a coherent date: invoice placed ~15 days before due date
+                    var invoiceDate = now.AddDays(dueDaysOffset - 15).Date.AddHours(9).AddMinutes(30);
+                    await invoiceService.BackdateInvoiceAsync(invoice.Id, invoiceDate, cancellationToken);
+
                     invoicesCreated++;
                     logger.LogDebug("Created account invoice for {Customer}: {Scenario}",
                         customer.Email, scenarioName);
@@ -1974,7 +2214,7 @@ public class DbSeeder(
             }
         }
 
-        logger.LogInformation("Created {Count} invoices for account customers", invoicesCreated);
+        logger.LogInformation("Merchello seed data: Created {Count} invoices for account customers", invoicesCreated);
     }
 
     /// <summary>
@@ -2006,6 +2246,7 @@ public class DbSeeder(
         }
         else
         {
+            result.LogBadMessages(logger);
             logger.LogWarning("Failed to create High Spenders segment");
         }
     }

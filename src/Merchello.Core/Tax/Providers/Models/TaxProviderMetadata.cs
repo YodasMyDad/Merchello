@@ -10,4 +10,5 @@ public record TaxProviderMetadata(
     string? Description,
     bool SupportsRealTimeCalculation,
     bool RequiresApiCredentials,
-    string? SetupInstructions = null);
+    string? SetupInstructions = null,
+    string? IconSvg = null);

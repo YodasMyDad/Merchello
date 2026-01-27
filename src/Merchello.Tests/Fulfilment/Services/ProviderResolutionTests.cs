@@ -1,3 +1,4 @@
+using Merchello.Core.Data;
 using Merchello.Core.Fulfilment;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Fulfilment.Services;
@@ -271,7 +273,7 @@ public class ProviderResolutionTests
         var providerManagerMock = new Mock<IFulfilmentProviderManager>();
 
         return new FulfilmentService(
-            _fixture.DbContext,
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
             providerManagerMock.Object,
             new ShipmentFactory(),
             Options.Create(new FulfilmentSettings { MaxRetryAttempts = 5 }),

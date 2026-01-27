@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
@@ -11,6 +12,7 @@ namespace Merchello.Core.Products.Services;
 
 public class ProductTypeService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    ProductTypeFactory productTypeFactory,
     SlugHelper slugHelper,
     ILogger<ProductTypeService> logger) : IProductTypeService
 {
@@ -25,7 +27,7 @@ public class ProductTypeService(
         ProductType? productType = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var alias = slugHelper.GenerateSlug(name);
 
@@ -35,18 +37,14 @@ public class ProductTypeService(
             if (existingType != null)
             {
                 result.AddErrorMessage($"A product type with alias '{alias}' already exists");
-                return;
+                return false;
             }
 
-            productType = new ProductType
-            {
-                Id = Guid.NewGuid(),
-                Name = name,
-                Alias = alias
-            };
+            productType = productTypeFactory.Create(name, alias);
 
             db.ProductTypes.Add(productType);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -66,14 +64,14 @@ public class ProductTypeService(
         ProductType? productType = null;
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             productType = await db.ProductTypes.FirstOrDefaultAsync(pt => pt.Id == id, cancellationToken);
 
             if (productType == null)
             {
                 result.AddErrorMessage("Product type not found");
-                return;
+                return false;
             }
 
             var newAlias = slugHelper.GenerateSlug(name);
@@ -84,13 +82,14 @@ public class ProductTypeService(
             if (existingType != null)
             {
                 result.AddErrorMessage($"A product type with alias '{newAlias}' already exists");
-                return;
+                return false;
             }
 
             productType.Name = name;
             productType.Alias = newAlias;
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            return true;
         });
 
         scope.Complete();
@@ -108,7 +107,7 @@ public class ProductTypeService(
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var productType = await db.ProductTypes
                 .Include(pt => pt.Products)
@@ -117,18 +116,19 @@ public class ProductTypeService(
             if (productType == null)
             {
                 result.AddErrorMessage("Product type not found");
-                return;
+                return false;
             }
 
             if (productType.Products.Any())
             {
                 result.AddErrorMessage($"Cannot delete product type '{productType.Name}' because it is assigned to {productType.Products.Count} product(s)");
-                return;
+                return false;
             }
 
             db.ProductTypes.Remove(productType);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
+            return true;
         });
 
         scope.Complete();

@@ -187,6 +187,7 @@ public class TaxProvidersApiController(
             Alias = meta.Alias,
             DisplayName = meta.DisplayName,
             Icon = meta.Icon,
+            IconSvg = meta.IconSvg,
             Description = meta.Description,
             SupportsRealTimeCalculation = meta.SupportsRealTimeCalculation,
             RequiresApiCredentials = meta.RequiresApiCredentials,

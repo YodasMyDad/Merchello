@@ -12,8 +12,9 @@ public interface IWebhookSigner
     /// </summary>
     /// <param name="payload">JSON payload to sign</param>
     /// <param name="keyId">Key ID from signing_keys</param>
+    /// <param name="ct">Cancellation token</param>
     /// <returns>Detached JWT signature</returns>
-    string Sign(string payload, string keyId);
+    Task<string> SignAsync(string payload, string keyId, CancellationToken ct = default);
 
     /// <summary>
     /// Verifies a webhook signature.

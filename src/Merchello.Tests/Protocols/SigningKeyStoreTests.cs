@@ -37,10 +37,10 @@ public class SigningKeyStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public void GetCurrentKeyId_ReturnsValidKeyId()
+    public async Task GetCurrentKeyIdAsync_ReturnsValidKeyId()
     {
         // Act
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Assert
         keyId.ShouldNotBeNullOrWhiteSpace();
@@ -48,11 +48,11 @@ public class SigningKeyStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public void GetCurrentKeyId_ReturnsConsistentValue()
+    public async Task GetCurrentKeyIdAsync_ReturnsConsistentValue()
     {
         // Act
-        var keyId1 = _keyStore.GetCurrentKeyId();
-        var keyId2 = _keyStore.GetCurrentKeyId();
+        var keyId1 = await _keyStore.GetCurrentKeyIdAsync();
+        var keyId2 = await _keyStore.GetCurrentKeyIdAsync();
 
         // Assert
         keyId1.ShouldBe(keyId2);
@@ -98,13 +98,13 @@ public class SigningKeyStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public void GetEcdsaPrivateKey_WithValidKeyId_ReturnsKey()
+    public async Task GetEcdsaPrivateKeyAsync_WithValidKeyId_ReturnsKey()
     {
         // Arrange
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
-        var key = _keyStore.GetEcdsaPrivateKey(keyId);
+        var key = await _keyStore.GetEcdsaPrivateKeyAsync(keyId);
 
         // Assert
         key.ShouldNotBeNull();
@@ -112,24 +112,25 @@ public class SigningKeyStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public void GetEcdsaPrivateKey_WithInvalidKeyId_ThrowsKeyNotFoundException()
+    public async Task GetEcdsaPrivateKeyAsync_WithInvalidKeyId_ThrowsKeyNotFoundException()
     {
         // Arrange
         var invalidKeyId = "key-invalid-12345678";
 
         // Act & Assert
-        Should.Throw<KeyNotFoundException>(() => _keyStore.GetEcdsaPrivateKey(invalidKeyId));
+        await Should.ThrowAsync<KeyNotFoundException>(async () =>
+            await _keyStore.GetEcdsaPrivateKeyAsync(invalidKeyId));
     }
 
     [Fact]
     public async Task RotateKeysAsync_GeneratesNewKey()
     {
         // Arrange
-        var originalKeyId = _keyStore.GetCurrentKeyId();
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
         await _keyStore.RotateKeysAsync();
-        var newKeyId = _keyStore.GetCurrentKeyId();
+        var newKeyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Assert
         newKeyId.ShouldNotBe(originalKeyId);
@@ -140,13 +141,13 @@ public class SigningKeyStoreTests : IAsyncLifetime
     public async Task RotateKeysAsync_KeepsOldKeyForGracePeriod()
     {
         // Arrange
-        var originalKeyId = _keyStore.GetCurrentKeyId();
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
         await _keyStore.RotateKeysAsync();
 
         // Assert - old key should still be available (within grace period)
-        var oldKey = _keyStore.GetEcdsaPrivateKey(originalKeyId);
+        var oldKey = await _keyStore.GetEcdsaPrivateKeyAsync(originalKeyId);
         oldKey.ShouldNotBeNull();
     }
 
@@ -154,12 +155,12 @@ public class SigningKeyStoreTests : IAsyncLifetime
     public async Task GetPublicKeysAsync_AfterRotation_IncludesBothKeys()
     {
         // Arrange
-        var originalKeyId = _keyStore.GetCurrentKeyId();
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act
         await _keyStore.RotateKeysAsync();
         var publicKeys = await _keyStore.GetPublicKeysAsync();
-        var newKeyId = _keyStore.GetCurrentKeyId();
+        var newKeyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Assert
         publicKeys.Count.ShouldBeGreaterThanOrEqualTo(2);
@@ -168,11 +169,11 @@ public class SigningKeyStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public void GetEcdsaPrivateKey_CanSignAndVerify()
+    public async Task GetEcdsaPrivateKeyAsync_CanSignAndVerify()
     {
         // Arrange
-        var keyId = _keyStore.GetCurrentKeyId();
-        var key = _keyStore.GetEcdsaPrivateKey(keyId);
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
+        var key = await _keyStore.GetEcdsaPrivateKeyAsync(keyId);
         var data = System.Text.Encoding.UTF8.GetBytes("test payload");
 
         // Act
@@ -184,10 +185,10 @@ public class SigningKeyStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public void KeyId_FollowsExpectedFormat()
+    public async Task KeyId_FollowsExpectedFormat()
     {
         // Act
-        var keyId = _keyStore.GetCurrentKeyId();
+        var keyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Assert - format should be "key-YYYY-MM-XXXXXXXX"
         var parts = keyId.Split('-');
@@ -202,12 +203,12 @@ public class SigningKeyStoreTests : IAsyncLifetime
     public async Task Keys_PersistedAcrossScopes()
     {
         // Arrange - get key ID from first scope
-        var keyId1 = _keyStore.GetCurrentKeyId();
+        var keyId1 = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act - create a new scope and get key ID
         using var scope2 = _fixture.CreateScope();
         var keyStore2 = scope2.ServiceProvider.GetRequiredService<ISigningKeyStore>();
-        var keyId2 = keyStore2.GetCurrentKeyId();
+        var keyId2 = await keyStore2.GetCurrentKeyIdAsync();
 
         // Assert - both should have the same active key (persisted in database)
         keyId2.ShouldBe(keyId1);
@@ -217,14 +218,14 @@ public class SigningKeyStoreTests : IAsyncLifetime
     public async Task RotateKeysAsync_PersistsNewKeyToDatabase()
     {
         // Arrange
-        var originalKeyId = _keyStore.GetCurrentKeyId();
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
         await _keyStore.RotateKeysAsync();
-        var newKeyId = _keyStore.GetCurrentKeyId();
+        var newKeyId = await _keyStore.GetCurrentKeyIdAsync();
 
         // Act - create a new scope and verify the new key is there
         using var scope2 = _fixture.CreateScope();
         var keyStore2 = scope2.ServiceProvider.GetRequiredService<ISigningKeyStore>();
-        var keyIdFromNewScope = keyStore2.GetCurrentKeyId();
+        var keyIdFromNewScope = await keyStore2.GetCurrentKeyIdAsync();
 
         // Assert
         keyIdFromNewScope.ShouldBe(newKeyId);

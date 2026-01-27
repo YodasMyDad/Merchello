@@ -21,6 +21,11 @@ public class AvailableProviderDto
     public string? Icon { get; set; }
 
     /// <summary>
+    /// SVG markup for the provider's brand logo
+    /// </summary>
+    public string? IconSvg { get; set; }
+
+    /// <summary>
     /// Provider description
     /// </summary>
     public string? Description { get; set; }

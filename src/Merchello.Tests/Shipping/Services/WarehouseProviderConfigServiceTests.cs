@@ -1,40 +1,30 @@
 using Merchello.Core.Data;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services;
-using Microsoft.Data.Sqlite;
-using Microsoft.EntityFrameworkCore;
-using Moq;
+using Merchello.Tests.TestInfrastructure;
 using Shouldly;
-using Umbraco.Cms.Core.Scoping;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Shipping.Services;
 
 /// <summary>
-/// Unit tests for WarehouseProviderConfigService using an in-memory SQLite database.
-/// Each test creates a fresh database for isolation.
+/// Integration tests for WarehouseProviderConfigService using the shared ServiceTestFixture
+/// with a real SQLite database.
 /// </summary>
-public class WarehouseProviderConfigServiceTests : IDisposable
+[Collection("Integration Tests")]
+public class WarehouseProviderConfigServiceTests
 {
-    private readonly SqliteConnection _connection;
-    private readonly MerchelloDbContext _dbContext;
+    private readonly ServiceTestFixture _fixture;
     private readonly WarehouseProviderConfigService _service;
 
-    public WarehouseProviderConfigServiceTests()
+    public WarehouseProviderConfigServiceTests(ServiceTestFixture fixture)
     {
-        _connection = new SqliteConnection("DataSource=:memory:");
-        _connection.Open();
+        _fixture = fixture;
+        _fixture.ResetDatabase();
 
-        var options = new DbContextOptionsBuilder<MerchelloDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _dbContext = new MerchelloDbContext(options);
-        _dbContext.Database.EnsureCreated();
-
-        var scopeProvider = CreateMockScopeProvider(() => _dbContext);
-        _service = new WarehouseProviderConfigService(scopeProvider);
+        _service = new WarehouseProviderConfigService(
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>());
     }
 
     [Fact]
@@ -107,7 +97,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         var config = await CreateTestConfig("fedex");
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.GetByIdAsync(config.Id);
 
         // Assert
@@ -136,7 +126,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         await CreateTestConfig("fedex", Guid.NewGuid()); // different warehouse
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.GetByWarehouseAndProviderAsync(warehouseId, "fedex");
 
         // Assert
@@ -169,7 +159,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         await CreateTestConfig("fedex", otherWarehouseId);
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.GetByWarehouseAsync(warehouseId);
 
         // Assert
@@ -198,7 +188,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         await CreateTestConfig("ups", Guid.NewGuid());
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.GetByProviderAsync("fedex");
 
         // Assert
@@ -227,7 +217,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         await CreateTestConfig("dhl", isEnabled: false);
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.GetAllEnabledAsync();
 
         // Assert
@@ -244,7 +234,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         await CreateTestConfig("ups", isEnabled: false);
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.GetAllEnabledAsync();
 
         // Assert
@@ -263,7 +253,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         await Task.Delay(10);
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         config.IsEnabled = false;
         config.DefaultMarkupPercent = 25m;
         config.DefaultDaysFromOverride = 3;
@@ -278,7 +268,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         result.UpdateDate.ShouldBeGreaterThanOrEqualTo(originalUpdateDate);
 
         // Verify persisted
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var persisted = await _service.GetByIdAsync(config.Id);
         persisted.ShouldNotBeNull();
         persisted.IsEnabled.ShouldBeFalse();
@@ -292,12 +282,12 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         var config = await CreateTestConfig("fedex");
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         config.ServiceMarkupsJson = """{"FEDEX_GROUND": 5, "FEDEX_2_DAY": 15}""";
         await _service.UpdateAsync(config);
 
         // Assert
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var persisted = await _service.GetByIdAsync(config.Id);
         persisted.ShouldNotBeNull();
         persisted.ServiceMarkupsJson.ShouldBe("""{"FEDEX_GROUND": 5, "FEDEX_2_DAY": 15}""");
@@ -312,12 +302,12 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         var config = await CreateTestConfig("ups");
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         config.ExcludedServiceTypesJson = """["FIRST_OVERNIGHT", "PRIORITY_OVERNIGHT"]""";
         await _service.UpdateAsync(config);
 
         // Assert
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var persisted = await _service.GetByIdAsync(config.Id);
         persisted.ShouldNotBeNull();
         persisted.IsServiceExcluded("FIRST_OVERNIGHT").ShouldBeTrue();
@@ -332,11 +322,11 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         var config = await CreateTestConfig("fedex");
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         await _service.DeleteAsync(config.Id);
 
         // Assert
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.GetByIdAsync(config.Id);
         result.ShouldBeNull();
     }
@@ -356,7 +346,7 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         await CreateTestConfig("fedex", warehouseId);
 
         // Act
-        _dbContext.ChangeTracker.Clear();
+        _fixture.DbContext.ChangeTracker.Clear();
         var result = await _service.ExistsAsync(warehouseId, "fedex");
 
         // Assert
@@ -419,48 +409,5 @@ public class WarehouseProviderConfigServiceTests : IDisposable
         return await _service.CreateAsync(config);
     }
 
-    private static IEFCoreScopeProvider<MerchelloDbContext> CreateMockScopeProvider(
-        Func<MerchelloDbContext> dbContextFactory)
-    {
-        var scopeProviderMock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
-        scopeProviderMock
-            .Setup(p => p.CreateScope(It.IsAny<RepositoryCacheMode>(), It.IsAny<bool?>()))
-            .Returns(() =>
-            {
-                var dbContext = dbContextFactory();
-                var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-                    .Returns((Func<MerchelloDbContext, Task> func) => func(dbContext));
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<bool>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<bool>> func) => func(dbContext));
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<WarehouseProviderConfig?>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<WarehouseProviderConfig?>> func) => func(dbContext));
-
-                scopeMock
-                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<WarehouseProviderConfig>>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<List<WarehouseProviderConfig>>> func) => func(dbContext));
-
-                scopeMock.Setup(s => s.Complete()).Returns(true);
-                scopeMock.Setup(s => s.Dispose());
-
-                return scopeMock.Object;
-            });
-
-        return scopeProviderMock.Object;
-    }
-
     #endregion
-
-    public void Dispose()
-    {
-        _dbContext.Dispose();
-        _connection.Dispose();
-        GC.SuppressFinalize(this);
-    }
 }

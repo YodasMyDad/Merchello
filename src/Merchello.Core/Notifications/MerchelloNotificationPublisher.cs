@@ -17,7 +17,7 @@ namespace Merchello.Core.Notifications;
 /// Resolves handlers from DI and executes them in priority order.
 /// </summary>
 public class MerchelloNotificationPublisher(
-    IServiceProvider serviceProvider,
+    IServiceScopeFactory serviceScopeFactory,
     ILogger<MerchelloNotificationPublisher> logger) : IMerchelloNotificationPublisher
 {
     private static readonly ConcurrentDictionary<Type, int> PriorityCache = new();
@@ -26,7 +26,7 @@ public class MerchelloNotificationPublisher(
         where TNotification : INotification
     {
         // Create scope that lives for the duration of handler execution
-        using var scope = serviceProvider.CreateScope();
+        using var scope = serviceScopeFactory.CreateScope();
         var handlers = GetOrderedHandlers<TNotification>(scope.ServiceProvider);
 
         foreach (var handler in handlers)
@@ -51,7 +51,7 @@ public class MerchelloNotificationPublisher(
         where TNotification : ICancelableNotification
     {
         // Create scope that lives for the duration of handler execution
-        using var scope = serviceProvider.CreateScope();
+        using var scope = serviceScopeFactory.CreateScope();
         var handlers = GetOrderedHandlers<TNotification>(scope.ServiceProvider);
 
         foreach (var handler in handlers)

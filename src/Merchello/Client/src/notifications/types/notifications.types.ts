@@ -58,6 +58,8 @@ export interface NotificationHandlerInfoDto {
   priorityCategory: string;
   /** The 1-based execution order within the notification's handler chain. */
   executionOrder: number;
+  /** Whether another handler for the same notification shares this priority value. */
+  hasDuplicatePriority: boolean;
 }
 
 /**
@@ -65,11 +67,11 @@ export interface NotificationHandlerInfoDto {
  */
 export type PriorityCategory =
   | "Validation"
-  | "Early"
+  | "Early Processing"
   | "Default"
-  | "Processing"
-  | "Business Logic"
-  | "External Sync";
+  | "Core Processing"
+  | "Business Rules"
+  | "Late / External";
 
 /**
  * Helper function to get the CSS class for a priority category.
@@ -78,15 +80,15 @@ export function getPriorityCategoryClass(category: string): string {
   switch (category) {
     case "Validation":
       return "priority-validation";
-    case "Early":
+    case "Early Processing":
       return "priority-early";
     case "Default":
       return "priority-default";
-    case "Processing":
+    case "Core Processing":
       return "priority-processing";
-    case "Business Logic":
+    case "Business Rules":
       return "priority-business";
-    case "External Sync":
+    case "Late / External":
       return "priority-external";
     default:
       return "priority-default";
@@ -97,10 +99,10 @@ export function getPriorityCategoryClass(category: string): string {
  * Priority legend items for the UI.
  */
 export const PRIORITY_LEGEND = [
-  { category: "Validation", range: "<500", description: "Validation and pre-checks" },
-  { category: "Early", range: "500-999", description: "Early processing" },
-  { category: "Default", range: "1000", description: "Default priority" },
-  { category: "Processing", range: "1001-1499", description: "Main processing" },
-  { category: "Business Logic", range: "1500-1999", description: "Business logic" },
-  { category: "External Sync", range: "2000+", description: "External integrations (email, webhooks)" },
+  { category: "Validation", range: "<500", description: "Pre-checks and validation before processing" },
+  { category: "Early Processing", range: "500-999", description: "Runs before default handlers" },
+  { category: "Default", range: "1000", description: "Standard priority for most handlers" },
+  { category: "Core Processing", range: "1001-1499", description: "Main business processing after defaults" },
+  { category: "Business Rules", range: "1500-1999", description: "Domain rules, fulfilment, digital delivery" },
+  { category: "Late / External", range: "2000+", description: "Emails, webhooks, external system sync" },
 ] as const;

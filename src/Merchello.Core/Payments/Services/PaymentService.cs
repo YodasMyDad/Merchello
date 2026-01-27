@@ -299,9 +299,10 @@ public class PaymentService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Payment>();
+        Payment? createdPayment = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices
                 .AsNoTracking()
@@ -309,7 +310,7 @@ public class PaymentService(
             if (invoice == null)
             {
                 result.AddErrorMessage("Invoice not found.");
-                return;
+                return false;
             }
 
             // Check for duplicate transaction ID (single query to avoid race condition)
@@ -324,7 +325,7 @@ public class PaymentService(
                 // Return existing payment as success (idempotent)
                 result.ResultObject = existingPayment;
                 result.AddWarningMessage("Payment already recorded for this transaction.");
-                return;
+                return true;
             }
 
             var payment = paymentFactory.CreatePayment(
@@ -350,7 +351,7 @@ public class PaymentService(
             if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
             {
                 result.AddErrorMessage(creatingNotification.CancelReason ?? "Payment creation cancelled");
-                return;
+                return false;
             }
 
             db.Payments.Add(payment);
@@ -360,12 +361,10 @@ public class PaymentService(
                 await db.SaveChangesAsync(cancellationToken);
 
                 result.ResultObject = payment;
+                createdPayment = payment;
                 logger.LogInformation(
                     "Payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, transaction {TransactionId}",
                     payment.Id, parameters.InvoiceId, parameters.Amount, parameters.TransactionId);
-
-                // Publish "After" notification - payment was successfully created
-                await notificationPublisher.PublishAsync(new PaymentCreatedNotification(payment), cancellationToken);
             }
             catch (DbUpdateException) when (!string.IsNullOrEmpty(parameters.TransactionId))
             {
@@ -390,8 +389,16 @@ public class PaymentService(
                     throw;
                 }
             }
+
+            return true;
         });
         scope.Complete();
+
+        // Publish notification AFTER scope completion to avoid nested scope issues
+        if (createdPayment != null)
+        {
+            await notificationPublisher.PublishAsync(new PaymentCreatedNotification(createdPayment), cancellationToken);
+        }
 
         return result;
     }
@@ -575,7 +582,7 @@ public class PaymentService(
         }
 
         // Record the refund payment
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var isPartialRefund = refundAmount < originalPayment.Amount;
             var invoice = await db.Invoices
@@ -602,6 +609,8 @@ public class PaymentService(
             logger.LogInformation(
                 "Refund recorded: {RefundId} for payment {PaymentId}, amount {Amount}, reason: {Reason}",
                 refundPayment.Id, paymentId, refundAmount, reason);
+
+            return true;
         });
         scope.Complete();
 
@@ -906,6 +915,7 @@ public class PaymentService(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<Payment>();
+        Payment? createdPayment = null;
 
         if (parameters.Amount <= 0)
         {
@@ -914,7 +924,7 @@ public class PaymentService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var invoice = await db.Invoices
                 .AsNoTracking()
@@ -922,7 +932,7 @@ public class PaymentService(
             if (invoice == null)
             {
                 result.AddErrorMessage("Invoice not found.");
-                return;
+                return false;
             }
 
             var payment = paymentFactory.CreateManualPayment(
@@ -939,21 +949,27 @@ public class PaymentService(
             if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
             {
                 result.AddErrorMessage(creatingNotification.CancelReason ?? "Payment creation cancelled");
-                return;
+                return false;
             }
 
             db.Payments.Add(payment);
             await db.SaveChangesAsync(cancellationToken);
 
             result.ResultObject = payment;
+            createdPayment = payment;
             logger.LogInformation(
                 "Manual payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, method: {Method}",
                 payment.Id, parameters.InvoiceId, parameters.Amount, parameters.PaymentMethod);
 
-            // Publish "After" notification - payment was successfully created
-            await notificationPublisher.PublishAsync(new PaymentCreatedNotification(payment), cancellationToken);
+            return true;
         });
         scope.Complete();
+
+        // Publish notification AFTER scope completion to avoid nested scope issues
+        if (createdPayment != null)
+        {
+            await notificationPublisher.PublishAsync(new PaymentCreatedNotification(createdPayment), cancellationToken);
+        }
 
         return result;
     }
@@ -984,7 +1000,7 @@ public class PaymentService(
 
         Payment? originalPayment = null;
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Load original payment
             originalPayment = await db.Payments
@@ -994,13 +1010,13 @@ public class PaymentService(
             if (originalPayment == null)
             {
                 result.AddErrorMessage($"Payment '{paymentId}' not found.");
-                return;
+                return false;
             }
 
             if (originalPayment.PaymentType != PaymentType.Payment)
             {
                 result.AddErrorMessage("Cannot refund a refund payment.");
-                return;
+                return false;
             }
 
             // Calculate refundable amount
@@ -1010,7 +1026,7 @@ public class PaymentService(
             if (amount > refundableAmount)
             {
                 result.AddErrorMessage($"Refund amount ({amount:C}) exceeds refundable amount ({refundableAmount:C}).");
-                return;
+                return false;
             }
 
             var isPartialRefund = amount < originalPayment.Amount;
@@ -1037,6 +1053,8 @@ public class PaymentService(
             logger.LogInformation(
                 "Manual refund recorded: {RefundId} for payment {PaymentId}, amount {Amount}, reason: {Reason}",
                 refundPayment.Id, paymentId, amount, reason);
+
+            return true;
         });
         scope.Complete();
 
@@ -1094,7 +1112,7 @@ public class PaymentService(
         }
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Load all invoices with their payments
             var invoices = await db.Invoices
@@ -1168,15 +1186,17 @@ public class PaymentService(
             if (createdPayments.Count > 0)
             {
                 await db.SaveChangesAsync(cancellationToken);
-
-                // Publish "After" notifications for all created payments
-                foreach (var payment in createdPayments)
-                {
-                    await notificationPublisher.PublishAsync(new PaymentCreatedNotification(payment), cancellationToken);
-                }
             }
+
+            return true;
         });
         scope.Complete();
+
+        // Publish notifications AFTER scope completion to avoid nested scope issues
+        foreach (var payment in createdPayments)
+        {
+            await notificationPublisher.PublishAsync(new PaymentCreatedNotification(payment), cancellationToken);
+        }
 
         result.ResultObject = createdPayments;
 

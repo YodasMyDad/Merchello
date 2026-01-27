@@ -125,10 +125,11 @@ public class CustomerSegmentService(
             return result;
         }
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.CustomerSegments.Add(segment);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -220,7 +221,7 @@ public class CustomerSegmentService(
 
         segment.DateUpdated = DateTime.UtcNow;
 
-        await scope.ExecuteWithContextAsync<Task>(async db => await db.SaveChangesAsync(ct));
+        await scope.ExecuteWithContextAsync<bool>(async db => { await db.SaveChangesAsync(ct); return true; });
         scope.Complete();
 
         // Publish "After" notification
@@ -265,11 +266,12 @@ public class CustomerSegmentService(
             return result;
         }
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Members will be cascade deleted
             db.CustomerSegments.Remove(segment);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -375,10 +377,11 @@ public class CustomerSegmentService(
         var newMembers = newCustomerIds.Select(customerId =>
             segmentFactory.CreateMember(parameters.SegmentId, customerId, parameters.AddedBy, parameters.Notes)).ToList();
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.CustomerSegmentMembers.AddRange(newMembers);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 

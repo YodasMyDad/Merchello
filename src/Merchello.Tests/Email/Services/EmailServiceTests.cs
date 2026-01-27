@@ -7,43 +7,37 @@ using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Notifications.Base;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Webhooks.Models;
-using Microsoft.Data.Sqlite;
+using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Umbraco.Cms.Core.Mail;
 using Umbraco.Cms.Core.Models.Email;
-using Umbraco.Cms.Core.Scoping;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Email.Services;
 
-public class EmailServiceTests : IDisposable
+/// <summary>
+/// Integration tests for EmailService using the shared ServiceTestFixture
+/// with a real SQLite database and Moq for email-specific dependencies.
+/// </summary>
+[Collection("Integration Tests")]
+public class EmailServiceTests
 {
-    private readonly SqliteConnection _connection;
-    private readonly MerchelloDbContext _db;
+    private readonly ServiceTestFixture _fixture;
     private readonly Mock<IEmailConfigurationService> _configServiceMock;
     private readonly Mock<IEmailTokenResolver> _tokenResolverMock;
     private readonly Mock<IEmailAttachmentResolver> _attachmentResolverMock;
     private readonly Mock<IEmailSender> _emailSenderMock;
     private readonly EmailService _service;
 
-    public EmailServiceTests()
+    public EmailServiceTests(ServiceTestFixture fixture)
     {
-        _connection = new SqliteConnection("DataSource=:memory:");
-        _connection.Open();
-
-        var options = new DbContextOptionsBuilder<MerchelloDbContext>()
-            .UseSqlite(_connection)
-            .Options;
-
-        _db = new MerchelloDbContext(options);
-        _db.Database.EnsureCreated();
-
-        var scopeProvider = CreateScopeProvider(_db);
+        _fixture = fixture;
+        _fixture.ResetDatabase();
 
         _configServiceMock = new Mock<IEmailConfigurationService>();
         _tokenResolverMock = new Mock<IEmailTokenResolver>();
@@ -68,23 +62,14 @@ public class EmailServiceTests : IDisposable
             }
         });
 
-        var logger = new Mock<ILogger<EmailService>>();
-
         _service = new EmailService(
-            scopeProvider,
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
             _configServiceMock.Object,
             _tokenResolverMock.Object,
             _attachmentResolverMock.Object,
             _emailSenderMock.Object,
             emailSettings,
-            logger.Object);
-    }
-
-    public void Dispose()
-    {
-        _db.Dispose();
-        _connection.Dispose();
-        GC.SuppressFinalize(this);
+            NullLogger<EmailService>.Instance);
     }
 
     #region QueueDeliveryAsync
@@ -112,7 +97,8 @@ public class EmailServiceTests : IDisposable
         delivery.DeliveryType.ShouldBe(OutboundDeliveryType.Email);
 
         // Verify persisted to DB
-        var saved = await _db.OutboundDeliveries.FirstOrDefaultAsync(d => d.Id == delivery.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var saved = await _fixture.DbContext.OutboundDeliveries.FirstOrDefaultAsync(d => d.Id == delivery.Id);
         saved.ShouldNotBeNull();
     }
 
@@ -168,8 +154,8 @@ public class EmailServiceTests : IDisposable
     public async Task Deliver_SuccessfulSend_UpdatesStatusToSucceeded()
     {
         var delivery = CreatePendingDelivery();
-        _db.OutboundDeliveries.Add(delivery);
-        await _db.SaveChangesAsync();
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
 
         _emailSenderMock
             .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
@@ -178,7 +164,8 @@ public class EmailServiceTests : IDisposable
         var result = await _service.DeliverAsync(delivery.Id);
 
         result.ShouldBeTrue();
-        var updated = await _db.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updated = await _fixture.DbContext.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
         updated.Status.ShouldBe(OutboundDeliveryStatus.Succeeded);
         updated.DateCompleted.ShouldNotBeNull();
     }
@@ -187,8 +174,8 @@ public class EmailServiceTests : IDisposable
     public async Task Deliver_SendFails_MarksAsRetrying()
     {
         var delivery = CreatePendingDelivery();
-        _db.OutboundDeliveries.Add(delivery);
-        await _db.SaveChangesAsync();
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
 
         _emailSenderMock
             .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
@@ -197,7 +184,8 @@ public class EmailServiceTests : IDisposable
         var result = await _service.DeliverAsync(delivery.Id);
 
         result.ShouldBeFalse();
-        var updated = await _db.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updated = await _fixture.DbContext.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
         updated.Status.ShouldBe(OutboundDeliveryStatus.Retrying);
         updated.AttemptNumber.ShouldBe(1);
         updated.NextRetryUtc.ShouldNotBeNull();
@@ -210,8 +198,8 @@ public class EmailServiceTests : IDisposable
     {
         var delivery = CreatePendingDelivery();
         delivery.AttemptNumber = 2; // Already tried twice, this will be attempt 3 (max)
-        _db.OutboundDeliveries.Add(delivery);
-        await _db.SaveChangesAsync();
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
 
         _emailSenderMock
             .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
@@ -220,7 +208,8 @@ public class EmailServiceTests : IDisposable
         var result = await _service.DeliverAsync(delivery.Id);
 
         result.ShouldBeFalse();
-        var updated = await _db.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updated = await _fixture.DbContext.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
         updated.Status.ShouldBe(OutboundDeliveryStatus.Failed);
         updated.DateCompleted.ShouldNotBeNull();
     }
@@ -237,8 +226,8 @@ public class EmailServiceTests : IDisposable
     {
         var delivery = CreatePendingDelivery();
         delivery.EmailRecipients = "";
-        _db.OutboundDeliveries.Add(delivery);
-        await _db.SaveChangesAsync();
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
 
         var result = await _service.DeliverAsync(delivery.Id);
 
@@ -250,8 +239,8 @@ public class EmailServiceTests : IDisposable
     {
         var delivery = CreatePendingDelivery();
         delivery.EmailBody = null;
-        _db.OutboundDeliveries.Add(delivery);
-        await _db.SaveChangesAsync();
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
 
         var result = await _service.DeliverAsync(delivery.Id);
 
@@ -269,8 +258,8 @@ public class EmailServiceTests : IDisposable
         delivery.Status = OutboundDeliveryStatus.Retrying;
         delivery.NextRetryUtc = DateTime.UtcNow.AddMinutes(-5); // Past due
         delivery.AttemptNumber = 1;
-        _db.OutboundDeliveries.Add(delivery);
-        await _db.SaveChangesAsync();
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
 
         _emailSenderMock
             .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
@@ -278,7 +267,8 @@ public class EmailServiceTests : IDisposable
 
         await _service.ProcessPendingRetriesAsync();
 
-        var updated = await _db.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updated = await _fixture.DbContext.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
         updated.Status.ShouldBe(OutboundDeliveryStatus.Succeeded);
     }
 
@@ -289,12 +279,13 @@ public class EmailServiceTests : IDisposable
         delivery.Status = OutboundDeliveryStatus.Retrying;
         delivery.NextRetryUtc = DateTime.UtcNow.AddMinutes(30); // Future
         delivery.AttemptNumber = 1;
-        _db.OutboundDeliveries.Add(delivery);
-        await _db.SaveChangesAsync();
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
 
         await _service.ProcessPendingRetriesAsync();
 
-        var updated = await _db.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updated = await _fixture.DbContext.OutboundDeliveries.FirstAsync(d => d.Id == delivery.Id);
         updated.Status.ShouldBe(OutboundDeliveryStatus.Retrying); // Unchanged
     }
 
@@ -410,7 +401,7 @@ public class EmailServiceTests : IDisposable
 
     private void SeedWebhookSubscription(Guid id)
     {
-        _db.WebhookSubscriptions.Add(new WebhookSubscription
+        _fixture.DbContext.WebhookSubscriptions.Add(new WebhookSubscription
         {
             Id = id,
             Name = "Test Subscription",
@@ -419,33 +410,7 @@ public class EmailServiceTests : IDisposable
             Secret = "test-secret",
             IsActive = true
         });
-        _db.SaveChanges();
-    }
-
-    private static IEFCoreScopeProvider<MerchelloDbContext> CreateScopeProvider(MerchelloDbContext db)
-    {
-        var mock = new Mock<IEFCoreScopeProvider<MerchelloDbContext>>();
-        mock.Setup(p => p.CreateScope(It.IsAny<RepositoryCacheMode>(), It.IsAny<bool?>()))
-            .Returns(() =>
-            {
-                var scopeMock = new Mock<IEfCoreScope<MerchelloDbContext>>();
-
-                scopeMock.Setup(s => s.ExecuteWithContextAsync<Task>(It.IsAny<Func<MerchelloDbContext, Task>>()))
-                    .Returns((Func<MerchelloDbContext, Task> func) => func(db));
-
-                scopeMock.Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<OutboundDelivery?>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<OutboundDelivery?>> func) => func(db));
-
-                scopeMock.Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<OutboundDelivery>>>>()))
-                    .Returns((Func<MerchelloDbContext, Task<List<OutboundDelivery>>> func) => func(db));
-
-                scopeMock.Setup(s => s.Complete()).Returns(true);
-                scopeMock.Setup(s => s.Dispose());
-
-                return scopeMock.Object;
-            });
-
-        return mock.Object;
+        _fixture.DbContext.SaveChanges();
     }
 
     private class TestOrderNotification : MerchelloNotification

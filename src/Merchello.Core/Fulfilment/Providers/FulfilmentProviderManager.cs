@@ -3,6 +3,7 @@ using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
@@ -13,11 +14,13 @@ namespace Merchello.Core.Fulfilment.Providers;
 /// </summary>
 public class FulfilmentProviderManager(
     ExtensionManager extensionManager,
+    IServiceScopeFactory serviceScopeFactory,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<FulfilmentProviderManager> logger) : IFulfilmentProviderManager, IDisposable
 {
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyCollection<RegisteredFulfilmentProvider>? _cachedProviders;
+    private IServiceScope? _providerScope;
     private bool _disposed;
 
     public async Task<IReadOnlyCollection<RegisteredFulfilmentProvider>> GetProvidersAsync(CancellationToken cancellationToken = default)
@@ -37,7 +40,14 @@ public class FulfilmentProviderManager(
                 return cached;
             }
 
-            var providerInstances = extensionManager.GetInstances<IFulfilmentProvider>(useCaching: true)
+            // Create a scope that lives as long as the cached providers
+            _providerScope?.Dispose();
+            _providerScope = serviceScopeFactory.CreateScope();
+
+            var providerInstances = extensionManager.GetInstances<IFulfilmentProvider>(
+                    predicate: null,
+                    useCaching: true,
+                    serviceProvider: _providerScope.ServiceProvider)
                 .Where(p => p != null)
                 .Cast<IFulfilmentProvider>()
                 .ToList();
@@ -246,6 +256,8 @@ public class FulfilmentProviderManager(
     public void ClearCache()
     {
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
     }
 
     private void DisposeProviders()
@@ -276,6 +288,8 @@ public class FulfilmentProviderManager(
         _disposed = true;
 
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
         _cacheLock.Dispose();
 
         GC.SuppressFinalize(this);

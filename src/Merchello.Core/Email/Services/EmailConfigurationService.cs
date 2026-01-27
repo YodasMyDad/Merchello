@@ -213,10 +213,11 @@ public class EmailConfigurationService(
         };
 
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.EmailConfigurations.Add(configuration);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -318,10 +319,11 @@ public class EmailConfigurationService(
         configuration.AttachmentAliases = attachmentAliases;
         configuration.DateModified = DateTime.UtcNow;
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.EmailConfigurations.Update(configuration);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -371,10 +373,11 @@ public class EmailConfigurationService(
         configuration.Enabled = !configuration.Enabled;
         configuration.DateModified = DateTime.UtcNow;
 
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             db.EmailConfigurations.Update(configuration);
             await db.SaveChangesAsync(ct);
+            return true;
         });
         scope.Complete();
 
@@ -392,7 +395,7 @@ public class EmailConfigurationService(
     public async Task IncrementSentCountAsync(Guid id, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var configuration = await db.EmailConfigurations.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (configuration != null)
@@ -401,6 +404,7 @@ public class EmailConfigurationService(
                 configuration.LastSentUtc = DateTime.UtcNow;
                 await db.SaveChangesAsync(ct);
             }
+            return true;
         });
         scope.Complete();
     }
@@ -408,7 +412,7 @@ public class EmailConfigurationService(
     public async Task IncrementFailedCountAsync(Guid id, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<Task>(async db =>
+        await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var configuration = await db.EmailConfigurations.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (configuration != null)
@@ -416,6 +420,7 @@ public class EmailConfigurationService(
                 configuration.TotalFailed++;
                 await db.SaveChangesAsync(ct);
             }
+            return true;
         });
         scope.Complete();
     }

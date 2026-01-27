@@ -11,6 +11,7 @@ using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Fulfilment.Services;
 
@@ -18,7 +19,7 @@ namespace Merchello.Core.Fulfilment.Services;
 /// Service for syncing products and inventory with fulfilment providers.
 /// </summary>
 public class FulfilmentSyncService(
-    MerchelloDbContext dbContext,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IFulfilmentProviderManager providerManager,
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<FulfilmentSettings> settings,
@@ -37,8 +38,17 @@ public class FulfilmentSyncService(
             StartedAt = DateTime.UtcNow
         };
 
-        dbContext.FulfilmentSyncLogs.Add(syncLog);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // Create initial log entry
+        using (var scope = efCoreScopeProvider.CreateScope())
+        {
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                db.FulfilmentSyncLogs.Add(syncLog);
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            });
+            scope.Complete();
+        }
 
         try
         {
@@ -49,7 +59,7 @@ public class FulfilmentSyncService(
                 syncLog.Status = FulfilmentSyncStatus.Failed;
                 syncLog.ErrorMessage = $"Provider configuration {providerConfigId} not found.";
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
@@ -58,7 +68,7 @@ public class FulfilmentSyncService(
                 syncLog.Status = FulfilmentSyncStatus.Failed;
                 syncLog.ErrorMessage = $"Provider '{registeredProvider.Metadata.Key}' is disabled.";
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
@@ -67,7 +77,7 @@ public class FulfilmentSyncService(
                 syncLog.Status = FulfilmentSyncStatus.Failed;
                 syncLog.ErrorMessage = $"Provider '{registeredProvider.Metadata.Key}' does not support product sync.";
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
@@ -79,7 +89,7 @@ public class FulfilmentSyncService(
             {
                 syncLog.Status = FulfilmentSyncStatus.Completed;
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
@@ -102,14 +112,21 @@ public class FulfilmentSyncService(
             }
 
             syncLog.CompletedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await SaveSyncLogAsync(syncLog, cancellationToken);
 
             logger.LogInformation("Product sync completed for provider {ProviderKey}. Processed: {Processed}, Succeeded: {Succeeded}, Failed: {Failed}",
                 registeredProvider.Metadata.Key, syncLog.ItemsProcessed, syncLog.ItemsSucceeded, syncLog.ItemsFailed);
 
             // Publish notification
-            var config = registeredProvider.Configuration ?? await dbContext.FulfilmentProviderConfigurations
-                .FirstOrDefaultAsync(c => c.Id == providerConfigId, cancellationToken);
+            var config = registeredProvider.Configuration;
+            if (config == null)
+            {
+                using var scope = efCoreScopeProvider.CreateScope();
+                config = await scope.ExecuteWithContextAsync(async db =>
+                    await db.FulfilmentProviderConfigurations
+                        .FirstOrDefaultAsync(c => c.Id == providerConfigId, cancellationToken));
+                scope.Complete();
+            }
 
             if (config != null)
             {
@@ -125,7 +142,7 @@ public class FulfilmentSyncService(
             syncLog.Status = FulfilmentSyncStatus.Failed;
             syncLog.ErrorMessage = ex.Message;
             syncLog.CompletedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await SaveSyncLogAsync(syncLog, cancellationToken);
         }
 
         return syncLog;
@@ -142,8 +159,17 @@ public class FulfilmentSyncService(
             StartedAt = DateTime.UtcNow
         };
 
-        dbContext.FulfilmentSyncLogs.Add(syncLog);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // Create initial log entry
+        using (var scope = efCoreScopeProvider.CreateScope())
+        {
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                db.FulfilmentSyncLogs.Add(syncLog);
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            });
+            scope.Complete();
+        }
 
         try
         {
@@ -154,7 +180,7 @@ public class FulfilmentSyncService(
                 syncLog.Status = FulfilmentSyncStatus.Failed;
                 syncLog.ErrorMessage = $"Provider configuration {providerConfigId} not found.";
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
@@ -163,7 +189,7 @@ public class FulfilmentSyncService(
                 syncLog.Status = FulfilmentSyncStatus.Failed;
                 syncLog.ErrorMessage = $"Provider '{registeredProvider.Metadata.Key}' is disabled.";
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
@@ -172,7 +198,7 @@ public class FulfilmentSyncService(
                 syncLog.Status = FulfilmentSyncStatus.Failed;
                 syncLog.ErrorMessage = $"Provider '{registeredProvider.Metadata.Key}' does not support inventory sync.";
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
@@ -186,13 +212,20 @@ public class FulfilmentSyncService(
             {
                 syncLog.Status = FulfilmentSyncStatus.Completed;
                 syncLog.CompletedAt = DateTime.UtcNow;
-                await dbContext.SaveChangesAsync(cancellationToken);
+                await SaveSyncLogAsync(syncLog, cancellationToken);
                 return syncLog;
             }
 
             // Get provider configuration for sync mode
-            var config = registeredProvider.Configuration ?? await dbContext.FulfilmentProviderConfigurations
-                .FirstOrDefaultAsync(c => c.Id == providerConfigId, cancellationToken);
+            var config = registeredProvider.Configuration;
+            if (config == null)
+            {
+                using var configScope = efCoreScopeProvider.CreateScope();
+                config = await configScope.ExecuteWithContextAsync(async db =>
+                    await db.FulfilmentProviderConfigurations
+                        .FirstOrDefaultAsync(c => c.Id == providerConfigId, cancellationToken));
+                configScope.Complete();
+            }
 
             var syncMode = config?.InventorySyncMode ?? InventorySyncMode.Full;
 
@@ -201,31 +234,36 @@ public class FulfilmentSyncService(
             var failed = 0;
             var errors = new List<string>();
 
-            foreach (var level in inventoryLevels)
+            using (var scope = efCoreScopeProvider.CreateScope())
             {
-                try
+                foreach (var level in inventoryLevels)
                 {
-                    var updated = await ApplyInventoryLevelAsync(level, syncMode, cancellationToken);
-                    if (updated)
+                    try
                     {
-                        succeeded++;
+                        var updated = await ApplyInventoryLevelInternalAsync(scope, level, syncMode, cancellationToken);
+                        if (updated)
+                        {
+                            succeeded++;
+                        }
+                        else
+                        {
+                            // SKU not found - not necessarily an error, just skip
+                            logger.LogDebug("SKU {Sku} not found in database, skipping inventory update", level.Sku);
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // SKU not found - not necessarily an error, just skip
-                        logger.LogDebug("SKU {Sku} not found in database, skipping inventory update", level.Sku);
+                        failed++;
+                        var errorMsg = $"Failed to update inventory for SKU {level.Sku}: {ex.Message}";
+                        errors.Add(errorMsg);
+                        logger.LogWarning(ex, "Failed to update inventory for SKU {Sku}", level.Sku);
                     }
                 }
-                catch (Exception ex)
-                {
-                    failed++;
-                    var errorMsg = $"Failed to update inventory for SKU {level.Sku}: {ex.Message}";
-                    errors.Add(errorMsg);
-                    logger.LogWarning(ex, "Failed to update inventory for SKU {Sku}", level.Sku);
-                }
-            }
 
-            await dbContext.SaveChangesAsync(cancellationToken);
+                await scope.ExecuteWithContextAsync<bool>(async db =>
+                    { await db.SaveChangesAsync(cancellationToken); return true; });
+                scope.Complete();
+            }
 
             syncLog.ItemsSucceeded = succeeded;
             syncLog.ItemsFailed = failed;
@@ -241,7 +279,7 @@ public class FulfilmentSyncService(
             }
 
             syncLog.CompletedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await SaveSyncLogAsync(syncLog, cancellationToken);
 
             logger.LogInformation("Inventory sync completed for provider {ProviderKey}. Processed: {Processed}, Succeeded: {Succeeded}, Failed: {Failed}",
                 registeredProvider.Metadata.Key, syncLog.ItemsProcessed, syncLog.ItemsSucceeded, syncLog.ItemsFailed);
@@ -261,7 +299,7 @@ public class FulfilmentSyncService(
             syncLog.Status = FulfilmentSyncStatus.Failed;
             syncLog.ErrorMessage = ex.Message;
             syncLog.CompletedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
+            await SaveSyncLogAsync(syncLog, cancellationToken);
         }
 
         return syncLog;
@@ -272,57 +310,75 @@ public class FulfilmentSyncService(
         FulfilmentSyncLogQueryParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        var query = dbContext.FulfilmentSyncLogs
-            .Include(l => l.ProviderConfiguration)
-            .AsQueryable();
-
-        // Apply filters
-        if (parameters.ProviderConfigurationId.HasValue)
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            query = query.Where(l => l.ProviderConfigurationId == parameters.ProviderConfigurationId.Value);
-        }
+            var query = db.FulfilmentSyncLogs
+                .Include(l => l.ProviderConfiguration)
+                .AsQueryable();
 
-        if (parameters.SyncType.HasValue)
-        {
-            query = query.Where(l => l.SyncType == parameters.SyncType.Value);
-        }
+            // Apply filters
+            if (parameters.ProviderConfigurationId.HasValue)
+            {
+                query = query.Where(l => l.ProviderConfigurationId == parameters.ProviderConfigurationId.Value);
+            }
 
-        if (parameters.Status.HasValue)
-        {
-            query = query.Where(l => l.Status == parameters.Status.Value);
-        }
+            if (parameters.SyncType.HasValue)
+            {
+                query = query.Where(l => l.SyncType == parameters.SyncType.Value);
+            }
 
-        if (parameters.FromDate.HasValue)
-        {
-            query = query.Where(l => l.StartedAt >= parameters.FromDate.Value);
-        }
+            if (parameters.Status.HasValue)
+            {
+                query = query.Where(l => l.Status == parameters.Status.Value);
+            }
 
-        if (parameters.ToDate.HasValue)
-        {
-            query = query.Where(l => l.StartedAt <= parameters.ToDate.Value);
-        }
+            if (parameters.FromDate.HasValue)
+            {
+                query = query.Where(l => l.StartedAt >= parameters.FromDate.Value);
+            }
 
-        // Get total count
-        var totalCount = await query.CountAsync(cancellationToken);
+            if (parameters.ToDate.HasValue)
+            {
+                query = query.Where(l => l.StartedAt <= parameters.ToDate.Value);
+            }
 
-        // Apply ordering and pagination
-        var items = await query
-            .OrderByDescending(l => l.StartedAt)
-            .Skip((parameters.Page - 1) * parameters.PageSize)
-            .Take(parameters.PageSize)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+            // Get total count
+            var totalCount = await query.CountAsync(cancellationToken);
 
-        return new PaginatedList<FulfilmentSyncLog>(items, totalCount, parameters.Page, parameters.PageSize);
+            // Apply ordering and pagination
+            var items = await query
+                .OrderByDescending(l => l.StartedAt)
+                .Skip((parameters.Page - 1) * parameters.PageSize)
+                .Take(parameters.PageSize)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            return new PaginatedList<FulfilmentSyncLog>(items, totalCount, parameters.Page, parameters.PageSize);
+        });
+        scope.Complete();
+        return result;
     }
 
     /// <inheritdoc />
     public async Task<FulfilmentSyncLog?> GetSyncLogByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await dbContext.FulfilmentSyncLogs
-            .Include(l => l.ProviderConfiguration)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.FulfilmentSyncLogs
+                .Include(l => l.ProviderConfiguration)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == id, cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    private async Task SaveSyncLogAsync(FulfilmentSyncLog syncLog, CancellationToken cancellationToken)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+            { await db.SaveChangesAsync(cancellationToken); return true; });
+        scope.Complete();
     }
 
     /// <summary>
@@ -330,15 +386,18 @@ public class FulfilmentSyncService(
     /// </summary>
     private async Task<List<Product>> GetProductsForSyncAsync(CancellationToken cancellationToken)
     {
-        // Get physical products (non-digital) with SKUs
-        return await dbContext.Products
-            .Include(p => p.ProductRoot)
-            .Include(p => p.ProductWarehouses)
-            .Where(p => !string.IsNullOrEmpty(p.Sku))
-            .Where(p => !p.ProductRoot.IsDigitalProduct)
-            .Where(p => p.CanPurchase)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var products = await scope.ExecuteWithContextAsync(async db =>
+            await db.Products
+                .Include(p => p.ProductRoot)
+                .Include(p => p.ProductWarehouses)
+                .Where(p => !string.IsNullOrEmpty(p.Sku))
+                .Where(p => !p.ProductRoot.IsDigitalProduct)
+                .Where(p => p.CanPurchase)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return products;
     }
 
     /// <summary>
@@ -370,7 +429,8 @@ public class FulfilmentSyncService(
     /// Applies an inventory level update from the fulfilment provider.
     /// </summary>
     /// <returns>True if the SKU was found and updated, false otherwise.</returns>
-    private async Task<bool> ApplyInventoryLevelAsync(
+    private async Task<bool> ApplyInventoryLevelInternalAsync(
+        IEfCoreScope<MerchelloDbContext> scope,
         FulfilmentInventoryLevel level,
         InventorySyncMode syncMode,
         CancellationToken cancellationToken)
@@ -384,8 +444,8 @@ public class FulfilmentSyncService(
         }
 
         // Find product by SKU
-        var product = await dbContext.Products
-            .FirstOrDefaultAsync(p => p.Sku == level.Sku, cancellationToken);
+        var product = await scope.ExecuteWithContextAsync(async db =>
+            await db.Products.FirstOrDefaultAsync(p => p.Sku == level.Sku, cancellationToken));
 
         if (product == null)
         {
@@ -399,15 +459,17 @@ public class FulfilmentSyncService(
 
         if (!string.IsNullOrEmpty(level.WarehouseCode))
         {
-            productWarehouse = await dbContext.ProductWarehouses
-                .Include(pw => pw.Warehouse)
-                .FirstOrDefaultAsync(pw => pw.ProductId == product.Id &&
-                    pw.Warehouse.Code == level.WarehouseCode, cancellationToken);
+            productWarehouse = await scope.ExecuteWithContextAsync(async db =>
+                await db.ProductWarehouses
+                    .Include(pw => pw.Warehouse)
+                    .FirstOrDefaultAsync(pw => pw.ProductId == product.Id &&
+                        pw.Warehouse.Code == level.WarehouseCode, cancellationToken));
         }
         else
         {
-            productWarehouse = await dbContext.ProductWarehouses
-                .FirstOrDefaultAsync(pw => pw.ProductId == product.Id, cancellationToken);
+            productWarehouse = await scope.ExecuteWithContextAsync(async db =>
+                await db.ProductWarehouses
+                    .FirstOrDefaultAsync(pw => pw.ProductId == product.Id, cancellationToken));
         }
 
         if (productWarehouse == null)

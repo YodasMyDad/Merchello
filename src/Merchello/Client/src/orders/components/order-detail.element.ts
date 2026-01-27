@@ -32,7 +32,7 @@ import "./payment-panel.element.js";
 import "./payment-link-panel.element.js";
 
 // Import shared components
-import "@shared/components/product-image.element.js";
+import "@shared/components/line-item-identity.element.js";
 
 @customElement("merchello-order-detail")
 export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
@@ -556,24 +556,13 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           ${fulfillmentOrder.lineItems.map(
             (item) => html`
               <div class="fulfillment-line-item">
-                <div class="fulfillment-item-image">
-                  <merchello-product-image
-                    media-key=${item.imageUrl || nothing}
-                    size="large"
-                    alt=${item.name || ""}>
-                  </merchello-product-image>
-                </div>
-                <div class="fulfillment-item-details">
-                  <div class="fulfillment-item-name">${item.productRootName || item.name}</div>
-                  ${item.selectedOptions?.length ? html`
-                    <div class="fulfillment-item-options">
-                      ${item.selectedOptions.map(opt => html`
-                        <span class="fulfillment-item-option">${opt.optionName}: ${opt.valueName}</span>
-                      `)}
-                    </div>
-                  ` : nothing}
-                  <div class="fulfillment-item-sku">${item.sku || ''}</div>
-                </div>
+                <merchello-line-item-identity
+                  media-key=${item.imageUrl || nothing}
+                  name=${item.productRootName || item.name || ""}
+                  .selectedOptions=${item.selectedOptions ?? []}
+                  sku=${item.sku || ""}
+                  size="large">
+                </merchello-line-item-identity>
                 <div class="fulfillment-item-pricing">
                   <span class="fulfillment-item-price">${formatCurrency(item.amount, currencyCode, currencySymbol)}</span>
                   <span class="fulfillment-item-multiply">×</span>
@@ -1437,7 +1426,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     .fulfillment-line-item {
       display: grid;
-      grid-template-columns: 56px 1fr auto auto;
+      grid-template-columns: 1fr auto auto;
       gap: var(--uui-size-space-4);
       align-items: center;
       padding: var(--uui-size-space-4);
@@ -1448,51 +1437,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-bottom: none;
     }
 
-    .fulfillment-item-image img,
-    .fulfillment-placeholder-image {
-      width: 56px;
-      height: 56px;
-      border-radius: 8px;
-      object-fit: cover;
-      border: 1px solid var(--uui-color-border);
-    }
-
-    .fulfillment-placeholder-image {
-      background: var(--uui-color-surface-alt);
-    }
-
-    .fulfillment-item-details {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
+    .fulfillment-line-item merchello-line-item-identity {
       min-width: 0;
-    }
-
-    .fulfillment-item-name {
-      font-weight: 500;
-      font-size: 0.875rem;
-      color: var(--uui-color-text);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .fulfillment-item-options {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.25rem 0.5rem;
-      margin-top: 0.125rem;
-    }
-
-    .fulfillment-item-option {
-      font-size: 0.8125rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .fulfillment-item-sku {
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-      margin-top: 0.25rem;
     }
 
     .fulfillment-item-pricing {

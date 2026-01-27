@@ -21,6 +21,12 @@ public record ShippingProviderMetadata
     public string? Icon { get; init; }
 
     /// <summary>
+    /// Optional SVG markup for the provider's brand logo.
+    /// Takes precedence over <see cref="Icon"/> when rendering in the backoffice UI.
+    /// </summary>
+    public string? IconSvg { get; init; }
+
+    /// <summary>
     /// Brief description of the provider's capabilities.
     /// </summary>
     public string? Description { get; init; }

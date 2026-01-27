@@ -7,7 +7,7 @@ namespace Merchello.Core.Shared.Reflection
   /// Represents the assembly cache with the mechanism of getting implementations or instances of a given type.
   /// This is the global access point to the ExtCore type discovering mechanism.
   /// </summary>
-  public class ExtensionManager(IServiceProvider serviceProvider)
+  public class ExtensionManager(IServiceScopeFactory serviceScopeFactory)
   {
     /// <summary>
     /// Gets the first implementation of the type specified by the type parameter, or null if no implementations found.
@@ -212,23 +212,60 @@ namespace Merchello.Core.Shared.Reflection
     /// <returns>The instances of the found implementations of the given type.</returns>
     public IEnumerable<T?> GetInstances<T>(Func<Assembly, bool>? predicate, bool useCaching = false, params object[] args)
     {
-      List<T?> instances = [];
+      return GetInstances<T>(predicate, useCaching, serviceProvider: null, args);
+    }
 
-      foreach (var implementation in GetImplementations<T>(predicate, useCaching))
+    /// <summary>
+    /// Gets the new instances of the implementations of the type specified by the type parameter,
+    /// using the provided service provider for dependency resolution.
+    /// Use this overload when instances will be cached and their dependencies need to outlive the call.
+    /// </summary>
+    /// <typeparam name="T">The type parameter to find implementations of.</typeparam>
+    /// <param name="predicate">The predicate to filter the assemblies.</param>
+    /// <param name="useCaching">
+    /// Determines whether the type cache should be used to avoid assemblies scanning next time,
+    /// when the instance(s) of the same type(s) is requested.
+    /// </param>
+    /// <param name="serviceProvider">
+    /// The service provider to use for dependency resolution. If null, a new scope is created
+    /// (suitable only for short-lived instances).
+    /// </param>
+    /// <param name="args">The arguments to be passed to the constructors.</param>
+    /// <returns>The instances of the found implementations of the given type.</returns>
+    public IEnumerable<T?> GetInstances<T>(Func<Assembly, bool>? predicate, bool useCaching, IServiceProvider? serviceProvider, params object[] args)
+    {
+      List<T?> instances = [];
+      IServiceScope? ownedScope = null;
+
+      try
       {
-        if (!implementation.GetTypeInfo().IsAbstract)
+        // If no provider given, create a scope (caller doesn't need long-lived instances)
+        if (serviceProvider == null)
         {
-          T? instance;
-          if (args.Any())
-          {
-             instance = (T)Activator.CreateInstance(implementation, args)!;
-          }
-          else
-          {
-            instance = (T)ActivatorUtilities.CreateInstance(serviceProvider, implementation);
-          }
-          instances.Add(instance);
+          ownedScope = serviceScopeFactory.CreateScope();
+          serviceProvider = ownedScope.ServiceProvider;
         }
+
+        foreach (var implementation in GetImplementations<T>(predicate, useCaching))
+        {
+          if (!implementation.GetTypeInfo().IsAbstract)
+          {
+            T? instance;
+            if (args.Any())
+            {
+               instance = (T)Activator.CreateInstance(implementation, args)!;
+            }
+            else
+            {
+              instance = (T)ActivatorUtilities.CreateInstance(serviceProvider, implementation);
+            }
+            instances.Add(instance);
+          }
+        }
+      }
+      finally
+      {
+        ownedScope?.Dispose();
       }
 
       return instances;

@@ -5,6 +5,7 @@ using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
@@ -12,11 +13,13 @@ namespace Merchello.Core.Tax.Providers;
 
 public class TaxProviderManager(
     ExtensionManager extensionManager,
+    IServiceScopeFactory serviceScopeFactory,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ILogger<TaxProviderManager> logger) : ITaxProviderManager, IDisposable
 {
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyCollection<RegisteredTaxProvider>? _cachedProviders;
+    private IServiceScope? _providerScope;
     private bool _disposed;
 
     public async Task<IReadOnlyCollection<RegisteredTaxProvider>> GetProvidersAsync(
@@ -37,7 +40,14 @@ public class TaxProviderManager(
                 return cached;
             }
 
-            var providerInstances = extensionManager.GetInstances<ITaxProvider>(useCaching: true)
+            // Create a scope that lives as long as the cached providers
+            _providerScope?.Dispose();
+            _providerScope = serviceScopeFactory.CreateScope();
+
+            var providerInstances = extensionManager.GetInstances<ITaxProvider>(
+                    predicate: null,
+                    useCaching: true,
+                    serviceProvider: _providerScope.ServiceProvider)
                 .Where(p => p != null)
                 .Cast<ITaxProvider>()
                 .ToList();
@@ -276,6 +286,8 @@ public class TaxProviderManager(
     private void RefreshCache()
     {
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
         _cachedProviders = null;
     }
 
@@ -306,6 +318,8 @@ public class TaxProviderManager(
         _disposed = true;
 
         DisposeProviders();
+        _providerScope?.Dispose();
+        _providerScope = null;
         _cachedProviders = null;
         _cacheLock.Dispose();
 
