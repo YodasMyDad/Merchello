@@ -159,6 +159,9 @@ document.addEventListener('alpine:init', () => {
         selectedAddons: [],
         quantity: 1,
         isLoading: false,
+        productId: config.productId || null,
+        upsellSuggestions: [],
+        upsellsLoading: false,
 
         // Swiper instances
         mainSwiper: null,
@@ -272,6 +275,7 @@ document.addEventListener('alpine:init', () => {
             this.$nextTick(() => {
                 this.initGallerySwipers();
                 this.initOptionSwipers();
+                this.loadProductUpsells();
             });
         },
 
@@ -446,6 +450,48 @@ document.addEventListener('alpine:init', () => {
             if (this.quantity > 1) {
                 this.quantity--;
             }
+        },
+
+        async loadProductUpsells() {
+            if (!this.productId) return;
+            this.upsellsLoading = true;
+            try {
+                const result = await MerchelloApi.upsells.getProductSuggestions(this.productId);
+                if (result.success) {
+                    this.upsellSuggestions = result.data || [];
+                    this.trackProductUpsellImpressions();
+                }
+            } catch (error) {
+                console.error('Failed to load product upsells:', error);
+            } finally {
+                this.upsellsLoading = false;
+            }
+        },
+
+        trackProductUpsellImpressions() {
+            const events = [];
+            for (const suggestion of this.upsellSuggestions) {
+                for (const product of suggestion.products) {
+                    events.push({
+                        upsellRuleId: suggestion.upsellRuleId,
+                        eventType: 'Impression',
+                        productId: product.productId,
+                        displayLocation: 4 // ProductPage
+                    });
+                }
+            }
+            if (events.length > 0) {
+                MerchelloApi.upsells.recordEvents(events);
+            }
+        },
+
+        trackProductUpsellClick(upsellRuleId, productId) {
+            MerchelloApi.upsells.recordEvents([{
+                upsellRuleId,
+                eventType: 'Click',
+                productId,
+                displayLocation: 4 // ProductPage
+            }]);
         }
     }));
 
@@ -480,6 +526,10 @@ document.addEventListener('alpine:init', () => {
         regions: [],
         selectedRegion: '',
         isLoadingAvailability: false,
+
+        // Upsell state
+        upsellSuggestions: [],
+        upsellsLoading: false,
 
         // Estimated shipping state
         displayTotal: config.displayTotal || 0,
@@ -536,7 +586,7 @@ document.addEventListener('alpine:init', () => {
             // Update global basket store with initial data
             Alpine.store('basket').update(this.itemCount, this.total, this.formattedTotal);
 
-            // Fetch regions and estimated shipping for the user's country (availability is already SSR'd)
+            // Fetch regions, estimated shipping, and upsells for the user's country
             this.$nextTick(async () => {
                 // Wait for country to be fetched (poll until ready or timeout)
                 let attempts = 0;
@@ -547,6 +597,7 @@ document.addEventListener('alpine:init', () => {
 
                 await this.fetchRegions();
                 await this.fetchEstimatedShipping();
+                await this.loadUpsells();
             });
         },
 
@@ -752,6 +803,48 @@ document.addEventListener('alpine:init', () => {
 
         decrementQuantity(item) {
             this.updateQuantity(item.id, item.quantity - 1);
+        },
+
+        async loadUpsells() {
+            if (this.isEmpty) return;
+            this.upsellsLoading = true;
+            try {
+                const result = await MerchelloApi.upsells.getSuggestions('Basket');
+                if (result.success) {
+                    this.upsellSuggestions = result.data || [];
+                    this.trackUpsellImpressions();
+                }
+            } catch (error) {
+                console.error('Failed to load upsell suggestions:', error);
+            } finally {
+                this.upsellsLoading = false;
+            }
+        },
+
+        trackUpsellImpressions() {
+            const events = [];
+            for (const suggestion of this.upsellSuggestions) {
+                for (const product of suggestion.products) {
+                    events.push({
+                        upsellRuleId: suggestion.upsellRuleId,
+                        eventType: 'Impression',
+                        productId: product.productId,
+                        displayLocation: 2 // Basket
+                    });
+                }
+            }
+            if (events.length > 0) {
+                MerchelloApi.upsells.recordEvents(events);
+            }
+        },
+
+        trackUpsellClick(upsellRuleId, productId) {
+            MerchelloApi.upsells.recordEvents([{
+                upsellRuleId,
+                eventType: 'Click',
+                productId,
+                displayLocation: 2 // Basket
+            }]);
         }
     }));
 

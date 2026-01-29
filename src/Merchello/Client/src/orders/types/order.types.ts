@@ -733,6 +733,11 @@ export interface AddProductToOrderDto {
   warehouseId: string;
   /** The shipping option for this product */
   shippingOptionId: string;
+  /**
+   * Optional selection key (supports dynamic providers).
+   * Format: "so:{guid}" or "dyn:{provider}:{serviceCode}".
+   */
+  selectionKey?: string | null;
   /** Selected add-on options (non-variant product options) */
   addons: OrderAddonDto[];
 }

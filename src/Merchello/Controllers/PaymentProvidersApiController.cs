@@ -751,6 +751,11 @@ public class PaymentProvidersApiController(
             return BadRequest("This provider does not support vaulted payments.");
         }
 
+        if (string.IsNullOrWhiteSpace(request.SetupSessionId))
+        {
+            return BadRequest("Setup session ID is required.");
+        }
+
         try
         {
             var confirmRequest = new VaultConfirmRequest

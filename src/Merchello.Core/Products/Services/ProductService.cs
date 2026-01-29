@@ -1129,9 +1129,35 @@ public class ProductService(
             // Build a base query without Includes; apply Includes only when materializing items.
             IQueryable<Product> baseQuery = db.Products;
 
-            if (parameters.ProductTypeKey != null)
+            var productTypeKeys = new HashSet<Guid>();
+            if (parameters.ProductTypeKey.HasValue)
+                productTypeKeys.Add(parameters.ProductTypeKey.Value);
+            if (parameters.ProductTypeKeys?.Any() == true)
+                productTypeKeys.UnionWith(parameters.ProductTypeKeys);
+
+            if (productTypeKeys.Count > 0)
             {
-                baseQuery = baseQuery.Where(x => x.ProductRoot.ProductType.Id == parameters.ProductTypeKey.Value);
+                baseQuery = baseQuery.Where(x => productTypeKeys.Contains(x.ProductRoot.ProductTypeId));
+            }
+
+            var productRootKeys = new HashSet<Guid>();
+            if (parameters.ProductRootKey.HasValue)
+                productRootKeys.Add(parameters.ProductRootKey.Value);
+            if (parameters.ProductRootKeys?.Any() == true)
+                productRootKeys.UnionWith(parameters.ProductRootKeys);
+
+            if (parameters.ProductIds?.Any() == true && productRootKeys.Count > 0)
+            {
+                baseQuery = baseQuery.Where(x =>
+                    parameters.ProductIds.Contains(x.Id) || productRootKeys.Contains(x.ProductRootId));
+            }
+            else if (parameters.ProductIds?.Any() == true)
+            {
+                baseQuery = baseQuery.Where(x => parameters.ProductIds.Contains(x.Id));
+            }
+            else if (productRootKeys.Count > 0)
+            {
+                baseQuery = baseQuery.Where(x => productRootKeys.Contains(x.ProductRootId));
             }
 
             if (parameters.CollectionIds?.Any() == true)
@@ -1142,6 +1168,19 @@ public class ProductService(
             if (parameters.FilterKeys?.Any() == true)
             {
                 baseQuery = baseQuery.Where(x => x.Filters.Any(pc => parameters.FilterKeys.Contains(pc.Id)));
+            }
+
+            if (parameters.SupplierIds?.Any() == true)
+            {
+                baseQuery = baseQuery.Where(x =>
+                    x.ProductRoot.ProductRootWarehouses.Any(prw =>
+                        prw.Warehouse != null &&
+                        prw.Warehouse.SupplierId.HasValue &&
+                        parameters.SupplierIds.Contains(prw.Warehouse.SupplierId.Value)) ||
+                    x.ProductWarehouses.Any(pw =>
+                        pw.Warehouse != null &&
+                        pw.Warehouse.SupplierId.HasValue &&
+                        parameters.SupplierIds.Contains(pw.Warehouse.SupplierId.Value)));
             }
 
             // Search filter - applied at DB level for performance
@@ -1267,8 +1306,11 @@ public class ProductService(
             itemsQuery = itemsQuery
                 .Include(x => x.ProductRoot)
                 .ThenInclude(x => x.Collections);
+            itemsQuery = itemsQuery
+                .Include(x => x.ProductRoot)
+                .ThenInclude(x => x.ProductType);
 
-            if (parameters.FilterKeys?.Any() == true)
+            if (parameters.IncludeProductFilters || parameters.FilterKeys?.Any() == true)
             {
                 itemsQuery = itemsQuery.Include(x => x.Filters);
             }
@@ -1295,6 +1337,11 @@ public class ProductService(
 
             if (parameters.IncludeProductRootWarehouses)
             {
+                itemsQuery = itemsQuery.Include(x => x.ProductRoot)
+                    .ThenInclude(x => x.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
+                    .ThenInclude(w => w!.ServiceRegions);
+
                 itemsQuery = itemsQuery.Include(x => x.ProductRoot)
                     .ThenInclude(x => x.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
@@ -1336,9 +1383,35 @@ public class ProductService(
             // Build filtered base query (same filters as QueryProducts)
             IQueryable<Product> baseQuery = db.Products;
 
-            if (parameters.ProductTypeKey != null)
+            var productTypeKeys = new HashSet<Guid>();
+            if (parameters.ProductTypeKey.HasValue)
+                productTypeKeys.Add(parameters.ProductTypeKey.Value);
+            if (parameters.ProductTypeKeys?.Any() == true)
+                productTypeKeys.UnionWith(parameters.ProductTypeKeys);
+
+            if (productTypeKeys.Count > 0)
             {
-                baseQuery = baseQuery.Where(x => x.ProductRoot.ProductType.Id == parameters.ProductTypeKey.Value);
+                baseQuery = baseQuery.Where(x => productTypeKeys.Contains(x.ProductRoot.ProductTypeId));
+            }
+
+            var productRootKeys = new HashSet<Guid>();
+            if (parameters.ProductRootKey.HasValue)
+                productRootKeys.Add(parameters.ProductRootKey.Value);
+            if (parameters.ProductRootKeys?.Any() == true)
+                productRootKeys.UnionWith(parameters.ProductRootKeys);
+
+            if (parameters.ProductIds?.Any() == true && productRootKeys.Count > 0)
+            {
+                baseQuery = baseQuery.Where(x =>
+                    parameters.ProductIds.Contains(x.Id) || productRootKeys.Contains(x.ProductRootId));
+            }
+            else if (parameters.ProductIds?.Any() == true)
+            {
+                baseQuery = baseQuery.Where(x => parameters.ProductIds.Contains(x.Id));
+            }
+            else if (productRootKeys.Count > 0)
+            {
+                baseQuery = baseQuery.Where(x => productRootKeys.Contains(x.ProductRootId));
             }
 
             if (parameters.CollectionIds?.Any() == true)
@@ -1349,6 +1422,19 @@ public class ProductService(
             if (parameters.FilterKeys?.Any() == true)
             {
                 baseQuery = baseQuery.Where(x => x.Filters.Any(pc => parameters.FilterKeys.Contains(pc.Id)));
+            }
+
+            if (parameters.SupplierIds?.Any() == true)
+            {
+                baseQuery = baseQuery.Where(x =>
+                    x.ProductRoot.ProductRootWarehouses.Any(prw =>
+                        prw.Warehouse != null &&
+                        prw.Warehouse.SupplierId.HasValue &&
+                        parameters.SupplierIds.Contains(prw.Warehouse.SupplierId.Value)) ||
+                    x.ProductWarehouses.Any(pw =>
+                        pw.Warehouse != null &&
+                        pw.Warehouse.SupplierId.HasValue &&
+                        parameters.SupplierIds.Contains(pw.Warehouse.SupplierId.Value)));
             }
 
             if (!string.IsNullOrWhiteSpace(parameters.Search))
@@ -2521,6 +2607,11 @@ public class ProductService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
             await db.Products
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductType)
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.Collections)
+                .Include(p => p.Filters)
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)

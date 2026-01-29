@@ -171,6 +171,42 @@
                         </ul>
                     </div>
 
+                    <!-- Upsell Suggestions -->
+                    <template x-if="upsellSuggestions.length > 0">
+                        <div class="mb-4">
+                            <template x-for="suggestion in upsellSuggestions" :key="suggestion.upsellRuleId">
+                                <div class="card mb-3">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0" x-text="suggestion.heading"></h5>
+                                        <template x-if="suggestion.message">
+                                            <small class="text-muted" x-text="suggestion.message"></small>
+                                        </template>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <template x-for="product in suggestion.products" :key="product.productId">
+                                                <div class="col-6 col-md-3">
+                                                    <a :href="product.url || '#'"
+                                                       class="text-decoration-none text-dark d-block text-center"
+                                                       @@click="trackUpsellClick(suggestion.upsellRuleId, product.productId)">
+                                                        <template x-if="product.imageUrl">
+                                                            <img :src="product.imageUrl" :alt="product.name" class="img-fluid mb-2 rounded" style="max-height: 150px; object-fit: contain;">
+                                                        </template>
+                                                        <div class="fw-bold small" x-text="product.name"></div>
+                                                        <div class="text-primary" x-text="product.formattedPrice"></div>
+                                                        <template x-if="product.onSale && product.formattedPreviousPrice">
+                                                            <div class="text-muted text-decoration-line-through small" x-text="product.formattedPreviousPrice"></div>
+                                                        </template>
+                                                    </a>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
                     <!-- Continue Shopping Link -->
                     <a href="/" class="btn btn-outline-secondary">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-left me-2" viewBox="0 0 16 16">

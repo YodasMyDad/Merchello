@@ -20,8 +20,7 @@ namespace Merchello.Middleware;
 public class AgentAuthenticationMiddleware(
     RequestDelegate next,
     ILogger<AgentAuthenticationMiddleware> logger,
-    IOptions<ProtocolSettings> settings,
-    IUcpAgentProfileService agentProfileService)
+    IOptions<ProtocolSettings> settings)
 {
     private static readonly string[] ProtocolPaths = [
         "/.well-known/ucp",
@@ -31,7 +30,8 @@ public class AgentAuthenticationMiddleware(
 
     public async Task InvokeAsync(
         HttpContext context,
-        IMerchelloNotificationPublisher notificationPublisher)
+        IMerchelloNotificationPublisher notificationPublisher,
+        IUcpAgentProfileService agentProfileService)
     {
         // Skip if protocols are disabled
         if (!settings.Value.Enabled)
@@ -256,15 +256,37 @@ public class AgentAuthenticationMiddleware(
         _ => null
     };
 
-    private static int? GetTlsVersion(SslProtocols protocol) => protocol switch
+    private static int? ParseTlsProtocolName(string value) => value.Trim().ToLowerInvariant() switch
     {
-        SslProtocols.Tls => 10,
-        SslProtocols.Tls11 => 11,
-        SslProtocols.Tls12 => 12,
-        SslProtocols.Tls13 => 13,
+        "tls" => 10,
+        "tls11" => 11,
+        "tls12" => 12,
+        "tls13" => 13,
         _ => null
     };
 
+    private static int? GetTlsVersion(SslProtocols protocol)
+    {
+        var name = protocol.ToString();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var parts = name.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        int? maxVersion = null;
+
+        foreach (var part in parts)
+        {
+            var parsed = ParseTlsProtocolName(part);
+            if (parsed.HasValue && (!maxVersion.HasValue || parsed.Value > maxVersion.Value))
+            {
+                maxVersion = parsed.Value;
+            }
+        }
+
+        return maxVersion;
+    }
     private bool IsAgentAllowed(AgentIdentity agent, string protocol)
     {
         var allowedAgents = protocol switch

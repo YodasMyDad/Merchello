@@ -374,3 +374,59 @@ export function getEmailsListHref(): string {
 export function navigateToEmailsList(): void {
   navigateToMerchelloWorkspace(EMAILS_ENTITY_TYPE, "edit/emails");
 }
+
+// ============================================
+// Upsell Navigation
+// ============================================
+
+/** Entity type for upsells workspace (list and detail share same type for tree selection) */
+export const UPSELLS_ENTITY_TYPE = "merchello-upsells";
+
+/**
+ * Generate the URL to view/edit an upsell detail.
+ */
+export function getUpsellDetailHref(upsellId: string): string {
+  return getMerchelloWorkspaceHref(UPSELLS_ENTITY_TYPE, `edit/upsells/${upsellId}`);
+}
+
+/**
+ * Generate the URL to create a new upsell.
+ */
+export function getUpsellCreateHref(): string {
+  return getMerchelloWorkspaceHref(UPSELLS_ENTITY_TYPE, "edit/upsells/create");
+}
+
+/**
+ * Navigate programmatically to an upsell detail page using SPA routing.
+ */
+export function navigateToUpsellDetail(upsellId: string): void {
+  navigateToMerchelloWorkspace(UPSELLS_ENTITY_TYPE, `edit/upsells/${upsellId}`);
+}
+
+/**
+ * Replace current URL with upsell detail page (no browser history entry).
+ */
+export function replaceToUpsellDetail(upsellId: string): void {
+  history.replaceState({}, "", getUpsellDetailHref(upsellId));
+}
+
+/**
+ * Navigate programmatically to create a new upsell.
+ */
+export function navigateToUpsellCreate(): void {
+  navigateToMerchelloWorkspace(UPSELLS_ENTITY_TYPE, "edit/upsells/create");
+}
+
+/**
+ * Generate the URL to the upsells list.
+ */
+export function getUpsellsListHref(): string {
+  return getMerchelloWorkspaceHref(UPSELLS_ENTITY_TYPE, "edit/upsells");
+}
+
+/**
+ * Navigate programmatically to the upsells list using SPA routing.
+ */
+export function navigateToUpsellsList(): void {
+  navigateToMerchelloWorkspace(UPSELLS_ENTITY_TYPE, "edit/upsells");
+}

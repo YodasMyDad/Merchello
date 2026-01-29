@@ -3,6 +3,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Upsells.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -171,6 +172,52 @@ public class CheckoutSessionService(
         var checkoutSession = await GetSessionAsync(basketId, ct);
         checkoutSession.BillingAddress.Email = email;
         SaveSession(basketId, checkoutSession);
+    }
+
+    /// <inheritdoc />
+    public async Task AddUpsellImpressionsAsync(AddUpsellImpressionsParameters parameters, CancellationToken ct = default)
+    {
+        if (parameters.Impressions.Count == 0)
+        {
+            return;
+        }
+
+        var checkoutSession = await GetSessionAsync(parameters.BasketId, ct);
+
+        foreach (var impression in parameters.Impressions)
+        {
+            if (impression.ProductIds.Count == 0)
+            {
+                continue;
+            }
+
+            var existing = checkoutSession.UpsellImpressions
+                .FirstOrDefault(i => i.UpsellRuleId == impression.UpsellRuleId &&
+                                     i.DisplayLocation == impression.DisplayLocation);
+
+            if (existing == null)
+            {
+                checkoutSession.UpsellImpressions.Add(new UpsellImpressionRecord
+                {
+                    UpsellRuleId = impression.UpsellRuleId,
+                    DisplayLocation = impression.DisplayLocation,
+                    ProductIds = impression.ProductIds.Distinct().ToList(),
+                    Timestamp = impression.Timestamp == default ? DateTime.UtcNow : impression.Timestamp
+                });
+                continue;
+            }
+
+            var merged = existing.ProductIds.Concat(impression.ProductIds)
+                .Distinct()
+                .ToList();
+
+            existing.ProductIds = merged;
+            existing.Timestamp = impression.Timestamp == default
+                ? DateTime.UtcNow
+                : impression.Timestamp;
+        }
+
+        SaveSession(parameters.BasketId, checkoutSession);
     }
 
     /// <inheritdoc />

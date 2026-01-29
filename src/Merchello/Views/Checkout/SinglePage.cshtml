@@ -118,6 +118,67 @@
     <!-- Left Column: Form -->
     <div class="pt-6 lg:pr-12 pb-32 lg:pb-8">
 
+        <!-- Interstitial Upsells (replaces checkout form until dismissed) -->
+        <template x-if="showInterstitial">
+            <div class="checkout-interstitial">
+                <template x-for="suggestion in interstitialSuggestions" :key="suggestion.upsellRuleId">
+                    <div class="interstitial-group">
+                        <h2 class="font-heading text-lg font-normal mb-2" x-text="suggestion.heading"></h2>
+                        <p x-show="suggestion.message" x-text="suggestion.message" class="text-sm text-gray-600 mb-4"></p>
+
+                        <div class="interstitial-products">
+                            <template x-for="product in suggestion.products" :key="product.productId">
+                                <div class="interstitial-product-card" :class="{ 'border-green-300 bg-green-50': wasUpsellAdded(product.productRootId) }">
+                                    <img x-show="product.imageUrl" :src="product.imageUrl" :alt="product.name" class="interstitial-product-img" />
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="text-sm font-medium text-gray-900" x-text="product.name"></h3>
+                                        <p x-show="product.description" x-text="product.description" class="text-xs text-gray-500 mt-1"></p>
+                                        <span class="text-sm font-semibold text-gray-900 mt-1 inline-block" x-text="product.formattedPrice"></span>
+                                    </div>
+
+                                    <!-- Variant selector -->
+                                    <template x-if="product.hasVariants && product.variants?.length > 1">
+                                        <select @@change="selectUpsellVariant(product.productRootId, $event.target.value)"
+                                                class="checkout-input-compact w-full mt-2 text-xs">
+                                            <option value="" disabled selected>Select option...</option>
+                                            <template x-for="variant in product.variants" :key="variant.productId">
+                                                <option :value="variant.productId"
+                                                        :disabled="!variant.availableForPurchase"
+                                                        x-text="variant.name + (variant.availableForPurchase ? '' : ' (Out of stock)')">
+                                                </option>
+                                            </template>
+                                        </select>
+                                    </template>
+
+                                    <button type="button"
+                                            class="checkout-button-primary text-sm py-1.5 px-3 mt-2 w-full"
+                                            @@click="addUpsellToCart(product, suggestion.upsellRuleId)"
+                                            :disabled="upsellAddingToCart || !product.availableForPurchase || wasUpsellAdded(product.productRootId)">
+                                        <span x-show="wasUpsellAdded(product.productRootId)">Added</span>
+                                        <span x-show="!wasUpsellAdded(product.productRootId) && !isAddingUpsellProduct(product.productId)">Add to Order</span>
+                                        <span x-show="isAddingUpsellProduct(product.productId)">Adding...</span>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="interstitial-actions">
+                    <button type="button" class="checkout-button-primary w-full" @@click="dismissInterstitial()">
+                        Continue to Checkout
+                    </button>
+                    <button type="button" class="text-sm text-gray-500 hover:text-gray-700 text-center w-full mt-2" @@click="dismissInterstitial()">
+                        No thanks, skip
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- Regular Checkout (hidden during interstitial) -->
+        <template x-if="!showInterstitial">
+            <div>
+
         @if (Model.Settings.ShowExpressCheckout)
         {
             <!-- Express Checkout Section with Skeleton -->
@@ -125,6 +186,66 @@
                 @await Html.PartialAsync("~/Views/Checkout/_ExpressCheckout.cshtml")
             </div>
         }
+
+        <!-- Inline Upsells Section (collapsible at top of form) -->
+        <template x-if="hasInlineUpsells">
+            <div class="checkout-upsells-inline mb-4">
+                <button type="button"
+                        class="flex items-center justify-between w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        @@click="toggleInlineUpsells()"
+                        :aria-expanded="!inlineUpsellsCollapsed">
+                    <span class="text-sm font-medium text-gray-900" x-text="inlineSuggestions[0]?.heading || 'You might also like...'"></span>
+                    <svg class="w-4 h-4 text-gray-500 transition-transform" :class="{ 'rotate-180': !inlineUpsellsCollapsed }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+
+                <div x-show="!inlineUpsellsCollapsed" x-cloak x-transition class="mt-2">
+                    <template x-for="suggestion in inlineSuggestions" :key="suggestion.upsellRuleId">
+                        <div class="mb-3">
+                            <p x-show="suggestion.message" x-text="suggestion.message" class="text-xs text-gray-600 mb-2 px-1"></p>
+
+                            <div class="space-y-2">
+                                <template x-for="product in suggestion.products" :key="product.productId">
+                                    <div class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg"
+                                         :class="{ 'border-green-300 bg-green-50': wasUpsellAdded(product.productRootId) }">
+                                        <img x-show="product.imageUrl" :src="product.imageUrl" :alt="product.name"
+                                             class="w-12 h-12 rounded object-cover flex-shrink-0" />
+                                        <div class="flex-1 min-w-0">
+                                            <h4 class="text-sm font-medium text-gray-900 truncate" x-text="product.name"></h4>
+                                            <span class="text-sm text-gray-700" x-text="product.formattedPrice"></span>
+                                        </div>
+
+                                        <!-- Variant selector -->
+                                        <template x-if="product.hasVariants && product.variants?.length > 1">
+                                            <select @@change="selectUpsellVariant(product.productRootId, $event.target.value)"
+                                                    class="checkout-input-compact text-xs w-auto">
+                                                <option value="" disabled selected>Select</option>
+                                                <template x-for="variant in product.variants" :key="variant.productId">
+                                                    <option :value="variant.productId"
+                                                            :disabled="!variant.availableForPurchase"
+                                                            x-text="variant.name">
+                                                    </option>
+                                                </template>
+                                            </select>
+                                        </template>
+
+                                        <button type="button"
+                                                class="checkout-button-secondary text-xs py-1 px-3 flex-shrink-0"
+                                                @@click="addUpsellToCart(product, suggestion.upsellRuleId)"
+                                                :disabled="upsellAddingToCart || !product.availableForPurchase || wasUpsellAdded(product.productRootId)">
+                                            <span x-show="wasUpsellAdded(product.productRootId)">Added</span>
+                                            <span x-show="!wasUpsellAdded(product.productRootId) && !isAddingUpsellProduct(product.productId)">Add</span>
+                                            <span x-show="isAddingUpsellProduct(product.productId)">Adding...</span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
 
         <!-- Main Checkout Form -->
         <form x-on:submit.prevent="submitOrder" class="space-y-4" :aria-busy="isSubmitting">
@@ -545,6 +666,9 @@
                 </button>
             </div>
         </form>
+
+            </div>
+        </template><!-- end !showInterstitial -->
     </div>
 
     <!-- Right Column: Order Summary (Sticky) -->

@@ -39,3 +39,4 @@ export const MERCHELLO_WEBHOOKS_ENTITY_TYPE = "merchello-webhooks";
 export const MERCHELLO_OUTSTANDING_ENTITY_TYPE = "merchello-outstanding";
 export const MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE = "merchello-abandoned-checkouts";
 export const MERCHELLO_NOTIFICATIONS_ENTITY_TYPE = "merchello-notifications";
+export const MERCHELLO_UPSELLS_ENTITY_TYPE = "merchello-upsells";

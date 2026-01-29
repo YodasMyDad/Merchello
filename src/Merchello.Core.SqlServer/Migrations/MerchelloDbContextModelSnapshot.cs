@@ -2483,6 +2483,138 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloTaxProviders", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Upsells.Models.UpsellEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("Amount")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("BasketId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DisplayLocation")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EventType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UpsellRuleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DateCreated")
+                        .HasDatabaseName("IX_merchelloUpsellEvents_DateCreated");
+
+                    b.HasIndex("UpsellRuleId")
+                        .HasDatabaseName("IX_merchelloUpsellEvents_UpsellRuleId");
+
+                    b.HasIndex("UpsellRuleId", "EventType")
+                        .HasDatabaseName("IX_merchelloUpsellEvents_UpsellRuleId_EventType");
+
+                    b.ToTable("merchelloUpsellEvents", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Upsells.Models.UpsellRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CheckoutMode")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("DisplayLocation")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EligibilityRulesJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("EndsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Heading")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("MaxProducts")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RecommendationRulesJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SortBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("SuppressIfInCart")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Timezone")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("TriggerRulesJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_merchelloUpsellRules_Status");
+
+                    b.HasIndex("StartsAt", "EndsAt")
+                        .HasDatabaseName("IX_merchelloUpsellRules_StartsAt_EndsAt");
+
+                    b.ToTable("merchelloUpsellRules", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3438,6 +3570,17 @@ namespace Merchello.Core.SqlServer.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("DefaultFulfilmentProviderConfiguration");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Upsells.Models.UpsellEvent", b =>
+                {
+                    b.HasOne("Merchello.Core.Upsells.Models.UpsellRule", "UpsellRule")
+                        .WithMany()
+                        .HasForeignKey("UpsellRuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("UpsellRule");
                 });
 
             modelBuilder.Entity("Merchello.Core.Warehouses.Models.Warehouse", b =>

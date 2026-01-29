@@ -32,6 +32,7 @@ export default defineConfig({
       "@suppliers": resolve(__dirname, "src/suppliers"),
       "@tax": resolve(__dirname, "src/tax"),
       "@tree": resolve(__dirname, "src/tree"),
+      "@upsells": resolve(__dirname, "src/upsells"),
       "@warehouses": resolve(__dirname, "src/warehouses"),
       "@webhooks": resolve(__dirname, "src/webhooks"),
     },

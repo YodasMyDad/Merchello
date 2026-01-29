@@ -299,6 +299,31 @@ export function initCheckoutStore(initialData = {}) {
         canSavePaymentMethods: initialData.canSavePaymentMethods ?? false,
 
         // ============================================
+        // UPSELL STATE
+        // ============================================
+
+        /** @type {Array} Upsell suggestions from API */
+        upsellSuggestions: [],
+
+        /** @type {boolean} */
+        upsellsLoading: false,
+
+        /** @type {string|null} */
+        upsellsError: null,
+
+        /** @type {boolean} Whether interstitial upsells have been dismissed */
+        interstitialDismissed: false,
+
+        /** @type {boolean} Whether inline upsells section is collapsed */
+        inlineUpsellsCollapsed: false,
+
+        /** @type {Set<string>} Product IDs that have been added from upsells this session */
+        addedUpsellProductIds: new Set(),
+
+        /** @type {boolean} Whether an upsell add-to-cart is in progress */
+        upsellAddingToCart: false,
+
+        // ============================================
         // UI STATE
         // ============================================
 
@@ -746,6 +771,104 @@ export function initCheckoutStore(initialData = {}) {
          */
         announce(message) {
             announcer.announce(message);
+        },
+
+        // ============================================
+        // UPSELL METHODS
+        // ============================================
+
+        /**
+         * Set upsell suggestions from API
+         * @param {Array} suggestions
+         */
+        setUpsellSuggestions(suggestions) {
+            this.upsellSuggestions = suggestions;
+        },
+
+        /**
+         * Set upsells loading state
+         * @param {boolean} loading
+         */
+        setUpsellsLoading(loading) {
+            this.upsellsLoading = loading;
+        },
+
+        /**
+         * Set upsells error
+         * @param {string|null} error
+         */
+        setUpsellsError(error) {
+            this.upsellsError = error;
+        },
+
+        /**
+         * Dismiss interstitial upsells and show checkout form
+         */
+        dismissInterstitial() {
+            this.interstitialDismissed = true;
+        },
+
+        /**
+         * Toggle inline upsells collapsed state
+         */
+        toggleInlineUpsells() {
+            this.inlineUpsellsCollapsed = !this.inlineUpsellsCollapsed;
+        },
+
+        /**
+         * Mark a product as added from upsells
+         * @param {string} productId
+         */
+        markUpsellProductAdded(productId) {
+            this.addedUpsellProductIds = new Set([...this.addedUpsellProductIds, productId]);
+        },
+
+        /**
+         * Check if upsell product was already added this session
+         * @param {string} productId
+         * @returns {boolean}
+         */
+        wasUpsellProductAdded(productId) {
+            return this.addedUpsellProductIds.has(productId);
+        },
+
+        /**
+         * Set upsell add-to-cart loading state
+         * @param {boolean} adding
+         */
+        setUpsellAddingToCart(adding) {
+            this.upsellAddingToCart = adding;
+        },
+
+        /**
+         * Clear all upsell state
+         */
+        clearUpsells() {
+            this.upsellSuggestions = [];
+            this.upsellsLoading = false;
+            this.upsellsError = null;
+            this.interstitialDismissed = false;
+            this.inlineUpsellsCollapsed = false;
+            this.addedUpsellProductIds = new Set();
+            this.upsellAddingToCart = false;
+        },
+
+        /**
+         * Check if checkout should show interstitial
+         * @returns {boolean}
+         */
+        shouldShowInterstitial() {
+            if (this.interstitialDismissed) return false;
+            return this.upsellSuggestions.some(s => s.checkoutMode === 'Interstitial');
+        },
+
+        /**
+         * Get suggestions for a specific checkout mode
+         * @param {string} mode - 'Inline' or 'Interstitial'
+         * @returns {Array}
+         */
+        getSuggestionsByMode(mode) {
+            return this.upsellSuggestions.filter(s => s.checkoutMode === mode);
         }
     });
 }

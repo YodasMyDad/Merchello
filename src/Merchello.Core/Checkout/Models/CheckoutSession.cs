@@ -1,4 +1,5 @@
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Upsells.Models;
 
 namespace Merchello.Core.Checkout.Models;
 
@@ -74,6 +75,12 @@ public class CheckoutSession
     /// Set when the invoice is created during checkout.
     /// </summary>
     public Guid? InvoiceId { get; set; }
+
+    /// <summary>
+    /// Upsell impressions captured during checkout (used for conversion attribution).
+    /// Stored in-session to avoid per-impression DB writes.
+    /// </summary>
+    public List<UpsellImpressionRecord> UpsellImpressions { get; set; } = [];
 
 }
 

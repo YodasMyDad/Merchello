@@ -25,6 +25,7 @@ import {
   MERCHELLO_PROVIDERS_ENTITY_TYPE,
   MERCHELLO_WEBHOOKS_ENTITY_TYPE,
   MERCHELLO_NOTIFICATIONS_ENTITY_TYPE,
+  MERCHELLO_UPSELLS_ENTITY_TYPE,
 } from '@tree/types/tree.types.js';
 
 export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTreeDataSource<MerchelloTreeItemModel> {
@@ -43,7 +44,7 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
         entityType: MERCHELLO_PRODUCTS_ENTITY_TYPE,
         unique: "products",
         name: "Products",
-        hasChildren: false,
+        hasChildren: true,
         isFolder: false,
         icon: "icon-box",
         parent: { unique: null, entityType: MERCHELLO_ROOT_ENTITY_TYPE },
@@ -190,6 +191,20 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
           isFolder: false,
           icon: "icon-shopping-basket-alt-2",
           parent: { unique: "orders", entityType: MERCHELLO_ORDERS_ENTITY_TYPE },
+        },
+      ];
+      return { data: { items: children, total: children.length } };
+    }
+    if (args.parent.unique === "products") {
+      const children: MerchelloTreeItemModel[] = [
+        {
+          entityType: MERCHELLO_UPSELLS_ENTITY_TYPE,
+          unique: "upsells",
+          name: "Upsells",
+          hasChildren: false,
+          isFolder: false,
+          icon: "icon-chart-curve",
+          parent: { unique: "products", entityType: MERCHELLO_PRODUCTS_ENTITY_TYPE },
         },
       ];
       return { data: { items: children, total: children.length } };

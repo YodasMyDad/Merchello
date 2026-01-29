@@ -9,14 +9,19 @@ public class ProductQueryParameters
     public bool NoTracking { get; set; } = true;
     public ProductOrderBy OrderBy { get; set; } = ProductOrderBy.PriceAsc;
     public Guid? ProductTypeKey { get; set; }
+    public List<Guid>? ProductTypeKeys { get; set; }
     public Guid? ProductRootKey { get; set; }
+    public List<Guid>? ProductRootKeys { get; set; }
+    public List<Guid>? ProductIds { get; set; }
     public string? ProductTypeAlias { get; set; }
     public List<Guid>? CollectionIds { get; set; }
     public List<Guid>? FilterKeys { get; set; }
+    public List<Guid>? SupplierIds { get; set; }
     public bool AllVariants { get;set;}
     public bool IncludeProductWarehouses { get; set; } = false;
     public bool IncludeSiblingVariants { get; set; } = false;
     public bool IncludeProductRootWarehouses { get; set; } = false;
+    public bool IncludeProductFilters { get; set; } = false;
 
     /// <summary>
     /// Search term to filter products by name or SKU (case-insensitive).

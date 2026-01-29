@@ -37,9 +37,9 @@ public class CheckoutContentFinder(ILogger<CheckoutContentFinder> logger) : ICon
         var step = ParseCheckoutStep(segments);
         Guid? invoiceId = null;
 
-        // For confirmation step, extract the invoice ID from the URL
-        // e.g., /checkout/confirmation/12345678-1234-1234-1234-123456789012
-        if (step == CheckoutStep.Confirmation && segments.Length > 2)
+        // For confirmation and post-purchase steps, extract the invoice ID from the URL
+        // e.g., /checkout/confirmation/{invoiceId} or /checkout/post-purchase/{invoiceId}
+        if ((step == CheckoutStep.Confirmation || step == CheckoutStep.PostPurchase) && segments.Length > 2)
         {
             if (Guid.TryParse(segments[2], out var id))
             {
@@ -74,6 +74,8 @@ public class CheckoutContentFinder(ILogger<CheckoutContentFinder> logger) : ICon
             "shipping" => CheckoutStep.Shipping,
             "payment" => CheckoutStep.Payment,
             "confirmation" => CheckoutStep.Confirmation,
+            "post-purchase" => CheckoutStep.PostPurchase,
+            "postpurchase" => CheckoutStep.PostPurchase,
             "return" => CheckoutStep.PaymentReturn,
             "cancel" => CheckoutStep.PaymentCancelled,
             _ => CheckoutStep.Information // Default to information for unknown steps

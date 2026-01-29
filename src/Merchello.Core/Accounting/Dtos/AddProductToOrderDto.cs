@@ -26,6 +26,13 @@ public class AddProductToOrderDto
     public Guid ShippingOptionId { get; set; }
 
     /// <summary>
+    /// Optional selection key (supports dynamic providers).
+    /// Format: "so:{guid}" or "dyn:{provider}:{serviceCode}".
+    /// When provided, takes precedence over ShippingOptionId.
+    /// </summary>
+    public string? SelectionKey { get; set; }
+
+    /// <summary>
     /// Selected add-on options (non-variant product options)
     /// </summary>
     public List<OrderAddonDto> Addons { get; set; } = [];

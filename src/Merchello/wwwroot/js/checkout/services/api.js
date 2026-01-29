@@ -10,6 +10,7 @@
  */
 
 const BASE_URL = '/api/merchello/checkout';
+const STOREFRONT_URL = '/api/merchello/storefront';
 
 /**
  * @typedef {Object} BasketTotals
@@ -103,6 +104,46 @@ async function fetchJson(url, options = {}) {
  * Checkout API service
  */
 export const checkoutApi = {
+    /**
+     * Generic storefront request helper (uses /api/merchello/storefront).
+     * Mirrors MerchelloApi.request behavior for consistent responses.
+     * @param {string} endpoint
+     * @param {RequestInit} [options]
+     * @returns {Promise<{success: boolean, data?: any, error?: string}>}
+     */
+    async request(endpoint, options = {}) {
+        try {
+            const url = endpoint.startsWith('http') ? endpoint : `${STOREFRONT_URL}${endpoint}`;
+            const response = await fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                return {
+                    success: false,
+                    error: errorData.message || `Request failed with status ${response.status}`
+                };
+            }
+
+            if (response.status === 204) {
+                return { success: true };
+            }
+
+            const data = await response.json();
+            return { success: true, data };
+        } catch (error) {
+            console.error(`API Error [${endpoint}]:`, error);
+            return {
+                success: false,
+                error: error.message || 'An unexpected error occurred'
+            };
+        }
+    },
     /**
      * Initialize checkout - calculate shipping and auto-select options
      * @param {Object} data

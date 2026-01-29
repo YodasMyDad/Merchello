@@ -51,6 +51,7 @@
       "@suppliers/*": [ "src/suppliers/*" ],
       "@tax/*": [ "src/tax/*" ],
       "@tree/*": [ "src/tree/*" ],
+      "@upsells/*": [ "src/upsells/*" ],
       "@warehouses/*": [ "src/warehouses/*" ],
       "@webhooks/*": [ "src/webhooks/*" ],
       "@test-utils/*": [ "src/test-utils/*" ]
