@@ -88,6 +88,21 @@ import { MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
  * @property {string} displayName
  * @property {number} integrationType
  * @property {string} iconUrl
+ * @property {boolean} [supportsVaulting] - Whether this provider supports saving payment methods
+ */
+
+/**
+ * @typedef {Object} SavedPaymentMethod
+ * @property {string} id - Unique identifier
+ * @property {string} providerAlias - Payment provider alias
+ * @property {string} methodType - Card, PayPal, BankAccount, etc.
+ * @property {string} [cardBrand] - Card brand (visa, mastercard, etc.)
+ * @property {string} [last4] - Last 4 digits
+ * @property {string} [expiryFormatted] - Formatted expiry (e.g., "12/26")
+ * @property {boolean} isExpired - Whether the card is expired
+ * @property {string} displayLabel - Human-readable label
+ * @property {boolean} isDefault - Whether this is the default method
+ * @property {string} [iconHtml] - Icon HTML
  */
 
 /**
@@ -263,6 +278,25 @@ export function initCheckoutStore(initialData = {}) {
 
         /** @type {boolean} */
         paymentFormInitializing: false,
+
+        // ============================================
+        // SAVED PAYMENT METHODS STATE
+        // ============================================
+
+        /** @type {SavedPaymentMethod[]} */
+        savedPaymentMethods: initialData.savedPaymentMethods ?? [],
+
+        /** @type {SavedPaymentMethod|null} */
+        selectedSavedMethod: null,
+
+        /** @type {boolean} Whether to save the payment method during checkout */
+        savePaymentMethod: false,
+
+        /** @type {boolean} Whether to set saved method as default */
+        setAsDefaultMethod: false,
+
+        /** @type {boolean} Whether any provider supports vaulting */
+        canSavePaymentMethods: initialData.canSavePaymentMethods ?? false,
 
         // ============================================
         // UI STATE
@@ -570,6 +604,80 @@ export function initCheckoutStore(initialData = {}) {
          */
         setPaymentFormInitializing(initializing) {
             this.paymentFormInitializing = initializing;
+        },
+
+        // ============================================
+        // SAVED PAYMENT METHODS
+        // ============================================
+
+        /**
+         * Set saved payment methods
+         * @param {SavedPaymentMethod[]} methods
+         */
+        setSavedPaymentMethods(methods) {
+            this.savedPaymentMethods = methods;
+        },
+
+        /**
+         * Set whether any provider supports saving payment methods
+         * @param {boolean} canSave
+         */
+        setCanSavePaymentMethods(canSave) {
+            this.canSavePaymentMethods = canSave === true;
+        },
+
+        /**
+         * Select a saved payment method for use
+         * @param {SavedPaymentMethod|null} method
+         */
+        selectSavedMethod(method) {
+            this.selectedSavedMethod = method;
+            // Clear the regular payment method selection when using saved
+            if (method) {
+                this.selectedPaymentMethod = null;
+            }
+        },
+
+        /**
+         * Check if using a saved payment method
+         * @returns {boolean}
+         */
+        isUsingSavedMethod() {
+            return this.selectedSavedMethod !== null;
+        },
+
+        /**
+         * Set whether to save the payment method during checkout
+         * @param {boolean} save
+         */
+        setSavePaymentMethod(save) {
+            this.savePaymentMethod = save;
+        },
+
+        /**
+         * Set whether to set saved method as default
+         * @param {boolean} setDefault
+         */
+        setAsDefault(setDefault) {
+            this.setAsDefaultMethod = setDefault;
+        },
+
+        /**
+         * Check if the selected provider supports saving payment methods
+         * @returns {boolean}
+         */
+        canSaveSelectedMethod() {
+            if (!this.selectedPaymentMethod) return false;
+            return this.canSavePaymentMethods &&
+                   this.selectedPaymentMethod.supportsVaulting === true;
+        },
+
+        /**
+         * Get the saved method ID if using saved method, otherwise null
+         * @returns {string|null}
+         */
+        getSavedMethodId() {
+            return this.selectedSavedMethod?.id ?? null;
         },
 
         // ============================================

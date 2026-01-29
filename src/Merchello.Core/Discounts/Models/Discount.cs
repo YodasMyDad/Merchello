@@ -30,6 +30,16 @@ public class Discount
     public string? Description { get; set; }
 
     /// <summary>
+    /// Whether this discount should appear as a promotion in product feeds (e.g. Google Merchant Center).
+    /// </summary>
+    public bool ShowInFeed { get; set; }
+
+    /// <summary>
+    /// Optional promotion name for product feeds. When null, the discount Name is used.
+    /// </summary>
+    public string? FeedPromotionName { get; set; }
+
+    /// <summary>
     /// Current status of the discount.
     /// </summary>
     public DiscountStatus Status { get; set; } = DiscountStatus.Draft;

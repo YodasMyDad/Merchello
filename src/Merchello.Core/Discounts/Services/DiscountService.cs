@@ -382,6 +382,12 @@ public class DiscountService(
         if (parameters.Priority.HasValue)
             discount.Priority = parameters.Priority.Value;
 
+        if (parameters.ShowInFeed.HasValue)
+            discount.ShowInFeed = parameters.ShowInFeed.Value;
+
+        if (parameters.FeedPromotionName != null)
+            discount.FeedPromotionName = parameters.FeedPromotionName.Trim();
+
         // Validate requirement value is non-negative
         if (parameters.RequirementValue.HasValue && parameters.RequirementValue.Value < 0)
         {

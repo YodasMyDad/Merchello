@@ -625,6 +625,9 @@
                     throw new Error('Payment token missing. Please try again.');
                 }
 
+                // Get vault settings from checkout store
+                const vaultSettings = MerchelloPayment.getVaultSettings();
+
                 // 3. Submit to server for processing
                 const response = await fetch('/api/merchello/checkout/process-payment', {
                     method: 'POST',
@@ -640,7 +643,9 @@
                             deviceData: dataCollectorInstance?.deviceData || '',
                             type: tokenizeResult.type || '',
                             details: tokenizeResult.details ? JSON.stringify(tokenizeResult.details) : ''
-                        }
+                        },
+                        savePaymentMethod: vaultSettings.savePaymentMethod,
+                        setAsDefaultMethod: vaultSettings.setAsDefaultMethod
                     })
                 });
 

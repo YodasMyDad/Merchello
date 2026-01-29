@@ -32,6 +32,11 @@ public class CaptureWidgetOrderResultDto
     public string? RedirectUrl { get; set; }
 
     /// <summary>
+    /// Whether a payment method was saved after capture.
+    /// </summary>
+    public bool PaymentMethodSaved { get; set; }
+
+    /// <summary>
     /// Error message if capture failed.
     /// </summary>
     public string? ErrorMessage { get; set; }

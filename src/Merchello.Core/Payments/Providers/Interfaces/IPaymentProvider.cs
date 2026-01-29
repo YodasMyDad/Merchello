@@ -247,5 +247,55 @@ public interface IPaymentProvider
     Task<bool> DeactivatePaymentLinkAsync(
         string providerLinkId,
         CancellationToken cancellationToken = default);
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <summary>
+    /// Create a setup session for saving a payment method without charging.
+    /// Used for standalone vault flows (e.g., "Add Payment Method" in account settings).
+    /// </summary>
+    /// <param name="request">Vault setup request details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Setup session result with client secret or redirect URL.</returns>
+    Task<VaultSetupResult> CreateVaultSetupSessionAsync(
+        VaultSetupRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Confirm and save a payment method after customer interaction.
+    /// Called after redirect return or SDK confirmation.
+    /// </summary>
+    /// <param name="request">Vault confirmation request.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Confirmation result with payment method details.</returns>
+    Task<VaultConfirmResult> ConfirmVaultSetupAsync(
+        VaultConfirmRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Charge a vaulted payment method (off-session, no CVV required).
+    /// Used for post-purchase upsells, repeat purchases, and subscriptions.
+    /// </summary>
+    /// <param name="request">Charge request with vaulted method details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Payment result.</returns>
+    Task<PaymentResult> ChargeVaultedMethodAsync(
+        ChargeVaultedMethodRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delete a vaulted payment method from the provider.
+    /// Called when customer removes a saved payment method.
+    /// </summary>
+    /// <param name="providerMethodId">The provider's payment method ID/token.</param>
+    /// <param name="providerCustomerId">The provider's customer ID (if required).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if deletion succeeded.</returns>
+    Task<bool> DeleteVaultedMethodAsync(
+        string providerMethodId,
+        string? providerCustomerId = null,
+        CancellationToken cancellationToken = default);
 }
 

@@ -18,6 +18,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
   @state() private _displayName: string = "";
   @state() private _isEnabled: boolean = true;
   @state() private _isTestMode: boolean = true;
+  @state() private _isVaultingEnabled: boolean = false;
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
@@ -52,6 +53,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     this._displayName = setting?.displayName ?? provider.displayName;
     this._isEnabled = setting?.isEnabled ?? true;
     this._isTestMode = setting?.isTestMode ?? true;
+    this._isVaultingEnabled = setting?.isVaultingEnabled ?? false;
 
     // Load configuration fields
     const { data, error } = await MerchelloApi.getPaymentProviderFields(provider.alias);
@@ -111,6 +113,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
           displayName: this._displayName,
           isEnabled: this._isEnabled,
           isTestMode: this._isTestMode,
+          isVaultingEnabled: this._isVaultingEnabled,
           configuration: this._values,
         });
 
@@ -129,6 +132,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
           displayName: this._displayName,
           isEnabled: this._isEnabled,
           isTestMode: this._isTestMode,
+          isVaultingEnabled: this._isVaultingEnabled,
           configuration: this._values,
         });
 
@@ -338,6 +342,22 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
                   </p>
                 </div>
 
+                ${provider?.supportsVaultedPayments ? html`
+                  <div class="form-field checkbox-field">
+                    <uui-checkbox
+                      id="isVaultingEnabled"
+                      ?checked=${this._isVaultingEnabled}
+                      @change=${(e: Event) =>
+                        (this._isVaultingEnabled = (e.target as HTMLInputElement).checked)}
+                    >
+                      Enable Payment Method Vaulting
+                    </uui-checkbox>
+                    <p class="field-description">
+                      Allow customers to save payment methods for future purchases. Only available when the provider supports vaulting.
+                    </p>
+                  </div>
+                ` : nothing}
+
                 ${this._fields.length > 0
                   ? html`
                       <hr />
@@ -457,4 +477,3 @@ declare global {
     "merchello-payment-provider-config-modal": MerchelloPaymentProviderConfigModalElement;
   }
 }
-

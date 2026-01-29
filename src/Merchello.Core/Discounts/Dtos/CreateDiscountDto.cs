@@ -10,6 +10,8 @@ public class CreateDiscountDto
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public bool ShowInFeed { get; set; }
+    public string? FeedPromotionName { get; set; }
     public DiscountCategory Category { get; set; }
     public DiscountMethod Method { get; set; }
     public string? Code { get; set; }

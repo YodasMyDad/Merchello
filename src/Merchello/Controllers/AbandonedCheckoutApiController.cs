@@ -1,5 +1,4 @@
 using Asp.Versioning;
-using Merchello.Controllers.Dtos;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;

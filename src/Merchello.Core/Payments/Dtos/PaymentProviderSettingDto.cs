@@ -10,6 +10,7 @@ public class PaymentProviderSettingDto
     public required string DisplayName { get; set; }
     public bool IsEnabled { get; set; }
     public bool IsTestMode { get; set; }
+    public bool IsVaultingEnabled { get; set; }
     public Dictionary<string, string>? Configuration { get; set; }
     public int SortOrder { get; set; }
     public DateTime DateCreated { get; set; }

@@ -218,6 +218,9 @@
 
                 // Payment succeeded or is processing
                 if (paymentIntent) {
+                    // Get vault settings from checkout store
+                    const vaultSettings = MerchelloPayment.getVaultSettings();
+
                     // Notify server of payment completion
                     const response = await MerchelloPayment.fetchWithTimeout('/api/merchello/checkout/process-payment', {
                         method: 'POST',
@@ -229,7 +232,9 @@
                             providerAlias: currentSession?.providerAlias || 'stripe',
                             methodAlias: currentSession?.methodAlias || 'cards',
                             paymentMethodToken: paymentIntent.id,
-                            transactionId: paymentIntent.id
+                            transactionId: paymentIntent.id,
+                            savePaymentMethod: vaultSettings.savePaymentMethod,
+                            setAsDefaultMethod: vaultSettings.setAsDefaultMethod
                         })
                     });
 

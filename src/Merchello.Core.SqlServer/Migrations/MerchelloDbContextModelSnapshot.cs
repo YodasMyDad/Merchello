@@ -1065,6 +1065,10 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<DateTime?>("EndsAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("FeedPromotionName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
                     b.Property<string>("FreeShippingConfigJson")
                         .HasColumnType("nvarchar(max)");
 
@@ -1091,6 +1095,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<decimal?>("RequirementValue")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<bool>("ShowInFeed")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime>("StartsAt")
                         .HasColumnType("datetime2");
@@ -1500,6 +1507,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<bool>("IsTestMode")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsVaultingEnabled")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ProviderAlias")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1514,6 +1524,98 @@ namespace Merchello.Core.SqlServer.Migrations
                         .IsUnique();
 
                     b.ToTable("merchelloPaymentProviders", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Payments.Models.SavedPaymentMethod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BillingEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("BillingName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CardBrand")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("ConsentDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ConsentIpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("nvarchar(45)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DateLastUsed")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisplayLabel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("ExpiryMonth")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ExpiryYear")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("nvarchar(3000)");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Last4")
+                        .HasMaxLength(4)
+                        .HasColumnType("nvarchar(4)");
+
+                    b.Property<string>("MethodType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ProviderAlias")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ProviderCustomerId")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("ProviderMethodId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("CustomerId", "ProviderAlias", "ProviderMethodId")
+                        .IsUnique();
+
+                    b.ToTable("merchelloSavedPaymentMethods", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
@@ -3101,6 +3203,17 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("ProviderSetting");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Payments.Models.SavedPaymentMethod", b =>
+                {
+                    b.HasOne("Merchello.Core.Customers.Models.Customer", "Customer")
+                        .WithMany("SavedPaymentMethods")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -3472,6 +3585,8 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("CustomerTags");
 
                     b.Navigation("Invoices");
+
+                    b.Navigation("SavedPaymentMethods");
                 });
 
             modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegment", b =>

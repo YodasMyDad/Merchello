@@ -3,6 +3,8 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Notifications;
+using Merchello.Core.Protocols.UCP.Models;
+using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -21,6 +23,7 @@ public class AgentAuthenticationMiddlewareTests
 {
     private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisher;
     private readonly Mock<ILogger<AgentAuthenticationMiddleware>> _logger;
+    private readonly Mock<IUcpAgentProfileService> _agentProfileService;
 
     public AgentAuthenticationMiddlewareTests()
     {
@@ -33,6 +36,11 @@ public class AgentAuthenticationMiddlewareTests
             .Returns(Task.CompletedTask);
 
         _logger = new Mock<ILogger<AgentAuthenticationMiddleware>>();
+
+        _agentProfileService = new Mock<IUcpAgentProfileService>();
+        _agentProfileService
+            .Setup(p => p.GetProfileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((UcpAgentProfile?)null);
     }
 
     [Fact]
@@ -43,9 +51,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://test-agent.example.com/profile\"");
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -67,9 +74,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: null);
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -88,9 +94,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: null);
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -118,9 +123,8 @@ public class AgentAuthenticationMiddlewareTests
             })
             .ReturnsAsync(true);
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -139,9 +143,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://untrusted-agent.example.com/profile\"");
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -160,9 +163,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/api/products", ucpAgentHeader: null);
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -181,9 +183,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: null);
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -201,9 +202,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://any-agent-anywhere.example.com/profile\"");
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -222,9 +222,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://gemini.google.com/agent/v2\"");
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -247,9 +246,8 @@ public class AgentAuthenticationMiddlewareTests
             .Callback<AgentAuthenticatedNotification, CancellationToken>((n, _) => capturedNotification = n)
             .Returns(Task.CompletedTask);
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => Task.CompletedTask,
-            _logger.Object,
             settings);
 
         // Act
@@ -267,9 +265,8 @@ public class AgentAuthenticationMiddlewareTests
         var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://test.example.com\"");
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => Task.CompletedTask,
-            _logger.Object,
             settings);
 
         // Act
@@ -294,9 +291,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext(path, ucpAgentHeader: "profile=\"https://agent.example.com\"");
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -321,9 +317,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext(path, ucpAgentHeader: null);
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -341,9 +336,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"\"");
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -363,9 +357,8 @@ public class AgentAuthenticationMiddlewareTests
         var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "not a valid header format");
         var nextCalled = false;
 
-        var middleware = new AgentAuthenticationMiddleware(
+        var middleware = CreateMiddleware(
             ctx => { nextCalled = true; return Task.CompletedTask; },
-            _logger.Object,
             settings);
 
         // Act
@@ -387,6 +380,7 @@ public class AgentAuthenticationMiddlewareTests
         var settings = new ProtocolSettings
         {
             Enabled = protocolsEnabled,
+            RequireHttps = false,
             Ucp = new UcpSettings
             {
                 Enabled = true,
@@ -414,5 +408,16 @@ public class AgentAuthenticationMiddlewareTests
         context.Response.Body = new MemoryStream();
 
         return context;
+    }
+
+    private AgentAuthenticationMiddleware CreateMiddleware(
+        RequestDelegate next,
+        IOptions<ProtocolSettings> settings)
+    {
+        return new AgentAuthenticationMiddleware(
+            next,
+            _logger.Object,
+            settings,
+            _agentProfileService.Object);
     }
 }

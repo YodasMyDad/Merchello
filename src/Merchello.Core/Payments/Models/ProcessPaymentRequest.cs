@@ -138,4 +138,55 @@ public class ProcessPaymentRequest
     /// <para>Keys are valid for 24 hours.</para>
     /// </summary>
     public string? IdempotencyKey { get; init; }
+
+    // =====================================================
+    // Customer Context (required for vaulting)
+    // =====================================================
+
+    /// <summary>
+    /// The customer ID for this payment. Required for vaulting operations.
+    /// </summary>
+    public Guid? CustomerId { get; init; }
+
+    /// <summary>
+    /// The currency code for this payment (e.g., "GBP", "USD").
+    /// Required for vaulted method charges.
+    /// </summary>
+    public string? CurrencyCode { get; init; }
+
+    /// <summary>
+    /// Return URL for redirect-based payment flows.
+    /// </summary>
+    public string? ReturnUrl { get; init; }
+
+    /// <summary>
+    /// Cancel URL for redirect-based payment flows.
+    /// </summary>
+    public string? CancelUrl { get; init; }
+
+    /// <summary>
+    /// Description for the payment (shown on provider dashboard/receipts).
+    /// </summary>
+    public string? Description { get; init; }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <summary>
+    /// Whether to save this payment method for future use.
+    /// Only applies when provider supports vaulting and vaulting is enabled.
+    /// </summary>
+    public bool SavePaymentMethod { get; init; }
+
+    /// <summary>
+    /// Make this the default saved method if saving.
+    /// </summary>
+    public bool SetAsDefaultMethod { get; init; }
+
+    /// <summary>
+    /// ID of a saved payment method to use instead of new payment details.
+    /// When set, PaymentMethodToken/Nonce is ignored.
+    /// </summary>
+    public Guid? SavedPaymentMethodId { get; init; }
 }

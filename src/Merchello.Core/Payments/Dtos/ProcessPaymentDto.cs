@@ -29,4 +29,19 @@ public class ProcessPaymentDto
     /// Additional form data from the client (e.g., device data for fraud protection)
     /// </summary>
     public Dictionary<string, string>? FormData { get; set; }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <summary>
+    /// Whether to save this payment method for future use.
+    /// Only applies when provider supports vaulting and vaulting is enabled.
+    /// </summary>
+    public bool SavePaymentMethod { get; set; }
+
+    /// <summary>
+    /// Make this the default saved method if saving.
+    /// </summary>
+    public bool SetAsDefaultMethod { get; set; }
 }

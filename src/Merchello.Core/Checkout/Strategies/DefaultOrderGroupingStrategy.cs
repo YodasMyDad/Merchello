@@ -8,6 +8,7 @@ using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.OrderGrouping;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -451,13 +452,16 @@ public class DefaultOrderGroupingStrategy(
             {
                 // Fetch quotes from dynamic providers (FedEx, UPS, etc.)
                 var quotes = await shippingQuoteService.GetQuotesForWarehouseAsync(
-                    warehouseId,
-                    warehouse.Address,
-                    packages,
-                    context.ShippingAddress.CountryCode!,
-                    context.ShippingAddress.CountyState?.RegionCode,
-                    context.ShippingAddress.PostalCode,
-                    context.Basket.Currency ?? "USD",
+                    new GetWarehouseQuotesParameters
+                    {
+                        WarehouseId = warehouseId,
+                        WarehouseAddress = warehouse.Address,
+                        Packages = packages,
+                        DestinationCountry = context.ShippingAddress.CountryCode!,
+                        DestinationState = context.ShippingAddress.CountyState?.RegionCode,
+                        DestinationPostal = context.ShippingAddress.PostalCode,
+                        Currency = context.Basket.Currency ?? "USD"
+                    },
                     cancellationToken);
 
                 // Convert quotes to ShippingOptionInfo and add to group

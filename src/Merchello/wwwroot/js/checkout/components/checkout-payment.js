@@ -25,6 +25,21 @@ export const IntegrationType = Object.freeze({
  * @property {string} displayName
  * @property {number} integrationType
  * @property {string} [iconUrl]
+ * @property {boolean} [supportsVaulting]
+ */
+
+/**
+ * @typedef {Object} SavedPaymentMethod
+ * @property {string} id
+ * @property {string} providerAlias
+ * @property {string} methodType
+ * @property {string} [cardBrand]
+ * @property {string} [last4]
+ * @property {string} [expiryFormatted]
+ * @property {boolean} isExpired
+ * @property {string} displayLabel
+ * @property {boolean} isDefault
+ * @property {string} [iconHtml]
  */
 
 /**
@@ -109,6 +124,55 @@ export function initCheckoutPayment() {
         /** @returns {boolean} */
         get hasRedirectMethods() {
             return this.redirectMethods.length > 0;
+        },
+
+        // ============================================
+        // Saved Payment Methods (from store)
+        // ============================================
+
+        /** @returns {SavedPaymentMethod[]} */
+        get savedMethods() {
+            return this.$store.checkout?.savedPaymentMethods ?? [];
+        },
+
+        /** @returns {boolean} */
+        get hasSavedMethods() {
+            return this.savedMethods.length > 0;
+        },
+
+        /** @returns {SavedPaymentMethod|null} */
+        get selectedSavedMethod() {
+            return this.$store.checkout?.selectedSavedMethod ?? null;
+        },
+
+        /** @returns {boolean} */
+        get isUsingSavedMethod() {
+            return this.selectedSavedMethod !== null;
+        },
+
+        /** @returns {boolean} */
+        get canSavePaymentMethod() {
+            return this.$store.checkout?.canSavePaymentMethods === true &&
+                   this.selectedMethod?.supportsVaulting === true &&
+                   !this.isUsingSavedMethod;
+        },
+
+        /** @returns {boolean} */
+        get savePaymentMethod() {
+            return this.$store.checkout?.savePaymentMethod ?? false;
+        },
+
+        /** @returns {boolean} */
+        get setAsDefaultMethod() {
+            return this.$store.checkout?.setAsDefaultMethod ?? false;
+        },
+
+        /**
+         * Get non-expired saved methods grouped by provider
+         * @returns {SavedPaymentMethod[]}
+         */
+        get validSavedMethods() {
+            return this.savedMethods.filter(m => !m.isExpired);
         },
 
         // ============================================
@@ -197,8 +261,106 @@ export function initCheckoutPayment() {
          */
         needsEmail() {
             return !this.$store.checkout?.form?.email;
+        },
+
+        // ============================================
+        // Saved Payment Methods
+        // ============================================
+
+        /**
+         * Select a saved payment method
+         * @param {SavedPaymentMethod} method
+         */
+        selectSavedMethod(method) {
+            this.selectedMethodKey = `saved:${method.id}`;
+            this.$store.checkout?.selectSavedMethod(method);
+
+            // Dispatch event for orchestrator
+            this.$dispatch('saved-payment-method-selected', { method });
+        },
+
+        /**
+         * Clear saved method selection (switch to new payment)
+         */
+        clearSavedMethod() {
+            this.$store.checkout?.selectSavedMethod(null);
+        },
+
+        /**
+         * Check if a saved method is currently selected
+         * @param {SavedPaymentMethod} method
+         * @returns {boolean}
+         */
+        isSavedMethodSelected(method) {
+            return this.selectedSavedMethod?.id === method.id;
+        },
+
+        /**
+         * Toggle save payment method checkbox
+         * @param {boolean} save
+         */
+        toggleSavePaymentMethod(save) {
+            this.$store.checkout?.setSavePaymentMethod(save);
+        },
+
+        /**
+         * Toggle set as default checkbox
+         * @param {boolean} setDefault
+         */
+        toggleSetAsDefault(setDefault) {
+            this.$store.checkout?.setAsDefault(setDefault);
+        },
+
+        /**
+         * Get icon for a saved payment method
+         * @param {SavedPaymentMethod} method
+         * @returns {string}
+         */
+        getSavedMethodIcon(method) {
+            if (method.iconHtml) {
+                return method.iconHtml;
+            }
+            // Fallback based on method type
+            return getSavedMethodIcon(method);
         }
     }));
+}
+
+/**
+ * Get icon HTML for a saved payment method
+ * @param {SavedPaymentMethod} method
+ * @returns {string}
+ */
+export function getSavedMethodIcon(method) {
+    // Card brand specific icons
+    if (method.methodType === 'Card' && method.cardBrand) {
+        const brand = method.cardBrand.toLowerCase();
+        switch (brand) {
+            case 'visa':
+                return '<svg class="w-8 h-5" viewBox="0 0 32 20"><rect fill="#1A1F71" width="32" height="20" rx="2"/><text x="16" y="13" font-size="8" fill="white" text-anchor="middle" font-weight="bold">VISA</text></svg>';
+            case 'mastercard':
+                return '<svg class="w-8 h-5" viewBox="0 0 32 20"><rect fill="#000" width="32" height="20" rx="2"/><circle cx="12" cy="10" r="6" fill="#EB001B"/><circle cx="20" cy="10" r="6" fill="#F79E1B"/></svg>';
+            case 'amex':
+            case 'american_express':
+                return '<svg class="w-8 h-5" viewBox="0 0 32 20"><rect fill="#006FCF" width="32" height="20" rx="2"/><text x="16" y="13" font-size="6" fill="white" text-anchor="middle" font-weight="bold">AMEX</text></svg>';
+            default:
+                // Generic card icon
+                return '<svg class="w-6 h-5" viewBox="0 0 24 20" fill="currentColor"><rect x="1" y="1" width="22" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="5" width="22" height="4" fill="currentColor" opacity="0.3"/></svg>';
+        }
+    }
+
+    // PayPal
+    if (method.methodType === 'PayPal') {
+        return '<svg class="w-8 h-5" viewBox="0 0 32 20"><rect fill="#003087" width="32" height="20" rx="2"/><text x="16" y="13" font-size="6" fill="white" text-anchor="middle" font-weight="bold">PayPal</text></svg>';
+    }
+
+    // Bank account
+    if (method.methodType === 'BankAccount') {
+        return '<svg class="w-6 h-5" viewBox="0 0 24 20" fill="currentColor"><path d="M12 2L2 7v2h20V7L12 2zm-8 5l8-4 8 4H4zm-2 4h20v2H2v-2zm2 4h4v5H4v-5zm6 0h4v5h-4v-5zm6 0h4v5h-4v-5z"/></svg>';
+    }
+
+    // Generic fallback
+    return '<svg class="w-6 h-5" viewBox="0 0 24 20" fill="currentColor"><rect x="1" y="1" width="22" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
 }
 
 // ============================================
@@ -266,5 +428,6 @@ export default {
     getPaymentMethodIcon,
     getPaymentMethodStyle,
     categorizePaymentMethods,
-    getMethodKey
+    getMethodKey,
+    getSavedMethodIcon
 };

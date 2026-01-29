@@ -17,6 +17,7 @@ public class PaymentProviderDto
     public PaymentIntegrationType IntegrationType { get; set; }
     public bool SupportsAuthAndCapture { get; set; }
     public bool SupportsPaymentLinks { get; set; }
+    public bool SupportsVaultedPayments { get; set; }
     public bool RequiresWebhook { get; set; }
     public string? WebhookPath { get; set; }
 

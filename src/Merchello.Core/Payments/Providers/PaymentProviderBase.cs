@@ -179,5 +179,49 @@ public abstract class PaymentProviderBase : IPaymentProvider
         // Default implementation - providers should override to support payment links
         return Task.FromResult(false);
     }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <inheritdoc />
+    public virtual Task<VaultSetupResult> CreateVaultSetupSessionAsync(
+        VaultSetupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - providers should override to support vaulted payments
+        return Task.FromResult(VaultSetupResult.Failed(
+            "This payment provider does not support vaulted payments."));
+    }
+
+    /// <inheritdoc />
+    public virtual Task<VaultConfirmResult> ConfirmVaultSetupAsync(
+        VaultConfirmRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - providers should override to support vaulted payments
+        return Task.FromResult(VaultConfirmResult.Failed(
+            "This payment provider does not support vaulted payments."));
+    }
+
+    /// <inheritdoc />
+    public virtual Task<PaymentResult> ChargeVaultedMethodAsync(
+        ChargeVaultedMethodRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - providers should override to support vaulted payments
+        return Task.FromResult(PaymentResult.Failed(
+            "This payment provider does not support vaulted payments."));
+    }
+
+    /// <inheritdoc />
+    public virtual Task<bool> DeleteVaultedMethodAsync(
+        string providerMethodId,
+        string? providerCustomerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        // Default implementation - providers should override to support vaulted payments
+        return Task.FromResult(false);
+    }
 }
 

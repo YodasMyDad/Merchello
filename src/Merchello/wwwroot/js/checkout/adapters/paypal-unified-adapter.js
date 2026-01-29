@@ -206,6 +206,10 @@
             }
 
             const providerAlias = session.providerAlias || 'paypal';
+            const vaultSettings = window.MerchelloPayment?.getVaultSettings?.() || {
+                savePaymentMethod: false,
+                setAsDefaultMethod: false
+            };
 
             try {
                 const response = await this._fetchWithTimeout(
@@ -215,7 +219,8 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             sessionId: session.sessionId,
-                            methodAlias: session.methodAlias
+                            methodAlias: session.methodAlias,
+                            savePaymentMethod: vaultSettings.savePaymentMethod
                         })
                     }
                 );
@@ -265,6 +270,10 @@
          */
         async _handleStandardApproval(data, session) {
             const providerAlias = session.providerAlias || 'paypal';
+            const vaultSettings = window.MerchelloPayment?.getVaultSettings?.() || {
+                savePaymentMethod: false,
+                setAsDefaultMethod: false
+            };
 
             try {
                 const response = await this._fetchWithTimeout(
@@ -275,7 +284,9 @@
                         body: JSON.stringify({
                             orderId: data.orderID,
                             sessionId: session.sessionId,
-                            invoiceId: session.invoiceId
+                            invoiceId: session.invoiceId,
+                            savePaymentMethod: vaultSettings.savePaymentMethod,
+                            setAsDefaultMethod: vaultSettings.setAsDefaultMethod
                         })
                     }
                 );

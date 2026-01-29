@@ -79,6 +79,13 @@ public class PaymentMethodDto
     public PaymentIntegrationType IntegrationType { get; set; }
 
     /// <summary>
+    /// Whether this method supports saving payment methods (vaulting) during checkout.
+    /// True only when the provider supports vaulting, vaulting is enabled, and the method is HostedFields.
+    /// </summary>
+    [JsonPropertyName("supportsVaulting")]
+    public bool SupportsVaulting { get; set; }
+
+    /// <summary>
     /// Whether this is an express checkout method (Apple Pay, Google Pay, PayPal).
     /// Express methods appear at the start of checkout and collect customer data from the provider.
     /// </summary>

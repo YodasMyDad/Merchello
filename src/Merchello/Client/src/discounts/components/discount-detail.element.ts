@@ -285,6 +285,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       const createDto: CreateDiscountDto = {
         name: this._discount.name,
         description: this._discount.description,
+        showInFeed: this._discount.showInFeed,
+        feedPromotionName: this._discount.feedPromotionName,
         category: this._discount.category,
         method: this._discount.method,
         code: this._discount.code,
@@ -338,6 +340,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
         id: this._discount.id,
         name: this._discount.name,
         description: this._discount.description,
+        showInFeed: this._discount.showInFeed,
+        feedPromotionName: this._discount.feedPromotionName,
         category: this._discount.category,
         method: this._discount.method,
         code: this._discount.code,
@@ -563,6 +567,37 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                     @input=${(e: Event) =>
                       this._handleInputChange("value", parseFloat((e.target as HTMLInputElement).value) || 0)}
                     ?invalid=${this._validationErrors.has("value")}
+                  ></uui-input>
+                </umb-property-layout>
+              `
+            : nothing}
+        </div>
+      </uui-box>
+
+      <uui-box headline="Product Feed">
+        <div class="form-grid">
+          <umb-property-layout
+            label="Show in feed"
+            description="Include this discount as a promotion in product feeds (e.g. Google Merchant Center)">
+            <uui-toggle
+              slot="editor"
+              .checked=${this._discount?.showInFeed ?? false}
+              @change=${(e: Event) =>
+                this._handleInputChange("showInFeed", (e.target as HTMLInputElement).checked)}
+            ></uui-toggle>
+          </umb-property-layout>
+
+          ${this._discount?.showInFeed
+            ? html`
+                <umb-property-layout
+                  label="Feed promotion name"
+                  description="Name shown in the feed. Leave empty to use the discount name.">
+                  <uui-input
+                    slot="editor"
+                    .value=${this._discount?.feedPromotionName ?? ""}
+                    @input=${(e: Event) =>
+                      this._handleInputChange("feedPromotionName", (e.target as HTMLInputElement).value)}
+                    placeholder=${this._discount?.name ?? "Uses discount name"}
                   ></uui-input>
                 </umb-property-layout>
               `

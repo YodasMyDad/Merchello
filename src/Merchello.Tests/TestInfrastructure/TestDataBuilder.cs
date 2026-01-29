@@ -866,6 +866,59 @@ public class TestDataBuilder
 
     #endregion
 
+    #region Saved Payment Methods
+
+    /// <summary>
+    /// Creates a SavedPaymentMethod for a customer
+    /// </summary>
+    public SavedPaymentMethod CreateSavedPaymentMethod(
+        Customer customer,
+        string providerAlias = "stripe",
+        string? providerMethodId = null,
+        string? providerCustomerId = "cus_test",
+        SavedPaymentMethodType methodType = SavedPaymentMethodType.Card,
+        string? cardBrand = "visa",
+        string? last4 = "4242",
+        int? expiryMonth = 12,
+        int? expiryYear = 2026,
+        string displayLabel = "Visa ending in 4242",
+        bool isDefault = false,
+        bool isVerified = true)
+    {
+        var resolvedProviderMethodId = string.IsNullOrWhiteSpace(providerMethodId)
+            ? $"pm_{Guid.NewGuid():N}"
+            : providerMethodId;
+
+        var savedMethod = new SavedPaymentMethod
+        {
+            Id = Guid.NewGuid(),
+            CustomerId = customer.Id,
+            Customer = customer,
+            ProviderAlias = providerAlias,
+            ProviderMethodId = resolvedProviderMethodId,
+            ProviderCustomerId = providerCustomerId,
+            MethodType = methodType,
+            CardBrand = cardBrand,
+            Last4 = last4,
+            ExpiryMonth = expiryMonth,
+            ExpiryYear = expiryYear,
+            DisplayLabel = displayLabel,
+            IsDefault = isDefault,
+            IsVerified = isVerified,
+            ConsentDateUtc = DateTime.UtcNow,
+            ConsentIpAddress = "127.0.0.1",
+            DateCreated = DateTime.UtcNow,
+            DateUpdated = DateTime.UtcNow
+        };
+
+        _dbContext.SavedPaymentMethods.Add(savedMethod);
+        customer.SavedPaymentMethods ??= [];
+        customer.SavedPaymentMethods.Add(savedMethod);
+        return savedMethod;
+    }
+
+    #endregion
+
     /// <summary>
     /// Persists all pending changes to the database
     /// </summary>

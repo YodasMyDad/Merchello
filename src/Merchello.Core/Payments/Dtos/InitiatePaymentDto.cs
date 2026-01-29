@@ -25,4 +25,13 @@ public class InitiatePaymentDto
     /// URL to redirect to if payment is cancelled
     /// </summary>
     public required string CancelUrl { get; set; }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <summary>
+    /// Whether to request vaulting during session creation (provider-specific).
+    /// </summary>
+    public bool SavePaymentMethod { get; set; }
 }

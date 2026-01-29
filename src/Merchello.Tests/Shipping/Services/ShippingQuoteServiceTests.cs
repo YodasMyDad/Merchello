@@ -7,6 +7,7 @@ using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;
@@ -75,8 +76,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(Array.Empty<WarehouseProviderConfig>());
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "GB", null, "SW1A 1AA", "GBP");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "GB",
+            DestinationState = null,
+            DestinationPostal = "SW1A 1AA",
+            Currency = "GBP"
+        });
 
         // Assert
         result.ShouldNotBeNull();
@@ -166,8 +175,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(new[] { warehouseConfig });
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "GB", null, "EC1A 1BB", "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "GB",
+            DestinationState = null,
+            DestinationPostal = "EC1A 1BB",
+            Currency = "USD"
+        });
 
         // Assert
         result.ShouldNotBeNull();
@@ -232,8 +249,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(new[] { warehouseConfig });
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", "CA", "90210", "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = "CA",
+            DestinationPostal = "90210",
+            Currency = "USD"
+        });
 
         // Assert
         result.ShouldBeEmpty();
@@ -260,8 +285,16 @@ public class ShippingQuoteServiceTests
         IReadOnlyCollection<ShipmentPackage> packages = Array.Empty<ShipmentPackage>();
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", "NY", "10001", "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = "NY",
+            DestinationPostal = "10001",
+            Currency = "USD"
+        });
 
         // Assert
         result.ShouldBeEmpty();
@@ -377,8 +410,16 @@ public class ShippingQuoteServiceTests
             });
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", "IL", "60601", "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = "IL",
+            DestinationPostal = "60601",
+            Currency = "USD"
+        });
 
         // Assert
         result.Count.ShouldBe(2);
@@ -431,8 +472,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(Array.Empty<WarehouseProviderConfig>());
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", null, null, "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = null,
+            DestinationPostal = null,
+            Currency = "USD"
+        });
 
         // Assert
         result.ShouldBeEmpty();
@@ -526,8 +575,16 @@ public class ShippingQuoteServiceTests
             });
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", "NY", "10001", "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = "NY",
+            DestinationPostal = "10001",
+            Currency = "USD"
+        });
 
         // Assert - should still return the working provider's quotes
         result.Count.ShouldBe(1);
@@ -574,8 +631,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(Array.Empty<WarehouseProviderConfig>());
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "GB", null, "EC1A 1BB", "GBP");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "GB",
+            DestinationState = null,
+            DestinationPostal = "EC1A 1BB",
+            Currency = "GBP"
+        });
 
         // Assert - flat-rate providers are not called via the warehouse-level path
         result.ShouldBeEmpty();
@@ -651,8 +716,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(Array.Empty<WarehouseProviderConfig>());
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", "NY", "10001", "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = "NY",
+            DestinationPostal = "10001",
+            Currency = "USD"
+        });
 
         // Assert - provider should be called with a default config (no markup, enabled)
         result.Count.ShouldBe(1);
@@ -763,8 +836,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(Array.Empty<WarehouseProviderConfig>());
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", null, null, "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = null,
+            DestinationPostal = null,
+            Currency = "USD"
+        });
 
         // Assert
         result.ShouldBeEmpty();
@@ -832,8 +913,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(Array.Empty<WarehouseProviderConfig>());
 
         // Act
-        await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "GB", "ENG", "SW1A 1AA", "GBP");
+        await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "GB",
+            DestinationState = "ENG",
+            DestinationPostal = "SW1A 1AA",
+            Currency = "GBP"
+        });
 
         // Assert - verify the request was built correctly
         capturedRequest.ShouldNotBeNull();
@@ -909,8 +998,16 @@ public class ShippingQuoteServiceTests
             .ReturnsAsync(Array.Empty<WarehouseProviderConfig>());
 
         // Act
-        var result = await _sut.GetQuotesForWarehouseAsync(
-            warehouseId, warehouseAddress, packages, "US", null, null, "USD");
+        var result = await _sut.GetQuotesForWarehouseAsync(new GetWarehouseQuotesParameters
+        {
+            WarehouseId = warehouseId,
+            WarehouseAddress = warehouseAddress,
+            Packages = packages,
+            DestinationCountry = "US",
+            DestinationState = null,
+            DestinationPostal = null,
+            Currency = "USD"
+        });
 
         // Assert
         result.Count.ShouldBe(1);

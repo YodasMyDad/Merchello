@@ -92,6 +92,8 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
         SupportsAuthAndCapture = true,
         RequiresWebhook = true,
         SupportsPaymentLinks = true,
+        SupportsVaultedPayments = true,
+        RequiresProviderCustomerId = true,
         SetupInstructions = """
             ## Stripe Setup Instructions
 
@@ -641,16 +643,116 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     }
 
     /// <inheritdoc />
-    public override Task<PaymentResult> ProcessPaymentAsync(
+    public override async Task<PaymentResult> ProcessPaymentAsync(
         ProcessPaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        // For redirect-based providers and Payment Element, confirmation comes via webhook.
-        // The frontend confirms payment using stripe.confirmPayment() which handles 3D Secure etc.
-        // Return pending status - the webhook will update the payment to completed.
-        return Task.FromResult(PaymentResult.Pending(
-            transactionId: request.SessionId ?? $"pending_{request.InvoiceId}",
-            amount: request.Amount ?? 0));
+        if (_client is null)
+        {
+            return PaymentResult.Failed("Stripe is not configured.");
+        }
+
+        var paymentIntentId = request.PaymentMethodToken ?? request.SessionId;
+        if (string.IsNullOrWhiteSpace(paymentIntentId))
+        {
+            return PaymentResult.Failed("PaymentIntent ID is required.");
+        }
+
+        try
+        {
+            var paymentIntentService = new PaymentIntentService(_client);
+            var paymentIntent = await paymentIntentService.GetAsync(
+                paymentIntentId,
+                new PaymentIntentGetOptions { Expand = ["payment_method"] },
+                cancellationToken: cancellationToken);
+
+            // Build vaulted method details if requested
+            VaultConfirmResult? vaultDetails = null;
+            if (request.SavePaymentMethod)
+            {
+                if (request.CustomerId.HasValue && !string.IsNullOrWhiteSpace(request.CustomerEmail))
+                {
+                    var stripeCustomerId = await GetOrCreateStripeCustomerAsync(
+                        request.CustomerId.Value,
+                        request.CustomerEmail,
+                        request.CustomerName,
+                        cancellationToken);
+
+                    var paymentMethodService = new PaymentMethodService(_client);
+                    var paymentMethod = paymentIntent.PaymentMethod as PaymentMethod;
+
+                    if (paymentMethod is null && !string.IsNullOrEmpty(paymentIntent.PaymentMethodId))
+                    {
+                        paymentMethod = await paymentMethodService.GetAsync(
+                            paymentIntent.PaymentMethodId,
+                            cancellationToken: cancellationToken);
+                    }
+
+                    if (paymentMethod != null)
+                    {
+                        if (string.IsNullOrEmpty(paymentMethod.CustomerId))
+                        {
+                            try
+                            {
+                                await paymentMethodService.AttachAsync(
+                                    paymentMethod.Id,
+                                    new PaymentMethodAttachOptions { Customer = stripeCustomerId },
+                                    cancellationToken: cancellationToken);
+                            }
+                            catch (StripeException)
+                            {
+                                // Ignore attach failures (already attached or not attachable)
+                            }
+                        }
+
+                        var card = paymentMethod.Card;
+                        vaultDetails = new VaultConfirmResult
+                        {
+                            Success = true,
+                            ProviderMethodId = paymentMethod.Id,
+                            ProviderCustomerId = stripeCustomerId,
+                            MethodType = card != null ? SavedPaymentMethodType.Card : SavedPaymentMethodType.Other,
+                            CardBrand = card?.Brand,
+                            Last4 = card?.Last4,
+                            ExpiryMonth = (int?)card?.ExpMonth,
+                            ExpiryYear = (int?)card?.ExpYear,
+                            DisplayLabel = card != null
+                                ? $"{FormatCardBrand(card.Brand)} ending in {card.Last4}"
+                                : paymentMethod.Type ?? "Saved payment method",
+                            ExtendedData = card == null
+                                ? null
+                                : new Dictionary<string, object>
+                                {
+                                    ["fingerprint"] = card.Fingerprint ?? string.Empty,
+                                    ["funding"] = card.Funding ?? string.Empty,
+                                    ["country"] = card.Country ?? string.Empty
+                                }
+                        };
+                    }
+                }
+            }
+
+            var status = paymentIntent.Status?.ToLowerInvariant();
+            if (status is "requires_payment_method" or "canceled")
+            {
+                return PaymentResult.Failed($"Payment failed with status: {paymentIntent.Status}");
+            }
+
+            // For redirect-based providers and Payment Element, confirmation comes via webhook.
+            // Return pending status - the webhook will update the payment to completed.
+            return new PaymentResult
+            {
+                Success = true,
+                TransactionId = paymentIntent.Id,
+                Amount = request.Amount,
+                Status = PaymentResultStatus.Pending,
+                VaultedMethodDetails = vaultDetails
+            };
+        }
+        catch (StripeException ex)
+        {
+            return PaymentResult.Failed(ex.Message, ex.StripeError?.Code);
+        }
     }
 
     // =====================================================
@@ -1679,4 +1781,360 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             _ => null
         };
     }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Creates a Stripe SetupIntent for saving a payment method without charging.
+    /// Uses the SetupIntents API: https://docs.stripe.com/api/setup_intents
+    /// </remarks>
+    public override async Task<VaultSetupResult> CreateVaultSetupSessionAsync(
+        VaultSetupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.CustomerId == Guid.Empty)
+        {
+            return VaultSetupResult.Failed("CustomerId is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CustomerEmail))
+        {
+            return VaultSetupResult.Failed("CustomerEmail is required.");
+        }
+
+        if (_client is null)
+        {
+            return VaultSetupResult.Failed("Stripe is not configured. Please add your API keys.");
+        }
+
+        try
+        {
+            // First, get or create a Stripe Customer for this Merchello customer
+            var stripeCustomerId = await GetOrCreateStripeCustomerAsync(
+                request.CustomerId,
+                request.CustomerEmail,
+                request.CustomerName,
+                cancellationToken);
+
+            // Create a SetupIntent for saving the payment method
+            var setupIntentService = new SetupIntentService(_client);
+            var options = new SetupIntentCreateOptions
+            {
+                Customer = stripeCustomerId,
+                PaymentMethodTypes = ["card"],
+                Usage = "off_session", // Important: enables off-session charges
+                Metadata = new Dictionary<string, string>
+                {
+                    ["merchelloCustomerId"] = request.CustomerId.ToString(),
+                    ["source"] = "merchello-vault"
+                }
+            };
+
+            var setupIntent = await setupIntentService.CreateAsync(options, cancellationToken: cancellationToken);
+
+            return new VaultSetupResult
+            {
+                Success = true,
+                SetupSessionId = setupIntent.Id,
+                ClientSecret = setupIntent.ClientSecret,
+                ProviderCustomerId = stripeCustomerId,
+                SdkConfig = new Dictionary<string, object>
+                {
+                    ["publishableKey"] = _publishableKey ?? string.Empty,
+                    ["returnUrl"] = request.ReturnUrl ?? string.Empty
+                }
+            };
+        }
+        catch (StripeException ex)
+        {
+            return VaultSetupResult.Failed(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Confirms a SetupIntent and retrieves the saved payment method details.
+    /// The SetupIntent should have been confirmed client-side via stripe.confirmCardSetup().
+    /// </remarks>
+    public override async Task<VaultConfirmResult> ConfirmVaultSetupAsync(
+        VaultConfirmRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.SetupSessionId))
+        {
+            return VaultConfirmResult.Failed("SetupSessionId is required.");
+        }
+
+        if (_client is null)
+        {
+            return VaultConfirmResult.Failed("Stripe is not configured.");
+        }
+
+        try
+        {
+            // Retrieve the SetupIntent to get the payment method
+            var setupIntentService = new SetupIntentService(_client);
+            var setupIntent = await setupIntentService.GetAsync(
+                request.SetupSessionId,
+                new SetupIntentGetOptions { Expand = ["payment_method"] },
+                cancellationToken: cancellationToken);
+
+            // If not confirmed yet and a payment method was provided (test flow), confirm server-side
+            if (setupIntent.Status != "succeeded" && !string.IsNullOrWhiteSpace(request.PaymentMethodToken))
+            {
+                setupIntent = await setupIntentService.ConfirmAsync(
+                    request.SetupSessionId,
+                    new SetupIntentConfirmOptions
+                    {
+                        PaymentMethod = request.PaymentMethodToken
+                    },
+                    cancellationToken: cancellationToken);
+
+                // Ensure payment method details are expanded
+                if (setupIntent.PaymentMethod is null && !string.IsNullOrEmpty(setupIntent.PaymentMethodId))
+                {
+                    setupIntent = await setupIntentService.GetAsync(
+                        request.SetupSessionId,
+                        new SetupIntentGetOptions { Expand = ["payment_method"] },
+                        cancellationToken: cancellationToken);
+                }
+            }
+
+            if (setupIntent.Status != "succeeded")
+            {
+                return VaultConfirmResult.Failed($"SetupIntent not completed. Status: {setupIntent.Status}");
+            }
+
+            var paymentMethod = setupIntent.PaymentMethod;
+            if (paymentMethod is null)
+            {
+                return VaultConfirmResult.Failed("No payment method attached to SetupIntent.");
+            }
+
+            // Extract card details
+            var card = paymentMethod.Card;
+
+            return new VaultConfirmResult
+            {
+                Success = true,
+                ProviderMethodId = paymentMethod.Id,
+                ProviderCustomerId = setupIntent.CustomerId,
+                MethodType = SavedPaymentMethodType.Card,
+                CardBrand = card?.Brand,
+                Last4 = card?.Last4,
+                ExpiryMonth = (int?)card?.ExpMonth,
+                ExpiryYear = (int?)card?.ExpYear,
+                DisplayLabel = $"{FormatCardBrand(card?.Brand)} ending in {card?.Last4}",
+                ExtendedData = new Dictionary<string, object>
+                {
+                    ["fingerprint"] = card?.Fingerprint ?? string.Empty,
+                    ["funding"] = card?.Funding ?? string.Empty,
+                    ["country"] = card?.Country ?? string.Empty
+                }
+            };
+        }
+        catch (StripeException ex)
+        {
+            return VaultConfirmResult.Failed(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Charges a saved payment method off-session using the PaymentIntents API.
+    /// Uses off-session confirmation: https://docs.stripe.com/payments/save-and-reuse
+    /// </remarks>
+    public override async Task<PaymentResult> ChargeVaultedMethodAsync(
+        ChargeVaultedMethodRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderMethodId))
+        {
+            return PaymentResult.Failed("ProviderMethodId is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ProviderCustomerId))
+        {
+            return PaymentResult.Failed("ProviderCustomerId is required for Stripe vaulted charges.");
+        }
+
+        if (request.Amount <= 0)
+        {
+            return PaymentResult.Failed("Amount must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CurrencyCode))
+        {
+            return PaymentResult.Failed("CurrencyCode is required.");
+        }
+
+        if (_client is null)
+        {
+            return PaymentResult.Failed("Stripe is not configured.");
+        }
+
+        try
+        {
+            var paymentIntentService = new PaymentIntentService(_client);
+
+            var options = new PaymentIntentCreateOptions
+            {
+                Amount = ConvertToStripeAmount(request.Amount, request.CurrencyCode),
+                Currency = request.CurrencyCode.ToLowerInvariant(),
+                Customer = request.ProviderCustomerId,
+                PaymentMethod = request.ProviderMethodId,
+                OffSession = true, // Critical for off-session charges
+                Confirm = true,    // Immediately confirm the payment
+                Description = request.Description ?? $"Invoice #{request.InvoiceId}",
+                Metadata = new Dictionary<string, string>
+                {
+                    ["invoiceId"] = request.InvoiceId.ToString(),
+                    ["merchelloCustomerId"] = request.CustomerId.ToString(),
+                    ["source"] = "merchello-vaulted"
+                }
+            };
+
+            // Add idempotency key if provided
+            var requestOptions = new RequestOptions();
+            if (!string.IsNullOrEmpty(request.IdempotencyKey))
+            {
+                requestOptions.IdempotencyKey = request.IdempotencyKey;
+            }
+
+            var paymentIntent = await paymentIntentService.CreateAsync(
+                options, requestOptions, cancellationToken);
+
+            return paymentIntent.Status switch
+            {
+                "succeeded" => PaymentResult.Completed(paymentIntent.Id, request.Amount),
+                "processing" => PaymentResult.Pending(paymentIntent.Id, request.Amount),
+                "requires_action" => new PaymentResult
+                {
+                    Success = false,
+                    Status = PaymentResultStatus.RequiresAction,
+                    TransactionId = paymentIntent.Id,
+                    ErrorMessage = "Payment requires additional authentication. Customer must complete payment on-session."
+                },
+                _ => PaymentResult.Failed($"Payment failed with status: {paymentIntent.Status}")
+            };
+        }
+        catch (StripeException ex)
+        {
+            // Handle authentication required errors specially
+            if (ex.StripeError?.Code == "authentication_required")
+            {
+                return new PaymentResult
+                {
+                    Success = false,
+                    Status = PaymentResultStatus.RequiresAction,
+                    ErrorMessage = "This payment requires additional authentication. Customer must complete payment on-session.",
+                    ErrorCode = ex.StripeError.Code
+                };
+            }
+
+            return PaymentResult.Failed(ex.Message, ex.StripeError?.Code);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Detaches a payment method from a Stripe customer.
+    /// See: https://docs.stripe.com/api/payment_methods/detach
+    /// </remarks>
+    public override async Task<bool> DeleteVaultedMethodAsync(
+        string providerMethodId,
+        string? providerCustomerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_client is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var paymentMethodService = new PaymentMethodService(_client);
+            await paymentMethodService.DetachAsync(providerMethodId, cancellationToken: cancellationToken);
+            return true;
+        }
+        catch (StripeException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets or creates a Stripe Customer for the given Merchello customer.
+    /// </summary>
+    private async Task<string> GetOrCreateStripeCustomerAsync(
+        Guid merchelloCustomerId,
+        string email,
+        string? name,
+        CancellationToken cancellationToken)
+    {
+        var customerService = new CustomerService(_client);
+
+        // Search for existing customer by Merchello ID in metadata
+        var searchResults = await customerService.SearchAsync(new CustomerSearchOptions
+        {
+            Query = $"metadata['merchelloCustomerId']:'{merchelloCustomerId}'"
+        }, cancellationToken: cancellationToken);
+
+        if (searchResults.Data.Count > 0)
+        {
+            return searchResults.Data[0].Id;
+        }
+
+        // Also try searching by email as a fallback
+        var emailSearch = await customerService.SearchAsync(new CustomerSearchOptions
+        {
+            Query = $"email:'{email}'"
+        }, cancellationToken: cancellationToken);
+
+        if (emailSearch.Data.Count > 0)
+        {
+            // Update existing customer with Merchello ID
+            var existingCustomer = emailSearch.Data[0];
+            await customerService.UpdateAsync(existingCustomer.Id, new CustomerUpdateOptions
+            {
+                Metadata = new Dictionary<string, string>
+                {
+                    ["merchelloCustomerId"] = merchelloCustomerId.ToString()
+                }
+            }, cancellationToken: cancellationToken);
+            return existingCustomer.Id;
+        }
+
+        // Create new customer
+        var newCustomer = await customerService.CreateAsync(new CustomerCreateOptions
+        {
+            Email = email,
+            Name = name,
+            Metadata = new Dictionary<string, string>
+            {
+                ["merchelloCustomerId"] = merchelloCustomerId.ToString(),
+                ["source"] = "merchello"
+            }
+        }, cancellationToken: cancellationToken);
+
+        return newCustomer.Id;
+    }
+
+    /// <summary>
+    /// Format a card brand for display.
+    /// </summary>
+    private static string FormatCardBrand(string? brand) => brand?.ToLowerInvariant() switch
+    {
+        "visa" => "Visa",
+        "mastercard" => "Mastercard",
+        "amex" or "american_express" => "American Express",
+        "discover" => "Discover",
+        "diners" or "diners_club" => "Diners Club",
+        "jcb" => "JCB",
+        "unionpay" => "UnionPay",
+        _ => brand ?? "Card"
+    };
 }

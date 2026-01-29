@@ -1,6 +1,5 @@
 using Asp.Versioning;
 using FluentValidation;
-using Merchello.Controllers.Dtos;
 using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Extensions;
@@ -517,10 +516,7 @@ public class OrdersApiController(
             CurrencyCode = invoice.CurrencyCode
         });
 
-        var itemCount = orders
-            .SelectMany(o => o.LineItems ?? [])
-            .Where(li => li.LineItemType != LineItemType.Discount)
-            .Sum(li => li.Quantity);
+        var itemCount = GetItemCount(orders, li => li.LineItemType != LineItemType.Discount);
 
         var fulfillmentStatus = GetFulfillmentStatus(orders);
         var deliveryStatus = GetDeliveryStatus(orders);
@@ -667,12 +663,7 @@ public class OrdersApiController(
                 Author = n.Author,
                 IsVisibleToCustomer = n.VisibleToCustomer
             }).ToList() ?? [],
-            ItemCount = orders
-                .SelectMany(o => o.LineItems ?? [])
-                .Where(li => li.LineItemType == LineItemType.Product
-                          || li.LineItemType == LineItemType.Custom
-                          || li.LineItemType == LineItemType.Addon)
-                .Sum(li => li.Quantity),
+            ItemCount = GetItemCount(orders, li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon),
             CanFulfill = !invoice.IsCancelled && GetFulfillmentStatus(orders) != "Fulfilled",
             DueDate = invoice.DueDate,
             IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
@@ -795,6 +786,9 @@ public class OrdersApiController(
             FulfilmentRetryCount = order.FulfilmentRetryCount
         };
     }
+
+    private static int GetItemCount(List<Order> orders, Func<LineItem, bool> predicate) =>
+        orders.SelectMany(o => o.LineItems ?? []).Where(predicate).Sum(li => li.Quantity);
 
     private static string GetFulfillmentStatus(List<Order> orders)
     {

@@ -30,4 +30,9 @@ public class CreatePaymentSessionParameters
     /// URL to redirect to if payment is cancelled
     /// </summary>
     public required string CancelUrl { get; init; }
+
+    /// <summary>
+    /// Whether to request vaulting during payment session creation (provider-specific).
+    /// </summary>
+    public bool SavePaymentMethod { get; init; }
 }

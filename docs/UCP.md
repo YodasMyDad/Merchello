@@ -153,26 +153,28 @@ Idempotency-Key: abc123
     "version": "2026-01-11",
     "capabilities": ["dev.ucp.shopping.checkout"]
   },
-  "id": "chk_1234567890",
-  "status": "incomplete",
-  "currency": "USD",
-  "line_items": [...],
-  "totals": {
-    "subtotal": 5000,
-    "tax": 400,
-    "total": 5400
-  },
-  "messages": [
-    {
-      "type": "error",
-      "code": "missing",
-      "path": "$.buyer",
-      "content": "Buyer information required",
-      "severity": "requires_buyer_input"
+  "data": {
+    "id": "chk_1234567890",
+    "status": "incomplete",
+    "currency": "USD",
+    "line_items": [...],
+    "totals": {
+      "subtotal": 5000,
+      "tax": 400,
+      "total": 5400
+    },
+    "messages": [
+      {
+        "type": "error",
+        "code": "missing",
+        "path": "$.buyer",
+        "content": "Buyer information required",
+        "severity": "requires_buyer_input"
+      }
+    ],
+    "payment": {
+      "handlers": [...]
     }
-  ],
-  "payment": {
-    "handlers": [...]
   }
 }
 ```
@@ -2063,26 +2065,27 @@ UCP checkout capability and Order capability (webhooks) are fully implemented.
 
 ```
 src/Merchello.Core/Protocols/UCP/
-├── UCPProtocolAdapter.cs           # ICommerceProtocolAdapter implementation
-├── UCPAgentAuthenticator.cs        # IAgentAuthenticator implementation
-├── UCPManifestGenerator.cs         # Generates /.well-known/ucp profile
-├── UCPCapabilities.cs              # Capability definitions
-├── Dtos/
-│   ├── UCPCheckoutSessionDto.cs    # UCP-specific session format
-│   ├── UCPLineItemDto.cs
-│   ├── UCPPaymentHandlerDto.cs
-│   ├── UCPOrderDto.cs
-│   └── UCPFulfillmentDto.cs
-├── Handlers/
-│   └── UcpOrderWebhookHandler.cs   # Order lifecycle webhook handler
-├── Models/
-│   └── UcpAgentProfile.cs          # Agent profile models
-├── Services/
-│   ├── IUcpAgentProfileService.cs  # Agent profile service interface
-│   └── UcpAgentProfileService.cs   # Agent profile fetcher/cache
-└── Mapping/
-    └── UCPMapper.cs                # Maps to/from CheckoutSessionState
+|- UCPProtocolAdapter.cs           # ICommerceProtocolAdapter implementation
+|- Dtos/                           # UCP request/response DTOs
+|- Handlers/UcpOrderWebhookHandler.cs   # Order lifecycle webhook handler
+|- Models/UcpAgentProfile.cs            # Agent profile models
+|- Services/IUcpAgentProfileService.cs  # Agent profile service interface
+|- Services/UcpAgentProfileService.cs   # Agent profile fetcher/cache
+
+src/Merchello/Middleware/
+|- AgentAuthenticationMiddleware.cs     # UCP-Agent parsing + auth checks
+
+src/Merchello/Controllers/
+|- WellKnownController.cs               # /.well-known/ucp
+|- UcpCheckoutSessionsController.cs     # /api/v1/checkout-sessions
+
+src/Merchello.Core/Protocols/Payments/
+|- PaymentHandlerExporter.cs            # Exposes payment handlers to UCP
+
+Note: Checkout session mapping lives in CheckoutService.GetSessionStateAsync
+and UCPProtocolAdapter response mapping helpers (no separate UCPMapper.cs).
 ```
+
 
 ### Registration
 

@@ -136,4 +136,15 @@ public class Payment
     /// Set when the payment is created/updated via a provider webhook.
     /// </summary>
     public string? WebhookEventId { get; set; }
+
+    // =====================================================
+    // Non-persisted properties (populated at runtime)
+    // =====================================================
+
+    /// <summary>
+    /// The original PaymentResult from the provider.
+    /// Not persisted to database - only available immediately after ProcessPaymentAsync.
+    /// Contains VaultedMethodDetails if payment method was saved during checkout.
+    /// </summary>
+    public PaymentResult? PaymentResult { get; set; }
 }

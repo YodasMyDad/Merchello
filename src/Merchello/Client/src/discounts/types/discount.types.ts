@@ -88,6 +88,7 @@ export interface DiscountListItemDto {
   id: string;
   name: string;
   description?: string | null;
+  showInFeed: boolean;
   code?: string | null;
   status: DiscountStatus;
   statusLabel: string;
@@ -116,6 +117,8 @@ export interface DiscountDetailDto {
   id: string;
   name: string;
   description?: string | null;
+  showInFeed: boolean;
+  feedPromotionName?: string | null;
   status: DiscountStatus;
   statusLabel: string;
   statusColor: string;
@@ -218,6 +221,8 @@ export interface CreateDiscountEligibilityRuleDto {
 export interface CreateDiscountDto {
   name: string;
   description?: string | null;
+  showInFeed: boolean;
+  feedPromotionName?: string | null;
   category: DiscountCategory;
   method: DiscountMethod;
   code?: string | null;

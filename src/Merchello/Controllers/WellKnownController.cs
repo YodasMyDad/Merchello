@@ -2,6 +2,7 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
+using Merchello.Middleware;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -44,7 +45,7 @@ public class WellKnownController(
         }
 
         // Get agent identity from headers for capability negotiation
-        var agentIdentity = ParseAgentIdentity();
+        var agentIdentity = AgentAuthenticationMiddleware.GetAgentIdentity(HttpContext) ?? ParseAgentIdentity();
 
         // Get the manifest (negotiated if agent provides capabilities)
         var manifest = await protocolManager.GetNegotiatedManifestAsync(protocol, agentIdentity, ct);

@@ -80,6 +80,16 @@ public class PaymentResult
     public bool SkipPaymentRecording { get; init; }
 
     // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <summary>
+    /// Details of the vaulted payment method if SavePaymentMethod was true and successful.
+    /// The checkout controller uses this to create the SavedPaymentMethod record.
+    /// </summary>
+    public VaultConfirmResult? VaultedMethodDetails { get; init; }
+
+    // =====================================================
     // Factory methods
     // =====================================================
 

@@ -462,6 +462,72 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
 
 ---
 
+## Vaulted Payments (Saved Methods)
+
+Merchello supports saving payment methods for future use (off-session charges, repeat purchases, upsells).
+Providers opt in via metadata flags and implement the vault methods on `IPaymentProvider`.
+
+### Capability Flags (Provider Metadata)
+
+```csharp
+public override PaymentProviderMetadata Metadata => new()
+{
+    // ...
+    SupportsVaultedPayments = true,
+    RequiresProviderCustomerId = true // Stripe/Braintree, false for PayPal
+};
+```
+
+### Provider Setting (Backoffice Toggle)
+
+Vaulting is disabled by default and must be enabled per provider:
+
+- Setting: `PaymentProviderSetting.IsVaultingEnabled`
+- Backoffice label: **Enable Payment Method Vaulting**
+- Only shown when `SupportsVaultedPayments = true`
+
+### Required Interface Methods
+
+Implement these methods to support vaulted payments:
+
+```csharp
+Task<VaultSetupResult> CreateVaultSetupSessionAsync(
+    VaultSetupRequest request,
+    CancellationToken cancellationToken = default);
+
+Task<VaultConfirmResult> ConfirmVaultSetupAsync(
+    VaultConfirmRequest request,
+    CancellationToken cancellationToken = default);
+
+Task<PaymentResult> ChargeVaultedMethodAsync(
+    ChargeVaultedMethodRequest request,
+    CancellationToken cancellationToken = default);
+
+Task<bool> DeleteVaultedMethodAsync(
+    string providerMethodId,
+    string? providerCustomerId = null,
+    CancellationToken cancellationToken = default);
+```
+
+### Typical Flow
+
+1. **Create setup session** (`CreateVaultSetupSessionAsync`)  
+   Return a client secret or redirect URL so the frontend can collect consent.
+2. **Confirm setup** (`ConfirmVaultSetupAsync`)  
+   Exchange the temporary token for a permanent provider reference.
+3. **Save in Merchello**  
+   Merchello stores a `SavedPaymentMethod` record with display metadata only.
+4. **Off-session charge** (`ChargeVaultedMethodAsync`)  
+   Charge the saved method later without CVV re-entry.
+
+### Backoffice Testing
+
+The payment provider test modal includes a **Vault** tab when
+`SupportsVaultedPayments = true`. It exposes setup/confirm/charge/delete
+test endpoints to validate your implementation.
+
+---
+
 ## Frontend Integration
 
 ### Standard Payment Flow
@@ -1008,7 +1074,7 @@ const paypalAdapter = {
 - Unknown method types fall back to `express-button-default` CSS class
 
 ### Testing
-- Backoffice test modal has 4 tabs: Session, Payment Form, Express Checkout, Webhooks
+- Backoffice test modal has tabs for Session, Payment Form, Express Checkout, Webhooks, Payment Links, and Vault (when supported)
 - Implement `GetWebhookEventTemplatesAsync()` and `GenerateTestWebhookPayloadAsync()` for webhook simulation
 
 ### Payment Links

@@ -134,6 +134,7 @@ public class PaymentProvidersApiController(
             DisplayName = request.DisplayName ?? provider.Metadata.DisplayName,
             IsEnabled = request.IsEnabled,
             IsTestMode = request.IsTestMode,
+            IsVaultingEnabled = provider.Metadata.SupportsVaultedPayments && request.IsVaultingEnabled,
             Configuration = request.Configuration != null ? JsonSerializer.Serialize(request.Configuration) : null,
             SortOrder = maxSortOrder + 1
         };
@@ -178,6 +179,11 @@ public class PaymentProvidersApiController(
         if (request.IsTestMode.HasValue)
         {
             setting.IsTestMode = request.IsTestMode.Value;
+        }
+
+        if (request.IsVaultingEnabled.HasValue)
+        {
+            setting.IsVaultingEnabled = request.IsVaultingEnabled.Value;
         }
 
         if (request.Configuration != null)
@@ -647,6 +653,252 @@ public class PaymentProvidersApiController(
     }
 
     // ============================================
+    // Vault Testing Endpoints
+    // ============================================
+
+    /// <summary>
+    /// Create a vault setup session for testing.
+    /// Tests the provider's ability to create a SetupIntent or equivalent.
+    /// </summary>
+    [HttpPost("payment-providers/{id:guid}/test/vault-setup")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestVaultSetup(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        if (!provider.Metadata.SupportsVaultedPayments)
+        {
+            return BadRequest("This provider does not support vaulted payments.");
+        }
+
+        try
+        {
+            // Create a test customer ID for vault testing
+            var testCustomerId = Guid.NewGuid();
+
+            var request = new VaultSetupRequest
+            {
+                CustomerId = testCustomerId,
+                CustomerEmail = "test@example.com",
+                CustomerName = "Test Customer",
+                ReturnUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}/umbraco#/merchello/payment-providers?vault-return=true",
+                CancelUrl = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}/umbraco#/merchello/payment-providers?vault-cancel=true"
+            };
+
+            var result = await provider.Provider.CreateVaultSetupSessionAsync(request, cancellationToken);
+
+            return Ok(new
+            {
+                success = result.Success,
+                setupSessionId = result.SetupSessionId,
+                clientSecret = result.ClientSecret,
+                redirectUrl = result.RedirectUrl,
+                providerCustomerId = result.ProviderCustomerId,
+                errorMessage = result.ErrorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new
+            {
+                success = false,
+                errorMessage = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// Confirm a vault setup for testing.
+    /// Confirms the payment method was saved with the provider.
+    /// </summary>
+    [HttpPost("payment-providers/{id:guid}/test/vault-confirm")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestVaultConfirm(
+        Guid id,
+        [FromBody] TestVaultConfirmRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        if (!provider.Metadata.SupportsVaultedPayments)
+        {
+            return BadRequest("This provider does not support vaulted payments.");
+        }
+
+        try
+        {
+            var confirmRequest = new VaultConfirmRequest
+            {
+                CustomerId = Guid.NewGuid(), // Test customer
+                SetupSessionId = request.SetupSessionId,
+                PaymentMethodToken = request.PaymentMethodToken,
+                ProviderCustomerId = request.ProviderCustomerId
+            };
+
+            var result = await provider.Provider.ConfirmVaultSetupAsync(confirmRequest, cancellationToken);
+
+            return Ok(new
+            {
+                success = result.Success,
+                providerMethodId = result.ProviderMethodId,
+                providerCustomerId = result.ProviderCustomerId,
+                displayLabel = result.DisplayLabel,
+                cardBrand = result.CardBrand,
+                last4 = result.Last4,
+                expiryMonth = result.ExpiryMonth,
+                expiryYear = result.ExpiryYear,
+                errorMessage = result.ErrorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new
+            {
+                success = false,
+                errorMessage = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// Test charging a vaulted payment method.
+    /// </summary>
+    [HttpPost("payment-providers/{id:guid}/test/vault-charge")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestVaultCharge(
+        Guid id,
+        [FromBody] TestVaultChargeRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        if (!provider.Metadata.SupportsVaultedPayments)
+        {
+            return BadRequest("This provider does not support vaulted payments.");
+        }
+
+        try
+        {
+            var chargeRequest = new ChargeVaultedMethodRequest
+            {
+                InvoiceId = Guid.NewGuid(), // Test invoice
+                CustomerId = Guid.NewGuid(), // Test customer
+                ProviderMethodId = request.ProviderMethodId,
+                ProviderCustomerId = request.ProviderCustomerId,
+                Amount = request.Amount,
+                CurrencyCode = request.CurrencyCode ?? _settings.StoreCurrencyCode,
+                Description = "Test vault charge",
+                IdempotencyKey = $"test_{Guid.NewGuid():N}"
+            };
+
+            var result = await provider.Provider.ChargeVaultedMethodAsync(chargeRequest, cancellationToken);
+
+            return Ok(new
+            {
+                success = result.Success,
+                transactionId = result.TransactionId,
+                amount = result.Amount,
+                errorMessage = result.ErrorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new
+            {
+                success = false,
+                errorMessage = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// Delete a vaulted payment method for testing.
+    /// </summary>
+    [HttpDelete("payment-providers/{id:guid}/test/vault/{providerMethodId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestVaultDelete(
+        Guid id,
+        string providerMethodId,
+        [FromQuery] string? providerCustomerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var setting = await providerManager.GetProviderSettingAsync(id, cancellationToken);
+        if (setting == null)
+        {
+            return NotFound("Provider setting not found.");
+        }
+
+        var provider = await providerManager.GetProviderAsync(setting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            return NotFound("Provider not found.");
+        }
+
+        if (!provider.Metadata.SupportsVaultedPayments)
+        {
+            return BadRequest("This provider does not support vaulted payments.");
+        }
+
+        try
+        {
+            var success = await provider.Provider.DeleteVaultedMethodAsync(
+                providerMethodId,
+                providerCustomerId,
+                cancellationToken);
+
+            return Ok(new { success });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new
+            {
+                success = false,
+                errorMessage = ex.Message
+            });
+        }
+    }
+
+    // ============================================
     // Payment Method Settings Endpoints
     // ============================================
 
@@ -819,6 +1071,7 @@ public class PaymentProvidersApiController(
             IntegrationType = firstMethod?.IntegrationType ?? PaymentIntegrationType.Redirect,
             SupportsAuthAndCapture = meta.SupportsAuthAndCapture,
             SupportsPaymentLinks = meta.SupportsPaymentLinks,
+            SupportsVaultedPayments = meta.SupportsVaultedPayments,
             RequiresWebhook = meta.RequiresWebhook,
             WebhookPath = meta.WebhookPath,
             IsEnabled = registered.IsEnabled,
@@ -849,6 +1102,7 @@ public class PaymentProvidersApiController(
             DisplayName = setting.DisplayName,
             IsEnabled = setting.IsEnabled,
             IsTestMode = setting.IsTestMode,
+            IsVaultingEnabled = setting.IsVaultingEnabled,
             Configuration = config,
             SortOrder = setting.SortOrder,
             DateCreated = setting.DateCreated,
@@ -877,4 +1131,3 @@ public class PaymentProvidersApiController(
         };
     }
 }
-

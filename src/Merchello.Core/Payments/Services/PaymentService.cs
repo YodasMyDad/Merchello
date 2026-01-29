@@ -92,7 +92,8 @@ public class PaymentService(
                 Amount = 0,
                 Currency = string.Empty,
                 ReturnUrl = parameters.ReturnUrl,
-                CancelUrl = parameters.CancelUrl
+                CancelUrl = parameters.CancelUrl,
+                SavePaymentMethod = parameters.SavePaymentMethod
             };
 
             try
@@ -135,6 +136,7 @@ public class PaymentService(
             ReturnUrl = parameters.ReturnUrl,
             CancelUrl = parameters.CancelUrl,
             Description = $"Payment for Invoice {invoice.InvoiceNumber}",
+            SavePaymentMethod = parameters.SavePaymentMethod,
             Metadata = new()
             {
                 ["invoiceId"] = parameters.InvoiceId.ToString(),
@@ -253,7 +255,7 @@ public class PaymentService(
                         request.InvoiceId, request.ProviderAlias, paymentResult.TransactionId);
                 }
 
-                return await RecordPaymentAsync(
+                var recordResult = await RecordPaymentAsync(
                     new RecordPaymentParameters
                     {
                         InvoiceId = request.InvoiceId,
@@ -270,6 +272,14 @@ public class PaymentService(
                         MethodDisplayName = methodDisplayName
                     },
                     cancellationToken);
+
+                // Attach the PaymentResult to the Payment so controller can access VaultedMethodDetails
+                if (recordResult.ResultObject != null)
+                {
+                    recordResult.ResultObject.PaymentResult = paymentResult;
+                }
+
+                return recordResult;
             }
 
             if (paymentResult.Success)
