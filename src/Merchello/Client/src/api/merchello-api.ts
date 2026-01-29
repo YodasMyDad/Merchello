@@ -360,6 +360,18 @@ import type {
   DiscountPerformanceDto,
 } from '@discounts/types/discount.types.js';
 
+// Import upsell types
+import type {
+  UpsellDetailDto,
+  UpsellPageDto,
+  UpsellQueryParams,
+  CreateUpsellDto,
+  UpdateUpsellDto,
+  UpsellPerformanceDto,
+  UpsellDashboardDto,
+  UpsellSummaryDto,
+} from '@upsells/types/upsell.types.js';
+
 // Import email types
 import type {
   EmailConfigurationDto,
@@ -1510,6 +1522,68 @@ export const MerchelloApi = {
     if (endDate) params.set('endDate', endDate);
     const queryString = params.toString();
     return apiGet<DiscountPerformanceDto>(`discounts/${id}/performance${queryString ? `?${queryString}` : ''}`);
+  },
+
+  // ============================================
+  // Upsells API
+  // ============================================
+
+  /** Get paginated list of upsell rules */
+  getUpsells: (params?: UpsellQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<UpsellPageDto>(`upsells${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single upsell rule by ID with full details */
+  getUpsell: (id: string) =>
+    apiGet<UpsellDetailDto>(`upsells/${id}`),
+
+  /** Create a new upsell rule */
+  createUpsell: (data: CreateUpsellDto) =>
+    apiPost<UpsellDetailDto>('upsells', data),
+
+  /** Update an existing upsell rule */
+  updateUpsell: (id: string, data: UpdateUpsellDto) =>
+    apiPut<UpsellDetailDto>(`upsells/${id}`, data),
+
+  /** Delete an upsell rule */
+  deleteUpsell: (id: string) =>
+    apiDelete(`upsells/${id}`),
+
+  /** Activate an upsell rule */
+  activateUpsell: (id: string) =>
+    apiPost<UpsellDetailDto>(`upsells/${id}/activate`),
+
+  /** Deactivate an upsell rule */
+  deactivateUpsell: (id: string) =>
+    apiPost<UpsellDetailDto>(`upsells/${id}/deactivate`),
+
+  /** Get performance metrics for an upsell rule */
+  getUpsellPerformance: (id: string, startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    const queryString = params.toString();
+    return apiGet<UpsellPerformanceDto>(`upsells/${id}/performance${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get upsell analytics dashboard data */
+  getUpsellDashboard: (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    const queryString = params.toString();
+    return apiGet<UpsellDashboardDto>(`upsells/dashboard${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get aggregated upsell summary report */
+  getUpsellSummary: (startDate?: string, endDate?: string, topN?: number) => {
+    const params = new URLSearchParams();
+    if (startDate) params.set('startDate', startDate);
+    if (endDate) params.set('endDate', endDate);
+    if (topN) params.set('topN', topN.toString());
+    const queryString = params.toString();
+    return apiGet<UpsellSummaryDto[]>(`upsells/summary${queryString ? `?${queryString}` : ''}`);
   },
 
   // ============================================

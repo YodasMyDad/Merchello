@@ -1,5 +1,21 @@
 # Subscription System - Architecture
 
+## Prerequisites
+
+This feature builds on top of **Vaulted Payments** (fully implemented - see `docs/VaultedPayments.md`). The following infrastructure already exists and is reused by subscriptions:
+
+- **`SavedPaymentMethod` model & `ISavedPaymentMethodService`** - Storing and managing saved payment methods
+- **`GetOrCreateStripeCustomerAsync`** - Helper in `StripePaymentProvider` to find/create Stripe Customer objects
+- **`GetOrCreateBraintreeCustomerAsync`** - Helper in `BraintreePaymentProvider` to find/create Braintree Customer objects
+- **`PaymentProviderMetadata.SupportsVaultedPayments`** and **`RequiresProviderCustomerId`** - Already on metadata
+- **`PaymentProviderSetting.IsVaultingEnabled`** - Per-provider vault toggle
+- **Vault methods on `IPaymentProvider`** - `CreateVaultSetupSessionAsync`, `ConfirmVaultSetupAsync`, `ChargeVaultedMethodAsync`, `DeleteVaultedMethodAsync` with defaults in `PaymentProviderBase`
+- **Storefront saved methods API** - `StorefrontSavedPaymentMethodsController` for customer-facing management
+
+Subscriptions leverage this infrastructure for provider customer creation, payment method attachment, and off-session billing.
+
+---
+
 ## Overview
 
 Provider-managed subscription/recurring payments system for Merchello. Subscription billing is handled by payment gateways (Stripe Billing, PayPal Subscriptions, Braintree) while Merchello stores subscription metadata and syncs state via webhooks.
@@ -16,9 +32,10 @@ Merchello creates invoices when renewal webhooks are received, not via internal 
 **Benefits:**
 - PCI compliance managed by provider
 - Automatic retry logic and dunning management
-- Customer payment method updates via provider portal
+- Customer payment method updates via provider portal or Merchello's saved payment methods UI
 - Proven billing infrastructure
 - No internal cron job complexity
+- Customers with vaulted payment methods can subscribe with one click
 
 ## Architecture
 
@@ -159,12 +176,18 @@ Subscription capability is added to the existing `IPaymentProvider` interface (c
 
 #### PaymentProviderMetadata Additions
 
+Add subscription capabilities alongside the existing vaulted payments fields:
+
 ```csharp
 public class PaymentProviderMetadata
 {
     // Existing properties...
 
-    // Subscription capabilities
+    // Vaulted payments (already implemented)
+    public bool SupportsVaultedPayments { get; init; } = false;
+    public bool RequiresProviderCustomerId { get; init; } = false;
+
+    // Subscription capabilities (NEW)
     public bool SupportsSubscriptions { get; init; }
     public bool SupportsPause { get; init; }           // Not all providers support pause
     public bool SupportsQuantityChange { get; init; }  // For seat-based subscriptions
@@ -228,10 +251,18 @@ Task<CustomerPortalResult> CreateCustomerPortalSessionAsync(
 
 #### PaymentProviderBase Default Implementations
 
+`PaymentProviderBase` already has default implementations for the vault methods (`CreateVaultSetupSessionAsync`, `ConfirmVaultSetupAsync`, `ChargeVaultedMethodAsync`, `DeleteVaultedMethodAsync`). Subscription defaults follow the same pattern:
+
 ```csharp
 public abstract class PaymentProviderBase : IPaymentProvider
 {
-    // Subscription methods - default to not supported
+    // Vaulted payment methods - already implemented (see VaultedPayments.md Phase 2)
+    // public virtual Task<VaultSetupResult> CreateVaultSetupSessionAsync(...) => ...
+    // public virtual Task<VaultConfirmResult> ConfirmVaultSetupAsync(...) => ...
+    // public virtual Task<PaymentResult> ChargeVaultedMethodAsync(...) => ...
+    // public virtual Task<bool> DeleteVaultedMethodAsync(...) => ...
+
+    // Subscription methods (NEW) - default to not supported
     public virtual Task<CreateSubscriptionResult> CreateSubscriptionAsync(
         CreateSubscriptionRequest request, CancellationToken ct = default)
         => Task.FromResult(CreateSubscriptionResult.Failed("Subscriptions not supported by this provider"));
@@ -266,7 +297,10 @@ public class CreateSubscriptionRequest
     public int Quantity { get; init; }
 
     public int? TrialDays { get; init; }
-    public string? PaymentMethodToken { get; init; }
+
+    // Payment method - one of these should be provided:
+    public string? PaymentMethodToken { get; init; }    // Raw token from frontend SDK
+    public Guid? SavedPaymentMethodId { get; init; }    // Existing vaulted payment method (from ISavedPaymentMethodService)
 
     public string? SuccessUrl { get; init; }
     public string? CancelUrl { get; init; }
@@ -579,10 +613,14 @@ public class SubscriptionMetrics
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/merchello/checkout/subscription` | Create subscription |
+| POST | `/api/merchello/checkout/subscription` | Create subscription (accepts `savedPaymentMethodId` or new token) |
 | GET | `/api/merchello/my/subscriptions` | Customer's subscriptions |
 | POST | `/api/merchello/my/subscriptions/{id}/cancel` | Cancel own subscription |
 | GET | `/api/merchello/my/subscriptions/portal` | Get customer portal URL |
+
+> **Saved Payment Methods Integration:** The `POST /checkout/subscription` endpoint accepts either a `savedPaymentMethodId` (referencing a vaulted method from `ISavedPaymentMethodService`) or a raw `paymentMethodToken` from the frontend SDK. When a `savedPaymentMethodId` is provided, the service resolves the `ProviderMethodId` and `ProviderCustomerId` from the `SavedPaymentMethod` record and passes them to the provider. This enables one-click subscription signup for customers with saved payment methods.
+>
+> **Existing saved methods API:** Customers already manage their saved payment methods via `StorefrontSavedPaymentMethodsController` (`/api/merchello/storefront/payment-methods/*`). The subscription checkout UI should list these as payment options.
 
 ## Admin UI
 
@@ -782,6 +820,8 @@ if (basket.LineItems.Any(li => li.ExtendedData.ContainsKey("IsSubscription")))
 
 ## Stripe Integration
 
+> **Note:** `GetOrCreateStripeCustomerAsync` already exists in `StripePaymentProvider` from the vaulted payments implementation. It searches by `merchelloCustomerId` metadata, falls back to email, and creates a new Stripe Customer if needed. The subscription implementation reuses this helper directly - no duplication required. Similarly, `GetOrCreateBraintreeCustomerAsync` exists in `BraintreePaymentProvider`.
+
 ### Creating Subscriptions
 
 ```csharp
@@ -789,10 +829,11 @@ public async Task<CreateSubscriptionResult> CreateSubscriptionAsync(
     CreateSubscriptionRequest request,
     CancellationToken cancellationToken = default)
 {
-    // Get or create Stripe customer
+    // Reuses existing helper from vaulted payments implementation
     var customer = await GetOrCreateStripeCustomerAsync(
         request.CustomerId,
         request.CustomerEmail,
+        request.CustomerName,
         cancellationToken);
 
     // Create subscription
@@ -811,6 +852,12 @@ public async Task<CreateSubscriptionResult> CreateSubscriptionAsync(
             ["merchello_product_id"] = request.ProductId.ToString()
         }
     };
+
+    // Attach saved payment method if provided (from vaulted payments)
+    if (!string.IsNullOrEmpty(request.PaymentMethodToken))
+    {
+        options.DefaultPaymentMethod = request.PaymentMethodToken;
+    }
 
     if (request.TrialDays > 0)
     {
@@ -856,6 +903,12 @@ if (stripeEvent.Type == "invoice.paid")
 ```
 
 ### Customer Portal
+
+> **Note:** Stripe's customer portal allows customers to manage payment methods and subscriptions directly on Stripe's hosted UI. This overlaps with Merchello's existing saved payment methods management (`StorefrontSavedPaymentMethodsController`). Both approaches are valid:
+> - **Merchello saved methods UI** - Consistent UX across all providers, uses `ISavedPaymentMethodService`
+> - **Stripe customer portal** - Stripe-hosted, handles subscription changes + payment method updates in one place
+>
+> When a customer updates their payment method via Stripe's portal, the change is reflected at the Stripe level. Merchello's `SavedPaymentMethod` records should be synced via webhook or on next access. Consider adding a `subscription.payment_method_updated` webhook handler for this.
 
 ```csharp
 public async Task<CustomerPortalResult> CreateCustomerPortalSessionAsync(
@@ -957,6 +1010,7 @@ public class SimulateSubscriptionWebhookDto
 ### Provider Integration
 - [ ] Subscription creation via Stripe Checkout
 - [ ] Subscription creation with payment method token
+- [ ] Subscription creation with saved/vaulted payment method (SavedPaymentMethodId)
 - [ ] Trial period handling
 - [ ] Cancel subscription (at period end)
 - [ ] Cancel subscription (immediately)
@@ -1005,10 +1059,11 @@ public class SimulateSubscriptionWebhookDto
 - `src/Merchello.Core/Subscriptions/Models/CustomerPortalResult.cs`
 - `src/Merchello.Core/Subscriptions/Models/SubscriptionMetrics.cs`
 
-### Payment Provider Extensions (Modified Files)
-- `src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs` - Add subscription methods
-- `src/Merchello.Core/Payments/Providers/PaymentProviderBase.cs` - Add default implementations
-- `src/Merchello.Core/Payments/Models/PaymentProviderMetadata.cs` - Add `SupportsSubscriptions`, `SupportsPause`
+### Payment Provider Extensions (Modified Files - vault methods already present)
+
+- `src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs` - Add subscription methods (vault methods already exist)
+- `src/Merchello.Core/Payments/Providers/PaymentProviderBase.cs` - Add subscription defaults (vault defaults already exist)
+- `src/Merchello.Core/Payments/Models/PaymentProviderMetadata.cs` - Add `SupportsSubscriptions`, `SupportsPause` (vault fields already exist)
 
 ### Product Model Extensions (Modified Files)
 - `src/Merchello.Core/Products/Models/ProductRoot.cs` - Add `IsSubscriptionProduct`, billing properties

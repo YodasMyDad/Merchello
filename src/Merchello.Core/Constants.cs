@@ -64,6 +64,9 @@ public static class Constants
         public const string OriginalCurrency = "OriginalCurrency";
         public const string OriginalAmount = "OriginalAmount";
 
+        // Upsells
+        public const string UpsellImpressions = "MerchelloUpsellImpressions";  // JSON array of upsell impression records
+
         // Digital products
         public const string DigitalDeliveryMethod = "DigitalDeliveryMethod";    // "InstantDownload" or "EmailDelivered"
         public const string DigitalFileIds = "DigitalFileIds";                  // JSON array of Umbraco Media IDs

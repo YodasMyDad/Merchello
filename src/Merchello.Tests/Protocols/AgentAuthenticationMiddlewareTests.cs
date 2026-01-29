@@ -56,7 +56,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -79,7 +79,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -99,7 +99,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeFalse();
@@ -128,7 +128,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeFalse();
@@ -148,7 +148,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeFalse();
@@ -168,7 +168,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -188,7 +188,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -207,7 +207,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -227,7 +227,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -251,7 +251,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         capturedNotification.ShouldNotBeNull();
@@ -270,7 +270,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
         var identity = AgentAuthenticationMiddleware.GetAgentIdentity(context);
 
         // Assert
@@ -296,7 +296,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -322,7 +322,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -341,7 +341,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -362,7 +362,7 @@ public class AgentAuthenticationMiddlewareTests
             settings);
 
         // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
 
         // Assert
         nextCalled.ShouldBeTrue();
@@ -417,7 +417,6 @@ public class AgentAuthenticationMiddlewareTests
         return new AgentAuthenticationMiddleware(
             next,
             _logger.Object,
-            settings,
-            _agentProfileService.Object);
+            settings);
     }
 }

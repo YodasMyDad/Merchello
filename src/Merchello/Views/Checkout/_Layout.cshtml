@@ -10,7 +10,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>@(settings.CompanyName ?? "Checkout") - @Model.Step</title>
 
-    @if (Model.Step != CheckoutStep.Confirmation)
+    @if (Model.Step != CheckoutStep.Confirmation && Model.Step != CheckoutStep.PostPurchase)
     {
         <!-- Import map for ES module resolution - Alpine loaded as module for controlled startup -->
         <script type="importmap">
@@ -92,7 +92,7 @@
         </div>
     </header>
 
-    @if (!Model.IsSinglePageCheckout && Model.Step != CheckoutStep.Confirmation)
+    @if (!Model.IsSinglePageCheckout && Model.Step != CheckoutStep.Confirmation && Model.Step != CheckoutStep.PostPurchase)
     {
         <!-- Breadcrumb Navigation (multi-page checkout only, not on confirmation) -->
         <nav class="bg-gray-50 border-b border-gray-200">

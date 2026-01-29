@@ -42,6 +42,11 @@ public interface ICheckoutSessionService
     Task SaveEmailAsync(Guid basketId, string email, CancellationToken ct = default);
 
     /// <summary>
+    /// Stores upsell impressions in the checkout session for conversion attribution.
+    /// </summary>
+    Task AddUpsellImpressionsAsync(AddUpsellImpressionsParameters parameters, CancellationToken ct = default);
+
+    /// <summary>
     /// Saves a basket to the HTTP session.
     /// </summary>
     /// <param name="basket">The basket to save.</param>

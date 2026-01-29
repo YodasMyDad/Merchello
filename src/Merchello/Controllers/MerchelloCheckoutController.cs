@@ -288,6 +288,43 @@ public class MerchelloCheckoutController(
             return View("~/Views/Checkout/Confirmation.cshtml", confirmationViewModel);
         }
 
+        // Handle post-purchase upsell step
+        if (checkoutPage.Step == CheckoutStep.PostPurchase)
+        {
+            // Prevent caching of post-purchase page
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
+
+            var postPurchaseViewModel = new CheckoutViewModel(
+                checkoutPage.Step,
+                _settings);
+
+            if (!checkoutPage.InvoiceId.HasValue)
+            {
+                return View("~/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
+            }
+
+            // Security: Verify the user has permission to view this post-purchase flow
+            var confirmationToken = Request.Cookies[Core.Constants.Cookies.ConfirmationToken];
+            if (string.IsNullOrEmpty(confirmationToken) ||
+                !Guid.TryParse(confirmationToken, out var tokenInvoiceId) ||
+                tokenInvoiceId != checkoutPage.InvoiceId.Value)
+            {
+                logger.LogWarning(
+                    "Unauthorized post-purchase access attempt for invoice {InvoiceId}. Token: {Token}",
+                    checkoutPage.InvoiceId.Value,
+                    confirmationToken ?? "missing");
+
+                return View("~/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
+            }
+
+            ViewData["InvoiceId"] = checkoutPage.InvoiceId.Value;
+            ViewData["ConfirmationUrl"] = $"/checkout/confirmation/{checkoutPage.InvoiceId.Value}";
+
+            return View("~/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
+        }
+
         // Handle payment return/cancel steps
         if (checkoutPage.Step == CheckoutStep.PaymentReturn)
         {

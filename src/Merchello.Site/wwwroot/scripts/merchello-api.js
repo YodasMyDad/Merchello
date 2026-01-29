@@ -230,6 +230,43 @@ const MerchelloApi = {
             const query = params.toString();
             return MerchelloApi.request(`/products/${productId}/availability${query ? '?' + query : ''}`);
         }
+    },
+
+    // =========================================================================
+    // Upsell Operations
+    // =========================================================================
+
+    upsells: {
+        /**
+         * Get upsell suggestions for the current basket at a specific display location.
+         * @param {string} location - Display location: Checkout, Basket, ProductPage, Email, Confirmation
+         * @returns {Promise<{success: boolean, data?: UpsellSuggestionDto[]}>}
+         */
+        async getSuggestions(location) {
+            const params = new URLSearchParams({ location });
+            return MerchelloApi.request(`/upsells?${params}`);
+        },
+
+        /**
+         * Get upsell suggestions for a specific product page.
+         * @param {string} productId - Product ID
+         * @returns {Promise<{success: boolean, data?: UpsellSuggestionDto[]}>}
+         */
+        async getProductSuggestions(productId) {
+            return MerchelloApi.request(`/upsells/product/${productId}`);
+        },
+
+        /**
+         * Record upsell impression and click events (batch).
+         * @param {Array<{upsellRuleId: string, eventType: string, productId?: string, displayLocation: number}>} events
+         * @returns {Promise<{success: boolean}>}
+         */
+        async recordEvents(events) {
+            return MerchelloApi.request('/upsells/events', {
+                method: 'POST',
+                body: JSON.stringify({ events })
+            });
+        }
     }
 };
 

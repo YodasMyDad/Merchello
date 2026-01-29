@@ -109,6 +109,10 @@ using Merchello.Core.Suppliers.Services;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Accounting;
 using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Upsells.Factories;
+using Merchello.Core.Upsells.Models;
+using Merchello.Core.Upsells.Services;
+using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Email.Services;
@@ -189,6 +193,8 @@ public static class Startup
         builder.Services.Configure<ProtocolSettings>(builder.Config.GetSection("Merchello:Protocols"));
         // Fulfilment provider settings (retries, polling intervals)
         builder.Services.Configure<Core.Fulfilment.FulfilmentSettings>(builder.Config.GetSection("Merchello:Fulfilment"));
+        // Upsell feature settings (suggestions per location, cache duration, event retention)
+        builder.Services.Configure<UpsellSettings>(builder.Config.GetSection("Merchello:Upsells"));
 
         // =====================================================
         // Infrastructure (Singletons)
@@ -237,6 +243,9 @@ public static class Startup
         // Discounts
         builder.Services.AddSingleton<DiscountFactory>();
 
+        // Upsells
+        builder.Services.AddSingleton<UpsellFactory>();
+
         // Other
         builder.Services.AddSingleton<ShippingOptionFactory>();
         builder.Services.AddSingleton<SupplierFactory>();
@@ -273,6 +282,14 @@ public static class Startup
         builder.Services.AddScoped<IDiscountRuleNameResolver, DiscountRuleNameResolver>();
         builder.Services.AddScoped<IDiscountEngine, DiscountEngine>();
         builder.Services.AddScoped<IBuyXGetYCalculator, BuyXGetYCalculator>();
+
+        // Upsells
+        builder.Services.AddScoped<IUpsellService, UpsellService>();
+        builder.Services.AddScoped<IUpsellRuleNameResolver, UpsellRuleNameResolver>();
+        builder.Services.AddScoped<IUpsellEngine, UpsellEngine>();
+        builder.Services.AddScoped<IUpsellContextBuilder, UpsellContextBuilder>();
+        builder.Services.AddSingleton<IUpsellAnalyticsService, UpsellAnalyticsService>();
+        builder.Services.AddScoped<IPostPurchaseUpsellService, PostPurchaseUpsellService>();
 
         // Products & Inventory
         builder.Services.AddScoped<IProductService, ProductService>();
@@ -391,6 +408,7 @@ public static class Startup
 
         builder.Services.AddHostedService<ExchangeRateRefreshJob>();        // Refreshes currency exchange rates from configured provider
         builder.Services.AddHostedService<DiscountStatusJob>();             // Marks expired discounts as inactive
+        builder.Services.AddHostedService<UpsellStatusJob>();               // Transitions scheduled/expired upsells, cleans up old events
         builder.Services.AddHostedService<OutboundDeliveryJob>();           // Retries failed webhook/email deliveries, cleans up old logs
         builder.Services.AddHostedService<InvoiceReminderJob>();            // Sends payment reminder and overdue notifications
         builder.Services.AddHostedService<AbandonedCheckoutDetectionJob>(); // Detects abandoned carts and triggers recovery emails
@@ -527,6 +545,11 @@ public static class Startup
         builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, EmailNotificationHandler>();
         // Digital Products
         builder.AddNotificationAsyncHandler<Core.DigitalProducts.Notifications.DigitalProductDeliveredNotification, EmailNotificationHandler>();
+
+        // Upsells
+        builder.AddNotificationAsyncHandler<OrderCreatedNotification, UpsellEmailEnrichmentHandler>();
+        builder.AddNotificationAsyncHandler<OrderCreatedNotification, UpsellConversionHandler>();
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, PaymentPostPurchaseHandler>();
 
         // =====================================================
         // Startup Handlers

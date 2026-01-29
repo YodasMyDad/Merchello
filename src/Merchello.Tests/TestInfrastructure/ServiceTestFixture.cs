@@ -71,6 +71,11 @@ using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Upsells.Factories;
+using Merchello.Core.Upsells.Dtos;
+using Merchello.Core.Upsells.Models;
+using Merchello.Core.Upsells.Services;
+using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Services;
@@ -274,6 +279,7 @@ public class ServiceTestFixture : IDisposable
 
         // Logging
         services.AddLogging(builder => builder.AddDebug().SetMinimumLevel(LogLevel.Debug));
+        services.AddMemoryCache();
 
         // DbContext with SQLite
         services.AddDbContext<MerchelloDbContext>(options =>
@@ -316,6 +322,18 @@ public class ServiceTestFixture : IDisposable
             DefaultRounding = MidpointRounding.AwayFromZero
         };
         services.AddSingleton(Options.Create(merchelloSettings));
+
+        var upsellSettings = new UpsellSettings
+        {
+            Enabled = true,
+            MaxSuggestionsPerLocation = 3,
+            CacheDurationSeconds = 60,
+            EventRetentionDays = 30,
+            EnablePostPurchase = true,
+            PostPurchaseTimeoutSeconds = 60,
+            PostPurchaseFulfillmentHoldMinutes = 5
+        };
+        services.AddSingleton(Options.Create(upsellSettings));
 
         // Currency services
         services.AddScoped<ICurrencyService, CurrencyService>();
@@ -463,6 +481,14 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<ILineItemService, LineItemService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IDiscountService, DiscountService>();
+
+        // Upsells
+        services.AddSingleton<UpsellFactory>();
+        services.AddScoped<IUpsellService, UpsellService>();
+        services.AddScoped<IUpsellRuleNameResolver, UpsellRuleNameResolver>();
+        services.AddScoped<IUpsellEngine, UpsellEngine>();
+        services.AddScoped<IUpsellContextBuilder, UpsellContextBuilder>();
+        services.AddSingleton<IUpsellAnalyticsService, UpsellAnalyticsService>();
 
         // Mock rate limiter (always allows requests for tests)
         var rateLimiterMock = new Mock<IRateLimiter>();
@@ -1045,6 +1071,31 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<Discount>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<PaginatedList<Discount>>> func) => func(dbContext));
+
+                // Upsell return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<UpsellRule?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<UpsellRule?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<UpsellRule>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<UpsellRule>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<UpsellRule>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PaginatedList<UpsellRule>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<UpsellPerformanceDto?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<UpsellPerformanceDto?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<UpsellSummaryDto>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<UpsellSummaryDto>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<UpsellDashboardDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<UpsellDashboardDto>> func) => func(dbContext));
 
                 // Shipment return types
                 scopeMock

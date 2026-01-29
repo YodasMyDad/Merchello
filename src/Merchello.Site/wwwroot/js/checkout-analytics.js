@@ -25,6 +25,10 @@
  * - checkout:coupon_removed    - Discount code removed
  * - checkout:purchase          - Order completed successfully
  * - checkout:error             - Payment or validation error
+ * - checkout:post_purchase_view - Post-purchase upsell page shown
+ * - checkout:post_purchase_add  - Post-purchase upsell item added
+ * - checkout:post_purchase_skip - Post-purchase skipped/expired
+ * - checkout:post_purchase_error- Post-purchase error
  *
  * Built-in helper methods (on window.MerchelloCheckout):
  * - mapToGA4Item(item)       - Transform item for GA4 format
@@ -43,6 +47,10 @@
         }
 
         var mc = window.MerchelloCheckout;
+        var mapItems = function(items) {
+            if (!items || !Array.isArray(items)) return [];
+            return items.map(mc.mapToGA4Item);
+        };
 
         // ============================================
         // Google Tag Manager / GA4
@@ -119,6 +127,56 @@
             });
         });
 
+        // Post-purchase upsell view
+        mc.on('checkout:post_purchase_view', function(data) {
+            dataLayer.push({
+                event: 'post_purchase_view',
+                invoice_id: data.invoice_id,
+                suggestion_count: data.suggestion_count,
+                product_count: data.product_count,
+                time_remaining_seconds: data.time_remaining_seconds
+            });
+        });
+
+        // Post-purchase upsell add (one-click charge)
+        mc.on('checkout:post_purchase_add', function(data) {
+            dataLayer.push({ ecommerce: null });
+            dataLayer.push({
+                event: 'post_purchase_add',
+                ecommerce: {
+                    currency: data.currency,
+                    value: data.value,
+                    tax: data.tax,
+                    shipping: data.shipping,
+                    items: mapItems(data.items)
+                },
+                invoice_id: data.invoice_id,
+                upsell_rule_id: data.upsell_rule_id,
+                transaction_id: data.transaction_id
+            });
+        });
+
+        // Post-purchase skip/expiry
+        mc.on('checkout:post_purchase_skip', function(data) {
+            dataLayer.push({
+                event: 'post_purchase_skip',
+                invoice_id: data.invoice_id,
+                reason: data.reason,
+                time_remaining_seconds: data.time_remaining_seconds
+            });
+        });
+
+        // Post-purchase errors
+        mc.on('checkout:post_purchase_error', function(data) {
+            dataLayer.push({
+                event: 'post_purchase_error',
+                invoice_id: data.invoice_id,
+                error_type: data.error_type,
+                error_message: data.message,
+                product_id: data.product_id
+            });
+        });
+
         // Optional: Track coupon usage
         mc.on('checkout:coupon_applied', function(data) {
             dataLayer.push({
@@ -172,6 +230,40 @@
                     contents: mc.mapToMetaContents(data.items),
                     content_type: 'product',
                     num_items: mc.getTotalQuantity(data.items)
+                });
+            });
+
+            mc.on('checkout:post_purchase_view', function(data) {
+                fbq('trackCustom', 'PostPurchaseView', {
+                    invoice_id: data.invoice_id,
+                    suggestion_count: data.suggestion_count,
+                    product_count: data.product_count
+                });
+            });
+
+            mc.on('checkout:post_purchase_add', function(data) {
+                fbq('track', 'AddToCart', {
+                    currency: data.currency,
+                    value: data.value,
+                    content_ids: mc.getContentIds(data.items),
+                    contents: mc.mapToMetaContents(data.items),
+                    content_type: 'product',
+                    num_items: mc.getTotalQuantity(data.items)
+                });
+            });
+
+            mc.on('checkout:post_purchase_skip', function(data) {
+                fbq('trackCustom', 'PostPurchaseSkip', {
+                    invoice_id: data.invoice_id,
+                    reason: data.reason
+                });
+            });
+
+            mc.on('checkout:post_purchase_error', function(data) {
+                fbq('trackCustom', 'PostPurchaseError', {
+                    invoice_id: data.invoice_id,
+                    error_type: data.error_type,
+                    product_id: data.product_id
                 });
             });
         }

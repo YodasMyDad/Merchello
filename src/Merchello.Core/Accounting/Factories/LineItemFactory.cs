@@ -314,8 +314,13 @@ public class LineItemFactory(ICurrencyService currencyService)
         int quantity,
         bool isTaxable,
         decimal taxRate,
-        Dictionary<string, object>? extendedData = null)
+        Dictionary<string, object>? extendedData = null,
+        decimal? unitPriceOverride = null,
+        decimal? originalAmountOverride = null)
     {
+        var unitPrice = unitPriceOverride ?? product.Price;
+        var originalAmount = originalAmountOverride ?? unitPrice;
+
         return new LineItem
         {
             Id = GuidExtensions.NewSequentialGuid,
@@ -324,11 +329,13 @@ public class LineItemFactory(ICurrencyService currencyService)
             ProductId = product.Id,
             Name = product.Name ?? product.ProductRoot?.RootName ?? "Unknown Product",
             Sku = product.Sku ?? $"PROD-{product.Id:N}"[..20],
-            Amount = product.Price,
-            OriginalAmount = product.Price,
+            Amount = unitPrice,
+            OriginalAmount = originalAmount,
             Quantity = quantity,
+            Cost = product.CostOfGoods,
             IsTaxable = isTaxable,
             TaxRate = taxRate,
+            TaxGroupId = product.ProductRoot?.TaxGroupId,
             ExtendedData = extendedData ?? []
         };
     }

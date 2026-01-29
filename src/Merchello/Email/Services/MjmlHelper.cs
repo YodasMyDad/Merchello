@@ -3,6 +3,8 @@ using System.Text.Encodings.Web;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Notifications.Base;
+using Merchello.Core.Upsells.Models;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +35,9 @@ public interface IMjmlHelper
     IHtmlContent OrderSummary(Invoice invoice);
     IHtmlContent AddressBlock(Address? address, string? title = null);
     IHtmlContent LineItemsTable(IEnumerable<LineItem> items, string? currencySymbol = null);
+
+    // Upsells
+    IHtmlContent UpsellSuggestions(MerchelloNotification notification);
 }
 
 /// <summary>
@@ -338,6 +343,64 @@ public class MjmlHelper : IMjmlHelper
         }
 
         sb.AppendLine("</mj-table>");
+
+        return new HtmlString(sb.ToString());
+    }
+
+    public IHtmlContent UpsellSuggestions(MerchelloNotification notification)
+    {
+        if (!notification.State.TryGetValue("UpsellSuggestions", out var raw) ||
+            raw is not List<UpsellSuggestion> suggestions ||
+            suggestions.Count == 0)
+        {
+            return HtmlString.Empty;
+        }
+
+        var sb = new StringBuilder();
+
+        foreach (var suggestion in suggestions)
+        {
+            // Heading section
+            sb.AppendLine("<mj-section>");
+            sb.AppendLine("  <mj-column>");
+            sb.AppendLine($"    <mj-text font-size=\"20px\" font-weight=\"bold\">{HtmlEncode(suggestion.Heading)}</mj-text>");
+            if (!string.IsNullOrEmpty(suggestion.Message))
+            {
+                sb.AppendLine($"    <mj-text>{HtmlEncode(suggestion.Message)}</mj-text>");
+            }
+            sb.AppendLine("  </mj-column>");
+            sb.AppendLine("</mj-section>");
+
+            // Product cards (up to 3 per suggestion)
+            var products = suggestion.Products.Take(3).ToList();
+            if (products.Count > 0)
+            {
+                var columnWidth = products.Count switch
+                {
+                    1 => "100%",
+                    2 => "50%",
+                    _ => "33%"
+                };
+
+                sb.AppendLine("<mj-section>");
+                foreach (var product in products)
+                {
+                    sb.AppendLine($"  <mj-column width=\"{columnWidth}\">");
+                    if (product.Images.Count > 0)
+                    {
+                        sb.AppendLine($"    <mj-image src=\"{HtmlEncode(product.Images[0])}\" width=\"150px\" />");
+                    }
+                    sb.AppendLine($"    <mj-text align=\"center\" font-weight=\"bold\">{HtmlEncode(product.Name)}</mj-text>");
+                    sb.AppendLine($"    <mj-text align=\"center\">{HtmlEncode(product.FormattedPrice)}</mj-text>");
+                    if (!string.IsNullOrEmpty(product.Url))
+                    {
+                        sb.AppendLine($"    <mj-button href=\"{HtmlEncode(product.Url)}\" background-color=\"{HtmlEncode(_theme.PrimaryColor)}\">View Product</mj-button>");
+                    }
+                    sb.AppendLine("  </mj-column>");
+                }
+                sb.AppendLine("</mj-section>");
+            }
+        }
 
         return new HtmlString(sb.ToString());
     }

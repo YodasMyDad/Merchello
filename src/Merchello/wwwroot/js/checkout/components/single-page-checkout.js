@@ -83,6 +83,15 @@ export function initSinglePageCheckout() {
             selectedPaymentMethodKey: '',
 
             // ============================================
+            // Upsell Local State
+            // ============================================
+
+            /** @type {Object.<string, string>} Selected variant for upsell product by productRootId */
+            selectedUpsellVariant: {},
+            /** @type {string|null} Product ID currently being added from upsells */
+            upsellAddingProductId: null,
+
+            // ============================================
             // Private State
             // ============================================
             //
@@ -168,6 +177,13 @@ export function initSinglePageCheckout() {
             get basketSubtotal() { return this.$store.checkout?.basket?.subtotal ?? 0; },
             get currencySymbol() { return this.$store.checkout?.currency?.symbol ?? '£'; },
 
+            // Upsell store getters
+            get upsellSuggestions() { return this.$store.checkout?.upsellSuggestions ?? []; },
+            get upsellsLoading() { return this.$store.checkout?.upsellsLoading ?? false; },
+            get interstitialDismissed() { return this.$store.checkout?.interstitialDismissed ?? false; },
+            get inlineUpsellsCollapsed() { return this.$store.checkout?.inlineUpsellsCollapsed ?? false; },
+            get upsellAddingToCart() { return this.$store.checkout?.upsellAddingToCart ?? false; },
+
             // ============================================
             // Computed Properties
             // ============================================
@@ -225,6 +241,23 @@ export function initSinglePageCheckout() {
 
             get calculatedShipping() {
                 return this.$store.checkout?.basket?.shipping ?? 0;
+            },
+
+            get showInterstitial() {
+                return this.$store.checkout?.shouldShowInterstitial() ?? false;
+            },
+
+            get inlineSuggestions() {
+                return this.$store.checkout?.getSuggestionsByMode('Inline') ?? [];
+            },
+
+            get interstitialSuggestions() {
+                return this.$store.checkout?.getSuggestionsByMode('Interstitial') ?? [];
+            },
+
+            get hasInlineUpsells() {
+                return this.inlineSuggestions.length > 0 &&
+                       this.inlineSuggestions.some(s => s.products.length > 0);
             },
 
             /**
@@ -288,6 +321,11 @@ export function initSinglePageCheckout() {
                 // Track checkout begin
                 if (window.MerchelloSinglePageAnalytics) {
                     window.MerchelloSinglePageAnalytics.trackBegin();
+                }
+
+                // Load upsell suggestions after shipping is calculated
+                if (this._shippingCalculated) {
+                    this.loadCheckoutUpsells();
                 }
 
                 // CROSS-COMPONENT COORDINATION: Other components (e.g., discount code input,
@@ -1179,6 +1217,148 @@ export function initSinglePageCheckout() {
              * 2. Set isSubmitting = true (blocks payment form re-init, see PHANTOM ORDER PREVENTION)
              * 3. Save addresses to backend (with optional password for account creation)
              * 4. Save shipping selections to backend
+            // ============================================
+            // Upsell Methods
+            // ============================================
+
+            async loadCheckoutUpsells() {
+                const store = this.$store.checkout;
+                if (!this.form.shipping.countryCode) return;
+
+                store?.setUpsellsLoading(true);
+                store?.setUpsellsError(null);
+
+                try {
+                    const params = new URLSearchParams({ location: 'Checkout' });
+                    const result = await checkoutApi.request(`/upsells?${params}`);
+
+                    if (result.success) {
+                        store?.setUpsellSuggestions(result.data || []);
+                        if (result.data?.length > 0) {
+                            this.trackUpsellImpressions(result.data);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load checkout upsells:', error);
+                    store?.setUpsellsError('Unable to load recommendations');
+                } finally {
+                    store?.setUpsellsLoading(false);
+                }
+            },
+
+            async trackUpsellImpressions(suggestions) {
+                const events = suggestions.flatMap(s =>
+                    s.products.map(p => ({
+                        upsellRuleId: s.upsellRuleId,
+                        productId: p.productId,
+                        eventType: 'Impression',
+                        displayLocation: 1 // Checkout
+                    }))
+                );
+
+                if (events.length === 0) return;
+
+                try {
+                    await checkoutApi.request('/upsells/events', {
+                        method: 'POST',
+                        body: JSON.stringify({ events })
+                    });
+                } catch (error) {
+                    console.error('Failed to track upsell impressions:', error);
+                }
+            },
+
+            async trackUpsellClick(upsellRuleId, productId) {
+                try {
+                    await checkoutApi.request('/upsells/events', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            events: [{
+                                upsellRuleId,
+                                productId,
+                                eventType: 'Click',
+                                displayLocation: 1 // Checkout
+                            }]
+                        })
+                    });
+                } catch (error) {
+                    console.error('Failed to track upsell click:', error);
+                }
+            },
+
+            async addUpsellToCart(product, upsellRuleId) {
+                const store = this.$store.checkout;
+                if (store?.upsellAddingToCart) return;
+
+                const productIdToAdd = product.hasVariants
+                    ? (this.selectedUpsellVariant[product.productRootId] || product.variants?.[0]?.productId)
+                    : product.productId;
+
+                if (!productIdToAdd) {
+                    this.announce('Please select a variant');
+                    return;
+                }
+
+                store?.setUpsellAddingToCart(true);
+                this.upsellAddingProductId = product.productId;
+
+                try {
+                    await this.trackUpsellClick(upsellRuleId, productIdToAdd);
+
+                    const result = await checkoutApi.request('/basket/add', {
+                        method: 'POST',
+                        body: JSON.stringify({ productId: productIdToAdd, quantity: 1 })
+                    });
+
+                    if (!result.success) {
+                        throw new Error(result.error || 'Failed to add item');
+                    }
+
+                    store?.markUpsellProductAdded(product.productRootId);
+
+                    // Recalculate shipping if address is available
+                    if (this.canCalculateShipping) {
+                        await this.calculateShipping();
+                    }
+
+                    // Refresh upsells (added product should be suppressed if SuppressIfInCart)
+                    await this.loadCheckoutUpsells();
+
+                    this.announce(`${product.name} added to your order`);
+                } catch (error) {
+                    console.error('Failed to add upsell to cart:', error);
+                    this.announce(error.message || 'Failed to add item to cart');
+                } finally {
+                    store?.setUpsellAddingToCart(false);
+                    this.upsellAddingProductId = null;
+                }
+            },
+
+            selectUpsellVariant(productRootId, variantProductId) {
+                this.selectedUpsellVariant = {
+                    ...this.selectedUpsellVariant,
+                    [productRootId]: variantProductId
+                };
+            },
+
+            dismissInterstitial() {
+                this.$store.checkout?.dismissInterstitial();
+                this.announce('Continuing to checkout');
+            },
+
+            toggleInlineUpsells() {
+                this.$store.checkout?.toggleInlineUpsells();
+            },
+
+            isAddingUpsellProduct(productId) {
+                return this.upsellAddingProductId === productId;
+            },
+
+            wasUpsellAdded(productRootId) {
+                return this.$store.checkout?.wasUpsellProductAdded(productRootId) ?? false;
+            },
+
+            /**
              * 5. Get or create payment session
              * 6. For redirect payments: redirect to provider
              * 7. For hosted fields: submit payment via MerchelloPayment handler

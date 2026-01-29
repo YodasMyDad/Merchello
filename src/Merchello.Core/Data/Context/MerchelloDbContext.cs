@@ -13,6 +13,7 @@ using Merchello.Core.Protocols.Webhooks.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Tax.Models;
+using Merchello.Core.Upsells.Models;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Webhooks.Models;
 using Microsoft.EntityFrameworkCore;
@@ -92,6 +93,10 @@ public class MerchelloDbContext : DbContext
     // Discount DbSets
     public DbSet<Discount> Discounts => Set<Discount>();
     public DbSet<DiscountUsage> DiscountUsages => Set<DiscountUsage>();
+
+    // Upsell DbSets
+    public DbSet<UpsellRule> UpsellRules => Set<UpsellRule>();
+    public DbSet<UpsellEvent> UpsellEvents => Set<UpsellEvent>();
 
     // Webhook DbSets
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();

@@ -8,30 +8,35 @@ public enum CheckoutStep
     /// <summary>
     /// Contact information and addresses step.
     /// </summary>
-    Information,
+    Information = 0,
 
     /// <summary>
     /// Shipping method selection step.
     /// </summary>
-    Shipping,
+    Shipping = 1,
 
     /// <summary>
     /// Payment method and processing step.
     /// </summary>
-    Payment,
+    Payment = 2,
 
     /// <summary>
     /// Order confirmation step.
     /// </summary>
-    Confirmation,
+    Confirmation = 3,
 
     /// <summary>
     /// Payment return/callback handling step.
     /// </summary>
-    PaymentReturn,
+    PaymentReturn = 4,
 
     /// <summary>
     /// Payment cancellation handling step.
     /// </summary>
-    PaymentCancelled
+    PaymentCancelled = 5,
+
+    /// <summary>
+    /// Post-purchase upsell step.
+    /// </summary>
+    PostPurchase = 6
 }

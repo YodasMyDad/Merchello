@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Factories;
@@ -231,6 +232,13 @@ public class InvoiceService(
                 storeCurrency,
                 customer.Id,
                 source);
+
+            // Persist upsell impressions from checkout session for conversion attribution
+            if (checkoutSession.UpsellImpressions.Count > 0)
+            {
+                newInvoice.ExtendedData[Constants.ExtendedDataKeys.UpsellImpressions] =
+                    JsonSerializer.Serialize(checkoutSession.UpsellImpressions);
+            }
 
             ExchangeRateQuote? pricingQuote = null;
             if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))

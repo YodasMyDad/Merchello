@@ -44,9 +44,18 @@ public class MerchelloCheckoutPage : IPublishedContent
         CheckoutStep.Shipping => "Checkout - Shipping",
         CheckoutStep.Payment => "Checkout - Payment",
         CheckoutStep.Confirmation => "Checkout - Confirmation",
+        CheckoutStep.PostPurchase => "Checkout - Post-Purchase",
+        CheckoutStep.PaymentReturn => "Checkout - Return",
+        CheckoutStep.PaymentCancelled => "Checkout - Cancelled",
         _ => "Checkout"
     };
-    public string? UrlSegment => Step.ToString().ToLowerInvariant();
+    public string? UrlSegment => Step switch
+    {
+        CheckoutStep.PostPurchase => "post-purchase",
+        CheckoutStep.PaymentReturn => "return",
+        CheckoutStep.PaymentCancelled => "cancel",
+        _ => Step.ToString().ToLowerInvariant()
+    };
     public int SortOrder => 0;
     public int Level => 1;
     public string Path => $"-1,{Id}";

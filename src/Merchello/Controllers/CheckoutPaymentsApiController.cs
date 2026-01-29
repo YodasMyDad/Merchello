@@ -24,6 +24,8 @@ using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Shared.Providers;
+using Merchello.Core.Upsells.Services.Interfaces;
+using Merchello.Core.Upsells.Services.Parameters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -58,6 +60,7 @@ public class CheckoutPaymentsApiController(
     ICurrencyService currencyService,
     IExchangeRateCache exchangeRateCache,
     IMerchelloNotificationPublisher notificationPublisher,
+    IPostPurchaseUpsellService postPurchaseUpsellService,
     IMediaService mediaService,
     MediaUrlGeneratorCollection mediaUrlGenerators,
     IMemberManager memberManager,
@@ -816,6 +819,7 @@ public class CheckoutPaymentsApiController(
 
         // If payment succeeded and vault details returned, save to database
         var paymentMethodSaved = false;
+        Guid? savedPaymentMethodId = null;
         if (shouldSavePaymentMethod
             && customerId.HasValue
             && paymentResult.PaymentResult?.VaultedMethodDetails is { Success: true } vaultDetails)
@@ -843,6 +847,7 @@ public class CheckoutPaymentsApiController(
             if (saveResult.Successful)
             {
                 paymentMethodSaved = true;
+                savedPaymentMethodId = saveResult.ResultObject?.Id;
                 logger.LogInformation(
                     "Payment method saved for customer {CustomerId} with provider {Provider}",
                     customerId.Value,
@@ -870,13 +875,19 @@ public class CheckoutPaymentsApiController(
         // Clear basket after successful payment
         ClearBasketCookieAndSession();
 
+        var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+            request.InvoiceId,
+            request.ProviderAlias,
+            savedPaymentMethodId,
+            cancellationToken);
+
         return Ok(new ProcessPaymentResultDto
         {
             Success = true,
             InvoiceId = request.InvoiceId,
             PaymentId = paymentResult.Id,
             TransactionId = paymentResult.TransactionId,
-            RedirectUrl = $"/checkout/confirmation/{request.InvoiceId}",
+            RedirectUrl = redirectUrl,
             PaymentMethodSaved = paymentMethodSaved
         });
     }
@@ -1119,13 +1130,19 @@ public class CheckoutPaymentsApiController(
             result.ResultObject.Id,
             result.ResultObject.TransactionId);
 
+        var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+            invoice.Id,
+            request.ProviderAlias,
+            null,
+            cancellationToken);
+
         return Ok(new ProcessPaymentResultDto
         {
             Success = true,
             InvoiceId = invoice.Id,
             PaymentId = result.ResultObject.Id,
             TransactionId = result.ResultObject.TransactionId,
-            RedirectUrl = "/checkout/confirmation/" + invoice.Id
+            RedirectUrl = redirectUrl
         });
     }
 
@@ -1483,13 +1500,19 @@ public class CheckoutPaymentsApiController(
             // Clear basket after successful payment
             ClearBasketCookieAndSession();
 
+            var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+                invoice.Id,
+                request.ProviderAlias,
+                null,
+                cancellationToken);
+
             return Ok(new ExpressCheckoutResponseDto
             {
                 Success = true,
                 InvoiceId = invoice.Id,
                 PaymentId = payment.Id,
                 TransactionId = result.TransactionId,
-                RedirectUrl = $"/checkout/confirmation/{invoice.Id}",
+                RedirectUrl = redirectUrl,
                 Status = result.Status switch
                 {
                     PaymentResultStatus.Completed => "completed",
@@ -2260,6 +2283,7 @@ public class CheckoutPaymentsApiController(
 
             // If payment succeeded and vault details returned, save to database
             var paymentMethodSaved = false;
+            Guid? savedPaymentMethodId = null;
             if (shouldSavePaymentMethod
                 && customerId.HasValue
                 && payment.PaymentResult?.VaultedMethodDetails is { Success: true } vaultDetails)
@@ -2287,6 +2311,7 @@ public class CheckoutPaymentsApiController(
                 if (saveResult.Successful)
                 {
                     paymentMethodSaved = true;
+                    savedPaymentMethodId = saveResult.ResultObject?.Id;
                     logger.LogInformation(
                         "Payment method saved for customer {CustomerId} with provider {Provider}",
                         customerId.Value,
@@ -2314,13 +2339,19 @@ public class CheckoutPaymentsApiController(
             // Clear basket after successful payment
             ClearBasketCookieAndSession();
 
+            var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+                invoice.Id,
+                providerAlias,
+                savedPaymentMethodId,
+                cancellationToken);
+
             return Ok(new CaptureWidgetOrderResultDto
             {
                 Success = true,
                 InvoiceId = invoice.Id,
                 PaymentId = payment.Id,
                 TransactionId = payment.TransactionId,
-                RedirectUrl = $"/checkout/confirmation/{invoice.Id}",
+                RedirectUrl = redirectUrl,
                 PaymentMethodSaved = paymentMethodSaved
             });
         }
@@ -2690,12 +2721,18 @@ public class CheckoutPaymentsApiController(
         // Clear basket after successful payment
         ClearBasketCookieAndSession();
 
+        var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+            request.InvoiceId,
+            savedMethod.ProviderAlias,
+            request.SavedPaymentMethodId,
+            cancellationToken);
+
         return Ok(new ProcessPaymentResultDto
         {
             Success = true,
             InvoiceId = request.InvoiceId,
             TransactionId = paymentResult.TransactionId,
-            RedirectUrl = $"/checkout/confirmation/{request.InvoiceId}"
+            RedirectUrl = redirectUrl
         });
     }
 
@@ -2717,6 +2754,43 @@ public class CheckoutPaymentsApiController(
         var now = DateTime.UtcNow;
         var expiryDate = new DateTime(year.Value, month.Value, 1).AddMonths(1);
         return now >= expiryDate;
+    }
+
+    private async Task<string> ResolvePostPurchaseRedirectAsync(
+        Guid invoiceId,
+        string providerAlias,
+        Guid? savedPaymentMethodId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(providerAlias))
+        {
+            return $"/checkout/confirmation/{invoiceId}";
+        }
+
+        try
+        {
+            var initResult = await postPurchaseUpsellService.InitializePostPurchaseAsync(
+                new InitializePostPurchaseParameters
+                {
+                    InvoiceId = invoiceId,
+                    ProviderAlias = providerAlias,
+                    SavedPaymentMethodId = savedPaymentMethodId
+                },
+                cancellationToken);
+
+            if (initResult.IsSuccess && initResult.Data)
+            {
+                return $"/checkout/post-purchase/{invoiceId}";
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Post-purchase initialization failed for invoice {InvoiceId}. Proceeding to confirmation.",
+                invoiceId);
+        }
+
+        return $"/checkout/confirmation/{invoiceId}";
     }
 
     /// <summary>

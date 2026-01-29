@@ -200,6 +200,24 @@ public class InvoiceEditService(
                 }
             }
 
+            // Load products for new items (if any)
+            var productsToAdd = request.ProductsToAdd;
+            Dictionary<Guid, Product> productsToAddLookup = [];
+            if (productsToAdd.Count > 0)
+            {
+                var productIdsToAdd = productsToAdd
+                    .Select(p => p.ProductId)
+                    .Distinct()
+                    .ToList();
+
+                productsToAddLookup = await db.Products
+                    .AsNoTracking()
+                    .Include(p => p.ProductRoot!)
+                        .ThenInclude(pr => pr.TaxGroup)
+                    .Where(p => productIdsToAdd.Contains(p.Id))
+                    .ToDictionaryAsync(p => p.Id, cancellationToken);
+            }
+
             // Build virtual line items representing the proposed state
             List<VirtualLineItem> virtualLineItems = [];
 
@@ -283,6 +301,81 @@ public class InvoiceEditService(
                 }
             }
 
+            // Add new product line items (with add-ons)
+            foreach (var productDto in productsToAdd)
+            {
+                if (!productsToAddLookup.TryGetValue(productDto.ProductId, out var product))
+                {
+                    warnings.Add($"Product {productDto.ProductId} not found.");
+                    continue;
+                }
+
+                var warehouseId = productDto.WarehouseId;
+                var isTracked = false;
+                var available = 0;
+
+                if (warehouseId != Guid.Empty)
+                {
+                    isTracked = await inventoryService.IsStockTrackedAsync(
+                        productDto.ProductId, warehouseId, cancellationToken);
+                    available = await inventoryService.GetAvailableStockAsync(
+                        productDto.ProductId, warehouseId, cancellationToken);
+                }
+
+                var unitPrice = ConvertStoreToPresentmentCurrency(invoice, product.Price, currencyCode);
+
+                // Determine tax info using the active tax provider
+                var taxRate = 0m;
+                var isTaxable = false;
+                var taxGroupId = product.ProductRoot?.TaxGroupId;
+
+                if (taxGroupId.HasValue && !string.IsNullOrEmpty(invoice.ShippingAddress?.CountryCode))
+                {
+                    taxRate = await GetTaxRateFromProviderAsync(
+                        sku: product.Sku ?? $"PROD-{product.Id:N}"[..20],
+                        name: product.Name ?? product.ProductRoot?.RootName ?? "Unknown Product",
+                        amount: unitPrice,
+                        quantity: productDto.Quantity,
+                        taxGroupId: taxGroupId.Value,
+                        shippingAddress: invoice.ShippingAddress,
+                        currencyCode: currencyCode,
+                        cancellationToken: cancellationToken);
+                    isTaxable = taxRate > 0;
+                }
+
+                virtualLineItems.Add(new VirtualLineItem
+                {
+                    Id = Guid.NewGuid(),
+                    Amount = unitPrice,
+                    Quantity = productDto.Quantity,
+                    IsTaxable = isTaxable,
+                    TaxRate = taxRate,
+                    Discount = null,
+                    OriginalQuantity = 0,
+                    IsStockTracked = isTracked,
+                    AvailableStock = available,
+                    HadOriginalDiscount = false
+                });
+
+                foreach (var addon in productDto.Addons)
+                {
+                    var addonPrice = ConvertStoreToPresentmentCurrency(invoice, addon.PriceAdjustment, currencyCode);
+                    virtualLineItems.Add(new VirtualLineItem
+                    {
+                        Id = Guid.NewGuid(),
+                        Amount = addonPrice,
+                        Quantity = productDto.Quantity,
+                        IsTaxable = isTaxable,
+                        TaxRate = taxRate,
+                        Discount = null,
+                        OriginalQuantity = 0,
+                        IsStockTracked = false,
+                        AvailableStock = 0,
+                        HadOriginalDiscount = false
+                    });
+                }
+            }
+
             // Add custom items
             foreach (var customItem in request.CustomItems)
             {
@@ -328,6 +421,46 @@ public class InvoiceEditService(
                 var shippingUpdate = request.OrderShippingUpdates.FirstOrDefault(u => u.OrderId == order.Id);
                 shippingTotal += shippingUpdate?.ShippingCost ?? order.ShippingCost;
             }
+
+            if (request.ProductsToAdd.Any())
+            {
+                var groupingResult = await BuildGroupingForNewItemsAsync(
+                    db,
+                    invoice,
+                    request.ProductsToAdd,
+                    cancellationToken);
+
+                if (groupingResult.Success)
+                {
+                    foreach (var group in groupingResult.Groups)
+                    {
+                        var warehouseId = group.WarehouseId ?? Guid.Empty;
+                        var selectionKey = group.SelectedShippingOptionId ?? string.Empty;
+
+                        Shipping.Extensions.SelectionKeyExtensions.TryParse(selectionKey, out var parsedOptionId, out var providerKey, out var serviceCode);
+                        var shippingOptionId = parsedOptionId ?? Guid.Empty;
+
+                        var existingOrder = orders.FirstOrDefault(o =>
+                            o.WarehouseId == warehouseId &&
+                            (shippingOptionId != Guid.Empty
+                                ? o.ShippingOptionId == shippingOptionId
+                                : !string.IsNullOrWhiteSpace(providerKey) &&
+                                  !string.IsNullOrWhiteSpace(serviceCode) &&
+                                  string.Equals(o.ShippingProviderKey, providerKey, StringComparison.OrdinalIgnoreCase) &&
+                                  string.Equals(o.ShippingServiceCode, serviceCode, StringComparison.OrdinalIgnoreCase)));
+
+                        if (existingOrder == null)
+                        {
+                            shippingTotal += ResolveGroupShippingCost(group, invoice);
+                        }
+                    }
+                }
+                else if (groupingResult.Errors.Count > 0)
+                {
+                    warnings.Add($"Unable to calculate shipping for new items: {string.Join("; ", groupingResult.Errors)}");
+                }
+            }
+
             shippingTotal = currencyService.Round(shippingTotal, currencyCode);
 
             // Calculate subtotal and line item discounts
@@ -794,6 +927,8 @@ public class InvoiceEditService(
                         // Find existing order for this warehouse + shipping option or create new
                         var targetOrder = orders.FirstOrDefault(o =>
                             o.WarehouseId == warehouseId && o.ShippingOptionId == shippingOptionId);
+                        var groupShippingCost = ResolveGroupShippingCost(group, invoice);
+                        var createdNewOrder = false;
 
                         if (targetOrder == null)
                         {
@@ -801,13 +936,19 @@ public class InvoiceEditService(
                             var shippingOptionName = group.AvailableShippingOptions
                                 .FirstOrDefault(so => so.SelectionKey == selectionKey)?.Name ?? "shipping";
 
-                            targetOrder = orderFactory.Create(invoice.Id, warehouseId, shippingOptionId, shippingCost: 0);
+                            targetOrder = orderFactory.Create(invoice.Id, warehouseId, shippingOptionId, shippingCost: groupShippingCost);
                             targetOrder.ShippingProviderKey = providerKey;
                             targetOrder.ShippingServiceCode = serviceCode;
                             targetOrder.LineItems = [];
                             db.Orders.Add(targetOrder);
                             orders.Add(targetOrder);
                             changes.Add($"Created new order for products with {shippingOptionName}");
+                            createdNewOrder = true;
+                        }
+
+                        if (createdNewOrder && groupShippingCost > 0)
+                        {
+                            changes.Add($"  + Shipping added: {invoice.CurrencySymbol}{groupShippingCost}");
                         }
 
                         targetOrder.LineItems ??= [];
@@ -819,7 +960,7 @@ public class InvoiceEditService(
                             if (productDto != null)
                             {
                                 var addProductResult = await AddProductLineItemAsync(
-                                    db, targetOrder, productDto, invoice.ShippingAddress, invoice.CurrencyCode, changes, cancellationToken);
+                                    db, invoice, targetOrder, productDto, invoice.ShippingAddress, invoice.CurrencyCode, changes, cancellationToken);
                                 if (!addProductResult.Success)
                                 {
                                     return OperationResult<EditInvoiceResultDto>.Fail(addProductResult.ErrorMessage!);
@@ -1399,6 +1540,55 @@ public class InvoiceEditService(
         return Math.Max(0, shippingTotal - taxInclusiveShipping);
     }
 
+    private decimal ResolveGroupShippingCost(OrderGroup group, Invoice invoice)
+    {
+        if (group.AvailableShippingOptions == null || group.AvailableShippingOptions.Count == 0)
+        {
+            return 0m;
+        }
+
+        var selectionKey = group.SelectedShippingOptionId;
+        var selectedOption = !string.IsNullOrWhiteSpace(selectionKey)
+            ? group.AvailableShippingOptions.FirstOrDefault(o => o.SelectionKey == selectionKey)
+            : null;
+
+        var option = selectedOption ?? group.AvailableShippingOptions.OrderBy(o => o.Cost).FirstOrDefault();
+        if (option == null)
+        {
+            return 0m;
+        }
+
+        return ConvertStoreToPresentmentCurrency(invoice, option.Cost, invoice.CurrencyCode);
+    }
+
+    private decimal ConvertStoreToPresentmentCurrency(Invoice invoice, decimal storeAmount, string? currencyCode)
+    {
+        var presentmentCurrency = string.IsNullOrWhiteSpace(currencyCode)
+            ? _settings.StoreCurrencyCode
+            : currencyCode;
+
+        if (string.IsNullOrWhiteSpace(invoice.CurrencyCode) ||
+            string.IsNullOrWhiteSpace(invoice.StoreCurrencyCode))
+        {
+            return currencyService.Round(storeAmount, presentmentCurrency);
+        }
+
+        if (string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return currencyService.Round(storeAmount, presentmentCurrency);
+        }
+
+        if (!invoice.PricingExchangeRate.HasValue || invoice.PricingExchangeRate.Value <= 0m)
+        {
+            return currencyService.Round(storeAmount, presentmentCurrency);
+        }
+
+        return currencyService.ConvertToPresentmentCurrency(
+            storeAmount,
+            invoice.PricingExchangeRate.Value,
+            presentmentCurrency);
+    }
+
     private void ApplyPricingRateToStoreAmounts(Invoice invoice, IReadOnlyCollection<Order> orders)
     {
         if (string.IsNullOrWhiteSpace(invoice.CurrencyCode) || string.IsNullOrWhiteSpace(invoice.StoreCurrencyCode))
@@ -1626,16 +1816,28 @@ public class InvoiceEditService(
                 unitPrice: product.Price));
 
             // Record the explicit shipping selection (convert Guid to SelectionKey format)
-            var selectionKey = Shipping.Extensions.SelectionKeyExtensions.ForShippingOption(productDto.ShippingOptionId);
-            lineItemShippingSelections[lineItemId] = (productDto.WarehouseId, selectionKey);
+            var selectionKey = !string.IsNullOrWhiteSpace(productDto.SelectionKey)
+                ? productDto.SelectionKey
+                : productDto.ShippingOptionId != Guid.Empty
+                    ? Shipping.Extensions.SelectionKeyExtensions.ForShippingOption(productDto.ShippingOptionId)
+                    : string.Empty;
+
+            if (productDto.WarehouseId != Guid.Empty && !string.IsNullOrWhiteSpace(selectionKey))
+            {
+                lineItemShippingSelections[lineItemId] = (productDto.WarehouseId, selectionKey);
+            }
         }
 
         // Build the virtual basket
+        var storeCurrency = string.IsNullOrWhiteSpace(invoice.StoreCurrencyCode)
+            ? _settings.StoreCurrencyCode
+            : invoice.StoreCurrencyCode;
+
         var virtualBasket = new Basket
         {
             Id = Guid.NewGuid(),
             LineItems = virtualLineItems,
-            Currency = invoice.CurrencyCode,
+            Currency = storeCurrency,
             BillingAddress = invoice.BillingAddress
         };
 
@@ -1666,6 +1868,7 @@ public class InvoiceEditService(
     /// </summary>
     private async Task<(bool Success, string? ErrorMessage)> AddProductLineItemAsync(
         MerchelloDbContext db,
+        Invoice invoice,
         Order targetOrder,
         AddProductToOrderDto productDto,
         Address? shippingAddress,
@@ -1715,12 +1918,14 @@ public class InvoiceEditService(
         var isTaxable = false;
         var taxGroupId = product.ProductRoot?.TaxGroupId;
 
+        var unitPrice = ConvertStoreToPresentmentCurrency(invoice, product.Price, currencyCode);
+
         if (taxGroupId.HasValue && !string.IsNullOrEmpty(shippingAddress?.CountryCode))
         {
             taxRate = await GetTaxRateFromProviderAsync(
                 sku: product.Sku ?? $"PROD-{product.Id:N}"[..20],
                 name: product.Name ?? product.ProductRoot?.RootName ?? "Unknown Product",
-                amount: product.Price,
+                amount: unitPrice,
                 quantity: productDto.Quantity,
                 taxGroupId: taxGroupId.Value,
                 shippingAddress: shippingAddress,
@@ -1746,7 +1951,9 @@ public class InvoiceEditService(
             {
                 [Constants.ExtendedDataKeys.IsPhysicalProduct] = !isDigital,
                 ["ImageUrl"] = imageUrl ?? string.Empty
-            });
+            },
+            unitPriceOverride: unitPrice,
+            originalAmountOverride: unitPrice);
 
         targetOrder.LineItems!.Add(parentLineItem);
         db.LineItems.Add(parentLineItem);
@@ -1756,12 +1963,13 @@ public class InvoiceEditService(
         foreach (var addon in productDto.Addons)
         {
             var addonSku = $"{parentSku}{addon.SkuSuffix ?? $"-ADDON-{addon.OptionValueId:N}"[..15]}";
+            var addonPrice = ConvertStoreToPresentmentCurrency(invoice, addon.PriceAdjustment, currencyCode);
             var addonLineItem = LineItemFactory.CreateAddonForOrderEdit(
                 orderId: targetOrder.Id,
                 parentSku: parentSku,
                 name: addon.Name,
                 sku: addonSku,
-                priceAdjustment: addon.PriceAdjustment,
+                priceAdjustment: addonPrice,
                 quantity: productDto.Quantity,
                 isTaxable: isTaxable,
                 taxRate: taxRate,
