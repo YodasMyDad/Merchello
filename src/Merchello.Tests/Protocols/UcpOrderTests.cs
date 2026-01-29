@@ -1,3 +1,4 @@
+using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
@@ -17,6 +18,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly ICommerceProtocolAdapter _adapter;
+    private const string TestAgentId = "test-agent";
 
     public UcpOrderTests(ServiceTestFixture fixture)
     {
@@ -69,14 +71,15 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         // Assert
         response.Success.ShouldBeTrue();
-        response.Data.ShouldNotBeNull();
+        var orderData = ExtractOrderData(response.Data);
+        orderData.ShouldNotBeNull();
 
         // Response should contain line items in the UCP format
-        var dataType = response.Data.GetType();
+        var dataType = orderData!.GetType();
         var lineItemsProperty = dataType.GetProperty("LineItems") ?? dataType.GetProperty("line_items");
         if (lineItemsProperty != null)
         {
-            var lineItems = lineItemsProperty.GetValue(response.Data);
+            var lineItems = lineItemsProperty.GetValue(orderData);
             lineItems.ShouldNotBeNull();
         }
     }
@@ -150,14 +153,15 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         // Assert
         response.Success.ShouldBeTrue();
-        response.Data.ShouldNotBeNull();
+        var orderData = ExtractOrderData(response.Data);
+        orderData.ShouldNotBeNull();
 
         // Response should contain totals in the UCP format
-        var dataType = response.Data.GetType();
+        var dataType = orderData!.GetType();
         var totalsProperty = dataType.GetProperty("Totals") ?? dataType.GetProperty("totals");
         if (totalsProperty != null)
         {
-            var totals = totalsProperty.GetValue(response.Data);
+            var totals = totalsProperty.GetValue(orderData);
             totals.ShouldNotBeNull();
         }
     }
@@ -174,14 +178,15 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         // Assert
         response.Success.ShouldBeTrue();
-        response.Data.ShouldNotBeNull();
+        var orderData = ExtractOrderData(response.Data);
+        orderData.ShouldNotBeNull();
 
         // Response should contain order ID
-        var dataType = response.Data.GetType();
+        var dataType = orderData!.GetType();
         var idProperty = dataType.GetProperty("Id") ?? dataType.GetProperty("id");
         if (idProperty != null)
         {
-            var id = idProperty.GetValue(response.Data);
+            var id = idProperty.GetValue(orderData);
             id.ShouldNotBeNull();
         }
     }
@@ -387,6 +392,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         var dataBuilder = _fixture.CreateDataBuilder();
         var customer = dataBuilder.CreateCustomer("order-test@example.com", "John", "Doe");
         var invoice = dataBuilder.CreateInvoice("order-test@example.com", 100.00m, customer);
+        ApplyUcpSource(invoice);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -409,6 +415,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         var customer = dataBuilder.CreateCustomer("order-test@example.com", "John", "Doe");
         var invoice = dataBuilder.CreateInvoice("order-test@example.com", 55.00m, customer);
+        ApplyUcpSource(invoice);
 
         // Create order with line items
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
@@ -425,6 +432,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         var dataBuilder = _fixture.CreateDataBuilder();
         var customer = dataBuilder.CreateCustomer("partial-payment@example.com", "Jane", "Smith");
         var invoice = dataBuilder.CreateInvoice("partial-payment@example.com", 100.00m, customer);
+        ApplyUcpSource(invoice);
 
         // Add partial payment (50 of 100)
         var payment = dataBuilder.CreatePayment(invoice, 50.00m, "USD");
@@ -441,6 +449,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         var dataBuilder = _fixture.CreateDataBuilder();
         var customer = dataBuilder.CreateCustomer("full-payment@example.com", "Bob", "Johnson");
         var invoice = dataBuilder.CreateInvoice("full-payment@example.com", 100.00m, customer);
+        ApplyUcpSource(invoice);
 
         // Add full payment
         var payment = dataBuilder.CreatePayment(invoice, 100.00m, "USD");
@@ -466,6 +475,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         var customer = dataBuilder.CreateCustomer("shipment-test@example.com", "Test", "User");
         var invoice = dataBuilder.CreateInvoice("shipment-test@example.com", 35.00m, customer);
+        ApplyUcpSource(invoice);
 
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Shipped);
         dataBuilder.CreateLineItem(order, product, "Shippable Product", 1, 30.00m);
@@ -495,6 +505,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         var customer = dataBuilder.CreateCustomer("multi-shipment@example.com", "Multi", "Shipper");
         var invoice = dataBuilder.CreateInvoice("multi-shipment@example.com", 60.00m, customer);
+        ApplyUcpSource(invoice);
 
         var order1 = dataBuilder.CreateOrder(invoice, warehouse1, shippingOption1, OrderStatus.Shipped);
         dataBuilder.CreateLineItem(order1, product, "Product 1", 1, 25.00m);
@@ -524,6 +535,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         var customer = dataBuilder.CreateCustomer("shipped@example.com", "Shipped", "Customer");
         var invoice = dataBuilder.CreateInvoice("shipped@example.com", 30.00m, customer);
+        ApplyUcpSource(invoice);
 
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Shipped);
         dataBuilder.CreateLineItem(order, product, "Shipped Product", 1, 20.00m);
@@ -540,6 +552,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         var dataBuilder = _fixture.CreateDataBuilder();
         var customer = dataBuilder.CreateCustomer("multi-payment@example.com", "Multi", "Payer");
         var invoice = dataBuilder.CreateInvoice("multi-payment@example.com", 100.00m, customer);
+        ApplyUcpSource(invoice);
 
         // Add multiple partial payments
         var payment1 = dataBuilder.CreatePayment(invoice, 30.00m, "USD");
@@ -559,6 +572,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         var dataBuilder = _fixture.CreateDataBuilder();
         var customer = dataBuilder.CreateCustomer("failed-payment@example.com", "Failed", "Payer");
         var invoice = dataBuilder.CreateInvoice("failed-payment@example.com", 100.00m, customer);
+        ApplyUcpSource(invoice);
 
         // Add failed payment
         var payment = dataBuilder.CreatePayment(invoice, 100.00m, "USD");
@@ -584,6 +598,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         var customer = dataBuilder.CreateCustomer($"status-{status}@example.com", "Status", "Test");
         var invoice = dataBuilder.CreateInvoice($"status-{status}@example.com", 30.00m, customer);
+        ApplyUcpSource(invoice);
 
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, status);
         dataBuilder.CreateLineItem(order, product, $"Product {status}", 1, 25.00m);
@@ -608,6 +623,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         var customer = dataBuilder.CreateCustomer("discount@example.com", "Discount", "Customer");
         var invoice = dataBuilder.CreateInvoice("discount@example.com", 45.00m, customer);
+        ApplyUcpSource(invoice);
 
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
         var productLineItem = dataBuilder.CreateLineItem(order, product, "Discounted Product", 1, 50.00m);
@@ -637,6 +653,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
 
         var customer = dataBuilder.CreateCustomer("multi-item@example.com", "Multi", "Item");
         var invoice = dataBuilder.CreateInvoice("multi-item@example.com", 80.00m, customer);
+        ApplyUcpSource(invoice);
 
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
         dataBuilder.CreateLineItem(order, product1, "Item 1", 1, 15.00m);
@@ -653,7 +670,7 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
     {
         return new AgentIdentity
         {
-            AgentId = Guid.NewGuid().ToString(),
+            AgentId = TestAgentId,
             Protocol = ProtocolConstants.Protocols.Ucp,
             ProfileUri = "https://test-agent.example.com/profile",
             Capabilities =
@@ -662,5 +679,28 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
                 ProtocolConstants.UcpCapabilities.Order
             ]
         };
+    }
+
+    private static void ApplyUcpSource(Invoice invoice)
+    {
+        invoice.Source = new InvoiceSource
+        {
+            Type = Constants.InvoiceSources.Ucp,
+            DisplayName = "UCP Agent",
+            SourceId = TestAgentId,
+            SourceName = TestAgentId,
+            ProfileUri = "https://test-agent.example.com/profile",
+            ProtocolVersion = "2026-01-11",
+            SessionId = Guid.NewGuid().ToString()
+        };
+    }
+
+    private static object? ExtractOrderData(object? responseData)
+    {
+        if (responseData == null) return null;
+
+        var type = responseData.GetType();
+        var dataProperty = type.GetProperty("Data") ?? type.GetProperty("data");
+        return dataProperty?.GetValue(responseData) ?? responseData;
     }
 }

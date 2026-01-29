@@ -1,4 +1,3 @@
-using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Protocols;
@@ -644,26 +643,22 @@ public class UcpCheckoutFlowIntegrationTests : IClassFixture<ServiceTestFixture>
     {
         if (responseData == null) return string.Empty;
 
-        var type = responseData.GetType();
-
-        // For ProtocolResponseEnvelope, extract Data property first
-        var dataProperty = type.GetProperty("Data") ?? type.GetProperty("data");
-        if (dataProperty != null)
+        var data = ExtractSessionData(responseData);
+        if (data != null)
         {
-            var data = dataProperty.GetValue(responseData);
-            if (data != null)
+            var dataType = data.GetType();
+            var sessionIdProperty = dataType.GetProperty("SessionId")
+                ?? dataType.GetProperty("sessionId")
+                ?? dataType.GetProperty("Id")
+                ?? dataType.GetProperty("id");
+            if (sessionIdProperty != null)
             {
-                // CheckoutSessionState has SessionId property
-                var dataType = data.GetType();
-                var sessionIdProperty = dataType.GetProperty("SessionId") ?? dataType.GetProperty("sessionId");
-                if (sessionIdProperty != null)
-                {
-                    return sessionIdProperty.GetValue(data)?.ToString() ?? string.Empty;
-                }
+                return sessionIdProperty.GetValue(data)?.ToString() ?? string.Empty;
             }
         }
 
         // Try direct SessionId property
+        var type = responseData.GetType();
         var directSessionIdProperty = type.GetProperty("SessionId") ?? type.GetProperty("sessionId");
         if (directSessionIdProperty != null)
         {
@@ -671,33 +666,47 @@ public class UcpCheckoutFlowIntegrationTests : IClassFixture<ServiceTestFixture>
             return idValue?.ToString() ?? string.Empty;
         }
 
+        var idProperty = type.GetProperty("Id") ?? type.GetProperty("id");
+        if (idProperty != null)
+        {
+            var idValue = idProperty.GetValue(responseData);
+            return idValue?.ToString() ?? string.Empty;
+        }
+
         return string.Empty;
     }
 
-    private static CheckoutSessionState? ExtractSessionState(object? responseData)
+    private static SessionSnapshot? ExtractSessionState(object? responseData)
+    {
+        if (responseData == null) return null;
+
+        var data = ExtractSessionData(responseData);
+        if (data == null) return null;
+
+        var dataType = data.GetType();
+        var statusProperty = dataType.GetProperty("status") ?? dataType.GetProperty("Status");
+        var totalsProperty = dataType.GetProperty("totals") ?? dataType.GetProperty("Totals");
+
+        return new SessionSnapshot
+        {
+            Status = statusProperty?.GetValue(data)?.ToString(),
+            Totals = totalsProperty?.GetValue(data)
+        };
+    }
+
+    private static object? ExtractSessionData(object? responseData)
     {
         if (responseData == null) return null;
 
         var type = responseData.GetType();
-
-        // For ProtocolResponseEnvelope, extract Data property
         var dataProperty = type.GetProperty("Data") ?? type.GetProperty("data");
-        if (dataProperty != null)
-        {
-            var data = dataProperty.GetValue(responseData);
-            if (data is CheckoutSessionState sessionState)
-            {
-                return sessionState;
-            }
-        }
+        return dataProperty?.GetValue(responseData) ?? responseData;
+    }
 
-        // Try direct cast
-        if (responseData is CheckoutSessionState directState)
-        {
-            return directState;
-        }
-
-        return null;
+    private sealed class SessionSnapshot
+    {
+        public string? Status { get; init; }
+        public object? Totals { get; init; }
     }
 
     #endregion

@@ -78,6 +78,7 @@ const BASE_URL = '/api/merchello/checkout';
  * @property {string} displayName
  * @property {number} integrationType
  * @property {string} [iconHtml]
+ * @property {boolean} [supportsVaulting]
  */
 
 /**
@@ -274,6 +275,16 @@ export const checkoutApi = {
     },
 
     /**
+     * Get payment options for checkout (methods + saved methods).
+     * @returns {Promise<{providers: PaymentMethod[], savedPaymentMethods: any[], canSavePaymentMethods: boolean}>}
+     */
+    async getPaymentOptions() {
+        const response = await fetch(`${BASE_URL}/payment-options`);
+        if (!response.ok) throw new Error('Failed to load payment options');
+        return response.json();
+    },
+
+    /**
      * Initiate payment
      * @param {Object} data
      * @param {string} data.providerAlias
@@ -284,6 +295,21 @@ export const checkoutApi = {
      */
     initiatePayment(data) {
         return fetchJson(`${BASE_URL}/pay`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    /**
+     * Process a payment using a saved payment method.
+     * @param {Object} data
+     * @param {string} data.invoiceId
+     * @param {string} data.savedPaymentMethodId
+     * @param {string} [data.idempotencyKey]
+     * @returns {Promise<{success: boolean, errorMessage?: string, invoiceId?: string, transactionId?: string, redirectUrl?: string}>}
+     */
+    processSavedPayment(data) {
+        return fetchJson(`${BASE_URL}/process-saved-payment`, {
             method: 'POST',
             body: JSON.stringify(data)
         });

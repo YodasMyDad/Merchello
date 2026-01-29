@@ -64,6 +64,11 @@ public class PaymentRequest
     public Dictionary<string, string>? Metadata { get; init; }
 
     /// <summary>
+    /// Whether to request vaulting during session creation (provider-specific).
+    /// </summary>
+    public bool SavePaymentMethod { get; init; }
+
+    /// <summary>
     /// Indicates this is a test mode request (from backoffice testing).
     /// Providers should use this to generate appropriate test session IDs.
     /// </summary>

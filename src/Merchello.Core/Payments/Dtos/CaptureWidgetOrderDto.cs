@@ -27,4 +27,19 @@ public class CaptureWidgetOrderDto
     /// Used for display purposes on confirmation page (e.g., "PayPal", "Credit/Debit Card").
     /// </summary>
     public string? MethodAlias { get; set; }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <summary>
+    /// Whether to save this payment method for future use.
+    /// Only applies when provider supports vaulting and vaulting is enabled.
+    /// </summary>
+    public bool SavePaymentMethod { get; set; }
+
+    /// <summary>
+    /// Make this the default saved method if saving.
+    /// </summary>
+    public bool SetAsDefaultMethod { get; set; }
 }

@@ -873,6 +873,390 @@ export const manifests: Array<UmbExtensionManifest> = [
 9. Naming: `Umb` prefix for core, your prefix for custom
 10. Tree items need `parent: { unique, entityType }` structure
 
+## UI/UX Design Standards
+
+Every Merchello backoffice screen should feel like a native part of Umbraco — polished, predictable, and respectful of the admin's time. These standards apply to all backoffice UI.
+
+### Design Principles
+
+1. **Show, don't tell** — Use visual cues (badges, icons, colour) over long explanations. An admin should understand status at a glance.
+2. **Immediate feedback** — Every action gets a visible response. Save → toast. Delete → confirmation then toast. Error → inline message at the field, not a generic alert.
+3. **Progressive disclosure** — Show the common case first. Advanced options hide behind toggles, collapsible sections, or secondary tabs. Don't front-load complexity.
+4. **Recover gracefully** — Errors should explain what went wrong and what to do next. Never show raw API errors, stack traces, or empty screens with no guidance.
+5. **Respect the flow** — After creating something, navigate to it. After deleting, return to the list. After saving, stay on the same screen. Never leave the admin stranded.
+
+### Empty States
+
+Every list view and data-dependent section needs an empty state. Never show a blank screen or an empty table with just headers.
+
+```typescript
+private _renderEmptyState() {
+  return html`<div class="empty-state">
+    <uui-icon name="icon-trending-up" class="empty-state-icon"></uui-icon>
+    <h3 class="empty-state-heading">No upsell rules yet</h3>
+    <p class="empty-state-message">
+      Upsell rules recommend products when trigger conditions are met in a customer's basket.
+    </p>
+    <uui-button look="primary" label="Create your first upsell rule"
+      @click=${this._handleCreate}>Create Upsell Rule</uui-button>
+  </div>`;
+}
+```
+
+```css
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: var(--uui-size-layout-4) var(--uui-size-layout-2); text-align: center;
+}
+.empty-state-icon { font-size: 48px; color: var(--uui-color-text-alt); margin-bottom: var(--uui-size-space-5); }
+.empty-state-heading { margin: 0 0 var(--uui-size-space-3); color: var(--uui-color-text); }
+.empty-state-message { margin: 0 0 var(--uui-size-space-5); color: var(--uui-color-text-alt); max-width: 420px; }
+```
+
+**Guidelines:**
+
+- **Icon**: Relevant to the feature (not a generic "empty" icon)
+- **Heading**: State what's missing ("No upsell rules yet", not "Nothing here")
+- **Message**: One sentence explaining what the feature does and why the admin should care
+- **Action**: Primary button to create the first item — reduce friction to zero
+- **Filtered empty**: When a search/filter yields no results, show "No results match your filters" with a "Clear filters" button — distinct from the true empty state
+
+### Loading States
+
+Never show a blank screen while data loads. Use the appropriate loading pattern for the context.
+
+**Full page load (initial visit):**
+```typescript
+private _renderLoading() {
+  return html`<uui-loader-bar></uui-loader-bar>`;
+}
+```
+
+**Inline refresh (pagination, filtering, tab switch):**
+```typescript
+// Dim existing content, don't replace it — avoids layout shift
+render() {
+  return html`<div class="content-area ${this._isLoading ? 'loading' : ''}">
+    ${this._renderTable()}
+  </div>`;
+}
+```
+```css
+.content-area.loading { opacity: 0.5; pointer-events: none; }
+```
+
+**Button actions (save, delete, activate):**
+```typescript
+html`<uui-button look="primary" color="positive"
+  @click=${this._handleSave}
+  ?disabled=${this._isSaving}
+  .state=${this._isSaving ? "waiting" : undefined}>
+  ${this._isSaving ? "Saving..." : "Save"}
+</uui-button>`
+```
+
+**Guidelines:**
+
+- First load: `<uui-loader-bar>` at the top of the content area
+- Subsequent loads: Dim existing content rather than replacing with a loader — avoids jarring layout shifts
+- Buttons: Disable and show "Saving..." / "Deleting..." text with `state="waiting"` during async operations
+- Never block the entire screen for a non-blocking operation
+
+### Error States
+
+Errors should be specific, helpful, and appear where the admin can act on them.
+
+**Field-level validation:**
+```typescript
+html`<umb-property-layout label="Name" mandatory
+  ?invalid=${!!this._fieldErrors.name}
+  description=${this._fieldErrors.name || "Internal identifier for this rule"}>
+  <uui-input slot="editor" .value=${this._formData.name || ""}
+    @input=${this._handleNameChange}
+    ?invalid=${!!this._fieldErrors.name}></uui-input>
+</umb-property-layout>`
+```
+
+**API error (save/load failure):**
+```typescript
+private _renderApiError() {
+  if (!this._error) return nothing;
+  return html`<uui-box class="error-box">
+    <div class="error-content">
+      <uui-icon name="icon-alert"></uui-icon>
+      <div>
+        <strong>${this._error.headline}</strong>
+        <p>${this._error.message}</p>
+      </div>
+      ${this._error.retryable
+        ? html`<uui-button look="secondary" label="Try again" @click=${this._retry}>Try again</uui-button>`
+        : nothing}
+    </div>
+  </uui-box>`;
+}
+```
+
+**Guidelines:**
+
+- **Field errors**: Show on the field itself using `invalid` property and update the `description` to the error message. Use `<uui-badge>` on tabs to flag which tab has errors.
+- **API errors**: Show an inline error box near the action that failed, not a modal. Include a retry button when the action is retryable.
+- **Load failures**: Show the error in the content area with a retry option. Never show a blank screen.
+- **Error messages**: Describe the problem in the admin's language ("Couldn't save — the name is already in use"), not technical language ("409 Conflict: unique constraint violation").
+- **Never swallow errors silently**: If something fails, the admin must know.
+
+### Feedback & Notifications
+
+Every mutating action (create, save, delete, activate, deactivate) must produce visible feedback.
+
+**Success — toast notification:**
+```typescript
+this.#notificationContext?.peek("positive", {
+  data: { headline: "Upsell rule saved", message: "Changes have been saved successfully." },
+});
+```
+
+**Destructive action — confirm first, then toast:**
+```typescript
+const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+  data: {
+    headline: "Delete upsell rule",
+    content: `"${rule.name}" will be permanently deleted. This cannot be undone.`,
+    confirmLabel: "Delete",
+    color: "danger",
+  },
+});
+try {
+  await modalContext?.onSubmit();
+} catch {
+  return; // Cancelled
+}
+await this._deleteRule(rule.id);
+this.#notificationContext?.peek("positive", {
+  data: { headline: "Upsell rule deleted" },
+});
+```
+
+**Guidelines:**
+
+- **Create**: Toast "Created" → navigate to the detail view
+- **Save**: Toast "Saved" → stay on same screen, data refreshes
+- **Delete**: Confirm modal (danger colour) → toast "Deleted" → navigate to list
+- **Activate/Deactivate**: Toast "Activated" / "Deactivated" → refresh status in place
+- **Bulk actions**: Toast with count ("3 rules activated")
+- **Toast style**: Use `peek` (auto-dismiss) for success. Use `stay` for errors that need attention.
+- **Confirm modals**: Always state the item name. Use danger colour for destructive actions. Confirm label should be the verb ("Delete", "Deactivate"), not "OK" or "Yes".
+
+### List View UX
+
+List views are the most-visited screens. They need to be fast, scannable, and actionable.
+
+**Structure:**
+
+```text
+┌─────────────────────────────────────────────────────┐
+│ [Create Button]                          [Search]    │
+├─────────────────────────────────────────────────────┤
+│ Tab: All | Active | Draft | Scheduled | ...          │
+├─────────────────────────────────────────────────────┤
+│ ☐ │ Name ▼    │ Status  │ Key Info  │ Date         │
+│ ☐ │ Item 1    │ 🟢 Act  │ ...       │ Jan 28       │
+│ ☐ │ Item 2    │ 🟡 Dra  │ ...       │ Jan 27       │
+├─────────────────────────────────────────────────────┤
+│ ← 1 2 3 ... →                        Showing 1-20   │
+└─────────────────────────────────────────────────────┘
+```
+
+**Guidelines:**
+
+- **Create button**: Top-right, primary look, always visible. If a creation flow uses a modal, open the modal. If inline, navigate directly.
+- **Search**: Debounced (300ms), searches on name by default. Placeholder: "Search by name..."
+- **Filter tabs**: Use `<uui-tab-group>` for status filtering (All, Active, Draft, etc.). Reset page to 1 on tab change. "All" tab always first.
+- **Table rows**: Clickable (entire row navigates to detail). Checkbox column for bulk actions. Stop propagation on checkbox clicks.
+- **Status badges**: Consistent colour mapping across the entire application — use `statusColor` from the DTO, never hardcode colours client-side.
+- **Key columns first**: Name (always first, always a link), Status (visual badge), then context-specific columns, Date (always last or near-last).
+- **Bulk actions**: Appear when items are selected. Common: activate, deactivate, delete. Always confirm destructive bulk actions.
+- **Pagination**: Below the table. Show "Showing X-Y of Z". Reset to page 1 on search/filter change.
+- **Sort**: Clickable column headers where sorting is supported. Visual indicator for current sort direction.
+
+### Detail/Editor View UX
+
+Detail views are where admins spend time creating and editing. They must be organised, forgiving, and efficient.
+
+**Guidelines:**
+
+- **Name field**: Always at the top in the header area, matching Umbraco's content editor pattern. Large font, transparent border until hover/focus.
+- **Tab organisation**: Group related fields. Most important/frequently edited tab first. Read-only or advanced tabs last.
+  - **Tab 1**: Core identity fields (name, description, status, key settings)
+  - **Middle tabs**: Configuration (rules, display options, scheduling)
+  - **Last tab**: Read-only data (analytics, audit, performance)
+- **Tab error indicators**: When validation fails, show `<uui-badge slot="extra" color="danger" attention>!</uui-badge>` on tabs that contain errors so admins know where to look.
+- **Save button**: Always in the footer (sticky), primary + positive colour. Shows "Saving..." during async. Disabled when no changes or when saving.
+- **Back navigation**: Back arrow button in the header. Uses `href` (not `window.location`). Returns to the list view.
+- **Unsaved changes**: If the admin navigates away with unsaved changes, warn them. (Use browser `beforeunload` or a workspace-level guard.)
+- **Field layout**: Use `<umb-property-layout>` for consistent 2-column label/editor layout. Labels on the left, inputs on the right. Add `description` for non-obvious fields. Mark required fields with `mandatory`.
+- **Grouping**: Use `<uui-box headline="...">` to group related fields within a tab. Keep groups to 3-6 fields.
+- **Defaults**: Pre-fill sensible defaults for new entities. Priority: 1000. Max products: 4. Suppress if in cart: on. This reduces friction for the common case.
+
+### Modal UX
+
+Modals interrupt flow — use them deliberately.
+
+**When to use modals:**
+
+- **Create**: Quick-create with minimal fields (name + key options), then navigate to the full editor
+- **Confirm**: Destructive actions (delete, deactivate)
+- **Picker**: Selecting entities from a list (products, customers, segments)
+- **Configuration**: Single-purpose settings that don't warrant a full page
+
+**When NOT to use modals:**
+
+- Editing complex data (use a full page instead)
+- Showing read-only information (use an inline expandable section)
+- Multi-step wizards longer than 2-3 steps
+
+**Guidelines:**
+
+- **Size**: Use `small` for confirmations and simple inputs. Use `medium` for pickers and forms. Avoid `large` unless absolutely necessary.
+- **Create modals**: Collect only what's needed to create (name, maybe type), then redirect to the full detail editor. Don't front-load all fields into the modal.
+- **Picker modals**: Include search, show name + helpful context (type, status), support multi-select where appropriate.
+- **Close behaviour**: ESC and backdrop click should close (cancel). Don't trap the admin.
+- **Focus**: Auto-focus the first input when the modal opens.
+
+### Status Representation
+
+Status badges must be visually consistent across every feature (orders, discounts, upsells, etc.).
+
+**Status colour mapping (from DTO `statusColor` field):**
+
+| Colour | CSS Class | Use For |
+|--------|-----------|---------|
+| `positive` | `badge-positive` | Active, Completed, Paid, Published |
+| `warning` | `badge-warning` | Draft, Pending, Scheduled, Awaiting |
+| `danger` | `badge-danger` | Expired, Failed, Cancelled, Overdue |
+| `default` | `badge-default` | Disabled, Archived, Unknown |
+
+```typescript
+html`<span class="badge badge-${item.statusColor}">${item.statusLabel}</span>`
+```
+
+**Rule**: Always use `statusLabel` and `statusColor` from the backend DTO. Never derive badge colour from status enum values on the client — the backend is the source of truth.
+
+### Microcopy & Help Text
+
+Words in the UI are part of the design. They should be clear, concise, and consistent.
+
+**Field labels:**
+
+- Use sentence case ("Display location", not "Display Location")
+- Be specific ("Maximum products to show", not "Max")
+- Avoid jargon the admin wouldn't know
+
+**Descriptions (help text below labels):**
+
+- Explain *why*, not just *what*. "Lower number = higher priority. Rules are evaluated in priority order." vs "Enter the priority."
+- Include examples for non-obvious fields. "e.g., 'Complete your bedroom' — shown to customers above the recommended products"
+- Keep to one sentence where possible, two maximum
+
+**Placeholder text:**
+
+- Show format or example: `placeholder="e.g., Bed → Pillow Upsell"`
+- Never repeat the label as placeholder text
+
+**Confirmation dialogs:**
+
+- Headline: Action + object ("Delete upsell rule")
+- Body: Name the specific item + state the consequence. `"Bed → Pillow Upsell" will be permanently deleted. This cannot be undone.`
+- Confirm button: Verb matching the action ("Delete"), not "OK" or "Confirm"
+
+**Toast notifications:**
+
+- Headline: Past tense of the action ("Upsell rule saved", "Rule activated")
+- Message (optional): Only add if there's useful context ("Changes will take effect immediately")
+
+**Empty states:**
+
+- Heading: State what's missing ("No upsell rules yet")
+- Message: One sentence on what the feature does
+- Action: Verb phrase ("Create your first upsell rule")
+
+### Rule Builders & Complex Inputs
+
+Features like discounts and upsells have rule builders — complex, multi-part inputs. These need extra care.
+
+**Guidelines:**
+
+- **Visual structure**: Use a card-style layout for each rule. Clear visual boundary (border/background) separating rules from each other.
+- **Add/Remove**: "Add rule" button below existing rules. Remove button (icon, not text) on each rule card. Confirm before removing if the rule has data.
+- **OR/AND logic**: State the logic explicitly between rules. "Any of these triggers will activate this upsell" is clearer than showing "OR" between cards.
+- **Entity selection**: Show selected entities as removable tags/chips. Display resolved names (not GUIDs). Include an entity count ("3 product types selected").
+- **Dependent fields**: When a toggle reveals additional options (e.g., "Match trigger filters" → filter group picker), animate the reveal smoothly. Don't shift the entire layout jarringly.
+- **Validation**: Require at least one rule where business logic demands it. Show inline errors ("Add at least one trigger rule") rather than blocking save with a generic error.
+- **Guidance**: Include a brief sentence above the rule builder explaining what it does and how the logic works. First-time users shouldn't need to read docs.
+
+```text
+┌─────────────────────────────────────────────────┐
+│ WHEN basket contains: (any match activates)      │
+│                                                   │
+│ ┌─ Rule 1 ──────────────────────────────── [×] ─┐│
+│ │ Type: [Product Types ▼]                        ││
+│ │ Selected: [Wooden Bed ×] [Metal Bed ×]         ││
+│ │ ☐ Extract filter values from: [Size Group ×]   ││
+│ └────────────────────────────────────────────────┘│
+│                                                   │
+│ [+ Add trigger rule]                              │
+├───────────────────────────────────────────────────┤
+│ THEN recommend:                                   │
+│                                                   │
+│ ┌─ Rule 1 ──────────────────────────────── [×] ─┐│
+│ │ Type: [Product Types ▼]                        ││
+│ │ Selected: [Coil Mattress ×] [Memory Mattress ×]││
+│ │ ☑ Match trigger filter values                  ││
+│ │   Matching groups: All extracted groups         ││
+│ └────────────────────────────────────────────────┘│
+│                                                   │
+│ [+ Add recommendation rule]                       │
+└───────────────────────────────────────────────────┘
+```
+
+### Accessibility
+
+Accessibility is not optional. Every component must be usable with keyboard alone and work with screen readers.
+
+- **Keyboard navigation**: All interactive elements reachable via Tab. Enter/Space to activate buttons and toggles. Escape to close modals.
+- **Labels**: Every `<uui-button>` needs a `label` attribute. Every `<uui-input>` needs an associated label (via `<umb-property-layout>` or `aria-label`). Every `<uui-checkbox>` needs a `label`.
+- **Focus management**: When a modal opens, focus the first input. When a modal closes, return focus to the trigger element. When deleting a list item, focus the next item or the list.
+- **Colour**: Never use colour alone to convey status. Always pair with text labels or icons. The status badge shows both a colour and a text label.
+- **ARIA**: Use `aria-live="polite"` for dynamic content updates (loading states, search results count). Use `role="status"` for toast notifications.
+
+### Performance Perception
+
+Actual speed matters, but perceived speed matters more. The UI should always feel responsive.
+
+- **Optimistic updates**: For toggles (activate/deactivate), update the UI immediately and revert on failure. Don't wait for the API response to update the badge.
+- **Debounce search**: 300ms debounce on search input. Show a subtle loading indicator in the search field during the debounce/fetch.
+- **Pagination over infinite scroll**: Backoffice admins need predictable navigation. Use pagination with page size options (20, 50, 100).
+- **Cache list state**: When navigating back from a detail view to the list, preserve the previous page, search, and filter state. Don't reset to page 1.
+- **Lazy load tabs**: Only fetch data for a tab when the admin navigates to it. The Performance/Analytics tab shouldn't slow down the Details tab.
+
+### Consistent Patterns Across Features
+
+Every Merchello feature (Products, Orders, Discounts, Upsells, etc.) should use the same interaction patterns. An admin who learns one feature should intuitively know how to use the others.
+
+| Pattern | Standard |
+|---------|----------|
+| List → Detail navigation | Click row → navigate to detail editor |
+| Create flow | Button → Modal (name + minimal fields) → Navigate to detail |
+| Save | Footer button, primary+positive, toast on success |
+| Delete | Confirm modal (danger), toast on success, navigate to list |
+| Status change | Button or toggle, toast on success, refresh in place |
+| Back navigation | Header back arrow, `href` to list view |
+| Search | Top-right, debounced, "Search by name..." placeholder |
+| Filter | `<uui-tab-group>` for status/category, reset page on change |
+| Pagination | Below table, "Showing X-Y of Z", page size options |
+| Status display | Badge with `statusColor` + `statusLabel` from DTO |
+| Error display | Inline at field level, badge on tab, toast for API errors |
+| Empty state | Icon + heading + message + CTA button |
+
 ## Workspace View Scrolling
 
 Views with scrollable content must use `umb-body-layout`:

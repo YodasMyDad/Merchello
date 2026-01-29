@@ -65,5 +65,8 @@ public class PaymentDbMapping : IEntityTypeConfiguration<Payment>
         builder.HasIndex(x => x.WebhookEventId)
             .IsUnique()
             .HasFilter("[WebhookEventId] IS NOT NULL");
+
+        // PaymentResult is a runtime-only property (not persisted)
+        builder.Ignore(x => x.PaymentResult);
     }
 }

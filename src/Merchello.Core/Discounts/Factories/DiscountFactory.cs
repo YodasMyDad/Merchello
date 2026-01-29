@@ -26,6 +26,8 @@ public class DiscountFactory
             Id = GuidExtensions.NewSequentialGuid,
             Name = parameters.Name.Trim(),
             Description = parameters.Description?.Trim(),
+            ShowInFeed = parameters.ShowInFeed,
+            FeedPromotionName = parameters.FeedPromotionName?.Trim(),
             Status = status,
             Category = parameters.Category,
             Method = parameters.Method,

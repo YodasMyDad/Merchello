@@ -510,6 +510,9 @@
                     throw new Error('Please accept the mandate authorization.');
                 }
 
+                // Get vault settings from checkout store
+                const vaultSettings = MerchelloPayment.getVaultSettings();
+
                 // For SEPA, we need to create a different flow
                 // SEPA requires server-side processing with bank account details
                 const response = await MerchelloPayment.fetchWithTimeout('/api/merchello/checkout/process-payment', {
@@ -526,7 +529,9 @@
                             accountHolder: accountHolder,
                             mandateAccepted: mandateAccepted,
                             deviceData: dataCollectorInstance?.deviceData || ''
-                        }
+                        },
+                        savePaymentMethod: vaultSettings.savePaymentMethod,
+                        setAsDefaultMethod: vaultSettings.setAsDefaultMethod
                     })
                 });
 
@@ -571,6 +576,9 @@
             currentCheckout.error = null;
 
             try {
+                // Get vault settings from checkout store
+                const vaultSettings = MerchelloPayment.getVaultSettings();
+
                 const response = await fetch('/api/merchello/checkout/process-payment', {
                     method: 'POST',
                     headers: {
@@ -585,7 +593,9 @@
                             deviceData: dataCollectorInstance?.deviceData || '',
                             type: payload.type || '',
                             details: payload.details ? JSON.stringify(payload.details) : ''
-                        }
+                        },
+                        savePaymentMethod: vaultSettings.savePaymentMethod,
+                        setAsDefaultMethod: vaultSettings.setAsDefaultMethod
                     })
                 });
 

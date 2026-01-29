@@ -16,4 +16,13 @@ public class CreateWidgetOrderDto
     /// If not provided, defaults to the provider's primary method.
     /// </summary>
     public string? MethodAlias { get; set; }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <summary>
+    /// Whether to request vaulting during session creation (provider-specific).
+    /// </summary>
+    public bool SavePaymentMethod { get; set; }
 }

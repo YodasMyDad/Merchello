@@ -38,6 +38,8 @@ export interface PaymentProviderDto {
   supportsAuthAndCapture: boolean;
   /** Whether this provider supports generating payment links */
   supportsPaymentLinks: boolean;
+  /** Whether this provider supports saving payment methods (vaulting) */
+  supportsVaultedPayments: boolean;
   webhookPath?: string;
   /** Whether this provider is enabled (has a setting with IsEnabled = true) */
   isEnabled: boolean;
@@ -58,6 +60,8 @@ export interface PaymentProviderSettingDto {
   isEnabled: boolean;
   /** Whether the provider is in test/sandbox mode */
   isTestMode: boolean;
+  /** Whether vaulting is enabled for this provider */
+  isVaultingEnabled: boolean;
   configuration?: Record<string, string>;
   sortOrder: number;
   dateCreated: string;
@@ -76,6 +80,8 @@ export interface CreatePaymentProviderDto {
   isEnabled?: boolean;
   /** Whether the provider is in test/sandbox mode */
   isTestMode?: boolean;
+  /** Whether vaulting is enabled for this provider */
+  isVaultingEnabled?: boolean;
   /** Configuration values (key-value pairs) */
   configuration?: Record<string, string>;
 }
@@ -88,6 +94,8 @@ export interface UpdatePaymentProviderDto {
   isEnabled?: boolean;
   /** Whether the provider is in test/sandbox mode */
   isTestMode?: boolean;
+  /** Whether vaulting is enabled for this provider */
+  isVaultingEnabled?: boolean;
   /** Configuration values (key-value pairs) */
   configuration?: Record<string, string>;
 }

@@ -884,7 +884,10 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
             {
                 // CheckoutSessionState has SessionId property
                 var dataType = data.GetType();
-                var sessionIdProperty = dataType.GetProperty("SessionId") ?? dataType.GetProperty("sessionId");
+                var sessionIdProperty = dataType.GetProperty("SessionId")
+                    ?? dataType.GetProperty("sessionId")
+                    ?? dataType.GetProperty("Id")
+                    ?? dataType.GetProperty("id");
                 if (sessionIdProperty != null)
                 {
                     return sessionIdProperty.GetValue(data)?.ToString() ?? string.Empty;

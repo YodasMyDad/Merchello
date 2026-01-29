@@ -106,6 +106,8 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
         SupportsPartialRefunds = true,
         SupportsAuthAndCapture = true,
         RequiresWebhook = true,
+        SupportsVaultedPayments = true,
+        RequiresProviderCustomerId = true,
         SetupInstructions = """
             ## Braintree Setup Instructions
 
@@ -598,13 +600,28 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
 
         try
         {
+            string? vaultCustomerId = null;
+
+            if (request.SavePaymentMethod &&
+                request.CustomerId.HasValue &&
+                !string.IsNullOrWhiteSpace(request.CustomerEmail))
+            {
+                vaultCustomerId = await GetOrCreateBraintreeCustomerAsync(
+                    request.CustomerId.Value,
+                    request.CustomerEmail,
+                    request.CustomerName,
+                    cancellationToken);
+            }
+
             var transactionRequest = new TransactionRequest
             {
                 Amount = request.Amount ?? 0,
                 PaymentMethodNonce = request.PaymentMethodToken,
+                CustomerId = vaultCustomerId,
                 Options = new TransactionOptionsRequest
                 {
-                    SubmitForSettlement = true // Capture immediately
+                    SubmitForSettlement = true, // Capture immediately
+                    StoreInVaultOnSuccess = !string.IsNullOrEmpty(vaultCustomerId)
                 }
             };
 
@@ -627,6 +644,49 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                 var transaction = result.Target;
                 var riskScore = MapBraintreeRiskScore(transaction.RiskData);
 
+                VaultConfirmResult? vaultDetails = null;
+                if (request.SavePaymentMethod && !string.IsNullOrEmpty(vaultCustomerId))
+                {
+                    if (transaction.CreditCard != null && !string.IsNullOrEmpty(transaction.CreditCard.Token))
+                    {
+                        var card = transaction.CreditCard;
+                        vaultDetails = new VaultConfirmResult
+                        {
+                            Success = true,
+                            ProviderMethodId = card.Token,
+                            ProviderCustomerId = vaultCustomerId,
+                            MethodType = SavedPaymentMethodType.Card,
+                            CardBrand = card.CardType.ToString(),
+                            Last4 = card.LastFour,
+                            ExpiryMonth = int.TryParse(card.ExpirationMonth, out var month) ? month : (int?)null,
+                            ExpiryYear = int.TryParse(card.ExpirationYear, out var year) ? year : (int?)null,
+                            DisplayLabel = $"{card.CardType} ending in {card.LastFour}",
+                            ExtendedData = new Dictionary<string, object>
+                            {
+                                ["bin"] = card.Bin ?? string.Empty,
+                                ["uniqueNumberIdentifier"] = card.UniqueNumberIdentifier ?? string.Empty
+                            }
+                        };
+                    }
+                    else if (transaction.PayPalDetails != null && !string.IsNullOrEmpty(transaction.PayPalDetails.Token))
+                    {
+                        var paypal = transaction.PayPalDetails;
+                        vaultDetails = new VaultConfirmResult
+                        {
+                            Success = true,
+                            ProviderMethodId = paypal.Token,
+                            ProviderCustomerId = vaultCustomerId,
+                            MethodType = SavedPaymentMethodType.PayPal,
+                            DisplayLabel = $"PayPal - {paypal.PayerEmail ?? "account"}",
+                            ExtendedData = new Dictionary<string, object>
+                            {
+                                ["email"] = paypal.PayerEmail ?? string.Empty,
+                                ["payerId"] = paypal.PayerId ?? string.Empty
+                            }
+                        };
+                    }
+                }
+
                 return new PaymentResult
                 {
                     Success = true,
@@ -634,7 +694,8 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                     Amount = transaction.Amount ?? request.Amount ?? 0,
                     Status = PaymentResultStatus.Completed,
                     RiskScore = riskScore,
-                    RiskScoreSource = riskScore.HasValue ? "braintree-advanced-fraud" : null
+                    RiskScoreSource = riskScore.HasValue ? "braintree-advanced-fraud" : null,
+                    VaultedMethodDetails = vaultDetails
                 };
             }
 
@@ -1558,5 +1619,334 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             "decline" => 90m,  // High risk
             _ => (decimal?)null
         };
+    }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Creates a Braintree client token for saving a payment method.
+    /// Uses the Vault without charging: https://developer.paypal.com/braintree/docs/guides/credit-cards/vault
+    /// </remarks>
+    public override async Task<VaultSetupResult> CreateVaultSetupSessionAsync(
+        VaultSetupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.CustomerId == Guid.Empty)
+        {
+            return VaultSetupResult.Failed("CustomerId is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CustomerEmail))
+        {
+            return VaultSetupResult.Failed("CustomerEmail is required.");
+        }
+
+        if (_gateway is null)
+        {
+            return VaultSetupResult.Failed("Braintree is not configured. Please add your API credentials.");
+        }
+
+        try
+        {
+            // Get or create a Braintree customer
+            var braintreeCustomerId = await GetOrCreateBraintreeCustomerAsync(
+                request.CustomerId,
+                request.CustomerEmail,
+                request.CustomerName,
+                cancellationToken);
+
+            // Generate a client token for this customer
+            var clientTokenRequest = new ClientTokenRequest
+            {
+                CustomerId = braintreeCustomerId
+            };
+
+            var clientToken = await _gateway.ClientToken.GenerateAsync(clientTokenRequest);
+
+            // Create a unique session ID for tracking
+            var sessionId = $"vault_{request.CustomerId}_{DateTime.UtcNow.Ticks}";
+
+            return new VaultSetupResult
+            {
+                Success = true,
+                SetupSessionId = sessionId,
+                ClientSecret = clientToken, // Braintree uses client token
+                ProviderCustomerId = braintreeCustomerId,
+                SdkConfig = new Dictionary<string, object>
+                {
+                    ["clientToken"] = clientToken,
+                    ["returnUrl"] = request.ReturnUrl ?? string.Empty
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create Braintree vault setup session");
+            return VaultSetupResult.Failed(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Confirms a vault setup by storing the payment method nonce.
+    /// The nonce comes from Drop-in UI or Hosted Fields after customer enters card details.
+    /// </remarks>
+    public override async Task<VaultConfirmResult> ConfirmVaultSetupAsync(
+        VaultConfirmRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (_gateway is null)
+        {
+            return VaultConfirmResult.Failed("Braintree is not configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.SetupSessionId))
+        {
+            return VaultConfirmResult.Failed("SetupSessionId is required.");
+        }
+
+        if (string.IsNullOrEmpty(request.PaymentMethodToken))
+        {
+            return VaultConfirmResult.Failed("Payment method nonce is required for Braintree vault confirmation.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ProviderCustomerId))
+        {
+            return VaultConfirmResult.Failed("ProviderCustomerId is required for Braintree vault confirmation.");
+        }
+
+        try
+        {
+            // Create a payment method from the nonce
+            var paymentMethodRequest = new PaymentMethodRequest
+            {
+                CustomerId = request.ProviderCustomerId,
+                PaymentMethodNonce = request.PaymentMethodToken,
+                Options = new PaymentMethodOptionsRequest
+                {
+                    MakeDefault = request.SetAsDefault,
+                    VerifyCard = true // Verify card before storing
+                }
+            };
+
+            var result = await _gateway.PaymentMethod.CreateAsync(paymentMethodRequest);
+
+            if (!result.IsSuccess())
+            {
+                return VaultConfirmResult.Failed(result.Message);
+            }
+
+            var paymentMethod = result.Target;
+
+            // Extract details based on payment method type
+            if (paymentMethod is CreditCard card)
+            {
+                return new VaultConfirmResult
+                {
+                    Success = true,
+                    ProviderMethodId = card.Token,
+                    ProviderCustomerId = request.ProviderCustomerId,
+                    MethodType = SavedPaymentMethodType.Card,
+                    CardBrand = card.CardType.ToString(),
+                    Last4 = card.LastFour,
+                    ExpiryMonth = int.TryParse(card.ExpirationMonth, out var month) ? month : (int?)null,
+                    ExpiryYear = int.TryParse(card.ExpirationYear, out var year) ? year : (int?)null,
+                    DisplayLabel = $"{card.CardType} ending in {card.LastFour}",
+                    ExtendedData = new Dictionary<string, object>
+                    {
+                        ["bin"] = card.Bin ?? string.Empty,
+                        ["uniqueNumberIdentifier"] = card.UniqueNumberIdentifier ?? string.Empty
+                    }
+                };
+            }
+
+            if (paymentMethod is PayPalAccount paypal)
+            {
+                return new VaultConfirmResult
+                {
+                    Success = true,
+                    ProviderMethodId = paypal.Token,
+                    ProviderCustomerId = request.ProviderCustomerId,
+                    MethodType = SavedPaymentMethodType.PayPal,
+                    DisplayLabel = $"PayPal - {paypal.Email}",
+                    ExtendedData = new Dictionary<string, object>
+                    {
+                        ["email"] = paypal.Email ?? string.Empty,
+                        ["payerId"] = paypal.PayerId ?? string.Empty
+                    }
+                };
+            }
+
+            // Generic handling for other payment method types
+            return new VaultConfirmResult
+            {
+                Success = true,
+                ProviderMethodId = paymentMethod.Token,
+                ProviderCustomerId = request.ProviderCustomerId,
+                MethodType = SavedPaymentMethodType.Other,
+                DisplayLabel = "Saved payment method"
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to confirm Braintree vault setup");
+            return VaultConfirmResult.Failed(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Charges a vaulted payment method using the stored token.
+    /// See: https://developer.paypal.com/braintree/docs/guides/credit-cards/vault#charging-a-vaulted-payment-method
+    /// </remarks>
+    public override async Task<PaymentResult> ChargeVaultedMethodAsync(
+        ChargeVaultedMethodRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderMethodId))
+        {
+            return PaymentResult.Failed("ProviderMethodId is required.");
+        }
+
+        if (request.Amount <= 0)
+        {
+            return PaymentResult.Failed("Amount must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CurrencyCode))
+        {
+            return PaymentResult.Failed("CurrencyCode is required.");
+        }
+
+        if (_gateway is null)
+        {
+            return PaymentResult.Failed("Braintree is not configured.");
+        }
+
+        try
+        {
+            var transactionRequest = new TransactionRequest
+            {
+                Amount = request.Amount,
+                PaymentMethodToken = request.ProviderMethodId,
+                CustomerId = request.ProviderCustomerId,
+                Options = new TransactionOptionsRequest
+                {
+                    SubmitForSettlement = true // Immediately submit for settlement
+                },
+                CustomFields = new Dictionary<string, string>
+                {
+                    ["invoice_id"] = request.InvoiceId.ToString(),
+                    ["merchello_customer_id"] = request.CustomerId.ToString()
+                }
+            };
+
+            // Add merchant account if configured (for multi-currency)
+            if (!string.IsNullOrEmpty(_merchantAccountId))
+            {
+                transactionRequest.MerchantAccountId = _merchantAccountId;
+            }
+
+            var result = await _gateway.Transaction.SaleAsync(transactionRequest);
+
+            if (result.IsSuccess())
+            {
+                var transaction = result.Target;
+                return PaymentResult.Completed(transaction.Id, transaction.Amount ?? request.Amount);
+            }
+
+            // Check for specific error types
+            if (result.Transaction != null)
+            {
+                var status = result.Transaction.Status;
+                if (status == TransactionStatus.PROCESSOR_DECLINED ||
+                    status == TransactionStatus.GATEWAY_REJECTED)
+                {
+                    return PaymentResult.Failed(
+                        $"Payment declined: {result.Transaction.ProcessorResponseText}",
+                        result.Transaction.ProcessorResponseCode);
+                }
+            }
+
+            return PaymentResult.Failed(result.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to charge vaulted Braintree payment method");
+            return PaymentResult.Failed(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Deletes a vaulted payment method from Braintree.
+    /// See: https://developer.paypal.com/braintree/docs/reference/request/payment-method/delete
+    /// </remarks>
+    public override async Task<bool> DeleteVaultedMethodAsync(
+        string providerMethodId,
+        string? providerCustomerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (_gateway is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            await _gateway.PaymentMethod.DeleteAsync(providerMethodId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete Braintree vaulted payment method {Token}", providerMethodId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets or creates a Braintree Customer for the given Merchello customer.
+    /// </summary>
+    private async Task<string> GetOrCreateBraintreeCustomerAsync(
+        Guid merchelloCustomerId,
+        string email,
+        string? name,
+        CancellationToken cancellationToken)
+    {
+        // Use Merchello customer ID as the Braintree customer ID for easy correlation
+        var braintreeCustomerId = $"merch_{merchelloCustomerId:N}"[..32]; // Max 36 chars in Braintree
+
+        try
+        {
+            // Try to find existing customer
+            var existingCustomer = await _gateway!.Customer.FindAsync(braintreeCustomerId);
+            return existingCustomer.Id;
+        }
+        catch (NotFoundException)
+        {
+            // Customer doesn't exist, create new one
+            var request = new CustomerRequest
+            {
+                Id = braintreeCustomerId,
+                Email = email,
+                FirstName = name?.Split(' ').FirstOrDefault(),
+                LastName = name?.Split(' ').Skip(1).FirstOrDefault(),
+                CustomFields = new Dictionary<string, string>
+                {
+                    ["merchello_customer_id"] = merchelloCustomerId.ToString()
+                }
+            };
+
+            var result = await _gateway.Customer.CreateAsync(request);
+            if (result.IsSuccess())
+            {
+                return result.Target.Id;
+            }
+
+            throw new InvalidOperationException($"Failed to create Braintree customer: {result.Message}");
+        }
     }
 }

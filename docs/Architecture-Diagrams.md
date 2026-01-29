@@ -79,7 +79,7 @@ Feature/
 
 **IProductTypeService:**
 - `GetProductTypesAsync()` - Get all product types
-- `GetProductTypeAsync()` - Get single product type
+- `GetProductTypesByIdsAsync()` - Get product types by IDs
 - `CreateProductTypeAsync()` - Create product type
 - `UpdateProductTypeAsync()` - Update product type
 - `DeleteProductTypeAsync()` - Delete product type
@@ -333,7 +333,7 @@ See [Section 3: Tax System](#3-tax-system) for detailed shipping tax documentati
 ### 2.9 Discounts
 
 **IDiscountService:**
-- `RecordUsageAsync()` - Record discount usage
+- `TryRecordUsageAsync()` - Record discount usage (returns false if limit exceeded)
 
 **IDiscountEngine:**
 - `CalculateAsync()` - Calculate discount amounts
@@ -1136,10 +1136,10 @@ All notifications inherit from one of three base classes depending on their purp
 **State Dictionary:** All notifications include a `State` dictionary for sharing data between handlers:
 
 ```csharp
-// In a "Before" handler (priority 100):
+// In a "Before" handler (priority 1000):
 notification.State["originalPrice"] = product.Price;
 
-// In an "After" handler (priority 2000):
+// In a later handler (priority 2000):
 if (notification.State.TryGetValue("originalPrice", out var price))
     await auditService.LogPriceChange((decimal)price, product.Price);
 ```
@@ -1170,19 +1170,23 @@ class Syncer : INotificationAsyncHandler<OrderCreatedNotification>
 
 ### Handler Priority
 
-| Priority | Purpose | Example |
+| Priority | Handler | Purpose |
 |----------|---------|---------|
-| 100 | Validation (can cancel) | Stock check, fraud detection |
-| 500 | Modification | Adjust values before save |
-| 1000 | Default | Standard handlers |
-| 2000 | External sync | CRM sync, webhooks, emails |
+| 1000 | *(default)* | Default priority (`NotificationHandlerPriorityAttribute.DefaultPriority`) |
+| 1500 | `DigitalProductPaymentHandler` | Digital product link creation after payment |
+| 1800 | `FulfilmentOrderSubmissionHandler` | 3PL order submission after order creation |
+| 1800 | `FulfilmentCancellationHandler` | 3PL cancellation after status change |
+| 2000 | `InvoiceTimelineHandler` | Internal audit/timeline logging |
+| 2100 | `EmailNotificationHandler` | Email delivery |
+| 2200 | `WebhookNotificationHandler` | Webhook delivery |
+| 3000 | `UcpOrderWebhookHandler` | UCP protocol webhooks |
 
 ```csharp
-[NotificationHandlerPriority(100)]
-public class StockValidator : INotificationAsyncHandler<OrderCreatingNotification> { }
+[NotificationHandlerPriority(1500)]
+public class DigitalProductPaymentHandler : INotificationAsyncHandler<PaymentCreatedNotification> { }
 
-[NotificationHandlerPriority(2000)]
-public class CrmSyncer : INotificationAsyncHandler<OrderCreatedNotification> { }
+[NotificationHandlerPriority(2200)]
+public class WebhookNotificationHandler : INotificationAsyncHandler<OrderCreatedNotification> { }
 ```
 
 ### 8.3 Events by Domain
@@ -1199,7 +1203,7 @@ public class CrmSyncer : INotificationAsyncHandler<OrderCreatedNotification> { }
 | **Shipment** | Creating✓/Created, Saving✓/Saved, StatusChanging✓/Changed | ShipmentService |
 | **Product** | All 6 | ProductService |
 | **ProductOption** | Creating✓/Created, Deleting✓/Deleted | ProductService |
-| **Customer** | All 6 | CustomerService |
+| **Customer** | All 6 + PasswordResetRequested | CustomerService |
 | **CustomerSegment** | All 6 | CustomerSegmentService |
 | **Discount** | All 6 + StatusChanging✓/Changed | DiscountService |
 | **Supplier** | All 6 | SupplierService |
@@ -1212,10 +1216,14 @@ public class CrmSyncer : INotificationAsyncHandler<OrderCreatedNotification> { }
 - StockReserving✓/Reserved, StockReleasing✓/Released, StockAllocating✓/Allocated, StockAdjusted, LowStock
 
 **Checkout Events** (CheckoutService):
-- AddressesChanging✓/Changed, DiscountCodeApplying✓/Applied/Removed, ShippingSelectionChanging✓/Changed
+- AddressesChanging✓/Changed, DiscountCodeApplying✓/Applied/Removed, ShippingSelectionChanging✓/Changed, StockValidationFailed
+
+**Order Grouping Events** (IOrderGroupingStrategy):
+- OrderGroupingModifying✓ - Before grouping is finalized (cancelable, allows modification)
+- OrderGrouping - After grouping is complete
 
 **Abandoned Checkout Events** (AbandonedCheckoutService):
-- AbandonedFirst, AbandonedReminder, AbandonedFinal, Recovered, RecoveryConverted
+- Abandoned (initial detection), AbandonedFirst, AbandonedReminder, AbandonedFinal, Recovered, RecoveryConverted
 
 **Reminder Events** (InvoiceReminderJob):
 - InvoiceReminder, InvoiceOverdue
@@ -1236,6 +1244,10 @@ public class CrmSyncer : INotificationAsyncHandler<OrderCreatedNotification> { }
 - ProtocolSessionCreating✓/Created - Protocol checkout session lifecycle
 - ProtocolSessionUpdating✓/Updated
 - ProtocolSessionCompleting✓/Completed
+- ProtocolWebhookSending✓/Sent - Protocol webhook delivery
+
+**Fulfilment Events** (FulfilmentService/FulfilmentPollingJob):
+- FulfilmentSubmitting✓/Submitted, InventoryUpdated, ProductSynced, SubmissionFailed
 
 ### 8.4 Integration Points
 
@@ -1243,7 +1255,7 @@ public class CrmSyncer : INotificationAsyncHandler<OrderCreatedNotification> { }
 
 **Webhooks:** `IWebhookTopicRegistry` maps notifications → webhook topics
 
-Both use handlers at priority 2000 that queue to `OutboundDelivery`, processed by `OutboundDeliveryJob`.
+Both use high-priority handlers (Email at 2100, Webhooks at 2200) that queue to `OutboundDelivery`, processed by `OutboundDeliveryJob`.
 
 ---
 

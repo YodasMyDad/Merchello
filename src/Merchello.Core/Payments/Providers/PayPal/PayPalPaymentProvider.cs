@@ -67,6 +67,8 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
         SupportsAuthAndCapture = true,
         RequiresWebhook = true,
         SupportsPaymentLinks = true,
+        SupportsVaultedPayments = true,
+        RequiresProviderCustomerId = false, // PayPal uses vault tokens directly
         SetupInstructions = """
             ## PayPal Setup Instructions
 
@@ -292,6 +294,18 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
                 }
             };
 
+            if (request.SavePaymentMethod)
+            {
+                orderRequest.PaymentSource!.Paypal!.Attributes = new PaypalWalletAttributes
+                {
+                    Vault = new PaypalWalletVaultInstruction
+                    {
+                        StoreInVault = StoreInVaultInstruction.OnSuccess,
+                        UsageType = PaypalPaymentTokenUsageType.Merchant
+                    }
+                };
+            }
+
             var createOrderInput = new CreateOrderInput()
             {
                 Body = orderRequest,
@@ -427,12 +441,38 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
                     ? amt
                     : request.Amount ?? 0;
 
+                VaultConfirmResult? vaultDetails = null;
+                if (request.SavePaymentMethod)
+                {
+                    var paypalWallet = order.PaymentSource?.Paypal;
+                    var vault = paypalWallet?.Attributes?.Vault;
+                    if (!string.IsNullOrEmpty(vault?.Id))
+                    {
+                        var email = paypalWallet?.EmailAddress
+                            ?? vault.Customer?.EmailAddress;
+
+                        vaultDetails = new VaultConfirmResult
+                        {
+                            Success = true,
+                            ProviderMethodId = vault.Id,
+                            ProviderCustomerId = vault.Customer?.Id,
+                            MethodType = SavedPaymentMethodType.PayPal,
+                            DisplayLabel = $"PayPal - {email ?? "account"}",
+                            ExtendedData = new Dictionary<string, object>
+                            {
+                                ["email"] = email ?? string.Empty
+                            }
+                        };
+                    }
+                }
+
                 return new PaymentResult
                 {
                     Success = true,
                     TransactionId = transactionId,
                     Amount = capturedAmount,
-                    Status = PaymentResultStatus.Completed
+                    Status = PaymentResultStatus.Completed,
+                    VaultedMethodDetails = vaultDetails
                 };
             }
 
@@ -1635,5 +1675,437 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
         };
 
         return JsonSerializer.Serialize(invoice, jsonOptions);
+    }
+
+    // =====================================================
+    // Vaulted Payments
+    // =====================================================
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Creates a PayPal vault setup using the Vault API.
+    /// The customer will approve saving their PayPal account for future use.
+    /// See: https://developer.paypal.com/docs/checkout/save-payment-methods/
+    /// </remarks>
+    public override async Task<VaultSetupResult> CreateVaultSetupSessionAsync(
+        VaultSetupRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.CustomerId == Guid.Empty)
+        {
+            return VaultSetupResult.Failed("CustomerId is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CustomerEmail))
+        {
+            return VaultSetupResult.Failed("CustomerEmail is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ReturnUrl))
+        {
+            return VaultSetupResult.Failed("ReturnUrl is required for PayPal vault setup.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CancelUrl))
+        {
+            return VaultSetupResult.Failed("CancelUrl is required for PayPal vault setup.");
+        }
+
+        if (string.IsNullOrEmpty(_clientId))
+        {
+            return VaultSetupResult.Failed("PayPal is not configured. Please add your API credentials.");
+        }
+
+        var clientSecret = Configuration?.GetValue("clientSecret");
+        if (string.IsNullOrEmpty(clientSecret))
+        {
+            return VaultSetupResult.Failed("PayPal client secret is not configured.");
+        }
+
+        try
+        {
+            using var httpClient = _httpClientFactory.CreateClient("PayPal");
+            var baseUrl = IsTestMode
+                ? "https://api-m.sandbox.paypal.com"
+                : "https://api-m.paypal.com";
+
+            // Get OAuth access token
+            var accessToken = await GetAccessTokenAsync(httpClient, baseUrl, _clientId, clientSecret, cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return VaultSetupResult.Failed("Failed to authenticate with PayPal.");
+            }
+
+            // Create a setup token for vaulting
+            var setupPayload = JsonSerializer.Serialize(new
+            {
+                payment_source = new
+                {
+                    paypal = new
+                    {
+                        usage_type = "MERCHANT",
+                        experience_context = new
+                        {
+                            return_url = request.ReturnUrl ?? string.Empty,
+                            cancel_url = request.CancelUrl ?? string.Empty
+                        }
+                    }
+                }
+            });
+
+            using var createRequest = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v3/vault/setup-tokens");
+            createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            createRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            createRequest.Content = new StringContent(setupPayload, Encoding.UTF8, "application/json");
+
+            using var createResponse = await httpClient.SendAsync(createRequest, cancellationToken);
+            var createResponseContent = await createResponse.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!createResponse.IsSuccessStatusCode)
+            {
+                return VaultSetupResult.Failed($"Failed to create PayPal vault setup token: {createResponseContent}");
+            }
+
+            using var createDoc = JsonDocument.Parse(createResponseContent);
+            var setupTokenId = createDoc.RootElement.GetProperty("id").GetString();
+
+            // Extract the approval URL
+            string? approvalUrl = null;
+            if (createDoc.RootElement.TryGetProperty("links", out var links))
+            {
+                foreach (var link in links.EnumerateArray())
+                {
+                    if (link.TryGetProperty("rel", out var rel) &&
+                        rel.GetString() == "approve" &&
+                        link.TryGetProperty("href", out var href))
+                    {
+                        approvalUrl = href.GetString();
+                        break;
+                    }
+                }
+            }
+
+            return new VaultSetupResult
+            {
+                Success = true,
+                SetupSessionId = setupTokenId,
+                RedirectUrl = approvalUrl,
+                SdkConfig = new Dictionary<string, object>
+                {
+                    ["clientId"] = _clientId,
+                    ["setupTokenId"] = setupTokenId ?? string.Empty
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return VaultSetupResult.Failed($"PayPal vault setup error: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Confirms a PayPal vault setup and creates a payment token.
+    /// Called after customer approves saving their PayPal account.
+    /// </remarks>
+    public override async Task<VaultConfirmResult> ConfirmVaultSetupAsync(
+        VaultConfirmRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.SetupSessionId))
+        {
+            return VaultConfirmResult.Failed("SetupSessionId is required.");
+        }
+
+        if (string.IsNullOrEmpty(_clientId))
+        {
+            return VaultConfirmResult.Failed("PayPal is not configured.");
+        }
+
+        var clientSecret = Configuration?.GetValue("clientSecret");
+        if (string.IsNullOrEmpty(clientSecret))
+        {
+            return VaultConfirmResult.Failed("PayPal client secret is not configured.");
+        }
+
+        try
+        {
+            using var httpClient = _httpClientFactory.CreateClient("PayPal");
+            var baseUrl = IsTestMode
+                ? "https://api-m.sandbox.paypal.com"
+                : "https://api-m.paypal.com";
+
+            // Get OAuth access token
+            var accessToken = await GetAccessTokenAsync(httpClient, baseUrl, _clientId, clientSecret, cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return VaultConfirmResult.Failed("Failed to authenticate with PayPal.");
+            }
+
+            // Create a payment token from the setup token
+            var tokenPayload = JsonSerializer.Serialize(new
+            {
+                payment_source = new
+                {
+                    token = new
+                    {
+                        id = request.SetupSessionId,
+                        type = "SETUP_TOKEN"
+                    }
+                }
+            });
+
+            using var createRequest = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v3/vault/payment-tokens");
+            createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            createRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            createRequest.Content = new StringContent(tokenPayload, Encoding.UTF8, "application/json");
+
+            using var createResponse = await httpClient.SendAsync(createRequest, cancellationToken);
+            var createResponseContent = await createResponse.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!createResponse.IsSuccessStatusCode)
+            {
+                return VaultConfirmResult.Failed($"Failed to create PayPal payment token: {createResponseContent}");
+            }
+
+            using var createDoc = JsonDocument.Parse(createResponseContent);
+            var paymentTokenId = createDoc.RootElement.GetProperty("id").GetString();
+            var customerId = createDoc.RootElement.TryGetProperty("customer", out var customer)
+                && customer.TryGetProperty("id", out var cid)
+                    ? cid.GetString()
+                    : null;
+
+            // Extract PayPal account email if available
+            string? email = null;
+            if (createDoc.RootElement.TryGetProperty("payment_source", out var paymentSource) &&
+                paymentSource.TryGetProperty("paypal", out var paypal) &&
+                paypal.TryGetProperty("email_address", out var emailProp))
+            {
+                email = emailProp.GetString();
+            }
+
+            return new VaultConfirmResult
+            {
+                Success = true,
+                ProviderMethodId = paymentTokenId,
+                ProviderCustomerId = customerId,
+                MethodType = SavedPaymentMethodType.PayPal,
+                DisplayLabel = $"PayPal - {email ?? "account"}",
+                ExtendedData = new Dictionary<string, object>
+                {
+                    ["email"] = email ?? string.Empty
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return VaultConfirmResult.Failed($"PayPal vault confirmation error: {ex.Message}");
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Charges a vaulted PayPal account using the payment token.
+    /// Creates an order with vault payment source and auto-captures.
+    /// </remarks>
+    public override async Task<PaymentResult> ChargeVaultedMethodAsync(
+        ChargeVaultedMethodRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderMethodId))
+        {
+            return PaymentResult.Failed("ProviderMethodId is required.");
+        }
+
+        if (request.Amount <= 0)
+        {
+            return PaymentResult.Failed("Amount must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CurrencyCode))
+        {
+            return PaymentResult.Failed("CurrencyCode is required.");
+        }
+
+        if (string.IsNullOrEmpty(_clientId))
+        {
+            return PaymentResult.Failed("PayPal is not configured.");
+        }
+
+        var clientSecret = Configuration?.GetValue("clientSecret");
+        if (string.IsNullOrEmpty(clientSecret))
+        {
+            return PaymentResult.Failed("PayPal client secret is not configured.");
+        }
+
+        try
+        {
+            using var httpClient = _httpClientFactory.CreateClient("PayPal");
+            var baseUrl = IsTestMode
+                ? "https://api-m.sandbox.paypal.com"
+                : "https://api-m.paypal.com";
+
+            // Get OAuth access token
+            var accessToken = await GetAccessTokenAsync(httpClient, baseUrl, _clientId, clientSecret, cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return PaymentResult.Failed("Failed to authenticate with PayPal.");
+            }
+
+            // Create order with vault token
+            var orderPayload = JsonSerializer.Serialize(new
+            {
+                intent = "CAPTURE",
+                purchase_units = new[]
+                {
+                    new
+                    {
+                        reference_id = request.InvoiceId.ToString(),
+                        description = request.Description,
+                        amount = new
+                        {
+                            currency_code = request.CurrencyCode.ToUpperInvariant(),
+                            value = request.Amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+                        }
+                    }
+                },
+                payment_source = new
+                {
+                    token = new
+                    {
+                        id = request.ProviderMethodId,
+                        type = "PAYMENT_METHOD_TOKEN"
+                    }
+                }
+            });
+
+            using var orderRequest = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v2/checkout/orders");
+            orderRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            orderRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            orderRequest.Content = new StringContent(orderPayload, Encoding.UTF8, "application/json");
+
+            using var orderResponse = await httpClient.SendAsync(orderRequest, cancellationToken);
+            var orderResponseContent = await orderResponse.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!orderResponse.IsSuccessStatusCode)
+            {
+                return PaymentResult.Failed($"PayPal order creation failed: {orderResponseContent}");
+            }
+
+            using var orderDoc = JsonDocument.Parse(orderResponseContent);
+            var orderId = orderDoc.RootElement.GetProperty("id").GetString();
+            var orderStatus = orderDoc.RootElement.GetProperty("status").GetString();
+
+            // If order is already completed (auto-captured), extract capture ID
+            if (orderStatus == "COMPLETED")
+            {
+                var captureId = ExtractCaptureId(orderDoc.RootElement);
+                return PaymentResult.Completed(captureId ?? orderId!, request.Amount);
+            }
+
+            // If order is approved, capture it
+            if (orderStatus == "APPROVED")
+            {
+                using var captureRequest = new HttpRequestMessage(
+                    HttpMethod.Post,
+                    $"{baseUrl}/v2/checkout/orders/{orderId}/capture");
+                captureRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                captureRequest.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                using var captureResponse = await httpClient.SendAsync(captureRequest, cancellationToken);
+                var captureResponseContent = await captureResponse.Content.ReadAsStringAsync(cancellationToken);
+
+                if (!captureResponse.IsSuccessStatusCode)
+                {
+                    return PaymentResult.Failed($"PayPal capture failed: {captureResponseContent}");
+                }
+
+                using var captureDoc = JsonDocument.Parse(captureResponseContent);
+                var captureId = ExtractCaptureId(captureDoc.RootElement);
+                return PaymentResult.Completed(captureId ?? orderId!, request.Amount);
+            }
+
+            return PaymentResult.Failed($"Unexpected order status: {orderStatus}");
+        }
+        catch (Exception ex)
+        {
+            return PaymentResult.Failed($"PayPal error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Extracts the capture ID from a PayPal order response.
+    /// </summary>
+    private static string? ExtractCaptureId(JsonElement orderElement)
+    {
+        if (orderElement.TryGetProperty("purchase_units", out var purchaseUnits))
+        {
+            foreach (var unit in purchaseUnits.EnumerateArray())
+            {
+                if (unit.TryGetProperty("payments", out var payments) &&
+                    payments.TryGetProperty("captures", out var captures))
+                {
+                    foreach (var capture in captures.EnumerateArray())
+                    {
+                        if (capture.TryGetProperty("id", out var captureId))
+                        {
+                            return captureId.GetString();
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Deletes a vaulted PayPal payment token.
+    /// See: https://developer.paypal.com/docs/api/payment-tokens/v3/#payment-tokens_delete
+    /// </remarks>
+    public override async Task<bool> DeleteVaultedMethodAsync(
+        string providerMethodId,
+        string? providerCustomerId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(_clientId))
+        {
+            return false;
+        }
+
+        var clientSecret = Configuration?.GetValue("clientSecret");
+        if (string.IsNullOrEmpty(clientSecret))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var httpClient = _httpClientFactory.CreateClient("PayPal");
+            var baseUrl = IsTestMode
+                ? "https://api-m.sandbox.paypal.com"
+                : "https://api-m.paypal.com";
+
+            // Get OAuth access token
+            var accessToken = await GetAccessTokenAsync(httpClient, baseUrl, _clientId, clientSecret, cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                return false;
+            }
+
+            // Delete the payment token
+            using var deleteRequest = new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"{baseUrl}/v3/vault/payment-tokens/{providerMethodId}");
+            deleteRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            using var deleteResponse = await httpClient.SendAsync(deleteRequest, cancellationToken);
+
+            return deleteResponse.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

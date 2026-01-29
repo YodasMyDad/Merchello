@@ -34,6 +34,14 @@ public class PaymentProviderSetting
     public bool IsTestMode { get; set; } = true;
 
     /// <summary>
+    /// Whether vaulting is enabled for this provider.
+    /// Only applies if the provider supports vaulting (SupportsVaultedPayments = true).
+    /// When enabled, customers can save payment methods for future purchases.
+    /// Controlled via backoffice provider configuration.
+    /// </summary>
+    public bool IsVaultingEnabled { get; set; }
+
+    /// <summary>
     /// JSON-serialized configuration values.
     /// </summary>
     public string? Configuration { get; set; }

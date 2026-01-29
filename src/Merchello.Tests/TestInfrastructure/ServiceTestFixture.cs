@@ -71,6 +71,7 @@ using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Services;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -498,6 +499,8 @@ public class ServiceTestFixture : IDisposable
         // Payment services
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IPaymentLinkService, PaymentLinkService>();
+        services.AddSingleton<SavedPaymentMethodFactory>();
+        services.AddScoped<ISavedPaymentMethodService, SavedPaymentMethodService>();
 
         // Invoice service (uses Lazy<ICheckoutService> to break circular dependency)
         services.AddScoped<IInvoiceService, InvoiceService>();
@@ -714,15 +717,44 @@ public class ServiceTestFixture : IDisposable
             .ReturnsAsync((RefundRequest req, CancellationToken _) => RefundResult.Successful(
                 $"manual_refund_{Guid.NewGuid():N}", req.Amount ?? 0m));
         var registeredManualProvider = new RegisteredPaymentProvider(mockPaymentProvider.Object, null);
+
+        var stripeProviderMock = new Mock<IPaymentProvider>();
+        stripeProviderMock.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = "stripe",
+            DisplayName = "Stripe",
+            SupportsVaultedPayments = true
+        });
+        var stripeSetting = new PaymentProviderSetting
+        {
+            ProviderAlias = "stripe",
+            DisplayName = "Stripe",
+            IsEnabled = true,
+            IsVaultingEnabled = true
+        };
+        var registeredStripeProvider = new RegisteredPaymentProvider(stripeProviderMock.Object, stripeSetting);
+
         _paymentProviderManagerMock
             .Setup(x => x.GetProviderAsync("manual", It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(registeredManualProvider);
         _paymentProviderManagerMock
+            .Setup(x => x.GetProviderAsync("stripe", It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(registeredStripeProvider);
+        _paymentProviderManagerMock
             .Setup(x => x.GetAvailableProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([registeredManualProvider]);
+            .ReturnsAsync([registeredManualProvider, registeredStripeProvider]);
         _paymentProviderManagerMock
             .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([registeredManualProvider]);
+            .ReturnsAsync([registeredManualProvider, registeredStripeProvider]);
+        _paymentProviderManagerMock
+            .Setup(x => x.GetCheckoutPaymentMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<PaymentMethodDto>());
+        _paymentProviderManagerMock
+            .Setup(x => x.GetExpressCheckoutMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<PaymentMethodDto>());
+        _paymentProviderManagerMock
+            .Setup(x => x.GetStandardPaymentMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<PaymentMethodDto>());
     }
 
     /// <summary>
@@ -991,6 +1023,15 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<(decimal InvoiceTotal, string CurrencyCode, List<Payment> Payments)>>>()))
                     .Returns((Func<MerchelloDbContext, Task<(decimal, string, List<Payment>)>> func) => func(dbContext));
+
+                // Saved payment method return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<SavedPaymentMethod?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<SavedPaymentMethod?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<SavedPaymentMethod>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<SavedPaymentMethod>>> func) => func(dbContext));
 
                 // Discount return types
                 scopeMock

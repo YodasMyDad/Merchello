@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using Merchello.Core;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Dtos;
@@ -271,8 +272,7 @@ public class PaymentsApiController(
                     return NotFound($"Payment '{id}' not found.");
                 }
 
-                var existingRefunds = payment.Refunds?.Sum(r => Math.Abs(r.Amount)) ?? 0;
-                amount = payment.Amount - existingRefunds;
+                amount = payment.GetRefundableAmount();
             }
 
             result = await paymentService.RecordManualRefundAsync(new RecordManualRefundParameters
@@ -345,10 +345,7 @@ public class PaymentsApiController(
 
     private async Task<PaymentDto> MapToPaymentDtoAsync(Payment payment, CancellationToken cancellationToken = default)
     {
-        var existingRefunds = payment.Refunds?.Sum(r => Math.Abs(r.Amount)) ?? 0;
-        var refundableAmount = payment.PaymentType == PaymentType.Payment
-            ? payment.Amount - existingRefunds
-            : 0;
+        var refundableAmount = payment.GetRefundableAmount();
 
         // Determine provider refund capability
         var (canRefundViaProvider, reason, supportsPartialRefunds) =
@@ -389,7 +386,7 @@ public class PaymentsApiController(
             RiskScore = payment.RiskScore,
             RiskScoreSource = payment.RiskScoreSource,
             RiskLevel = PaymentStatusDetails.GetRiskLevel(payment.RiskScore),
-            RefundableAmount = Math.Max(0, refundableAmount),
+            RefundableAmount = Math.Max(0m, refundableAmount),
             CanRefundViaProvider = canRefundViaProvider,
             CannotRefundViaProviderReason = reason,
             SupportsPartialRefunds = supportsPartialRefunds,

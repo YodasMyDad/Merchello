@@ -22,6 +22,16 @@ public class UpdateDiscountParameters
     /// </summary>
     public string? Description { get; set; }
 
+    /// <summary>
+    /// Updated show in feed flag (null to keep existing).
+    /// </summary>
+    public bool? ShowInFeed { get; set; }
+
+    /// <summary>
+    /// Updated feed promotion name (null to keep existing).
+    /// </summary>
+    public string? FeedPromotionName { get; set; }
+
     // =====================================================
     // Code (only for code-based discounts)
     // =====================================================

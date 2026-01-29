@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
@@ -324,5 +325,32 @@ public static class DisplayCurrencyExtensions
         var discrepancy = expectedSum - actualSum;
 
         return rawGrossSubTotal + discrepancy;
+    }
+
+    /// <summary>
+    /// Calculate the raw tax-inclusive subtotal from checkout confirmation line items.
+    /// Filters to product/custom/addon items, applies the tax formula, rounds per currency, and sums.
+    /// </summary>
+    public static (decimal RawSubTotal, int ProductItemCount) GetRawTaxInclusiveSubTotal(
+        this IEnumerable<CheckoutLineItemDto> lineItems,
+        bool displayPricesIncTax,
+        ICurrencyService currencyService,
+        string currency)
+    {
+        var productItems = lineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .ToList();
+
+        var rawSubTotal = productItems.Sum(li =>
+        {
+            var amount = li.DisplayLineTotal;
+            if (displayPricesIncTax && li.IsTaxable && li.TaxRate > 0)
+            {
+                amount *= 1 + (li.TaxRate / 100m);
+            }
+            return currencyService.Round(amount, currency);
+        });
+
+        return (rawSubTotal, productItems.Count);
     }
 }

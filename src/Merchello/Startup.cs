@@ -289,6 +289,8 @@ public static class Startup
         builder.Services.AddScoped<IPaymentProviderManager, PaymentProviderManager>();
         builder.Services.AddScoped<IPaymentService, PaymentService>();
         builder.Services.AddScoped<IPaymentLinkService, PaymentLinkService>();
+        builder.Services.AddScoped<ISavedPaymentMethodService, SavedPaymentMethodService>();
+        builder.Services.AddSingleton<SavedPaymentMethodFactory>();
         builder.Services.AddScoped<IWebhookSecurityService, WebhookSecurityService>();
         builder.Services.AddScoped<IPaymentIdempotencyService, PaymentIdempotencyService>();
 

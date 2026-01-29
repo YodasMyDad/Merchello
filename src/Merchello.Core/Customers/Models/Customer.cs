@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Payments.Models;
 using Merchello.Core.Shared.Extensions;
 
 namespace Merchello.Core.Customers.Models;
@@ -84,4 +85,9 @@ public class Customer
     /// Navigation property: Invoices for this customer
     /// </summary>
     public virtual ICollection<Invoice>? Invoices { get; set; }
+
+    /// <summary>
+    /// Navigation property: Saved payment methods for this customer (vaulted at payment providers).
+    /// </summary>
+    public virtual ICollection<SavedPaymentMethod>? SavedPaymentMethods { get; set; }
 }

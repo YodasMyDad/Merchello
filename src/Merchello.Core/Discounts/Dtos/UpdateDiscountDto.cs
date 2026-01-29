@@ -10,6 +10,8 @@ public class UpdateDiscountDto
 {
     public string? Name { get; set; }
     public string? Description { get; set; }
+    public bool? ShowInFeed { get; set; }
+    public string? FeedPromotionName { get; set; }
     public string? Code { get; set; }
     public DiscountValueType? ValueType { get; set; }
     public decimal? Value { get; set; }

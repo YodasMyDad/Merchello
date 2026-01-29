@@ -40,4 +40,10 @@ public class ProcessPaymentResultDto
     /// Populated when Success is false.
     /// </summary>
     public string? CorrelationId { get; set; }
+
+    /// <summary>
+    /// Whether the payment method was saved for future use.
+    /// Only true when SavePaymentMethod was requested and vaulting succeeded.
+    /// </summary>
+    public bool PaymentMethodSaved { get; set; }
 }

@@ -85,6 +85,7 @@ public class DownloadsController(
             }
             catch
             {
+                // Expected: JSON parsing may fail for legacy/malformed data - fall back to treating as direct path
                 filePath = umbracoFile;
             }
         }

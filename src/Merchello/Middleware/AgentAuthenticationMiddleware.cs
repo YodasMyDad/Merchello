@@ -2,11 +2,14 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Notifications;
+using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Notifications.Interfaces;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Security.Authentication;
 
 namespace Merchello.Middleware;
 
@@ -17,7 +20,8 @@ namespace Merchello.Middleware;
 public class AgentAuthenticationMiddleware(
     RequestDelegate next,
     ILogger<AgentAuthenticationMiddleware> logger,
-    IOptions<ProtocolSettings> settings)
+    IOptions<ProtocolSettings> settings,
+    IUcpAgentProfileService agentProfileService)
 {
     private static readonly string[] ProtocolPaths = [
         "/.well-known/ucp",
@@ -50,6 +54,36 @@ public class AgentAuthenticationMiddleware(
         {
             await next(context);
             return;
+        }
+
+        // Enforce HTTPS/TLS requirements for protocol endpoints
+        if (settings.Value.RequireHttps && !context.Request.IsHttps)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = "https_required",
+                message = "HTTPS is required for protocol endpoints."
+            });
+            return;
+        }
+
+        if (settings.Value.RequireHttps && !string.IsNullOrWhiteSpace(settings.Value.MinimumTlsVersion))
+        {
+            var handshake = context.Features.Get<ITlsHandshakeFeature>();
+            var minTls = ParseTlsVersion(settings.Value.MinimumTlsVersion);
+            var requestTls = GetTlsVersion(handshake?.Protocol ?? SslProtocols.None);
+
+            if (minTls.HasValue && requestTls.HasValue && requestTls.Value < minTls.Value)
+            {
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    error = "tls_version_unsupported",
+                    message = $"Minimum TLS version {settings.Value.MinimumTlsVersion} is required."
+                });
+                return;
+            }
         }
 
         // Check if authentication is required for this protocol
@@ -111,6 +145,36 @@ public class AgentAuthenticationMiddleware(
                 message = "Agent not authorized for this merchant"
             });
             return;
+        }
+
+        // Populate agent capabilities from profile for well-known negotiation
+        if (agentInfo != null &&
+            protocol == ProtocolConstants.Protocols.Ucp &&
+            path.StartsWith("/.well-known/ucp", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var profile = await agentProfileService.GetProfileAsync(agentInfo.ProfileUri!, context.RequestAborted);
+                var capabilities = profile?.Ucp?.Capabilities?
+                    .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+                    .Select(c => c.Name!)
+                    .ToList();
+
+                if (capabilities is { Count: > 0 })
+                {
+                    agentInfo = new AgentIdentity
+                    {
+                        AgentId = agentInfo.AgentId,
+                        ProfileUri = agentInfo.ProfileUri,
+                        Protocol = agentInfo.Protocol,
+                        Capabilities = capabilities
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to fetch agent profile capabilities for {ProfileUri}", agentInfo.ProfileUri);
+            }
         }
 
         // Store agent identity in HttpContext for use by controllers
@@ -182,6 +246,24 @@ public class AgentAuthenticationMiddleware(
             Capabilities = []
         };
     }
+
+    private static int? ParseTlsVersion(string value) => value.Trim().ToLowerInvariant() switch
+    {
+        "1.0" or "tls1.0" or "tls1" => 10,
+        "1.1" or "tls1.1" => 11,
+        "1.2" or "tls1.2" => 12,
+        "1.3" or "tls1.3" => 13,
+        _ => null
+    };
+
+    private static int? GetTlsVersion(SslProtocols protocol) => protocol switch
+    {
+        SslProtocols.Tls => 10,
+        SslProtocols.Tls11 => 11,
+        SslProtocols.Tls12 => 12,
+        SslProtocols.Tls13 => 13,
+        _ => null
+    };
 
     private bool IsAgentAllowed(AgentIdentity agent, string protocol)
     {

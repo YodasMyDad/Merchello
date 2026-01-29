@@ -19,33 +19,36 @@ public class PaymentHandlerExporter(
         string? sessionId = null,
         CancellationToken ct = default)
     {
-        var providers = await paymentProviderManager.GetEnabledProvidersAsync(ct);
+        // Align exported handlers with checkout-visible methods (respects enable/disable + dedup).
+        var checkoutMethods = await paymentProviderManager.GetCheckoutPaymentMethodsAsync(ct);
+        var expressMethods = await paymentProviderManager.GetExpressCheckoutMethodsAsync(ct);
+        var methods = checkoutMethods
+            .Concat(expressMethods)
+            .GroupBy(m => $"{m.ProviderAlias}:{m.MethodAlias}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
 
         List<ProtocolPaymentHandler> handlers = [];
 
-        foreach (var provider in providers)
+        foreach (var method in methods)
         {
             try
             {
-                var methods = provider.Provider.GetAvailablePaymentMethods();
-
-                foreach (var method in methods)
+                handlers.Add(new ProtocolPaymentHandler
                 {
-                    handlers.Add(new ProtocolPaymentHandler
-                    {
-                        HandlerId = $"{provider.Metadata.Alias}:{method.Alias}",
-                        Name = method.DisplayName,
-                        Type = MapIntegrationType(method.IntegrationType),
-                        SupportsExpressCheckout = method.IsExpressCheckout,
-                        InstrumentSchemas = MapInstrumentSchemas(method.MethodType),
-                        Config = null // Protocol-specific config would be added by UCP adapter
-                    });
-                }
+                    HandlerId = $"{method.ProviderAlias}:{method.MethodAlias}",
+                    Name = method.DisplayName,
+                    Type = MapIntegrationType(method.IntegrationType),
+                    SupportsExpressCheckout = method.IsExpressCheckout,
+                    InstrumentSchemas = MapInstrumentSchemas(method.MethodType),
+                    Config = null // Protocol-specific config would be added by UCP adapter
+                });
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to export payment methods from provider {ProviderAlias}",
-                    provider.Metadata.Alias);
+                logger.LogWarning(ex, "Failed to export payment handler for provider {ProviderAlias}, method {MethodAlias}",
+                    method.ProviderAlias,
+                    method.MethodAlias);
             }
         }
 
@@ -63,13 +66,16 @@ public class PaymentHandlerExporter(
 
     private static IReadOnlyList<string>? MapInstrumentSchemas(string? methodType) => methodType switch
     {
-        "cards" => ["card_payment_instrument"],
-        "apple-pay" => ["wallet_instrument"],
-        "google-pay" => ["wallet_instrument"],
-        "paypal" => ["wallet_instrument"],
-        "bank-transfer" => ["bank_transfer_instrument"],
+        PaymentMethodTypes.Cards => ["card_payment_instrument"],
+        PaymentMethodTypes.ApplePay => ["wallet_instrument"],
+        PaymentMethodTypes.GooglePay => ["wallet_instrument"],
+        PaymentMethodTypes.PayPal => ["wallet_instrument"],
+        PaymentMethodTypes.Link => ["wallet_instrument"],
+        PaymentMethodTypes.AmazonPay => ["wallet_instrument"],
+        PaymentMethodTypes.Venmo => ["wallet_instrument"],
+        PaymentMethodTypes.BankTransfer => ["bank_transfer_instrument"],
         "ideal" => ["bank_transfer_instrument"],
-        "klarna" => ["buy_now_pay_later_instrument"],
+        PaymentMethodTypes.BuyNowPayLater => ["buy_now_pay_later_instrument"],
         _ => null
     };
 }

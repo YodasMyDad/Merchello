@@ -1,11 +1,13 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Dtos;
@@ -29,6 +31,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Media;
 using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Security;
 using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Controllers;
@@ -45,16 +48,19 @@ namespace Merchello.Controllers;
 public class CheckoutPaymentsApiController(
     IPaymentProviderManager providerManager,
     IPaymentService paymentService,
+    ISavedPaymentMethodService savedPaymentMethodService,
     IInvoiceService invoiceService,
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
     ICheckoutMemberService checkoutMemberService,
+    ICustomerService customerService,
     IStorefrontContextService storefrontContextService,
     ICurrencyService currencyService,
     IExchangeRateCache exchangeRateCache,
     IMerchelloNotificationPublisher notificationPublisher,
     IMediaService mediaService,
     MediaUrlGeneratorCollection mediaUrlGenerators,
+    IMemberManager memberManager,
     IOptions<MerchelloSettings> settings,
     ILogger<CheckoutPaymentsApiController> logger) : ControllerBase
 {
@@ -195,6 +201,19 @@ public class CheckoutPaymentsApiController(
             return BadRequest($"Payment provider '{request.ProviderAlias}' is not available.");
         }
 
+        var shouldSavePaymentMethod = request.SavePaymentMethod
+            && provider.Metadata.SupportsVaultedPayments
+            && provider.Setting?.IsVaultingEnabled == true;
+
+        if (shouldSavePaymentMethod)
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member == null)
+            {
+                shouldSavePaymentMethod = false;
+            }
+        }
+
         // Create payment session
         var result = await paymentService.CreatePaymentSessionAsync(
             new CreatePaymentSessionParameters
@@ -203,7 +222,8 @@ public class CheckoutPaymentsApiController(
                 ProviderAlias = request.ProviderAlias,
                 MethodAlias = request.MethodAlias,
                 ReturnUrl = request.ReturnUrl,
-                CancelUrl = request.CancelUrl
+                CancelUrl = request.CancelUrl,
+                SavePaymentMethod = shouldSavePaymentMethod
             },
             cancellationToken);
 
@@ -464,6 +484,19 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        var shouldSavePaymentMethod = request.SavePaymentMethod
+            && provider.Metadata.SupportsVaultedPayments
+            && provider.Setting?.IsVaultingEnabled == true;
+
+        if (shouldSavePaymentMethod)
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member == null)
+            {
+                shouldSavePaymentMethod = false;
+            }
+        }
+
         // Check if this is a DirectForm payment method (e.g., Purchase Order)
         // For DirectForm types, we defer invoice creation until ProcessDirectPayment
         // after form validation passes. This prevents ghost orders when validation fails.
@@ -552,7 +585,8 @@ public class CheckoutPaymentsApiController(
                 ProviderAlias = request.ProviderAlias,
                 MethodAlias = request.MethodAlias,
                 ReturnUrl = request.ReturnUrl,
-                CancelUrl = request.CancelUrl
+                CancelUrl = request.CancelUrl,
+                SavePaymentMethod = shouldSavePaymentMethod
             },
             cancellationToken);
 
@@ -705,6 +739,30 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        // Check if vaulting is available and requested
+        var vaultingEnabled = provider.Metadata.SupportsVaultedPayments
+            && provider.Setting?.IsVaultingEnabled == true;
+        var shouldSavePaymentMethod = request.SavePaymentMethod && vaultingEnabled;
+
+        // Get customer ID if logged in (required for vaulting)
+        Guid? customerId = null;
+        if (shouldSavePaymentMethod)
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member != null)
+            {
+                var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+                customerId = customer?.Id;
+            }
+
+            // If customer not found, can't save payment method
+            if (!customerId.HasValue)
+            {
+                shouldSavePaymentMethod = false;
+                logger.LogDebug("SavePaymentMethod requested but customer not found. Skipping vault.");
+            }
+        }
+
         // Build the process payment request
         var processRequest = new ProcessPaymentRequest
         {
@@ -713,7 +771,14 @@ public class CheckoutPaymentsApiController(
             MethodAlias = request.MethodAlias,
             PaymentMethodToken = request.PaymentMethodToken,
             Amount = invoice.Total,
-            FormData = request.FormData
+            FormData = request.FormData,
+            // Vault fields
+            CustomerId = customerId,
+            CurrencyCode = invoice.CurrencyCode,
+            CustomerEmail = invoice.BillingAddress?.Email,
+            CustomerName = invoice.BillingAddress?.Name,
+            SavePaymentMethod = shouldSavePaymentMethod,
+            SetAsDefaultMethod = request.SetAsDefaultMethod
         };
 
         // Process the payment
@@ -740,12 +805,64 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        var paymentResult = result.ResultObject;
+
         logger.LogInformation(
             "Payment processed successfully for invoice {InvoiceId} with provider {Provider}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
             request.InvoiceId,
             request.ProviderAlias,
-            result.ResultObject.Id,
-            result.ResultObject.TransactionId);
+            paymentResult.Id,
+            paymentResult.TransactionId);
+
+        // If payment succeeded and vault details returned, save to database
+        var paymentMethodSaved = false;
+        if (shouldSavePaymentMethod
+            && customerId.HasValue
+            && paymentResult.PaymentResult?.VaultedMethodDetails is { Success: true } vaultDetails)
+        {
+            var saveResult = await savedPaymentMethodService.SaveFromCheckoutAsync(
+                new SavePaymentMethodFromCheckoutParameters
+                {
+                    CustomerId = customerId.Value,
+                    ProviderAlias = request.ProviderAlias,
+                    ProviderMethodId = vaultDetails.ProviderMethodId!,
+                    ProviderCustomerId = vaultDetails.ProviderCustomerId,
+                    MethodType = vaultDetails.MethodType,
+                    CardBrand = vaultDetails.CardBrand,
+                    Last4 = vaultDetails.Last4,
+                    ExpiryMonth = vaultDetails.ExpiryMonth,
+                    ExpiryYear = vaultDetails.ExpiryYear,
+                    BillingName = invoice.BillingAddress?.Name,
+                    BillingEmail = invoice.BillingAddress?.Email,
+                    SetAsDefault = request.SetAsDefaultMethod,
+                    IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                    ExtendedData = vaultDetails.ExtendedData
+                },
+                cancellationToken);
+
+            if (saveResult.Successful)
+            {
+                paymentMethodSaved = true;
+                logger.LogInformation(
+                    "Payment method saved for customer {CustomerId} with provider {Provider}",
+                    customerId.Value,
+                    request.ProviderAlias);
+            }
+            else
+            {
+                // Log but don't fail payment if vault save fails
+                logger.LogWarning(
+                    "Failed to save payment method after checkout for customer {CustomerId}: {Error}",
+                    customerId.Value,
+                    saveResult.Messages.FirstOrDefault()?.Message);
+            }
+        }
+        else if (shouldSavePaymentMethod)
+        {
+            logger.LogDebug(
+                "SavePaymentMethod requested for provider {Provider}, but no vault details were returned.",
+                request.ProviderAlias);
+        }
 
         // Set confirmation token to authorize viewing the confirmation page
         SetConfirmationToken(request.InvoiceId);
@@ -757,9 +874,10 @@ public class CheckoutPaymentsApiController(
         {
             Success = true,
             InvoiceId = request.InvoiceId,
-            PaymentId = result.ResultObject.Id,
-            TransactionId = result.ResultObject.TransactionId,
-            RedirectUrl = $"/checkout/confirmation/{request.InvoiceId}"
+            PaymentId = paymentResult.Id,
+            TransactionId = paymentResult.TransactionId,
+            RedirectUrl = $"/checkout/confirmation/{request.InvoiceId}",
+            PaymentMethodSaved = paymentMethodSaved
         });
     }
 
@@ -1807,11 +1925,11 @@ public class CheckoutPaymentsApiController(
     [HttpPost("{providerAlias}/create-order")]
     [ProducesResponseType<CreateWidgetOrderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateWidgetOrder(
-        string providerAlias,
-        [FromBody] CreateWidgetOrderDto request,
-        CancellationToken cancellationToken = default)
-    {
+        public async Task<IActionResult> CreateWidgetOrder(
+            string providerAlias,
+            [FromBody] CreateWidgetOrderDto request,
+            CancellationToken cancellationToken = default)
+        {
         try
         {
             // Get the provider
@@ -1827,6 +1945,19 @@ public class CheckoutPaymentsApiController(
                     Success = false,
                     ErrorMessage = $"Payment provider '{providerAlias}' is not available."
                 });
+            }
+
+            var shouldSavePaymentMethod = request.SavePaymentMethod
+                && provider.Metadata.SupportsVaultedPayments
+                && provider.Setting?.IsVaultingEnabled == true;
+
+            if (shouldSavePaymentMethod)
+            {
+                var member = await memberManager.GetCurrentMemberAsync();
+                if (member == null)
+                {
+                    shouldSavePaymentMethod = false;
+                }
             }
 
             // Get the current basket
@@ -1898,7 +2029,8 @@ public class CheckoutPaymentsApiController(
                     ProviderAlias = providerAlias,
                     MethodAlias = methodAlias,
                     ReturnUrl = $"{baseUrl}/checkout/confirmation/{invoice.Id}",
-                    CancelUrl = $"{baseUrl}/checkout/payment"
+                    CancelUrl = $"{baseUrl}/checkout/payment",
+                    SavePaymentMethod = shouldSavePaymentMethod
                 },
                 cancellationToken);
 
@@ -1996,6 +2128,32 @@ public class CheckoutPaymentsApiController(
                 });
             }
 
+            var methodAlias = request.MethodAlias ?? providerAlias;
+
+            // Check if vaulting is available and requested
+            var vaultingEnabled = provider.Metadata.SupportsVaultedPayments
+                && provider.Setting?.IsVaultingEnabled == true;
+            var shouldSavePaymentMethod = request.SavePaymentMethod && vaultingEnabled;
+
+            // Get customer ID if logged in (required for vaulting)
+            Guid? customerId = null;
+            if (shouldSavePaymentMethod)
+            {
+                var member = await memberManager.GetCurrentMemberAsync();
+                if (member != null)
+                {
+                    var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+                    customerId = customer?.Id;
+                }
+
+                // If customer not found, can't save payment method
+                if (!customerId.HasValue)
+                {
+                    shouldSavePaymentMethod = false;
+                    logger.LogDebug("SavePaymentMethod requested but customer not found. Skipping vault.");
+                }
+            }
+
             // Get the invoice ID from the request
             if (!request.InvoiceId.HasValue)
             {
@@ -2055,9 +2213,16 @@ public class CheckoutPaymentsApiController(
             {
                 InvoiceId = invoice.Id,
                 ProviderAlias = providerAlias,
-                MethodAlias = request.MethodAlias ?? providerAlias,
+                MethodAlias = methodAlias,
                 SessionId = request.OrderId,
-                Amount = invoice.Total
+                Amount = invoice.Total,
+                // Vault fields
+                CustomerId = customerId,
+                CurrencyCode = invoice.CurrencyCode,
+                CustomerEmail = invoice.BillingAddress?.Email,
+                CustomerName = invoice.BillingAddress?.Name,
+                SavePaymentMethod = shouldSavePaymentMethod,
+                SetAsDefaultMethod = request.SetAsDefaultMethod
             };
 
             var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
@@ -2093,6 +2258,56 @@ public class CheckoutPaymentsApiController(
                 payment.Id,
                 payment.TransactionId);
 
+            // If payment succeeded and vault details returned, save to database
+            var paymentMethodSaved = false;
+            if (shouldSavePaymentMethod
+                && customerId.HasValue
+                && payment.PaymentResult?.VaultedMethodDetails is { Success: true } vaultDetails)
+            {
+                var saveResult = await savedPaymentMethodService.SaveFromCheckoutAsync(
+                    new SavePaymentMethodFromCheckoutParameters
+                    {
+                        CustomerId = customerId.Value,
+                        ProviderAlias = providerAlias,
+                        ProviderMethodId = vaultDetails.ProviderMethodId!,
+                        ProviderCustomerId = vaultDetails.ProviderCustomerId,
+                        MethodType = vaultDetails.MethodType,
+                        CardBrand = vaultDetails.CardBrand,
+                        Last4 = vaultDetails.Last4,
+                        ExpiryMonth = vaultDetails.ExpiryMonth,
+                        ExpiryYear = vaultDetails.ExpiryYear,
+                        BillingName = invoice.BillingAddress?.Name,
+                        BillingEmail = invoice.BillingAddress?.Email,
+                        SetAsDefault = request.SetAsDefaultMethod,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        ExtendedData = vaultDetails.ExtendedData
+                    },
+                    cancellationToken);
+
+                if (saveResult.Successful)
+                {
+                    paymentMethodSaved = true;
+                    logger.LogInformation(
+                        "Payment method saved for customer {CustomerId} with provider {Provider}",
+                        customerId.Value,
+                        providerAlias);
+                }
+                else
+                {
+                    // Log but don't fail payment if vault save fails
+                    logger.LogWarning(
+                        "Failed to save payment method after checkout for customer {CustomerId}: {Error}",
+                        customerId.Value,
+                        saveResult.Messages.FirstOrDefault()?.Message);
+                }
+            }
+            else if (shouldSavePaymentMethod)
+            {
+                logger.LogDebug(
+                    "SavePaymentMethod requested for provider {Provider}, but no vault details were returned.",
+                    providerAlias);
+            }
+
             // Set confirmation token to authorize viewing the confirmation page
             SetConfirmationToken(invoice.Id);
 
@@ -2105,7 +2320,8 @@ public class CheckoutPaymentsApiController(
                 InvoiceId = invoice.Id,
                 PaymentId = payment.Id,
                 TransactionId = payment.TransactionId,
-                RedirectUrl = $"/checkout/confirmation/{invoice.Id}"
+                RedirectUrl = $"/checkout/confirmation/{invoice.Id}",
+                PaymentMethodSaved = paymentMethodSaved
             });
         }
         catch (Exception ex)
@@ -2243,6 +2459,264 @@ public class CheckoutPaymentsApiController(
         }
 
         return Ok(merchantSession);
+    }
+
+    // =====================================================
+    // Saved Payment Methods Endpoints
+    // =====================================================
+
+    /// <summary>
+    /// Get payment options for checkout, including saved payment methods if customer is logged in.
+    /// </summary>
+    [HttpGet("payment-options")]
+    [ProducesResponseType<CheckoutPaymentOptionsDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPaymentOptions(CancellationToken cancellationToken = default)
+    {
+        var result = new CheckoutPaymentOptionsDto();
+
+        // Get available payment providers
+        var methods = await providerManager.GetCheckoutPaymentMethodsAsync(cancellationToken);
+        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken);
+
+        // Resolve custom icon URLs for methods with IconMediaKey
+        foreach (var method in methods.Where(m => m.IconMediaKey.HasValue))
+        {
+            method.IconMediaUrl = ResolveMediaUrl(method.IconMediaKey!.Value);
+        }
+
+        result.Providers = methods.ToList();
+        result.CanSavePaymentMethods = methods.Any(m => m.SupportsVaulting);
+
+        // Get saved payment methods if customer is logged in
+        var member = await memberManager.GetCurrentMemberAsync();
+        if (member != null)
+        {
+            var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+            if (customer != null)
+            {
+                var savedMethods = await savedPaymentMethodService.GetCustomerPaymentMethodsAsync(
+                    customer.Id,
+                    cancellationToken);
+
+                foreach (var method in savedMethods)
+                {
+                    var provider = providers.FirstOrDefault(p =>
+                        p.Metadata.Alias.Equals(method.ProviderAlias, StringComparison.OrdinalIgnoreCase));
+
+                    // Skip methods for providers that are disabled or have vaulting turned off
+                    if (provider?.Metadata.SupportsVaultedPayments != true
+                        || provider.Setting?.IsVaultingEnabled != true)
+                    {
+                        continue;
+                    }
+
+                    result.SavedPaymentMethods.Add(new StorefrontSavedMethodDto
+                    {
+                        Id = method.Id,
+                        ProviderAlias = method.ProviderAlias,
+                        MethodType = method.MethodType,
+                        CardBrand = method.CardBrand,
+                        Last4 = method.Last4,
+                        ExpiryFormatted = FormatExpiry(method.ExpiryMonth, method.ExpiryYear),
+                        IsExpired = IsExpired(method.ExpiryMonth, method.ExpiryYear),
+                        DisplayLabel = method.DisplayLabel,
+                        IsDefault = method.IsDefault,
+                        IconHtml = provider?.Metadata.IconHtml
+                    });
+                }
+            }
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Process a payment using a saved payment method.
+    /// </summary>
+    [HttpPost("process-saved-payment")]
+    [ProducesResponseType<ProcessPaymentResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ProcessSavedPayment(
+        [FromBody] ProcessSavedPaymentMethodDto request,
+        CancellationToken cancellationToken = default)
+    {
+        // Customer must be logged in to use saved payment methods
+        var member = await memberManager.GetCurrentMemberAsync();
+        if (member == null)
+        {
+            return Unauthorized(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Please sign in to use a saved payment method."
+            });
+        }
+
+        var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+        if (customer == null)
+        {
+            return Unauthorized(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Customer account not found."
+            });
+        }
+
+        // Get the saved payment method
+        var savedMethod = await savedPaymentMethodService.GetPaymentMethodAsync(
+            request.SavedPaymentMethodId,
+            cancellationToken);
+
+        if (savedMethod == null)
+        {
+            return NotFound(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Saved payment method not found."
+            });
+        }
+
+        // Verify the payment method belongs to this customer
+        if (savedMethod.CustomerId != customer.Id)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "You do not have permission to use this payment method."
+            });
+        }
+
+        // Check if the card is expired
+        if (IsExpired(savedMethod.ExpiryMonth, savedMethod.ExpiryYear))
+        {
+            return BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "This payment method has expired. Please use a different payment method."
+            });
+        }
+
+        // Get the invoice
+        var invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId, cancellationToken);
+        if (invoice == null)
+        {
+            return NotFound(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Invoice not found."
+            });
+        }
+
+        // Validate that the current checkout session owns this invoice
+        var currentBasket = await checkoutService.GetBasket(
+            new GetBasketParameters(),
+            cancellationToken);
+
+        if (currentBasket == null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "No active checkout session."
+            });
+        }
+
+        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+        // Validate ownership
+        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
+        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasValidInvoiceId && !hasValidEmail)
+        {
+            logger.LogWarning(
+                "Invoice ownership validation failed in ProcessSavedPayment: Invoice {InvoiceId}, Session invoice: {SessionInvoiceId}",
+                request.InvoiceId,
+                session.InvoiceId);
+
+            return StatusCode(StatusCodes.Status403Forbidden, new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "You do not have permission to pay this invoice."
+            });
+        }
+
+        // Charge the saved payment method
+        var chargeResult = await savedPaymentMethodService.ChargeAsync(
+            new ChargeSavedMethodParameters
+            {
+                SavedPaymentMethodId = request.SavedPaymentMethodId,
+                InvoiceId = request.InvoiceId,
+                Amount = invoice.Total,
+                Description = $"Payment for Invoice #{invoice.InvoiceNumber}",
+                IdempotencyKey = request.IdempotencyKey
+            },
+            cancellationToken);
+
+        if (!chargeResult.Successful || chargeResult.ResultObject == null)
+        {
+            var errorMessage = chargeResult.Messages
+                .Where(m => m.ResultMessageType == Core.Shared.Models.Enums.ResultMessageType.Error)
+                .Select(m => m.Message)
+                .FirstOrDefault() ?? "Payment processing failed.";
+
+            logger.LogWarning(
+                "Saved payment method charge failed for invoice {InvoiceId} with method {MethodId}: {Error}",
+                request.InvoiceId,
+                request.SavedPaymentMethodId,
+                errorMessage);
+
+            return Ok(new ProcessPaymentResultDto
+            {
+                Success = false,
+                InvoiceId = request.InvoiceId,
+                ErrorMessage = errorMessage
+            });
+        }
+
+        var paymentResult = chargeResult.ResultObject;
+
+        logger.LogInformation(
+            "Payment processed successfully using saved method {MethodId} for invoice {InvoiceId}, TransactionId: {TransactionId}",
+            request.SavedPaymentMethodId,
+            request.InvoiceId,
+            paymentResult.TransactionId);
+
+        // Set confirmation token to authorize viewing the confirmation page
+        SetConfirmationToken(request.InvoiceId);
+
+        // Clear basket after successful payment
+        ClearBasketCookieAndSession();
+
+        return Ok(new ProcessPaymentResultDto
+        {
+            Success = true,
+            InvoiceId = request.InvoiceId,
+            TransactionId = paymentResult.TransactionId,
+            RedirectUrl = $"/checkout/confirmation/{request.InvoiceId}"
+        });
+    }
+
+    private static string? FormatExpiry(int? month, int? year)
+    {
+        if (!month.HasValue || !year.HasValue)
+        {
+            return null;
+        }
+        return $"{month.Value:D2}/{year.Value % 100:D2}";
+    }
+
+    private static bool IsExpired(int? month, int? year)
+    {
+        if (!month.HasValue || !year.HasValue)
+        {
+            return false;
+        }
+        var now = DateTime.UtcNow;
+        var expiryDate = new DateTime(year.Value, month.Value, 1).AddMonths(1);
+        return now >= expiryDate;
     }
 
     /// <summary>

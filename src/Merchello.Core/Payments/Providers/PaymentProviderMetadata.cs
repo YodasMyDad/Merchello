@@ -60,6 +60,19 @@ public class PaymentProviderMetadata
     public bool SupportsPaymentLinks { get; init; } = false;
 
     /// <summary>
+    /// Whether this provider supports vaulting payment methods for future use.
+    /// When true, customers can save payment methods and charge them later without CVV.
+    /// </summary>
+    public bool SupportsVaultedPayments { get; init; } = false;
+
+    /// <summary>
+    /// Whether this provider requires a provider-side customer ID for vaulting.
+    /// True for Stripe (requires Customer object), true for Braintree (requires CustomerId).
+    /// False for providers that use standalone tokens.
+    /// </summary>
+    public bool RequiresProviderCustomerId { get; init; } = false;
+
+    /// <summary>
     /// Webhook endpoint path for this provider.
     /// </summary>
     public string WebhookPath => $"/umbraco/merchello/webhooks/payments/{Alias}";

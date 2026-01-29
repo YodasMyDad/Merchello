@@ -514,6 +514,9 @@
                         // Collect device data for 3DS
                         const deviceData = collectDeviceData();
 
+                        // Get vault settings from checkout store
+                        const vaultSettings = MerchelloPayment.getVaultSettings();
+
                         // Build payment request with device data
                         const paymentRequest = {
                             invoiceId: data.invoiceId || currentSession?.sdkConfiguration?.invoiceId,
@@ -522,6 +525,8 @@
                             paymentMethodToken: sessionState,
                             customerEmail: data.customerEmail,
                             customerName: data.customerName,
+                            savePaymentMethod: vaultSettings.savePaymentMethod,
+                            setAsDefaultMethod: vaultSettings.setAsDefaultMethod,
                             metadata: {
                                 ...deviceData,
                                 returnUrl: window.location.href,
@@ -570,6 +575,8 @@
                                         providerAlias: 'worldpay',
                                         methodAlias: 'cards',
                                         paymentMethodToken: result.actionRequired.challengeData.sessionState,
+                                        savePaymentMethod: vaultSettings.savePaymentMethod,
+                                        setAsDefaultMethod: vaultSettings.setAsDefaultMethod,
                                         metadata: {
                                             challengeReference: challengeReference
                                         }

@@ -1,5 +1,5 @@
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Payments.Models;
-using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Payments;
@@ -24,6 +24,13 @@ public class PaymentHandlerExporterTests
         _providerManagerMock = new Mock<IPaymentProviderManager>();
         _loggerMock = new Mock<ILogger<PaymentHandlerExporter>>();
         _exporter = new PaymentHandlerExporter(_providerManagerMock.Object, _loggerMock.Object);
+
+        _providerManagerMock
+            .Setup(x => x.GetCheckoutPaymentMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _providerManagerMock
+            .Setup(x => x.GetExpressCheckoutMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
     }
 
     [Fact]
@@ -31,7 +38,10 @@ public class PaymentHandlerExporterTests
     {
         // Arrange
         _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
+            .Setup(x => x.GetCheckoutPaymentMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _providerManagerMock
+            .Setup(x => x.GetExpressCheckoutMethodsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         // Act
@@ -45,13 +55,8 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_WithEnabledProvider_ReturnsHandlers()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("braintree", "Braintree", [
-            CreatePaymentMethod("cards", "Credit/Debit Card", PaymentIntegrationType.HostedFields)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod("braintree", "cards", "Credit/Debit Card", PaymentIntegrationType.HostedFields);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -66,15 +71,10 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_WithMultipleMethods_ReturnsAllHandlers()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("stripe", "Stripe", [
-            CreatePaymentMethod("cards", "Credit/Debit Card", PaymentIntegrationType.HostedFields),
-            CreatePaymentMethod("applepay", "Apple Pay", PaymentIntegrationType.Widget, isExpressCheckout: true),
-            CreatePaymentMethod("googlepay", "Google Pay", PaymentIntegrationType.Widget, isExpressCheckout: true)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var cards = CreatePaymentMethod("stripe", "cards", "Credit/Debit Card", PaymentIntegrationType.HostedFields);
+        var applePay = CreatePaymentMethod("stripe", "applepay", "Apple Pay", PaymentIntegrationType.Widget, methodType: PaymentMethodTypes.ApplePay, isExpressCheckout: true);
+        var googlePay = CreatePaymentMethod("stripe", "googlepay", "Google Pay", PaymentIntegrationType.Widget, methodType: PaymentMethodTypes.GooglePay, isExpressCheckout: true);
+        SetupMethods([cards], [applePay, googlePay]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -90,13 +90,8 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsIntegrationTypes_Redirect()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("paypal", "PayPal", [
-            CreatePaymentMethod("redirect", "PayPal", PaymentIntegrationType.Redirect)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod("paypal", "redirect", "PayPal", PaymentIntegrationType.Redirect);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -109,13 +104,8 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsIntegrationTypes_HostedFields()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("braintree", "Braintree", [
-            CreatePaymentMethod("cards", "Cards", PaymentIntegrationType.HostedFields)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod("braintree", "cards", "Cards", PaymentIntegrationType.HostedFields);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -128,13 +118,14 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsIntegrationTypes_Widget()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("stripe", "Stripe", [
-            CreatePaymentMethod("applepay", "Apple Pay", PaymentIntegrationType.Widget, isExpressCheckout: true)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "stripe",
+            "applepay",
+            "Apple Pay",
+            PaymentIntegrationType.Widget,
+            methodType: PaymentMethodTypes.ApplePay,
+            isExpressCheckout: true);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -147,13 +138,8 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsIntegrationTypes_DirectForm()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("manual", "Manual Payment", [
-            CreatePaymentMethod("manual", "Manual Payment", PaymentIntegrationType.DirectForm)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod("manual", "manual", "Manual Payment", PaymentIntegrationType.DirectForm);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -166,13 +152,13 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsInstrumentSchemas_Cards()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("stripe", "Stripe", [
-            CreatePaymentMethod("cards", "Cards", PaymentIntegrationType.HostedFields, methodType: "cards")
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "stripe",
+            "cards",
+            "Cards",
+            PaymentIntegrationType.HostedFields,
+            methodType: PaymentMethodTypes.Cards);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -185,13 +171,14 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsInstrumentSchemas_ApplePay()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("stripe", "Stripe", [
-            CreatePaymentMethod("applepay", "Apple Pay", PaymentIntegrationType.Widget, methodType: "apple-pay", isExpressCheckout: true)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "stripe",
+            "applepay",
+            "Apple Pay",
+            PaymentIntegrationType.Widget,
+            methodType: PaymentMethodTypes.ApplePay,
+            isExpressCheckout: true);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -204,13 +191,14 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsInstrumentSchemas_GooglePay()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("braintree", "Braintree", [
-            CreatePaymentMethod("googlepay", "Google Pay", PaymentIntegrationType.Widget, methodType: "google-pay", isExpressCheckout: true)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "braintree",
+            "googlepay",
+            "Google Pay",
+            PaymentIntegrationType.Widget,
+            methodType: PaymentMethodTypes.GooglePay,
+            isExpressCheckout: true);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -223,13 +211,14 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsInstrumentSchemas_PayPal()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("paypal", "PayPal", [
-            CreatePaymentMethod("paypal", "PayPal", PaymentIntegrationType.Widget, methodType: "paypal", isExpressCheckout: true)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "paypal",
+            "paypal",
+            "PayPal",
+            PaymentIntegrationType.Widget,
+            methodType: PaymentMethodTypes.PayPal,
+            isExpressCheckout: true);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -242,13 +231,13 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsInstrumentSchemas_BankTransfer()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("manual", "Manual", [
-            CreatePaymentMethod("bank", "Bank Transfer", PaymentIntegrationType.DirectForm, methodType: "bank-transfer")
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "manual",
+            "bank",
+            "Bank Transfer",
+            PaymentIntegrationType.DirectForm,
+            methodType: PaymentMethodTypes.BankTransfer);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -261,13 +250,13 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsInstrumentSchemas_iDEAL()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("stripe", "Stripe", [
-            CreatePaymentMethod("ideal", "iDEAL", PaymentIntegrationType.Redirect, methodType: "ideal")
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "stripe",
+            "ideal",
+            "iDEAL",
+            PaymentIntegrationType.Redirect,
+            methodType: "ideal");
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -280,13 +269,13 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_MapsInstrumentSchemas_Klarna()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("klarna", "Klarna", [
-            CreatePaymentMethod("klarna", "Klarna", PaymentIntegrationType.Widget, methodType: "klarna")
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "klarna",
+            "klarna",
+            "Klarna",
+            PaymentIntegrationType.Widget,
+            methodType: PaymentMethodTypes.BuyNowPayLater);
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -299,14 +288,15 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_SetsExpressCheckoutFlag()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("stripe", "Stripe", [
-            CreatePaymentMethod("cards", "Cards", PaymentIntegrationType.HostedFields, isExpressCheckout: false),
-            CreatePaymentMethod("applepay", "Apple Pay", PaymentIntegrationType.Widget, isExpressCheckout: true)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var cards = CreatePaymentMethod("stripe", "cards", "Cards", PaymentIntegrationType.HostedFields);
+        var applePay = CreatePaymentMethod(
+            "stripe",
+            "applepay",
+            "Apple Pay",
+            PaymentIntegrationType.Widget,
+            methodType: PaymentMethodTypes.ApplePay,
+            isExpressCheckout: true);
+        SetupMethods([cards, applePay]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -320,17 +310,16 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_WithMultipleProviders_ExportsAll()
     {
         // Arrange
-        var stripeProvider = CreateMockProvider("stripe", "Stripe", [
-            CreatePaymentMethod("cards", "Credit Card", PaymentIntegrationType.HostedFields)
-        ]);
-        var braintreeProvider = CreateMockProvider("braintree", "Braintree", [
-            CreatePaymentMethod("cards", "Credit Card", PaymentIntegrationType.HostedFields),
-            CreatePaymentMethod("paypal", "PayPal", PaymentIntegrationType.Widget, isExpressCheckout: true)
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([stripeProvider, braintreeProvider]);
+        var stripeCards = CreatePaymentMethod("stripe", "cards", "Credit Card", PaymentIntegrationType.HostedFields);
+        var braintreeCards = CreatePaymentMethod("braintree", "cards", "Credit Card", PaymentIntegrationType.HostedFields);
+        var braintreePaypal = CreatePaymentMethod(
+            "braintree",
+            "paypal",
+            "PayPal",
+            PaymentIntegrationType.Widget,
+            methodType: PaymentMethodTypes.PayPal,
+            isExpressCheckout: true);
+        SetupMethods([stripeCards, braintreeCards, braintreePaypal]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -346,13 +335,13 @@ public class PaymentHandlerExporterTests
     public async Task ExportHandlersAsync_UnknownMethodType_ReturnsNullInstrumentSchemas()
     {
         // Arrange
-        var mockProvider = CreateMockProvider("custom", "Custom", [
-            CreatePaymentMethod("custom", "Custom Method", PaymentIntegrationType.DirectForm, methodType: "unknown-type")
-        ]);
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([mockProvider]);
+        var method = CreatePaymentMethod(
+            "custom",
+            "custom",
+            "Custom Method",
+            PaymentIntegrationType.DirectForm,
+            methodType: "unknown-type");
+        SetupMethods([method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
@@ -362,86 +351,51 @@ public class PaymentHandlerExporterTests
     }
 
     [Fact]
-    public async Task ExportHandlersAsync_ProviderThrowsException_ContinuesWithOthers()
+    public async Task ExportHandlersAsync_DeduplicatesMethodsAcrossCheckoutAndExpress()
     {
         // Arrange
-        var goodProvider = CreateMockProvider("good", "Good Provider", [
-            CreatePaymentMethod("method1", "Method 1", PaymentIntegrationType.Redirect)
-        ]);
-
-        var badProvider = CreateMockProviderThatThrows("bad", "Bad Provider");
-
-        _providerManagerMock
-            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([badProvider, goodProvider]);
+        var method = CreatePaymentMethod("stripe", "cards", "Cards", PaymentIntegrationType.HostedFields);
+        SetupMethods([method], [method]);
 
         // Act
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
-        // Assert - should have the handler from the good provider, not fail entirely
+        // Assert - should only contain one handler after deduplication
         handlers.Count.ShouldBe(1);
-        handlers[0].HandlerId.ShouldBe("good:method1");
+        handlers[0].HandlerId.ShouldBe("stripe:cards");
     }
 
     // Helper methods
 
-    private static RegisteredPaymentProvider CreateMockProvider(
-        string alias,
-        string displayName,
-        IReadOnlyList<PaymentMethodDefinition> methods)
+    private void SetupMethods(
+        IReadOnlyCollection<PaymentMethodDto> checkout,
+        IReadOnlyCollection<PaymentMethodDto>? express = null)
     {
-        var providerMock = new Mock<IPaymentProvider>();
-        providerMock.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
-        {
-            Alias = alias,
-            DisplayName = displayName
-        });
-        providerMock.Setup(p => p.GetAvailablePaymentMethods()).Returns(methods);
-
-        var setting = new PaymentProviderSetting
-        {
-            ProviderAlias = alias,
-            DisplayName = displayName,
-            IsEnabled = true
-        };
-
-        return new RegisteredPaymentProvider(providerMock.Object, setting);
+        _providerManagerMock
+            .Setup(x => x.GetCheckoutPaymentMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(checkout);
+        _providerManagerMock
+            .Setup(x => x.GetExpressCheckoutMethodsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(express ?? []);
     }
 
-    private static RegisteredPaymentProvider CreateMockProviderThatThrows(string alias, string displayName)
-    {
-        var providerMock = new Mock<IPaymentProvider>();
-        providerMock.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
-        {
-            Alias = alias,
-            DisplayName = displayName
-        });
-        providerMock.Setup(p => p.GetAvailablePaymentMethods()).Throws(new Exception("Provider error"));
-
-        var setting = new PaymentProviderSetting
-        {
-            ProviderAlias = alias,
-            DisplayName = displayName,
-            IsEnabled = true
-        };
-
-        return new RegisteredPaymentProvider(providerMock.Object, setting);
-    }
-
-    private static PaymentMethodDefinition CreatePaymentMethod(
-        string alias,
+    private static PaymentMethodDto CreatePaymentMethod(
+        string providerAlias,
+        string methodAlias,
         string displayName,
         PaymentIntegrationType integrationType,
         string? methodType = null,
         bool isExpressCheckout = false)
     {
-        return new PaymentMethodDefinition
+        return new PaymentMethodDto
         {
-            Alias = alias,
+            ProviderAlias = providerAlias,
+            MethodAlias = methodAlias,
             DisplayName = displayName,
             IntegrationType = integrationType,
             MethodType = methodType,
-            IsExpressCheckout = isExpressCheckout
+            IsExpressCheckout = isExpressCheckout,
+            ShowInCheckout = true
         };
     }
 }

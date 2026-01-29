@@ -81,6 +81,7 @@ public class MerchelloDbContext : DbContext
     // Payment Provider DbSets
     public DbSet<PaymentProviderSetting> PaymentProviderSettings => Set<PaymentProviderSetting>();
     public DbSet<PaymentMethodSetting> PaymentMethodSettings => Set<PaymentMethodSetting>();
+    public DbSet<SavedPaymentMethod> SavedPaymentMethods => Set<SavedPaymentMethod>();
 
     // Exchange Rate Provider DbSets
     public DbSet<ExchangeRateProviderSetting> ExchangeRateProviderSettings => Set<ExchangeRateProviderSetting>();

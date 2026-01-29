@@ -482,6 +482,182 @@ src/Merchello/Controllers/
 | GET | `/api/v1/payment-providers/{id}/test/webhook-events` | Get available webhook templates |
 | POST | `/api/v1/payment-providers/{id}/test/simulate-webhook` | Simulate webhook event |
 
+## Vaulted Payments (Saved Payment Methods)
+
+Vaulted payments allow customers to save their payment methods for faster future checkouts and support off-session payments (subscriptions, upsells, repeat purchases).
+
+### Overview
+
+**Key Features:**
+- Customers can save cards, PayPal accounts, and bank accounts
+- Off-session payments without requiring CVV at charge time
+- Provider-level customer management (Stripe Customer, Braintree Customer, PayPal Vault)
+- Consent tracking for PCI/GDPR compliance
+- Admin management through backoffice
+
+**How It Works:**
+1. Customer opts to save payment method during checkout
+2. Provider creates a vaulted payment method token
+3. Token stored in Merchello (never raw card data)
+4. Customer can pay with saved method in future checkouts
+5. Admin can charge saved methods for repeat orders, upsells, etc.
+
+### Provider Metadata Extensions
+
+```csharp
+public class PaymentProviderMetadata
+{
+    // ... existing properties ...
+
+    /// <summary>
+    /// Whether this provider supports saving payment methods for future use.
+    /// </summary>
+    public bool SupportsVaultedPayments { get; init; }
+
+    /// <summary>
+    /// Whether the provider requires creating a provider-level customer first.
+    /// e.g., Stripe requires a Stripe Customer, PayPal requires a vault setup.
+    /// </summary>
+    public bool RequiresProviderCustomerId { get; init; }
+}
+```
+
+### Provider Interface Extensions
+
+New vault methods in `IPaymentProvider`:
+
+```csharp
+/// <summary>
+/// Create a setup session for vaulting a payment method (off-session saving).
+/// </summary>
+Task<VaultSetupResult> CreateVaultSetupSessionAsync(
+    VaultSetupRequest request,
+    CancellationToken cancellationToken = default);
+
+/// <summary>
+/// Confirm a vault setup after customer completes frontend flow.
+/// </summary>
+Task<VaultConfirmResult> ConfirmVaultSetupAsync(
+    VaultConfirmRequest request,
+    CancellationToken cancellationToken = default);
+
+/// <summary>
+/// Charge a vaulted payment method (off-session payment).
+/// </summary>
+Task<PaymentResult> ChargeVaultedMethodAsync(
+    ChargeVaultedMethodRequest request,
+    CancellationToken cancellationToken = default);
+
+/// <summary>
+/// Delete a vaulted payment method from the provider.
+/// </summary>
+Task<bool> DeleteVaultedMethodAsync(
+    string providerMethodId,
+    string? providerCustomerId,
+    CancellationToken cancellationToken = default);
+```
+
+### Database Schema
+
+**merchelloSavedPaymentMethods**
+- `Id` (Guid PK)
+- `CustomerId` (FK to Customer)
+- `ProviderAlias` (string)
+- `ProviderMethodId` (string) - Provider's payment method token
+- `ProviderCustomerId` (string?) - Provider's customer ID
+- `MethodType` (enum: Card, PayPal, BankAccount, Other)
+- `CardBrand` (string?) - Visa, Mastercard, etc.
+- `Last4` (string?)
+- `ExpiryMonth`, `ExpiryYear` (int?)
+- `BillingName`, `BillingEmail` (string?)
+- `DisplayLabel` (string) - Human-readable label
+- `IsDefault` (bool)
+- `IsVerified` (bool)
+- `ConsentDateUtc`, `ConsentIpAddress` - Compliance tracking
+- Timestamps
+
+**Unique Constraint:** `(CustomerId, ProviderAlias, ProviderMethodId)`
+
+### Service Layer
+
+**ISavedPaymentMethodService:**
+- `GetCustomerPaymentMethodsAsync(customerId)` - Get all for customer
+- `GetPaymentMethodAsync(id)` - Get by ID
+- `CreateSetupSessionAsync(params)` - Start vault setup flow
+- `ConfirmSetupAsync(params)` - Complete vault setup
+- `SaveFromCheckoutAsync(params)` - Save during regular checkout
+- `SetDefaultAsync(id)` - Set as default
+- `DeleteAsync(id)` - Delete (also deletes from provider)
+- `ChargeAsync(params)` - Charge saved method off-session
+
+### API Endpoints
+
+**Checkout (Public)**
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/merchello/checkout/payment-options` | Get providers + saved methods |
+| POST | `/api/merchello/checkout/process-saved-payment` | Pay with saved method |
+
+**Storefront (Customer Account)**
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/merchello/storefront/payment-methods` | List saved methods |
+| POST | `/api/merchello/storefront/payment-methods/setup` | Create vault setup session |
+| POST | `/api/merchello/storefront/payment-methods/confirm` | Confirm vault setup |
+| POST | `/api/merchello/storefront/payment-methods/{id}/set-default` | Set default |
+| DELETE | `/api/merchello/storefront/payment-methods/{id}` | Delete saved method |
+| GET | `/api/merchello/storefront/payment-methods/providers` | Get vault-enabled providers |
+
+**Backoffice (Admin)**
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/v1/customers/{customerId}/saved-payment-methods` | List customer methods |
+| GET | `/api/v1/saved-payment-methods/{id}` | Get method details |
+| POST | `/api/v1/saved-payment-methods/{id}/set-default` | Set as default |
+| DELETE | `/api/v1/saved-payment-methods/{id}` | Delete method |
+
+### Provider Implementations
+
+**Stripe:**
+- Uses SetupIntents API for vaulting
+- Creates/reuses Stripe Customer by email
+- Supports cards (all brands), Link
+
+**Braintree:**
+- Uses client tokens + PaymentMethod.Create
+- Creates/reuses Braintree Customer by email
+- Supports cards, PayPal
+
+**PayPal:**
+- Uses Vault API v3 (setup-tokens, payment-tokens)
+- Creates vault customer per merchant reference
+- Supports PayPal accounts
+
+### Checkout Flow with Saved Methods
+
+```
+1. GET /checkout/payment-options
+   → Returns providers[] and savedPaymentMethods[]
+
+2a. New Payment Method:
+    → Standard payment flow + optional "Save for future"
+    → ProcessPaymentRequest.SavePaymentMethod = true
+
+2b. Saved Payment Method:
+    → Customer selects saved method
+    → POST /checkout/process-saved-payment
+    → { invoiceId, savedPaymentMethodId }
+    → Off-session charge via provider
+```
+
+### Security Considerations
+
+- Never store raw card data - only provider tokens
+- Tokens are provider-specific and expire/rotate automatically
+- Consent tracking required for compliance
+- Customer ownership verified on all operations
+- Provider-side deletion when removing from Merchello
+
 ## Testing Checklist
 
 - [x] Provider discovery finds all `IPaymentProvider` implementations

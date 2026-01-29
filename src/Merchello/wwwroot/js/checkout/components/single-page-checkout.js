@@ -155,6 +155,7 @@ export function initSinglePageCheckout() {
             get paymentError() { return this.$store.checkout?.paymentError ?? null; },
             get paymentMethods() { return this.$store.checkout?.paymentMethods ?? []; },
             get selectedPaymentMethod() { return this.$store.checkout?.selectedPaymentMethod ?? null; },
+            get selectedSavedMethod() { return this.$store.checkout?.selectedSavedMethod ?? null; },
             get paymentSession() { return this.$store.checkout?.paymentSession ?? null; },
             get paymentFormInitializing() { return this.$store.checkout?.paymentFormInitializing ?? false; },
             get invoiceId() { return this.$store.checkout?.invoiceId ?? null; },
@@ -212,7 +213,7 @@ export function initSinglePageCheckout() {
                        this.allShippingSelected &&
                        !this.shippingLoading &&
                        !this.paymentLoading &&
-                       this.selectedPaymentMethod !== null &&
+                       (this.selectedPaymentMethod !== null || this.selectedSavedMethod !== null) &&
                        this.form.email &&
                        billingValid &&
                        shippingValid;
@@ -798,10 +799,13 @@ export function initSinglePageCheckout() {
                 store?.setPaymentError(null);
 
                 try {
-                    const methods = await checkoutApi.getPaymentMethods();
-                    store?.setPaymentMethods(methods || []);
+                    const options = await checkoutApi.getPaymentOptions();
+                    const methods = options?.providers ?? [];
+                    store?.setPaymentMethods(methods);
+                    store?.setSavedPaymentMethods(options?.savedPaymentMethods ?? []);
+                    store?.setCanSavePaymentMethods(options?.canSavePaymentMethods ?? false);
 
-                    const categorized = categorizePaymentMethods(methods || []);
+                    const categorized = categorizePaymentMethods(methods);
                     this.cardPaymentMethods = categorized.card;
                     this.redirectPaymentMethods = categorized.redirect;
                 } catch (error) {
@@ -1193,7 +1197,7 @@ export function initSinglePageCheckout() {
                     return;
                 }
 
-                if (!this.selectedPaymentMethod) {
+                if (!this.selectedPaymentMethod && !this.selectedSavedMethod) {
                     store?.setGeneralError('Please select a payment method.');
                     this.announce('Please select a payment method.');
                     return;
@@ -1222,6 +1226,35 @@ export function initSinglePageCheckout() {
 
                     const shippingData = await checkoutApi.saveShipping(this.shippingSelections, this._buildQuotedCosts());
                     if (!shippingData.success) throw new Error(shippingData.message || 'Failed to save shipping');
+
+                    // SAVED METHOD FLOW: process saved method without rendering a payment form
+                    if (this.selectedSavedMethod) {
+                        let invoiceId = this.invoiceId || this.paymentSession?.invoiceId;
+
+                        if (!invoiceId) {
+                            const payData = await checkoutApi.initiatePayment({
+                                providerAlias: this.selectedSavedMethod.providerAlias,
+                                methodAlias: null,
+                                returnUrl: getCheckoutReturnUrl(),
+                                cancelUrl: getCheckoutCancelUrl()
+                            });
+                            if (!payData.success) throw new Error(payData.errorMessage || 'Failed to initiate payment');
+                            invoiceId = payData.invoiceId;
+                            store?.setPaymentSession(payData);
+                        }
+
+                        const savedResult = await checkoutApi.processSavedPayment({
+                            invoiceId,
+                            savedPaymentMethodId: this.selectedSavedMethod.id
+                        });
+
+                        if (savedResult.success) {
+                            safeRedirect(savedResult.redirectUrl || `/checkout/confirmation/${savedResult.invoiceId || invoiceId}`);
+                            return;
+                        }
+
+                        throw new Error(savedResult.errorMessage || 'Payment failed');
+                    }
 
                     // PAYMENT SESSION REUSE: If we already have a valid payment session
                     // for the selected method (created when user selected the payment method),

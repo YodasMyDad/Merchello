@@ -1058,6 +1058,10 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<DateTime?>("EndsAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("FeedPromotionName")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("FreeShippingConfigJson")
                         .HasColumnType("TEXT");
 
@@ -1084,6 +1088,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<decimal?>("RequirementValue")
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("ShowInFeed")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("StartsAt")
                         .HasColumnType("TEXT");
@@ -1493,6 +1500,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<bool>("IsTestMode")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsVaultingEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ProviderAlias")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1507,6 +1517,98 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsUnique();
 
                     b.ToTable("merchelloPaymentProviders", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Payments.Models.SavedPaymentMethod", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BillingEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BillingName")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CardBrand")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ConsentDateUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConsentIpAddress")
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DateLastUsed")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayLabel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ExpiryMonth")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ExpiryYear")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ExtendedData")
+                        .IsRequired()
+                        .HasMaxLength(3000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Last4")
+                        .HasMaxLength(4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MethodType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderAlias")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderCustomerId")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderMethodId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("CustomerId", "ProviderAlias", "ProviderMethodId")
+                        .IsUnique();
+
+                    b.ToTable("merchelloSavedPaymentMethods", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
@@ -3093,6 +3195,17 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("ProviderSetting");
                 });
 
+            modelBuilder.Entity("Merchello.Core.Payments.Models.SavedPaymentMethod", b =>
+                {
+                    b.HasOne("Merchello.Core.Customers.Models.Customer", "Customer")
+                        .WithMany("SavedPaymentMethods")
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -3462,6 +3575,8 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("CustomerTags");
 
                     b.Navigation("Invoices");
+
+                    b.Navigation("SavedPaymentMethods");
                 });
 
             modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerSegment", b =>

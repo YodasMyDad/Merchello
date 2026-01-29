@@ -826,6 +826,22 @@ export const MerchelloApi = {
   testPaymentLink: (settingId: string, request: { amount: number }) =>
     apiPost<{ success: boolean; paymentUrl?: string; errorMessage?: string }>(`payment-providers/${settingId}/test/payment-link`, request),
 
+  /** Test vault setup session creation */
+  testVaultSetup: (settingId: string, request: Record<string, unknown>) =>
+    apiPost<{ success: boolean; setupSessionId?: string; clientSecret?: string; redirectUrl?: string; providerCustomerId?: string; errorMessage?: string }>(`payment-providers/${settingId}/test/vault-setup`, request),
+
+  /** Test vault setup confirmation */
+  testVaultConfirm: (settingId: string, request: { setupSessionId: string; paymentMethodToken?: string; providerCustomerId?: string }) =>
+    apiPost<{ success: boolean; providerMethodId?: string; providerCustomerId?: string; displayLabel?: string; cardBrand?: string; last4?: string; expiryMonth?: number; expiryYear?: number; errorMessage?: string }>(`payment-providers/${settingId}/test/vault-confirm`, request),
+
+  /** Test charging a vaulted payment method */
+  testVaultCharge: (settingId: string, request: { providerMethodId: string; providerCustomerId?: string; amount: number; currencyCode: string }) =>
+    apiPost<{ success: boolean; transactionId?: string; errorMessage?: string }>(`payment-providers/${settingId}/test/vault-charge`, request),
+
+  /** Delete a vaulted payment method (for testing) */
+  testVaultDelete: (settingId: string, providerMethodId: string) =>
+    apiDelete(`payment-providers/${settingId}/test/vault/${providerMethodId}`),
+
   /** Get checkout preview showing which payment methods will appear and their deduplication status */
   getCheckoutPaymentPreview: () =>
     apiGet<CheckoutPaymentPreviewDto>('payment-providers/checkout-preview'),

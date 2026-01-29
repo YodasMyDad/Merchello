@@ -74,6 +74,26 @@ const MerchelloPayment = {
     },
 
     /**
+     * Gets the vault settings from the checkout store.
+     * Used by payment adapters to include vault fields in payment requests.
+     * @returns {{ savePaymentMethod: boolean, setAsDefaultMethod: boolean }}
+     */
+    getVaultSettings() {
+        try {
+            const store = window.Alpine?.store?.('checkout');
+            if (store) {
+                return {
+                    savePaymentMethod: store.savePaymentMethod ?? false,
+                    setAsDefaultMethod: store.setAsDefaultMethod ?? false
+                };
+            }
+        } catch (e) {
+            console.warn('Could not access checkout store for vault settings:', e);
+        }
+        return { savePaymentMethod: false, setAsDefaultMethod: false };
+    },
+
+    /**
      * Fetch wrapper with timeout support for older browsers
      * @param {string} url - URL to fetch
      * @param {Object} options - Fetch options
@@ -157,6 +177,8 @@ const MerchelloPayment = {
             // Teardown any existing adapter
             await this.teardownCurrentAdapter();
 
+            const vaultSettings = this.getVaultSettings();
+
             const response = await this.fetchWithTimeout('/api/merchello/checkout/pay', {
                 method: 'POST',
                 headers: {
@@ -166,7 +188,8 @@ const MerchelloPayment = {
                     providerAlias,
                     methodAlias,
                     returnUrl,
-                    cancelUrl
+                    cancelUrl,
+                    savePaymentMethod: vaultSettings.savePaymentMethod
                 })
             });
 

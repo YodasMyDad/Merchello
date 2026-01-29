@@ -21,6 +21,12 @@ public class UpdatePaymentProviderDto
     public bool? IsTestMode { get; set; }
 
     /// <summary>
+    /// Whether vaulting is enabled for this provider.
+    /// Only applies if the provider supports vaulted payments.
+    /// </summary>
+    public bool? IsVaultingEnabled { get; set; }
+
+    /// <summary>
     /// Configuration values (key-value pairs)
     /// </summary>
     public Dictionary<string, string>? Configuration { get; set; }

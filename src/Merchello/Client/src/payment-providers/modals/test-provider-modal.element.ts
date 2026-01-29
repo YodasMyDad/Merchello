@@ -16,7 +16,7 @@ import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 
 const STORAGE_KEY = "merchello-test-payment-provider-form";
 
-type TabType = 'session' | 'payment' | 'express' | 'webhooks' | 'paymentlinks';
+type TabType = 'session' | 'payment' | 'express' | 'webhooks' | 'paymentlinks' | 'vault';
 
 interface SavedFormValues {
   amount?: number;
@@ -81,6 +81,17 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   @state() private _paymentLinkResult?: { success: boolean; paymentUrl?: string; errorMessage?: string };
   @state() private _supportsPaymentLinks = false;
 
+  // Vault tab state
+  @state() private _supportsVaulting = false;
+  @state() private _isCreatingVaultSetup = false;
+  @state() private _vaultSetupResult?: { success: boolean; setupSessionId?: string; clientSecret?: string; redirectUrl?: string; providerCustomerId?: string; errorMessage?: string };
+  @state() private _isConfirmingVault = false;
+  @state() private _vaultConfirmResult?: { success: boolean; providerMethodId?: string; providerCustomerId?: string; displayLabel?: string; cardBrand?: string; last4?: string; expiryMonth?: number; expiryYear?: number; errorMessage?: string };
+  @state() private _isChargingVault = false;
+  @state() private _vaultChargeResult?: { success: boolean; transactionId?: string; errorMessage?: string };
+  @state() private _vaultChargeAmount: number = 10.00;
+  @state() private _vaultPaymentMethodToken: string = "";
+
   // Common state
   @state() private _errorMessage: string | null = null;
 
@@ -93,11 +104,17 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     this._restoreSavedValues();
     getStoreSettings();
     this._checkPaymentLinkSupport();
+    this._checkVaultingSupport();
   }
 
   private _checkPaymentLinkSupport(): void {
     // Check if the provider metadata indicates payment link support
     this._supportsPaymentLinks = this.data?.setting.provider?.supportsPaymentLinks ?? false;
+  }
+
+  private _checkVaultingSupport(): void {
+    // Check if the provider metadata indicates vaulting support
+    this._supportsVaulting = this.data?.setting.provider?.supportsVaultedPayments ?? false;
   }
 
   override disconnectedCallback(): void {
@@ -686,6 +703,20 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     return TEST_CARDS[alias] || TEST_CARDS.default;
   }
 
+  private _getDefaultVaultToken(): string {
+    const alias = this.data?.setting.providerAlias?.toLowerCase() || 'default';
+    switch (alias) {
+      case 'stripe':
+        // Stripe test PaymentMethod ID (usable for SetupIntent confirmation)
+        return 'pm_card_visa';
+      case 'braintree':
+        // Braintree test nonce
+        return 'fake-valid-nonce';
+      default:
+        return '';
+    }
+  }
+
   private _renderTabs(): unknown {
     return html`
       <div class="tabs">
@@ -719,6 +750,14 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             @click=${() => this._handleTabChange('paymentlinks')}
           >
             Payment Links
+          </button>
+        ` : nothing}
+        ${this._supportsVaulting ? html`
+          <button
+            class="tab ${this._activeTab === 'vault' ? 'active' : ''}"
+            @click=${() => this._handleTabChange('vault')}
+          >
+            Vault
           </button>
         ` : nothing}
       </div>
@@ -1177,6 +1216,382 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     }
   }
 
+  // ============================================
+  // Vault Tab
+  // ============================================
+
+  private _renderVaultTab(): unknown {
+    const testCard = this._getTestCardInfo();
+    const providerAlias = this.data?.setting.providerAlias?.toLowerCase() || '';
+    const needsToken = providerAlias !== 'paypal';
+    const tokenPlaceholder = this._getDefaultVaultToken() || 'Enter token/nonce';
+
+    return html`
+      <div class="tab-content">
+        <p class="tab-description">Test vaulted payments functionality - save and charge payment methods without a real transaction.</p>
+
+        <!-- Step 1: Create Vault Setup Session -->
+        <div class="vault-section">
+          <h4>1. Create Vault Setup Session</h4>
+          <p class="hint">Create a setup session to save a payment method for future use.</p>
+
+          <uui-button
+            look="primary"
+            ?disabled=${this._isCreatingVaultSetup}
+            @click=${this._handleCreateVaultSetup}
+          >
+            ${this._isCreatingVaultSetup ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+            ${this._isCreatingVaultSetup ? "Creating..." : "Create Vault Setup Session"}
+          </uui-button>
+
+          ${this._vaultSetupResult ? html`
+            <div class="result-card ${this._vaultSetupResult.success ? 'success' : 'error'}">
+              <uui-icon name="${this._vaultSetupResult.success ? 'icon-check' : 'icon-alert'}"></uui-icon>
+              <span>${this._vaultSetupResult.success ? "Setup session created" : "Failed to create setup session"}</span>
+            </div>
+
+            ${this._vaultSetupResult.errorMessage ? html`
+              <div class="result-errors">
+                <uui-icon name="icon-alert"></uui-icon>
+                <span>${this._vaultSetupResult.errorMessage}</span>
+              </div>
+            ` : nothing}
+
+            ${this._vaultSetupResult.success ? html`
+              <div class="result-details">
+                <div class="detail-row">
+                  <span class="detail-label">Session ID</span>
+                  <span class="detail-value monospace">${this._vaultSetupResult.setupSessionId}</span>
+                </div>
+                ${this._vaultSetupResult.clientSecret ? html`
+                  <div class="detail-row">
+                    <span class="detail-label">Client Secret</span>
+                    <span class="detail-value monospace truncate">${this._vaultSetupResult.clientSecret}</span>
+                  </div>
+                ` : nothing}
+                ${this._vaultSetupResult.redirectUrl ? html`
+                  <div class="detail-row">
+                    <span class="detail-label">Approval URL</span>
+                    <a class="url-link" href="${this._vaultSetupResult.redirectUrl}" target="_blank" rel="noopener">
+                      ${this._vaultSetupResult.redirectUrl}
+                    </a>
+                  </div>
+                ` : nothing}
+                ${this._vaultSetupResult.providerCustomerId ? html`
+                  <div class="detail-row">
+                    <span class="detail-label">Provider Customer ID</span>
+                    <span class="detail-value monospace">${this._vaultSetupResult.providerCustomerId}</span>
+                  </div>
+                ` : nothing}
+              </div>
+            ` : nothing}
+          ` : nothing}
+        </div>
+
+        <!-- Step 2: Confirm Vault Setup (Card Entry) -->
+        ${this._vaultSetupResult?.success ? html`
+          <div class="vault-section">
+            <h4>2. Confirm Vault Setup</h4>
+            <div class="test-card-info">
+              <strong>Test Card:</strong> ${testCard.card} | <strong>Exp:</strong> ${testCard.expiry} | <strong>CVV:</strong> ${testCard.cvv}
+            </div>
+
+            ${needsToken ? html`
+              <div class="form-row">
+                <label>Payment Method Token / Nonce</label>
+                <uui-input
+                  .value=${this._vaultPaymentMethodToken}
+                  placeholder="${tokenPlaceholder}"
+                  @input=${(e: Event) => (this._vaultPaymentMethodToken = (e.target as HTMLInputElement).value)}
+                ></uui-input>
+                <p class="hint">Use a provider test token (e.g., Stripe pm_card_visa, Braintree fake-valid-nonce).</p>
+              </div>
+            ` : html`
+              <p class="hint">No token required. Complete the approval in the provider’s window before confirming.</p>
+            `}
+
+            <div id="vault-form-container" class="payment-form-container">
+              <!-- Payment form would be rendered here by the adapter -->
+              <p class="hint">In a real implementation, the provider's payment form would appear here.</p>
+            </div>
+
+            <uui-button
+              look="primary"
+              ?disabled=${this._isConfirmingVault}
+              @click=${this._handleConfirmVaultSetup}
+            >
+              ${this._isConfirmingVault ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+              ${this._isConfirmingVault ? "Confirming..." : "Confirm & Save Payment Method"}
+            </uui-button>
+
+            ${this._vaultConfirmResult ? html`
+              <div class="result-card ${this._vaultConfirmResult.success ? 'success' : 'error'}">
+                <uui-icon name="${this._vaultConfirmResult.success ? 'icon-check' : 'icon-alert'}"></uui-icon>
+                <span>${this._vaultConfirmResult.success ? "Payment method saved" : "Failed to save payment method"}</span>
+              </div>
+
+              ${this._vaultConfirmResult.errorMessage ? html`
+                <div class="result-errors">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._vaultConfirmResult.errorMessage}</span>
+                </div>
+              ` : nothing}
+
+              ${this._vaultConfirmResult.success ? html`
+                <div class="result-details">
+                  <div class="detail-row">
+                    <span class="detail-label">Display Label</span>
+                    <span class="detail-value">${this._vaultConfirmResult.displayLabel}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Provider Method ID</span>
+                    <span class="detail-value monospace">${this._vaultConfirmResult.providerMethodId}</span>
+                  </div>
+                  ${this._vaultConfirmResult.providerCustomerId ? html`
+                    <div class="detail-row">
+                      <span class="detail-label">Provider Customer ID</span>
+                      <span class="detail-value monospace">${this._vaultConfirmResult.providerCustomerId}</span>
+                    </div>
+                  ` : nothing}
+                  ${this._vaultConfirmResult.cardBrand ? html`
+                    <div class="detail-row">
+                      <span class="detail-label">Card Brand</span>
+                      <span class="detail-value">${this._vaultConfirmResult.cardBrand}</span>
+                    </div>
+                  ` : nothing}
+                  ${this._vaultConfirmResult.last4 ? html`
+                    <div class="detail-row">
+                      <span class="detail-label">Last 4</span>
+                      <span class="detail-value">${this._vaultConfirmResult.last4}</span>
+                    </div>
+                  ` : nothing}
+                  ${this._vaultConfirmResult.expiryMonth && this._vaultConfirmResult.expiryYear ? html`
+                    <div class="detail-row">
+                      <span class="detail-label">Expiry</span>
+                      <span class="detail-value">${String(this._vaultConfirmResult.expiryMonth).padStart(2, '0')}/${String(this._vaultConfirmResult.expiryYear).slice(-2)}</span>
+                    </div>
+                  ` : nothing}
+                </div>
+              ` : nothing}
+            ` : nothing}
+          </div>
+        ` : nothing}
+
+        <!-- Step 3: Test Charge -->
+        ${this._vaultConfirmResult?.success ? html`
+          <div class="vault-section">
+            <h4>3. Test Charge</h4>
+            <p class="hint">Charge the saved payment method.</p>
+
+            <div class="form-row">
+              <label>Charge Amount</label>
+              <uui-input
+                type="number"
+                min="0.01"
+                step="0.01"
+                .value=${String(this._vaultChargeAmount)}
+                @input=${(e: Event) => (this._vaultChargeAmount = parseFloat((e.target as HTMLInputElement).value) || 10)}
+              ></uui-input>
+            </div>
+
+            <div class="button-group">
+              <uui-button
+                look="primary"
+                ?disabled=${this._isChargingVault}
+                @click=${this._handleTestVaultCharge}
+              >
+                ${this._isChargingVault ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+                ${this._isChargingVault ? "Charging..." : "Test Charge"}
+              </uui-button>
+
+              <uui-button
+                look="secondary"
+                color="danger"
+                @click=${this._handleDeleteVaultedMethod}
+              >
+                Delete Method
+              </uui-button>
+            </div>
+
+            ${this._vaultChargeResult ? html`
+              <div class="result-card ${this._vaultChargeResult.success ? 'success' : 'error'}">
+                <uui-icon name="${this._vaultChargeResult.success ? 'icon-check' : 'icon-alert'}"></uui-icon>
+                <span>${this._vaultChargeResult.success ? "Charge successful" : "Charge failed"}</span>
+              </div>
+
+              ${this._vaultChargeResult.errorMessage ? html`
+                <div class="result-errors">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._vaultChargeResult.errorMessage}</span>
+                </div>
+              ` : nothing}
+
+              ${this._vaultChargeResult.transactionId ? html`
+                <div class="result-details">
+                  <div class="detail-row">
+                    <span class="detail-label">Transaction ID</span>
+                    <span class="detail-value monospace">${this._vaultChargeResult.transactionId}</span>
+                  </div>
+                </div>
+              ` : nothing}
+            ` : nothing}
+          </div>
+        ` : nothing}
+      </div>
+    `;
+  }
+
+  private async _handleCreateVaultSetup(): Promise<void> {
+    this._isCreatingVaultSetup = true;
+    this._vaultSetupResult = undefined;
+    this._vaultConfirmResult = undefined;
+    this._vaultChargeResult = undefined;
+
+    const settingId = this.data?.setting.id;
+    if (!settingId) {
+      this._vaultSetupResult = { success: false, errorMessage: "Setting ID missing." };
+      this._isCreatingVaultSetup = false;
+      return;
+    }
+
+    try {
+      const { data, error } = await MerchelloApi.testVaultSetup(settingId, {});
+
+      if (error || !data) {
+        this._vaultSetupResult = {
+          success: false,
+          errorMessage: error?.message ?? "Failed to create vault setup session."
+        };
+      } else {
+        this._vaultSetupResult = {
+          success: data.success ?? false,
+          setupSessionId: data.setupSessionId,
+          clientSecret: data.clientSecret,
+          redirectUrl: data.redirectUrl,
+          providerCustomerId: data.providerCustomerId,
+          errorMessage: data.errorMessage
+        };
+        if (!this._vaultPaymentMethodToken) {
+          this._vaultPaymentMethodToken = this._getDefaultVaultToken();
+        }
+      }
+    } catch (err) {
+      this._vaultSetupResult = {
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Unexpected error"
+      };
+    }
+
+    this._isCreatingVaultSetup = false;
+  }
+
+  private async _handleConfirmVaultSetup(): Promise<void> {
+    this._isConfirmingVault = true;
+    this._vaultConfirmResult = undefined;
+    this._vaultChargeResult = undefined;
+
+    const settingId = this.data?.setting.id;
+    if (!settingId || !this._vaultSetupResult?.setupSessionId) {
+      this._vaultConfirmResult = { success: false, errorMessage: "Setup session not created." };
+      this._isConfirmingVault = false;
+      return;
+    }
+
+    try {
+      const { data, error } = await MerchelloApi.testVaultConfirm(settingId, {
+        setupSessionId: this._vaultSetupResult.setupSessionId,
+        // In real implementation, paymentMethodToken would come from the SDK
+        paymentMethodToken: this._vaultPaymentMethodToken || undefined,
+        providerCustomerId: this._vaultSetupResult.providerCustomerId
+      });
+
+      if (error || !data) {
+        this._vaultConfirmResult = {
+          success: false,
+          errorMessage: error?.message ?? "Failed to confirm vault setup."
+        };
+      } else {
+        this._vaultConfirmResult = {
+          success: data.success ?? false,
+          providerMethodId: data.providerMethodId,
+          providerCustomerId: data.providerCustomerId,
+          displayLabel: data.displayLabel,
+          cardBrand: data.cardBrand,
+          last4: data.last4,
+          expiryMonth: data.expiryMonth,
+          expiryYear: data.expiryYear,
+          errorMessage: data.errorMessage
+        };
+      }
+    } catch (err) {
+      this._vaultConfirmResult = {
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Unexpected error"
+      };
+    }
+
+    this._isConfirmingVault = false;
+  }
+
+  private async _handleTestVaultCharge(): Promise<void> {
+    this._isChargingVault = true;
+    this._vaultChargeResult = undefined;
+
+    const settingId = this.data?.setting.id;
+    if (!settingId || !this._vaultConfirmResult?.providerMethodId) {
+      this._vaultChargeResult = { success: false, errorMessage: "No vaulted method available." };
+      this._isChargingVault = false;
+      return;
+    }
+
+    try {
+      const { data, error } = await MerchelloApi.testVaultCharge(settingId, {
+        providerMethodId: this._vaultConfirmResult.providerMethodId,
+        providerCustomerId: this._vaultConfirmResult.providerCustomerId ?? this._vaultSetupResult?.providerCustomerId,
+        amount: this._vaultChargeAmount,
+        currencyCode: "USD"
+      });
+
+      if (error || !data) {
+        this._vaultChargeResult = {
+          success: false,
+          errorMessage: error?.message ?? "Failed to charge vaulted method."
+        };
+      } else {
+        this._vaultChargeResult = {
+          success: data.success ?? false,
+          transactionId: data.transactionId,
+          errorMessage: data.errorMessage
+        };
+      }
+    } catch (err) {
+      this._vaultChargeResult = {
+        success: false,
+        errorMessage: err instanceof Error ? err.message : "Unexpected error"
+      };
+    }
+
+    this._isChargingVault = false;
+  }
+
+  private async _handleDeleteVaultedMethod(): Promise<void> {
+    const settingId = this.data?.setting.id;
+    if (!settingId || !this._vaultConfirmResult?.providerMethodId) {
+      return;
+    }
+
+    try {
+      await MerchelloApi.testVaultDelete(settingId, this._vaultConfirmResult.providerMethodId);
+
+      // Reset vault state
+      this._vaultSetupResult = undefined;
+      this._vaultConfirmResult = undefined;
+      this._vaultChargeResult = undefined;
+    } catch (err) {
+      this._errorMessage = err instanceof Error ? err.message : "Failed to delete vaulted method";
+    }
+  }
+
   override render() {
     const providerName = this.data?.setting.displayName ?? "Provider";
 
@@ -1198,6 +1613,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
           ${this._activeTab === 'express' ? this._renderExpressCheckoutTab() : nothing}
           ${this._activeTab === 'webhooks' ? this._renderWebhooksTab() : nothing}
           ${this._activeTab === 'paymentlinks' ? this._renderPaymentLinksTab() : nothing}
+          ${this._activeTab === 'vault' ? this._renderVaultTab() : nothing}
         </div>
 
         <div slot="actions">
@@ -1604,6 +2020,37 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       display: flex;
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
+    }
+
+    /* Vault section */
+    .vault-section {
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+    }
+
+    .vault-section h4 {
+      margin: 0 0 var(--uui-size-space-2) 0;
+      font-size: 0.9375rem;
+    }
+
+    .vault-section .hint {
+      margin-bottom: var(--uui-size-space-3);
+    }
+
+    .payment-form-container {
+      min-height: 100px;
+      padding: var(--uui-size-space-4);
+      background: var(--uui-color-surface-alt);
+      border: 1px dashed var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-3);
+    }
+
+    .button-group {
+      display: flex;
+      gap: var(--uui-size-space-2);
     }
   `;
 }

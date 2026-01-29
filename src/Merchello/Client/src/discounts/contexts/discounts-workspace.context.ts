@@ -173,6 +173,8 @@ export class MerchelloDiscountsWorkspaceContext
       id: "",
       name: "",
       description: null,
+      showInFeed: false,
+      feedPromotionName: null,
       status: DiscountStatus.Draft,
       statusLabel: "Draft",
       statusColor: "default",

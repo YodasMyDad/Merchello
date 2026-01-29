@@ -11,6 +11,7 @@ using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -60,26 +61,20 @@ public class ShippingQuoteService(
 
     /// <inheritdoc />
     public async Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesForWarehouseAsync(
-        Guid warehouseId,
-        Address warehouseAddress,
-        IReadOnlyCollection<ShipmentPackage> packages,
-        string destinationCountry,
-        string? destinationState,
-        string? destinationPostal,
-        string currency,
+        GetWarehouseQuotesParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        if (packages.Count == 0)
+        if (parameters.Packages.Count == 0)
         {
             return [];
         }
 
         // Build cache key specific to this warehouse and destination
-        var cacheKey = BuildWarehouseCacheKey(warehouseId, destinationCountry, destinationState, destinationPostal, currency, packages);
+        var cacheKey = BuildWarehouseCacheKey(parameters.WarehouseId, parameters.DestinationCountry, parameters.DestinationState, parameters.DestinationPostal, parameters.Currency, parameters.Packages);
 
         var quotes = await cacheService.GetOrCreateAsync(
             cacheKey,
-            async ct => await FetchQuotesForWarehouseAsync(warehouseId, warehouseAddress, packages, destinationCountry, destinationState, destinationPostal, currency, ct),
+            async ct => await FetchQuotesForWarehouseAsync(parameters.WarehouseId, parameters.WarehouseAddress, parameters.Packages, parameters.DestinationCountry, parameters.DestinationState, parameters.DestinationPostal, parameters.Currency, ct),
             _quoteCacheTtl,
             [Constants.CacheTags.ShippingQuotes],
             cancellationToken);

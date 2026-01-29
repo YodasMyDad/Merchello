@@ -232,6 +232,7 @@ public class PaymentProviderManager(
                 existing.DisplayName = setting.DisplayName;
                 existing.IsEnabled = setting.IsEnabled;
                 existing.IsTestMode = setting.IsTestMode;
+                existing.IsVaultingEnabled = setting.IsVaultingEnabled;
                 existing.Configuration = setting.Configuration;
                 existing.SortOrder = setting.SortOrder;
                 existing.DateUpdated = DateTime.UtcNow;
@@ -449,6 +450,10 @@ public class PaymentProviderManager(
                     CheckoutStyle = checkoutStyle,
                     Description = methodDef.Description,
                     IntegrationType = methodDef.IntegrationType,
+                    SupportsVaulting = registered.Metadata.SupportsVaultedPayments
+                        && registered.Setting?.IsVaultingEnabled == true
+                        && (methodDef.IntegrationType == PaymentIntegrationType.HostedFields
+                            || methodDef.IntegrationType == PaymentIntegrationType.Widget),
                     IsExpressCheckout = methodDef.IsExpressCheckout,
                     SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder,
                     ShowInCheckout = methodSetting?.ShowInCheckout ?? methodDef.ShowInCheckoutByDefault,

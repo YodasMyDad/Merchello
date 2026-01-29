@@ -208,21 +208,8 @@ public class MerchelloCheckoutController(
                 }
 
                 // Calculate tax-inclusive subtotal from line items
-                var productItems = confirmation.LineItems
-                    .Where(li => li.LineItemType is Core.Accounting.Models.LineItemType.Product
-                              or Core.Accounting.Models.LineItemType.Custom
-                              or Core.Accounting.Models.LineItemType.Addon)
-                    .ToList();
-
-                var rawTaxInclusiveSubTotal = productItems.Sum(li =>
-                {
-                    var amount = li.DisplayLineTotal;
-                    if (displayContext.DisplayPricesIncTax && li.IsTaxable && li.TaxRate > 0)
-                    {
-                        amount *= 1 + (li.TaxRate / 100m);
-                    }
-                    return currencyService.Round(amount, currency);
-                });
+                var (rawTaxInclusiveSubTotal, productItemCount) = confirmation.LineItems
+                    .GetRawTaxInclusiveSubTotal(displayContext.DisplayPricesIncTax, currencyService, currency);
 
                 // Calculate tax-inclusive shipping and discount for reconciliation
                 decimal taxInclusiveShipping = confirmation.DisplayShipping;
@@ -262,7 +249,7 @@ public class MerchelloCheckoutController(
                 // Use centralized reconciliation method
                 var taxInclusiveSubTotal = DisplayCurrencyExtensions.ReconcileTaxInclusiveSubTotal(
                     rawTaxInclusiveSubTotal,
-                    productItems.Count,
+                    productItemCount,
                     confirmation.DisplayTotal,
                     taxInclusiveShipping,
                     taxInclusiveDiscount);

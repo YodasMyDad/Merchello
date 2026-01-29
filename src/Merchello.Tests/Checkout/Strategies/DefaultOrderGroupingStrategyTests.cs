@@ -7,6 +7,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Notifications.Interfaces;
 using Umbraco.Cms.Core.Notifications;
@@ -342,13 +343,7 @@ public class DefaultOrderGroupingStrategyTests
         // Setup dynamic quote response
         _shippingQuoteServiceMock
             .Setup(x => x.GetQuotesForWarehouseAsync(
-                warehouseId,
-                It.IsAny<Address>(),
-                It.IsAny<IReadOnlyCollection<ShipmentPackage>>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string>(),
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ShippingRateQuote>
             {
@@ -443,13 +438,7 @@ public class DefaultOrderGroupingStrategyTests
         // Setup dynamic quote response with 3-day transit
         _shippingQuoteServiceMock
             .Setup(x => x.GetQuotesForWarehouseAsync(
-                warehouseId,
-                It.IsAny<Address>(),
-                It.IsAny<IReadOnlyCollection<ShipmentPackage>>(),
-                It.IsAny<string>(),
-                It.IsAny<string?>(),
-                It.IsAny<string?>(),
-                It.IsAny<string>(),
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<ShippingRateQuote>
             {
