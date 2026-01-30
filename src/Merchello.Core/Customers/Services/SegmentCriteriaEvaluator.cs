@@ -174,7 +174,7 @@ public class SegmentCriteriaEvaluator(
                     FirstOrderDate = g.Min(x => x.DateCreated),
                     LastOrderDate = g.Max(x => x.DateCreated)
                 })
-                .FirstOrDefaultAsync(ct);
+                .SingleOrDefaultAsync(ct);
 
             // Get country from most recent invoice
             var recentInvoice = await db.Invoices

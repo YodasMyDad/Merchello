@@ -134,6 +134,7 @@ public class PaymentsApiController(
             StoreCurrencySymbol = _currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
             Status = details.Status,
             StatusDisplay = details.StatusDisplay,
+            StatusCssClass = details.Status.GetPaymentStatusCssClass(),
             InvoiceTotal = invoice.Total,
             InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
             TotalPaid = details.TotalPaid,

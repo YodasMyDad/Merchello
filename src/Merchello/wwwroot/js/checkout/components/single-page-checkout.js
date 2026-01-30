@@ -298,7 +298,7 @@ export function initSinglePageCheckout() {
                     this.shippingRegions = await loadRegions('shipping', this.form.shipping.countryCode);
                 }
 
-                // Sort initial shipping options
+                // Keep backend-provided shipping option order
                 if (this.shippingGroups.length > 0) {
                     this.sortShippingOptions();
                 }

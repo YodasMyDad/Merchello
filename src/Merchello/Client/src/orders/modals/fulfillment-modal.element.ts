@@ -625,7 +625,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     return html`
       <div class="status-bar">
         <span class="status-label">Overall Status:</span>
-        <span class="status-badge ${this._summary.overallStatus.toLowerCase()}">
+        <span class="status-badge ${this._summary.overallStatusCssClass}">
           ${this._summary.overallStatus}
         </span>
       </div>

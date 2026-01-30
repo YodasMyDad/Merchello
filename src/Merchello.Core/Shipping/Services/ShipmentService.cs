@@ -736,11 +736,14 @@ public class ShipmentService(
     {
         var orders = invoice.Orders?.ToList() ?? [];
 
+        var overallStatus = orders.GetFulfillmentStatus();
+
         return new FulfillmentSummaryDto
         {
             InvoiceId = invoice.Id,
             InvoiceNumber = invoice.InvoiceNumber,
-            OverallStatus = orders.GetFulfillmentStatus(),
+            OverallStatus = overallStatus,
+            OverallStatusCssClass = overallStatus.ToLowerInvariant(),
             Orders = orders.Select(o => MapToOrderFulfillment(o, warehouseNames, shippingOptionNames, productImages)).ToList()
         };
     }

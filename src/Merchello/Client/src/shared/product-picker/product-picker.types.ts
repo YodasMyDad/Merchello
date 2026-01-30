@@ -272,6 +272,10 @@ export interface PickerProductRoot {
 
   /** Stock status classification (calculated when variants loaded) */
   stockStatus: StockStatus;
+  /** Display label for stock status (backend source of truth) */
+  stockStatusLabel: string;
+  /** CSS class for stock status badge (backend source of truth) */
+  stockStatusCssClass: string;
 
   /** Whether this is a digital product (no shipping) */
   isDigitalProduct: boolean;
@@ -325,6 +329,10 @@ export interface PickerVariant {
 
   /** Stock status classification calculated by backend - use this instead of comparing availableStock to threshold locally */
   stockStatus: StockStatus;
+  /** Display label for stock status (backend source of truth) */
+  stockStatusLabel: string;
+  /** CSS class for stock status badge (backend source of truth) */
+  stockStatusCssClass: string;
 
   /** Whether stock is tracked for this variant */
   trackStock: boolean;

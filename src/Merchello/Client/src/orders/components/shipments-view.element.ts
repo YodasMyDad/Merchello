@@ -533,7 +533,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
         <div class="header">
           <h2>Shipments</h2>
           <div class="summary">
-            <span class="status-badge ${this._fulfillmentData.overallStatus.toLowerCase()}">
+            <span class="status-badge ${this._fulfillmentData.overallStatusCssClass}">
               ${this._fulfillmentData.overallStatus}
             </span>
             <span class="count">${allShipments.length} shipment${allShipments.length !== 1 ? "s" : ""}</span>

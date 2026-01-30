@@ -57,7 +57,6 @@ import {
 import {
   getVariantOptionDescription,
   calculateEstimatedVariantCount,
-  getStockStatusBadgeClass,
   hasVariantWarnings,
   hasOptionWarnings,
   formatUrlAsBreadcrumb,
@@ -1485,7 +1484,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         <uui-table-cell>${variant.sku || "—"}</uui-table-cell>
         <uui-table-cell>${formatCurrency(variant.price)}</uui-table-cell>
         <uui-table-cell>
-          <span class="badge ${getStockStatusBadgeClass(variant.stockStatus)}">${variant.totalStock}</span>
+          <span class="badge ${variant.stockStatusCssClass}" title=${variant.stockStatusLabel}>${variant.totalStock}</span>
         </uui-table-cell>
         <uui-table-cell>
           <span class="badge ${variant.availableForPurchase ? "badge-positive" : "badge-danger"}">

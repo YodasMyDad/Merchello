@@ -71,6 +71,16 @@ public class ProductVariantDto
     /// </summary>
     public StockStatus StockStatus { get; set; }
 
+    /// <summary>
+    /// Display label for the stock status (backend source of truth).
+    /// </summary>
+    public string StockStatusLabel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CSS class for stock status badges (backend source of truth).
+    /// </summary>
+    public string StockStatusCssClass { get; set; } = string.Empty;
+
     public List<VariantWarehouseStockDto> WarehouseStock { get; set; } = [];
 
     /// <summary>

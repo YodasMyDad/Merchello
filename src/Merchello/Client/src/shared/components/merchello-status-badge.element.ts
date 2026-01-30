@@ -2,43 +2,24 @@ import { LitElement, html } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
-import {
-  getPaymentStatusBadgeClass,
-  getFulfillmentStatusBadgeClass,
-} from "@shared/utils/formatting.js";
-import { InvoicePaymentStatus } from "@orders/types/order.types.js";
 
 /**
- * Reusable status badge component for payment and fulfillment statuses.
+ * Reusable status badge component.
+ * Expects CSS class and label values provided by the backend.
  *
  * @example
  * ```html
- * <merchello-status-badge
- *   variant="payment"
- *   .status=${InvoicePaymentStatus.Paid}
- *   label="Paid">
- * </merchello-status-badge>
- *
- * <merchello-status-badge
- *   variant="fulfillment"
- *   status="Unfulfilled"
- *   label="Unfulfilled">
- * </merchello-status-badge>
+ * <merchello-status-badge cssClass="paid" label="Paid"></merchello-status-badge>
+ * <merchello-status-badge cssClass="fulfilled" label="Fulfilled"></merchello-status-badge>
  * ```
  */
 @customElement("merchello-status-badge")
 export class MerchelloStatusBadgeElement extends UmbElementMixin(LitElement) {
   /**
-   * Badge variant - determines which status class mapping to use.
+   * CSS class for the badge (provided by backend DTOs).
    */
   @property({ type: String })
-  variant: "payment" | "fulfillment" = "payment";
-
-  /**
-   * Status value - InvoicePaymentStatus for payment, string for fulfillment.
-   */
-  @property({ attribute: false })
-  status: InvoicePaymentStatus | string = "";
+  cssClass = "";
 
   /**
    * Display label for the badge.
@@ -46,15 +27,8 @@ export class MerchelloStatusBadgeElement extends UmbElementMixin(LitElement) {
   @property({ type: String })
   label = "";
 
-  private _getBadgeClass(): string {
-    if (this.variant === "payment") {
-      return getPaymentStatusBadgeClass(this.status as InvoicePaymentStatus);
-    }
-    return getFulfillmentStatusBadgeClass(this.status as string);
-  }
-
   override render() {
-    return html`<span class="badge ${this._getBadgeClass()}">${this.label}</span>`;
+    return html`<span class="badge ${this.cssClass}">${this.label}</span>`;
   }
 
   static override readonly styles = [badgeStyles];

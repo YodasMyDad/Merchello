@@ -1,3 +1,5 @@
+using Merchello.Core.Products.Models;
+
 namespace Merchello.Core.Shipping.Dtos;
 
 /// <summary>
@@ -43,5 +45,15 @@ public class ProductFulfillmentOptionsDto
     /// Aggregate stock status across all warehouses (InStock/LowStock/OutOfStock/Untracked).
     /// Calculated by backend - frontend should use this instead of deriving from warehouse data.
     /// </summary>
-    public string AggregateStockStatus { get; set; } = "InStock";
+    public StockStatus AggregateStockStatus { get; set; } = StockStatus.InStock;
+
+    /// <summary>
+    /// Display label for aggregate stock status (backend source of truth).
+    /// </summary>
+    public string AggregateStockStatusLabel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CSS class for aggregate stock status badge (backend source of truth).
+    /// </summary>
+    public string AggregateStockStatusCssClass { get; set; } = string.Empty;
 }

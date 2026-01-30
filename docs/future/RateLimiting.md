@@ -4,7 +4,7 @@ Enterprise API protection for DDoS prevention, fair usage, and cost control.
 
 ## Overview
 
-The rate limiting system controls request frequency to protect APIs from abuse, ensure fair resource distribution, and manage costs from external service calls. Built on Merchello's existing `IRateLimiter` infrastructure, it extends protection to all public-facing endpoints.
+The rate limiting system controls request frequency to protect APIs from abuse, ensure fair resource distribution, and manage costs from external service calls. Merchello already has `IRateLimiter` / `AtomicRateLimiter` and 6 ad-hoc usages with hardcoded limits. This sprint centralizes those into a configuration-driven system with global middleware, standard headers, and monitoring — extending protection to all public-facing endpoints.
 
 ## Design Principles
 
@@ -13,35 +13,53 @@ The rate limiting system controls request frequency to protect APIs from abuse, 
 - **Multiple key strategies** - IP, session, customer, API key identification
 - **Standard headers** - RFC 6585 compliant response headers
 - **Graceful degradation** - Clear feedback when limits are reached
-- **Builds on existing infrastructure** - Extends `AtomicRateLimiter` already in codebase
+- **Consolidates existing ad-hoc limiting** - Replaces 6 hardcoded usages with centralized configuration
 
-## Centralized Logic
+## Centralized Logic (Target State)
 
-| Operation | Service.Method |
-|-----------|----------------|
-| Rate limit check | `IRateLimiter.TryAcquire()` |
-| Rate limit metrics | `IRateLimitMetrics.RecordRequest()` |
-| Rate limit stats | `IRateLimitMetrics.GetStatsAsync()` |
+| Operation | Service.Method | Status |
+| --------- | -------------- | ------ |
+| Rate limit check | `IRateLimiter.TryAcquire()` | Exists |
+| Rate limit metrics | `IRateLimitMetrics.RecordRequest()` | New |
+| Rate limit stats | `IRateLimitMetrics.GetStatsAsync()` | New |
 
 ## Existing Infrastructure
 
 Merchello already has rate limiting foundations:
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `IRateLimiter` | `Shared/RateLimiting/Interfaces/` | Rate limit abstraction |
-| `AtomicRateLimiter` | `Shared/RateLimiting/` | Thread-safe sliding window implementation |
-| `WebhookSecurityService` | `Payments/Services/` | Webhook-specific rate limiting |
+### Core
 
-The `AtomicRateLimiter` is registered as a singleton and provides:
-- Thread-safe concurrent dictionary with per-bucket locks
-- Sliding window approach
+| Component | Location | Purpose |
+| --------- | -------- | ------- |
+| `IRateLimiter` | `Shared/RateLimiting/Interfaces/` | Rate limit abstraction (`TryAcquire`, `GetCurrentCount`, `Reset`) |
+| `AtomicRateLimiter` | `Shared/RateLimiting/` | Thread-safe fixed-window implementation |
+| `RateLimitResult` | `Shared/RateLimiting/Models/` | Result model (`IsAllowed`, `CurrentCount`, `MaxAttempts`, `RetryAfter`) |
+
+The `AtomicRateLimiter` is registered as a singleton (`Startup.cs`) and provides:
+
+- Thread-safe `ConcurrentDictionary` with per-bucket locks
+- Fixed window approach (counter resets when window expires)
 - Automatic cleanup of expired entries (5-minute intervals)
 - `TryAcquire(key, maxAttempts, window)` returns `RateLimitResult`
 
+### Current Ad-Hoc Usages
+
+All current rate limiting is hardcoded at point-of-use with no centralized configuration:
+
+| Location | Endpoint/Feature | Key Pattern | Limit | Window |
+| -------- | ---------------- | ----------- | ----- | ------ |
+| `WebhookSecurityService` | Payment webhooks | `webhook_rate_{provider}_{ip}` | 60 | 1 min |
+| `CheckoutDiscountService` | Discount code apply | `discount-code-attempts:{basketId}` | 5 | 1 min |
+| `PaymentService` | Payment session creation | `payment_rate_{invoiceId}` | 10 | 1 min |
+| `CheckoutApiController` | Forgot password | `forgot-password:{ip}` | 5 | 15 min |
+| `CheckoutApiController` | Cart recovery | `cart-recovery:{ip}` | 10 | 1 min |
+| `DownloadsController` | File downloads | Per-IP (ASP.NET Core built-in) | 30 | 1 min |
+
+The downloads endpoint uses ASP.NET Core's built-in `AddRateLimiter` / `[EnableRateLimiting("downloads")]` registered in `MerchelloComposer.cs`, separate from the `IRateLimiter` infrastructure.
+
 ## Architecture
 
-```
+```text
 HTTP Request → RateLimitMiddleware
                     ↓
               Identify Client (IP/Session/ApiKey)
@@ -999,21 +1017,23 @@ public async Task<IActionResult> GetShippingQuotes()
 
 ## 13. Folder Structure
 
-```
+```text
 Merchello.Core/
 ├── Shared/
 │   └── RateLimiting/
 │       ├── Interfaces/
 │       │   ├── IRateLimiter.cs          # Existing
 │       │   └── IRateLimitMetrics.cs     # New
+│       ├── Models/
+│       │   ├── RateLimitResult.cs       # Existing
+│       │   ├── RateLimitOptions.cs      # New
+│       │   ├── RateLimitPolicy.cs       # New
+│       │   └── RateLimitKeyStrategy.cs  # New
 │       ├── Notifications/
 │       │   ├── RateLimitExceededNotification.cs    # New
 │       │   └── RateLimitNearLimitNotification.cs   # New
-│       ├── AtomicRateLimiter.cs         # Existing
-│       ├── RateLimitOptions.cs          # New
-│       ├── RateLimitPolicy.cs           # New
-│       └── RateLimitResult.cs           # Existing
-│
+│       └── AtomicRateLimiter.cs         # Existing
+
 Merchello/
 ├── Middleware/
 │   └── RateLimitMiddleware.cs           # New
@@ -1025,25 +1045,31 @@ Merchello/
 
 ## 14. Migration from Existing Code
 
-### Update WebhookSecurityService
+All 6 existing ad-hoc usages should be migrated to use `RateLimitOptions` policies instead of hardcoded constants. The `IRateLimiter.TryAcquire()` calls remain the same — only the limit/window values change from constants to configuration.
 
-Replace hardcoded limits with configuration:
+### Migration targets
+
+| Service | Current Constant | Target Policy |
+| ------- | ---------------- | ------------- |
+| `WebhookSecurityService` | `MaxWebhooksPerMinute = 60`, 1 min | `"webhook"` |
+| `CheckoutDiscountService` | `MAX_DISCOUNT_CODE_ATTEMPTS_PER_MINUTE = 5`, 1 min | `"discount"` |
+| `PaymentService` | `MaxPaymentSessionsPerMinute = 10`, 1 min | `"payment"` |
+| `CheckoutApiController` | Forgot password: `5`, 15 min | `"auth"` |
+| `CheckoutApiController` | Cart recovery: `MaxRecoveryAttemptsPerMinute = 10`, 1 min | `"checkout"` |
+| `DownloadsController` | `PermitLimit = 30`, 1 min (ASP.NET Core built-in) | `"downloads"` — consider migrating to `IRateLimiter` for consistency, or keep the built-in middleware |
+
+### Example migration
 
 ```csharp
 // Before (hardcoded)
 private const int MaxWebhooksPerMinute = 60;
+private static readonly TimeSpan RateLimitWindow = TimeSpan.FromMinutes(1);
+var result = rateLimiter.TryAcquire(key, MaxWebhooksPerMinute, RateLimitWindow);
 
 // After (configuration-driven)
-public WebhookSecurityService(
-    IRateLimiter rateLimiter,
-    IOptions<RateLimitOptions> options,
-    // ...
-)
-{
-    var policy = options.Value.Policies.GetValueOrDefault("webhook")
-        ?? new RateLimitPolicy { Limit = 60, WindowSeconds = 60 };
-    // Use policy.Limit instead of hardcoded value
-}
+var policy = options.Value.Policies.GetValueOrDefault("webhook")
+    ?? new RateLimitPolicy { Limit = 60, WindowSeconds = 60 };
+var result = rateLimiter.TryAcquire(key, policy.Limit, TimeSpan.FromSeconds(policy.WindowSeconds));
 ```
 
 ## 15. Testing
@@ -1108,13 +1134,13 @@ public class RateLimitMiddlewareTests
 ## 16. Implementation Priority
 
 | Phase | Scope | Effort |
-|-------|-------|--------|
-| 1 | Configuration model, middleware, basic IP limiting | Low |
+| ----- | ----- | ------ |
+| 1 | Configuration model (`RateLimitOptions`, `RateLimitPolicy`, `RateLimitKeyStrategy`), middleware, basic IP limiting | Low |
 | 2 | Attribute-based limiting, action filter | Low |
 | 3 | Session/customer key strategies | Medium |
 | 4 | Response headers, metrics | Low |
-| 5 | Notifications (RateLimitExceeded, NearLimit) | Low |
-| 6 | Migrate WebhookSecurityService to configuration | Low |
+| 5 | Notifications (`RateLimitExceeded`, `NearLimit`) | Low |
+| 6 | Migrate all 6 existing ad-hoc usages to configuration-driven policies (see §14) | Low |
 | 7 | Distributed (Redis) implementation | Medium |
 
 ## 17. Quick Start

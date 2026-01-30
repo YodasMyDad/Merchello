@@ -22,9 +22,25 @@ import {
 } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
-import type { SelectOption } from "@shared/types/index.js";
+import type { AddressDto, SelectOption } from "@shared/types/index.js";
 
 type TabId = "general" | "regions" | "options";
+
+function createEmptyAddress(): AddressDto {
+  return {
+    name: null,
+    email: null,
+    phone: null,
+    company: null,
+    addressOne: null,
+    addressTwo: null,
+    townCity: null,
+    countyState: null,
+    postalCode: null,
+    country: null,
+    countryCode: null,
+  };
+}
 
 @customElement("merchello-warehouse-detail")
 export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement) {
@@ -156,10 +172,11 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   }
 
   private _handleAddressChange(field: string, value: string): void {
+    const address = this._formData.address ?? createEmptyAddress();
     this._formData = {
       ...this._formData,
       address: {
-        ...this._formData.address,
+        ...address,
         [field]: value,
       },
     };

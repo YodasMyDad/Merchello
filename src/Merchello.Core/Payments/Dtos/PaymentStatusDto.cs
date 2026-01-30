@@ -14,6 +14,11 @@ public class PaymentStatusDto
     public string StoreCurrencySymbol { get; set; } = string.Empty;
     public InvoicePaymentStatus Status { get; set; }
     public string StatusDisplay { get; set; } = string.Empty;
+    /// <summary>
+    /// CSS class for payment status badge styling (e.g., "paid", "partial", "refunded").
+    /// Calculated by backend to avoid frontend logic duplication.
+    /// </summary>
+    public string StatusCssClass { get; set; } = "unpaid";
     public decimal InvoiceTotal { get; set; }
     public decimal? InvoiceTotalInStoreCurrency { get; set; }
     public decimal TotalPaid { get; set; }

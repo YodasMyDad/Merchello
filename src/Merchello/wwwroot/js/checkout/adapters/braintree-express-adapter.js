@@ -81,6 +81,22 @@
     }
 
     /**
+     * Format a numeric amount with fixed decimals and no grouping (SDK-friendly).
+     * @param {number} value
+     * @param {number} decimals
+     * @returns {string}
+     */
+    function formatFixedAmount(value, decimals) {
+        const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+        const fractionDigits = Number.isFinite(decimals) ? Math.max(0, decimals) : 2;
+        return new Intl.NumberFormat('en-US', {
+            minimumFractionDigits: fractionDigits,
+            maximumFractionDigits: fractionDigits,
+            useGrouping: false
+        }).format(safeValue);
+    }
+
+    /**
      * Braintree Express Checkout Adapter
      * Registered for Braintree express checkout methods (PayPal, Apple Pay, Google Pay)
      */
@@ -277,7 +293,7 @@
                     const paymentRequest = applePayInstance.createPaymentRequest({
                         total: {
                             label: sdkConfig.displayName || 'Total',
-                            amount: config.amount.toFixed(config.decimalPlaces)
+                            amount: formatFixedAmount(config.amount, config.decimalPlaces)
                         },
                         requiredBillingContactFields: ['postalAddress', 'name'],
                         requiredShippingContactFields: ['postalAddress', 'name', 'email', 'phone']
@@ -398,7 +414,7 @@
                         const paymentDataRequest = googlePayInstance.createPaymentDataRequest({
                             transactionInfo: {
                                 totalPriceStatus: 'FINAL',
-                                totalPrice: config.amount.toFixed(config.decimalPlaces),
+                                totalPrice: formatFixedAmount(config.amount, config.decimalPlaces),
                                 currencyCode: config.currency
                             }
                         });

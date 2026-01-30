@@ -74,21 +74,13 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
   }
 
   /**
-   * Renders stock status badge using backend-provided stockStatus.
-   * Backend is the single source of truth for stock status classification.
+   * Renders stock status badge using backend-provided label and CSS class.
+   * Backend is the single source of truth for stock status display.
    */
   private _renderStockBadge(root: PickerProductRoot) {
-    switch (root.stockStatus) {
-      case "Untracked":
-        return html`<span class="badge digital">Digital</span>`;
-      case "OutOfStock":
-        return html`<span class="badge out-of-stock">Out of stock</span>`;
-      case "LowStock":
-        return html`<span class="badge low-stock">Low: ${root.totalStock}</span>`;
-      case "InStock":
-      default:
-        return html`<span class="badge in-stock">${root.totalStock} in stock</span>`;
-    }
+    if (!root.stockStatusLabel) return nothing;
+    const countSuffix = root.totalStock > 0 ? ` (${root.totalStock})` : "";
+    return html`<span class="badge ${root.stockStatusCssClass}">${root.stockStatusLabel}${countSuffix}</span>`;
   }
 
   private _renderExpandIcon(isExpanded: boolean) {
@@ -268,22 +260,22 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
       text-transform: uppercase;
     }
 
-    .badge.in-stock {
+    .badge.badge-positive {
       background-color: var(--uui-color-positive-standalone);
       color: var(--uui-color-positive-contrast);
     }
 
-    .badge.low-stock {
+    .badge.badge-warning {
       background-color: var(--uui-color-warning-standalone);
       color: var(--uui-color-warning-contrast);
     }
 
-    .badge.out-of-stock {
+    .badge.badge-danger {
       background-color: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
     }
 
-    .badge.digital {
+    .badge.badge-default {
       background-color: var(--uui-color-default-standalone);
       color: var(--uui-color-default-contrast);
     }

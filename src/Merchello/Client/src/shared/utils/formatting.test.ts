@@ -4,13 +4,10 @@ import {
   formatNumber,
   formatPercent,
   formatItemCount,
-  getPaymentStatusBadgeClass,
-  getFulfillmentStatusBadgeClass,
   formatShortDate,
   formatDate,
   formatDateTime,
 } from "./formatting.js";
-import { InvoicePaymentStatus } from "@orders/types/order.types.js";
 
 describe("formatting utilities", () => {
   describe("formatCurrency", () => {
@@ -96,50 +93,6 @@ describe("formatting utilities", () => {
 
     it("handles large counts", () => {
       expect(formatItemCount(1000)).toBe("1000 items");
-    });
-  });
-
-  describe("getPaymentStatusBadgeClass", () => {
-    it('returns "paid" for Paid status', () => {
-      expect(getPaymentStatusBadgeClass(InvoicePaymentStatus.Paid)).toBe("paid");
-    });
-
-    it('returns "partial" for PartiallyPaid status', () => {
-      expect(getPaymentStatusBadgeClass(InvoicePaymentStatus.PartiallyPaid)).toBe("partial");
-    });
-
-    it('returns "refunded" for Refunded status', () => {
-      expect(getPaymentStatusBadgeClass(InvoicePaymentStatus.Refunded)).toBe("refunded");
-    });
-
-    it('returns "refunded" for PartiallyRefunded status', () => {
-      expect(getPaymentStatusBadgeClass(InvoicePaymentStatus.PartiallyRefunded)).toBe("refunded");
-    });
-
-    it('returns "awaiting" for AwaitingPayment status', () => {
-      expect(getPaymentStatusBadgeClass(InvoicePaymentStatus.AwaitingPayment)).toBe("awaiting");
-    });
-
-    it('returns "unpaid" for Unpaid status', () => {
-      expect(getPaymentStatusBadgeClass(InvoicePaymentStatus.Unpaid)).toBe("unpaid");
-    });
-  });
-
-  describe("getFulfillmentStatusBadgeClass", () => {
-    it("converts status to lowercase", () => {
-      expect(getFulfillmentStatusBadgeClass("Shipped")).toBe("shipped");
-    });
-
-    it("replaces spaces with hyphens", () => {
-      expect(getFulfillmentStatusBadgeClass("In Transit")).toBe("in-transit");
-    });
-
-    it("handles multiple spaces", () => {
-      expect(getFulfillmentStatusBadgeClass("Out For Delivery")).toBe("out-for-delivery");
-    });
-
-    it("handles already lowercase values", () => {
-      expect(getFulfillmentStatusBadgeClass("delivered")).toBe("delivered");
     });
   });
 

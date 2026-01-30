@@ -44,6 +44,16 @@ public class ProductRootDetailDto
     public StockStatus AggregateStockStatus { get; set; }
 
     /// <summary>
+    /// Display label for aggregate stock status (backend source of truth).
+    /// </summary>
+    public string AggregateStockStatusLabel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CSS class for aggregate stock status badge (backend source of truth).
+    /// </summary>
+    public string AggregateStockStatusCssClass { get; set; } = string.Empty;
+
+    /// <summary>
     /// Default package configurations for shipping.
     /// Variants inherit these unless they define their own.
     /// </summary>

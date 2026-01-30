@@ -4,7 +4,7 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { formatCurrency, formatShortDate, getPaymentStatusBadgeClass } from "@shared/utils/formatting.js";
+import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
 import type { PaymentDto, PaymentStatusDto, PaymentRecordedDetail, RefundProcessedDetail } from "@orders/types/order.types.js";
 import { PaymentType } from "@orders/types/order.types.js";
 import { MERCHELLO_MANUAL_PAYMENT_MODAL } from "@orders/modals/manual-payment-modal.token.js";
@@ -216,7 +216,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
         <div class="status-summary">
           <div class="status-header">
             <div class="status-badges">
-              <span class="status-badge ${status ? getPaymentStatusBadgeClass(status.status) : 'unpaid'}">
+              <span class="status-badge ${status?.statusCssClass ?? 'unpaid'}">
                 ${status?.statusDisplay ?? "Unknown"}
               </span>
               ${status?.maxRiskScore != null

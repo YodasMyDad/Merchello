@@ -89,6 +89,8 @@ export interface SubdivisionInfo {
   name: string;
 }
 
+import type { StockStatus } from "@products/types/product.types.js";
+
 // Warehouse Shipping Options DTOs
 export interface WarehouseShippingOptionsResultDto {
   canShipToDestination: boolean;
@@ -125,7 +127,11 @@ export interface ProductFulfillmentOptionsDto {
    * Aggregate stock status across all warehouses (InStock/LowStock/OutOfStock/Untracked).
    * Calculated by backend - frontend should use this instead of deriving from warehouse data.
    */
-  aggregateStockStatus: string;
+  aggregateStockStatus: StockStatus;
+  /** Display label for aggregate stock status (backend source of truth) */
+  aggregateStockStatusLabel: string;
+  /** CSS class for aggregate stock status badge (backend source of truth) */
+  aggregateStockStatusCssClass: string;
 }
 
 export interface FulfillmentWarehouseDto {

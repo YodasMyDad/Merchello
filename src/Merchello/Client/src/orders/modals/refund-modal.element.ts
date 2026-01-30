@@ -54,22 +54,16 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
 
   /**
    * Preview refund calculation using backend API for proper currency rounding.
-   * Falls back to client-side calculation if preview fails (e.g., network error).
    */
   private async _previewRefund(paymentId: string, percentage?: number): Promise<void> {
     const { data, error } = await MerchelloApi.previewRefund(paymentId, { percentage });
 
     if (error || !data) {
-      // Fallback to client-side calculation if preview fails
-      const payment = this.data?.payment;
-      if (payment) {
-        this._amount = percentage
-          ? payment.refundableAmount * (percentage / 100)
-          : payment.refundableAmount;
-      }
+      this._errorMessage = "Unable to preview refund amount. Please enter an amount manually.";
       return;
     }
 
+    this._errorMessage = null;
     this._amount = data.requestedAmount;
   }
 

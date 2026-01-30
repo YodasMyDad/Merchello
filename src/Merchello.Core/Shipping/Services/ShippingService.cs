@@ -7,6 +7,8 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.OrderGrouping;
+using Merchello.Core.Products.Extensions;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
@@ -30,27 +32,26 @@ public class ShippingService(
     ILogger<ShippingService> logger) : IShippingService
 {
     /// <summary>
-    /// Calculates the aggregate stock status string based on available stock, track stock setting, and threshold.
-    /// Returns string values matching StockStatus enum: "InStock", "LowStock", "OutOfStock", "Untracked".
+    /// Calculates the aggregate stock status based on available stock, track stock setting, and threshold.
     /// </summary>
-    private static string CalculateAggregateStockStatus(int totalAvailableStock, bool hasAnyTrackingWarehouse, int lowStockThreshold)
+    private static StockStatus CalculateAggregateStockStatus(int totalAvailableStock, bool hasAnyTrackingWarehouse, int lowStockThreshold)
     {
         if (!hasAnyTrackingWarehouse)
         {
-            return "Untracked";
+            return StockStatus.Untracked;
         }
 
         if (totalAvailableStock <= 0)
         {
-            return "OutOfStock";
+            return StockStatus.OutOfStock;
         }
 
         if (totalAvailableStock <= lowStockThreshold)
         {
-            return "LowStock";
+            return StockStatus.LowStock;
         }
 
-        return "InStock";
+        return StockStatus.InStock;
     }
 
     /// <summary>
@@ -745,10 +746,14 @@ public class ShippingService(
 
             if (product == null)
             {
+                var missingStatus = StockStatus.OutOfStock;
                 return new ProductFulfillmentOptionsDto
                 {
                     CanAddToOrder = false,
-                    BlockedReason = "Product not found"
+                    BlockedReason = "Product not found",
+                    AggregateStockStatus = missingStatus,
+                    AggregateStockStatusLabel = missingStatus.ToLabel(),
+                    AggregateStockStatusCssClass = missingStatus.ToCssClass()
                 };
             }
 
@@ -789,7 +794,9 @@ public class ShippingService(
                 BlockedReason = blockedReason,
                 HasAvailableStock = stockResult.HasAnyStock,
                 AvailableStock = stockResult.TotalAvailableStock,
-                AggregateStockStatus = aggregateStockStatus
+                AggregateStockStatus = aggregateStockStatus,
+                AggregateStockStatusLabel = aggregateStockStatus.ToLabel(),
+                AggregateStockStatusCssClass = aggregateStockStatus.ToCssClass()
             };
         });
 
@@ -819,10 +826,14 @@ public class ShippingService(
 
             if (product == null)
             {
+                var missingStatus = StockStatus.OutOfStock;
                 return new ProductFulfillmentOptionsDto
                 {
                     CanAddToOrder = false,
-                    BlockedReason = "Product not found"
+                    BlockedReason = "Product not found",
+                    AggregateStockStatus = missingStatus,
+                    AggregateStockStatusLabel = missingStatus.ToLabel(),
+                    AggregateStockStatusCssClass = missingStatus.ToCssClass()
                 };
             }
 
@@ -881,7 +892,9 @@ public class ShippingService(
                 BlockedReason = blockedReason,
                 HasAvailableStock = stockResult.HasAnyStock,
                 AvailableStock = stockResult.TotalAvailableStock,
-                AggregateStockStatus = aggregateStockStatus
+                AggregateStockStatus = aggregateStockStatus,
+                AggregateStockStatusLabel = aggregateStockStatus.ToLabel(),
+                AggregateStockStatusCssClass = aggregateStockStatus.ToCssClass()
             };
         });
 

@@ -82,21 +82,13 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
   }
 
   /**
-   * Renders stock status using backend-provided stockStatus.
-   * Backend is the single source of truth for stock status classification.
+   * Renders stock status using backend-provided label and CSS class.
+   * Backend is the single source of truth for stock status display.
    */
   private _renderStockStatus() {
-    switch (this.variant.stockStatus) {
-      case "Untracked":
-        return html`<span class="status available">Available</span>`;
-      case "OutOfStock":
-        return html`<span class="status blocked">Out of stock</span>`;
-      case "LowStock":
-        return html`<span class="status warning">Low: ${this.variant.availableStock}</span>`;
-      case "InStock":
-      default:
-        return html`<span class="status available">${this.variant.availableStock} in stock</span>`;
-    }
+    if (!this.variant.stockStatusLabel) return nothing;
+    const countSuffix = this.variant.availableStock > 0 ? ` (${this.variant.availableStock})` : "";
+    return html`<span class="badge ${this.variant.stockStatusCssClass}">${this.variant.stockStatusLabel}${countSuffix}</span>`;
   }
 
   private _renderRegionStatus() {
@@ -245,16 +237,38 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
       gap: var(--uui-size-space-1);
     }
 
-    .status.available {
-      color: var(--uui-color-positive);
-    }
-
-    .status.warning {
-      color: var(--uui-color-warning);
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 var(--uui-size-space-2);
+      border-radius: var(--uui-border-radius);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      text-transform: uppercase;
     }
 
     .status.blocked {
       color: var(--uui-color-danger);
+    }
+
+    .badge.badge-positive {
+      background-color: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
+    }
+
+    .badge.badge-warning {
+      background-color: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+    }
+
+    .badge.badge-danger {
+      background-color: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+    }
+
+    .badge.badge-default {
+      background-color: var(--uui-color-default-standalone);
+      color: var(--uui-color-default-contrast);
     }
 
     .blocked-overlay {

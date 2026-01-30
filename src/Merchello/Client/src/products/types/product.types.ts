@@ -125,6 +125,10 @@ export interface ProductRootDetailDto {
   isDigitalProduct: boolean;
   /** Aggregate stock status across all variants - calculated by backend (single source of truth) */
   aggregateStockStatus: StockStatus;
+  /** Display label for aggregate stock status (backend source of truth) */
+  aggregateStockStatusLabel: string;
+  /** CSS class for aggregate stock status badge (backend source of truth) */
+  aggregateStockStatusCssClass: string;
   defaultPackageConfigurations: ProductPackageDto[];
 
   description: string | null;
@@ -223,6 +227,10 @@ export interface ProductVariantDto {
   totalReservedStock: number;
   /** Stock status classification calculated by backend - use this instead of comparing totalStock to threshold locally */
   stockStatus: StockStatus;
+  /** Display label for stock status (backend source of truth) */
+  stockStatusLabel: string;
+  /** CSS class for stock status badge (backend source of truth) */
+  stockStatusCssClass: string;
   warehouseStock: VariantWarehouseStockDto[];
 
   // Shipping exclusions
@@ -268,6 +276,10 @@ export interface VariantWarehouseStockDto {
   trackStock: boolean;
   /** Stock status classification calculated by backend - use this instead of comparing availableStock to threshold locally */
   stockStatus: StockStatus;
+  /** Display label for stock status (backend source of truth) */
+  stockStatusLabel: string;
+  /** CSS class for stock status badge (backend source of truth) */
+  stockStatusCssClass: string;
 }
 
 export interface ProductOptionSettingsDto {

@@ -42,6 +42,7 @@ public class OrderListItemDto
     public string PaymentStatusDisplay { get; set; } = string.Empty;
     public string PaymentStatusCssClass { get; set; } = "unpaid";
     public string FulfillmentStatus { get; set; } = string.Empty;
+    public string FulfillmentStatusCssClass { get; set; } = string.Empty;
     public bool IsCancelled { get; set; }
     public int ItemCount { get; set; }
     public string DeliveryStatus { get; set; } = string.Empty;

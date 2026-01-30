@@ -282,7 +282,7 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
 
   private _formatCtr(impressions: number, clicks: number): string {
     if (impressions === 0) return "0%";
-    return `${((clicks / impressions) * 100).toFixed(1)}%`;
+    return `${formatNumber((clicks / impressions) * 100, 1)}%`;
   }
 
   private _renderTable(): unknown {

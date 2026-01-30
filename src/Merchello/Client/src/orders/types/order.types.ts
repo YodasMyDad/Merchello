@@ -71,6 +71,8 @@ export interface PaymentStatusDto {
   storeCurrencySymbol: string;
   status: InvoicePaymentStatus;
   statusDisplay: string;
+  /** CSS class for payment status badge styling */
+  statusCssClass: string;
   invoiceTotal: number;
   invoiceTotalInStoreCurrency?: number | null;
   totalPaid: number;
@@ -189,6 +191,7 @@ export interface OrderListItemDto {
   paymentStatusDisplay: string;
   paymentStatusCssClass: string;
   fulfillmentStatus: string;
+  fulfillmentStatusCssClass: string;
   isCancelled: boolean;
   itemCount: number;
   deliveryStatus: string;
@@ -483,6 +486,7 @@ export interface FulfillmentSummaryDto {
   invoiceId: string;
   invoiceNumber: string;
   overallStatus: "Unfulfilled" | "Partial" | "Fulfilled";
+  overallStatusCssClass: string;
   orders: OrderFulfillmentDto[];
 }
 

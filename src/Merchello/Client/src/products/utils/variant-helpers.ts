@@ -3,7 +3,7 @@
  * Pure functions for variant-related calculations and formatting.
  */
 
-import type { ProductVariantDto, ProductOptionDto, StockStatus } from "@products/types/product.types.js";
+import type { ProductVariantDto, ProductOptionDto } from "@products/types/product.types.js";
 
 // ============================================
 // Option Description Helpers
@@ -80,31 +80,6 @@ export function calculateEstimatedVariantCount(options: ProductOptionDto[]): num
  */
 export function isSingleVariantProduct(variants: ProductVariantDto[]): boolean {
   return variants.length === 1;
-}
-
-// ============================================
-// Stock Display Helpers
-// ============================================
-
-/**
- * Gets the appropriate CSS badge class for a stock status.
- * Uses backend-provided stockStatus for consistency.
- *
- * @param stockStatus - Stock status from backend
- * @returns CSS class name for the badge
- */
-export function getStockStatusBadgeClass(stockStatus: StockStatus): string {
-  switch (stockStatus) {
-    case "OutOfStock":
-      return "badge-danger";
-    case "LowStock":
-      return "badge-warning";
-    case "InStock":
-      return "badge-positive";
-    case "Untracked":
-    default:
-      return "badge-default";
-  }
 }
 
 /**

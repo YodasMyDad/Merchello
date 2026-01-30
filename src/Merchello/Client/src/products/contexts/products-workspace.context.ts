@@ -207,6 +207,8 @@ export class MerchelloProductsWorkspaceContext
       googleShoppingFeedCategory: null,
       isDigitalProduct: false,
       aggregateStockStatus: "InStock",
+      aggregateStockStatusLabel: "",
+      aggregateStockStatusCssClass: "",
       defaultPackageConfigurations: [],
       description: null,
       metaDescription: null,

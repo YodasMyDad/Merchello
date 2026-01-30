@@ -1059,6 +1059,7 @@ public class InvoiceEditService(
                         {
                             var warehouse = await db.Warehouses
                                 .Include(w => w.ShippingOptions)
+                                .OrderBy(w => w.Id)
                                 .FirstOrDefaultAsync(cancellationToken);
 
                             if (warehouse == null || !warehouse.ShippingOptions.Any())

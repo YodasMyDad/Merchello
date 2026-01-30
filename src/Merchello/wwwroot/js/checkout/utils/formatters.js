@@ -11,10 +11,8 @@
  * @returns {string}
  */
 export function formatCurrency(value, symbol = '£', decimals = 2) {
-    if (typeof value !== 'number' || isNaN(value)) {
-        return `${symbol}0.00`;
-    }
-    return `${symbol}${value.toFixed(decimals)}`;
+    const safeValue = typeof value !== 'number' || isNaN(value) ? 0 : value;
+    return `${symbol}${formatNumber(safeValue, decimals)}`;
 }
 
 /**

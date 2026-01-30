@@ -1,5 +1,4 @@
 import { getCurrencySymbol, getCurrencyCode } from "@api/store-settings.js";
-import { InvoicePaymentStatus } from "@orders/types/order.types.js";
 
 /**
  * Format a number as currency using store settings.
@@ -123,37 +122,6 @@ function formatTime(date: Date): string {
 export function formatPercent(value: number): string {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value}%`;
-}
-
-/**
- * Get CSS class name for payment status badge.
- * @param status - The invoice payment status
- * @returns CSS class name to apply to the badge
- */
-export function getPaymentStatusBadgeClass(status: InvoicePaymentStatus): string {
-  switch (status) {
-    case InvoicePaymentStatus.Paid:
-      return "paid";
-    case InvoicePaymentStatus.PartiallyPaid:
-      return "partial";
-    case InvoicePaymentStatus.Refunded:
-    case InvoicePaymentStatus.PartiallyRefunded:
-      return "refunded";
-    case InvoicePaymentStatus.AwaitingPayment:
-      return "awaiting";
-    default:
-      return "unpaid";
-  }
-}
-
-/**
- * Get CSS class name for fulfillment status badge.
- * Normalizes the status string to a valid CSS class name.
- * @param status - The fulfillment status string
- * @returns CSS class name to apply to the badge
- */
-export function getFulfillmentStatusBadgeClass(status: string): string {
-  return status.toLowerCase().replace(/\s+/g, "-");
 }
 
 /**

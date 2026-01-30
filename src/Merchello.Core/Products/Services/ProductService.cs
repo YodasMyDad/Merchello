@@ -2042,6 +2042,10 @@ public class ProductService(
         var variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
             .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses, settings.Value.LowStockThreshold)).ToList();
 
+        var aggregateStockStatus = CalculateProductRootAggregateStockStatus(productRoot.IsDigitalProduct, variants);
+        var aggregateStockStatusLabel = productRoot.IsDigitalProduct ? "Digital" : aggregateStockStatus.ToLabel();
+        var aggregateStockStatusCssClass = aggregateStockStatus.ToCssClass();
+
         return new ProductRootDetailDto
         {
             Id = productRoot.Id,
@@ -2050,7 +2054,9 @@ public class ProductService(
             RootUrl = productRoot.RootUrl,
             GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
             IsDigitalProduct = productRoot.IsDigitalProduct,
-            AggregateStockStatus = CalculateProductRootAggregateStockStatus(productRoot.IsDigitalProduct, variants),
+            AggregateStockStatus = aggregateStockStatus,
+            AggregateStockStatusLabel = aggregateStockStatusLabel,
+            AggregateStockStatusCssClass = aggregateStockStatusCssClass,
             DefaultPackageConfigurations = productRoot.DefaultPackageConfigurations.Select(p => new ProductPackageDto
             {
                 Weight = p.Weight,
@@ -2220,6 +2226,7 @@ public class ProductService(
             var reservedStock = existingStock?.ReservedStock ?? 0;
             var availableStock = Math.Max(0, stock - reservedStock);
             var trackStock = existingStock?.TrackStock ?? true;
+            var stockStatus = CalculateStockStatus(availableStock, trackStock, lowStockThreshold);
             return new VariantWarehouseStockDto
             {
                 WarehouseId = rw.WarehouseId,
@@ -2230,13 +2237,17 @@ public class ProductService(
                 ReorderPoint = existingStock?.ReorderPoint,
                 ReorderQuantity = existingStock?.ReorderQuantity,
                 TrackStock = trackStock,
-                StockStatus = CalculateStockStatus(availableStock, trackStock, lowStockThreshold)
+                StockStatus = stockStatus,
+                StockStatusLabel = stockStatus.ToLabel(),
+                StockStatusCssClass = stockStatus.ToCssClass()
             };
         }).ToList();
 
         // Calculate CanBeDefault: must be purchaseable and have stock (if tracked)
         var canBeDefault = product.AvailableForPurchase && product.CanPurchase &&
             (warehouseStock.All(ws => !ws.TrackStock) || warehouseStock.Any(ws => ws.TrackStock && ws.AvailableStock > 0));
+
+        var aggregateStockStatus = CalculateAggregateStockStatus(warehouseStock);
 
         return new ProductVariantDto
         {
@@ -2274,7 +2285,9 @@ public class ProductService(
             RemoveFromFeed = product.RemoveFromFeed,
             TotalStock = warehouseStock.Sum(ws => ws.AvailableStock),
             TotalReservedStock = warehouseStock.Sum(ws => ws.ReservedStock),
-            StockStatus = CalculateAggregateStockStatus(warehouseStock),
+            StockStatus = aggregateStockStatus,
+            StockStatusLabel = aggregateStockStatus.ToLabel(),
+            StockStatusCssClass = aggregateStockStatus.ToCssClass(),
             WarehouseStock = warehouseStock,
             ShippingRestrictionMode = product.ShippingRestrictionMode,
             ExcludedShippingOptionIds = product.ExcludedShippingOptions.Select(eso => eso.Id).ToList()

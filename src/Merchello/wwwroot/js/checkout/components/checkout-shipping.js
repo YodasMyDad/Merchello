@@ -168,17 +168,12 @@ export function initCheckoutShipping() {
         },
 
         /**
-         * Sort shipping options (next day first, then by cost)
+         * Return options in the order provided by the backend (source of truth).
          * @param {ShippingOption[]} options
          * @returns {ShippingOption[]}
          */
         sortOptions(options) {
-            if (!options || options.length <= 1) return options;
-            return [...options].sort((a, b) => {
-                if (a.isNextDay && !b.isNextDay) return -1;
-                if (!a.isNextDay && b.isNextDay) return 1;
-                return a.cost - b.cost;
-            });
+            return options;
         }
     }));
 }
@@ -204,17 +199,12 @@ export function getSelectedShippingName(group, selections) {
 }
 
 /**
- * Sort shipping options by priority and cost (standalone function)
+ * Return options in the order provided by the backend (source of truth).
  * @param {ShippingOption[]} options
  * @returns {ShippingOption[]}
  */
 export function sortShippingOptions(options) {
-    if (!options || options.length <= 1) return options;
-    return [...options].sort((a, b) => {
-        if (a.isNextDay && !b.isNextDay) return -1;
-        if (!a.isNextDay && b.isNextDay) return 1;
-        return a.cost - b.cost;
-    });
+    return options;
 }
 
 /**

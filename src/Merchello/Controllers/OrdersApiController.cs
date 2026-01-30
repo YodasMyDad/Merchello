@@ -525,6 +525,7 @@ public class OrdersApiController(
             PaymentStatusDisplay = paymentDetails.StatusDisplay,
             PaymentStatusCssClass = paymentDetails.Status.GetPaymentStatusCssClass(),
             FulfillmentStatus = fulfillmentStatus,
+            FulfillmentStatusCssClass = GetFulfillmentStatusCssClass(orders),
             IsCancelled = invoice.IsCancelled,
             ItemCount = itemCount,
             DeliveryStatus = deliveryStatus,

@@ -146,6 +146,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   }
 
   private _mapToPickerRoot(item: ProductListItemDto): PickerProductRoot {
+    const isDigital = item.isDigitalProduct;
     return {
       id: item.productRootId,
       rootName: item.rootName,
@@ -155,8 +156,10 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       maxPrice: item.maxPrice,
       // Stock is calculated when variants are loaded
       totalStock: 0,
-      stockStatus: item.isDigitalProduct ? "Untracked" : "InStock",
-      isDigitalProduct: item.isDigitalProduct,
+      stockStatus: isDigital ? "Untracked" : "InStock",
+      stockStatusLabel: isDigital ? "Digital" : "",
+      stockStatusCssClass: isDigital ? "badge-default" : "",
+      isDigitalProduct: isDigital,
       isExpanded: false,
       variantsLoaded: false,
       variants: [],
@@ -183,11 +186,21 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     // Use backend-calculated aggregate stock (single source of truth)
     const totalStock = data.variants.reduce((sum, v) => sum + v.totalStock, 0);
     const stockStatus = data.aggregateStockStatus as PickerProductRoot["stockStatus"];
+    const stockStatusLabel = data.aggregateStockStatusLabel ?? "";
+    const stockStatusCssClass = data.aggregateStockStatusCssClass ?? "";
 
     // Update the root with loaded variants and backend-calculated stock status
     this._productRoots = this._productRoots.map((root, i) =>
       i === rootIndex
-        ? { ...root, variants, variantsLoaded: true, totalStock, stockStatus }
+        ? {
+            ...root,
+            variants,
+            variantsLoaded: true,
+            totalStock,
+            stockStatus,
+            stockStatusLabel,
+            stockStatusCssClass,
+          }
         : root
     );
   }
@@ -209,7 +222,9 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     let canShipToRegion = true;
     let fulfillingWarehouseId: string | null = null;
     let fulfillingWarehouseName: string | null = null;
-    let aggregateStockStatus = "InStock";
+    let aggregateStockStatus = variant.stockStatus as PickerVariant["stockStatus"];
+    let aggregateStockStatusLabel = variant.stockStatusLabel;
+    let aggregateStockStatusCssClass = variant.stockStatusCssClass;
 
     // In property editor mode, skip warehouse/shipping eligibility checks
     // All variants are selectable for content editing purposes
@@ -222,7 +237,11 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         canShipToRegion = fulfillmentResult.canAddToOrder; // If can add to order, region is valid
         fulfillingWarehouseId = fulfillmentResult.warehouseId;
         fulfillingWarehouseName = fulfillmentResult.warehouseName;
-        aggregateStockStatus = fulfillmentResult.aggregateStockStatus;
+        if (fulfillmentResult.aggregateStockStatusLabel && fulfillmentResult.aggregateStockStatusCssClass) {
+          aggregateStockStatus = fulfillmentResult.aggregateStockStatus;
+          aggregateStockStatusLabel = fulfillmentResult.aggregateStockStatusLabel;
+          aggregateStockStatusCssClass = fulfillmentResult.aggregateStockStatusCssClass;
+        }
       } else if (!root.isDigitalProduct && variant.warehouseStock.length > 0) {
         // No address = use backend API to get highest-priority warehouse with stock
         const defaultWarehouse = await this._getDefaultFulfillingWarehouse(variant.id);
@@ -230,16 +249,24 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         blockedReason = defaultWarehouse.blockedReason;
         fulfillingWarehouseId = defaultWarehouse.warehouseId;
         fulfillingWarehouseName = defaultWarehouse.warehouseName;
-        aggregateStockStatus = defaultWarehouse.aggregateStockStatus;
+        if (defaultWarehouse.aggregateStockStatusLabel && defaultWarehouse.aggregateStockStatusCssClass) {
+          aggregateStockStatus = defaultWarehouse.aggregateStockStatus;
+          aggregateStockStatusLabel = defaultWarehouse.aggregateStockStatusLabel;
+          aggregateStockStatusCssClass = defaultWarehouse.aggregateStockStatusCssClass;
+        }
       }
     }
 
     // Use fulfilling warehouse's stock status if available, otherwise use backend-provided aggregate status
     let stockStatus: PickerVariant["stockStatus"] = aggregateStockStatus as PickerVariant["stockStatus"];
+    let stockStatusLabel = aggregateStockStatusLabel;
+    let stockStatusCssClass = aggregateStockStatusCssClass;
     if (fulfillingWarehouseId) {
       const fulfilling = variant.warehouseStock.find((ws) => ws.warehouseId === fulfillingWarehouseId);
       if (fulfilling) {
         stockStatus = fulfilling.stockStatus;
+        stockStatusLabel = fulfilling.stockStatusLabel;
+        stockStatusCssClass = fulfilling.stockStatusCssClass;
       }
     }
 
@@ -256,6 +283,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       blockedReason,
       availableStock,
       stockStatus,
+      stockStatusLabel,
+      stockStatusCssClass,
       trackStock,
       canShipToRegion,
       regionMessage: blockedReason, // Use blockedReason for any message (region or other)
@@ -276,10 +305,26 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
    */
   private async _getFulfillmentOptions(
     variantId: string
-  ): Promise<{ canAddToOrder: boolean; warehouseId: string | null; warehouseName: string | null; blockedReason: string | null; aggregateStockStatus: string }> {
+  ): Promise<{
+    canAddToOrder: boolean;
+    warehouseId: string | null;
+    warehouseName: string | null;
+    blockedReason: string | null;
+    aggregateStockStatus: PickerVariant["stockStatus"];
+    aggregateStockStatusLabel: string | null;
+    aggregateStockStatusCssClass: string | null;
+  }> {
     const address = this._config?.shippingAddress;
     if (!address) {
-      return { canAddToOrder: true, warehouseId: null, warehouseName: null, blockedReason: null, aggregateStockStatus: "InStock" };
+      return {
+        canAddToOrder: true,
+        warehouseId: null,
+        warehouseName: null,
+        blockedReason: null,
+        aggregateStockStatus: "InStock",
+        aggregateStockStatusLabel: null,
+        aggregateStockStatusCssClass: null,
+      };
     }
 
     try {
@@ -290,7 +335,15 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       );
 
       if (error) {
-        return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
+        return {
+          canAddToOrder: false,
+          warehouseId: null,
+          warehouseName: null,
+          blockedReason: "Unable to check fulfillment",
+          aggregateStockStatus: "OutOfStock",
+          aggregateStockStatusLabel: null,
+          aggregateStockStatusCssClass: null,
+        };
       }
 
       // Use backend-provided values - this is the single source of truth
@@ -301,9 +354,19 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         warehouseName: data?.fulfillingWarehouse?.name ?? null,
         blockedReason: data?.blockedReason ?? null,
         aggregateStockStatus: data?.aggregateStockStatus ?? "InStock",
+        aggregateStockStatusLabel: data?.aggregateStockStatusLabel ?? null,
+        aggregateStockStatusCssClass: data?.aggregateStockStatusCssClass ?? null,
       };
     } catch {
-      return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
+      return {
+        canAddToOrder: false,
+        warehouseId: null,
+        warehouseName: null,
+        blockedReason: "Unable to check fulfillment",
+        aggregateStockStatus: "OutOfStock",
+        aggregateStockStatusLabel: null,
+        aggregateStockStatusCssClass: null,
+      };
     }
   }
 
@@ -313,12 +376,28 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
    */
   private async _getDefaultFulfillingWarehouse(
     variantId: string
-  ): Promise<{ canAddToOrder: boolean; warehouseId: string | null; warehouseName: string | null; blockedReason: string | null; aggregateStockStatus: string }> {
+  ): Promise<{
+    canAddToOrder: boolean;
+    warehouseId: string | null;
+    warehouseName: string | null;
+    blockedReason: string | null;
+    aggregateStockStatus: PickerVariant["stockStatus"];
+    aggregateStockStatusLabel: string | null;
+    aggregateStockStatusCssClass: string | null;
+  }> {
     try {
       const { data, error } = await MerchelloApi.getDefaultFulfillingWarehouse(variantId);
 
       if (error) {
-        return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
+        return {
+          canAddToOrder: false,
+          warehouseId: null,
+          warehouseName: null,
+          blockedReason: "Unable to check fulfillment",
+          aggregateStockStatus: "OutOfStock",
+          aggregateStockStatusLabel: null,
+          aggregateStockStatusCssClass: null,
+        };
       }
 
       // Use backend-provided values - this is the single source of truth
@@ -328,9 +407,19 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         warehouseName: data?.fulfillingWarehouse?.name ?? null,
         blockedReason: data?.blockedReason ?? null,
         aggregateStockStatus: data?.aggregateStockStatus ?? "InStock",
+        aggregateStockStatusLabel: data?.aggregateStockStatusLabel ?? null,
+        aggregateStockStatusCssClass: data?.aggregateStockStatusCssClass ?? null,
       };
     } catch {
-      return { canAddToOrder: false, warehouseId: null, warehouseName: null, blockedReason: "Unable to check fulfillment", aggregateStockStatus: "OutOfStock" };
+      return {
+        canAddToOrder: false,
+        warehouseId: null,
+        warehouseName: null,
+        blockedReason: "Unable to check fulfillment",
+        aggregateStockStatus: "OutOfStock",
+        aggregateStockStatusLabel: null,
+        aggregateStockStatusCssClass: null,
+      };
     }
   }
 
