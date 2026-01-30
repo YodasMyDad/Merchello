@@ -155,8 +155,8 @@ export interface UpsellTriggerRuleDto {
   triggerType: UpsellTriggerType;
   triggerIds?: string[];
   triggerNames?: string[];
-  extractFilterGroupIds?: string[];
-  extractFilterGroupNames?: string[];
+  extractFilterIds?: string[];
+  extractFilterNames?: string[];
 }
 
 export interface UpsellRecommendationRuleDto {
@@ -164,8 +164,8 @@ export interface UpsellRecommendationRuleDto {
   recommendationIds?: string[];
   recommendationNames?: string[];
   matchTriggerFilters: boolean;
-  matchFilterGroupIds?: string[];
-  matchFilterGroupNames?: string[];
+  matchFilterIds?: string[];
+  matchFilterNames?: string[];
 }
 
 export interface UpsellEligibilityRuleDto {
@@ -216,14 +216,14 @@ export interface UpdateUpsellDto {
 export interface CreateUpsellTriggerRuleDto {
   triggerType: UpsellTriggerType;
   triggerIds?: string[];
-  extractFilterGroupIds?: string[];
+  extractFilterIds?: string[];
 }
 
 export interface CreateUpsellRecommendationRuleDto {
   recommendationType: UpsellRecommendationType;
   recommendationIds?: string[];
   matchTriggerFilters: boolean;
-  matchFilterGroupIds?: string[];
+  matchFilterIds?: string[];
 }
 
 export interface CreateUpsellEligibilityRuleDto {

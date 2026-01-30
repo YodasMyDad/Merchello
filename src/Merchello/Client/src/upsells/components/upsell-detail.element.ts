@@ -178,13 +178,13 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
         triggerRules: this._triggerRules.map((r) => ({
           triggerType: r.triggerType,
           triggerIds: r.triggerIds,
-          extractFilterGroupIds: r.extractFilterGroupIds,
+          extractFilterIds: r.extractFilterIds,
         })),
         recommendationRules: this._recommendationRules.map((r) => ({
           recommendationType: r.recommendationType,
           recommendationIds: r.recommendationIds,
           matchTriggerFilters: r.matchTriggerFilters,
-          matchFilterGroupIds: r.matchFilterGroupIds,
+          matchFilterIds: r.matchFilterIds,
         })),
         eligibilityRules: this._eligibilityRules.map((r) => ({
           eligibilityType: r.eligibilityType,
@@ -228,13 +228,13 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
         triggerRules: this._triggerRules.map((r) => ({
           triggerType: r.triggerType,
           triggerIds: r.triggerIds,
-          extractFilterGroupIds: r.extractFilterGroupIds,
+          extractFilterIds: r.extractFilterIds,
         })),
         recommendationRules: this._recommendationRules.map((r) => ({
           recommendationType: r.recommendationType,
           recommendationIds: r.recommendationIds,
           matchTriggerFilters: r.matchTriggerFilters,
-          matchFilterGroupIds: r.matchFilterGroupIds,
+          matchFilterIds: r.matchFilterIds,
         })),
         eligibilityRules: this._eligibilityRules.map((r) => ({
           eligibilityType: r.eligibilityType,

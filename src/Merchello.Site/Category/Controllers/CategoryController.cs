@@ -1,11 +1,9 @@
 ﻿using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
-using Merchello.Core.Shared.Models;
 using Merchello.Site.Category.Models;
 using Merchello.Site.Shared.Controllers;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Core.Logging;
 using Umbraco.Cms.Core.Routing;
@@ -16,7 +14,6 @@ using Umbraco.Cms.Infrastructure.Persistence;
 namespace Merchello.Site.Category.Controllers;
 
 public class CategoryController(
-    IOptions<MerchelloSettings> options,
     IUmbracoContextAccessor umbracoContextAccessor,
     IUmbracoDatabaseFactory databaseFactory,
     ServiceContext services,
@@ -25,7 +22,7 @@ public class CategoryController(
     IPublishedUrlProvider publishedUrlProvider,
     IProductService productService,
     IProductFilterService productFilterService)
-    : BaseController(options, umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger,
+    : BaseController(umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger,
         publishedUrlProvider)
 {
     private const int PageSize = 12;

@@ -4,6 +4,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Accounting.Handlers.Interfaces;
@@ -73,6 +74,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         // Factories
         var orderFactory = new OrderFactory();
         var lineItemFactory = new LineItemFactory(currencyService);
+        var basketFactory = new BasketFactory();
         var lineItemService = new LineItemService(currencyService, taxCalculationService, lineItemFactory);
 
         return new InvoiceEditService(
@@ -86,6 +88,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
             taxProviderManager,
             strategyResolver,
             lineItemFactory,
+            basketFactory,
             orderFactory,
             settings,
             logger);

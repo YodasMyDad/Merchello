@@ -11,6 +11,6 @@ public class UpsellRecommendationRuleDto
     public List<Guid>? RecommendationIds { get; set; }
     public List<string>? RecommendationNames { get; set; }
     public bool MatchTriggerFilters { get; set; }
-    public List<Guid>? MatchFilterGroupIds { get; set; }
-    public List<string>? MatchFilterGroupNames { get; set; }
+    public List<Guid>? MatchFilterIds { get; set; }
+    public List<string>? MatchFilterNames { get; set; }
 }

@@ -81,8 +81,8 @@ public class UpsellFactory
             TriggerIds = parameters.TriggerIds is { Count: > 0 }
                 ? JsonSerializer.Serialize(parameters.TriggerIds)
                 : null,
-            ExtractFilterGroupIds = parameters.ExtractFilterGroupIds is { Count: > 0 }
-                ? JsonSerializer.Serialize(parameters.ExtractFilterGroupIds)
+            ExtractFilterIds = parameters.ExtractFilterIds is { Count: > 0 }
+                ? JsonSerializer.Serialize(parameters.ExtractFilterIds)
                 : null,
         };
     }
@@ -99,8 +99,8 @@ public class UpsellFactory
                 ? JsonSerializer.Serialize(parameters.RecommendationIds)
                 : null,
             MatchTriggerFilters = parameters.MatchTriggerFilters,
-            MatchFilterGroupIds = parameters.MatchFilterGroupIds is { Count: > 0 }
-                ? JsonSerializer.Serialize(parameters.MatchFilterGroupIds)
+            MatchFilterIds = parameters.MatchFilterIds is { Count: > 0 }
+                ? JsonSerializer.Serialize(parameters.MatchFilterIds)
                 : null,
         };
     }

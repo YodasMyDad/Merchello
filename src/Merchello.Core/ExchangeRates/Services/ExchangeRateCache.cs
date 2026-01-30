@@ -171,9 +171,10 @@ public class ExchangeRateCache(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var setting = await scope.ExecuteWithContextAsync(async db =>
-            await db.ExchangeRateProviderSettings
+            await db.ProviderConfigurations
+                .OfType<ExchangeRateProviderSetting>()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.IsActive, cancellationToken));
+                .FirstOrDefaultAsync(s => s.IsEnabled, cancellationToken));
         scope.Complete();
 
         if (setting == null || string.IsNullOrWhiteSpace(setting.LastRatesJson))
@@ -203,19 +204,20 @@ public class ExchangeRateCache(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var activeSetting = await db.ExchangeRateProviderSettings
-                .FirstOrDefaultAsync(s => s.IsActive, cancellationToken);
+            var activeSetting = await db.ProviderConfigurations
+                .OfType<ExchangeRateProviderSetting>()
+                .FirstOrDefaultAsync(s => s.IsEnabled, cancellationToken);
 
             if (activeSetting == null)
             {
                 activeSetting = new ExchangeRateProviderSetting
                 {
-                    ProviderAlias = snapshot.ProviderAlias,
-                    IsActive = true,
+                    ProviderKey = snapshot.ProviderAlias,
+                    IsEnabled = true,
                     CreateDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
                 };
-                db.ExchangeRateProviderSettings.Add(activeSetting);
+                db.ProviderConfigurations.Add(activeSetting);
             }
 
             activeSetting.LastRatesJson = JsonSerializer.Serialize(snapshot);
@@ -227,4 +229,3 @@ public class ExchangeRateCache(
         scope.Complete();
     }
 }
-

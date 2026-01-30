@@ -1916,13 +1916,19 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
         string? name,
         CancellationToken cancellationToken)
     {
+        var gateway = _gateway;
+        if (gateway is null)
+        {
+            throw new InvalidOperationException("Braintree is not configured.");
+        }
+
         // Use Merchello customer ID as the Braintree customer ID for easy correlation
         var braintreeCustomerId = $"merch_{merchelloCustomerId:N}"[..32]; // Max 36 chars in Braintree
 
         try
         {
             // Try to find existing customer
-            var existingCustomer = await _gateway!.Customer.FindAsync(braintreeCustomerId);
+            var existingCustomer = await gateway.Customer.FindAsync(braintreeCustomerId);
             return existingCustomer.Id;
         }
         catch (NotFoundException)
@@ -1940,7 +1946,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                 }
             };
 
-            var result = await _gateway.Customer.CreateAsync(request);
+            var result = await gateway.Customer.CreateAsync(request);
             if (result.IsSuccess())
             {
                 return result.Target.Id;

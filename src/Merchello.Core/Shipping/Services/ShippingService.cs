@@ -193,12 +193,12 @@ public class ShippingService(
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ServiceRegions)
+                            
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts)
+                                
                 .Include(p => p.ProductWarehouses)
                     .ThenInclude(pw => pw.Warehouse)
                 .Include(p => p.ShippingOptions)
@@ -212,8 +212,8 @@ public class ShippingService(
             var loadedWarehouses = await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.ShippingOptions)
-                    .ThenInclude(so => so.ShippingCosts)
-                .Include(w => w.ServiceRegions)
+                    
+                
                 .ToDictionaryAsync(w => w.Id, cancellationToken);
 
             return (loadedProducts, loadedWarehouses);
@@ -465,11 +465,11 @@ public class ShippingService(
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts)
+                                
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ServiceRegions)
+                            
                 .Include(p => p.AllowedShippingOptions)
                 .Include(p => p.ExcludedShippingOptions)
                 .AsSplitQuery()
@@ -522,12 +522,11 @@ public class ShippingService(
                         continue;
 
                     // Check if this option can ship to the destination
-                    var cost = GetShippingCostForDestination(new ShippingCostQuery
-                    {
-                        ShippingOption = shippingOption,
-                        CountryCode = countryCode,
-                        StateOrProvinceCode = stateOrProvinceCode
-                    });
+                    var cost = shippingCostResolver.ResolveBaseCost(
+                        shippingOption.ShippingCosts,
+                        countryCode,
+                        stateOrProvinceCode,
+                        shippingOption.FixedCost);
                     if (cost == null && shippingOption.FixedCost == null)
                         continue; // No rate available for this destination
 
@@ -588,17 +587,6 @@ public class ShippingService(
              string.Equals(sr.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase)));
     }
 
-    /// <inheritdoc />
-    public decimal? GetShippingCostForDestination(ShippingCostQuery query)
-    {
-        var costs = query.ShippingOption.ShippingCosts?.ToList() ?? [];
-        return shippingCostResolver.ResolveBaseCost(
-            costs,
-            query.CountryCode,
-            query.StateOrProvinceCode,
-            query.ShippingOption.FixedCost);
-    }
-
     /// <summary>
     /// Gets a shipping option by its ID
     /// </summary>
@@ -646,8 +634,8 @@ public class ShippingService(
             var warehouse = await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.ShippingOptions.Where(so => so.IsEnabled))
-                    .ThenInclude(so => so.ShippingCosts)
-                .Include(w => w.ServiceRegions)
+                    
+                
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
 
             if (warehouse == null)
@@ -674,12 +662,11 @@ public class ShippingService(
 
             foreach (var shippingOption in warehouse.ShippingOptions)
             {
-                var cost = GetShippingCostForDestination(new ShippingCostQuery
-                {
-                    ShippingOption = shippingOption,
-                    CountryCode = destinationCountryCode,
-                    StateOrProvinceCode = destinationStateCode
-                });
+                var cost = shippingCostResolver.ResolveBaseCost(
+                    shippingOption.ShippingCosts,
+                    destinationCountryCode,
+                    destinationStateCode,
+                    shippingOption.FixedCost);
 
                 // Check if provider uses live rates (external API) vs configured costs
                 var usesLiveRates = usesLiveRatesLookup.GetValueOrDefault(shippingOption.ProviderKey, false);
@@ -750,7 +737,7 @@ public class ShippingService(
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ServiceRegions)
+                            
                 .Include(p => p.ProductWarehouses)
                     .ThenInclude(pw => pw.Warehouse)
                 .AsSplitQuery()
@@ -902,3 +889,5 @@ public class ShippingService(
         return result;
     }
 }
+
+

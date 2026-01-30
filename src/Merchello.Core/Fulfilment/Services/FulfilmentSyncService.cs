@@ -123,7 +123,8 @@ public class FulfilmentSyncService(
             {
                 using var scope = efCoreScopeProvider.CreateScope();
                 config = await scope.ExecuteWithContextAsync(async db =>
-                    await db.FulfilmentProviderConfigurations
+                    await db.ProviderConfigurations
+                        .OfType<FulfilmentProviderConfiguration>()
                         .FirstOrDefaultAsync(c => c.Id == providerConfigId, cancellationToken));
                 scope.Complete();
             }
@@ -222,7 +223,8 @@ public class FulfilmentSyncService(
             {
                 using var configScope = efCoreScopeProvider.CreateScope();
                 config = await configScope.ExecuteWithContextAsync(async db =>
-                    await db.FulfilmentProviderConfigurations
+                    await db.ProviderConfigurations
+                        .OfType<FulfilmentProviderConfiguration>()
                         .FirstOrDefaultAsync(c => c.Id == providerConfigId, cancellationToken));
                 configScope.Complete();
             }

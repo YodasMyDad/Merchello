@@ -5,6 +5,7 @@ using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.BasketNotifications;
@@ -1076,7 +1077,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         }
     }
 
-    private static CheckoutAddressDto? MapUcpAddressToCheckoutAddress(UcpAddressDto? ucpAddress)
+    private static AddressDto? MapUcpAddressToCheckoutAddress(UcpAddressDto? ucpAddress)
     {
         if (ucpAddress == null) return null;
 
@@ -1085,61 +1086,65 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         if (!string.IsNullOrEmpty(ucpAddress.FamilyName)) nameParts.Add(ucpAddress.FamilyName);
         var name = nameParts.Count > 0 ? string.Join(" ", nameParts) : null;
 
-        return new CheckoutAddressDto
+        return new AddressDto
         {
             Name = name,
             Company = ucpAddress.Organization,
-            Address1 = ucpAddress.AddressLine1,
-            Address2 = ucpAddress.AddressLine2,
-            City = ucpAddress.Locality,
-            State = ucpAddress.AdministrativeArea,
-            StateCode = ucpAddress.AdministrativeArea,
+            AddressOne = ucpAddress.AddressLine1,
+            AddressTwo = ucpAddress.AddressLine2,
+            TownCity = ucpAddress.Locality,
+            CountyState = ucpAddress.AdministrativeArea,
+            RegionCode = ucpAddress.AdministrativeArea,
             PostalCode = ucpAddress.PostalCode,
             CountryCode = ucpAddress.CountryCode,
             Phone = ucpAddress.Phone
         };
     }
 
-    private static CheckoutAddressDto MapAddressToCheckoutAddress(Address? address)
+    private static AddressDto MapAddressToCheckoutAddress(Address? address)
     {
         if (address == null)
         {
-            return new CheckoutAddressDto();
+            return new AddressDto();
         }
 
-        return new CheckoutAddressDto
+        return new AddressDto
         {
             Name = address.Name,
             Company = address.Company,
-            Address1 = address.AddressOne,
-            Address2 = address.AddressTwo,
-            City = address.TownCity,
-            State = address.CountyState?.Name,
-            StateCode = address.CountyState?.RegionCode,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = string.IsNullOrWhiteSpace(address.CountyState?.Name)
+                ? address.CountyState?.RegionCode
+                : address.CountyState?.Name,
+            RegionCode = address.CountyState?.RegionCode,
             PostalCode = address.PostalCode,
             Country = address.Country,
             CountryCode = address.CountryCode,
+            Email = address.Email,
             Phone = address.Phone
         };
     }
 
-    private static CheckoutAddressDto MergeCheckoutAddress(
-        CheckoutAddressDto existing,
+    private static AddressDto MergeCheckoutAddress(
+        AddressDto existing,
         UcpAddressDto? update,
         string? fallbackPhone)
     {
-        var merged = new CheckoutAddressDto
+        var merged = new AddressDto
         {
             Name = existing.Name,
             Company = existing.Company,
-            Address1 = existing.Address1,
-            Address2 = existing.Address2,
-            City = existing.City,
-            State = existing.State,
-            StateCode = existing.StateCode,
+            AddressOne = existing.AddressOne,
+            AddressTwo = existing.AddressTwo,
+            TownCity = existing.TownCity,
+            CountyState = existing.CountyState,
+            RegionCode = existing.RegionCode,
             PostalCode = existing.PostalCode,
             Country = existing.Country,
             CountryCode = existing.CountryCode,
+            Email = existing.Email,
             Phone = existing.Phone
         };
 
@@ -1159,13 +1164,13 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         }
 
         if (!string.IsNullOrWhiteSpace(update.Organization)) merged.Company = update.Organization;
-        if (!string.IsNullOrWhiteSpace(update.AddressLine1)) merged.Address1 = update.AddressLine1;
-        if (!string.IsNullOrWhiteSpace(update.AddressLine2)) merged.Address2 = update.AddressLine2;
-        if (!string.IsNullOrWhiteSpace(update.Locality)) merged.City = update.Locality;
+        if (!string.IsNullOrWhiteSpace(update.AddressLine1)) merged.AddressOne = update.AddressLine1;
+        if (!string.IsNullOrWhiteSpace(update.AddressLine2)) merged.AddressTwo = update.AddressLine2;
+        if (!string.IsNullOrWhiteSpace(update.Locality)) merged.TownCity = update.Locality;
         if (!string.IsNullOrWhiteSpace(update.AdministrativeArea))
         {
-            merged.State = update.AdministrativeArea;
-            merged.StateCode = update.AdministrativeArea;
+            merged.CountyState = update.AdministrativeArea;
+            merged.RegionCode = update.AdministrativeArea;
         }
         if (!string.IsNullOrWhiteSpace(update.PostalCode)) merged.PostalCode = update.PostalCode;
         if (!string.IsNullOrWhiteSpace(update.CountryCode)) merged.CountryCode = update.CountryCode;

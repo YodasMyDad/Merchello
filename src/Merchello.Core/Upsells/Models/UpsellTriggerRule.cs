@@ -19,11 +19,11 @@ public class UpsellTriggerRule
     public string? TriggerIds { get; set; }
 
     /// <summary>
-    /// Optional: Filter group IDs to extract filter values from matching trigger products.
-    /// When set, the engine captures the actual filter values from products matching this
+    /// Optional: Specific filter value IDs to extract from matching trigger products.
+    /// When set, the engine captures these filter values from products matching this
     /// trigger and passes them to recommendation rules with MatchTriggerFilters = true.
     /// </summary>
-    public string? ExtractFilterGroupIds { get; set; }
+    public string? ExtractFilterIds { get; set; }
 
     /// <summary>
     /// Gets the trigger IDs as a list of Guids.
@@ -44,16 +44,16 @@ public class UpsellTriggerRule
     }
 
     /// <summary>
-    /// Gets the extract filter group IDs as a list of Guids.
+    /// Gets the extract filter IDs as a list of Guids.
     /// </summary>
-    public List<Guid> GetExtractFilterGroupIdsList()
+    public List<Guid> GetExtractFilterIdsList()
     {
-        if (string.IsNullOrEmpty(ExtractFilterGroupIds))
+        if (string.IsNullOrEmpty(ExtractFilterIds))
             return [];
 
         try
         {
-            return JsonSerializer.Deserialize<List<Guid>>(ExtractFilterGroupIds) ?? [];
+            return JsonSerializer.Deserialize<List<Guid>>(ExtractFilterIds) ?? [];
         }
         catch (JsonException)
         {

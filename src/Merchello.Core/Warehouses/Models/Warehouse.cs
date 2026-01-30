@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
+using System.Text.Json;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
@@ -60,7 +62,12 @@ public class Warehouse
     /// <summary>
     /// Regions that this warehouse is able (or unable) to service
     /// </summary>
-    public virtual ICollection<WarehouseServiceRegion> ServiceRegions { get; set; } = [];
+    public string? ServiceRegionsJson { get; set; }
+
+    /// <summary>
+    /// JSON-serialized per-provider shipping configs for this warehouse.
+    /// </summary>
+    public string? ProviderConfigsJson { get; set; }
 
     /// <summary>
     /// A collection of ProductRootWarehouse objects representing the association
@@ -72,11 +79,6 @@ public class Warehouse
     /// Stock levels for product variants stored at this warehouse
     /// </summary>
     public virtual ICollection<ProductWarehouse> ProductWarehouses { get; set; } = [];
-
-    /// <summary>
-    /// Collection of price overrides associated with products in this warehouse.
-    /// </summary>
-    public ICollection<ProductWarehousePriceOverride> ProductWarehousePriceOverrides { get; set; } = [];
 
     /// <summary>
     /// Update date
@@ -97,6 +99,22 @@ public class Warehouse
     /// General use extended data for storing additional warehouse data
     /// </summary>
     public Dictionary<string, object> ExtendedData { get; set; } = [];
+
+    [NotMapped]
+    public List<WarehouseServiceRegion> ServiceRegions =>
+        string.IsNullOrEmpty(ServiceRegionsJson) ? [] :
+        JsonSerializer.Deserialize<List<WarehouseServiceRegion>>(ServiceRegionsJson) ?? [];
+
+    public void SetServiceRegions(List<WarehouseServiceRegion>? regions) =>
+        ServiceRegionsJson = regions is { Count: > 0 } ? JsonSerializer.Serialize(regions) : null;
+
+    [NotMapped]
+    public List<WarehouseProviderConfig> ProviderConfigs =>
+        string.IsNullOrEmpty(ProviderConfigsJson) ? [] :
+        JsonSerializer.Deserialize<List<WarehouseProviderConfig>>(ProviderConfigsJson) ?? [];
+
+    public void SetProviderConfigs(List<WarehouseProviderConfig>? configs) =>
+        ProviderConfigsJson = configs is { Count: > 0 } ? JsonSerializer.Serialize(configs) : null;
 
     public bool CanServeRegion(string countryCode, string? stateOrProvinceCode = null)
     {

@@ -18,12 +18,12 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Shared.Providers;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
-using Merchello.Core.Shared.Providers;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
 using Microsoft.AspNetCore.Authorization;
@@ -256,7 +256,7 @@ public class CheckoutPaymentsApiController(
                 Placeholder = f.Placeholder,
                 ValidationPattern = f.ValidationPattern,
                 ValidationMessage = f.ValidationMessage,
-                Options = f.Options?.Select(o => new SelectOptionDto
+                Options = f.Options?.Select(o => new SelectOption
                 {
                     Value = o.Value,
                     Label = o.Label
@@ -619,7 +619,7 @@ public class CheckoutPaymentsApiController(
                 Placeholder = f.Placeholder,
                 ValidationPattern = f.ValidationPattern,
                 ValidationMessage = f.ValidationMessage,
-                Options = f.Options?.Select(o => new SelectOptionDto
+                Options = f.Options?.Select(o => new SelectOption
                 {
                     Value = o.Value,
                     Label = o.Label

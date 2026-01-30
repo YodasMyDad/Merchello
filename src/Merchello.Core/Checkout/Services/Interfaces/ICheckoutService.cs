@@ -174,17 +174,6 @@ public interface ICheckoutService
     Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Captures partial address data during checkout for progressive saving.
-    /// Updates only the fields that are provided without triggering recalculation.
-    /// </summary>
-    /// <param name="parameters">Parameters with partial address data.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>True if any changes were saved.</returns>
-    Task<bool> CaptureAddressAsync(
-        CaptureAddressParameters parameters,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Saves shipping selections to the checkout session, updates basket totals,
     /// refreshes automatic discounts, and persists to the database.
     /// </summary>

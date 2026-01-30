@@ -65,8 +65,8 @@ public class PaymentProviderManager(
             // Load all settings from database (including method settings for filtering)
             using var scope = efCoreScopeProvider.CreateScope();
             var settings = await scope.ExecuteWithContextAsync(async db =>
-                await db.PaymentProviderSettings
-                    .Include(s => s.MethodSettings)
+                await db.ProviderConfigurations
+                    .OfType<PaymentProviderSetting>()
                     .AsNoTracking()
                     .ToListAsync(cancellationToken));
             scope.Complete();
@@ -176,7 +176,8 @@ public class PaymentProviderManager(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var settings = await scope.ExecuteWithContextAsync(async db =>
-            await db.PaymentProviderSettings
+            await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
                 .AsNoTracking()
                 .OrderBy(s => s.SortOrder)
                 .ToListAsync(cancellationToken));
@@ -191,7 +192,8 @@ public class PaymentProviderManager(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var setting = await scope.ExecuteWithContextAsync(async db =>
-            await db.PaymentProviderSettings
+            await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.Id == id, cancellationToken));
         scope.Complete();
@@ -223,7 +225,8 @@ public class PaymentProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var existing = await db.PaymentProviderSettings
+            var existing = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
                 .FirstOrDefaultAsync(s => s.Id == setting.Id, cancellationToken);
 
             if (existing != null)
@@ -240,8 +243,9 @@ public class PaymentProviderManager(
             else
             {
                 // Check for duplicate alias
-                var duplicateAlias = await db.PaymentProviderSettings
-                    .AnyAsync(s => s.ProviderAlias == setting.ProviderAlias, cancellationToken);
+                var duplicateAlias = await db.ProviderConfigurations
+                    .OfType<PaymentProviderSetting>()
+                    .AnyAsync(s => s.ProviderKey == setting.ProviderKey, cancellationToken);
 
                 if (duplicateAlias)
                 {
@@ -256,7 +260,7 @@ public class PaymentProviderManager(
                 // Create new
                 setting.DateCreated = DateTime.UtcNow;
                 setting.DateUpdated = DateTime.UtcNow;
-                db.PaymentProviderSettings.Add(setting);
+                db.ProviderConfigurations.Add(setting);
             }
 
             await db.SaveChangesAsync(cancellationToken);
@@ -281,7 +285,8 @@ public class PaymentProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var setting = await db.PaymentProviderSettings
+            var setting = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
                 .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
             if (setting == null)
@@ -294,7 +299,7 @@ public class PaymentProviderManager(
                 return false;
             }
 
-            db.PaymentProviderSettings.Remove(setting);
+            db.ProviderConfigurations.Remove(setting);
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = true;
             return true;
@@ -318,7 +323,8 @@ public class PaymentProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var setting = await db.PaymentProviderSettings
+            var setting = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
                 .FirstOrDefaultAsync(s => s.Id == settingId, cancellationToken);
 
             if (setting == null)
@@ -361,7 +367,8 @@ public class PaymentProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var settings = await db.PaymentProviderSettings
+            var settings = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
                 .Where(s => idList.Contains(s.Id))
                 .ToListAsync(cancellationToken);
 
@@ -688,11 +695,16 @@ public class PaymentProviderManager(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var settings = await scope.ExecuteWithContextAsync(async db =>
-            await db.PaymentMethodSettings
+        {
+            var providerSetting = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
                 .AsNoTracking()
-                .Where(ms => ms.PaymentProviderSettingId == providerSettingId)
+                .FirstOrDefaultAsync(s => s.Id == providerSettingId, cancellationToken);
+
+            return providerSetting?.MethodSettings
                 .OrderBy(ms => ms.SortOrder)
-                .ToListAsync(cancellationToken));
+                .ToList() ?? [];
+        });
         scope.Complete();
         return settings;
     }
@@ -745,11 +757,18 @@ public class PaymentProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var existing = await db.PaymentMethodSettings
-                .FirstOrDefaultAsync(ms =>
-                    ms.PaymentProviderSettingId == providerSettingId &&
-                    ms.MethodAlias == methodAlias,
-                    cancellationToken);
+            var setting = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
+                .FirstOrDefaultAsync(s => s.Id == providerSettingId, cancellationToken);
+
+            if (setting == null)
+            {
+                return false;
+            }
+
+            var methodSettings = setting.MethodSettings;
+            var existing = methodSettings.FirstOrDefault(ms =>
+                string.Equals(ms.MethodAlias, methodAlias, StringComparison.OrdinalIgnoreCase));
 
             if (existing != null)
             {
@@ -759,7 +778,6 @@ public class PaymentProviderManager(
             }
             else
             {
-                // Create new method setting
                 var newSetting = new PaymentMethodSetting
                 {
                     Id = GuidExtensions.NewSequentialGuid,
@@ -770,10 +788,12 @@ public class PaymentProviderManager(
                     DateCreated = DateTime.UtcNow,
                     DateUpdated = DateTime.UtcNow
                 };
-                db.PaymentMethodSettings.Add(newSetting);
+                methodSettings.Add(newSetting);
                 result.ResultObject = newSetting;
             }
 
+            setting.SetMethodSettings(methodSettings);
+            setting.DateUpdated = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
             return true;
         });
@@ -831,21 +851,26 @@ public class PaymentProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var existing = await db.PaymentMethodSettings
-                .FirstOrDefaultAsync(ms =>
-                    ms.PaymentProviderSettingId == providerSettingId &&
-                    ms.MethodAlias == methodAlias,
-                    cancellationToken);
+            var setting = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
+                .FirstOrDefaultAsync(s => s.Id == providerSettingId, cancellationToken);
+
+            if (setting == null)
+            {
+                return false;
+            }
+
+            var methodSettings = setting.MethodSettings;
+            var existing = methodSettings.FirstOrDefault(ms =>
+                string.Equals(ms.MethodAlias, methodAlias, StringComparison.OrdinalIgnoreCase));
 
             if (existing != null)
             {
-                // Update existing setting
                 if (request.IsEnabled.HasValue)
                 {
                     existing.IsEnabled = request.IsEnabled.Value;
                 }
 
-                // DisplayNameOverride: empty string clears it, null means no change
                 if (request.DisplayNameOverride != null)
                 {
                     existing.DisplayNameOverride = string.IsNullOrWhiteSpace(request.DisplayNameOverride)
@@ -853,7 +878,6 @@ public class PaymentProviderManager(
                         : request.DisplayNameOverride;
                 }
 
-                // IconMediaKey: ClearIcon takes precedence
                 if (request.ClearIcon)
                 {
                     existing.IconMediaKey = null;
@@ -863,7 +887,6 @@ public class PaymentProviderManager(
                     existing.IconMediaKey = request.IconMediaKey.Value;
                 }
 
-                // CheckoutStyleOverride: ClearCheckoutStyle takes precedence
                 if (request.ClearCheckoutStyle)
                 {
                     existing.CheckoutStyleOverride = null;
@@ -880,7 +903,6 @@ public class PaymentProviderManager(
                         SelectedTextColor = request.CheckoutStyleOverride.SelectedTextColor
                     };
 
-                    // If all style properties are empty, set to null
                     if (existing.CheckoutStyleOverride.IsEmpty)
                     {
                         existing.CheckoutStyleOverride = null;
@@ -892,7 +914,6 @@ public class PaymentProviderManager(
             }
             else
             {
-                // Create new method setting
                 var newSetting = new PaymentMethodSetting
                 {
                     Id = GuidExtensions.NewSequentialGuid,
@@ -908,7 +929,6 @@ public class PaymentProviderManager(
                     DateUpdated = DateTime.UtcNow
                 };
 
-                // Set checkout style override if provided
                 if (!request.ClearCheckoutStyle && request.CheckoutStyleOverride != null)
                 {
                     newSetting.CheckoutStyleOverride = new PaymentMethodCheckoutStyle
@@ -927,10 +947,12 @@ public class PaymentProviderManager(
                     }
                 }
 
-                db.PaymentMethodSettings.Add(newSetting);
+                methodSettings.Add(newSetting);
                 result.ResultObject = newSetting;
             }
 
+            setting.SetMethodSettings(methodSettings);
+            setting.DateUpdated = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
             return true;
         });
@@ -952,13 +974,19 @@ public class PaymentProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var settings = await db.PaymentMethodSettings
-                .Where(ms => ms.PaymentProviderSettingId == providerSettingId)
-                .ToListAsync(cancellationToken);
+            var providerSetting = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
+                .FirstOrDefaultAsync(s => s.Id == providerSettingId, cancellationToken);
 
+            if (providerSetting == null)
+            {
+                return false;
+            }
+
+            var methodSettings = providerSetting.MethodSettings;
             for (int i = 0; i < aliasList.Count; i++)
             {
-                var setting = settings.FirstOrDefault(ms =>
+                var setting = methodSettings.FirstOrDefault(ms =>
                     string.Equals(ms.MethodAlias, aliasList[i], StringComparison.OrdinalIgnoreCase));
 
                 if (setting != null)
@@ -968,6 +996,8 @@ public class PaymentProviderManager(
                 }
             }
 
+            providerSetting.SetMethodSettings(methodSettings);
+            providerSetting.DateUpdated = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
             result.ResultObject = true;
             return true;
@@ -988,8 +1018,9 @@ public class PaymentProviderManager(
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             // Check if Manual Payment provider setting exists
-            var manualExists = await db.PaymentProviderSettings
-                .AnyAsync(s => s.ProviderAlias == manualProviderAlias, cancellationToken);
+            var manualExists = await db.ProviderConfigurations
+                .OfType<PaymentProviderSetting>()
+                .AnyAsync(s => s.ProviderKey == manualProviderAlias, cancellationToken);
 
             if (!manualExists)
             {
@@ -1006,7 +1037,7 @@ public class PaymentProviderManager(
                     DateUpdated = DateTime.UtcNow
                 };
 
-                db.PaymentProviderSettings.Add(manualSetting);
+                db.ProviderConfigurations.Add(manualSetting);
                 await db.SaveChangesAsync(cancellationToken);
 
                 logger.LogInformation(

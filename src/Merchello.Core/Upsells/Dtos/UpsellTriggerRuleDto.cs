@@ -10,6 +10,6 @@ public class UpsellTriggerRuleDto
     public UpsellTriggerType TriggerType { get; set; }
     public List<Guid>? TriggerIds { get; set; }
     public List<string>? TriggerNames { get; set; }
-    public List<Guid>? ExtractFilterGroupIds { get; set; }
-    public List<string>? ExtractFilterGroupNames { get; set; }
+    public List<Guid>? ExtractFilterIds { get; set; }
+    public List<string>? ExtractFilterNames { get; set; }
 }

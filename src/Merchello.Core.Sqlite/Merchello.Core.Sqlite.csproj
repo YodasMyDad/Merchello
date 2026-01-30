@@ -14,6 +14,7 @@
     <RepositoryUrl>https://github.com/YodasMyDad/Merchello</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <LocalNugetSource>$(MSBuildProjectDirectory)/../../NugetSource</LocalNugetSource>
   </PropertyGroup>
 
@@ -27,6 +28,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Merchello.Core\Merchello.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <ItemGroup>

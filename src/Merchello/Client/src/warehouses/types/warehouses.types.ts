@@ -1,3 +1,5 @@
+import type { AddressDto } from "@shared/types/index.js";
+
 // Warehouse List DTO
 export interface WarehouseListDto {
   id: string;
@@ -22,27 +24,11 @@ export interface WarehouseDetailDto {
   fulfilmentProviderConfigurationId?: string;
   /** Display name of the fulfilment provider override (if set) */
   fulfilmentProviderName?: string;
-  address: WarehouseAddressDto;
+  address: AddressDto;
   serviceRegions: ServiceRegionDto[];
   shippingOptionCount: number;
   dateCreated: string;
   dateUpdated: string;
-}
-
-// Address DTO
-export interface WarehouseAddressDto {
-  name?: string;
-  company?: string;
-  addressOne?: string;
-  addressTwo?: string;
-  townCity?: string;
-  countyState?: string;
-  countyStateCode?: string;
-  postalCode?: string;
-  country?: string;
-  countryCode?: string;
-  email?: string;
-  phone?: string;
 }
 
 // Service Region DTO
@@ -61,7 +47,7 @@ export interface CreateWarehouseDto {
   supplierId?: string;
   /** Optional fulfilment provider override for this warehouse */
   fulfilmentProviderConfigurationId?: string;
-  address?: WarehouseAddressDto;
+  address?: AddressDto;
 }
 
 export interface UpdateWarehouseDto {
@@ -73,7 +59,7 @@ export interface UpdateWarehouseDto {
   fulfilmentProviderConfigurationId?: string;
   /** If true, clears the fulfilment provider override */
   shouldClearFulfilmentProviderId?: boolean;
-  address?: WarehouseAddressDto;
+  address?: AddressDto;
 }
 
 export interface CreateServiceRegionDto {

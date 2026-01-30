@@ -54,7 +54,8 @@ public class TaxProviderManager(
 
             using var scope = efCoreScopeProvider.CreateScope();
             var settings = await scope.ExecuteWithContextAsync(async db =>
-                await db.TaxProviderSettings
+                await db.ProviderConfigurations
+                    .OfType<TaxProviderSetting>()
                     .AsNoTracking()
                     .ToListAsync(cancellationToken));
             scope.Complete();
@@ -82,14 +83,14 @@ public class TaxProviderManager(
                 }
 
                 var setting = settings.FirstOrDefault(s =>
-                    string.Equals(s.ProviderAlias, metadata.Alias, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(s.ProviderKey, metadata.Alias, StringComparison.OrdinalIgnoreCase));
 
                 try
                 {
                     TaxProviderConfiguration? configuration = null;
-                    if (setting != null && !string.IsNullOrWhiteSpace(setting.ConfigurationJson))
+                    if (setting != null && !string.IsNullOrWhiteSpace(setting.SettingsJson))
                     {
-                        configuration = new TaxProviderConfiguration(setting.ConfigurationJson);
+                        configuration = new TaxProviderConfiguration(setting.SettingsJson);
                     }
 
                     await provider.ConfigureAsync(configuration, cancellationToken);
@@ -160,32 +161,34 @@ public class TaxProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var allSettings = await db.TaxProviderSettings.ToListAsync(cancellationToken);
+            var allSettings = await db.ProviderConfigurations
+                .OfType<TaxProviderSetting>()
+                .ToListAsync(cancellationToken);
 
             // Deactivate all providers
-            foreach (var setting in allSettings.Where(s => s.IsActive))
+            foreach (var setting in allSettings.Where(s => s.IsEnabled))
             {
-                setting.IsActive = false;
+                setting.IsEnabled = false;
                 setting.UpdateDate = DateTime.UtcNow;
             }
 
             var target = allSettings.FirstOrDefault(s =>
-                string.Equals(s.ProviderAlias, alias, StringComparison.OrdinalIgnoreCase));
+                string.Equals(s.ProviderKey, alias, StringComparison.OrdinalIgnoreCase));
 
             if (target == null)
             {
                 target = new TaxProviderSetting
                 {
-                    ProviderAlias = alias,
-                    IsActive = true,
+                    ProviderKey = alias,
+                    IsEnabled = true,
                     CreateDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
                 };
-                db.TaxProviderSettings.Add(target);
+                db.ProviderConfigurations.Add(target);
             }
             else
             {
-                target.IsActive = true;
+                target.IsEnabled = true;
                 target.UpdateDate = DateTime.UtcNow;
             }
 
@@ -215,25 +218,26 @@ public class TaxProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var existing = await db.TaxProviderSettings
-                .FirstOrDefaultAsync(s => s.ProviderAlias == alias, cancellationToken);
+            var existing = await db.ProviderConfigurations
+                .OfType<TaxProviderSetting>()
+                .FirstOrDefaultAsync(s => s.ProviderKey == alias, cancellationToken);
 
             var json = new TaxProviderConfiguration(settings).ToJson();
 
             if (existing == null)
             {
-                db.TaxProviderSettings.Add(new TaxProviderSetting
+                db.ProviderConfigurations.Add(new TaxProviderSetting
                 {
-                    ProviderAlias = alias,
-                    ConfigurationJson = json,
-                    IsActive = false,
+                    ProviderKey = alias,
+                    SettingsJson = json,
+                    IsEnabled = false,
                     CreateDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
                 });
             }
             else
             {
-                existing.ConfigurationJson = json;
+                existing.SettingsJson = json;
                 existing.UpdateDate = DateTime.UtcNow;
             }
 

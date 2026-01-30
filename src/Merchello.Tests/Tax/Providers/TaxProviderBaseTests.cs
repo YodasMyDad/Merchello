@@ -145,7 +145,7 @@ public class TaxProviderBaseTests
             TaxCalculationRequest request,
             CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(TaxCalculationResult.ZeroTax(request.LineItems));
         }
 
         // Expose protected methods for testing

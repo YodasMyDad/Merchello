@@ -153,11 +153,6 @@ public class Product
     public virtual ICollection<ProductFilter> Filters { get; set; } = [];
 
     /// <summary>
-    /// Collection of price overrides associated with products and this warehouse.
-    /// </summary>
-    public ICollection<ProductWarehousePriceOverride> ProductWarehousePriceOverrides { get; set; } = [];
-
-    /// <summary>
     /// Stock levels for this product variant at each warehouse
     /// </summary>
     public virtual ICollection<ProductWarehouse> ProductWarehouses { get; set; } = [];

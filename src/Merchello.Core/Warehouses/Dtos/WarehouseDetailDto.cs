@@ -1,3 +1,5 @@
+using Merchello.Core.Locality.Dtos;
+
 namespace Merchello.Core.Warehouses.Dtos;
 
 /// <summary>
@@ -22,7 +24,7 @@ public class WarehouseDetailDto
     /// </summary>
     public string? FulfilmentProviderName { get; set; }
 
-    public WarehouseAddressDto Address { get; set; } = new();
+    public AddressDto Address { get; set; } = new();
     public List<ServiceRegionDto> ServiceRegions { get; set; } = [];
     public int ShippingOptionCount { get; set; }
     public DateTime DateCreated { get; set; }

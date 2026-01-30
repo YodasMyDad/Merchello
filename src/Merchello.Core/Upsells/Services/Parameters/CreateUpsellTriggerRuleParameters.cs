@@ -9,5 +9,5 @@ public class CreateUpsellTriggerRuleParameters
 {
     public UpsellTriggerType TriggerType { get; set; }
     public List<Guid>? TriggerIds { get; set; }
-    public List<Guid>? ExtractFilterGroupIds { get; set; }
+    public List<Guid>? ExtractFilterIds { get; set; }
 }

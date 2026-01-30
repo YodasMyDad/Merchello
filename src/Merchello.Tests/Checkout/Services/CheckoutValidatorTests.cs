@@ -1,6 +1,7 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
+using Merchello.Core.Locality.Dtos;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
@@ -70,22 +71,22 @@ public class CheckoutValidatorTests
     public void ValidateAddress_MissingAddress1_ReturnsError()
     {
         var address = CreateValidAddress();
-        address.Address1 = "";
+        address.AddressOne = "";
 
         var errors = _validator.ValidateAddress(address, "shipping");
 
-        errors.ShouldContainKey("shipping.address1");
+        errors.ShouldContainKey("shipping.addressOne");
     }
 
     [Fact]
     public void ValidateAddress_MissingCity_ReturnsError()
     {
         var address = CreateValidAddress();
-        address.City = null;
+        address.TownCity = null;
 
         var errors = _validator.ValidateAddress(address, "billing");
 
-        errors.ShouldContainKey("billing.city");
+        errors.ShouldContainKey("billing.townCity");
     }
 
     [Fact]
@@ -113,14 +114,14 @@ public class CheckoutValidatorTests
     [Fact]
     public void ValidateAddress_MultipleErrors_ReturnsAll()
     {
-        var address = new CheckoutAddressDto();
+        var address = new AddressDto();
 
         var errors = _validator.ValidateAddress(address, "billing");
 
         errors.Count.ShouldBeGreaterThanOrEqualTo(4);
         errors.ShouldContainKey("billing.name");
-        errors.ShouldContainKey("billing.address1");
-        errors.ShouldContainKey("billing.city");
+        errors.ShouldContainKey("billing.addressOne");
+        errors.ShouldContainKey("billing.townCity");
         errors.ShouldContainKey("billing.countryCode");
         errors.ShouldContainKey("billing.postalCode");
     }
@@ -250,7 +251,7 @@ public class CheckoutValidatorTests
             Email = "test@example.com",
             BillingAddress = CreateValidAddress(),
             ShippingSameAsBilling = true,
-            ShippingAddress = new CheckoutAddressDto() // Invalid but should be ignored
+            ShippingAddress = new AddressDto() // Invalid but should be ignored
         };
 
         var errors = _validator.ValidateAddressRequest(request);
@@ -266,13 +267,13 @@ public class CheckoutValidatorTests
             Email = "test@example.com",
             BillingAddress = CreateValidAddress(),
             ShippingSameAsBilling = false,
-            ShippingAddress = new CheckoutAddressDto { Name = "Test" } // Missing fields
+            ShippingAddress = new AddressDto { Name = "Test" } // Missing fields
         };
 
         var errors = _validator.ValidateAddressRequest(request);
 
-        errors.ShouldContainKey("shipping.address1");
-        errors.ShouldContainKey("shipping.city");
+        errors.ShouldContainKey("shipping.addressOne");
+        errors.ShouldContainKey("shipping.townCity");
         errors.ShouldContainKey("shipping.countryCode");
         errors.ShouldContainKey("shipping.postalCode");
     }
@@ -300,7 +301,7 @@ public class CheckoutValidatorTests
     [Fact]
     public void ValidateAddress_UsesCorrectPrefix()
     {
-        var address = new CheckoutAddressDto();
+        var address = new AddressDto();
 
         var billingErrors = _validator.ValidateAddress(address, "billing");
         var shippingErrors = _validator.ValidateAddress(address, "shipping");
@@ -311,11 +312,11 @@ public class CheckoutValidatorTests
 
     #endregion
 
-    private static CheckoutAddressDto CreateValidAddress() => new()
+    private static AddressDto CreateValidAddress() => new()
     {
         Name = "John Doe",
-        Address1 = "123 Main Street",
-        City = "London",
+        AddressOne = "123 Main Street",
+        TownCity = "London",
         CountryCode = "GB",
         PostalCode = "SW1A 1AA",
         Phone = "+44 20 7946 0958"

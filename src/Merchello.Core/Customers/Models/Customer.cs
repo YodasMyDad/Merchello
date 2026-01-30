@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Shared.Extensions;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace Merchello.Core.Customers.Models;
 
@@ -79,7 +81,7 @@ public class Customer
     /// Navigation property: Tags assigned to this customer.
     /// Used for categorization and segment criteria matching.
     /// </summary>
-    public virtual ICollection<CustomerTag> CustomerTags { get; set; } = [];
+    public string? TagsJson { get; set; }
 
     /// <summary>
     /// Navigation property: Invoices for this customer
@@ -90,4 +92,12 @@ public class Customer
     /// Navigation property: Saved payment methods for this customer (vaulted at payment providers).
     /// </summary>
     public virtual ICollection<SavedPaymentMethod>? SavedPaymentMethods { get; set; }
+
+    [NotMapped]
+    public List<string> Tags =>
+        string.IsNullOrEmpty(TagsJson) ? [] :
+        JsonSerializer.Deserialize<List<string>>(TagsJson) ?? [];
+
+    public void SetTags(List<string>? tags) =>
+        TagsJson = tags is { Count: > 0 } ? JsonSerializer.Serialize(tags) : null;
 }

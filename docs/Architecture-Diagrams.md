@@ -65,7 +65,7 @@ Feature/
 ### 2.1 Products
 
 **IProductService:**
-- `GenerateVariantsFromOptions()` - Generate variants from product options
+- `SaveProductOptions()` - Save options (auto-regenerates variants when options change)
 - `PreviewAddonPriceAsync()` - Preview add-on pricing
 
 **IProductCollectionService:**
@@ -78,16 +78,16 @@ Feature/
 - `DeleteProductCollection()` - Delete collection
 
 **IProductTypeService:**
-- `GetProductTypesAsync()` - Get all product types
-- `GetProductTypesByIdsAsync()` - Get product types by IDs
-- `CreateProductTypeAsync()` - Create product type
-- `UpdateProductTypeAsync()` - Update product type
-- `DeleteProductTypeAsync()` - Delete product type
+- `GetProductTypes()` - Get all product types
+- `GetProductTypesByIds()` - Get product types by IDs
+- `CreateProductType()` - Create product type
+- `UpdateProductType()` - Update product type
+- `DeleteProductType()` - Delete product type
 
 **IProductFilterService:**
 - Filter group and filter value CRUD operations
-- `GetFilterGroupsAsync()`, `CreateFilterGroupAsync()`, `UpdateFilterGroupAsync()`, `DeleteFilterGroupAsync()`
-- `GetFiltersAsync()`, `CreateFilterAsync()`, `UpdateFilterAsync()`, `DeleteFilterAsync()`
+- `GetFilterGroups()`, `CreateFilterGroup()`, `UpdateFilterGroup()`, `DeleteFilterGroup()`
+- `GetFilter()`, `CreateFilter()`, `UpdateFilter()`, `DeleteFilter()`
 - Product-filter association management
 
 **Stock Status Calculation:**
@@ -1471,6 +1471,23 @@ Pre-checkout endpoints for basket, location, and availability.
 |----------|--------|-------------|
 | `/products/{id}/availability` | GET | Check product availability |
 
+**Payment Methods (Saved):**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/payment-methods` | GET | List saved payment methods for current customer |
+| `/payment-methods/setup` | POST | Create a vault setup session |
+| `/payment-methods/confirm` | POST | Confirm setup and save payment method |
+| `/payment-methods/{id}/set-default` | POST | Set default payment method |
+| `/payment-methods/{id}` | DELETE | Delete a saved payment method |
+| `/payment-methods/providers` | GET | Get vault-enabled payment providers |
+
+**Upsells:**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/upsells` | GET | Get upsell suggestions for basket |
+| `/upsells/product/{productId}` | GET | Get upsell suggestions for product page |
+| `/upsells/events` | POST | Record upsell impression/click events |
+
 ### 13.2 Checkout API (`/api/merchello/checkout`)
 
 Checkout flow endpoints.
@@ -1502,8 +1519,15 @@ Checkout flow endpoints.
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/payment-methods` | GET | Get payment methods |
+| `/payment-options` | GET | Get checkout payment options (includes saved methods if logged in) |
 | `/pay` | POST | Create payment session |
+| `/{invoiceId}/pay` | POST | Create payment session for existing invoice |
+| `/{providerAlias}/create-order` | POST | Create order for widget-based payment providers |
+| `/{providerAlias}/capture-order` | POST | Capture widget-based payment order |
 | `/process-payment` | POST | Process payment result |
+| `/process-direct-payment` | POST | Process payment with direct card details |
+| `/process-saved-payment` | POST | Process payment with saved method |
+| `/worldpay/apple-pay-validate` | POST | Validate Apple Pay merchant session (WorldPay) |
 | `/return` | GET | Payment return callback |
 | `/cancel` | GET | Payment cancel callback |
 
@@ -1538,10 +1562,21 @@ Checkout flow endpoints.
 | `/recover/{token}` | GET | Restore from recovery link |
 | `/recover/{token}/validate` | GET | Validate recovery token |
 
+**Post-purchase Upsells:**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/post-purchase/{invoiceId}` | GET | Get post-purchase upsells for an invoice |
+| `/post-purchase/{invoiceId}/preview` | POST | Preview adding a post-purchase item |
+| `/post-purchase/{invoiceId}/add` | POST | Add post-purchase item and charge saved method |
+| `/post-purchase/{invoiceId}/skip` | POST | Skip post-purchase upsells |
+
 ### 13.3 Webhook API
 
 **Payment Webhooks (public):**
 `POST /umbraco/merchello/webhooks/payments/{providerAlias}`
+
+**Fulfilment Webhooks (public):**
+`POST /umbraco/merchello/webhooks/fulfilment/{providerKey}`
 
 **Outbound Webhook Management (`/api/v1/webhooks`):**
 | Endpoint | Method | Description |

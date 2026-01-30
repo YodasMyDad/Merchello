@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Text.Json;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
@@ -181,12 +182,6 @@ public class SegmentCriteriaEvaluator(
                 .OrderByDescending(i => i.DateCreated)
                 .FirstOrDefaultAsync(ct);
 
-            // Get customer tags
-            var tags = await db.CustomerTags
-                .Where(t => t.CustomerId == customerId)
-                .Select(t => t.Tag)
-                .ToListAsync(ct);
-
             return new CustomerMetrics
             {
                 OrderCount = orderStats?.OrderCount ?? 0,
@@ -199,7 +194,7 @@ public class SegmentCriteriaEvaluator(
                 DateCreated = customer.DateCreated,
                 Email = customer.Email,
                 Country = recentInvoice?.BillingAddress?.Country,
-                Tags = tags
+                Tags = customer.Tags
             };
         });
         scope.Complete();
@@ -408,14 +403,87 @@ public class SegmentCriteriaEvaluator(
             // Build base query with LEFT JOIN aggregates
             var baseQuery = BuildCustomerWithMetricsQuery(db, utcNow);
 
-            // Apply criteria filter
-            var filteredQuery = ApplyCriteriaFilter(baseQuery, criteriaSet, utcNow);
+            // Split tag criteria (handled in-memory)
+            var (nonTagCriteria, tagCriteria) = SplitTagCriteria(criteriaSet);
+            var filteredQuery = ApplyCriteriaFilter(baseQuery, nonTagCriteria, utcNow);
 
-            // Get total count
-            var totalCount = await filteredQuery.CountAsync(ct);
+            // Materialize candidates when tag criteria are present
+            if (tagCriteria.Count > 0)
+            {
+                if (criteriaSet.MatchMode == SegmentMatchMode.Any)
+                {
+                    var nonTagMatches = nonTagCriteria.Criteria.Count > 0
+                        ? await filteredQuery
+                            .Select(c => new { c.Id, c.DateCreated })
+                            .ToListAsync(ct)
+                        : [];
 
-            // Get paginated IDs with consistent ordering
-            var customerIds = await filteredQuery
+                    var tagCandidates = await baseQuery
+                        .Select(c => new CustomerWithMetrics
+                        {
+                            Id = c.Id,
+                            DateCreated = c.DateCreated,
+                            TagsJson = c.TagsJson
+                        })
+                        .ToListAsync(ct);
+
+                    foreach (var c in tagCandidates)
+                    {
+                        c.Tags = ParseTags(c.TagsJson);
+                    }
+
+                    var tagMatches = ApplyTagCriteria(tagCandidates, tagCriteria, SegmentMatchMode.Any);
+                    var union = new Dictionary<Guid, DateTime>();
+
+                    foreach (var m in nonTagMatches)
+                    {
+                        union[m.Id] = m.DateCreated;
+                    }
+
+                    foreach (var m in tagMatches)
+                    {
+                        union[m.Id] = m.DateCreated;
+                    }
+
+                    var ordered = union
+                        .OrderBy(kv => kv.Value)
+                        .ThenBy(kv => kv.Key)
+                        .Select(kv => kv.Key)
+                        .ToList();
+
+                    var unionCount = ordered.Count;
+                    var unionIds = ordered
+                        .Skip((page - 1) * pageSize)
+                        .Take(pageSize)
+                        .ToList();
+
+                    return new PaginatedList<Guid>(unionIds, unionCount, page, pageSize);
+                }
+
+                var candidates = await filteredQuery
+                    .OrderBy(c => c.DateCreated)
+                    .ThenBy(c => c.Id)
+                    .ToListAsync(ct);
+
+                foreach (var c in candidates)
+                {
+                    c.Tags = ParseTags(c.TagsJson);
+                }
+
+                var filtered = ApplyTagCriteria(candidates, tagCriteria, SegmentMatchMode.All);
+                var totalCount = filtered.Count;
+                var customerIds = filtered
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(c => c.Id)
+                    .ToList();
+
+                return new PaginatedList<Guid>(customerIds, totalCount, page, pageSize);
+            }
+
+            // No tag criteria: keep SQL path
+            var total = await filteredQuery.CountAsync(ct);
+            var ids = await filteredQuery
                 .OrderBy(c => c.DateCreated)
                 .ThenBy(c => c.Id)
                 .Skip((page - 1) * pageSize)
@@ -423,7 +491,7 @@ public class SegmentCriteriaEvaluator(
                 .Select(c => c.Id)
                 .ToListAsync(ct);
 
-            return new PaginatedList<Guid>(customerIds, totalCount, page, pageSize);
+            return new PaginatedList<Guid>(ids, total, page, pageSize);
         });
 
         scope.Complete();
@@ -443,8 +511,41 @@ public class SegmentCriteriaEvaluator(
         {
             var utcNow = DateTime.UtcNow;
             var baseQuery = BuildCustomerWithMetricsQuery(db, utcNow);
-            var filteredQuery = ApplyCriteriaFilter(baseQuery, criteriaSet, utcNow);
-            return await filteredQuery.CountAsync(ct);
+            var (nonTagCriteria, tagCriteria) = SplitTagCriteria(criteriaSet);
+            var filteredQuery = ApplyCriteriaFilter(baseQuery, nonTagCriteria, utcNow);
+
+            if (tagCriteria.Count == 0)
+            {
+                return await filteredQuery.CountAsync(ct);
+            }
+            if (criteriaSet.MatchMode == SegmentMatchMode.Any)
+            {
+                var nonTagMatches = nonTagCriteria.Criteria.Count > 0
+                    ? await filteredQuery.Select(c => c.Id).ToListAsync(ct)
+                    : [];
+
+                var tagCandidates = await baseQuery
+                    .Select(c => new CustomerWithMetrics { Id = c.Id, TagsJson = c.TagsJson })
+                    .ToListAsync(ct);
+
+                foreach (var c in tagCandidates)
+                {
+                    c.Tags = ParseTags(c.TagsJson);
+                }
+
+                var tagMatches = ApplyTagCriteria(tagCandidates, tagCriteria, SegmentMatchMode.Any)
+                    .Select(c => c.Id)
+                    .ToList();
+
+                return nonTagMatches.Union(tagMatches).Count();
+            }
+
+            var candidates = await filteredQuery.ToListAsync(ct);
+            foreach (var c in candidates)
+            {
+                c.Tags = ParseTags(c.TagsJson);
+            }
+            return ApplyTagCriteria(candidates, tagCriteria, SegmentMatchMode.All).Count;
         });
 
         scope.Complete();
@@ -497,7 +598,7 @@ public class SegmentCriteriaEvaluator(
                         Id = c.Id,
                         Email = c.Email,
                         DateCreated = c.DateCreated,
-                        Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
+                        TagsJson = c.TagsJson,
                         OrderCount = agg != null ? agg.OrderCount : 0,
                         TotalSpend = agg != null ? agg.TotalSpend : 0m,
                         FirstOrderDate = agg != null ? agg.FirstOrderDate : null,
@@ -516,10 +617,19 @@ public class SegmentCriteriaEvaluator(
         SegmentCriteriaSet criteriaSet,
         DateTime utcNow)
     {
+        var nonTagCriteria = criteriaSet.Criteria
+            .Where(c => !string.Equals(c.Field, nameof(SegmentCriteriaField.Tag), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (nonTagCriteria.Count == 0)
+        {
+            return query;
+        }
+
         if (criteriaSet.MatchMode == SegmentMatchMode.All)
         {
             // AND mode: chain Where clauses sequentially
-            foreach (var criterion in criteriaSet.Criteria)
+            foreach (var criterion in nonTagCriteria)
             {
                 var predicate = BuildCriterionPredicate(criterion, utcNow);
                 if (predicate != null)
@@ -531,8 +641,76 @@ public class SegmentCriteriaEvaluator(
         }
 
         // OR mode: build combined predicate and apply once
-        var combinedPredicate = BuildOrCombinedPredicate(criteriaSet.Criteria, utcNow);
+        var combinedPredicate = BuildOrCombinedPredicate(nonTagCriteria, utcNow);
         return combinedPredicate != null ? query.Where(combinedPredicate) : query;
+    }
+
+    private static (SegmentCriteriaSet NonTagCriteria, List<SegmentCriteria> TagCriteria) SplitTagCriteria(SegmentCriteriaSet criteriaSet)
+    {
+        var tagCriteria = criteriaSet.Criteria
+            .Where(c => string.Equals(c.Field, nameof(SegmentCriteriaField.Tag), StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var nonTagCriteria = new SegmentCriteriaSet
+        {
+            MatchMode = criteriaSet.MatchMode,
+            Criteria = criteriaSet.Criteria
+                .Where(c => !string.Equals(c.Field, nameof(SegmentCriteriaField.Tag), StringComparison.OrdinalIgnoreCase))
+                .ToList()
+        };
+
+        return (nonTagCriteria, tagCriteria);
+    }
+
+    private static List<string> ParseTags(string? tagsJson)
+    {
+        if (string.IsNullOrWhiteSpace(tagsJson))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(tagsJson) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    private static List<CustomerWithMetrics> ApplyTagCriteria(
+        List<CustomerWithMetrics> candidates,
+        List<SegmentCriteria> tagCriteria,
+        SegmentMatchMode matchMode)
+    {
+        if (tagCriteria.Count == 0)
+        {
+            return candidates;
+        }
+
+        bool Matches(CustomerWithMetrics customer)
+        {
+            var results = tagCriteria.Select(c => MatchesTagCriterion(customer.Tags, c)).ToList();
+            return matchMode == SegmentMatchMode.All
+                ? results.All(r => r)
+                : results.Any(r => r);
+        }
+
+        return candidates.Where(Matches).ToList();
+    }
+
+    private static bool MatchesTagCriterion(List<string> tags, SegmentCriteria criterion)
+    {
+        var tagValue = criterion.Value?.ToString() ?? "";
+        return criterion.Operator switch
+        {
+            SegmentCriteriaOperator.Contains => tags.Contains(tagValue),
+            SegmentCriteriaOperator.NotContains => !tags.Contains(tagValue),
+            SegmentCriteriaOperator.IsEmpty => tags.Count == 0,
+            SegmentCriteriaOperator.IsNotEmpty => tags.Count > 0,
+            _ => false
+        };
     }
 
     /// <summary>

@@ -264,7 +264,7 @@ public class UpsellsApiController(
         {
             TriggerType = r.TriggerType,
             TriggerIds = SafeDeserializeList<Guid>(r.TriggerIds),
-            ExtractFilterGroupIds = SafeDeserializeList<Guid>(r.ExtractFilterGroupIds)
+            ExtractFilterIds = SafeDeserializeList<Guid>(r.ExtractFilterIds)
         }).ToList();
 
         var recommendationRules = rule.RecommendationRules.Select(r => new UpsellRecommendationRuleDto
@@ -272,7 +272,7 @@ public class UpsellsApiController(
             RecommendationType = r.RecommendationType,
             RecommendationIds = SafeDeserializeList<Guid>(r.RecommendationIds),
             MatchTriggerFilters = r.MatchTriggerFilters,
-            MatchFilterGroupIds = SafeDeserializeList<Guid>(r.MatchFilterGroupIds)
+            MatchFilterIds = SafeDeserializeList<Guid>(r.MatchFilterIds)
         }).ToList();
 
         var eligibilityRules = rule.EligibilityRules.Select(r => new UpsellEligibilityRuleDto
@@ -367,14 +367,14 @@ public class UpsellsApiController(
             {
                 TriggerType = t.TriggerType,
                 TriggerIds = t.TriggerIds,
-                ExtractFilterGroupIds = t.ExtractFilterGroupIds
+                ExtractFilterIds = t.ExtractFilterIds
             }).ToList(),
             RecommendationRules = dto.RecommendationRules?.Select(r => new CreateUpsellRecommendationRuleParameters
             {
                 RecommendationType = r.RecommendationType,
                 RecommendationIds = r.RecommendationIds,
                 MatchTriggerFilters = r.MatchTriggerFilters,
-                MatchFilterGroupIds = r.MatchFilterGroupIds
+                MatchFilterIds = r.MatchFilterIds
             }).ToList(),
             EligibilityRules = dto.EligibilityRules?.Select(e => new CreateUpsellEligibilityRuleParameters
             {
@@ -406,14 +406,14 @@ public class UpsellsApiController(
             {
                 TriggerType = t.TriggerType,
                 TriggerIds = t.TriggerIds,
-                ExtractFilterGroupIds = t.ExtractFilterGroupIds
+                ExtractFilterIds = t.ExtractFilterIds
             }).ToList(),
             RecommendationRules = dto.RecommendationRules?.Select(r => new CreateUpsellRecommendationRuleParameters
             {
                 RecommendationType = r.RecommendationType,
                 RecommendationIds = r.RecommendationIds,
                 MatchTriggerFilters = r.MatchTriggerFilters,
-                MatchFilterGroupIds = r.MatchFilterGroupIds
+                MatchFilterIds = r.MatchFilterIds
             }).ToList(),
             EligibilityRules = dto.EligibilityRules?.Select(e => new CreateUpsellEligibilityRuleParameters
             {

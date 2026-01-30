@@ -1,3 +1,5 @@
+using Merchello.Core.Locality.Dtos;
+
 namespace Merchello.Core.Warehouses.Dtos;
 
 /// <summary>
@@ -24,5 +26,5 @@ public class UpdateWarehouseDto
     /// </summary>
     public bool ShouldClearFulfilmentProviderId { get; set; }
 
-    public WarehouseAddressDto? Address { get; set; }
+    public AddressDto? Address { get; set; }
 }

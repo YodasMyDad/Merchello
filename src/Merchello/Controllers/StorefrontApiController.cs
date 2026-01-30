@@ -11,6 +11,7 @@ using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Dtos;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Storefront.Services.Parameters;
@@ -47,7 +48,7 @@ public class StorefrontApiController(
         {
             ProductId = request.ProductId,
             Quantity = request.Quantity,
-            Addons = request.Addons.Select(a => new SelectedAddon { ValueId = a.ValueId }).ToList()
+            Addons = request.Addons.ToList()
         }, ct);
 
         if (!result.Success)
@@ -247,15 +248,15 @@ public class StorefrontApiController(
 
         return Ok(new ShippingCountriesDto
         {
-            Countries = countries.Select(c => new StorefrontCountryDto
+            Countries = countries.Select(c => new CountryDto
             {
-                CountryCode = c.Code,
-                CountryName = c.Name
+                Code = c.Code,
+                Name = c.Name
             }).ToList(),
-            Current = new StorefrontCountryDto
+            Current = new CountryDto
             {
-                CountryCode = current.CountryCode,
-                CountryName = current.CountryName
+                Code = current.CountryCode,
+                Name = current.CountryName
             },
             CurrentRegionCode = current.RegionCode,
             CurrentRegionName = current.RegionName,
@@ -276,10 +277,10 @@ public class StorefrontApiController(
     {
         var location = await storefrontContext.GetShippingLocationAsync(ct);
 
-        return Ok(new StorefrontCountryDto
+        return Ok(new CountryDto
         {
-            CountryCode = location.CountryCode,
-            CountryName = location.CountryName
+            Code = location.CountryCode,
+            Name = location.CountryName
         });
     }
 
@@ -377,10 +378,11 @@ public class StorefrontApiController(
     {
         var regions = await locationsService.GetAvailableRegionsAsync(countryCode, ct);
 
-        return Ok(regions.Select(r => new StorefrontRegionDto
+        return Ok(regions.Select(r => new RegionDto
         {
+            CountryCode = countryCode,
             RegionCode = r.RegionCode,
-            RegionName = r.Name
+            Name = r.Name
         }).ToList());
     }
 

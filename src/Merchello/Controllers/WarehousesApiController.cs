@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -402,7 +403,7 @@ public class WarehousesApiController(
 
     #region Helpers
 
-    private static Address MapAddressFromDto(WarehouseAddressDto dto)
+    private static Address MapAddressFromDto(AddressDto dto)
     {
         return new Address
         {
@@ -414,7 +415,7 @@ public class WarehousesApiController(
             CountyState = new CountyState
             {
                 Name = dto.CountyState,
-                RegionCode = dto.CountyStateCode
+                RegionCode = dto.RegionCode ?? dto.CountyState
             },
             PostalCode = dto.PostalCode,
             Country = dto.Country,

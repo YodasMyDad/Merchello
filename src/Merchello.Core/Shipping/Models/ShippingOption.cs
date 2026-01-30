@@ -1,6 +1,8 @@
 ﻿using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Warehouses.Models;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace Merchello.Core.Shipping.Models;
 
@@ -88,19 +90,14 @@ public class ShippingOption
     public virtual ICollection<Product> Products { get; set; } = [];
 
     /// <summary>
-    /// Collection of country-specific shipping options associated with the shipping method.
-    /// </summary>
-    public virtual ICollection<ShippingOptionCountry> ShippingOptionCountries { get; set; } = [];
-
-    /// <summary>
     /// The country shipping costs for this shipping option (What about states and provinces)
     /// </summary>
-    public virtual ICollection<ShippingCost> ShippingCosts { get; set; } = [];
+    public string? ShippingCostsJson { get; set; }
 
     /// <summary>
     /// Weight-based surcharge tiers for this shipping option
     /// </summary>
-    public virtual ICollection<ShippingWeightTier> WeightTiers { get; set; } = [];
+    public string? ShippingWeightTiersJson { get; set; }
 
     /// <summary>
     /// Whether this shipping option allows customers to select a specific delivery date
@@ -144,4 +141,28 @@ public class ShippingOption
     /// Create date
     /// </summary>
     public DateTime CreateDate { get; set; } = DateTime.UtcNow;
+
+    // =====================================================
+    // Computed Properties (not mapped to DB)
+    // =====================================================
+
+    [NotMapped]
+    public List<ShippingCost> ShippingCosts =>
+        string.IsNullOrEmpty(ShippingCostsJson) ? [] :
+        JsonSerializer.Deserialize<List<ShippingCost>>(ShippingCostsJson) ?? [];
+
+    [NotMapped]
+    public List<ShippingWeightTier> WeightTiers =>
+        string.IsNullOrEmpty(ShippingWeightTiersJson) ? [] :
+        JsonSerializer.Deserialize<List<ShippingWeightTier>>(ShippingWeightTiersJson) ?? [];
+
+    // =====================================================
+    // Setter Helpers
+    // =====================================================
+
+    public void SetShippingCosts(List<ShippingCost>? costs) =>
+        ShippingCostsJson = costs is { Count: > 0 } ? JsonSerializer.Serialize(costs) : null;
+
+    public void SetShippingWeightTiers(List<ShippingWeightTier>? tiers) =>
+        ShippingWeightTiersJson = tiers is { Count: > 0 } ? JsonSerializer.Serialize(tiers) : null;
 }

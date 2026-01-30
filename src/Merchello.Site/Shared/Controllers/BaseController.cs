@@ -1,6 +1,4 @@
-﻿using Merchello.Core.Shared.Models;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Core.Logging;
 using Umbraco.Cms.Core.Routing;
@@ -12,9 +10,7 @@ using Umbraco.Cms.Web.Website.Controllers;
 
 namespace Merchello.Site.Shared.Controllers;
 
-public class BaseController(
-    IOptions<MerchelloSettings> options,
-    IUmbracoContextAccessor umbracoContextAccessor,
+public class BaseController(IUmbracoContextAccessor umbracoContextAccessor,
     IUmbracoDatabaseFactory databaseFactory,
     ServiceContext services,
     AppCaches appCaches,

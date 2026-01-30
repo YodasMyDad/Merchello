@@ -8,6 +8,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Checkout.Strategies.Models;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
@@ -752,7 +753,7 @@ public class CheckoutApiController(
     /// Call this on address field blur to auto-save as user enters data.
     /// </summary>
     [HttpPost("capture-address")]
-    public async Task<IActionResult> CaptureAddress([FromBody] CaptureAddressDto request, CancellationToken ct)
+    public async Task<IActionResult> CaptureAddress([FromBody] SaveAddressesRequestDto request, CancellationToken ct)
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null || basket.LineItems.Count == 0)
@@ -760,19 +761,24 @@ public class CheckoutApiController(
             return BadRequest(new { success = false, message = "No items in basket." });
         }
 
-        var saved = await checkoutService.CaptureAddressAsync(new CaptureAddressParameters
+        var result = await checkoutService.SaveAddressesAsync(new SaveAddressesParameters
         {
             Basket = basket,
             Email = request.Email,
             BillingAddress = request.BillingAddress,
             ShippingAddress = request.ShippingAddress,
-            ShippingSameAsBilling = request.ShippingSameAsBilling
+            ShippingSameAsBilling = request.ShippingSameAsBilling,
+            AcceptsMarketing = request.AcceptsMarketing,
+            IsPartial = true
         }, ct);
 
-        if (saved)
+        if (!result.Successful)
         {
-            logger.LogDebug("Address captured for basket: {BasketId}", basket.Id);
+            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to capture address.";
+            return BadRequest(new { success = false, message });
         }
+
+        logger.LogDebug("Address captured for basket: {BasketId}", basket.Id);
 
         return Ok(new { success = true });
     }
@@ -1176,25 +1182,28 @@ public class CheckoutApiController(
             currencyContext.ExchangeRate);
     }
 
-    private static CheckoutAddressDto? MapAddressToDto(Address? address)
+    private static AddressDto? MapAddressToDto(Address? address)
     {
         if (address == null || string.IsNullOrWhiteSpace(address.Name))
         {
             return null;
         }
 
-        return new CheckoutAddressDto
+        return new AddressDto
         {
             Name = address.Name,
             Company = address.Company,
-            Address1 = address.AddressOne,
-            Address2 = address.AddressTwo,
-            City = address.TownCity,
-            State = address.CountyState?.Name,
-            StateCode = address.CountyState?.RegionCode,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = string.IsNullOrWhiteSpace(address.CountyState?.Name)
+                ? address.CountyState?.RegionCode
+                : address.CountyState?.Name,
+            RegionCode = address.CountyState?.RegionCode,
             PostalCode = address.PostalCode,
             Country = address.Country,
             CountryCode = address.CountryCode,
+            Email = address.Email,
             Phone = address.Phone
         };
     }

@@ -1,4 +1,6 @@
 // Order and Payment types matching the API DTOs
+import type { AddressDto } from "@shared/types/index.js";
+export type { AddressDto };
 
 // ============================================
 // Payment Types
@@ -294,20 +296,6 @@ export interface OrderDetailDto {
    * Calculated by backend to avoid frontend logic duplication.
    */
   canFulfill: boolean;
-}
-
-export interface AddressDto {
-  name: string | null;
-  company: string | null;
-  addressOne: string | null;
-  addressTwo: string | null;
-  townCity: string | null;
-  countyState: string | null;
-  postalCode: string | null;
-  country: string | null;
-  countryCode: string | null;
-  email: string | null;
-  phone: string | null;
 }
 
 export interface FulfillmentOrderDto {

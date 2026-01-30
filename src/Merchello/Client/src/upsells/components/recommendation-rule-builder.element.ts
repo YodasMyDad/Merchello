@@ -8,7 +8,6 @@ import { MERCHELLO_COLLECTION_PICKER_MODAL } from "@collections/modals/collectio
 import { MERCHELLO_PRODUCT_TYPE_PICKER_MODAL } from "@product-types/modals/product-type-picker-modal.token.js";
 import { MERCHELLO_SUPPLIER_PICKER_MODAL } from "@suppliers/modals/supplier-picker-modal.token.js";
 import { MERCHELLO_FILTER_PICKER_MODAL } from "@filters/modals/filter-picker-modal.token.js";
-import { MERCHELLO_FILTER_GROUP_PICKER_MODAL } from "@filters/modals/filter-group-picker-modal.token.js";
 
 const REC_TYPE_OPTIONS = [
   { value: UpsellRecommendationType.ProductTypes, label: "Product types" },
@@ -55,8 +54,8 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
       recommendationIds: [],
       recommendationNames: [],
       matchTriggerFilters: false,
-      matchFilterGroupIds: [],
-      matchFilterGroupNames: [],
+      matchFilterIds: [],
+      matchFilterNames: [],
     }];
     this._dispatchChange();
   }
@@ -151,18 +150,18 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
     }
   }
 
-  private async _openFilterGroupPicker(index: number, rule: UpsellRecommendationRuleDto): Promise<void> {
+  private async _openFilterValuePicker(index: number, rule: UpsellRecommendationRuleDto): Promise<void> {
     if (!this.#modalManager) return;
 
-    const modal = this.#modalManager.open(this, MERCHELLO_FILTER_GROUP_PICKER_MODAL, {
-      data: { excludeIds: rule.matchFilterGroupIds ?? [], multiSelect: true },
+    const modal = this.#modalManager.open(this, MERCHELLO_FILTER_PICKER_MODAL, {
+      data: { excludeFilterIds: rule.matchFilterIds ?? [], multiSelect: true },
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.selectedIds?.length) {
+    if (result?.selectedFilterIds?.length) {
       this._handleUpdateRule(index, {
-        matchFilterGroupIds: [...(rule.matchFilterGroupIds ?? []), ...result.selectedIds],
-        matchFilterGroupNames: [...(rule.matchFilterGroupNames ?? []), ...result.selectedNames],
+        matchFilterIds: [...(rule.matchFilterIds ?? []), ...result.selectedFilterIds],
+        matchFilterNames: [...(rule.matchFilterNames ?? []), ...result.selectedFilterNames],
       });
     }
   }
@@ -174,10 +173,10 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
     });
   }
 
-  private _removeFilterGroup(index: number, rule: UpsellRecommendationRuleDto, itemIndex: number): void {
+  private _removeFilter(index: number, rule: UpsellRecommendationRuleDto, itemIndex: number): void {
     this._handleUpdateRule(index, {
-      matchFilterGroupIds: rule.matchFilterGroupIds?.filter((_, i) => i !== itemIndex) ?? [],
-      matchFilterGroupNames: rule.matchFilterGroupNames?.filter((_, i) => i !== itemIndex) ?? [],
+      matchFilterIds: rule.matchFilterIds?.filter((_, i) => i !== itemIndex) ?? [],
+      matchFilterNames: rule.matchFilterNames?.filter((_, i) => i !== itemIndex) ?? [],
     });
   }
 
@@ -240,20 +239,20 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
 
           ${rule.matchTriggerFilters
             ? html`
-              <div class="filter-groups">
-                <label>Narrow to specific filter groups (leave empty to match ALL extracted groups):</label>
+              <div class="filter-values">
+                <label>Narrow to specific filter values (leave empty to match ALL extracted values):</label>
                 <div class="tags">
-                  ${(rule.matchFilterGroupNames ?? []).map((name, i) => html`
+                  ${(rule.matchFilterNames ?? []).map((name, i) => html`
                     <uui-tag look="secondary" color="warning">
                       ${name}
-                      <uui-button compact label="Remove" @click=${() => this._removeFilterGroup(index, rule, i)}>
+                      <uui-button compact label="Remove" @click=${() => this._removeFilter(index, rule, i)}>
                         <uui-icon name="icon-wrong"></uui-icon>
                       </uui-button>
                     </uui-tag>
                   `)}
                 </div>
-                <uui-button look="outline" @click=${() => this._openFilterGroupPicker(index, rule)} label="Select filter groups">
-                  Select filter groups
+                <uui-button look="outline" @click=${() => this._openFilterValuePicker(index, rule)} label="Select filter values">
+                  Select filter values
                 </uui-button>
               </div>
             `
@@ -303,11 +302,11 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
       border-top: 1px dashed var(--uui-color-border);
     }
 
-    .filter-groups {
+    .filter-values {
       margin-top: var(--uui-size-space-3);
     }
 
-    .filter-groups label {
+    .filter-values label {
       display: block;
       font-size: 0.85em;
       color: var(--uui-color-text-alt);

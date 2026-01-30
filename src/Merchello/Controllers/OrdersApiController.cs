@@ -27,7 +27,6 @@ using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Security;
 
 namespace Merchello.Controllers;
@@ -45,12 +44,10 @@ public class OrdersApiController(
     IProductService productService,
     ICurrencyService currencyService,
     ILocalityCatalog localityCatalog,
-    IOptions<MerchelloSettings> merchelloSettings,
     IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
     private readonly ICurrencyService _currencyService = currencyService;
     private readonly ILocalityCatalog _localityCatalog = localityCatalog;
-    private readonly MerchelloSettings _settings = merchelloSettings.Value;
     /// <summary>
     /// Get paginated list of orders/invoices
     /// </summary>
@@ -429,27 +426,9 @@ public class OrdersApiController(
     /// </summary>
     [HttpPost("orders/preview-discount")]
     [ProducesResponseType<PreviewDiscountResultDto>(StatusCodes.Status200OK)]
-    public PreviewDiscountResultDto PreviewDiscount([FromBody] PreviewDiscountRequestDto request)
+    public async Task<PreviewDiscountResultDto> PreviewDiscount([FromBody] PreviewDiscountRequestDto request, CancellationToken ct)
     {
-        // Use provided currency code or default to store currency
-        var currencyCode = !string.IsNullOrEmpty(request.CurrencyCode)
-            ? request.CurrencyCode
-            : _settings.StoreCurrencyCode;
-
-        var lineTotal = request.LineItemPrice * request.Quantity;
-        var discountAmount = request.DiscountType == DiscountValueType.FixedAmount
-            ? Math.Min(request.DiscountValue * request.Quantity, lineTotal)
-            : lineTotal * (request.DiscountValue / 100m);
-
-        // Round using currency-aware rounding from MerchelloSettings
-        var roundedDiscount = _currencyService.Round(discountAmount, currencyCode);
-
-        return new PreviewDiscountResultDto
-        {
-            LineTotal = _currencyService.Round(lineTotal, currencyCode),
-            DiscountAmount = roundedDiscount,
-            DiscountedTotal = _currencyService.Round(lineTotal - roundedDiscount, currencyCode)
-        };
+        return await invoiceEditService.PreviewDiscountAsync(request, ct);
     }
 
     /// <summary>

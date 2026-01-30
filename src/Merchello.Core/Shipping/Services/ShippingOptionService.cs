@@ -32,8 +32,6 @@ public class ShippingOptionService(
         var options = await scope.ExecuteWithContextAsync(async db =>
             await db.ShippingOptions
                 .Include(o => o.Warehouse)
-                .Include(o => o.ShippingCosts)
-                .Include(o => o.WeightTiers)
                 .AsSplitQuery()
                 .OrderBy(o => o.Warehouse!.Name)
                 .ThenBy(o => o.Name)
@@ -101,8 +99,6 @@ public class ShippingOptionService(
         var option = await scope.ExecuteWithContextAsync(async db =>
             await db.ShippingOptions
                 .Include(o => o.Warehouse)
-                .Include(o => o.ShippingCosts)
-                .Include(o => o.WeightTiers)
                 .AsSplitQuery()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(o => o.Id == id, ct));
@@ -403,22 +399,27 @@ public class ShippingOptionService(
     {
         var result = new CrudResult<ShippingCost>();
 
-        var cost = new ShippingCost
-        {
-            ShippingOptionId = optionId,
-            CountryCode = dto.CountryCode.ToUpperInvariant(),
-            StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant(),
-            Cost = dto.Cost
-        };
-
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            // Check for duplicate
-            var exists = await db.Set<ShippingCost>().AnyAsync(c =>
-                c.ShippingOptionId == optionId &&
-                c.CountryCode == cost.CountryCode &&
-                c.StateOrProvinceCode == cost.StateOrProvinceCode, ct);
+            var option = await db.ShippingOptions.FirstOrDefaultAsync(o => o.Id == optionId, ct);
+            if (option == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Shipping option not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
+
+            var costs = option.ShippingCosts;
+            var countryCode = dto.CountryCode.ToUpperInvariant();
+            var stateCode = dto.StateOrProvinceCode?.ToUpperInvariant();
+
+            var exists = costs.Any(c =>
+                c.CountryCode == countryCode &&
+                c.StateOrProvinceCode == stateCode);
 
             if (exists)
             {
@@ -430,7 +431,17 @@ public class ShippingOptionService(
                 return false;
             }
 
-            db.Set<ShippingCost>().Add(cost);
+            var cost = new ShippingCost
+            {
+                ShippingOptionId = optionId,
+                CountryCode = countryCode,
+                StateOrProvinceCode = stateCode,
+                Cost = dto.Cost
+            };
+
+            costs.Add(cost);
+            option.SetShippingCosts(costs);
+            option.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             result.ResultObject = cost;
             return true;
@@ -447,8 +458,22 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var cost = await db.Set<ShippingCost>().FindAsync([costId], ct);
-            if (cost == null)
+            var options = await db.ShippingOptions.ToListAsync(ct);
+            ShippingOption? targetOption = null;
+            ShippingCost? targetCost = null;
+
+            foreach (var option in options)
+            {
+                var optionCosts = option.ShippingCosts;
+                var match = optionCosts.FirstOrDefault(c => c.Id == costId);
+                if (match == null) continue;
+
+                targetOption = option;
+                targetCost = match;
+                break;
+            }
+
+            if (targetOption == null || targetCost == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -458,12 +483,15 @@ public class ShippingOptionService(
                 return false;
             }
 
-            cost.CountryCode = dto.CountryCode.ToUpperInvariant();
-            cost.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
-            cost.Cost = dto.Cost;
+            targetCost.CountryCode = dto.CountryCode.ToUpperInvariant();
+            targetCost.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
+            targetCost.Cost = dto.Cost;
+            targetCost.ShippingOptionId = targetOption.Id;
 
+            targetOption.SetShippingCosts(targetOption.ShippingCosts);
+            targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            result.ResultObject = cost;
+            result.ResultObject = targetCost;
             return true;
         });
         scope.Complete();
@@ -478,8 +506,22 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var cost = await db.Set<ShippingCost>().FindAsync([costId], ct);
-            if (cost == null)
+            var options = await db.ShippingOptions.ToListAsync(ct);
+            ShippingOption? targetOption = null;
+            ShippingCost? targetCost = null;
+
+            foreach (var option in options)
+            {
+                var optionCosts = option.ShippingCosts;
+                var match = optionCosts.FirstOrDefault(c => c.Id == costId);
+                if (match == null) continue;
+
+                targetOption = option;
+                targetCost = match;
+                break;
+            }
+
+            if (targetOption == null || targetCost == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -489,7 +531,10 @@ public class ShippingOptionService(
                 return false;
             }
 
-            db.Set<ShippingCost>().Remove(cost);
+            var costs = targetOption.ShippingCosts;
+            costs.RemoveAll(c => c.Id == costId);
+            targetOption.SetShippingCosts(costs);
+            targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             result.ResultObject = true;
             return true;
@@ -517,20 +562,34 @@ public class ShippingOptionService(
             return result;
         }
 
-        var tier = new ShippingWeightTier
-        {
-            ShippingOptionId = optionId,
-            CountryCode = dto.CountryCode.ToUpperInvariant(),
-            StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant(),
-            MinWeightKg = dto.MinWeightKg,
-            MaxWeightKg = dto.MaxWeightKg,
-            Surcharge = dto.Surcharge
-        };
-
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            db.ShippingWeightTiers.Add(tier);
+            var option = await db.ShippingOptions.FirstOrDefaultAsync(o => o.Id == optionId, ct);
+            if (option == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Shipping option not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
+
+            var tier = new ShippingWeightTier
+            {
+                ShippingOptionId = optionId,
+                CountryCode = dto.CountryCode.ToUpperInvariant(),
+                StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant(),
+                MinWeightKg = dto.MinWeightKg,
+                MaxWeightKg = dto.MaxWeightKg,
+                Surcharge = dto.Surcharge
+            };
+
+            var tiers = option.WeightTiers;
+            tiers.Add(tier);
+            option.SetShippingWeightTiers(tiers);
+            option.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             result.ResultObject = tier;
             return true;
@@ -557,8 +616,22 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var tier = await db.ShippingWeightTiers.FindAsync([tierId], ct);
-            if (tier == null)
+            var options = await db.ShippingOptions.ToListAsync(ct);
+            ShippingOption? targetOption = null;
+            ShippingWeightTier? targetTier = null;
+
+            foreach (var option in options)
+            {
+                var optionTiers = option.WeightTiers;
+                var match = optionTiers.FirstOrDefault(t => t.Id == tierId);
+                if (match == null) continue;
+
+                targetOption = option;
+                targetTier = match;
+                break;
+            }
+
+            if (targetOption == null || targetTier == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -568,15 +641,18 @@ public class ShippingOptionService(
                 return false;
             }
 
-            tier.CountryCode = dto.CountryCode.ToUpperInvariant();
-            tier.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
-            tier.MinWeightKg = dto.MinWeightKg;
-            tier.MaxWeightKg = dto.MaxWeightKg;
-            tier.Surcharge = dto.Surcharge;
-            tier.UpdateDate = DateTime.UtcNow;
+            targetTier.CountryCode = dto.CountryCode.ToUpperInvariant();
+            targetTier.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
+            targetTier.MinWeightKg = dto.MinWeightKg;
+            targetTier.MaxWeightKg = dto.MaxWeightKg;
+            targetTier.Surcharge = dto.Surcharge;
+            targetTier.UpdateDate = DateTime.UtcNow;
+            targetTier.ShippingOptionId = targetOption.Id;
 
+            targetOption.SetShippingWeightTiers(targetOption.WeightTiers);
+            targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            result.ResultObject = tier;
+            result.ResultObject = targetTier;
             return true;
         });
         scope.Complete();
@@ -591,8 +667,22 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var tier = await db.ShippingWeightTiers.FindAsync([tierId], ct);
-            if (tier == null)
+            var options = await db.ShippingOptions.ToListAsync(ct);
+            ShippingOption? targetOption = null;
+            ShippingWeightTier? targetTier = null;
+
+            foreach (var option in options)
+            {
+                var optionTiers = option.WeightTiers;
+                var match = optionTiers.FirstOrDefault(t => t.Id == tierId);
+                if (match == null) continue;
+
+                targetOption = option;
+                targetTier = match;
+                break;
+            }
+
+            if (targetOption == null || targetTier == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -602,7 +692,10 @@ public class ShippingOptionService(
                 return false;
             }
 
-            db.ShippingWeightTiers.Remove(tier);
+            var tiers = targetOption.WeightTiers;
+            tiers.RemoveAll(t => t.Id == tierId);
+            targetOption.SetShippingWeightTiers(tiers);
+            targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             result.ResultObject = true;
             return true;

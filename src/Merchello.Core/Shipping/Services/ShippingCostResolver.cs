@@ -116,7 +116,7 @@ public class ShippingCostResolver : IShippingCostResolver
         string? stateOrProvinceCode,
         decimal? weightKg = null)
     {
-        var costs = shippingOption.ShippingCosts?.ToList() ?? [];
+        var costs = shippingOption.ShippingCosts.ToList();
         var baseCost = ResolveBaseCost(
             costs,
             countryCode,
@@ -131,7 +131,7 @@ public class ShippingCostResolver : IShippingCostResolver
         // Add weight tier surcharge if applicable
         if (weightKg.HasValue && weightKg.Value > 0)
         {
-            var tiers = shippingOption.WeightTiers?.ToList() ?? [];
+            var tiers = shippingOption.WeightTiers.ToList();
             var surcharge = ResolveWeightTierSurcharge(tiers, weightKg.Value, countryCode, stateOrProvinceCode);
             return baseCost.Value + surcharge;
         }

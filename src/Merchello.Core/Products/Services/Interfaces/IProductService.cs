@@ -26,13 +26,7 @@ public interface IProductService
     /// </summary>
     Task<(decimal MinPrice, decimal MaxPrice)> GetPriceRangeForCollection(Guid collectionId, CancellationToken cancellationToken = default);
 
-    // Wizard creation methods
-    Task<CrudResult<ProductRoot>> CreateProductRootOnly(CreateProductRootOnlyParameters parameters, CancellationToken cancellationToken = default);
-    Task<CrudResult<ProductOption>> AddProductOption(AddProductOptionParameters parameters, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> RemoveProductOption(Guid productRootId, Guid optionId, CancellationToken cancellationToken = default);
-    Task<CrudResult<List<Product>>> GenerateVariantsFromOptions(GenerateVariantsParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateVariantStock(UpdateVariantStockParameters parameters, CancellationToken cancellationToken = default);
-    Task<CrudResult<bool>> ApplyStockTemplateToAllVariants(ApplyStockTemplateParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateVariantExcludedShippingOptions(Guid variantId, List<Guid> excludedShippingOptionIds, CancellationToken cancellationToken = default);
 
     /// <summary>

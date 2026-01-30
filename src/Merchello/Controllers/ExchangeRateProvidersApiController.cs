@@ -250,11 +250,11 @@ public class ExchangeRateProvidersApiController(
         Dictionary<string, string>? config = null;
 
         // Parse configuration but mask sensitive values
-        if (registered.Setting != null && !string.IsNullOrEmpty(registered.Setting.ConfigurationJson))
+        if (registered.Setting != null && !string.IsNullOrEmpty(registered.Setting.SettingsJson))
         {
             try
             {
-                config = JsonSerializer.Deserialize<Dictionary<string, string>>(registered.Setting.ConfigurationJson);
+                config = JsonSerializer.Deserialize<Dictionary<string, string>>(registered.Setting.SettingsJson);
                 // Note: We could mask sensitive values here if needed
             }
             catch
@@ -289,7 +289,7 @@ public class ExchangeRateProvidersApiController(
             IsSensitive = field.IsSensitive,
             DefaultValue = field.DefaultValue,
             Placeholder = field.Placeholder,
-            Options = field.Options?.Select(o => new SelectOptionDto
+            Options = field.Options?.Select(o => new SelectOption
             {
                 Value = o.Value,
                 Label = o.Label

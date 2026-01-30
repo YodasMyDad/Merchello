@@ -20,6 +20,8 @@ public class WarehouseDbMapping : IEntityTypeConfiguration<Warehouse>
         builder.Property(x => x.Address).ToJsonConversion(500);
         builder.Property(x => x.ExtendedData).ToJsonConversion(1000);
         builder.Property(x => x.AutomationMethod).HasMaxLength(1000);
+        builder.Property(x => x.ServiceRegionsJson);
+        builder.Property(x => x.ProviderConfigsJson);
         builder.Property(x => x.FulfilmentProviderConfigurationId).IsRequired(false);
 
         // Unique constraint on warehouse code

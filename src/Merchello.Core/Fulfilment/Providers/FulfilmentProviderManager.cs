@@ -54,7 +54,8 @@ public class FulfilmentProviderManager(
 
             using var scope = efCoreScopeProvider.CreateScope();
             var configurations = await scope.ExecuteWithContextAsync(async db =>
-                await db.FulfilmentProviderConfigurations
+                await db.ProviderConfigurations
+                    .OfType<FulfilmentProviderConfiguration>()
                     .AsNoTracking()
                     .ToListAsync(cancellationToken));
             scope.Complete();
@@ -147,7 +148,8 @@ public class FulfilmentProviderManager(
 
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            var existing = await db.FulfilmentProviderConfigurations
+            var existing = await db.ProviderConfigurations
+                .OfType<FulfilmentProviderConfiguration>()
                 .FirstOrDefaultAsync(c => c.Id == configuration.Id, cancellationToken);
 
             if (existing != null)
@@ -164,7 +166,7 @@ public class FulfilmentProviderManager(
 
             configuration.CreateDate = DateTime.UtcNow;
             configuration.UpdateDate = DateTime.UtcNow;
-            db.FulfilmentProviderConfigurations.Add(configuration);
+            db.ProviderConfigurations.Add(configuration);
             await db.SaveChangesAsync(cancellationToken);
             return configuration;
         });
@@ -180,7 +182,8 @@ public class FulfilmentProviderManager(
 
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var config = await db.FulfilmentProviderConfigurations
+            var config = await db.ProviderConfigurations
+                .OfType<FulfilmentProviderConfiguration>()
                 .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
 
             if (config == null)
@@ -207,7 +210,8 @@ public class FulfilmentProviderManager(
 
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var configurations = await db.FulfilmentProviderConfigurations
+            var configurations = await db.ProviderConfigurations
+                .OfType<FulfilmentProviderConfiguration>()
                 .Where(c => idList.Contains(c.Id))
                 .ToListAsync(cancellationToken);
 
@@ -235,7 +239,8 @@ public class FulfilmentProviderManager(
 
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var config = await db.FulfilmentProviderConfigurations
+            var config = await db.ProviderConfigurations
+                .OfType<FulfilmentProviderConfiguration>()
                 .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
 
             if (config == null)
@@ -243,7 +248,7 @@ public class FulfilmentProviderManager(
                 return false;
             }
 
-            db.FulfilmentProviderConfigurations.Remove(config);
+            db.ProviderConfigurations.Remove(config);
             await db.SaveChangesAsync(cancellationToken);
             return true;
         });

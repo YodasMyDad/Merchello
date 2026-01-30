@@ -8,7 +8,6 @@ import { MERCHELLO_COLLECTION_PICKER_MODAL } from "@collections/modals/collectio
 import { MERCHELLO_PRODUCT_TYPE_PICKER_MODAL } from "@product-types/modals/product-type-picker-modal.token.js";
 import { MERCHELLO_SUPPLIER_PICKER_MODAL } from "@suppliers/modals/supplier-picker-modal.token.js";
 import { MERCHELLO_FILTER_PICKER_MODAL } from "@filters/modals/filter-picker-modal.token.js";
-import { MERCHELLO_FILTER_GROUP_PICKER_MODAL } from "@filters/modals/filter-group-picker-modal.token.js";
 
 const TRIGGER_TYPE_OPTIONS = [
   { value: UpsellTriggerType.ProductTypes, label: "Product types" },
@@ -57,8 +56,8 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
       triggerType: UpsellTriggerType.ProductTypes,
       triggerIds: [],
       triggerNames: [],
-      extractFilterGroupIds: [],
-      extractFilterGroupNames: [],
+      extractFilterIds: [],
+      extractFilterNames: [],
     }];
     this._dispatchChange();
   }
@@ -78,8 +77,8 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
       triggerType,
       triggerIds: [],
       triggerNames: [],
-      extractFilterGroupIds: [],
-      extractFilterGroupNames: [],
+      extractFilterIds: [],
+      extractFilterNames: [],
     });
   }
 
@@ -173,18 +172,18 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
     }
   }
 
-  private async _openFilterGroupPicker(index: number, rule: UpsellTriggerRuleDto): Promise<void> {
+  private async _openFilterValuePicker(index: number, rule: UpsellTriggerRuleDto): Promise<void> {
     if (!this.#modalManager) return;
 
-    const modal = this.#modalManager.open(this, MERCHELLO_FILTER_GROUP_PICKER_MODAL, {
-      data: { excludeIds: rule.extractFilterGroupIds ?? [], multiSelect: true },
+    const modal = this.#modalManager.open(this, MERCHELLO_FILTER_PICKER_MODAL, {
+      data: { excludeFilterIds: rule.extractFilterIds ?? [], multiSelect: true },
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
-    if (result?.selectedIds?.length) {
+    if (result?.selectedFilterIds?.length) {
       this._handleUpdateRule(index, {
-        extractFilterGroupIds: [...(rule.extractFilterGroupIds ?? []), ...result.selectedIds],
-        extractFilterGroupNames: [...(rule.extractFilterGroupNames ?? []), ...result.selectedNames],
+        extractFilterIds: [...(rule.extractFilterIds ?? []), ...result.selectedFilterIds],
+        extractFilterNames: [...(rule.extractFilterNames ?? []), ...result.selectedFilterNames],
       });
     }
   }
@@ -196,10 +195,10 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
     });
   }
 
-  private _removeFilterGroup(index: number, rule: UpsellTriggerRuleDto, itemIndex: number): void {
+  private _removeFilter(index: number, rule: UpsellTriggerRuleDto, itemIndex: number): void {
     this._handleUpdateRule(index, {
-      extractFilterGroupIds: rule.extractFilterGroupIds?.filter((_, i) => i !== itemIndex) ?? [],
-      extractFilterGroupNames: rule.extractFilterGroupNames?.filter((_, i) => i !== itemIndex) ?? [],
+      extractFilterIds: rule.extractFilterIds?.filter((_, i) => i !== itemIndex) ?? [],
+      extractFilterNames: rule.extractFilterNames?.filter((_, i) => i !== itemIndex) ?? [],
     });
   }
 
@@ -258,19 +257,19 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
             ${this._supportsFilterExtraction(rule.triggerType)
               ? html`
                 <div class="filter-extraction">
-                  <label>Extract filter values from these groups (for filter matching):</label>
+                  <label>Only match products with these filter values (optional):</label>
                   <div class="tags">
-                    ${(rule.extractFilterGroupNames ?? []).map((name, i) => html`
+                    ${(rule.extractFilterNames ?? []).map((name, i) => html`
                       <uui-tag look="secondary" color="warning">
                         ${name}
-                        <uui-button compact label="Remove" @click=${() => this._removeFilterGroup(index, rule, i)}>
+                        <uui-button compact label="Remove" @click=${() => this._removeFilter(index, rule, i)}>
                           <uui-icon name="icon-wrong"></uui-icon>
                         </uui-button>
                       </uui-tag>
                     `)}
                   </div>
-                  <uui-button look="outline" @click=${() => this._openFilterGroupPicker(index, rule)} label="Select filter groups">
-                    Select filter groups
+                  <uui-button look="outline" @click=${() => this._openFilterValuePicker(index, rule)} label="Select filter values">
+                    Select filter values
                   </uui-button>
                 </div>
               `

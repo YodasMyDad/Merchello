@@ -1,35 +1,10 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Payments.Models;
-using Merchello.Core.Products.Models;
 
 namespace Merchello.Core.Accounting.Extensions;
 
 public static class AccountingExtensions
 {
-    /// <summary>
-    /// Converts a product into a line item
-    /// </summary>
-    /// <param name="product"></param>
-    /// <param name="qty"></param>
-    /// <returns></returns>
-    public static LineItem ToLineItem(this Product product, int qty)
-    {
-        var taxRate = product.ProductRoot?.TaxGroup?.TaxPercentage ?? 0m;
-        return new LineItem
-        {
-            Id = Shared.Extensions.GuidExtensions.NewSequentialGuid,
-            ProductId = product.Id,
-            Name = product.Name,
-            Sku = product.Sku,
-            Amount = product.Price,
-            Quantity = qty,
-            LineItemType = LineItemType.Product,
-            IsTaxable = taxRate > 0,
-            TaxRate = taxRate,
-            TaxGroupId = product.ProductRoot?.TaxGroupId
-        };
-    }
-
     /// <summary>
     /// Validates a line item being added
     /// </summary>

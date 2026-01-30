@@ -37,8 +37,9 @@ public static class UpsellTriggerMatcher
     }
 
     /// <summary>
-    /// Extracts filter values from matching line items based on ExtractFilterGroupIds.
+    /// Extracts specific filter values from matching line items based on ExtractFilterIds.
     /// Returns Dictionary of FilterGroupId -> Set of FilterIds found on matching products.
+    /// Only includes filter values that are both specified in the rule AND present on the product.
     /// </summary>
     public static Dictionary<Guid, HashSet<Guid>> ExtractFilterValues(
         List<UpsellContextLineItem> matchingLineItems,
@@ -48,24 +49,27 @@ public static class UpsellTriggerMatcher
 
         foreach (var rule in rules)
         {
-            var filterGroupIds = rule.GetExtractFilterGroupIdsList();
-            if (filterGroupIds.Count == 0) continue;
+            var filterIds = rule.GetExtractFilterIdsList();
+            if (filterIds.Count == 0) continue;
+
+            var filterIdSet = filterIds.ToHashSet();
 
             foreach (var lineItem in matchingLineItems)
             {
-                foreach (var filterGroupId in filterGroupIds)
+                foreach (var (filterGroupId, groupFilterIds) in lineItem.FiltersByGroup)
                 {
-                    if (!lineItem.FiltersByGroup.TryGetValue(filterGroupId, out var filterIds))
-                        continue;
-
-                    if (!extracted.TryGetValue(filterGroupId, out var existingSet))
+                    foreach (var filterId in groupFilterIds)
                     {
-                        existingSet = [];
-                        extracted[filterGroupId] = existingSet;
-                    }
+                        if (!filterIdSet.Contains(filterId)) continue;
 
-                    foreach (var filterId in filterIds)
+                        if (!extracted.TryGetValue(filterGroupId, out var existingSet))
+                        {
+                            existingSet = [];
+                            extracted[filterGroupId] = existingSet;
+                        }
+
                         existingSet.Add(filterId);
+                    }
                 }
             }
         }

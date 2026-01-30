@@ -32,7 +32,7 @@ public class BasketController(
     AppCaches appCaches,
     IProfilingLogger profilingLogger,
     IPublishedUrlProvider publishedUrlProvider)
-    : BaseController(options, umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger,
+    : BaseController(umbracoContextAccessor, databaseFactory, services, appCaches, profilingLogger,
         publishedUrlProvider)
 {
     private readonly MerchelloSettings _settings = options.Value;

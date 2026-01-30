@@ -117,12 +117,5 @@ public interface IShippingService
         Guid productId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Gets the shipping cost for a shipping option to a specific destination.
-    /// Lookup priority: State-specific cost → Country-level cost → Fixed cost.
-    /// </summary>
-    /// <param name="query">The shipping cost query parameters.</param>
-    /// <returns>The shipping cost, or null if no cost is configured</returns>
-    decimal? GetShippingCostForDestination(ShippingCostQuery query);
 }
 

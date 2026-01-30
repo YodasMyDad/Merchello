@@ -6,8 +6,7 @@ public class WarehouseServiceRegion
 {
     public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
 
-    public Guid WarehouseId { get; set; }
-    public Warehouse Warehouse { get; set; } = null!;
+    // JSON-stored: no navigation properties
 
     /// <summary>
     /// ISO 3166-1 alpha-2 country code, e.g. "US" or "GB"

@@ -3,6 +3,7 @@ using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
+using Merchello.Core.Locality.Dtos;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Checkout.Services;
@@ -57,7 +58,7 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
     }
 
     /// <inheritdoc />
-    public Dictionary<string, string> ValidateAddress(CheckoutAddressDto address, string prefix)
+    public Dictionary<string, string> ValidateAddress(AddressDto address, string prefix)
     {
         var errors = new Dictionary<string, string>();
 
@@ -66,14 +67,14 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
             errors[$"{prefix}.name"] = "Name is required.";
         }
 
-        if (string.IsNullOrWhiteSpace(address.Address1))
+        if (string.IsNullOrWhiteSpace(address.AddressOne))
         {
-            errors[$"{prefix}.address1"] = "Address is required.";
+            errors[$"{prefix}.addressOne"] = "Address is required.";
         }
 
-        if (string.IsNullOrWhiteSpace(address.City))
+        if (string.IsNullOrWhiteSpace(address.TownCity))
         {
-            errors[$"{prefix}.city"] = "City is required.";
+            errors[$"{prefix}.townCity"] = "City is required.";
         }
 
         if (string.IsNullOrWhiteSpace(address.CountryCode))

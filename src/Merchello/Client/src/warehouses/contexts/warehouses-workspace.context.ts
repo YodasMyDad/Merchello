@@ -134,7 +134,7 @@ export class MerchelloWarehousesWorkspaceContext
         addressTwo: "",
         townCity: "",
         countyState: "",
-        countyStateCode: "",
+        regionCode: "",
         postalCode: "",
         country: "",
         countryCode: "",

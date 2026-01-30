@@ -170,11 +170,11 @@ public class TaxProvidersApiController(
         var meta = registered.Metadata;
         Dictionary<string, string>? config = null;
 
-        if (registered.Setting != null && !string.IsNullOrEmpty(registered.Setting.ConfigurationJson))
+        if (registered.Setting != null && !string.IsNullOrEmpty(registered.Setting.SettingsJson))
         {
             try
             {
-                config = JsonSerializer.Deserialize<Dictionary<string, string>>(registered.Setting.ConfigurationJson);
+                config = JsonSerializer.Deserialize<Dictionary<string, string>>(registered.Setting.SettingsJson);
             }
             catch
             {
@@ -209,7 +209,7 @@ public class TaxProvidersApiController(
             IsSensitive = field.IsSensitive,
             DefaultValue = field.DefaultValue,
             Placeholder = field.Placeholder,
-            Options = field.Options?.Select(o => new SelectOptionDto
+            Options = field.Options?.Select(o => new SelectOption
             {
                 Value = o.Value,
                 Label = o.Label

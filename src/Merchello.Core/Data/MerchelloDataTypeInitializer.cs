@@ -181,22 +181,7 @@ public class MerchelloDataTypeInitializer : IDisposable
             }
         }
 
-        // Fallback: try to find existing DataType synchronously
-        // This should rarely be hit if startup initialization worked correctly
-        var allDataTypes = _dataTypeService.GetAllAsync().GetAwaiter().GetResult();
-        var dataType = allDataTypes.FirstOrDefault(dt =>
-            dt.Name?.Equals(PRODUCT_DESCRIPTION_DATATYPE_NAME, StringComparison.OrdinalIgnoreCase) == true);
-
-        if (dataType != null)
-        {
-            lock (_cacheLock)
-            {
-                _cachedDataTypeKey = dataType.Key;
-            }
-            return dataType.Key;
-        }
-
-        // Check configured key as last resort
+        // Check configured key as last resort (non-blocking)
         var configuredKey = _settings.CurrentValue.ProductDescriptionDataTypeKey;
         if (configuredKey.HasValue)
         {

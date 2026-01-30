@@ -1,9 +1,13 @@
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json.Serialization;
+
 namespace Merchello.Core.Payments.Models;
 
 /// <summary>
 /// Database entity for storing payment method settings.
 /// Each provider can have multiple method settings (one per payment method it offers).
 /// </summary>
+[NotMapped]
 public class PaymentMethodSetting
 {
     /// <summary>
@@ -68,5 +72,6 @@ public class PaymentMethodSetting
     /// <summary>
     /// Navigation property to the parent provider setting.
     /// </summary>
+    [JsonIgnore]
     public PaymentProviderSetting? ProviderSetting { get; set; }
 }

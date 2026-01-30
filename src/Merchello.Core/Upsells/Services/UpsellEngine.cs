@@ -541,10 +541,15 @@ public class UpsellEngine(
         {
             foreach (var recRule in matchingRecRules)
             {
-                var filterGroupsToMatch = recRule.GetMatchFilterGroupIdsList();
-                var groupsToCheck = filterGroupsToMatch.Count > 0
-                    ? extractedFilters.Where(kvp => filterGroupsToMatch.Contains(kvp.Key))
-                    : extractedFilters;
+                var matchFilterIds = recRule.GetMatchFilterIdsList();
+                var matchFilterIdSet = matchFilterIds.Count > 0 ? matchFilterIds.ToHashSet() : null;
+
+                // Filter extracted values to only include specified filter IDs (if any)
+                var groupsToCheck = matchFilterIdSet != null
+                    ? extractedFilters
+                        .Select(kvp => (kvp.Key, FilterIds: kvp.Value.Where(fid => matchFilterIdSet.Contains(fid)).ToHashSet()))
+                        .Where(x => x.FilterIds.Count > 0)
+                    : extractedFilters.Select(kvp => (kvp.Key, FilterIds: kvp.Value));
 
                 foreach (var (filterGroupId, requiredFilterIds) in groupsToCheck)
                 {

@@ -60,6 +60,7 @@ namespace Merchello.Core.Accounting.Services;
 public class InvoiceService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IShippingService shippingService,
+    IShippingCostResolver shippingCostResolver,
     IShippingProviderManager shippingProviderManager,
     IInventoryService inventoryService,
     IOrderStatusHandler statusHandler,
@@ -214,7 +215,6 @@ public class InvoiceService(
 
             var shippingOptions = shippingOptionIds.Count > 0
                 ? await db.ShippingOptions
-                    .Include(so => so.ShippingCosts)
                     .Where(so => shippingOptionIds.Contains(so.Id))
                     .ToDictionaryAsync(so => so.Id, cancellationToken)
                 : new Dictionary<Guid, ShippingOption>();
@@ -692,12 +692,11 @@ public class InvoiceService(
         }
 
         var stateOrProvinceCode = shippingAddress.CountyState?.RegionCode;
-        var cost = shippingService.GetShippingCostForDestination(new ShippingCostQuery
-        {
-            ShippingOption = shippingOption,
-            CountryCode = countryCode,
-            StateOrProvinceCode = stateOrProvinceCode
-        });
+        var cost = shippingCostResolver.ResolveBaseCost(
+            shippingOption.ShippingCosts,
+            countryCode,
+            stateOrProvinceCode,
+            shippingOption.FixedCost);
 
         if (cost.HasValue)
         {
@@ -2151,7 +2150,11 @@ public class InvoiceService(
             AddressOne = dto.AddressOne,
             AddressTwo = dto.AddressTwo,
             TownCity = dto.TownCity,
-            CountyState = new CountyState { Name = dto.CountyState },
+            CountyState = new CountyState
+            {
+                Name = dto.CountyState,
+                RegionCode = dto.RegionCode ?? dto.CountyState
+            },
             PostalCode = dto.PostalCode,
             Country = dto.Country,
             CountryCode = dto.CountryCode,

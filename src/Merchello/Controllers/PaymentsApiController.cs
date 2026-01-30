@@ -173,12 +173,12 @@ public class PaymentsApiController(
                 IsRequired = true,
                 Options =
                 [
-                    new SelectOptionDto { Value = "cash", Label = "Cash" },
-                    new SelectOptionDto { Value = "check", Label = "Check" },
-                    new SelectOptionDto { Value = "bank_transfer", Label = "Bank Transfer" },
-                    new SelectOptionDto { Value = "credit_card_manual", Label = "Credit Card (Manual)" },
-                    new SelectOptionDto { Value = "paypal_manual", Label = "PayPal (Manual)" },
-                    new SelectOptionDto { Value = "other", Label = "Other" }
+                    new SelectOption { Value = "cash", Label = "Cash" },
+                    new SelectOption { Value = "check", Label = "Check" },
+                    new SelectOption { Value = "bank_transfer", Label = "Bank Transfer" },
+                    new SelectOption { Value = "credit_card_manual", Label = "Credit Card (Manual)" },
+                    new SelectOption { Value = "paypal_manual", Label = "PayPal (Manual)" },
+                    new SelectOption { Value = "other", Label = "Other" }
                 ]
             },
             new()

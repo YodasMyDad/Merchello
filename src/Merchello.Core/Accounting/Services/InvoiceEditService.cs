@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
@@ -41,6 +42,7 @@ public class InvoiceEditService(
     ITaxProviderManager taxProviderManager,
     IOrderGroupingStrategyResolver strategyResolver,
     LineItemFactory lineItemFactory,
+    BasketFactory basketFactory,
     OrderFactory orderFactory,
     IOptions<MerchelloSettings> settings,
     ILogger<InvoiceEditService> logger) : IInvoiceEditService
@@ -636,6 +638,31 @@ public class InvoiceEditService(
 
         scope.Complete();
         return result;
+    }
+
+    /// <inheritdoc />
+    public Task<PreviewDiscountResultDto> PreviewDiscountAsync(
+        PreviewDiscountRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var currencyCode = !string.IsNullOrWhiteSpace(request.CurrencyCode)
+            ? request.CurrencyCode
+            : _settings.StoreCurrencyCode;
+
+        var lineTotal = request.LineItemPrice * request.Quantity;
+        var discountAmount = request.DiscountType == DiscountValueType.FixedAmount
+            ? Math.Min(request.DiscountValue * request.Quantity, lineTotal)
+            : lineTotal * (request.DiscountValue / 100m);
+
+        var roundedLineTotal = currencyService.Round(lineTotal, currencyCode);
+        var roundedDiscount = currencyService.Round(discountAmount, currencyCode);
+
+        return Task.FromResult(new PreviewDiscountResultDto
+        {
+            LineTotal = roundedLineTotal,
+            DiscountAmount = roundedDiscount,
+            DiscountedTotal = currencyService.Round(roundedLineTotal - roundedDiscount, currencyCode)
+        });
     }
 
     /// <inheritdoc />
@@ -1766,12 +1793,12 @@ public class InvoiceEditService(
                 .Include(p => p.ProductRoot!)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ServiceRegions)
+                            
                 .Include(p => p.ProductRoot!)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts)
+                                
                 .Include(p => p.ProductWarehouses)
                     .ThenInclude(pw => pw.Warehouse)
                 .Include(p => p.ShippingOptions)
@@ -1790,8 +1817,8 @@ public class InvoiceEditService(
         var warehouses = await db.Warehouses
             .AsNoTracking()
             .Include(w => w.ShippingOptions)
-                .ThenInclude(so => so.ShippingCosts)
-            .Include(w => w.ServiceRegions)
+                
+            
             .Where(w => warehouseIds.Contains(w.Id))
             .ToDictionaryAsync(w => w.Id, cancellationToken);
 
@@ -1833,13 +1860,11 @@ public class InvoiceEditService(
             ? _settings.StoreCurrencyCode
             : invoice.StoreCurrencyCode;
 
-        var virtualBasket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            LineItems = virtualLineItems,
-            Currency = storeCurrency,
-            BillingAddress = invoice.BillingAddress
-        };
+        var currencySymbol = currencyService.GetCurrency(storeCurrency).Symbol;
+        var virtualBasket = basketFactory.Create(invoice.CustomerId, storeCurrency, currencySymbol);
+        virtualBasket.LineItems = virtualLineItems;
+        virtualBasket.BillingAddress = invoice.BillingAddress;
+        virtualBasket.ShippingAddress = invoice.ShippingAddress;
 
         // Build the grouping context
         var context = new OrderGroupingContext
@@ -2064,3 +2089,5 @@ public class InvoiceEditService(
         public bool HadOriginalDiscount { get; set; }
     }
 }
+
+

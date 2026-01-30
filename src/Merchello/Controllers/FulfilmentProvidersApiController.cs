@@ -456,7 +456,7 @@ public class FulfilmentProvidersApiController(
             IsSensitive = field.IsSensitive,
             DefaultValue = field.DefaultValue,
             Placeholder = field.Placeholder,
-            Options = field.Options?.Select(o => new SelectOptionDto
+            Options = field.Options?.Select(o => new SelectOption
             {
                 Value = o.Value,
                 Label = o.Label

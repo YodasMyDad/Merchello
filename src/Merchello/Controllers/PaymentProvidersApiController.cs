@@ -315,7 +315,7 @@ public class PaymentProvidersApiController(
         var response = new TestPaymentProviderResultDto
         {
             ProviderAlias = setting.ProviderAlias,
-            ProviderName = setting.DisplayName,
+            ProviderName = setting.DisplayName ?? setting.ProviderAlias,
             TestInvoiceId = testInvoiceId,
             IntegrationType = PaymentIntegrationType.Redirect // Will be updated from session result
         };
@@ -1104,7 +1104,7 @@ public class PaymentProvidersApiController(
         {
             Id = setting.Id,
             ProviderAlias = setting.ProviderAlias,
-            DisplayName = setting.DisplayName,
+            DisplayName = setting.DisplayName ?? setting.ProviderAlias,
             IsEnabled = setting.IsEnabled,
             IsTestMode = setting.IsTestMode,
             IsVaultingEnabled = setting.IsVaultingEnabled,
@@ -1128,7 +1128,7 @@ public class PaymentProvidersApiController(
             IsSensitive = field.IsSensitive,
             DefaultValue = field.DefaultValue,
             Placeholder = field.Placeholder,
-            Options = field.Options?.Select(o => new SelectOptionDto
+            Options = field.Options?.Select(o => new SelectOption
             {
                 Value = o.Value,
                 Label = o.Label

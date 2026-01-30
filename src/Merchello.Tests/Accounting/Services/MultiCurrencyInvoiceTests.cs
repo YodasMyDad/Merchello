@@ -45,17 +45,23 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse("UK Warehouse", "GB");
         var shippingOption = dataBuilder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 12.50m);
 
-        shippingOption.ShippingCosts.Add(new Core.Shipping.Models.ShippingCost
-        {
-            CountryCode = "GB",
-            Cost = 12.50m  // $12.50 USD shipping
-        });
+        shippingOption.SetShippingCosts(
+        [
+            new Core.Shipping.Models.ShippingCost
+            {
+                ShippingOptionId = shippingOption.Id,
+                CountryCode = "GB",
+                Cost = 12.50m  // $12.50 USD shipping
+            }
+        ]);
 
-        warehouse.ServiceRegions.Add(new WarehouseServiceRegion
+        var regions = warehouse.ServiceRegions;
+        regions.Add(new WarehouseServiceRegion
         {
             CountryCode = "GB",
             IsExcluded = false
         });
+        warehouse.SetServiceRegions(regions);
         warehouse.ShippingOptions.Add(shippingOption);
 
         var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
@@ -186,8 +192,13 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse("Warehouse", "GB");
         var shippingOption = dataBuilder.CreateShippingOption("Standard", warehouse, fixedCost: 5.00m);
 
-        shippingOption.ShippingCosts.Add(new Core.Shipping.Models.ShippingCost { CountryCode = "GB", Cost = 5.00m });
-        warehouse.ServiceRegions.Add(new WarehouseServiceRegion { CountryCode = "GB", IsExcluded = false });
+        shippingOption.SetShippingCosts(
+        [
+            new Core.Shipping.Models.ShippingCost { ShippingOptionId = shippingOption.Id, CountryCode = "GB", Cost = 5.00m }
+        ]);
+        var regions = warehouse.ServiceRegions;
+        regions.Add(new WarehouseServiceRegion { CountryCode = "GB", IsExcluded = false });
+        warehouse.SetServiceRegions(regions);
         warehouse.ShippingOptions.Add(shippingOption);
 
         var taxGroup = dataBuilder.CreateTaxGroup("VAT", 20m);
@@ -311,8 +322,13 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse("US Warehouse", "US");
         var shippingOption = dataBuilder.CreateShippingOption("Standard", warehouse, fixedCost: 9.99m);
 
-        shippingOption.ShippingCosts.Add(new Core.Shipping.Models.ShippingCost { CountryCode = "US", Cost = 9.99m });
-        warehouse.ServiceRegions.Add(new WarehouseServiceRegion { CountryCode = "US", IsExcluded = false });
+        shippingOption.SetShippingCosts(
+        [
+            new Core.Shipping.Models.ShippingCost { ShippingOptionId = shippingOption.Id, CountryCode = "US", Cost = 9.99m }
+        ]);
+        var regions = warehouse.ServiceRegions;
+        regions.Add(new WarehouseServiceRegion { CountryCode = "US", IsExcluded = false });
+        warehouse.SetServiceRegions(regions);
         warehouse.ShippingOptions.Add(shippingOption);
 
         var taxGroup = dataBuilder.CreateTaxGroup("Sales Tax", 8m);

@@ -221,7 +221,7 @@ public class UpsellEngineTests : IClassFixture<ServiceTestFixture>
                 {
                     TriggerType = UpsellTriggerType.ProductTypes,
                     TriggerIds = [triggerType.Id],
-                    ExtractFilterGroupIds = [filterGroup.Id],
+                    ExtractFilterIds = [king.Id],
                 },
             ],
             RecommendationRules =
@@ -231,7 +231,7 @@ public class UpsellEngineTests : IClassFixture<ServiceTestFixture>
                     RecommendationType = UpsellRecommendationType.ProductTypes,
                     RecommendationIds = [recType.Id],
                     MatchTriggerFilters = true,
-                    MatchFilterGroupIds = [filterGroup.Id],
+                    MatchFilterIds = [king.Id],
                 },
             ],
             SortBy = UpsellSortBy.PriceLowToHigh

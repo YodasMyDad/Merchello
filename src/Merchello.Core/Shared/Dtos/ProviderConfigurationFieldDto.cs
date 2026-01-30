@@ -13,5 +13,5 @@ public class ProviderConfigurationFieldDto
     public bool IsSensitive { get; set; }
     public string? DefaultValue { get; set; }
     public string? Placeholder { get; set; }
-    public List<SelectOptionDto>? Options { get; set; }
+    public List<Merchello.Core.Shared.Providers.SelectOption>? Options { get; set; }
 }

@@ -18,7 +18,7 @@ public class AddProductWithAddonsParameters
     /// <summary>
     /// Selected add-on option values (non-variant options with price adjustments).
     /// </summary>
-    public List<SelectedAddon> Addons { get; set; } = [];
+    public List<Merchello.Core.Shared.Dtos.AddonSelectionDto> Addons { get; set; } = [];
 
     /// <summary>
     /// Optional customer ID for logged-in users.

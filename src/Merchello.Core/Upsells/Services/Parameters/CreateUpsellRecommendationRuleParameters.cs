@@ -10,5 +10,5 @@ public class CreateUpsellRecommendationRuleParameters
     public UpsellRecommendationType RecommendationType { get; set; }
     public List<Guid>? RecommendationIds { get; set; }
     public bool MatchTriggerFilters { get; set; }
-    public List<Guid>? MatchFilterGroupIds { get; set; }
+    public List<Guid>? MatchFilterIds { get; set; }
 }

@@ -828,6 +828,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<int?>("PaymentTermsDays")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("TagsJson")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DateCreated");
@@ -921,35 +924,6 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsUnique();
 
                     b.ToTable("merchelloCustomerSegmentMembers", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerTag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("CustomerId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("DateAdded")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Tag")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CustomerId");
-
-                    b.HasIndex("Tag");
-
-                    b.HasIndex("CustomerId", "Tag")
-                        .IsUnique();
-
-                    b.ToTable("merchelloCustomerTags", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.DigitalProducts.Models.DownloadLink", b =>
@@ -1250,94 +1224,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloEmailConfigurations", (string)null);
                 });
 
-            modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ConfigurationJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreateDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("LastFetchedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastRatesJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProviderAlias")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdateDate")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("ProviderAlias")
-                        .IsUnique();
-
-                    b.ToTable("merchelloExchangeRateProviders", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreateDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("InventorySyncMode")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
-
-                    b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("ProviderKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SettingsJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SortOrder")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime>("UpdateDate")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProviderKey");
-
-                    b.ToTable("merchelloFulfilmentProviderConfigurations", (string)null);
-                });
-
             modelBuilder.Entity("Merchello.Core.Fulfilment.Models.FulfilmentSyncLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1423,100 +1309,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasIndex("ProviderConfigurationId", "MessageId");
 
                     b.ToTable("merchelloFulfilmentWebhookLogs", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentMethodSetting", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CheckoutStyleOverride")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("DateCreated")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("DateUpdated")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayNameOverride")
-                        .HasMaxLength(250)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid?>("IconMediaKey")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("MethodAlias")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("PaymentProviderSettingId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool?>("ShowInCheckout")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PaymentProviderSettingId", "MethodAlias")
-                        .IsUnique();
-
-                    b.ToTable("merchelloPaymentMethods", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentProviderSetting", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Configuration")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("DateCreated")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("DateUpdated")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(250)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsTestMode")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsVaultingEnabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ProviderAlias")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProviderAlias")
-                        .IsUnique();
-
-                    b.ToTable("merchelloPaymentProviders", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Payments.Models.SavedPaymentMethod", b =>
@@ -1967,35 +1759,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloProductWarehouse", (string)null);
                 });
 
-            modelBuilder.Entity("Merchello.Core.Products.Models.ProductWarehousePriceOverride", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("CostOfGoods")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("Price")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("WarehouseId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("WarehouseId");
-
-                    b.ToTable("merchelloProductWarehousePriceOverride", (string)null);
-                });
-
             modelBuilder.Entity("Merchello.Core.Protocols.Webhooks.Models.SigningKey", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2057,6 +1820,48 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasDatabaseName("IX_merchelloSigningKeys_KeyId");
 
                     b.ToTable("merchelloSigningKeys", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.Shared.Providers.ProviderConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ProviderKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderType")
+                        .IsRequired()
+                        .HasMaxLength(21)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SettingsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdateDate")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("merchelloProviderConfigurations", (string)null);
+
+                    b.HasDiscriminator<string>("ProviderType").HasValue("ProviderConfiguration");
+
+                    b.UseTphMappingStrategy();
                 });
 
             modelBuilder.Entity("Merchello.Core.Shipping.Models.Shipment", b =>
@@ -2125,34 +1930,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasIndex("WarehouseId");
 
                     b.ToTable("merchelloShipments", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingCost", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("Cost")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<string>("CountryCode")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ShippingOptionId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StateOrProvinceCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ShippingOptionId");
-
-                    b.ToTable("merchelloShippingCosts", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingOption", b =>
@@ -2225,6 +2002,12 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ShippingCostsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ShippingWeightTiersJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("UpdateDate")
                         .HasColumnType("TEXT");
 
@@ -2236,154 +2019,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasIndex("WarehouseId");
 
                     b.ToTable("merchelloShippingOptions", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingOptionCountry", b =>
-                {
-                    b.Property<Guid>("ShippingOptionId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CountryCode")
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("ShippingOptionId", "CountryCode");
-
-                    b.ToTable("merchelloShippingOptionCountries", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingProviderConfiguration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreateDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ProviderKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SettingsJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SortOrder")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(0);
-
-                    b.Property<DateTime>("UpdateDate")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProviderKey")
-                        .IsUnique();
-
-                    b.ToTable("merchelloShippingProviderConfigurations", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingWeightTier", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CountryCode")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreateDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal?>("MaxWeightKg")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<decimal>("MinWeightKg")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<Guid>("ShippingOptionId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StateOrProvinceCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<decimal>("Surcharge")
-                        .HasColumnType("decimal(18,4)");
-
-                    b.Property<DateTime>("UpdateDate")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ShippingOptionId", "CountryCode", "StateOrProvinceCode");
-
-                    b.ToTable("merchelloShippingWeightTiers", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.WarehouseProviderConfig", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreateDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("DefaultDaysFromOverride")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int?>("DefaultDaysToOverride")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<decimal>("DefaultMarkupPercent")
-                        .ValueGeneratedOnAdd()
-                        .HasPrecision(18, 4)
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue(0m);
-
-                    b.Property<string>("ExcludedServiceTypesJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsEnabled")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("ProviderKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ServiceMarkupsJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdateDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("WarehouseId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WarehouseId", "ProviderKey")
-                        .IsUnique();
-
-                    b.ToTable("merchelloWarehouseProviderConfigs", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>
@@ -2437,43 +2072,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasIndex("DefaultFulfilmentProviderConfigurationId");
 
                     b.ToTable("merchelloSuppliers", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Tax.Models.TaxProviderSetting", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ConfigurationJson")
-                        .HasMaxLength(4000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreateDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ProviderAlias")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("UpdateDate")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("ProviderAlias")
-                        .IsUnique();
-
-                    b.ToTable("merchelloTaxProviders", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Upsells.Models.UpsellEvent", b =>
@@ -2645,6 +2243,12 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ProviderConfigsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ServiceRegionsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("SupplierId")
                         .HasColumnType("TEXT");
 
@@ -2658,34 +2262,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.HasIndex("SupplierId");
 
                     b.ToTable("merchelloWarehouses", (string)null);
-                });
-
-            modelBuilder.Entity("Merchello.Core.Warehouses.Models.WarehouseServiceRegion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CountryCode")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsExcluded")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("StateOrProvinceCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("WarehouseId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WarehouseId");
-
-                    b.ToTable("merchelloWarehouseServiceRegions", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.Webhooks.Models.OutboundDelivery", b =>
@@ -2977,6 +2553,59 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloProductRootShippingOptions");
                 });
 
+            modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
+                {
+                    b.HasBaseType("Merchello.Core.Shared.Providers.ProviderConfiguration");
+
+                    b.Property<DateTime?>("LastFetchedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastRatesJson")
+                        .HasColumnType("TEXT");
+
+                    b.HasDiscriminator().HasValue("exchange-rate");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Fulfilment.Models.FulfilmentProviderConfiguration", b =>
+                {
+                    b.HasBaseType("Merchello.Core.Shared.Providers.ProviderConfiguration");
+
+                    b.Property<int>("InventorySyncMode")
+                        .HasColumnType("INTEGER");
+
+                    b.HasDiscriminator().HasValue("fulfilment");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentProviderSetting", b =>
+                {
+                    b.HasBaseType("Merchello.Core.Shared.Providers.ProviderConfiguration");
+
+                    b.Property<bool>("IsTestMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsVaultingEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("MethodSettingsJson")
+                        .HasColumnType("TEXT");
+
+                    b.HasDiscriminator().HasValue("payment");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingProviderConfiguration", b =>
+                {
+                    b.HasBaseType("Merchello.Core.Shared.Providers.ProviderConfiguration");
+
+                    b.HasDiscriminator().HasValue("shipping");
+                });
+
+            modelBuilder.Entity("Merchello.Core.Tax.Models.TaxProviderSetting", b =>
+                {
+                    b.HasBaseType("Merchello.Core.Shared.Providers.ProviderConfiguration");
+
+                    b.HasDiscriminator().HasValue("tax");
+                });
+
             modelBuilder.Entity("Merchello.Core.Accounting.Models.Invoice", b =>
                 {
                     b.HasOne("Merchello.Core.Customers.Models.Customer", null)
@@ -3264,17 +2893,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Segment");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Customers.Models.CustomerTag", b =>
-                {
-                    b.HasOne("Merchello.Core.Customers.Models.Customer", "Customer")
-                        .WithMany("CustomerTags")
-                        .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Customer");
-                });
-
             modelBuilder.Entity("Merchello.Core.Discounts.Models.DiscountUsage", b =>
                 {
                     b.HasOne("Merchello.Core.Discounts.Models.Discount", "Discount")
@@ -3314,17 +2932,6 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsRequired();
 
                     b.Navigation("ProviderConfiguration");
-                });
-
-            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentMethodSetting", b =>
-                {
-                    b.HasOne("Merchello.Core.Payments.Models.PaymentProviderSetting", "ProviderSetting")
-                        .WithMany("MethodSettings")
-                        .HasForeignKey("PaymentProviderSettingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ProviderSetting");
                 });
 
             modelBuilder.Entity("Merchello.Core.Payments.Models.SavedPaymentMethod", b =>
@@ -3417,25 +3024,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Warehouse");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Products.Models.ProductWarehousePriceOverride", b =>
-                {
-                    b.HasOne("Merchello.Core.Products.Models.Product", "Product")
-                        .WithMany("ProductWarehousePriceOverrides")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Merchello.Core.Warehouses.Models.Warehouse", "Warehouse")
-                        .WithMany("ProductWarehousePriceOverrides")
-                        .HasForeignKey("WarehouseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("Warehouse");
-                });
-
             modelBuilder.Entity("Merchello.Core.Shipping.Models.Shipment", b =>
                 {
                     b.HasOne("Merchello.Core.Accounting.Models.Order", "Order")
@@ -3455,17 +3043,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Warehouse");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingCost", b =>
-                {
-                    b.HasOne("Merchello.Core.Shipping.Models.ShippingOption", "ShippingOption")
-                        .WithMany("ShippingCosts")
-                        .HasForeignKey("ShippingOptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ShippingOption");
-                });
-
             modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingOption", b =>
                 {
                     b.HasOne("Merchello.Core.Warehouses.Models.Warehouse", "Warehouse")
@@ -3475,81 +3052,6 @@ namespace Merchello.Core.Sqlite.Migrations
                         .IsRequired();
 
                     b.Navigation("Warehouse");
-                });
-
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingOptionCountry", b =>
-                {
-                    b.HasOne("Merchello.Core.Shipping.Models.ShippingOption", "ShippingOption")
-                        .WithMany("ShippingOptionCountries")
-                        .HasForeignKey("ShippingOptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.OwnsOne("Merchello.Core.Locality.Models.Country", "Country", b1 =>
-                        {
-                            b1.Property<Guid>("ShippingOptionCountryShippingOptionId")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("ShippingOptionCountryCountryCode")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("CountryCode")
-                                .HasColumnType("TEXT");
-
-                            b1.Property<string>("Name")
-                                .HasColumnType("TEXT");
-
-                            b1.HasKey("ShippingOptionCountryShippingOptionId", "ShippingOptionCountryCountryCode");
-
-                            b1.ToTable("merchelloShippingOptionCountries");
-
-                            b1.WithOwner()
-                                .HasForeignKey("ShippingOptionCountryShippingOptionId", "ShippingOptionCountryCountryCode");
-
-                            b1.OwnsMany("Merchello.Core.Locality.Models.CountyState", "CountyStates", b2 =>
-                                {
-                                    b2.Property<Guid>("CountryShippingOptionCountryShippingOptionId")
-                                        .HasColumnType("TEXT");
-
-                                    b2.Property<string>("CountryShippingOptionCountryCountryCode")
-                                        .HasColumnType("TEXT");
-
-                                    b2.Property<int>("Id")
-                                        .ValueGeneratedOnAdd()
-                                        .HasColumnType("INTEGER");
-
-                                    b2.Property<string>("Name")
-                                        .HasColumnType("TEXT");
-
-                                    b2.Property<string>("RegionCode")
-                                        .HasColumnType("TEXT");
-
-                                    b2.HasKey("CountryShippingOptionCountryShippingOptionId", "CountryShippingOptionCountryCountryCode", "Id");
-
-                                    b2.ToTable("merchelloShippingOptionCountries_CountyStates");
-
-                                    b2.WithOwner()
-                                        .HasForeignKey("CountryShippingOptionCountryShippingOptionId", "CountryShippingOptionCountryCountryCode");
-                                });
-
-                            b1.Navigation("CountyStates");
-                        });
-
-                    b.Navigation("Country")
-                        .IsRequired();
-
-                    b.Navigation("ShippingOption");
-                });
-
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingWeightTier", b =>
-                {
-                    b.HasOne("Merchello.Core.Shipping.Models.ShippingOption", "ShippingOption")
-                        .WithMany("WeightTiers")
-                        .HasForeignKey("ShippingOptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ShippingOption");
                 });
 
             modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>
@@ -3588,17 +3090,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("FulfilmentProviderConfiguration");
 
                     b.Navigation("Supplier");
-                });
-
-            modelBuilder.Entity("Merchello.Core.Warehouses.Models.WarehouseServiceRegion", b =>
-                {
-                    b.HasOne("Merchello.Core.Warehouses.Models.Warehouse", "Warehouse")
-                        .WithMany("ServiceRegions")
-                        .HasForeignKey("WarehouseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Warehouse");
                 });
 
             modelBuilder.Entity("Merchello.Core.Webhooks.Models.OutboundDelivery", b =>
@@ -3715,8 +3206,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
             modelBuilder.Entity("Merchello.Core.Customers.Models.Customer", b =>
                 {
-                    b.Navigation("CustomerTags");
-
                     b.Navigation("Invoices");
 
                     b.Navigation("SavedPaymentMethods");
@@ -3727,15 +3216,8 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Members");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Payments.Models.PaymentProviderSetting", b =>
-                {
-                    b.Navigation("MethodSettings");
-                });
-
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
-                    b.Navigation("ProductWarehousePriceOverrides");
-
                     b.Navigation("ProductWarehouses");
                 });
 
@@ -3756,15 +3238,6 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Products");
                 });
 
-            modelBuilder.Entity("Merchello.Core.Shipping.Models.ShippingOption", b =>
-                {
-                    b.Navigation("ShippingCosts");
-
-                    b.Navigation("ShippingOptionCountries");
-
-                    b.Navigation("WeightTiers");
-                });
-
             modelBuilder.Entity("Merchello.Core.Suppliers.Models.Supplier", b =>
                 {
                     b.Navigation("Warehouses");
@@ -3774,11 +3247,7 @@ namespace Merchello.Core.Sqlite.Migrations
                 {
                     b.Navigation("ProductRootWarehouses");
 
-                    b.Navigation("ProductWarehousePriceOverrides");
-
                     b.Navigation("ProductWarehouses");
-
-                    b.Navigation("ServiceRegions");
 
                     b.Navigation("ShippingOptions");
                 });

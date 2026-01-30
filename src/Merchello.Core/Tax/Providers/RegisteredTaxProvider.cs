@@ -33,5 +33,5 @@ public sealed class RegisteredTaxProvider
     /// <summary>
     /// Whether this provider is the currently active one.
     /// </summary>
-    public bool IsActive => Setting?.IsActive ?? false;
+    public bool IsActive => Setting?.IsEnabled ?? false;
 }

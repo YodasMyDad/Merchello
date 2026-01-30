@@ -10,11 +10,8 @@ public class ShippingWeightTier
 {
     public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
 
-    /// <summary>
-    /// The shipping option this weight tier belongs to
-    /// </summary>
+    // Optional: parent option for admin lookups (JSON-stored)
     public Guid ShippingOptionId { get; set; }
-    public virtual ShippingOption ShippingOption { get; set; } = null!;
 
     /// <summary>
     /// Country code (ISO 3166-1 alpha-2) or "*" for universal default

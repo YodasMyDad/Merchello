@@ -377,10 +377,10 @@ public class ShippingCostResolverTests
     {
         // Arrange
         var option = CreateShippingOption(fixedCost: 5.99m);
-        option.WeightTiers =
+        option.SetShippingWeightTiers(
         [
             CreateTier("*", null, 0, null, 3m)
-        ];
+        ]);
 
         // Act
         var result = _resolver.GetTotalShippingCost(option, "GB", null, weightKg: 2m);
@@ -394,10 +394,10 @@ public class ShippingCostResolverTests
     {
         // Arrange
         var option = CreateShippingOption(fixedCost: 5.99m);
-        option.ShippingCosts =
+        option.SetShippingCosts(
         [
             CreateCost("US", 14.99m)
-        ];
+        ]);
 
         // Act
         var result = _resolver.GetTotalShippingCost(option, "US", null);
@@ -458,9 +458,7 @@ public class ShippingCostResolverTests
     private static ShippingOption CreateShippingOption(decimal? fixedCost) => new()
     {
         Name = "Test Option",
-        FixedCost = fixedCost,
-        ShippingCosts = [],
-        WeightTiers = []
+        FixedCost = fixedCost
     };
 
     #endregion

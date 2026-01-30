@@ -1,5 +1,7 @@
 namespace Merchello.Core.Checkout.Dtos;
 
+using Merchello.Core.Locality.Dtos;
+
 /// <summary>
 /// Basket DTO for checkout API responses (addresses, order groups, payment).
 /// </summary>
@@ -45,8 +47,8 @@ public class CheckoutBasketDto
     public string DisplayCurrencySymbol { get; set; } = "";
     public decimal ExchangeRate { get; set; } = 1m;
 
-    public CheckoutAddressDto? BillingAddress { get; set; }
-    public CheckoutAddressDto? ShippingAddress { get; set; }
+    public AddressDto? BillingAddress { get; set; }
+    public AddressDto? ShippingAddress { get; set; }
     public List<AppliedDiscountDto> AppliedDiscounts { get; set; } = [];
     public List<BasketErrorDto> Errors { get; set; } = [];
     public bool IsEmpty { get; set; }

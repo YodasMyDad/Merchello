@@ -20,7 +20,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         var warehouses = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .AsNoTracking()
-                .Include(w => w.ServiceRegions)
+                
                 .ToListAsync(ct));
         scope.Complete();
 
@@ -127,7 +127,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         var warehouses = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .AsNoTracking()
-                .Include(w => w.ServiceRegions)
+                
                 .ToListAsync(ct));
         scope.Complete();
 
@@ -212,7 +212,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         var warehouse = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .AsNoTracking()
-                .Include(w => w.ServiceRegions)
+                
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, ct));
         scope.Complete();
 
@@ -307,7 +307,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         var warehouse = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .AsNoTracking()
-                .Include(w => w.ServiceRegions)
+                
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, ct));
         scope.Complete();
 
@@ -397,3 +397,4 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         return result;
     }
 }
+

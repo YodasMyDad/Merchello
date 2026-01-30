@@ -19,16 +19,16 @@ public class UpsellRecommendationRule
 
     /// <summary>
     /// When true, recommended products are filtered to match the filter values
-    /// extracted from trigger products (via ExtractFilterGroupIds on the trigger rule).
+    /// extracted from trigger products (via ExtractFilterIds on the trigger rule).
     /// </summary>
     public bool MatchTriggerFilters { get; set; }
 
     /// <summary>
-    /// Optional: Specific filter group IDs to match from trigger.
-    /// When null/empty and MatchTriggerFilters is true, matches ALL extracted filter groups.
-    /// When specified, only matches the listed filter groups.
+    /// Optional: Specific filter value IDs to match from trigger.
+    /// When null/empty and MatchTriggerFilters is true, matches ALL extracted filter values.
+    /// When specified, only matches the listed filter values.
     /// </summary>
-    public string? MatchFilterGroupIds { get; set; }
+    public string? MatchFilterIds { get; set; }
 
     /// <summary>
     /// Gets the recommendation IDs as a list of Guids.
@@ -49,16 +49,16 @@ public class UpsellRecommendationRule
     }
 
     /// <summary>
-    /// Gets the match filter group IDs as a list of Guids.
+    /// Gets the match filter IDs as a list of Guids.
     /// </summary>
-    public List<Guid> GetMatchFilterGroupIdsList()
+    public List<Guid> GetMatchFilterIdsList()
     {
-        if (string.IsNullOrEmpty(MatchFilterGroupIds))
+        if (string.IsNullOrEmpty(MatchFilterIds))
             return [];
 
         try
         {
-            return JsonSerializer.Deserialize<List<Guid>>(MatchFilterGroupIds) ?? [];
+            return JsonSerializer.Deserialize<List<Guid>>(MatchFilterIds) ?? [];
         }
         catch (JsonException)
         {

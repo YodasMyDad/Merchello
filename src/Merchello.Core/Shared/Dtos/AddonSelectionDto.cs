@@ -1,17 +1,17 @@
-namespace Merchello.Core.Storefront.Dtos;
+namespace Merchello.Core.Shared.Dtos;
 
 /// <summary>
-/// Selected add-on option
+/// Selected add-on option value.
 /// </summary>
-public class StorefrontAddonDto
+public class AddonSelectionDto
 {
     /// <summary>
-    /// The ProductOption ID
+    /// Option ID.
     /// </summary>
     public Guid OptionId { get; set; }
 
     /// <summary>
-    /// The ProductOptionValue ID
+    /// Value ID.
     /// </summary>
     public Guid ValueId { get; set; }
 }

@@ -41,19 +41,14 @@ public class UpsellRuleNameResolver(
                 _ => []
             };
 
-            // Resolve extract filter group names
-            if (rule.ExtractFilterGroupIds is { Count: > 0 })
+            // Resolve extract filter value names
+            if (rule.ExtractFilterIds is { Count: > 0 })
             {
-                var filterGroups = await productFilterService.GetFilterGroups(ct);
-                var idSet = rule.ExtractFilterGroupIds.ToHashSet();
-                rule.ExtractFilterGroupNames = filterGroups
-                    .Where(g => idSet.Contains(g.Id))
-                    .Select(g => g.Name ?? "Unknown Group")
-                    .ToList();
+                rule.ExtractFilterNames = await GetFilterNamesWithGroupAsync(rule.ExtractFilterIds, ct);
             }
             else
             {
-                rule.ExtractFilterGroupNames = [];
+                rule.ExtractFilterNames = [];
             }
         }
     }
@@ -79,19 +74,14 @@ public class UpsellRuleNameResolver(
                 _ => []
             };
 
-            // Resolve match filter group names
-            if (rule.MatchFilterGroupIds is { Count: > 0 })
+            // Resolve match filter value names
+            if (rule.MatchFilterIds is { Count: > 0 })
             {
-                var filterGroups = await productFilterService.GetFilterGroups(ct);
-                var idSet = rule.MatchFilterGroupIds.ToHashSet();
-                rule.MatchFilterGroupNames = filterGroups
-                    .Where(g => idSet.Contains(g.Id))
-                    .Select(g => g.Name ?? "Unknown Group")
-                    .ToList();
+                rule.MatchFilterNames = await GetFilterNamesWithGroupAsync(rule.MatchFilterIds, ct);
             }
             else
             {
-                rule.MatchFilterGroupNames = [];
+                rule.MatchFilterNames = [];
             }
         }
     }
@@ -150,6 +140,16 @@ public class UpsellRuleNameResolver(
     {
         var filters = await productFilterService.GetFiltersByIds(ids, ct);
         return filters.Select(f => f.Name ?? "Unknown Filter").ToList();
+    }
+
+    private async Task<List<string>> GetFilterNamesWithGroupAsync(List<Guid> ids, CancellationToken ct)
+    {
+        var filters = await productFilterService.GetFiltersByIds(ids, ct);
+        return filters
+            .Select(f => f.ParentGroup?.Name != null
+                ? $"{f.ParentGroup.Name}: {f.Name ?? "Unknown"}"
+                : f.Name ?? "Unknown Filter")
+            .ToList();
     }
 
     private async Task<List<string>> GetSupplierNamesAsync(List<Guid> ids, CancellationToken ct)

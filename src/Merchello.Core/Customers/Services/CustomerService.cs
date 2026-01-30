@@ -44,26 +44,35 @@ public class CustomerService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.Customers
+        {
+            var customer = await db.Customers
                 .AsNoTracking()
-                .Where(c => c.Id == customerId)
-                .Select(c => new CustomerListItemDto
-                {
-                    Id = c.Id,
-                    Email = c.Email,
-                    FirstName = c.FirstName,
-                    LastName = c.LastName,
-                    MemberKey = c.MemberKey,
-                    DateCreated = c.DateCreated,
-                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
-                    Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
-                    IsFlagged = c.IsFlagged,
-                    AcceptsMarketing = c.AcceptsMarketing,
-                    HasAccountTerms = c.HasAccountTerms,
-                    PaymentTermsDays = c.PaymentTermsDays,
-                    CreditLimit = c.CreditLimit
-                })
-                .FirstOrDefaultAsync(ct));
+                .FirstOrDefaultAsync(c => c.Id == customerId, ct);
+
+            if (customer == null)
+            {
+                return null;
+            }
+
+            var orderCount = await db.Invoices.CountAsync(i => i.CustomerId == customer.Id, ct);
+
+            return new CustomerListItemDto
+            {
+                Id = customer.Id,
+                Email = customer.Email,
+                FirstName = customer.FirstName,
+                LastName = customer.LastName,
+                MemberKey = customer.MemberKey,
+                DateCreated = customer.DateCreated,
+                OrderCount = orderCount,
+                Tags = customer.Tags,
+                IsFlagged = customer.IsFlagged,
+                AcceptsMarketing = customer.AcceptsMarketing,
+                HasAccountTerms = customer.HasAccountTerms,
+                PaymentTermsDays = customer.PaymentTermsDays,
+                CreditLimit = customer.CreditLimit
+            };
+        });
         scope.Complete();
         return result;
     }
@@ -319,23 +328,13 @@ public class CustomerService(
             // Handle tags if provided
             if (parameters.Tags != null)
             {
-                var existingTags = await db.CustomerTags
-                    .Where(t => t.CustomerId == parameters.Id)
-                    .ToListAsync(ct);
-                db.CustomerTags.RemoveRange(existingTags);
-
                 var newTags = parameters.Tags
                     .Select(t => t.Trim())
                     .Where(t => !string.IsNullOrEmpty(t))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Select(tag => new CustomerTag
-                    {
-                        CustomerId = parameters.Id,
-                        Tag = tag
-                    });
+                    .ToList();
 
-                await db.CustomerTags.AddRangeAsync(newTags, ct);
-                await db.SaveChangesAsync(ct);
+                toUpdate.SetTags(newTags);
             }
 
             return toUpdate;
@@ -391,12 +390,6 @@ public class CustomerService(
         {
             var toDelete = await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, ct);
             if (toDelete == null) return false;
-
-            // Remove related tags first
-            var tags = await db.CustomerTags
-                .Where(t => t.CustomerId == customerId)
-                .ToListAsync(ct);
-            db.CustomerTags.RemoveRange(tags);
 
             db.Customers.Remove(toDelete);
             await db.SaveChangesAsync(ct);
@@ -484,31 +477,36 @@ public class CustomerService(
             var totalItems = await query.CountAsync(ct);
             var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
 
-            // Get paginated items with order count
-            // Use explicit subqueries to avoid N+1 query problem with navigation properties
-            var items = await query
+            var customers = await query
                 .OrderByDescending(c => c.DateCreated)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(c => new CustomerListItemDto
-                {
-                    Id = c.Id,
-                    Email = c.Email,
-                    FirstName = c.FirstName,
-                    LastName = c.LastName,
-                    MemberKey = c.MemberKey,
-                    DateCreated = c.DateCreated,
-                    // Use subquery for order count instead of navigation property to avoid N+1
-                    OrderCount = db.Invoices.Count(i => i.CustomerId == c.Id),
-                    // Use subquery for tags instead of navigation property to avoid N+1
-                    Tags = db.CustomerTags.Where(t => t.CustomerId == c.Id).Select(t => t.Tag).ToList(),
-                    IsFlagged = c.IsFlagged,
-                    AcceptsMarketing = c.AcceptsMarketing,
-                    HasAccountTerms = c.HasAccountTerms,
-                    PaymentTermsDays = c.PaymentTermsDays,
-                    CreditLimit = c.CreditLimit
-                })
+                .AsNoTracking()
                 .ToListAsync(ct);
+
+            var customerIds = customers.Select(c => c.Id).ToList();
+            var orderCounts = await db.Invoices
+                .Where(i => customerIds.Contains(i.CustomerId))
+                .GroupBy(i => i.CustomerId)
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+            var items = customers.Select(c => new CustomerListItemDto
+            {
+                Id = c.Id,
+                Email = c.Email,
+                FirstName = c.FirstName,
+                LastName = c.LastName,
+                MemberKey = c.MemberKey,
+                DateCreated = c.DateCreated,
+                OrderCount = orderCounts.GetValueOrDefault(c.Id, 0),
+                Tags = c.Tags,
+                IsFlagged = c.IsFlagged,
+                AcceptsMarketing = c.AcceptsMarketing,
+                HasAccountTerms = c.HasAccountTerms,
+                PaymentTermsDays = c.PaymentTermsDays,
+                CreditLimit = c.CreditLimit
+            }).ToList();
 
             return new CustomerPageDto
             {
@@ -568,26 +566,35 @@ public class CustomerService(
 
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.Customers
+        {
+            var customers = await db.Customers
                 .AsNoTracking()
                 .Where(c => customerIds.Contains(c.Id))
-                .Select(c => new CustomerListItemDto
-                {
-                    Id = c.Id,
-                    Email = c.Email,
-                    FirstName = c.FirstName,
-                    LastName = c.LastName,
-                    MemberKey = c.MemberKey,
-                    DateCreated = c.DateCreated,
-                    OrderCount = c.Invoices != null ? c.Invoices.Count : 0,
-                    Tags = c.CustomerTags.Select(t => t.Tag).ToList(),
-                    IsFlagged = c.IsFlagged,
-                    AcceptsMarketing = c.AcceptsMarketing,
-                    HasAccountTerms = c.HasAccountTerms,
-                    PaymentTermsDays = c.PaymentTermsDays,
-                    CreditLimit = c.CreditLimit
-                })
-                .ToListAsync(ct));
+                .ToListAsync(ct);
+
+            var orderCounts = await db.Invoices
+                .Where(i => customerIds.Contains(i.CustomerId))
+                .GroupBy(i => i.CustomerId)
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+            return customers.Select(c => new CustomerListItemDto
+            {
+                Id = c.Id,
+                Email = c.Email,
+                FirstName = c.FirstName,
+                LastName = c.LastName,
+                MemberKey = c.MemberKey,
+                DateCreated = c.DateCreated,
+                OrderCount = orderCounts.GetValueOrDefault(c.Id, 0),
+                Tags = c.Tags,
+                IsFlagged = c.IsFlagged,
+                AcceptsMarketing = c.AcceptsMarketing,
+                HasAccountTerms = c.HasAccountTerms,
+                PaymentTermsDays = c.PaymentTermsDays,
+                CreditLimit = c.CreditLimit
+            }).ToList();
+        });
         scope.Complete();
         return result;
     }
@@ -597,11 +604,12 @@ public class CustomerService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.CustomerTags
+        {
+            var customer = await db.Customers
                 .AsNoTracking()
-                .Where(t => t.CustomerId == customerId)
-                .Select(t => t.Tag)
-                .ToListAsync(ct));
+                .FirstOrDefaultAsync(c => c.Id == customerId, ct);
+            return customer?.Tags ?? [];
+        });
         scope.Complete();
         return result;
     }
@@ -612,24 +620,17 @@ public class CustomerService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            // Remove existing tags
-            var existing = await db.CustomerTags
-                .Where(t => t.CustomerId == customerId)
-                .ToListAsync(ct);
-            db.CustomerTags.RemoveRange(existing);
+            var customer = await db.Customers.FirstOrDefaultAsync(c => c.Id == customerId, ct);
+            if (customer == null) return false;
 
-            // Add new tags (deduplicated, trimmed)
             var newTags = tags
                 .Select(t => t.Trim())
                 .Where(t => !string.IsNullOrEmpty(t))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(tag => new CustomerTag
-                {
-                    CustomerId = customerId,
-                    Tag = tag
-                });
+                .ToList();
 
-            await db.CustomerTags.AddRangeAsync(newTags, ct);
+            customer.SetTags(newTags);
+            customer.DateUpdated = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return true;
         });
@@ -643,12 +644,14 @@ public class CustomerService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.CustomerTags
-                .AsNoTracking()
-                .Select(t => t.Tag)
-                .Distinct()
+        {
+            var customers = await db.Customers.AsNoTracking().ToListAsync(ct);
+            return customers
+                .SelectMany(c => c.Tags)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(t => t)
-                .ToListAsync(ct));
+                .ToList();
+        });
         scope.Complete();
         return result;
     }
@@ -818,7 +821,10 @@ public class CustomerService(
             AddressOne = address.AddressOne,
             AddressTwo = address.AddressTwo,
             TownCity = address.TownCity,
-            CountyState = address.CountyState?.Name,
+            CountyState = string.IsNullOrWhiteSpace(address.CountyState?.Name)
+                ? address.CountyState?.RegionCode
+                : address.CountyState?.Name,
+            RegionCode = address.CountyState?.RegionCode,
             PostalCode = address.PostalCode,
             Country = address.Country,
             CountryCode = address.CountryCode,

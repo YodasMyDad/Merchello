@@ -15,6 +15,6 @@ public sealed class RegisteredExchangeRateProvider
     public ExchangeRateProviderSetting? Setting { get; }
 
     public ExchangeRateProviderMetadata Metadata => Provider.Metadata;
-    public bool IsActive => Setting?.IsActive ?? false;
+    public bool IsActive => Setting?.IsEnabled ?? false;
 }
 

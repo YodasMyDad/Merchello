@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
 
 namespace Merchello.Core.Shipping.Models;
@@ -7,6 +8,7 @@ namespace Merchello.Core.Shipping.Models;
 /// Controls markup, service exclusions, and delivery time overrides
 /// for a specific provider at a specific warehouse.
 /// </summary>
+[NotMapped]
 public class WarehouseProviderConfig
 {
     public Guid Id { get; set; }

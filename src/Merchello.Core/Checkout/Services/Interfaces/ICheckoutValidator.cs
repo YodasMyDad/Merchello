@@ -1,4 +1,5 @@
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Checkout.Strategies.Models;
 
 namespace Merchello.Core.Checkout.Services.Interfaces;
@@ -39,7 +40,7 @@ public interface ICheckoutValidator
     /// <param name="address">The address to validate.</param>
     /// <param name="prefix">Prefix for error keys (e.g., "billing" or "shipping").</param>
     /// <returns>Dictionary of validation errors (field key -> error message). Empty if valid.</returns>
-    Dictionary<string, string> ValidateAddress(CheckoutAddressDto address, string prefix);
+    Dictionary<string, string> ValidateAddress(AddressDto address, string prefix);
 
     /// <summary>
     /// Validates an email address format.

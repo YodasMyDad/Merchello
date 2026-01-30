@@ -20,6 +20,7 @@
     <RepositoryUrl>https://github.com/YodasMyDad/Merchello</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <LocalNugetSource>$(MSBuildProjectDirectory)/../../NugetSource</LocalNugetSource>
   </PropertyGroup>
@@ -47,6 +48,10 @@
     <ProjectReference Include="..\Merchello.Core\Merchello.Core.csproj" />
     <ProjectReference Include="..\Merchello.Core.SqlServer\Merchello.Core.SqlServer.csproj" />
     <ProjectReference Include="..\Merchello.Core.Sqlite\Merchello.Core.Sqlite.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
   </ItemGroup>
   
   <ItemGroup>

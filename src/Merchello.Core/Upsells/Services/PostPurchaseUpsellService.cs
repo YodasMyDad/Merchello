@@ -1,8 +1,10 @@
 using System.Text.Json;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
@@ -40,6 +42,8 @@ public class PostPurchaseUpsellService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IInvoiceService invoiceService,
     IInvoiceEditService invoiceEditService,
+    LineItemFactory lineItemFactory,
+    BasketFactory basketFactory,
     ISavedPaymentMethodService savedPaymentMethodService,
     IPaymentService paymentService,
     IPaymentProviderManager paymentProviderManager,
@@ -792,12 +796,12 @@ public class PostPurchaseUpsellService(
                     .Include(p => p.ProductRoot!)
                         .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                             .ThenInclude(prw => prw.Warehouse)
-                                .ThenInclude(w => w!.ServiceRegions)
+                                
                     .Include(p => p.ProductRoot!)
                         .ThenInclude(pr => pr!.ProductRootWarehouses)
                             .ThenInclude(prw => prw.Warehouse)
                                 .ThenInclude(w => w!.ShippingOptions)
-                                    .ThenInclude(so => so.ShippingCosts)
+                                    
                     .Include(p => p.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
                     .Include(p => p.ShippingOptions)
@@ -818,8 +822,8 @@ public class PostPurchaseUpsellService(
             var loadedWarehouses = await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.ShippingOptions)
-                    .ThenInclude(so => so.ShippingCosts)
-                .Include(w => w.ServiceRegions)
+                    
+                
                 .Where(w => warehouseIds.Contains(w.Id))
                 .ToDictionaryAsync(w => w.Id, ct);
 
@@ -845,15 +849,13 @@ public class PostPurchaseUpsellService(
                     continue;
                 }
 
-                virtualLineItems.Add(new LineItem
-                {
-                    Id = lineItem.Id,
-                    ProductId = lineItem.ProductId,
-                    Name = lineItem.Name,
-                    Sku = lineItem.Sku,
-                    Quantity = lineItem.Quantity,
-                    Amount = product.Price
-                });
+                var virtualLineItem = lineItemFactory.CreateForOrder(
+                    lineItem,
+                    lineItem.Quantity,
+                    product.Price,
+                    lineItem.Cost);
+                virtualLineItem.Id = lineItem.Id;
+                virtualLineItems.Add(virtualLineItem);
 
                 if (!string.IsNullOrWhiteSpace(selectionKey))
                 {
@@ -862,16 +864,10 @@ public class PostPurchaseUpsellService(
             }
         }
 
-        var newLineItemId = Guid.NewGuid();
-        virtualLineItems.Add(new LineItem
-        {
-            Id = newLineItemId,
-            ProductId = productToAdd.ProductId,
-            Name = newProduct.Name ?? newProduct.ProductRoot?.RootName ?? "Product",
-            Sku = newProduct.Sku,
-            Quantity = productToAdd.Quantity,
-            Amount = newProduct.Price
-        });
+        var newLineItem = lineItemFactory.CreateFromProduct(newProduct, productToAdd.Quantity);
+        newLineItem.Name ??= newProduct.ProductRoot?.RootName ?? "Product";
+        var newLineItemId = newLineItem.Id;
+        virtualLineItems.Add(newLineItem);
 
         if (!string.IsNullOrWhiteSpace(productToAdd.SelectionKey) && productToAdd.WarehouseId != Guid.Empty)
         {
@@ -882,15 +878,11 @@ public class PostPurchaseUpsellService(
             ? _storeSettings.StoreCurrencyCode
             : invoice.StoreCurrencyCode;
 
-        var virtualBasket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            LineItems = virtualLineItems,
-            Currency = storeCurrency,
-            CustomerId = invoice.CustomerId,
-            BillingAddress = invoice.BillingAddress,
-            ShippingAddress = invoice.ShippingAddress
-        };
+        var currencySymbol = currencyService.GetCurrency(storeCurrency).Symbol;
+        var virtualBasket = basketFactory.Create(invoice.CustomerId, storeCurrency, currencySymbol);
+        virtualBasket.LineItems = virtualLineItems;
+        virtualBasket.BillingAddress = invoice.BillingAddress;
+        virtualBasket.ShippingAddress = invoice.ShippingAddress;
 
         var context = new OrderGroupingContext
         {
@@ -1225,3 +1217,5 @@ public class PostPurchaseUpsellService(
         return new DateTime(year.Value, month.Value, 1).AddMonths(1) <= now;
     }
 }
+
+

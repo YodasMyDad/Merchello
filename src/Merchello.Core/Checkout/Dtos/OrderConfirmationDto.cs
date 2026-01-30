@@ -1,5 +1,7 @@
 namespace Merchello.Core.Checkout.Dtos;
 
+using Merchello.Core.Locality.Dtos;
+
 /// <summary>
 /// DTO containing all data needed for the order confirmation page.
 /// </summary>
@@ -28,12 +30,12 @@ public class OrderConfirmationDto
     /// <summary>
     /// Billing address.
     /// </summary>
-    public CheckoutAddressDto BillingAddress { get; set; } = new();
+    public AddressDto BillingAddress { get; set; } = new();
 
     /// <summary>
     /// Shipping address.
     /// </summary>
-    public CheckoutAddressDto ShippingAddress { get; set; } = new();
+    public AddressDto ShippingAddress { get; set; } = new();
 
     /// <summary>
     /// All line items from the order (products only).

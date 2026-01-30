@@ -174,17 +174,17 @@ else
                                 {
                                     @confirmation.ShippingAddress.Company<br />
                                 }
-                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Address1))
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.AddressOne))
                                 {
-                                    @confirmation.ShippingAddress.Address1<br />
+                                    @confirmation.ShippingAddress.AddressOne<br />
                                 }
-                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.Address2))
+                                @if (!string.IsNullOrEmpty(confirmation.ShippingAddress.AddressTwo))
                                 {
-                                    @confirmation.ShippingAddress.Address2<br />
+                                    @confirmation.ShippingAddress.AddressTwo<br />
                                 }
                                 @{
-                                    var shipCity = confirmation.ShippingAddress.City;
-                                    var shipState = confirmation.ShippingAddress.State;
+                                    var shipCity = confirmation.ShippingAddress.TownCity;
+                                    var shipState = confirmation.ShippingAddress.CountyState;
                                     var shipCityState = string.Join(", ", new[] { shipCity, shipState }.Where(s => !string.IsNullOrEmpty(s)));
                                 }
                                 @if (!string.IsNullOrEmpty(shipCityState))
@@ -218,17 +218,17 @@ else
                                 {
                                     @confirmation.BillingAddress.Company<br />
                                 }
-                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Address1))
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.AddressOne))
                                 {
-                                    @confirmation.BillingAddress.Address1<br />
+                                    @confirmation.BillingAddress.AddressOne<br />
                                 }
-                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.Address2))
+                                @if (!string.IsNullOrEmpty(confirmation.BillingAddress.AddressTwo))
                                 {
-                                    @confirmation.BillingAddress.Address2<br />
+                                    @confirmation.BillingAddress.AddressTwo<br />
                                 }
                                 @{
-                                    var billCity = confirmation.BillingAddress.City;
-                                    var billState = confirmation.BillingAddress.State;
+                                    var billCity = confirmation.BillingAddress.TownCity;
+                                    var billState = confirmation.BillingAddress.CountyState;
                                     var billCityState = string.Join(", ", new[] { billCity, billState }.Where(s => !string.IsNullOrEmpty(s)));
                                 }
                                 @if (!string.IsNullOrEmpty(billCityState))

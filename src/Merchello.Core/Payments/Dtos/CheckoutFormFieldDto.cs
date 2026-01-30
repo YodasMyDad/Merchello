@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Payments.Dtos;
@@ -37,5 +36,5 @@ public class CheckoutFormFieldDto
     public string? ValidationMessage { get; set; }
 
     [JsonPropertyName("options")]
-    public List<SelectOptionDto>? Options { get; set; }
+    public List<SelectOption>? Options { get; set; }
 }

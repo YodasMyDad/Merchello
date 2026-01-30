@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Warehouse;
@@ -57,12 +58,12 @@ public class WarehouseService(
                     .Include(p => p.ProductRoot)
                         .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                             .ThenInclude(prw => prw.Warehouse)
-                                .ThenInclude(w => w!.ServiceRegions)
+                                
                     .Include(p => p.ProductRoot)
                         .ThenInclude(pr => pr!.ProductRootWarehouses)
                             .ThenInclude(prw => prw.Warehouse)
                                 .ThenInclude(w => w!.ShippingOptions)
-                                    .ThenInclude(so => so.ShippingCosts)
+                                    
                     .Include(p => p.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
                     .AsSplitQuery()
@@ -269,17 +270,16 @@ public class WarehouseService(
             {
                 serviceRegions.Add(new WarehouseServiceRegion
                 {
-                    WarehouseId = warehouse.Id,
                     CountryCode = countryCode,
                     StateOrProvinceCode = stateOrProvinceCode,
                     IsExcluded = isExcluded
                 });
             }
         }
+        warehouse.SetServiceRegions(serviceRegions);
 
         // Build shipping options and costs lists
         List<ShippingOption> shippingOptions = [];
-        List<ShippingCost> shippingCosts = [];
         if (parameters.ShippingOptions != null)
         {
             foreach (var shippingConfig in parameters.ShippingOptions)
@@ -296,21 +296,21 @@ public class WarehouseService(
                     shippingConfig.DaysTo,
                     shippingConfig.IsNextDay,
                     shippingConfig.NextDayCutOffTime);
-                shippingOptions.Add(shippingOption);
-
-                // Build country-specific cost overrides
+                // Build country-specific cost overrides (JSON-stored on ShippingOption)
                 if (shippingConfig.CountrySpecificCosts != null)
                 {
-                    foreach (var (countryCode, cost) in shippingConfig.CountrySpecificCosts)
-                    {
-                        shippingCosts.Add(new ShippingCost
+                    var costs = shippingConfig.CountrySpecificCosts
+                        .Select(sc => new ShippingCost
                         {
                             ShippingOptionId = shippingOption.Id,
-                            CountryCode = countryCode,
-                            Cost = cost
-                        });
-                    }
+                            CountryCode = sc.Key,
+                            Cost = sc.Value
+                        })
+                        .ToList();
+                    shippingOption.SetShippingCosts(costs);
                 }
+
+                shippingOptions.Add(shippingOption);
             }
         }
 
@@ -319,12 +319,8 @@ public class WarehouseService(
         {
             // Explicitly add all entities - don't rely on cascade
             db.Warehouses.Add(warehouse);
-            if (serviceRegions.Count > 0)
-                db.WarehouseServiceRegions.AddRange(serviceRegions);
             if (shippingOptions.Count > 0)
                 db.ShippingOptions.AddRange(shippingOptions);
-            if (shippingCosts.Count > 0)
-                db.ShippingCosts.AddRange(shippingCosts);
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             return true;
@@ -1200,7 +1196,7 @@ public class WarehouseService(
             await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.Supplier)
-                .Include(w => w.ServiceRegions)
+                
                 .Include(w => w.ShippingOptions)
                 .AsSplitQuery()
                 .OrderBy(w => w.Name)
@@ -1232,7 +1228,7 @@ public class WarehouseService(
             var warehouse = await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.Supplier)
-                .Include(w => w.ServiceRegions)
+                
                 .Include(w => w.ShippingOptions)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
@@ -1279,7 +1275,7 @@ public class WarehouseService(
             await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.Supplier)
-                .Include(w => w.ServiceRegions)
+                
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken));
         scope.Complete();
@@ -1302,17 +1298,19 @@ public class WarehouseService(
         return parts.Count > 0 ? string.Join(", ", parts) : null;
     }
 
-    private static WarehouseAddressDto MapAddress(Address address)
+    private static AddressDto MapAddress(Address address)
     {
-        return new WarehouseAddressDto
+        return new AddressDto
         {
             Name = address.Name,
             Company = address.Company,
             AddressOne = address.AddressOne,
             AddressTwo = address.AddressTwo,
             TownCity = address.TownCity,
-            CountyState = address.CountyState?.Name,
-            CountyStateCode = address.CountyState?.RegionCode,
+            CountyState = string.IsNullOrWhiteSpace(address.CountyState?.Name)
+                ? address.CountyState?.RegionCode
+                : address.CountyState?.Name,
+            RegionCode = address.CountyState?.RegionCode,
             PostalCode = address.PostalCode,
             Country = address.Country,
             CountryCode = address.CountryCode,
@@ -1348,7 +1346,6 @@ public class WarehouseService(
         {
             // Validate warehouse exists
             var warehouse = await db.Warehouses
-                .Include(w => w.ServiceRegions)
                 .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
 
             if (warehouse == null)
@@ -1365,7 +1362,8 @@ public class WarehouseService(
             var normalizedCountry = dto.CountryCode.ToUpperInvariant();
             var normalizedState = dto.StateOrProvinceCode?.ToUpperInvariant();
 
-            var exists = warehouse.ServiceRegions.Any(r =>
+            var regions = warehouse.ServiceRegions;
+            var exists = regions.Any(r =>
                 string.Equals(r.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
 
@@ -1381,13 +1379,13 @@ public class WarehouseService(
 
             var region = new WarehouseServiceRegion
             {
-                WarehouseId = warehouseId,
                 CountryCode = normalizedCountry,
                 StateOrProvinceCode = normalizedState,
                 IsExcluded = dto.IsExcluded
             };
 
-            db.WarehouseServiceRegions.Add(region);
+            regions.Add(region);
+            warehouse.SetServiceRegions(regions);
             warehouse.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
@@ -1414,9 +1412,21 @@ public class WarehouseService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var region = await db.WarehouseServiceRegions
-                .FirstOrDefaultAsync(r => r.Id == regionId && r.WarehouseId == warehouseId, cancellationToken);
+            var warehouse = await db.Warehouses
+                .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
 
+            if (warehouse == null)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "Warehouse not found",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return false;
+            }
+
+            var regions = warehouse.ServiceRegions;
+            var region = regions.FirstOrDefault(r => r.Id == regionId);
             if (region == null)
             {
                 result.Messages.Add(new Shared.Models.ResultMessage
@@ -1431,13 +1441,10 @@ public class WarehouseService(
             var normalizedState = dto.StateOrProvinceCode?.ToUpperInvariant();
 
             // Check for duplicate (excluding current region)
-            var duplicate = await db.WarehouseServiceRegions
-                .AnyAsync(r =>
-                    r.Id != regionId &&
-                    r.WarehouseId == warehouseId &&
-                    string.Equals(r.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase),
-                    cancellationToken);
+            var duplicate = regions.Any(r =>
+                r.Id != regionId &&
+                string.Equals(r.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
 
             if (duplicate)
             {
@@ -1453,10 +1460,8 @@ public class WarehouseService(
             region.StateOrProvinceCode = normalizedState;
             region.IsExcluded = dto.IsExcluded;
 
-            // Update warehouse timestamp
-            var warehouse = await db.Warehouses.FindAsync([warehouseId], cancellationToken);
-            if (warehouse != null)
-                warehouse.DateUpdated = DateTime.UtcNow;
+            warehouse.SetServiceRegions(regions);
+            warehouse.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
@@ -1481,10 +1486,22 @@ public class WarehouseService(
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var region = await db.WarehouseServiceRegions
-                .FirstOrDefaultAsync(r => r.Id == regionId && r.WarehouseId == warehouseId, cancellationToken);
+            var warehouse = await db.Warehouses
+                .FirstOrDefaultAsync(w => w.Id == warehouseId, cancellationToken);
 
-            if (region == null)
+            if (warehouse == null)
+            {
+                result.Messages.Add(new Shared.Models.ResultMessage
+                {
+                    Message = "Warehouse not found",
+                    ResultMessageType = Shared.Models.Enums.ResultMessageType.Error
+                });
+                return false;
+            }
+
+            var regions = warehouse.ServiceRegions;
+            var removed = regions.RemoveAll(r => r.Id == regionId);
+            if (removed == 0)
             {
                 result.Messages.Add(new Shared.Models.ResultMessage
                 {
@@ -1494,12 +1511,8 @@ public class WarehouseService(
                 return false;
             }
 
-            db.WarehouseServiceRegions.Remove(region);
-
-            // Update warehouse timestamp
-            var warehouse = await db.Warehouses.FindAsync([warehouseId], cancellationToken);
-            if (warehouse != null)
-                warehouse.DateUpdated = DateTime.UtcNow;
+            warehouse.SetServiceRegions(regions);
+            warehouse.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
 
@@ -1513,3 +1526,5 @@ public class WarehouseService(
 
     #endregion
 }
+
+

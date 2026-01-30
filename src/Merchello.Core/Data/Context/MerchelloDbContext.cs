@@ -10,6 +10,7 @@ using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Protocols.Webhooks.Models;
+using Merchello.Core.Shared.Providers;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Tax.Models;
@@ -42,7 +43,6 @@ public class MerchelloDbContext : DbContext
 
     // Customer DbSets
     public DbSet<Customer> Customers => Set<Customer>();
-    public DbSet<CustomerTag> CustomerTags => Set<CustomerTag>();
     public DbSet<CustomerSegment> CustomerSegments => Set<CustomerSegment>();
     public DbSet<CustomerSegmentMember> CustomerSegmentMembers => Set<CustomerSegmentMember>();
 
@@ -55,7 +55,6 @@ public class MerchelloDbContext : DbContext
 
     // Warehouse DbSets
     public DbSet<Warehouse> Warehouses => Set<Warehouse>();
-    public DbSet<WarehouseServiceRegion> WarehouseServiceRegions => Set<WarehouseServiceRegion>();
 
     // Accounting DbSets
     public DbSet<Invoice> Invoices => Set<Invoice>();
@@ -69,26 +68,16 @@ public class MerchelloDbContext : DbContext
     // Shipping DbSets
     public DbSet<Shipment> Shipments => Set<Shipment>();
     public DbSet<ShippingOption> ShippingOptions => Set<ShippingOption>();
-    public DbSet<ShippingCost> ShippingCosts => Set<ShippingCost>();
-    public DbSet<ShippingWeightTier> ShippingWeightTiers => Set<ShippingWeightTier>();
-    public DbSet<ShippingProviderConfiguration> ShippingProviderConfigurations => Set<ShippingProviderConfiguration>();
-    public DbSet<WarehouseProviderConfig> WarehouseProviderConfigs => Set<WarehouseProviderConfig>();
+    public DbSet<ProviderConfiguration> ProviderConfigurations => Set<ProviderConfiguration>();
 
     // Fulfilment DbSets
-    public DbSet<FulfilmentProviderConfiguration> FulfilmentProviderConfigurations => Set<FulfilmentProviderConfiguration>();
     public DbSet<FulfilmentSyncLog> FulfilmentSyncLogs => Set<FulfilmentSyncLog>();
     public DbSet<FulfilmentWebhookLog> FulfilmentWebhookLogs => Set<FulfilmentWebhookLog>();
 
     // Payment Provider DbSets
-    public DbSet<PaymentProviderSetting> PaymentProviderSettings => Set<PaymentProviderSetting>();
-    public DbSet<PaymentMethodSetting> PaymentMethodSettings => Set<PaymentMethodSetting>();
     public DbSet<SavedPaymentMethod> SavedPaymentMethods => Set<SavedPaymentMethod>();
 
-    // Exchange Rate Provider DbSets
-    public DbSet<ExchangeRateProviderSetting> ExchangeRateProviderSettings => Set<ExchangeRateProviderSetting>();
-
-    // Tax Provider DbSets
-    public DbSet<TaxProviderSetting> TaxProviderSettings => Set<TaxProviderSetting>();
+    // Exchange Rate & Tax Provider DbSets are consolidated into ProviderConfigurations
 
     // Discount DbSets
     public DbSet<Discount> Discounts => Set<Discount>();

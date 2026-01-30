@@ -460,30 +460,30 @@ public class ShippingQuoteService(
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts)
+                                
                 .Include(product => product.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                .ThenInclude(so => so.WeightTiers)
+                                
                 .Include(product => product.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ServiceRegions)
+                            
                 .Include(product => product.ShippingOptions)
-                    .ThenInclude(option => option.ShippingCosts)
+                    
                 .Include(product => product.ShippingOptions)
-                    .ThenInclude(option => option.WeightTiers)
+                    
                 .Include(product => product.ShippingOptions)
                     .ThenInclude(option => option.Warehouse)
-                        .ThenInclude(warehouse => warehouse!.ServiceRegions)
+                        
                 .Include(product => product.AllowedShippingOptions)
-                    .ThenInclude(option => option.ShippingCosts)
+                    
                 .Include(product => product.AllowedShippingOptions)
-                    .ThenInclude(option => option.WeightTiers)
+                    
                 .Include(product => product.AllowedShippingOptions)
                     .ThenInclude(option => option.Warehouse)
-                        .ThenInclude(warehouse => warehouse!.ServiceRegions)
+                        
                 .Include(product => product.ExcludedShippingOptions)
                 .AsSplitQuery()
                 .AsNoTracking()
@@ -707,3 +707,6 @@ public class ShippingQuoteService(
         }
     }
 }
+
+
+

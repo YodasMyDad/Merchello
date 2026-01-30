@@ -57,7 +57,8 @@ public class ShippingProviderManager(
 
             using var scope = efCoreScopeProvider.CreateScope();
             var configurations = await scope.ExecuteWithContextAsync(async db =>
-                await db.ShippingProviderConfigurations
+                await db.ProviderConfigurations
+                    .OfType<ShippingProviderConfiguration>()
                     .AsNoTracking()
                     .ToListAsync(cancellationToken));
             scope.Complete();
@@ -145,7 +146,8 @@ public class ShippingProviderManager(
 
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            var existing = await db.ShippingProviderConfigurations
+            var existing = await db.ProviderConfigurations
+                .OfType<ShippingProviderConfiguration>()
                 .FirstOrDefaultAsync(c => c.Id == configuration.Id, cancellationToken);
 
             if (existing != null)
@@ -161,7 +163,7 @@ public class ShippingProviderManager(
 
             configuration.CreateDate = DateTime.UtcNow;
             configuration.UpdateDate = DateTime.UtcNow;
-            db.ShippingProviderConfigurations.Add(configuration);
+            db.ProviderConfigurations.Add(configuration);
             await db.SaveChangesAsync(cancellationToken);
             return configuration;
         });
@@ -177,7 +179,8 @@ public class ShippingProviderManager(
 
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var config = await db.ShippingProviderConfigurations
+            var config = await db.ProviderConfigurations
+                .OfType<ShippingProviderConfiguration>()
                 .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
 
             if (config == null)
@@ -204,7 +207,8 @@ public class ShippingProviderManager(
 
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var configurations = await db.ShippingProviderConfigurations
+            var configurations = await db.ProviderConfigurations
+                .OfType<ShippingProviderConfiguration>()
                 .Where(c => idList.Contains(c.Id))
                 .ToListAsync(cancellationToken);
 
@@ -232,7 +236,8 @@ public class ShippingProviderManager(
 
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var config = await db.ShippingProviderConfigurations
+            var config = await db.ProviderConfigurations
+                .OfType<ShippingProviderConfiguration>()
                 .FirstOrDefaultAsync(c => c.Id == configurationId, cancellationToken);
 
             if (config == null)
@@ -240,7 +245,7 @@ public class ShippingProviderManager(
                 return false;
             }
 
-            db.ShippingProviderConfigurations.Remove(config);
+            db.ProviderConfigurations.Remove(config);
             await db.SaveChangesAsync(cancellationToken);
             return true;
         });

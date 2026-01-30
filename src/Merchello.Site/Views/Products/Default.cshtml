@@ -13,18 +13,22 @@
 @{
     Layout = "~/Views/Website.cshtml";
 
+    var viewModel = Model ?? throw new System.InvalidOperationException("MerchelloProductViewModel is required.");
+
+    var productRoot = viewModel.ProductRoot ?? throw new System.InvalidOperationException("ProductRoot is required.");
+
     var settings = Settings.Value;
 
     // Element Type properties (if configured)
-    var heroImage = Model.Content.Value<MediaWithCrops>("heroImage");
-    var productGallery = Model.Content.Value<IEnumerable<MediaWithCrops>>("productGallery");
-    var subtitle = Model.Content.Value<string>("subtitle");
-    var tagline = Model.Content.Value<string>("tagline");
-    var description = Model.Content.Value<IHtmlEncodedString>("productDescription");
-    var features = Model.Content.Value<Umbraco.Cms.Core.Models.Blocks.BlockListModel>("features");
+    var heroImage = viewModel.Content.Value<MediaWithCrops>("heroImage");
+    var productGallery = viewModel.Content.Value<IEnumerable<MediaWithCrops>>("productGallery");
+    var subtitle = viewModel.Content.Value<string>("subtitle");
+    var tagline = viewModel.Content.Value<string>("tagline");
+    var description = viewModel.Content.Value<IHtmlEncodedString>("productDescription");
+    var features = viewModel.Content.Value<Umbraco.Cms.Core.Models.Blocks.BlockListModel>("features");
 
     // Resolve Merchello images from GUIDs
-    var resolvedImages = Model.Images.ToMedia(MediaCache).ToList();
+    var resolvedImages = viewModel.Images.ToMedia(MediaCache).ToList();
 
     // Get first image URL for social meta
     var firstImageUrl = heroImage?.GetCropUrl(width: 1200)
@@ -39,7 +43,7 @@
 
     // Get applicable tax rate for this product
     decimal taxRate = 0m;
-    if (displayContext.DisplayPricesIncTax && Model.ProductRoot?.TaxGroupId is Guid taxGroupId)
+    if (displayContext.DisplayPricesIncTax && productRoot?.TaxGroupId is Guid taxGroupId)
     {
         taxRate = await TaxService.GetApplicableRateAsync(
             taxGroupId,
@@ -51,17 +55,17 @@
 
     // Pre-calculate location-aware availability for all variants
     var variantAvailability = new Dictionary<Guid, Merchello.Core.Storefront.Models.ProductLocationAvailability>();
-    foreach (var variant in Model.AllVariants)
+    foreach (var variant in viewModel.AllVariants)
     {
         var availability = await StorefrontContext.GetProductAvailabilityAsync(variant, 1);
         variantAvailability[variant.Id] = availability;
     }
 
     // Get availability for selected variant
-    var selectedAvailability = variantAvailability.GetValueOrDefault(Model.SelectedVariant.Id);
+    var selectedAvailability = variantAvailability.GetValueOrDefault(viewModel.SelectedVariant.Id);
 
     // SSR stock calculation - now location-aware
-    var ssrTrackStock = Model.SelectedVariant.ProductWarehouses.Any(pw => pw.TrackStock);
+    var ssrTrackStock = viewModel.SelectedVariant.ProductWarehouses.Any(pw => pw.TrackStock);
     var ssrTotalStock = selectedAvailability?.AvailableStock ?? 0;
     var ssrCanShipToLocation = selectedAvailability?.CanShipToLocation ?? false;
     var ssrIsLowStock = ssrTrackStock && ssrTotalStock > 0 && ssrTotalStock <= settings.LowStockThreshold;
@@ -71,11 +75,11 @@
     // The key contains value GUIDs joined by hyphens (sorted alphabetically)
     // Note: Can't split by '-' because GUIDs themselves contain hyphens
     var selectedOptions = new Dictionary<string, string>();
-    if (!string.IsNullOrEmpty(Model.SelectedVariant.VariantOptionsKey))
+    if (!string.IsNullOrEmpty(viewModel.SelectedVariant.VariantOptionsKey))
     {
-        var variantKey = Model.SelectedVariant.VariantOptionsKey;
+        var variantKey = viewModel.SelectedVariant.VariantOptionsKey;
 
-        foreach (var option in Model.VariantOptions)
+        foreach (var option in viewModel.VariantOptions)
         {
             // Find which value's ID appears in the variant key
             var matchingValue = option.ProductOptionValues
@@ -97,16 +101,16 @@
     // Build config for Alpine.js
     var config = new
     {
-        productId = Model.ProductRoot.Id.ToString(),
-        selectedVariantId = Model.SelectedVariant.Id.ToString(),
+        productId = productRoot!.Id.ToString(),
+        selectedVariantId = viewModel.SelectedVariant!.Id.ToString(),
         selectedOptions = selectedOptions,
-        productUrl = Model.ProductUrl,
+        productUrl = viewModel.ProductUrl,
         currencySymbol = displayContext.CurrencySymbol,
         lowStockThreshold = settings.LowStockThreshold,
         // Tax display info
         includesTax = includesTax,
         taxRate = taxRate,
-        variants = Model.AllVariants.Select(v =>
+        variants = viewModel.AllVariants.Select(v =>
         {
             var avail = variantAvailability.GetValueOrDefault(v.Id);
             var variantDisplayPrice = CalculateDisplayPrice(v.Price);
@@ -132,15 +136,15 @@
                 showStockLevels = avail?.ShowStockLevels ?? false,
                 sku = v.Sku,
                 variantOptionsKey = v.VariantOptionsKey,
-                url = Model.GetVariantUrl(v),
+                url = viewModel.GetVariantUrl(v),
                 images = v.ExcludeRootProductImages
                     ? v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)).ToList()
                     : v.Images.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800))
-                        .Concat(Model.ProductRoot.RootImages.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)))
+                        .Concat(productRoot.RootImages.ToMedia(MediaCache).Select(m => m.GetCropUrl(width: 800)))
                         .ToList()
             };
         }).ToList(),
-        variantOptions = Model.VariantOptions.Select(o => new
+        variantOptions = viewModel.VariantOptions.Select(o => new
         {
             id = o.Id.ToString(),
             name = o.Name,
@@ -157,7 +161,7 @@
                     : null
             }).ToList()
         }).ToList(),
-        addonOptions = Model.AddOnOptions.Select(o => new
+        addonOptions = viewModel.AddOnOptions.Select(o => new
         {
             id = o.Id.ToString(),
             name = o.Name,

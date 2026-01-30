@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Notifications.Interfaces;
@@ -41,174 +41,6 @@ public class ProductService(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false
     };
-
-    /// <summary>
-    /// Creates a ProductRoot without variants (wizard step 1)
-    /// </summary>
-    public async Task<CrudResult<ProductRoot>> CreateProductRootOnly(
-        CreateProductRootOnlyParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductRoot>();
-        ProductRoot? productRoot = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var taxGroup = await db.TaxGroups.FindAsync([parameters.TaxGroupId], cancellationToken);
-            if (taxGroup == null)
-            {
-                result.AddErrorMessage("Tax group not found");
-                return false;
-            }
-
-            var productType = await db.ProductTypes.FindAsync([parameters.ProductTypeId], cancellationToken);
-            if (productType == null)
-            {
-                result.AddErrorMessage("Product type not found");
-                return false;
-            }
-
-            var collections = await db.ProductCollections
-                .Where(c => parameters.CollectionIds.Contains(c.Id))
-                .ToListAsync(cancellationToken);
-
-            productRoot = productRootFactory.Create(
-                name: parameters.Name,
-                rootUrl: slugHelper.GenerateSlug(parameters.Name),
-                taxGroup: taxGroup,
-                productType: productType,
-                collections: collections);
-
-            // Note: weight parameter will be applied to Product variants when they are created
-
-            db.RootProducts.Add(productRoot);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            return true;
-        });
-
-        scope.Complete();
-        result.ResultObject = productRoot;
-        return result;
-    }
-
-    /// <summary>
-    /// Adds a product option to an existing ProductRoot
-    /// </summary>
-    public async Task<CrudResult<ProductOption>> AddProductOption(
-        AddProductOptionParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<ProductOption>();
-        ProductOption? option = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var productRoot = await db.RootProducts
-                .FirstOrDefaultAsync(pr => pr.Id == parameters.ProductRootId, cancellationToken);
-
-            if (productRoot == null)
-            {
-                result.AddErrorMessage("Product root not found");
-                return false;
-            }
-
-            option = productOptionFactory.Create(parameters);
-
-            // Publish creating notification (cancelable)
-            var creatingNotification = new ProductOptionCreatingNotification(option, parameters.ProductRootId);
-            if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
-            {
-                result.AddErrorMessage("Product option creation was cancelled by a notification handler");
-                return false;
-            }
-
-            productRoot.ProductOptions.Add(option);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            return true;
-        });
-
-        scope.Complete();
-
-        // Publish created notification (informational)
-        if (result.Successful && option != null)
-        {
-            await notificationPublisher.PublishAsync(new ProductOptionCreatedNotification(option, parameters.ProductRootId), cancellationToken);
-        }
-
-        result.ResultObject = option;
-        return result;
-    }
-
-    /// <summary>
-    /// Removes a product option from an existing ProductRoot
-    /// </summary>
-    public async Task<CrudResult<bool>> RemoveProductOption(
-        Guid productRootId,
-        Guid optionId,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-        string optionName = string.Empty;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var productRoot = await db.RootProducts
-                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
-
-            if (productRoot == null)
-            {
-                result.AddErrorMessage("Product root not found");
-                return false;
-            }
-
-            var option = productRoot.ProductOptions.FirstOrDefault(o => o.Id == optionId);
-            if (option == null)
-            {
-                result.AddErrorMessage("Option not found");
-                return false;
-            }
-
-            // Publish deleting notification (cancelable)
-            var deletingNotification = new ProductOptionDeletingNotification(option, productRootId);
-            if (await notificationPublisher.PublishCancelableAsync(deletingNotification, cancellationToken))
-            {
-                result.AddErrorMessage("Product option deletion was cancelled by a notification handler");
-                return false;
-            }
-
-            // Capture name for deleted notification (before entity is removed)
-            optionName = option.Name ?? string.Empty;
-
-            productRoot.ProductOptions.Remove(option);
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-            return true;
-        });
-
-        scope.Complete();
-
-        // Publish deleted notification (informational)
-        if (result.Successful)
-        {
-            await notificationPublisher.PublishAsync(new ProductOptionDeletedNotification(optionId, optionName, productRootId), cancellationToken);
-        }
-
-        return result;
-    }
-
-    /// <summary>
-    /// Generates variants from ProductRoot options
-    /// </summary>
-    public async Task<CrudResult<List<Product>>> GenerateVariantsFromOptions(
-        GenerateVariantsParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        // Delegate to the centralized RegenerateVariants with price/cost overrides
-        return await RegenerateVariants(parameters.ProductRootId, parameters.DefaultPrice, parameters.DefaultCostOfGoods, cancellationToken);
-    }
 
     /// <summary>
     /// Updates stock levels for a variant at a specific warehouse.
@@ -308,58 +140,6 @@ public class ProductService(
             await EnsureDefaultVariantIsAvailableAsync(productRootId.Value, cancellationToken);
         }
 
-        return result;
-    }
-
-    /// <summary>
-    /// Applies stock template to all variants of a product root for a specific warehouse
-    /// </summary>
-    public async Task<CrudResult<bool>> ApplyStockTemplateToAllVariants(
-        ApplyStockTemplateParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-        List<Product>? variants = null;
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            variants = await db.Products
-                .Where(p => p.ProductRootId == parameters.ProductRootId)
-                .ToListAsync(cancellationToken);
-            return true;
-        });
-
-        scope.Complete();
-
-        if (variants == null || !variants.Any())
-        {
-            result.AddErrorMessage("No variants found for this product root");
-            return result;
-        }
-
-        foreach (var variant in variants)
-        {
-            var stockResult = await UpdateVariantStock(
-                new UpdateVariantStockParameters
-                {
-                    VariantId = variant.Id,
-                    WarehouseId = parameters.WarehouseId,
-                    Stock = parameters.DefaultStock,
-                    ReorderPoint = parameters.DefaultReorderPoint,
-                    TrackStock = parameters.TrackStock
-                },
-                cancellationToken
-            );
-
-            if (!stockResult.Successful)
-            {
-                result.Messages.AddRange(stockResult.Messages);
-                return result;
-            }
-        }
-
-        result.ResultObject = true;
         return result;
     }
 
@@ -979,14 +759,14 @@ public class ProductService(
                         .ThenInclude(pr => pr!.Products)
                             .ThenInclude(p => p.ProductWarehouses)
                                 .ThenInclude(pw => pw.Warehouse)
-                                    .ThenInclude(w => w.ServiceRegions);
+                                    ;
 
                     query = query.Include(p => p.ProductRoot)
                         .ThenInclude(pr => pr!.Products)
                             .ThenInclude(p => p.ProductWarehouses)
                                 .ThenInclude(pw => pw.Warehouse)
                                     .ThenInclude(w => w.ShippingOptions)
-                                        .ThenInclude(so => so.ShippingCosts);
+                                        ;
                 }
             }
 
@@ -1003,13 +783,13 @@ public class ProductService(
                 query = query
                     .Include(p => p.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
-                            .ThenInclude(w => w.ServiceRegions);
+                            ;
 
                 query = query
                     .Include(p => p.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
                             .ThenInclude(w => w.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts);
+                                ;
             }
 
             if (parameters.IncludeShippingRestrictions)
@@ -1024,13 +804,13 @@ public class ProductService(
                 query = query.Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
-                    .ThenInclude(w => w!.ServiceRegions);
+                    ;
 
                 query = query.Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
                     .ThenInclude(w => w!.ShippingOptions)
-                    .ThenInclude(so => so.ShippingCosts);
+                    ;
             }
 
             // Note: Cannot use NoTracking with circular references (ProductRoot->Products creates a cycle)
@@ -1074,9 +854,9 @@ public class ProductService(
                 if (warehouseIds.Count > 0)
                 {
                     var warehousesWithData = await db.Warehouses
-                        .Include(w => w.ServiceRegions)
+                        
                         .Include(w => w.ShippingOptions)
-                            .ThenInclude(so => so.ShippingCosts)
+                            
                         .Where(w => warehouseIds.Contains(w.Id))
                         .AsNoTracking()
                         .ToDictionaryAsync(w => w.Id, cancellationToken);
@@ -1088,7 +868,7 @@ public class ProductService(
                         {
                             if (warehousesWithData.TryGetValue(pw.Warehouse!.Id, out var fullWarehouse))
                             {
-                                pw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                                pw.Warehouse.SetServiceRegions(fullWarehouse.ServiceRegions);
                                 pw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
                             }
                         }
@@ -1101,7 +881,7 @@ public class ProductService(
                         {
                             if (warehousesWithData.TryGetValue(prw.Warehouse!.Id, out var fullWarehouse))
                             {
-                                prw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                                prw.Warehouse.SetServiceRegions(fullWarehouse.ServiceRegions);
                                 prw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
                             }
                         }
@@ -1121,114 +901,117 @@ public class ProductService(
     /// <param name="parameters"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
+    private static IQueryable<Product> BuildBaseProductQuery(MerchelloDbContext db, ProductQueryParameters parameters)
+    {
+        IQueryable<Product> baseQuery = db.Products;
+
+        var productTypeKeys = new HashSet<Guid>();
+        if (parameters.ProductTypeKey.HasValue)
+            productTypeKeys.Add(parameters.ProductTypeKey.Value);
+        if (parameters.ProductTypeKeys?.Any() == true)
+            productTypeKeys.UnionWith(parameters.ProductTypeKeys);
+
+        if (productTypeKeys.Count > 0)
+        {
+            baseQuery = baseQuery.Where(x => productTypeKeys.Contains(x.ProductRoot.ProductTypeId));
+        }
+
+        var productRootKeys = new HashSet<Guid>();
+        if (parameters.ProductRootKey.HasValue)
+            productRootKeys.Add(parameters.ProductRootKey.Value);
+        if (parameters.ProductRootKeys?.Any() == true)
+            productRootKeys.UnionWith(parameters.ProductRootKeys);
+
+        if (parameters.ProductIds?.Any() == true && productRootKeys.Count > 0)
+        {
+            baseQuery = baseQuery.Where(x =>
+                parameters.ProductIds.Contains(x.Id) || productRootKeys.Contains(x.ProductRootId));
+        }
+        else if (parameters.ProductIds?.Any() == true)
+        {
+            baseQuery = baseQuery.Where(x => parameters.ProductIds.Contains(x.Id));
+        }
+        else if (productRootKeys.Count > 0)
+        {
+            baseQuery = baseQuery.Where(x => productRootKeys.Contains(x.ProductRootId));
+        }
+
+        if (parameters.CollectionIds?.Any() == true)
+        {
+            baseQuery = baseQuery.Where(x => x.ProductRoot.Collections.Any(pc => parameters.CollectionIds.Contains(pc.Id)));
+        }
+
+        if (parameters.FilterKeys?.Any() == true)
+        {
+            baseQuery = baseQuery.Where(x => x.Filters.Any(pc => parameters.FilterKeys.Contains(pc.Id)));
+        }
+
+        if (parameters.SupplierIds?.Any() == true)
+        {
+            baseQuery = baseQuery.Where(x =>
+                x.ProductRoot.ProductRootWarehouses.Any(prw =>
+                    prw.Warehouse != null &&
+                    prw.Warehouse.SupplierId.HasValue &&
+                    parameters.SupplierIds.Contains(prw.Warehouse.SupplierId.Value)) ||
+                x.ProductWarehouses.Any(pw =>
+                    pw.Warehouse != null &&
+                    pw.Warehouse.SupplierId.HasValue &&
+                    parameters.SupplierIds.Contains(pw.Warehouse.SupplierId.Value)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.Search))
+        {
+            var searchLower = parameters.Search.ToLower();
+            baseQuery = baseQuery.Where(x =>
+                (x.ProductRoot.RootName != null && x.ProductRoot.RootName.ToLower().Contains(searchLower)) ||
+                (x.Sku != null && x.Sku.ToLower().Contains(searchLower)));
+        }
+
+        if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Available)
+        {
+            baseQuery = baseQuery.Where(x => x.AvailableForPurchase && x.CanPurchase);
+        }
+        else if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Unavailable)
+        {
+            baseQuery = baseQuery.Where(x => !x.AvailableForPurchase || !x.CanPurchase);
+        }
+
+        if (parameters.StockStatusFilter != ProductStockStatusFilter.All)
+        {
+            var threshold = parameters.LowStockThreshold;
+            baseQuery = parameters.StockStatusFilter switch
+            {
+                ProductStockStatusFilter.InStock => baseQuery.Where(x =>
+                    x.ProductWarehouses.Sum(pw => pw.Stock) > threshold),
+                ProductStockStatusFilter.LowStock => baseQuery.Where(x =>
+                    x.ProductWarehouses.Sum(pw => pw.Stock) > 0 &&
+                    x.ProductWarehouses.Sum(pw => pw.Stock) <= threshold),
+                ProductStockStatusFilter.OutOfStock => baseQuery.Where(x =>
+                    x.ProductWarehouses.Sum(pw => pw.Stock) <= 0),
+                _ => baseQuery
+            };
+        }
+
+        if (parameters.MinPrice.HasValue)
+        {
+            baseQuery = baseQuery.Where(x => x.Price >= parameters.MinPrice.Value);
+        }
+
+        if (parameters.MaxPrice.HasValue)
+        {
+            baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
+        }
+
+        return baseQuery;
+    }
+
     public async Task<PaginatedList<Product>> QueryProducts(ProductQueryParameters parameters, CancellationToken cancellationToken = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             // Build a base query without Includes; apply Includes only when materializing items.
-            IQueryable<Product> baseQuery = db.Products;
-
-            var productTypeKeys = new HashSet<Guid>();
-            if (parameters.ProductTypeKey.HasValue)
-                productTypeKeys.Add(parameters.ProductTypeKey.Value);
-            if (parameters.ProductTypeKeys?.Any() == true)
-                productTypeKeys.UnionWith(parameters.ProductTypeKeys);
-
-            if (productTypeKeys.Count > 0)
-            {
-                baseQuery = baseQuery.Where(x => productTypeKeys.Contains(x.ProductRoot.ProductTypeId));
-            }
-
-            var productRootKeys = new HashSet<Guid>();
-            if (parameters.ProductRootKey.HasValue)
-                productRootKeys.Add(parameters.ProductRootKey.Value);
-            if (parameters.ProductRootKeys?.Any() == true)
-                productRootKeys.UnionWith(parameters.ProductRootKeys);
-
-            if (parameters.ProductIds?.Any() == true && productRootKeys.Count > 0)
-            {
-                baseQuery = baseQuery.Where(x =>
-                    parameters.ProductIds.Contains(x.Id) || productRootKeys.Contains(x.ProductRootId));
-            }
-            else if (parameters.ProductIds?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x => parameters.ProductIds.Contains(x.Id));
-            }
-            else if (productRootKeys.Count > 0)
-            {
-                baseQuery = baseQuery.Where(x => productRootKeys.Contains(x.ProductRootId));
-            }
-
-            if (parameters.CollectionIds?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x => x.ProductRoot.Collections.Any(pc => parameters.CollectionIds.Contains(pc.Id)));
-            }
-
-            if (parameters.FilterKeys?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x => x.Filters.Any(pc => parameters.FilterKeys.Contains(pc.Id)));
-            }
-
-            if (parameters.SupplierIds?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x =>
-                    x.ProductRoot.ProductRootWarehouses.Any(prw =>
-                        prw.Warehouse != null &&
-                        prw.Warehouse.SupplierId.HasValue &&
-                        parameters.SupplierIds.Contains(prw.Warehouse.SupplierId.Value)) ||
-                    x.ProductWarehouses.Any(pw =>
-                        pw.Warehouse != null &&
-                        pw.Warehouse.SupplierId.HasValue &&
-                        parameters.SupplierIds.Contains(pw.Warehouse.SupplierId.Value)));
-            }
-
-            // Search filter - applied at DB level for performance
-            if (!string.IsNullOrWhiteSpace(parameters.Search))
-            {
-                var searchLower = parameters.Search.ToLower();
-                baseQuery = baseQuery.Where(x =>
-                    (x.ProductRoot.RootName != null && x.ProductRoot.RootName.ToLower().Contains(searchLower)) ||
-                    (x.Sku != null && x.Sku.ToLower().Contains(searchLower)));
-            }
-
-            // Availability filter - applied at DB level
-            if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Available)
-            {
-                baseQuery = baseQuery.Where(x => x.AvailableForPurchase && x.CanPurchase);
-            }
-            else if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Unavailable)
-            {
-                baseQuery = baseQuery.Where(x => !x.AvailableForPurchase || !x.CanPurchase);
-            }
-
-            // Stock status filter - applied at DB level using ProductWarehouses
-            if (parameters.StockStatusFilter != ProductStockStatusFilter.All)
-            {
-                var threshold = parameters.LowStockThreshold;
-                baseQuery = parameters.StockStatusFilter switch
-                {
-                    ProductStockStatusFilter.InStock => baseQuery.Where(x =>
-                        x.ProductWarehouses.Sum(pw => pw.Stock) > threshold),
-                    ProductStockStatusFilter.LowStock => baseQuery.Where(x =>
-                        x.ProductWarehouses.Sum(pw => pw.Stock) > 0 &&
-                        x.ProductWarehouses.Sum(pw => pw.Stock) <= threshold),
-                    ProductStockStatusFilter.OutOfStock => baseQuery.Where(x =>
-                        x.ProductWarehouses.Sum(pw => pw.Stock) <= 0),
-                    _ => baseQuery
-                };
-            }
-
-            // Price range filter - applied at DB level
-            if (parameters.MinPrice.HasValue)
-            {
-                baseQuery = baseQuery.Where(x => x.Price >= parameters.MinPrice.Value);
-            }
-
-            if (parameters.MaxPrice.HasValue)
-            {
-                baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
-            }
+            var baseQuery = BuildBaseProductQuery(db, parameters);
 
             // Build the result query (collapsed to one variant per root when filters are applied)
             IQueryable<Product> resultQuery;
@@ -1320,13 +1103,13 @@ public class ProductService(
                 itemsQuery = itemsQuery
                     .Include(x => x.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
-                            .ThenInclude(w => w.ServiceRegions);
+                            ;
 
                 itemsQuery = itemsQuery
                     .Include(x => x.ProductWarehouses)
                         .ThenInclude(pw => pw.Warehouse)
                             .ThenInclude(w => w.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts);
+                                ;
             }
 
             if (parameters.IncludeSiblingVariants)
@@ -1340,13 +1123,13 @@ public class ProductService(
                 itemsQuery = itemsQuery.Include(x => x.ProductRoot)
                     .ThenInclude(x => x.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
-                    .ThenInclude(w => w!.ServiceRegions);
+                    ;
 
                 itemsQuery = itemsQuery.Include(x => x.ProductRoot)
                     .ThenInclude(x => x.ProductRootWarehouses)
                     .ThenInclude(prw => prw.Warehouse)
                     .ThenInclude(w => w!.ShippingOptions)
-                    .ThenInclude(so => so.ShippingCosts);
+                    ;
             }
 
             // Note: Cannot use NoTracking with circular references (ProductRoot->Products creates a cycle)
@@ -1380,105 +1163,8 @@ public class ProductService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            // Build filtered base query (same filters as QueryProducts)
-            IQueryable<Product> baseQuery = db.Products;
-
-            var productTypeKeys = new HashSet<Guid>();
-            if (parameters.ProductTypeKey.HasValue)
-                productTypeKeys.Add(parameters.ProductTypeKey.Value);
-            if (parameters.ProductTypeKeys?.Any() == true)
-                productTypeKeys.UnionWith(parameters.ProductTypeKeys);
-
-            if (productTypeKeys.Count > 0)
-            {
-                baseQuery = baseQuery.Where(x => productTypeKeys.Contains(x.ProductRoot.ProductTypeId));
-            }
-
-            var productRootKeys = new HashSet<Guid>();
-            if (parameters.ProductRootKey.HasValue)
-                productRootKeys.Add(parameters.ProductRootKey.Value);
-            if (parameters.ProductRootKeys?.Any() == true)
-                productRootKeys.UnionWith(parameters.ProductRootKeys);
-
-            if (parameters.ProductIds?.Any() == true && productRootKeys.Count > 0)
-            {
-                baseQuery = baseQuery.Where(x =>
-                    parameters.ProductIds.Contains(x.Id) || productRootKeys.Contains(x.ProductRootId));
-            }
-            else if (parameters.ProductIds?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x => parameters.ProductIds.Contains(x.Id));
-            }
-            else if (productRootKeys.Count > 0)
-            {
-                baseQuery = baseQuery.Where(x => productRootKeys.Contains(x.ProductRootId));
-            }
-
-            if (parameters.CollectionIds?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x => x.ProductRoot.Collections.Any(pc => parameters.CollectionIds.Contains(pc.Id)));
-            }
-
-            if (parameters.FilterKeys?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x => x.Filters.Any(pc => parameters.FilterKeys.Contains(pc.Id)));
-            }
-
-            if (parameters.SupplierIds?.Any() == true)
-            {
-                baseQuery = baseQuery.Where(x =>
-                    x.ProductRoot.ProductRootWarehouses.Any(prw =>
-                        prw.Warehouse != null &&
-                        prw.Warehouse.SupplierId.HasValue &&
-                        parameters.SupplierIds.Contains(prw.Warehouse.SupplierId.Value)) ||
-                    x.ProductWarehouses.Any(pw =>
-                        pw.Warehouse != null &&
-                        pw.Warehouse.SupplierId.HasValue &&
-                        parameters.SupplierIds.Contains(pw.Warehouse.SupplierId.Value)));
-            }
-
-            if (!string.IsNullOrWhiteSpace(parameters.Search))
-            {
-                var searchLower = parameters.Search.ToLower();
-                baseQuery = baseQuery.Where(x =>
-                    (x.ProductRoot.RootName != null && x.ProductRoot.RootName.ToLower().Contains(searchLower)) ||
-                    (x.Sku != null && x.Sku.ToLower().Contains(searchLower)));
-            }
-
-            if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Available)
-            {
-                baseQuery = baseQuery.Where(x => x.AvailableForPurchase && x.CanPurchase);
-            }
-            else if (parameters.AvailabilityFilter == ProductAvailabilityFilter.Unavailable)
-            {
-                baseQuery = baseQuery.Where(x => !x.AvailableForPurchase || !x.CanPurchase);
-            }
-
-            if (parameters.StockStatusFilter != ProductStockStatusFilter.All)
-            {
-                var threshold = parameters.LowStockThreshold;
-                baseQuery = parameters.StockStatusFilter switch
-                {
-                    ProductStockStatusFilter.InStock => baseQuery.Where(x =>
-                        x.ProductWarehouses.Sum(pw => pw.Stock) > threshold),
-                    ProductStockStatusFilter.LowStock => baseQuery.Where(x =>
-                        x.ProductWarehouses.Sum(pw => pw.Stock) > 0 &&
-                        x.ProductWarehouses.Sum(pw => pw.Stock) <= threshold),
-                    ProductStockStatusFilter.OutOfStock => baseQuery.Where(x =>
-                        x.ProductWarehouses.Sum(pw => pw.Stock) <= 0),
-                    _ => baseQuery
-                };
-            }
-
-            if (parameters.MinPrice.HasValue)
-            {
-                baseQuery = baseQuery.Where(x => x.Price >= parameters.MinPrice.Value);
-            }
-
-            if (parameters.MaxPrice.HasValue)
-            {
-                baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
-            }
+            // Build filtered base query (shared with QueryProducts)
+            var baseQuery = BuildBaseProductQuery(db, parameters);
 
             // Only default variants for the list view
             var resultQuery = baseQuery.Where(x => x.Default);
@@ -2615,12 +2301,12 @@ public class ProductService(
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ServiceRegions)
+                            
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts)
+                                
                 .Include(p => p.ProductWarehouses)
                     .ThenInclude(pw => pw.Warehouse)
                 .AsSplitQuery()
@@ -2683,7 +2369,7 @@ public class ProductService(
             var productWarehouseData = await db.ProductWarehouses
                 .Where(pw => pw.Stock > 0 || !pw.TrackStock)
                 .Include(pw => pw.Warehouse)
-                    .ThenInclude(w => w.ServiceRegions)
+                    
                 .Select(pw => new { pw.ProductId, pw.Warehouse.ServiceRegions })
                 .ToListAsync(cancellationToken);
 
@@ -2826,9 +2512,9 @@ public class ProductService(
                 if (warehouseIds.Count > 0)
                 {
                     var warehousesWithData = await db.Warehouses
-                        .Include(w => w.ServiceRegions)
+                        
                         .Include(w => w.ShippingOptions)
-                            .ThenInclude(so => so.ShippingCosts)
+                            
                         .Where(w => warehouseIds.Contains(w.Id))
                         .AsNoTracking()
                         .ToDictionaryAsync(w => w.Id, ct);
@@ -2840,7 +2526,7 @@ public class ProductService(
                         {
                             if (warehousesWithData.TryGetValue(pw.Warehouse!.Id, out var fullWarehouse))
                             {
-                                pw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                                pw.Warehouse.SetServiceRegions(fullWarehouse.ServiceRegions);
                                 pw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
                             }
                         }
@@ -2849,7 +2535,7 @@ public class ProductService(
                     {
                         if (warehousesWithData.TryGetValue(prw.Warehouse!.Id, out var fullWarehouse))
                         {
-                            prw.Warehouse.ServiceRegions = fullWarehouse.ServiceRegions;
+                            prw.Warehouse.SetServiceRegions(fullWarehouse.ServiceRegions);
                             prw.Warehouse.ShippingOptions = fullWarehouse.ShippingOptions;
                         }
                     }
@@ -2980,3 +2666,6 @@ public class ProductService(
 }
 
 // Temporary compatibility: remove once legacy using directive is cleaned.
+
+
+

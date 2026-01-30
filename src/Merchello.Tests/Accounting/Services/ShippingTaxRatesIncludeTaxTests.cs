@@ -23,6 +23,7 @@ using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
+using Merchello.Core.Shipping.Services;
 using Merchello.Core.Tax.Models;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
@@ -119,10 +120,12 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
+        var shippingCostResolver = new ShippingCostResolver();
 
         return new InvoiceService(
             scopeProvider,
             shippingServiceMock.Object,
+            shippingCostResolver,
             shippingProviderManagerMock.Object,
             inventoryService,
             statusHandler,
@@ -173,8 +176,8 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var setting = new TaxProviderSetting
         {
-            ProviderAlias = "manual-tax",
-            IsActive = true
+            ProviderKey = "manual-tax",
+            IsEnabled = true
         };
 
         return new RegisteredTaxProvider(taxProviderMock.Object, setting);
@@ -551,10 +554,12 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
+        var shippingCostResolver = new ShippingCostResolver();
 
         return new InvoiceService(
             scopeProvider,
             shippingServiceMock.Object,
+            shippingCostResolver,
             shippingProviderManagerMock.Object,
             inventoryService,
             statusHandler,

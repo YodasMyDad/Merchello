@@ -2,13 +2,13 @@ using System.Text.Json;
 using Asp.Versioning;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Providers;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -543,7 +543,7 @@ public class ShippingProvidersApiController(
             IsSensitive = field.IsSensitive,
             DefaultValue = field.DefaultValue,
             Placeholder = field.Placeholder,
-            Options = field.Options?.Select(o => new SelectOptionDto
+            Options = field.Options?.Select(o => new SelectOption
             {
                 Value = o.Value,
                 Label = o.Label

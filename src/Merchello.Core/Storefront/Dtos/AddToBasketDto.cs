@@ -18,5 +18,5 @@ public class AddToBasketDto
     /// <summary>
     /// Selected add-on options (non-variant options with price adjustments)
     /// </summary>
-    public List<StorefrontAddonDto> Addons { get; set; } = [];
+    public List<Merchello.Core.Shared.Dtos.AddonSelectionDto> Addons { get; set; } = [];
 }

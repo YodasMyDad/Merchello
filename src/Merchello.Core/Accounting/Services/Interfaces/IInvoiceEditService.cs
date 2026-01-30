@@ -22,6 +22,14 @@ public interface IInvoiceEditService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Preview the calculated discount values for a line item without persisting.
+    /// Centralizes discount math for UI previews.
+    /// </summary>
+    Task<PreviewDiscountResultDto> PreviewDiscountAsync(
+        PreviewDiscountRequestDto request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Edit an invoice (update quantities, apply discounts, add custom items, etc.)
     /// Validates stock availability for products and uses product tax groups for tax calculations.
     /// </summary>

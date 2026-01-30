@@ -1,5 +1,5 @@
-using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Locality.Dtos;
 
 namespace Merchello.Core.Checkout.Services.Parameters;
 
@@ -15,18 +15,20 @@ public class SaveAddressesParameters
 
     /// <summary>
     /// The email address for the order
+    /// Optional for partial saves (capture mode).
     /// </summary>
-    public required string Email { get; init; }
+    public string? Email { get; init; }
 
     /// <summary>
     /// The billing address
+    /// Optional for partial saves (capture mode).
     /// </summary>
-    public required CheckoutAddressDto BillingAddress { get; init; }
+    public AddressDto? BillingAddress { get; init; }
 
     /// <summary>
     /// The shipping address (null if same as billing)
     /// </summary>
-    public CheckoutAddressDto? ShippingAddress { get; init; }
+    public AddressDto? ShippingAddress { get; init; }
 
     /// <summary>
     /// Whether shipping address is the same as billing
@@ -43,4 +45,9 @@ public class SaveAddressesParameters
     /// When provided, an Umbraco member will be created and linked to the customer.
     /// </summary>
     public string? Password { get; init; }
+
+    /// <summary>
+    /// When true, performs a partial save without recalculation (capture mode).
+    /// </summary>
+    public bool IsPartial { get; init; }
 }

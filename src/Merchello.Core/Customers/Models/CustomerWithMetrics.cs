@@ -9,6 +9,7 @@ internal class CustomerWithMetrics
     public Guid Id { get; set; }
     public string Email { get; set; } = string.Empty;
     public DateTime DateCreated { get; set; }
+    public string? TagsJson { get; set; }
     public List<string> Tags { get; set; } = [];
     public int OrderCount { get; set; }
     public decimal TotalSpend { get; set; }

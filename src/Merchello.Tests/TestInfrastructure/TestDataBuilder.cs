@@ -254,14 +254,14 @@ public class TestDataBuilder
     {
         var region = new WarehouseServiceRegion
         {
-            WarehouseId = warehouse.Id,
             CountryCode = countryCode,
             StateOrProvinceCode = stateOrProvinceCode,
             IsExcluded = isExcluded
         };
 
-        _dbContext.WarehouseServiceRegions.Add(region);
-        warehouse.ServiceRegions.Add(region);
+        var regions = warehouse.ServiceRegions;
+        regions.Add(region);
+        warehouse.SetServiceRegions(regions);
         return region;
     }
 
@@ -733,16 +733,7 @@ public class TestDataBuilder
         var customer = CreateCustomer(email, firstName ?? "Test", lastName ?? "Customer");
         if (tags != null)
         {
-            foreach (var tag in tags)
-            {
-                var customerTag = new CustomerTag
-                {
-                    CustomerId = customer.Id,
-                    Tag = tag
-                };
-                customer.CustomerTags.Add(customerTag);
-                _dbContext.CustomerTags.Add(customerTag);
-            }
+            customer.SetTags(tags);
         }
 
         // Create invoices with orders to build order history
@@ -783,7 +774,7 @@ public class TestDataBuilder
             UpdateDate = DateTime.UtcNow
         };
 
-        _dbContext.FulfilmentProviderConfigurations.Add(config);
+        _dbContext.ProviderConfigurations.Add(config);
         return config;
     }
 

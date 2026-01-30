@@ -433,8 +433,9 @@ public class ShippingOptionServiceTests
         result.ResultObject.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
-        var persisted = await _fixture.DbContext.Set<ShippingCost>().FindAsync(addResult.ResultObject.Id);
-        persisted.ShouldBeNull();
+        var persistedOption = await _fixture.DbContext.ShippingOptions.FindAsync(option.Id);
+        persistedOption.ShouldNotBeNull();
+        persistedOption!.ShippingCosts.Any(c => c.Id == addResult.ResultObject.Id).ShouldBeFalse();
     }
 
     [Fact]
@@ -548,8 +549,9 @@ public class ShippingOptionServiceTests
         result.ResultObject.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
-        var persisted = await _fixture.DbContext.ShippingWeightTiers.FindAsync(addResult.ResultObject.Id);
-        persisted.ShouldBeNull();
+        var persistedOption = await _fixture.DbContext.ShippingOptions.FindAsync(option.Id);
+        persistedOption.ShouldNotBeNull();
+        persistedOption!.WeightTiers.Any(t => t.Id == addResult.ResultObject.Id).ShouldBeFalse();
     }
 
     [Fact]

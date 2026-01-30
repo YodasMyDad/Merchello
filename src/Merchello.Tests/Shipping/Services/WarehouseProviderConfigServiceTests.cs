@@ -1,5 +1,7 @@
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Shipping.Services;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -38,6 +40,7 @@ public class WarehouseProviderConfigServiceTests
             IsEnabled = true,
             DefaultMarkupPercent = 10m
         };
+        await EnsureWarehouseAsync(config.WarehouseId);
 
         // Act
         var result = await _service.CreateAsync(config);
@@ -63,6 +66,7 @@ public class WarehouseProviderConfigServiceTests
             WarehouseId = Guid.NewGuid(),
             ProviderKey = "ups"
         };
+        await EnsureWarehouseAsync(config.WarehouseId);
 
         // Act
         var result = await _service.CreateAsync(config);
@@ -82,6 +86,7 @@ public class WarehouseProviderConfigServiceTests
             WarehouseId = Guid.NewGuid(),
             ProviderKey = "ups"
         };
+        await EnsureWarehouseAsync(config.WarehouseId);
 
         // Act
         var result = await _service.CreateAsync(config);
@@ -398,15 +403,36 @@ public class WarehouseProviderConfigServiceTests
         bool isEnabled = true,
         decimal markupPercent = 0m)
     {
+        var targetWarehouseId = warehouseId ?? Guid.NewGuid();
+        await EnsureWarehouseAsync(targetWarehouseId);
+
         var config = new WarehouseProviderConfig
         {
-            WarehouseId = warehouseId ?? Guid.NewGuid(),
+            WarehouseId = targetWarehouseId,
             ProviderKey = providerKey,
             IsEnabled = isEnabled,
             DefaultMarkupPercent = markupPercent
         };
 
         return await _service.CreateAsync(config);
+    }
+
+    private async Task EnsureWarehouseAsync(Guid warehouseId)
+    {
+        var existing = await _fixture.DbContext.Warehouses.FindAsync(warehouseId);
+        if (existing != null)
+        {
+            return;
+        }
+
+        _fixture.DbContext.Warehouses.Add(new Warehouse
+        {
+            Id = warehouseId,
+            Name = $"Test Warehouse {warehouseId:N}",
+            Address = new Address()
+        });
+
+        await _fixture.DbContext.SaveChangesAsync();
     }
 
     #endregion

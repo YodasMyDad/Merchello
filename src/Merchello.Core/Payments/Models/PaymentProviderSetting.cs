@@ -1,31 +1,23 @@
-using Merchello.Core.Shared.Extensions;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
+using Merchello.Core.Shared.Providers;
 
 namespace Merchello.Core.Payments.Models;
 
 /// <summary>
 /// Database entity for persisted payment provider configuration.
 /// </summary>
-public class PaymentProviderSetting
+public class PaymentProviderSetting : ProviderConfiguration
 {
-    /// <summary>
-    /// Unique identifier.
-    /// </summary>
-    public Guid Id { get; set; } = GuidExtensions.NewSequentialGuid;
-
     /// <summary>
     /// The provider alias (must match the provider's metadata alias).
     /// </summary>
-    public required string ProviderAlias { get; set; }
-
-    /// <summary>
-    /// Display name for this provider configuration.
-    /// </summary>
-    public required string DisplayName { get; set; }
-
-    /// <summary>
-    /// Whether this provider is enabled.
-    /// </summary>
-    public bool IsEnabled { get; set; }
+    [NotMapped]
+    public string ProviderAlias
+    {
+        get => ProviderKey;
+        set => ProviderKey = value;
+    }
 
     /// <summary>
     /// Whether this provider is in test/sandbox mode.
@@ -44,26 +36,41 @@ public class PaymentProviderSetting
     /// <summary>
     /// JSON-serialized configuration values.
     /// </summary>
-    public string? Configuration { get; set; }
+    [NotMapped]
+    public string? Configuration
+    {
+        get => SettingsJson;
+        set => SettingsJson = value;
+    }
 
     /// <summary>
-    /// Sort order for display in checkout.
+    /// Serialized payment method settings for this provider.
     /// </summary>
-    public int SortOrder { get; set; }
-
-    /// <summary>
-    /// Date this record was created.
-    /// </summary>
-    public DateTime DateCreated { get; set; } = DateTime.UtcNow;
-
-    /// <summary>
-    /// Date this record was last updated.
-    /// </summary>
-    public DateTime DateUpdated { get; set; } = DateTime.UtcNow;
+    public string? MethodSettingsJson { get; set; }
 
     /// <summary>
     /// Method settings for this provider. Each method can be individually enabled/disabled.
     /// </summary>
-    public List<PaymentMethodSetting> MethodSettings { get; set; } = [];
+    [NotMapped]
+    public List<PaymentMethodSetting> MethodSettings =>
+        string.IsNullOrEmpty(MethodSettingsJson) ? [] :
+        JsonSerializer.Deserialize<List<PaymentMethodSetting>>(MethodSettingsJson) ?? [];
+
+    public void SetMethodSettings(List<PaymentMethodSetting>? settings) =>
+        MethodSettingsJson = settings is { Count: > 0 } ? JsonSerializer.Serialize(settings) : null;
+
+    [NotMapped]
+    public DateTime DateCreated
+    {
+        get => CreateDate;
+        set => CreateDate = value;
+    }
+
+    [NotMapped]
+    public DateTime DateUpdated
+    {
+        get => UpdateDate;
+        set => UpdateDate = value;
+    }
 }
 

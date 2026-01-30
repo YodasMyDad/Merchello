@@ -52,7 +52,8 @@ namespace Merchello.Core.SqlServer.Migrations
                     AcceptsMarketing = table.Column<bool>(type: "bit", nullable: false),
                     HasAccountTerms = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
                     PaymentTermsDays = table.Column<int>(type: "int", nullable: true),
-                    CreditLimit = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true)
+                    CreditLimit = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
+                    TagsJson = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -172,63 +173,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "merchelloExchangeRateProviders",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProviderAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ConfigurationJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    LastFetchedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    LastRatesJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloExchangeRateProviders", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloFulfilmentProviderConfigurations",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProviderKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    DisplayName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
-                    IsEnabled = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
-                    InventorySyncMode = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
-                    SettingsJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
-                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloFulfilmentProviderConfigurations", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloPaymentProviders",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProviderAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    DisplayName = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: false),
-                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    IsTestMode = table.Column<bool>(type: "bit", nullable: false),
-                    IsVaultingEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    Configuration = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "int", nullable: false),
-                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloPaymentProviders", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "merchelloProductCollections",
                 columns: table => new
                 {
@@ -267,21 +211,28 @@ namespace Merchello.Core.SqlServer.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "merchelloShippingProviderConfigurations",
+                name: "merchelloProviderConfigurations",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProviderKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    DisplayName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    ProviderKey = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    DisplayName = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     IsEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    SettingsJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    SettingsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    ProviderType = table.Column<string>(type: "nvarchar(21)", maxLength: 21, nullable: false),
+                    LastFetchedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    LastRatesJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    InventorySyncMode = table.Column<int>(type: "int", nullable: true),
+                    IsTestMode = table.Column<bool>(type: "bit", nullable: true),
+                    IsVaultingEnabled = table.Column<bool>(type: "bit", nullable: true),
+                    MethodSettingsJson = table.Column<string>(type: "nvarchar(max)", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_merchelloShippingProviderConfigurations", x => x.Id);
+                    table.PrimaryKey("PK_merchelloProviderConfigurations", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -320,23 +271,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "merchelloTaxProviders",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProviderAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    ConfigurationJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    SortOrder = table.Column<int>(type: "int", nullable: false),
-                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloTaxProviders", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "merchelloUpsellRules",
                 columns: table => new
                 {
@@ -365,27 +299,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_merchelloUpsellRules", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloWarehouseProviderConfigs",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProviderKey = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    IsEnabled = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
-                    DefaultMarkupPercent = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false, defaultValue: 0m),
-                    ServiceMarkupsJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    ExcludedServiceTypesJson = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    DefaultDaysFromOverride = table.Column<int>(type: "int", nullable: true),
-                    DefaultDaysToOverride = table.Column<int>(type: "int", nullable: true),
-                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloWarehouseProviderConfigs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -457,26 +370,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         principalTable: "merchelloBaskets",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloCustomerTags",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CustomerId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Tag = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    DateAdded = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloCustomerTags", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_merchelloCustomerTags_merchelloCustomers_CustomerId",
-                        column: x => x.CustomerId,
-                        principalTable: "merchelloCustomers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -612,6 +505,28 @@ namespace Merchello.Core.SqlServer.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "merchelloProductFilters",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    SortOrder = table.Column<int>(type: "int", nullable: false),
+                    HexColour = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
+                    Image = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    ProductFilterGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_merchelloProductFilters", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_merchelloProductFilters_merchelloProductFilterGroups_ProductFilterGroupId",
+                        column: x => x.ProductFilterGroupId,
+                        principalTable: "merchelloProductFilterGroups",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "merchelloFulfilmentSyncLogs",
                 columns: table => new
                 {
@@ -630,9 +545,9 @@ namespace Merchello.Core.SqlServer.Migrations
                 {
                     table.PrimaryKey("PK_merchelloFulfilmentSyncLogs", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_merchelloFulfilmentSyncLogs_merchelloFulfilmentProviderConfigurations_ProviderConfigurationId",
+                        name: "FK_merchelloFulfilmentSyncLogs_merchelloProviderConfigurations_ProviderConfigurationId",
                         column: x => x.ProviderConfigurationId,
-                        principalTable: "merchelloFulfilmentProviderConfigurations",
+                        principalTable: "merchelloProviderConfigurations",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -653,9 +568,9 @@ namespace Merchello.Core.SqlServer.Migrations
                 {
                     table.PrimaryKey("PK_merchelloFulfilmentWebhookLogs", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_merchelloFulfilmentWebhookLogs_merchelloFulfilmentProviderConfigurations_ProviderConfigurationId",
+                        name: "FK_merchelloFulfilmentWebhookLogs_merchelloProviderConfigurations_ProviderConfigurationId",
                         column: x => x.ProviderConfigurationId,
-                        principalTable: "merchelloFulfilmentProviderConfigurations",
+                        principalTable: "merchelloProviderConfigurations",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -680,60 +595,11 @@ namespace Merchello.Core.SqlServer.Migrations
                 {
                     table.PrimaryKey("PK_merchelloSuppliers", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_merchelloSuppliers_merchelloFulfilmentProviderConfigurations_DefaultFulfilmentProviderConfigurationId",
+                        name: "FK_merchelloSuppliers_merchelloProviderConfigurations_DefaultFulfilmentProviderConfigurationId",
                         column: x => x.DefaultFulfilmentProviderConfigurationId,
-                        principalTable: "merchelloFulfilmentProviderConfigurations",
+                        principalTable: "merchelloProviderConfigurations",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloPaymentMethods",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PaymentProviderSettingId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    MethodAlias = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    DisplayNameOverride = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
-                    IsEnabled = table.Column<bool>(type: "bit", nullable: false),
-                    SortOrder = table.Column<int>(type: "int", nullable: false),
-                    ShowInCheckout = table.Column<bool>(type: "bit", nullable: true),
-                    IconMediaKey = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    CheckoutStyleOverride = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloPaymentMethods", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_merchelloPaymentMethods_merchelloPaymentProviders_PaymentProviderSettingId",
-                        column: x => x.PaymentProviderSettingId,
-                        principalTable: "merchelloPaymentProviders",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloProductFilters",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    SortOrder = table.Column<int>(type: "int", nullable: false),
-                    HexColour = table.Column<string>(type: "nvarchar(150)", maxLength: 150, nullable: true),
-                    Image = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ProductFilterGroupId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloProductFilters", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_merchelloProductFilters_merchelloProductFilterGroups_ProductFilterGroupId",
-                        column: x => x.ProductFilterGroupId,
-                        principalTable: "merchelloProductFilterGroups",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -958,17 +824,17 @@ namespace Merchello.Core.SqlServer.Migrations
                 {
                     table.PrimaryKey("PK_merchelloOrders", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_merchelloOrders_merchelloFulfilmentProviderConfigurations_FulfilmentProviderConfigurationId",
-                        column: x => x.FulfilmentProviderConfigurationId,
-                        principalTable: "merchelloFulfilmentProviderConfigurations",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
-                    table.ForeignKey(
                         name: "FK_merchelloOrders_merchelloInvoices_InvoiceId",
                         column: x => x.InvoiceId,
                         principalTable: "merchelloInvoices",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_merchelloOrders_merchelloProviderConfigurations_FulfilmentProviderConfigurationId",
+                        column: x => x.FulfilmentProviderConfigurationId,
+                        principalTable: "merchelloProviderConfigurations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -1026,6 +892,8 @@ namespace Merchello.Core.SqlServer.Migrations
                     Name = table.Column<string>(type: "nvarchar(250)", maxLength: 250, nullable: true),
                     Code = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Address = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    ServiceRegionsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProviderConfigsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     DateUpdated = table.Column<DateTime>(type: "datetime2", nullable: false),
                     DateCreated = table.Column<DateTime>(type: "datetime2", nullable: false),
                     AutomationMethod = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
@@ -1035,9 +903,9 @@ namespace Merchello.Core.SqlServer.Migrations
                 {
                     table.PrimaryKey("PK_merchelloWarehouses", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_merchelloWarehouses_merchelloFulfilmentProviderConfigurations_FulfilmentProviderConfigurationId",
+                        name: "FK_merchelloWarehouses_merchelloProviderConfigurations_FulfilmentProviderConfigurationId",
                         column: x => x.FulfilmentProviderConfigurationId,
-                        principalTable: "merchelloFulfilmentProviderConfigurations",
+                        principalTable: "merchelloProviderConfigurations",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
@@ -1238,6 +1106,8 @@ namespace Merchello.Core.SqlServer.Migrations
                     DaysTo = table.Column<int>(type: "int", nullable: false),
                     IsNextDay = table.Column<bool>(type: "bit", nullable: false),
                     NextDayCutOffTime = table.Column<TimeSpan>(type: "time", nullable: true),
+                    ShippingCostsJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ShippingWeightTiersJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     AllowsDeliveryDateSelection = table.Column<bool>(type: "bit", nullable: false),
                     MinDeliveryDays = table.Column<int>(type: "int", nullable: true),
                     MaxDeliveryDays = table.Column<int>(type: "int", nullable: true),
@@ -1252,27 +1122,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     table.PrimaryKey("PK_merchelloShippingOptions", x => x.Id);
                     table.ForeignKey(
                         name: "FK_merchelloShippingOptions_merchelloWarehouses_WarehouseId",
-                        column: x => x.WarehouseId,
-                        principalTable: "merchelloWarehouses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloWarehouseServiceRegions",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    IsExcluded = table.Column<bool>(type: "bit", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloWarehouseServiceRegions", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_merchelloWarehouseServiceRegions_merchelloWarehouses_WarehouseId",
                         column: x => x.WarehouseId,
                         principalTable: "merchelloWarehouses",
                         principalColumn: "Id",
@@ -1327,33 +1176,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_merchelloProductWarehouse_merchelloWarehouses_WarehouseId",
-                        column: x => x.WarehouseId,
-                        principalTable: "merchelloWarehouses",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloProductWarehousePriceOverride",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    WarehouseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ProductId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Price = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true),
-                    CostOfGoods = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloProductWarehousePriceOverride", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_merchelloProductWarehousePriceOverride_merchelloProducts_ProductId",
-                        column: x => x.ProductId,
-                        principalTable: "merchelloProducts",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_merchelloProductWarehousePriceOverride_merchelloWarehouses_WarehouseId",
                         column: x => x.WarehouseId,
                         principalTable: "merchelloWarehouses",
                         principalColumn: "Id",
@@ -1429,94 +1251,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         column: x => x.ShippingOptionId,
                         principalTable: "merchelloShippingOptions",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloShippingCosts",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    Cost = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
-                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloShippingCosts", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_merchelloShippingCosts_merchelloShippingOptions_ShippingOptionId",
-                        column: x => x.ShippingOptionId,
-                        principalTable: "merchelloShippingOptions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloShippingOptionCountries",
-                columns: table => new
-                {
-                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    Country_Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Country_CountryCode = table.Column<string>(type: "nvarchar(max)", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloShippingOptionCountries", x => new { x.ShippingOptionId, x.CountryCode });
-                    table.ForeignKey(
-                        name: "FK_merchelloShippingOptionCountries_merchelloShippingOptions_ShippingOptionId",
-                        column: x => x.ShippingOptionId,
-                        principalTable: "merchelloShippingOptions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloShippingWeightTiers",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CountryCode = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),
-                    StateOrProvinceCode = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    MinWeightKg = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
-                    MaxWeightKg = table.Column<decimal>(type: "decimal(18,4)", nullable: true),
-                    Surcharge = table.Column<decimal>(type: "decimal(18,4)", nullable: false),
-                    CreateDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdateDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloShippingWeightTiers", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_merchelloShippingWeightTiers_merchelloShippingOptions_ShippingOptionId",
-                        column: x => x.ShippingOptionId,
-                        principalTable: "merchelloShippingOptions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "merchelloShippingOptionCountries_CountyStates",
-                columns: table => new
-                {
-                    CountryShippingOptionCountryShippingOptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CountryShippingOptionCountryCountryCode = table.Column<string>(type: "nvarchar(10)", nullable: false),
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    RegionCode = table.Column<string>(type: "nvarchar(max)", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_merchelloShippingOptionCountries_CountyStates", x => new { x.CountryShippingOptionCountryShippingOptionId, x.CountryShippingOptionCountryCountryCode, x.Id });
-                    table.ForeignKey(
-                        name: "FK_merchelloShippingOptionCountries_CountyStates_merchelloShippingOptionCountries_CountryShippingOptionCountryShippingOptionId_~",
-                        columns: x => new { x.CountryShippingOptionCountryShippingOptionId, x.CountryShippingOptionCountryCountryCode },
-                        principalTable: "merchelloShippingOptionCountries",
-                        principalColumns: new[] { "ShippingOptionId", "CountryCode" },
                         onDelete: ReferentialAction.Cascade);
                 });
 
@@ -1601,22 +1335,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 column: "SegmentType");
 
             migrationBuilder.CreateIndex(
-                name: "IX_merchelloCustomerTags_CustomerId",
-                table: "merchelloCustomerTags",
-                column: "CustomerId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloCustomerTags_CustomerId_Tag",
-                table: "merchelloCustomerTags",
-                columns: new[] { "CustomerId", "Tag" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloCustomerTags_Tag",
-                table: "merchelloCustomerTags",
-                column: "Tag");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_merchelloDiscounts_Code",
                 table: "merchelloDiscounts",
                 column: "Code",
@@ -1684,22 +1402,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "IX_merchelloEmailConfigurations_Topic_Enabled",
                 table: "merchelloEmailConfigurations",
                 columns: new[] { "Topic", "Enabled" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloExchangeRateProviders_IsActive",
-                table: "merchelloExchangeRateProviders",
-                column: "IsActive");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloExchangeRateProviders_ProviderAlias",
-                table: "merchelloExchangeRateProviders",
-                column: "ProviderAlias",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloFulfilmentProviderConfigurations_ProviderKey",
-                table: "merchelloFulfilmentProviderConfigurations",
-                column: "ProviderKey");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloFulfilmentSyncLogs_ProviderConfigurationId",
@@ -1874,18 +1576,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 columns: new[] { "Status", "NextRetryUtc" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_merchelloPaymentMethods_PaymentProviderSettingId_MethodAlias",
-                table: "merchelloPaymentMethods",
-                columns: new[] { "PaymentProviderSettingId", "MethodAlias" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloPaymentProviders_ProviderAlias",
-                table: "merchelloPaymentProviders",
-                column: "ProviderAlias",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
                 name: "IX_merchelloPayments_IdempotencyKey",
                 table: "merchelloPayments",
                 column: "IdempotencyKey",
@@ -1997,16 +1687,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 column: "WarehouseId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_merchelloProductWarehousePriceOverride_ProductId",
-                table: "merchelloProductWarehousePriceOverride",
-                column: "ProductId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloProductWarehousePriceOverride_WarehouseId",
-                table: "merchelloProductWarehousePriceOverride",
-                column: "WarehouseId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_merchelloSavedPaymentMethods_CustomerId",
                 table: "merchelloSavedPaymentMethods",
                 column: "CustomerId");
@@ -2028,20 +1708,9 @@ namespace Merchello.Core.SqlServer.Migrations
                 column: "WarehouseId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_merchelloShippingCosts_ShippingOptionId",
-                table: "merchelloShippingCosts",
-                column: "ShippingOptionId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_merchelloShippingOptions_WarehouseId",
                 table: "merchelloShippingOptions",
                 column: "WarehouseId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloShippingProviderConfigurations_ProviderKey",
-                table: "merchelloShippingProviderConfigurations",
-                column: "ProviderKey",
-                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloShippingTaxOverrides_CountryCode_StateOrProvinceCode",
@@ -2054,11 +1723,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "IX_merchelloShippingTaxOverrides_ShippingTaxGroupId",
                 table: "merchelloShippingTaxOverrides",
                 column: "ShippingTaxGroupId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloShippingWeightTiers_ShippingOptionId_CountryCode_StateOrProvinceCode",
-                table: "merchelloShippingWeightTiers",
-                columns: new[] { "ShippingOptionId", "CountryCode", "StateOrProvinceCode" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloSigningKeys_ExpiredAt",
@@ -2089,17 +1753,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 filter: "[StateOrProvinceCode] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_merchelloTaxProviders_IsActive",
-                table: "merchelloTaxProviders",
-                column: "IsActive");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloTaxProviders_ProviderAlias",
-                table: "merchelloTaxProviders",
-                column: "ProviderAlias",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
                 name: "IX_merchelloUpsellEvents_DateCreated",
                 table: "merchelloUpsellEvents",
                 column: "DateCreated");
@@ -2125,12 +1778,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 column: "Status");
 
             migrationBuilder.CreateIndex(
-                name: "IX_merchelloWarehouseProviderConfigs_WarehouseId_ProviderKey",
-                table: "merchelloWarehouseProviderConfigs",
-                columns: new[] { "WarehouseId", "ProviderKey" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
                 name: "IX_merchelloWarehouses_Code",
                 table: "merchelloWarehouses",
                 column: "Code",
@@ -2146,11 +1793,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "IX_merchelloWarehouses_SupplierId",
                 table: "merchelloWarehouses",
                 column: "SupplierId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_merchelloWarehouseServiceRegions_WarehouseId",
-                table: "merchelloWarehouseServiceRegions",
-                column: "WarehouseId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloWebhookSubscriptions_IsActive",
@@ -2178,9 +1820,6 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "merchelloCustomerSegmentMembers");
 
             migrationBuilder.DropTable(
-                name: "merchelloCustomerTags");
-
-            migrationBuilder.DropTable(
                 name: "merchelloDiscountUsages");
 
             migrationBuilder.DropTable(
@@ -2188,9 +1827,6 @@ namespace Merchello.Core.SqlServer.Migrations
 
             migrationBuilder.DropTable(
                 name: "merchelloEmailConfigurations");
-
-            migrationBuilder.DropTable(
-                name: "merchelloExchangeRateProviders");
 
             migrationBuilder.DropTable(
                 name: "merchelloFulfilmentSyncLogs");
@@ -2203,9 +1839,6 @@ namespace Merchello.Core.SqlServer.Migrations
 
             migrationBuilder.DropTable(
                 name: "merchelloOutboundDeliveries");
-
-            migrationBuilder.DropTable(
-                name: "merchelloPaymentMethods");
 
             migrationBuilder.DropTable(
                 name: "merchelloPayments");
@@ -2232,28 +1865,13 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "merchelloProductWarehouse");
 
             migrationBuilder.DropTable(
-                name: "merchelloProductWarehousePriceOverride");
-
-            migrationBuilder.DropTable(
                 name: "merchelloSavedPaymentMethods");
 
             migrationBuilder.DropTable(
                 name: "merchelloShipments");
 
             migrationBuilder.DropTable(
-                name: "merchelloShippingCosts");
-
-            migrationBuilder.DropTable(
-                name: "merchelloShippingOptionCountries_CountyStates");
-
-            migrationBuilder.DropTable(
-                name: "merchelloShippingProviderConfigurations");
-
-            migrationBuilder.DropTable(
                 name: "merchelloShippingTaxOverrides");
-
-            migrationBuilder.DropTable(
-                name: "merchelloShippingWeightTiers");
 
             migrationBuilder.DropTable(
                 name: "merchelloSigningKeys");
@@ -2262,16 +1880,7 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "merchelloTaxGroupRates");
 
             migrationBuilder.DropTable(
-                name: "merchelloTaxProviders");
-
-            migrationBuilder.DropTable(
                 name: "merchelloUpsellEvents");
-
-            migrationBuilder.DropTable(
-                name: "merchelloWarehouseProviderConfigs");
-
-            migrationBuilder.DropTable(
-                name: "merchelloWarehouseServiceRegions");
 
             migrationBuilder.DropTable(
                 name: "merchelloBaskets");
@@ -2286,13 +1895,13 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "merchelloWebhookSubscriptions");
 
             migrationBuilder.DropTable(
-                name: "merchelloPaymentProviders");
-
-            migrationBuilder.DropTable(
                 name: "merchelloProductFilters");
 
             migrationBuilder.DropTable(
                 name: "merchelloProductCollections");
+
+            migrationBuilder.DropTable(
+                name: "merchelloShippingOptions");
 
             migrationBuilder.DropTable(
                 name: "merchelloProducts");
@@ -2301,13 +1910,13 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "merchelloOrders");
 
             migrationBuilder.DropTable(
-                name: "merchelloShippingOptionCountries");
-
-            migrationBuilder.DropTable(
                 name: "merchelloUpsellRules");
 
             migrationBuilder.DropTable(
                 name: "merchelloProductFilterGroups");
+
+            migrationBuilder.DropTable(
+                name: "merchelloWarehouses");
 
             migrationBuilder.DropTable(
                 name: "merchelloProductRoots");
@@ -2316,7 +1925,7 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "merchelloInvoices");
 
             migrationBuilder.DropTable(
-                name: "merchelloShippingOptions");
+                name: "merchelloSuppliers");
 
             migrationBuilder.DropTable(
                 name: "merchelloProductTypes");
@@ -2328,13 +1937,7 @@ namespace Merchello.Core.SqlServer.Migrations
                 name: "merchelloCustomers");
 
             migrationBuilder.DropTable(
-                name: "merchelloWarehouses");
-
-            migrationBuilder.DropTable(
-                name: "merchelloSuppliers");
-
-            migrationBuilder.DropTable(
-                name: "merchelloFulfilmentProviderConfigurations");
+                name: "merchelloProviderConfigurations");
         }
     }
 }

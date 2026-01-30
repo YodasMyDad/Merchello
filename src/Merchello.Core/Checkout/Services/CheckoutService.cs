@@ -25,6 +25,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
@@ -685,16 +686,16 @@ public class CheckoutService(
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                .ThenInclude(so => so.ShippingCosts)
+                                
                 .Include(product => product.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ServiceRegions)
+                            
                 .Include(product => product.ShippingOptions)
-                    .ThenInclude(option => option.ShippingCosts)
+                    
                 .Include(product => product.ShippingOptions)
                     .ThenInclude(option => option.Warehouse)
-                        .ThenInclude(w => w!.ServiceRegions)
+                        
                 .AsSplitQuery()
                 .AsNoTracking()
                 .Where(product => productIds.Contains(product.Id))
@@ -997,8 +998,74 @@ public class CheckoutService(
         var basket = parameters.Basket;
         var result = new CrudResult<Basket>();
 
-        if (!string.IsNullOrWhiteSpace(parameters.Email) &&
-            !System.Net.Mail.MailAddress.TryCreate(parameters.Email, out _))
+        if (parameters.IsPartial)
+        {
+            var hasChanges = false;
+
+            if (!string.IsNullOrWhiteSpace(parameters.Email))
+            {
+                basket.BillingAddress.Email = parameters.Email.Trim();
+                hasChanges = true;
+            }
+
+            if (parameters.BillingAddress != null)
+            {
+                UpdateAddressFromDto(basket.BillingAddress, parameters.BillingAddress);
+                hasChanges = true;
+            }
+
+            if (parameters.ShippingSameAsBilling && parameters.BillingAddress != null)
+            {
+                CopyAddress(basket.BillingAddress, basket.ShippingAddress);
+                hasChanges = true;
+            }
+            else if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
+            {
+                UpdateAddressFromDto(basket.ShippingAddress, parameters.ShippingAddress);
+                hasChanges = true;
+            }
+
+            if (!hasChanges)
+            {
+                result.ResultObject = basket;
+                return result;
+            }
+
+            await SaveBasketAsync(basket, cancellationToken);
+
+            var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+            await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+            {
+                BasketId = basket.Id,
+                Billing = basket.BillingAddress,
+                Shipping = basket.ShippingAddress,
+                SameAsBilling = parameters.ShippingSameAsBilling,
+                AcceptsMarketing = session.AcceptsMarketing
+            }, cancellationToken);
+
+            if (abandonedCheckoutService != null && !string.IsNullOrWhiteSpace(basket.BillingAddress.Email))
+            {
+                await abandonedCheckoutService.TrackCheckoutActivityAsync(
+                    basket,
+                    basket.BillingAddress.Email,
+                    cancellationToken);
+            }
+
+            result.ResultObject = basket;
+            return result;
+        }
+
+        if (string.IsNullOrWhiteSpace(parameters.Email) || parameters.BillingAddress == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Email and billing address are required.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        if (!System.Net.Mail.MailAddress.TryCreate(parameters.Email, out _))
         {
             result.Messages.Add(new ResultMessage
             {
@@ -1156,23 +1223,24 @@ public class CheckoutService(
         return result;
     }
 
-    private static Locality.Models.Address MapDtoToAddress(CheckoutAddressDto dto)
+    private static Locality.Models.Address MapDtoToAddress(AddressDto dto)
     {
         return new Locality.Models.Address
         {
             Name = dto.Name,
             Company = dto.Company,
-            AddressOne = dto.Address1,
-            AddressTwo = dto.Address2,
-            TownCity = dto.City,
+            AddressOne = dto.AddressOne,
+            AddressTwo = dto.AddressTwo,
+            TownCity = dto.TownCity,
             CountyState = new CountyState
             {
-                Name = dto.State,
-                RegionCode = dto.StateCode
+                Name = dto.CountyState,
+                RegionCode = dto.RegionCode ?? dto.CountyState
             },
             PostalCode = dto.PostalCode,
             Country = dto.Country,
             CountryCode = dto.CountryCode,
+            Email = dto.Email,
             Phone = dto.Phone
         };
     }
@@ -1233,80 +1301,27 @@ public class CheckoutService(
         httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
     }
 
-    /// <inheritdoc />
-    public async Task<bool> CaptureAddressAsync(
-        CaptureAddressParameters parameters,
-        CancellationToken cancellationToken = default)
-    {
-        var basket = parameters.Basket;
-        var hasChanges = false;
-
-        // Update email if provided
-        if (!string.IsNullOrWhiteSpace(parameters.Email))
-        {
-            basket.BillingAddress.Email = parameters.Email.Trim();
-            hasChanges = true;
-        }
-
-        // Update billing address fields
-        if (parameters.BillingAddress != null)
-        {
-            UpdateAddressFromDto(basket.BillingAddress, parameters.BillingAddress);
-            hasChanges = true;
-        }
-
-        // Update shipping address
-        if (parameters.ShippingSameAsBilling && parameters.BillingAddress != null)
-        {
-            CopyAddress(basket.BillingAddress, basket.ShippingAddress);
-        }
-        else if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
-        {
-            UpdateAddressFromDto(basket.ShippingAddress, parameters.ShippingAddress);
-            hasChanges = true;
-        }
-
-        if (hasChanges)
-        {
-            await SaveBasketAsync(basket, cancellationToken);
-
-            await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
-            {
-                BasketId = basket.Id,
-                Billing = basket.BillingAddress,
-                Shipping = basket.ShippingAddress,
-                SameAsBilling = parameters.ShippingSameAsBilling
-            }, cancellationToken);
-
-            if (abandonedCheckoutService != null)
-            {
-                await abandonedCheckoutService.TrackCheckoutActivityAsync(
-                    basket,
-                    basket.BillingAddress.Email ?? "",
-                    cancellationToken);
-            }
-        }
-
-        return hasChanges;
-    }
-
-    private static void UpdateAddressFromDto(Locality.Models.Address address, CheckoutAddressDto dto)
+    private static void UpdateAddressFromDto(Locality.Models.Address address, AddressDto dto)
     {
         if (!string.IsNullOrEmpty(dto.Name)) address.Name = dto.Name;
         if (!string.IsNullOrEmpty(dto.Company)) address.Company = dto.Company;
-        if (!string.IsNullOrEmpty(dto.Address1)) address.AddressOne = dto.Address1;
-        if (dto.Address2 != null) address.AddressTwo = dto.Address2;
-        if (!string.IsNullOrEmpty(dto.City)) address.TownCity = dto.City;
+        if (!string.IsNullOrEmpty(dto.AddressOne)) address.AddressOne = dto.AddressOne;
+        if (dto.AddressTwo != null) address.AddressTwo = dto.AddressTwo;
+        if (!string.IsNullOrEmpty(dto.TownCity)) address.TownCity = dto.TownCity;
         if (!string.IsNullOrEmpty(dto.PostalCode)) address.PostalCode = dto.PostalCode;
         if (!string.IsNullOrEmpty(dto.Country)) address.Country = dto.Country;
         if (!string.IsNullOrEmpty(dto.CountryCode)) address.CountryCode = dto.CountryCode;
         if (!string.IsNullOrEmpty(dto.Phone)) address.Phone = dto.Phone;
 
-        if (!string.IsNullOrEmpty(dto.State) || !string.IsNullOrEmpty(dto.StateCode))
+        if (!string.IsNullOrEmpty(dto.CountyState) || !string.IsNullOrEmpty(dto.RegionCode))
         {
             address.CountyState ??= new Locality.Models.CountyState();
-            if (!string.IsNullOrEmpty(dto.State)) address.CountyState.Name = dto.State;
-            if (!string.IsNullOrEmpty(dto.StateCode)) address.CountyState.RegionCode = dto.StateCode;
+            if (!string.IsNullOrEmpty(dto.CountyState)) address.CountyState.Name = dto.CountyState;
+            if (!string.IsNullOrEmpty(dto.RegionCode)) address.CountyState.RegionCode = dto.RegionCode;
+            else if (!string.IsNullOrEmpty(dto.CountyState) && string.IsNullOrEmpty(address.CountyState.RegionCode))
+            {
+                address.CountyState.RegionCode = dto.CountyState;
+            }
         }
     }
 
@@ -1863,7 +1878,7 @@ public class CheckoutService(
         return $"{currencySymbol}{price:N2}";
     }
 
-    private async Task<CheckoutAddressDto> MapAddressAsync(Locality.Models.Address address)
+    private async Task<AddressDto> MapAddressAsync(Locality.Models.Address address)
     {
         // Look up country name from code if not set
         var countryName = address.Country;
@@ -1872,18 +1887,21 @@ public class CheckoutService(
             countryName = await localityCatalog.TryGetCountryNameAsync(address.CountryCode);
         }
 
-        return new CheckoutAddressDto
+        return new AddressDto
         {
             Name = address.Name,
             Company = address.Company,
-            Address1 = address.AddressOne,
-            Address2 = address.AddressTwo,
-            City = address.TownCity,
-            State = address.CountyState.Name,
-            StateCode = address.CountyState.RegionCode,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = string.IsNullOrWhiteSpace(address.CountyState.Name)
+                ? address.CountyState.RegionCode
+                : address.CountyState.Name,
+            RegionCode = address.CountyState.RegionCode,
             PostalCode = address.PostalCode,
             Country = countryName,
             CountryCode = address.CountryCode,
+            Email = address.Email,
             Phone = address.Phone
         };
     }
@@ -2387,3 +2405,5 @@ public class CheckoutService(
             => Task.FromResult<IReadOnlyCollection<RegionAvailability>>(Array.Empty<RegionAvailability>());
     }
 }
+
+

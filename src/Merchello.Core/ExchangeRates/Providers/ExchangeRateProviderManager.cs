@@ -52,7 +52,8 @@ public class ExchangeRateProviderManager(
 
             using var scope = efCoreScopeProvider.CreateScope();
             var settings = await scope.ExecuteWithContextAsync(async db =>
-                await db.ExchangeRateProviderSettings
+                await db.ProviderConfigurations
+                    .OfType<ExchangeRateProviderSetting>()
                     .AsNoTracking()
                     .ToListAsync(cancellationToken));
             scope.Complete();
@@ -80,14 +81,14 @@ public class ExchangeRateProviderManager(
                 }
 
                 var setting = settings.FirstOrDefault(s =>
-                    string.Equals(s.ProviderAlias, metadata.Alias, StringComparison.OrdinalIgnoreCase));
+                    string.Equals(s.ProviderKey, metadata.Alias, StringComparison.OrdinalIgnoreCase));
 
                 try
                 {
                     ExchangeRateProviderConfiguration? configuration = null;
-                    if (setting != null && !string.IsNullOrWhiteSpace(setting.ConfigurationJson))
+                    if (setting != null && !string.IsNullOrWhiteSpace(setting.SettingsJson))
                     {
-                        configuration = new ExchangeRateProviderConfiguration(setting.ConfigurationJson);
+                        configuration = new ExchangeRateProviderConfiguration(setting.SettingsJson);
                     }
 
                     await provider.ConfigureAsync(configuration, cancellationToken);
@@ -157,31 +158,33 @@ public class ExchangeRateProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var allSettings = await db.ExchangeRateProviderSettings.ToListAsync(cancellationToken);
+            var allSettings = await db.ProviderConfigurations
+                .OfType<ExchangeRateProviderSetting>()
+                .ToListAsync(cancellationToken);
 
-            foreach (var setting in allSettings.Where(s => s.IsActive))
+            foreach (var setting in allSettings.Where(s => s.IsEnabled))
             {
-                setting.IsActive = false;
+                setting.IsEnabled = false;
                 setting.UpdateDate = DateTime.UtcNow;
             }
 
             var target = allSettings.FirstOrDefault(s =>
-                string.Equals(s.ProviderAlias, alias, StringComparison.OrdinalIgnoreCase));
+                string.Equals(s.ProviderKey, alias, StringComparison.OrdinalIgnoreCase));
 
             if (target == null)
             {
                 target = new ExchangeRateProviderSetting
                 {
-                    ProviderAlias = alias,
-                    IsActive = true,
+                    ProviderKey = alias,
+                    IsEnabled = true,
                     CreateDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
                 };
-                db.ExchangeRateProviderSettings.Add(target);
+                db.ProviderConfigurations.Add(target);
             }
             else
             {
-                target.IsActive = true;
+                target.IsEnabled = true;
                 target.UpdateDate = DateTime.UtcNow;
             }
 
@@ -211,25 +214,26 @@ public class ExchangeRateProviderManager(
         using var scope = efCoreScopeProvider.CreateScope();
         var success = await scope.ExecuteWithContextAsync(async db =>
         {
-            var existing = await db.ExchangeRateProviderSettings
-                .FirstOrDefaultAsync(s => s.ProviderAlias == alias, cancellationToken);
+            var existing = await db.ProviderConfigurations
+                .OfType<ExchangeRateProviderSetting>()
+                .FirstOrDefaultAsync(s => s.ProviderKey == alias, cancellationToken);
 
             var json = new ExchangeRateProviderConfiguration(settings).ToJson();
 
             if (existing == null)
             {
-                db.ExchangeRateProviderSettings.Add(new ExchangeRateProviderSetting
+                db.ProviderConfigurations.Add(new ExchangeRateProviderSetting
                 {
-                    ProviderAlias = alias,
-                    ConfigurationJson = json,
-                    IsActive = false,
+                    ProviderKey = alias,
+                    SettingsJson = json,
+                    IsEnabled = false,
                     CreateDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
                 });
             }
             else
             {
-                existing.ConfigurationJson = json;
+                existing.SettingsJson = json;
                 existing.UpdateDate = DateTime.UtcNow;
             }
 
@@ -289,4 +293,3 @@ public class ExchangeRateProviderManager(
         GC.SuppressFinalize(this);
     }
 }
-

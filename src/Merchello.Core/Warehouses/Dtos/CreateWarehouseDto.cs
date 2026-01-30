@@ -1,3 +1,5 @@
+using Merchello.Core.Locality.Dtos;
+
 namespace Merchello.Core.Warehouses.Dtos;
 
 /// <summary>
@@ -14,5 +16,5 @@ public class CreateWarehouseDto
     /// </summary>
     public Guid? FulfilmentProviderConfigurationId { get; set; }
 
-    public WarehouseAddressDto? Address { get; set; }
+    public AddressDto? Address { get; set; }
 }

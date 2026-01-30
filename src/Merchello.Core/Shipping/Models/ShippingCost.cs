@@ -15,7 +15,6 @@ public class ShippingCost
     // The cost for shipping to this region
     public decimal Cost { get; set; }
 
-    // Optional: Reference back to the shipping option
+    // Optional: parent option for admin lookups (JSON-stored)
     public Guid ShippingOptionId { get; set; }
-    public ShippingOption ShippingOption { get; set; } = null!;
 }

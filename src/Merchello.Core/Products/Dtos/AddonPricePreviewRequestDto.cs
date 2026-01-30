@@ -8,5 +8,5 @@ public class AddonPricePreviewRequestDto
     /// <summary>
     /// Selected add-on values
     /// </summary>
-    public List<ProductAddonDto> SelectedAddons { get; set; } = [];
+    public List<Merchello.Core.Shared.Dtos.AddonSelectionDto> SelectedAddons { get; set; } = [];
 }
