@@ -21,6 +21,7 @@ using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Providers;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
@@ -325,6 +326,107 @@ public class CheckoutPaymentsApiController(
                     PaymentId = existingPayment.Id
                 };
             }
+        }
+
+        // Amazon Pay: complete the checkout session on return
+        var providerAlias = query.Provider ?? Request.Query["provider"].ToString();
+        if (string.Equals(providerAlias, "amazonpay", StringComparison.OrdinalIgnoreCase))
+        {
+            var sessionId = query.SessionId;
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                sessionId = Request.Query["amazonCheckoutSessionId"].FirstOrDefault()
+                    ?? Request.Query["checkoutSessionId"].FirstOrDefault();
+            }
+
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return new PaymentReturnResultDto
+                {
+                    Success = false,
+                    Message = "Amazon Pay checkout session ID is required.",
+                    InvoiceId = query.InvoiceId
+                };
+            }
+
+            if (!query.InvoiceId.HasValue)
+            {
+                return new PaymentReturnResultDto
+                {
+                    Success = false,
+                    Message = "InvoiceId is required to complete Amazon Pay payment."
+                };
+            }
+
+            var invoice = await invoiceService.GetInvoiceAsync(query.InvoiceId.Value, cancellationToken);
+            if (invoice == null)
+            {
+                return new PaymentReturnResultDto
+                {
+                    Success = false,
+                    Message = "Invoice not found.",
+                    InvoiceId = query.InvoiceId
+                };
+            }
+
+            // If payment already recorded, return success without re-processing
+            var existingPayments = await paymentService.GetPaymentsForInvoiceAsync(invoice.Id, cancellationToken);
+            var existingAmazonPayment = existingPayments.FirstOrDefault(p =>
+                string.Equals(p.PaymentProviderAlias, providerAlias, StringComparison.OrdinalIgnoreCase) &&
+                p.PaymentSuccess);
+
+            if (existingAmazonPayment != null)
+            {
+                SetConfirmationToken(invoice.Id);
+                ClearBasketCookieAndSession();
+                return new PaymentReturnResultDto
+                {
+                    Success = true,
+                    Message = "Payment completed successfully.",
+                    InvoiceId = invoice.Id,
+                    PaymentId = existingAmazonPayment.Id
+                };
+            }
+
+            var methodAlias = Request.Query["methodAlias"].FirstOrDefault();
+            var processResult = await paymentService.ProcessPaymentAsync(
+                new ProcessPaymentRequest
+                {
+                    InvoiceId = invoice.Id,
+                    ProviderAlias = providerAlias,
+                    MethodAlias = methodAlias,
+                    SessionId = sessionId,
+                    Amount = invoice.Total,
+                    CurrencyCode = invoice.CurrencyCode,
+                    CustomerEmail = invoice.BillingAddress?.Email,
+                    CustomerName = invoice.BillingAddress?.Name,
+                    Description = $"Payment for Invoice {invoice.InvoiceNumber}"
+                },
+                cancellationToken);
+
+            if (processResult.Successful && processResult.ResultObject != null)
+            {
+                SetConfirmationToken(invoice.Id);
+                ClearBasketCookieAndSession();
+                return new PaymentReturnResultDto
+                {
+                    Success = true,
+                    Message = "Payment completed successfully.",
+                    InvoiceId = invoice.Id,
+                    PaymentId = processResult.ResultObject.Id
+                };
+            }
+
+            var errorMessage = processResult.Messages
+                .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
+                ?? "Payment processing failed.";
+
+            return new PaymentReturnResultDto
+            {
+                Success = false,
+                Message = errorMessage,
+                InvoiceId = invoice.Id
+            };
         }
 
         // Payment not yet recorded - it may be processed via webhook shortly

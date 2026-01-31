@@ -13,6 +13,8 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Customers.Services.Interfaces;
+using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
@@ -41,7 +43,8 @@ public class CheckoutApiController(
     ICurrencyService currencyService,
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger,
-    IAbandonedCheckoutService? abandonedCheckoutService = null) : ControllerBase
+    IAbandonedCheckoutService? abandonedCheckoutService = null,
+    ICustomerService? customerService = null) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
 
@@ -621,6 +624,31 @@ public class CheckoutApiController(
         if (result.Success)
         {
             logger.LogInformation("Member signed in during checkout: {Email}", request.Email);
+
+            // Link member to customer record
+            if (result.MemberKey.HasValue && customerService != null)
+            {
+                try
+                {
+                    var customer = await customerService.GetOrCreateByEmailAsync(
+                        new GetOrCreateCustomerParameters { Email = request.Email }, ct);
+                    if (!customer.MemberKey.HasValue)
+                    {
+                        await customerService.UpdateAsync(new UpdateCustomerParameters
+                        {
+                            Id = customer.Id,
+                            MemberKey = result.MemberKey
+                        }, ct);
+                        logger.LogInformation(
+                            "Linked member {MemberKey} to customer {CustomerId} during sign-in",
+                            result.MemberKey, customer.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to link member to customer for {Email} during sign-in", request.Email);
+                }
+            }
         }
 
         return Ok(result);

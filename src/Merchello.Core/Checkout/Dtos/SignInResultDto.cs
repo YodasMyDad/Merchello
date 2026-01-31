@@ -24,4 +24,9 @@ public class SignInResultDto
     /// Error message if sign-in failed.
     /// </summary>
     public string? ErrorMessage { get; set; }
+
+    /// <summary>
+    /// The member key of the signed-in member, used to link the customer record.
+    /// </summary>
+    public Guid? MemberKey { get; set; }
 }
