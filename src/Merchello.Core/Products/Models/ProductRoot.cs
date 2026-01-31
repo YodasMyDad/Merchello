@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Subscriptions.Models;
 
 namespace Merchello.Core.Products.Models;
 
@@ -132,6 +133,26 @@ public class ProductRoot
     /// Example: "Gallery" -> ~/Views/Products/Gallery.cshtml
     /// </summary>
     public string? ViewAlias { get; set; }
+
+    /// <summary>
+    /// Whether this is a subscription product with recurring billing.
+    /// </summary>
+    public bool IsSubscriptionProduct { get; set; }
+
+    /// <summary>
+    /// The billing interval for subscription products.
+    /// </summary>
+    public BillingInterval? SubscriptionBillingInterval { get; set; }
+
+    /// <summary>
+    /// The billing interval count (e.g., 3 for quarterly when interval is Monthly).
+    /// </summary>
+    public int? SubscriptionBillingIntervalCount { get; set; }
+
+    /// <summary>
+    /// The number of trial days for subscription products.
+    /// </summary>
+    public int? SubscriptionTrialDays { get; set; }
 
     /// <summary>
     /// Extended data dictionary for storing additional product metadata.

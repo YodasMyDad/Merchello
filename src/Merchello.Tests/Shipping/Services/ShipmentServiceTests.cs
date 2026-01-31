@@ -1,78 +1,39 @@
-using Merchello.Core.Accounting.Handlers.Interfaces;
 using Merchello.Core.Accounting.Models;
-using Merchello.Core.Customers.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
-using Merchello.Core.Accounting.Factories;
-using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
-using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
-using Merchello.Core.Shipping.Services;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using Shouldly;
-using Umbraco.Cms.Core.Notifications;
-using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Shipping.Services;
 
 /// <summary>
 /// Integration tests for ShipmentService using the shared ServiceTestFixture
-/// with a real SQLite database and Moq for non-database dependencies.
-/// Tests cover CreateShipmentAsync, UpdateShipmentStatusAsync, and DeleteShipmentAsync.
+/// with a real SQLite database and production service implementations.
 /// </summary>
 [Collection("Integration Tests")]
 public class ShipmentServiceTests
 {
     private readonly ServiceTestFixture _fixture;
-    private readonly Mock<IInventoryService> _inventoryServiceMock;
-    private readonly Mock<IOrderStatusHandler> _statusHandlerMock;
-    private readonly Mock<IProductService> _productServiceMock;
-    private readonly ShipmentService _service;
+    private readonly IShipmentService _shipmentService;
+    private readonly IInventoryService _inventoryService;
 
     public ShipmentServiceTests(ServiceTestFixture fixture)
     {
         _fixture = fixture;
         _fixture.ResetDatabase();
-
-        _inventoryServiceMock = new Mock<IInventoryService>();
-        _statusHandlerMock = new Mock<IOrderStatusHandler>();
-        _productServiceMock = new Mock<IProductService>();
-
-        // Default: notifications never cancel (from fixture)
-        // Default: status handler allows all transitions
-        _statusHandlerMock
-            .Setup(h => h.CanTransitionAsync(It.IsAny<Order>(), It.IsAny<OrderStatus>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-        _statusHandlerMock
-            .Setup(h => h.OnStatusChangingAsync(It.IsAny<Order>(), It.IsAny<OrderStatus>(), It.IsAny<OrderStatus>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        _statusHandlerMock
-            .Setup(h => h.OnStatusChangedAsync(It.IsAny<Order>(), It.IsAny<OrderStatus>(), It.IsAny<OrderStatus>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-
-        // Default: inventory allocation always succeeds
-        _inventoryServiceMock
-            .Setup(s => s.AllocateStockAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CrudResult<bool> { ResultObject = true });
-
-        _service = new ShipmentService(
-            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
-            _inventoryServiceMock.Object,
-            _statusHandlerMock.Object,
-            _productServiceMock.Object,
-            _fixture.GetService<IMerchelloNotificationPublisher>(),
-            new ShipmentFactory(),
-            _fixture.GetService<LineItemFactory>(),
-            NullLogger<ShipmentService>.Instance);
+        _fixture.ResetMocks();
+        _shipmentService = fixture.GetService<IShipmentService>();
+        _inventoryService = fixture.GetService<IInventoryService>();
     }
 
     #region CreateShipmentAsync - Valid Order
@@ -81,7 +42,7 @@ public class ShipmentServiceTests
     public async Task CreateShipmentAsync_WithValidOrder_CreatesShipment()
     {
         // Arrange
-        var (order, lineItem) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
 
         var parameters = new CreateShipmentParameters
         {
@@ -93,7 +54,7 @@ public class ShipmentServiceTests
         };
 
         // Act
-        var result = await _service.CreateShipmentAsync(parameters);
+        var result = await _shipmentService.CreateShipmentAsync(parameters);
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -122,7 +83,7 @@ public class ShipmentServiceTests
         };
 
         // Act
-        var result = await _service.CreateShipmentAsync(parameters);
+        var result = await _shipmentService.CreateShipmentAsync(parameters);
 
         // Assert
         result.Successful.ShouldBeFalse();
@@ -133,14 +94,50 @@ public class ShipmentServiceTests
 
     #endregion
 
+    #region CreateShipmentsFromOrderAsync - Allocation
+
+    [Fact]
+    public async Task CreateShipmentsFromOrderAsync_AllocatesStockAndCreatesShipment()
+    {
+        // Arrange
+        var (order, lineItem, product, warehouse) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+
+        var reserveResult = await _inventoryService.ReserveStockAsync(product.Id, warehouse.Id, lineItem.Quantity);
+        reserveResult.ResultObject.ShouldBeTrue();
+
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var parameters = new CreateShipmentsParameters
+        {
+            OrderId = order.Id,
+            ShippingAddress = CreateAddress("GB"),
+            TrackingNumber = "SHIP-123"
+        };
+
+        // Act
+        var shipments = await _shipmentService.CreateShipmentsFromOrderAsync(parameters);
+
+        // Assert
+        shipments.Count.ShouldBe(1);
+        shipments[0].LineItems.ShouldContain(li => li.Sku == lineItem.Sku && li.Quantity == lineItem.Quantity);
+
+        using var verifyContext = _fixture.CreateDbContext();
+        var productWarehouse = await verifyContext.ProductWarehouses
+            .FirstAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
+        productWarehouse.Stock.ShouldBe(100 - lineItem.Quantity);
+        productWarehouse.ReservedStock.ShouldBe(0);
+    }
+
+    #endregion
+
     #region UpdateShipmentStatusAsync - Preparing to Shipped
 
     [Fact]
     public async Task UpdateShipmentStatusAsync_FromPreparingToShipped_TransitionsSuccessfully()
     {
         // Arrange
-        var (order, lineItem) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
-        var shipment = await SeedShipmentAsync(order, lineItem, ShipmentStatus.Preparing);
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+        var shipment = await CreateShipmentAsync(order, lineItem);
 
         var parameters = new UpdateShipmentStatusParameters
         {
@@ -151,7 +148,7 @@ public class ShipmentServiceTests
         };
 
         // Act
-        var result = await _service.UpdateShipmentStatusAsync(parameters);
+        var result = await _shipmentService.UpdateShipmentStatusAsync(parameters);
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -160,6 +157,10 @@ public class ShipmentServiceTests
         result.ResultObject.Carrier.ShouldBe("FedEx");
         result.ResultObject.TrackingNumber.ShouldBe("794644790132");
         result.ResultObject.ShippedDate.ShouldNotBeNull();
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Shipped);
     }
 
     #endregion
@@ -170,8 +171,14 @@ public class ShipmentServiceTests
     public async Task UpdateShipmentStatusAsync_FromShippedToDelivered_TransitionsSuccessfully()
     {
         // Arrange
-        var (order, lineItem) = await SeedOrderWithLineItemAsync(OrderStatus.Shipped);
-        var shipment = await SeedShipmentAsync(order, lineItem, ShipmentStatus.Shipped);
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+        var shipment = await CreateShipmentAsync(order, lineItem);
+
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipment.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
 
         var parameters = new UpdateShipmentStatusParameters
         {
@@ -180,7 +187,7 @@ public class ShipmentServiceTests
         };
 
         // Act
-        var result = await _service.UpdateShipmentStatusAsync(parameters);
+        var result = await _shipmentService.UpdateShipmentStatusAsync(parameters);
 
         // Assert
         result.Successful.ShouldBeTrue();
@@ -193,25 +200,24 @@ public class ShipmentServiceTests
     public async Task UpdateShipmentStatusAsync_AllShipmentsDelivered_OrderBecomesCompleted()
     {
         // Arrange
-        var (order, lineItem) = await SeedOrderWithLineItemAsync(OrderStatus.Shipped);
-        var shipment = await SeedShipmentAsync(order, lineItem, ShipmentStatus.Shipped);
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+        var shipment = await CreateShipmentAsync(order, lineItem);
 
-        var parameters = new UpdateShipmentStatusParameters
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipment.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
+
+        // Act
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
         {
             ShipmentId = shipment.Id,
             NewStatus = ShipmentStatus.Delivered
-        };
-
-        // Act
-        var result = await _service.UpdateShipmentStatusAsync(parameters);
+        });
 
         // Assert
-        result.Successful.ShouldBeTrue();
-
-        // Clear tracker so we get fresh data from the database
         _fixture.DbContext.ChangeTracker.Clear();
-
-        // Reload order to verify status change was persisted
         var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
         updatedOrder.Status.ShouldBe(OrderStatus.Completed);
         updatedOrder.CompletedDate.ShouldNotBeNull();
@@ -225,11 +231,17 @@ public class ShipmentServiceTests
     public async Task DeleteShipmentAsync_ExistingShipment_ReturnsTrue()
     {
         // Arrange
-        var (order, lineItem) = await SeedOrderWithLineItemAsync(OrderStatus.Shipped);
-        var shipment = await SeedShipmentAsync(order, lineItem, ShipmentStatus.Shipped);
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+        var shipment = await CreateShipmentAsync(order, lineItem);
+
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipment.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
 
         // Act
-        var result = await _service.DeleteShipmentAsync(shipment.Id);
+        var result = await _shipmentService.DeleteShipmentAsync(shipment.Id);
 
         // Assert
         result.ShouldBeTrue();
@@ -243,7 +255,7 @@ public class ShipmentServiceTests
     public async Task DeleteShipmentAsync_NonExistentShipment_ReturnsFalse()
     {
         // Arrange & Act
-        var result = await _service.DeleteShipmentAsync(Guid.NewGuid());
+        var result = await _shipmentService.DeleteShipmentAsync(Guid.NewGuid());
 
         // Assert
         result.ShouldBeFalse();
@@ -253,11 +265,17 @@ public class ShipmentServiceTests
     public async Task DeleteShipmentAsync_LastShipment_OrderRevertsToReadyToFulfill()
     {
         // Arrange
-        var (order, lineItem) = await SeedOrderWithLineItemAsync(OrderStatus.Shipped);
-        var shipment = await SeedShipmentAsync(order, lineItem, ShipmentStatus.Shipped);
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+        var shipment = await CreateShipmentAsync(order, lineItem);
+
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipment.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
 
         // Act
-        await _service.DeleteShipmentAsync(shipment.Id);
+        await _shipmentService.DeleteShipmentAsync(shipment.Id);
 
         // Assert
         _fixture.DbContext.ChangeTracker.Clear();
@@ -270,130 +288,50 @@ public class ShipmentServiceTests
 
     #region Helper Methods
 
-    /// <summary>
-    /// Seeds the database with an order containing a single product line item.
-    /// </summary>
-    private async Task<(Order Order, LineItem LineItem)> SeedOrderWithLineItemAsync(OrderStatus status)
+    private async Task<(Order Order, LineItem LineItem, Product Product, Warehouse Warehouse)> SeedOrderWithLineItemAsync(OrderStatus status)
     {
-        var shippingOptionId = Guid.NewGuid();
-        var invoiceId = Guid.NewGuid();
+        var builder = _fixture.CreateDataBuilder();
 
-        var warehouse = new Warehouse
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Warehouse",
-            Address = new Address
-            {
-                Name = "Warehouse",
-                AddressOne = "1 Warehouse Road",
-                TownCity = "London",
-                PostalCode = "E1 1AA",
-                CountryCode = "GB"
-            }
-        };
-        _fixture.DbContext.Warehouses.Add(warehouse);
+        var warehouse = builder.CreateWarehouse("Test Warehouse", "GB");
+        var shippingOption = builder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 5.00m);
+        shippingOption.ShippingCosts.Add(new ShippingCost { CountryCode = "GB", Cost = 5.00m });
+        builder.AddServiceRegion(warehouse, "GB");
 
-        var customer = new Customer
-        {
-            Id = Guid.NewGuid(),
-            Email = $"test-{Guid.NewGuid():N}@example.com"
-        };
-        _fixture.DbContext.Customers.Add(customer);
+        var taxGroup = builder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = builder.CreateProductRoot("Test Product Root", taxGroup);
+        var product = builder.CreateProduct("Test Product", productRoot, price: 25.00m);
+        builder.AddWarehouseToProductRoot(productRoot, warehouse);
+        builder.CreateProductWarehouse(product, warehouse, stock: 100);
+        product.ShippingOptions.Add(shippingOption);
 
-        var invoice = new Invoice
-        {
-            Id = invoiceId,
-            CustomerId = customer.Id,
-            InvoiceNumber = $"INV-{Guid.NewGuid():N}"[..12],
-            SubTotal = 50m,
-            Tax = 10m,
-            Total = 60m,
-            CurrencyCode = "GBP",
-            ShippingAddress = new Address
-            {
-                Name = "Test User",
-                AddressOne = "123 Test Street",
-                TownCity = "London",
-                PostalCode = "SW1A 1AA",
-                CountryCode = "GB"
-            },
-            BillingAddress = new Address
-            {
-                Name = "Test User",
-                AddressOne = "123 Test Street",
-                TownCity = "London",
-                PostalCode = "SW1A 1AA",
-                CountryCode = "GB"
-            }
-        };
-        _fixture.DbContext.Invoices.Add(invoice);
+        var invoice = builder.CreateInvoice(total: 60m);
+        var order = builder.CreateOrder(invoice, warehouse, shippingOption, status);
+        var lineItem = builder.CreateLineItem(order, product, quantity: 2, amount: 25.00m, taxRate: 20m);
 
-        var order = new Order
-        {
-            Id = Guid.NewGuid(),
-            InvoiceId = invoiceId,
-            WarehouseId = warehouse.Id,
-            ShippingOptionId = shippingOptionId,
-            Status = status,
-            DateCreated = DateTime.UtcNow.AddDays(-1)
-        };
-        _fixture.DbContext.Orders.Add(order);
+        await builder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
 
-        var lineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            OrderId = order.Id,
-            Name = "Test Product",
-            Sku = "SKU-TEST-001",
-            Quantity = 2,
-            Amount = 25.00m,
-            LineItemType = LineItemType.Product,
-            IsTaxable = true,
-            TaxRate = 20m
-        };
-        _fixture.DbContext.LineItems.Add(lineItem);
-
-        await _fixture.DbContext.SaveChangesAsync();
-        return (order, lineItem);
+        return (order, lineItem, product, warehouse);
     }
 
-    /// <summary>
-    /// Seeds a shipment for the given order with a copy of the line item.
-    /// </summary>
-    private async Task<Shipment> SeedShipmentAsync(Order order, LineItem sourceLineItem, ShipmentStatus status)
+    private async Task<Shipment> CreateShipmentAsync(Order order, LineItem lineItem)
     {
-        var shipment = new Shipment
+        var result = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
         {
-            Id = Guid.NewGuid(),
             OrderId = order.Id,
-            WarehouseId = order.WarehouseId,
-            Status = status,
-            ShippedDate = status == ShipmentStatus.Shipped ? DateTime.UtcNow.AddDays(-1) : null,
-            Address = new Address
-            {
-                Name = "Test User",
-                AddressOne = "123 Test Street",
-                TownCity = "London",
-                PostalCode = "SW1A 1AA",
-                CountryCode = "GB"
-            },
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = sourceLineItem.Id,
-                    Sku = sourceLineItem.Sku,
-                    Name = sourceLineItem.Name,
-                    Quantity = sourceLineItem.Quantity,
-                    Amount = sourceLineItem.Amount,
-                    LineItemType = sourceLineItem.LineItemType
-                }
-            ]
-        };
+            LineItems = new Dictionary<Guid, int> { { lineItem.Id, lineItem.Quantity } },
+            Carrier = "UPS",
+            TrackingNumber = "TRACK-123"
+        });
 
-        _fixture.DbContext.Shipments.Add(shipment);
-        await _fixture.DbContext.SaveChangesAsync();
-        return shipment;
+        result.Successful.ShouldBeTrue();
+        return result.ResultObject!;
+    }
+
+    private Address CreateAddress(string countryCode)
+    {
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(countryCode: countryCode);
     }
 
     #endregion

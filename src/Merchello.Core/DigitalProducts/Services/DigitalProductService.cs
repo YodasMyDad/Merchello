@@ -9,6 +9,7 @@ using Merchello.Core.DigitalProducts.Services.Interfaces;
 using Merchello.Core.DigitalProducts.Services.Parameters;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -104,13 +105,14 @@ public class DigitalProductService(
             .Distinct()
             .ToList();
 
-        // Load products sequentially - EFCore scopes are not thread-safe for concurrent access
+        // Load products (variants) with their ProductRoot - EFCore scopes are not thread-safe for concurrent access
         var products = new Dictionary<Guid, ProductRoot>();
         foreach (var id in productIds)
         {
-            var product = await productService.GetProductRoot(id, cancellationToken: ct);
-            if (product != null)
-                products[id] = product;
+            var product = await productService.GetProduct(
+                new GetProductParameters { ProductId = id, IncludeProductRoot = true }, ct);
+            if (product?.ProductRoot != null)
+                products[id] = product.ProductRoot;
         }
 
         foreach (var lineItem in lineItems.Where(li => li.ProductId.HasValue))
@@ -387,15 +389,17 @@ public class DigitalProductService(
         if (productIds.Count == 0)
             return false;
 
-        // Load products sequentially - EFCore scopes are not thread-safe for concurrent access
-        var productsArray = new List<ProductRoot?>();
+        // Load products (variants) with their ProductRoot sequentially - EFCore scopes are not thread-safe
+        var productRoots = new List<ProductRoot?>();
         foreach (var id in productIds)
         {
-            productsArray.Add(await productService.GetProductRoot(id, cancellationToken: ct));
+            var product = await productService.GetProduct(
+                new GetProductParameters { ProductId = id, IncludeProductRoot = true }, ct);
+            productRoots.Add(product?.ProductRoot);
         }
 
         // Return false if any product is physical (not digital)
-        return productsArray.All(p => p == null || p.IsDigitalProduct);
+        return productRoots.All(p => p == null || p.IsDigitalProduct);
     }
 
     /// <inheritdoc />

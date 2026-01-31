@@ -37,7 +37,7 @@ public class WarehouseServiceTests
         {
             Name = "Test Warehouse",
             Code = "TW-01",
-            Address = new Address { CountryCode = "GB", Country = "United Kingdom" }
+            Address = _dataBuilder.CreateTestAddress(countryCode: "GB")
         };
 
         // Act

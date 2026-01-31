@@ -182,6 +182,8 @@ public class UpsellService(
         if (parameters.SuppressIfInCart.HasValue) rule.SuppressIfInCart = parameters.SuppressIfInCart.Value;
         if (parameters.DisplayLocation.HasValue) rule.DisplayLocation = parameters.DisplayLocation.Value;
         if (parameters.CheckoutMode.HasValue) rule.CheckoutMode = parameters.CheckoutMode.Value;
+        if (parameters.DefaultChecked.HasValue) rule.DefaultChecked = parameters.DefaultChecked.Value;
+        if (parameters.AutoAddToBasket.HasValue) rule.AutoAddToBasket = parameters.AutoAddToBasket.Value;
         if (parameters.StartsAt.HasValue) rule.StartsAt = parameters.StartsAt.Value;
         if (parameters.EndsAt.HasValue) rule.EndsAt = parameters.EndsAt.Value;
         if (parameters.ClearEndsAt) rule.EndsAt = null;

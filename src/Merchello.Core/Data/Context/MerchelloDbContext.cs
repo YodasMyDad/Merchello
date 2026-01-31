@@ -16,6 +16,11 @@ using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Tax.Models;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Warehouses.Models;
+using Merchello.Core.Auditing.Models;
+using Merchello.Core.GiftCards.Models;
+using Merchello.Core.Returns.Models;
+using Merchello.Core.Search.Models;
+using Merchello.Core.Subscriptions.Models;
 using Merchello.Core.Webhooks.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -99,6 +104,28 @@ public class MerchelloDbContext : DbContext
 
     // Protocol Signing Keys DbSets
     public DbSet<SigningKey> SigningKeys => Set<SigningKey>();
+
+    // Audit Trail DbSets
+    public DbSet<AuditTrailEntry> AuditTrailEntries => Set<AuditTrailEntry>();
+
+    // Customer Address DbSets
+    public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
+
+    // Gift Card DbSets
+    public DbSet<GiftCard> GiftCards => Set<GiftCard>();
+    public DbSet<GiftCardTransaction> GiftCardTransactions => Set<GiftCardTransaction>();
+
+    // Search DbSets
+    public DbSet<SearchProviderSetting> SearchProviderSettings => Set<SearchProviderSetting>();
+
+    // Returns DbSets
+    public DbSet<Return> Returns => Set<Return>();
+    public DbSet<ReturnLineItem> ReturnLineItems => Set<ReturnLineItem>();
+    public DbSet<ReturnReason> ReturnReasons => Set<ReturnReason>();
+
+    // Subscription DbSets
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<SubscriptionInvoice> SubscriptionInvoices => Set<SubscriptionInvoice>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

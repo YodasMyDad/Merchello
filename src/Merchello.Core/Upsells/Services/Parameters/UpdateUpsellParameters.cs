@@ -17,6 +17,8 @@ public class UpdateUpsellParameters
     public bool? SuppressIfInCart { get; set; }
     public UpsellDisplayLocation? DisplayLocation { get; set; }
     public CheckoutUpsellMode? CheckoutMode { get; set; }
+    public bool? DefaultChecked { get; set; }
+    public bool? AutoAddToBasket { get; set; }
     public DateTime? StartsAt { get; set; }
     public DateTime? EndsAt { get; set; }
     public bool ClearEndsAt { get; set; }

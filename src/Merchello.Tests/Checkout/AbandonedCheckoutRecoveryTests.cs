@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
 using Xunit;
@@ -16,62 +17,64 @@ namespace Merchello.Tests.Checkout;
 /// 2. Addresses are properly restored when recovering from abandoned checkouts
 /// 3. Currency is properly restored when recovering from abandoned checkouts
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IAbandonedCheckoutService _abandonedCheckoutService;
+    private readonly ICheckoutService _checkoutService;
+    private readonly ICurrencyService _currencyService;
 
     public AbandonedCheckoutRecoveryTests(ServiceTestFixture fixture)
     {
         _fixture = fixture;
         _fixture.ResetDatabase();
         _abandonedCheckoutService = fixture.GetService<IAbandonedCheckoutService>();
+        _checkoutService = fixture.GetService<ICheckoutService>();
+        _currencyService = fixture.GetService<ICurrencyService>();
     }
 
     #region Helper Methods
 
-    private static Basket CreateBasketWithAddresses(string currency = "GBP")
+    private async Task<Basket> CreateBasketWithAddressesAsync(string currency = "GBP")
     {
-        return new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = currency,
-            CurrencySymbol = currency == "GBP" ? "£" : "$",
-            BillingAddress = new Address
-            {
-                Name = "John Smith",
-                Email = "john@example.com",
-                AddressOne = "123 Test Street",
-                TownCity = "London",
-                CountryCode = "GB",
-                PostalCode = "SW1A 1AA"
-            },
-            ShippingAddress = new Address
-            {
-                Name = "John Smith",
-                Email = "john@example.com",
-                AddressOne = "123 Test Street",
-                TownCity = "London",
-                CountryCode = "GB",
-                PostalCode = "SW1A 1AA"
-            },
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "Test Product",
-                    Sku = "TEST-001",
-                    Quantity = 1,
-                    Amount = 25.00m,
-                    LineItemType = LineItemType.Product
-                }
-            ],
-            SubTotal = 25.00m,
-            Tax = 5.00m,
-            Total = 30.00m
-        };
+        var builder = _fixture.CreateDataBuilder();
+        var taxGroup = builder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = builder.CreateProductRoot("Test Product", taxGroup);
+        var product = builder.CreateProduct("Test Product Variant", productRoot, price: 25.00m);
+        product.Sku = "TEST-001";
+
+        await builder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var currencySymbol = _currencyService.GetCurrency(currency).Symbol;
+        var basket = _checkoutService.CreateBasket(currency, currencySymbol);
+
+        basket.BillingAddress = builder.CreateTestAddress(
+            email: "john@example.com",
+            countryCode: "GB",
+            firstName: "John",
+            lastName: "Smith");
+        basket.ShippingAddress = builder.CreateTestAddress(
+            email: "john@example.com",
+            countryCode: "GB",
+            firstName: "John",
+            lastName: "Smith");
+
+        var lineItem = _checkoutService.CreateLineItem(product, 1);
+        await _checkoutService.AddToBasketAsync(basket, lineItem, "GB");
+
+        return basket;
+    }
+
+    private Address CreateEmptyAddress()
+    {
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(
+            email: null,
+            countryCode: string.Empty,
+            firstName: string.Empty,
+            lastName: string.Empty);
     }
 
     #endregion
@@ -80,7 +83,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
     public async Task TrackCheckoutActivityAsync_StoresAddressesInExtendedData()
     {
         // Arrange
-        var basket = CreateBasketWithAddresses("GBP");
+        var basket = await CreateBasketWithAddressesAsync("GBP");
 
         // Save basket to database first
         _fixture.DbContext.Baskets.Add(basket);
@@ -125,7 +128,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
     public async Task TrackCheckoutActivityAsync_UpdatesExistingRecordWithNewAddresses()
     {
         // Arrange
-        var basket = CreateBasketWithAddresses("GBP");
+        var basket = await CreateBasketWithAddressesAsync("GBP");
 
         // Save basket to database first
         _fixture.DbContext.Baskets.Add(basket);
@@ -160,7 +163,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
     public async Task RestoreBasketFromRecoveryAsync_RestoresCurrencyFromAbandonedCheckout()
     {
         // Arrange
-        var basket = CreateBasketWithAddresses("GBP");
+        var basket = await CreateBasketWithAddressesAsync("GBP");
 
         // Save basket to database
         _fixture.DbContext.Baskets.Add(basket);
@@ -195,14 +198,14 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
         result.Successful.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Currency.ShouldBe("GBP");
-        result.ResultObject.CurrencySymbol.ShouldBe("£");
+        result.ResultObject.CurrencySymbol.ShouldBe(_currencyService.GetCurrency("GBP").Symbol);
     }
 
     [Fact]
     public async Task RestoreBasketFromRecoveryAsync_RestoresAddressesFromExtendedData()
     {
         // Arrange
-        var basket = CreateBasketWithAddresses("GBP");
+        var basket = await CreateBasketWithAddressesAsync("GBP");
 
         // Save basket to database
         _fixture.DbContext.Baskets.Add(basket);
@@ -225,8 +228,8 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
         // Clear the basket's addresses to simulate session loss
         _fixture.DbContext.ChangeTracker.Clear();
         var basketToModify = await _fixture.DbContext.Baskets.FindAsync(basket.Id);
-        basketToModify!.BillingAddress = new Address(); // Empty address
-        basketToModify.ShippingAddress = new Address(); // Empty address
+        basketToModify!.BillingAddress = CreateEmptyAddress(); // Empty address
+        basketToModify.ShippingAddress = CreateEmptyAddress(); // Empty address
         await _fixture.DbContext.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -255,7 +258,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
     public async Task RestoreBasketFromRecoveryAsync_WithExpiredToken_ReturnsError()
     {
         // Arrange
-        var basket = CreateBasketWithAddresses("GBP");
+        var basket = await CreateBasketWithAddressesAsync("GBP");
 
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();

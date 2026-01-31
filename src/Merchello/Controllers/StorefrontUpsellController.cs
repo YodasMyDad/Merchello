@@ -164,6 +164,7 @@ public class StorefrontUpsellController(
         Heading = suggestion.Heading,
         Message = suggestion.Message,
         CheckoutMode = suggestion.CheckoutMode,
+        DefaultChecked = suggestion.DefaultChecked,
         Products = suggestion.Products.Select(MapProductToDto).ToList()
     };
 

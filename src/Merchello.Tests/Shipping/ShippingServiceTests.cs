@@ -1,6 +1,9 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Tests.TestInfrastructure;
@@ -19,6 +22,7 @@ public class ShippingServiceTests
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IShippingService _shippingService;
+    private readonly ICheckoutService _checkoutService;
     private readonly TestDataBuilder _dataBuilder;
 
     public ShippingServiceTests(ServiceTestFixture fixture)
@@ -26,6 +30,7 @@ public class ShippingServiceTests
         _fixture = fixture;
         _fixture.ResetDatabase();
         _shippingService = fixture.GetService<IShippingService>();
+        _checkoutService = fixture.GetService<ICheckoutService>();
         _dataBuilder = fixture.CreateDataBuilder();
     }
 
@@ -213,8 +218,8 @@ public class ShippingServiceTests
     public async Task GetShippingOptionsForBasket_EmptyCountryCode_ReturnsEmptyGroups()
     {
         // Arrange
-        var basket = CreateBasket();
-        var shippingAddress = new Address { CountryCode = "" };
+        var basket = await CreateBasketAsync(null);
+        var shippingAddress = CreateAddress(string.Empty);
 
         // Act
         var result = await _shippingService.GetShippingOptionsForBasket(
@@ -232,8 +237,8 @@ public class ShippingServiceTests
     public async Task GetShippingOptionsForBasket_EmptyBasket_ReturnsEmptyGroups()
     {
         // Arrange
-        var basket = CreateBasket(); // Empty basket
-        var shippingAddress = new Address { CountryCode = "GB" };
+        var basket = await CreateBasketAsync("GB"); // Empty basket
+        var shippingAddress = CreateAddress("GB");
 
         // Act
         var result = await _shippingService.GetShippingOptionsForBasket(
@@ -259,9 +264,8 @@ public class ShippingServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket(
-            new LineItem { ProductId = product.Id, Name = "Test Product", Quantity = 1, Amount = 29.99m });
-        var shippingAddress = new Address { CountryCode = "GB" };
+        var basket = await CreateBasketAsync("GB", (product, 1));
+        var shippingAddress = CreateAddress("GB");
 
         // Act
         var result = await _shippingService.GetShippingOptionsForBasket(
@@ -292,10 +296,8 @@ public class ShippingServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket(
-            new LineItem { ProductId = product1.Id, Name = "Product 1", Quantity = 2, Amount = 20m },
-            new LineItem { ProductId = product2.Id, Name = "Product 2", Quantity = 1, Amount = 15m });
-        var shippingAddress = new Address { CountryCode = "GB" };
+        var basket = await CreateBasketAsync("GB", (product1, 2), (product2, 1));
+        var shippingAddress = CreateAddress("GB");
 
         // Act
         var result = await _shippingService.GetShippingOptionsForBasket(
@@ -318,8 +320,8 @@ public class ShippingServiceTests
     public async Task GetRequiredWarehouses_EmptyBasket_ReturnsEmptyList()
     {
         // Arrange
-        var basket = CreateBasket();
-        var shippingAddress = new Address { CountryCode = "GB" };
+        var basket = await CreateBasketAsync("GB");
+        var shippingAddress = CreateAddress("GB");
 
         // Act
         var result = await _shippingService.GetRequiredWarehouses(basket, shippingAddress);
@@ -346,10 +348,8 @@ public class ShippingServiceTests
         await _dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket(
-            new LineItem { ProductId = product1.Id, Name = "Product 1", Quantity = 1, Amount = 10m },
-            new LineItem { ProductId = product2.Id, Name = "Product 2", Quantity = 1, Amount = 15m });
-        var shippingAddress = new Address { CountryCode = "GB" };
+        var basket = await CreateBasketAsync("GB", (product1, 1), (product2, 1));
+        var shippingAddress = CreateAddress("GB");
 
         // Act
         var result = await _shippingService.GetRequiredWarehouses(basket, shippingAddress);
@@ -364,17 +364,30 @@ public class ShippingServiceTests
 
     #region Helper Methods
 
-    private static Basket CreateBasket(params LineItem[] lineItems)
+    private async Task<Basket> CreateBasketAsync(string? countryCode, params (Product Product, int Quantity)[] items)
     {
-        return new Basket
+        var basket = _dataBuilder.CreateBasket();
+        foreach (var (product, quantity) in items)
         {
-            Id = Guid.NewGuid(),
-            LineItems = lineItems.ToList(),
-            SubTotal = lineItems.Sum(li => li.Amount),
-            Tax = 0,
-            Total = lineItems.Sum(li => li.Amount),
-            BillingAddress = new Address { Email = "test@example.com" }
-        };
+            var lineItem = _dataBuilder.CreateBasketLineItem(product, quantity);
+            basket.LineItems.Add(lineItem);
+        }
+
+        if (!string.IsNullOrWhiteSpace(countryCode))
+        {
+            await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+            {
+                Basket = basket,
+                CountryCode = countryCode
+            });
+        }
+
+        return basket;
+    }
+
+    private Address CreateAddress(string countryCode)
+    {
+        return _dataBuilder.CreateTestAddress(countryCode: countryCode);
     }
 
     #endregion

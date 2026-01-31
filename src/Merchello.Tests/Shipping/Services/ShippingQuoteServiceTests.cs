@@ -1,6 +1,9 @@
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Caching.Services.Interfaces;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
@@ -23,6 +26,8 @@ public class ShippingQuoteServiceTests
     private readonly Mock<ICacheService> _cacheServiceMock;
     private readonly Mock<ILogger<ShippingQuoteService>> _loggerMock;
     private readonly ShippingQuoteService _sut;
+    private readonly AddressFactory _addressFactory = new();
+    private readonly BasketFactory _basketFactory = new();
 
     public ShippingQuoteServiceTests()
     {
@@ -61,7 +66,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "10001" };
+        var warehouseAddress = CreateAddress("US", "10001");
         var packages = new List<ShipmentPackage>
         {
             new(2.5m, 30m, 20m, 15m)
@@ -101,7 +106,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "90210" };
+        var warehouseAddress = CreateAddress("US", "90210");
         var packages = new List<ShipmentPackage>
         {
             new(5m, 40m, 30m, 20m)
@@ -208,7 +213,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "30301" };
+        var warehouseAddress = CreateAddress("US", "30301");
         var packages = new List<ShipmentPackage> { new(1m) };
 
         var providerMock = new Mock<IShippingProvider>();
@@ -281,7 +286,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "10001" };
+        var warehouseAddress = CreateAddress("US", "10001");
         IReadOnlyCollection<ShipmentPackage> packages = Array.Empty<ShipmentPackage>();
 
         // Act
@@ -314,7 +319,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "60601" };
+        var warehouseAddress = CreateAddress("US", "60601");
         var packages = new List<ShipmentPackage> { new(3m, 25m, 25m, 25m) };
 
         // FedEx provider
@@ -442,7 +447,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "10001" };
+        var warehouseAddress = CreateAddress("US", "10001");
         var packages = new List<ShipmentPackage> { new(1m) };
 
         var providerMock = new Mock<IShippingProvider>();
@@ -503,7 +508,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "10001" };
+        var warehouseAddress = CreateAddress("US", "10001");
         var packages = new List<ShipmentPackage> { new(2m) };
 
         // Failing provider
@@ -601,7 +606,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "GB", PostalCode = "SW1A 1AA" };
+        var warehouseAddress = CreateAddress("GB", "SW1A 1AA");
         var packages = new List<ShipmentPackage> { new(1.5m) };
 
         // Flat-rate provider (UsesLiveRates = false)
@@ -662,7 +667,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "10001" };
+        var warehouseAddress = CreateAddress("US", "10001");
         var packages = new List<ShipmentPackage> { new(2m) };
 
         var providerMock = new Mock<IShippingProvider>();
@@ -752,20 +757,18 @@ public class ShippingQuoteServiceTests
     public async Task GetQuotesAsync_ReturnsEmpty_WhenBasketHasNoProductLineItems()
     {
         // Arrange
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "USD",
-            LineItems =
-            [
-                new LineItem
-                {
-                    LineItemType = LineItemType.Discount,
-                    Quantity = 1,
-                    Amount = -5.00m
-                }
-            ]
-        };
+        var basket = _basketFactory.Create(null, "USD", "$");
+        var discountLineItem = LineItemFactory.CreateCustomLineItem(
+            orderId: Guid.Empty,
+            name: "Discount",
+            sku: "DISC-001",
+            amount: -5.00m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m);
+        discountLineItem.LineItemType = LineItemType.Discount;
+        basket.LineItems = [discountLineItem];
 
         // Act
         var result = await _sut.GetQuotesAsync(basket, "US");
@@ -778,12 +781,8 @@ public class ShippingQuoteServiceTests
     public async Task GetQuotesAsync_ReturnsEmpty_WhenBasketIsEmpty()
     {
         // Arrange
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems = []
-        };
+        var basket = _basketFactory.Create(null, "GBP", "GBP");
+        basket.LineItems = [];
 
         // Act
         var result = await _sut.GetQuotesAsync(basket, "GB");
@@ -801,7 +800,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "10001" };
+        var warehouseAddress = CreateAddress("US", "10001");
         var packages = new List<ShipmentPackage> { new(1m) };
 
         var providerMock = new Mock<IShippingProvider>();
@@ -860,12 +859,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address
-        {
-            CountryCode = "US",
-            PostalCode = "90210",
-            TownCity = "Beverly Hills"
-        };
+        var warehouseAddress = CreateAddress("US", "90210", "Beverly Hills");
         var packages = new List<ShipmentPackage>
         {
             new(2m, 30m, 20m, 15m),
@@ -946,7 +940,7 @@ public class ShippingQuoteServiceTests
     {
         // Arrange
         var warehouseId = Guid.NewGuid();
-        var warehouseAddress = new Address { CountryCode = "US", PostalCode = "10001" };
+        var warehouseAddress = CreateAddress("US", "10001");
         var packages = new List<ShipmentPackage> { new(1m) };
 
         var providerMock = new Mock<IShippingProvider>();
@@ -1018,4 +1012,19 @@ public class ShippingQuoteServiceTests
     }
 
     #endregion
+
+    private Address CreateAddress(string countryCode, string postalCode, string? city = null)
+    {
+        return _addressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Warehouse",
+            address1: "123 Warehouse St",
+            address2: null,
+            city: city ?? "Test City",
+            postalCode: postalCode,
+            countryCode: countryCode,
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "warehouse@example.com");
+    }
 }

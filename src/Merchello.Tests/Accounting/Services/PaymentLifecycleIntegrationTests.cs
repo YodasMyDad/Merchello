@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -22,13 +24,14 @@ namespace Merchello.Tests.Accounting.Services;
 /// Integration tests for the full payment lifecycle:
 /// create invoice, record payment, process refund, verify status tracking.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IInvoiceService _invoiceService;
     private readonly IPaymentService _paymentService;
     private readonly IShippingService _shippingService;
+    private readonly ICheckoutService _checkoutService;
 
     public PaymentLifecycleIntegrationTests(ServiceTestFixture fixture)
     {
@@ -37,6 +40,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
         _invoiceService = fixture.GetService<IInvoiceService>();
         _paymentService = fixture.GetService<IPaymentService>();
         _shippingService = fixture.GetService<IShippingService>();
+        _checkoutService = fixture.GetService<ICheckoutService>();
     }
 
     [Fact]
@@ -187,11 +191,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
             Cost = 5.00m
         });
 
-        warehouse.ServiceRegions.Add(new WarehouseServiceRegion
-        {
-            CountryCode = "GB",
-            IsExcluded = false
-        });
+        dataBuilder.AddServiceRegion(warehouse, "GB");
         warehouse.ShippingOptions.Add(shippingOption);
 
         var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
@@ -199,65 +199,31 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
         var product = dataBuilder.CreateProduct("Product Variant", productRoot, price: 50.00m);
         product.Sku = $"TEST-{Guid.NewGuid():N}"[..12];
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
+        var basket = _checkoutService.CreateBasket("GBP");
+        var lineItem = _checkoutService.CreateLineItem(product, 1);
+        await _checkoutService.AddToBasketAsync(basket, lineItem, "GB");
+        await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
         {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 50.00m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                }
-            ],
-            SubTotal = 50.00m,
-            Tax = 10.00m,
-            Total = 60.00m
-        };
+            Basket = basket,
+            CountryCode = "GB"
+        });
 
-        var billingAddress = new Address
-        {
-            Name = "Test Customer",
-            Email = "test@test.com",
-            AddressOne = "123 Test St",
-            TownCity = "London",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Test Customer",
-            Email = "test@test.com",
-            AddressOne = "123 Test St",
-            TownCity = "London",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var billingAddress = dataBuilder.CreateTestAddress(
+            email: "test@test.com",
+            countryCode: "GB",
+            firstName: "Test",
+            lastName: "Customer");
+        var shippingAddress = dataBuilder.CreateTestAddress(
+            email: "test@test.com",
+            countryCode: "GB",
+            firstName: "Test",
+            lastName: "Customer");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters

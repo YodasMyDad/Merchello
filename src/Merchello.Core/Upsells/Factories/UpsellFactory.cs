@@ -35,6 +35,8 @@ public class UpsellFactory
             SuppressIfInCart = parameters.SuppressIfInCart,
             DisplayLocation = parameters.DisplayLocation,
             CheckoutMode = parameters.CheckoutMode,
+            DefaultChecked = parameters.DefaultChecked,
+            AutoAddToBasket = parameters.AutoAddToBasket,
             StartsAt = startsAt,
             EndsAt = parameters.EndsAt,
             Timezone = parameters.Timezone,

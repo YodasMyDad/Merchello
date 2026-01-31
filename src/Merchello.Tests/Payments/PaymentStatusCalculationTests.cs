@@ -31,6 +31,7 @@ public class PaymentStatusCalculationTests
 {
     private readonly PaymentService _paymentService;
     private readonly string _currencyCode = "USD";
+    private readonly PaymentFactory _paymentFactory;
 
     public PaymentStatusCalculationTests()
     {
@@ -46,6 +47,7 @@ public class PaymentStatusCalculationTests
         var idempotencyServiceMock = new Mock<IPaymentIdempotencyService>();
         var currencyService = new CurrencyService(settings);
         var paymentFactory = new PaymentFactory(currencyService);
+        _paymentFactory = paymentFactory;
 
         var rateLimiterMock = new Mock<IRateLimiter>();
         rateLimiterMock
@@ -625,25 +627,28 @@ public class PaymentStatusCalculationTests
 
     #region Helper Methods
 
-    private static Payment CreatePayment(
+    private Payment CreatePayment(
         decimal amount,
         PaymentType paymentType,
         bool success,
         decimal? riskScore = null,
         decimal? storeCurrencyAmount = null)
     {
-        return new Payment
-        {
-            Id = Guid.NewGuid(),
-            InvoiceId = Guid.NewGuid(),
-            Amount = amount,
-            PaymentType = paymentType,
-            PaymentSuccess = success,
-            RiskScore = riskScore,
-            RiskScoreSource = riskScore.HasValue ? "test" : null,
-            AmountInStoreCurrency = storeCurrencyAmount,
-            DateCreated = DateTime.UtcNow
-        };
+        var payment = _paymentFactory.CreateManualPayment(
+            invoiceId: Guid.NewGuid(),
+            amount: Math.Abs(amount),
+            currencyCode: _currencyCode,
+            storeCurrencyCode: _currencyCode,
+            pricingExchangeRate: null,
+            paymentMethod: "Test");
+
+        payment.Amount = amount;
+        payment.PaymentType = paymentType;
+        payment.PaymentSuccess = success;
+        payment.RiskScore = riskScore;
+        payment.RiskScoreSource = riskScore.HasValue ? "test" : null;
+        payment.AmountInStoreCurrency = storeCurrencyAmount;
+        return payment;
     }
 
     #endregion

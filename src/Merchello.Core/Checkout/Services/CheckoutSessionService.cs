@@ -229,6 +229,21 @@ public class CheckoutSessionService(
     }
 
     /// <inheritdoc />
+    public async Task TrackRemovedAutoAddAsync(Guid basketId, RemovedAutoAddRecord record, CancellationToken ct = default)
+    {
+        var checkoutSession = await GetSessionAsync(basketId, ct);
+
+        var alreadyTracked = checkoutSession.RemovedAutoAddUpsells
+            .Any(r => r.UpsellRuleId == record.UpsellRuleId && r.ProductId == record.ProductId);
+
+        if (!alreadyTracked)
+        {
+            checkoutSession.RemovedAutoAddUpsells.Add(record);
+            SaveSession(basketId, checkoutSession);
+        }
+    }
+
+    /// <inheritdoc />
     public void SaveBasketToSession(Basket basket)
     {
         var session = GetHttpSession();

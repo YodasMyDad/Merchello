@@ -1,6 +1,9 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -12,6 +15,7 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Tests.TestInfrastructure;
+using Microsoft.EntityFrameworkCore;
 using Shouldly;
 using Xunit;
 
@@ -22,13 +26,15 @@ namespace Merchello.Tests.Checkout.Services;
 /// basket → address → shipping → payment → order creation.
 /// Verifies all services work together correctly through the complete lifecycle.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IInvoiceService _invoiceService;
     private readonly IPaymentService _paymentService;
     private readonly IShippingService _shippingService;
+    private readonly IShipmentService _shipmentService;
+    private readonly ICheckoutService _checkoutService;
 
     public FullCheckoutFlowTests(ServiceTestFixture fixture)
     {
@@ -37,6 +43,8 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         _invoiceService = fixture.GetService<IInvoiceService>();
         _paymentService = fixture.GetService<IPaymentService>();
         _shippingService = fixture.GetService<IShippingService>();
+        _shipmentService = fixture.GetService<IShipmentService>();
+        _checkoutService = fixture.GetService<ICheckoutService>();
     }
 
     [Fact]
@@ -89,6 +97,115 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
+    public async Task FullCheckout_EndToEnd_CreatesShipmentAndCompletesOrder()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var warehouse = dataBuilder.CreateWarehouse("EndToEnd Warehouse", "GB");
+        var shippingOption = dataBuilder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 5.00m);
+        shippingOption.ShippingCosts.Add(new ShippingCost { CountryCode = "GB", Cost = 5.00m });
+        dataBuilder.AddServiceRegion(warehouse, "GB");
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("EndToEnd Product", taxGroup);
+        var product = dataBuilder.CreateProduct("EndToEnd Variant", productRoot, price: 50.00m);
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 25);
+        product.ShippingOptions.Add(shippingOption);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var basket = await CreateBasketAsync("GB", product);
+        var billingAddress = CreateAddress("GB");
+        var shippingAddress = CreateAddress("GB");
+        basket.BillingAddress = billingAddress;
+        basket.ShippingAddress = shippingAddress;
+        basket.BillingAddress = billingAddress;
+        basket.ShippingAddress = shippingAddress;
+        basket.BillingAddress = billingAddress;
+        basket.ShippingAddress = shippingAddress;
+
+        var shippingResult = await _shippingService.GetShippingOptionsForBasket(
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
+        var group = shippingResult.WarehouseGroups.First();
+        var selectedOption = group.AvailableShippingOptions.First();
+
+        var checkoutSession = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            BillingAddress = billingAddress,
+            ShippingAddress = shippingAddress,
+            SelectedShippingOptions = new Dictionary<Guid, string>
+            {
+                [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
+            }
+        };
+
+        // Act - create order + pay
+        var invoiceResult = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+        invoiceResult.Successful.ShouldBeTrue();
+        var invoice = invoiceResult.ResultObject!;
+        var order = invoice.Orders!.Single();
+
+        var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = invoice.Total
+        });
+        paymentResult.Successful.ShouldBeTrue();
+
+        var processingResult = await _invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
+        {
+            OrderId = order.Id,
+            NewStatus = OrderStatus.Processing,
+            Reason = "Payment received - begin fulfillment"
+        });
+        processingResult.Successful.ShouldBeTrue();
+
+        // Create shipment
+        var shipments = await _shipmentService.CreateShipmentsFromOrderAsync(new CreateShipmentsParameters
+        {
+            OrderId = order.Id,
+            ShippingAddress = shippingAddress,
+            TrackingNumber = "E2E-TRACK-001"
+        });
+        shipments.Count.ShouldBe(1);
+
+        // Move shipment through Shipped -> Delivered to complete order
+        var shippedResult = await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipments[0].Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
+        shippedResult.Successful.ShouldBeTrue();
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var shippedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        shippedOrder.Status.ShouldBe(OrderStatus.Shipped);
+
+        var deliveredResult = await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipments[0].Id,
+            NewStatus = ShipmentStatus.Delivered
+        });
+        deliveredResult.Successful.ShouldBeTrue();
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var completedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        completedOrder.Status.ShouldBe(OrderStatus.Completed);
+
+        var paymentStatus = await _paymentService.GetInvoicePaymentStatusAsync(invoice.Id);
+        paymentStatus.ShouldBe(InvoicePaymentStatus.Paid);
+    }
+
+    [Fact]
     public async Task FullCheckout_MultiWarehouse_CreatesMultipleOrders()
     {
         // Arrange: Two warehouses, products split across them
@@ -118,9 +235,11 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket("GBP", productA, productB);
+        var basket = await CreateBasketAsync("GB", productA, productB);
         var billingAddress = CreateAddress("GB");
         var shippingAddress = CreateAddress("GB");
+        basket.BillingAddress = billingAddress;
+        basket.ShippingAddress = shippingAddress;
 
         // Get shipping groups
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
@@ -199,32 +318,12 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 3,
-                    Amount = 15.00m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                }
-            ],
-            SubTotal = 45.00m,
-            Tax = 9.00m,
-            Total = 54.00m
-        };
+        var basket = await CreateBasketAsync("GB", (product, 3));
 
         var billingAddress = CreateAddress("GB");
         var shippingAddress = CreateAddress("GB");
+        basket.BillingAddress = billingAddress;
+        basket.ShippingAddress = shippingAddress;
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -276,7 +375,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket("GBP", product);
+        var basket = await CreateBasketAsync("GB", product);
         var billingAddress = CreateAddress("GB");
         var shippingAddress = CreateAddress("GB");
 
@@ -306,45 +405,36 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         return (basket, checkoutSession);
     }
 
-    private static Basket CreateBasket(string currency, params Product[] products)
+    private Task<Basket> CreateBasketAsync(string countryCode, params Product[] products)
     {
-        var lineItems = products.Select(p => new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = p.Id,
-            Name = p.Name,
-            Sku = p.Sku,
-            Quantity = 1,
-            Amount = p.Price,
-            LineItemType = LineItemType.Product,
-            IsTaxable = true,
-            TaxRate = 20m
-        }).ToList();
-
-        var subTotal = lineItems.Sum(li => li.Amount * li.Quantity);
-        var tax = Math.Round(subTotal * 0.2m, 2);
-
-        return new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = currency,
-            LineItems = lineItems,
-            SubTotal = subTotal,
-            Tax = tax,
-            Total = subTotal + tax
-        };
+        var items = products.Select(p => (p, 1)).ToArray();
+        return CreateBasketAsync(countryCode, items);
     }
 
-    private static Address CreateAddress(string countryCode)
+    private async Task<Basket> CreateBasketAsync(string countryCode, params (Product Product, int Quantity)[] items)
     {
-        return new Address
+        var basket = _checkoutService.CreateBasket("GBP");
+
+        foreach (var (product, quantity) in items)
         {
-            Name = "Test Customer",
-            Email = "test@example.com",
-            AddressOne = "123 Test St",
-            TownCity = "London",
-            CountryCode = countryCode,
-            PostalCode = "SW1A 1AA"
-        };
+            var lineItem = _checkoutService.CreateLineItem(product, quantity);
+            await _checkoutService.AddToBasketAsync(basket, lineItem, countryCode);
+        }
+
+        await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode
+        });
+
+        return basket;
+    }
+
+    private Address CreateAddress(string countryCode)
+    {
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(
+            email: "customer@example.com",
+            countryCode: countryCode);
     }
 }

@@ -719,20 +719,18 @@ public class LineItemCalculationTests
 
     private static LineItem CreateProductLineItem(string sku, decimal amount, int quantity, decimal taxRate, bool isTaxable = true)
     {
-        return new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Sku = sku,
-            Name = $"Product {sku}",
-            Amount = amount,
-            Quantity = quantity,
-            LineItemType = LineItemType.Product,
-            IsTaxable = isTaxable,
-            TaxRate = taxRate,
-            DateCreated = DateTime.UtcNow,
-            DateUpdated = DateTime.UtcNow,
-            ExtendedData = new Dictionary<string, object>()
-        };
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            $"Product {sku}",
+            sku,
+            amount,
+            cost: 0m,
+            quantity: quantity,
+            isTaxable: isTaxable,
+            taxRate: taxRate);
+        lineItem.LineItemType = LineItemType.Product;
+        lineItem.OrderId = null;
+        return lineItem;
     }
 
     /// <summary>

@@ -43,6 +43,8 @@ public class UpsellRuleDbMapping : IEntityTypeConfiguration<UpsellRule>
         builder.Property(x => x.SuppressIfInCart);
         builder.Property(x => x.DisplayLocation).IsRequired();
         builder.Property(x => x.CheckoutMode).IsRequired();
+        builder.Property(x => x.DefaultChecked);
+        builder.Property(x => x.AutoAddToBasket);
 
         // Scheduling
         builder.Property(x => x.StartsAt).IsRequired();

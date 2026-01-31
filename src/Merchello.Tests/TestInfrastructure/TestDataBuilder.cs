@@ -2,6 +2,8 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Checkout.Models;
 using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services.Parameters;
@@ -13,6 +15,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Suppliers.Factories;
@@ -36,16 +39,21 @@ public class TestDataBuilder
     private readonly WarehouseFactory _warehouseFactory = new();
     private readonly TaxGroupFactory _taxGroupFactory = new();
     private readonly ProductTypeFactory _productTypeFactory = new();
+    private readonly ProductRootFactory _productRootFactory = new();
+    private readonly ProductCollectionFactory _productCollectionFactory = new();
     private readonly CustomerFactory _customerFactory = new();
     private readonly OrderFactory _orderFactory = new();
     private readonly AddressFactory _addressFactory = new();
     private readonly ShipmentFactory _shipmentFactory = new();
     private readonly CustomerSegmentFactory _customerSegmentFactory = new();
+    private readonly BasketFactory _basketFactory = new();
+    private readonly ShippingOptionFactory _shippingOptionFactory = new();
 
     // Factories requiring ICurrencyService
     private readonly InvoiceFactory _invoiceFactory;
     private readonly PaymentFactory _paymentFactory;
     private readonly LineItemFactory _lineItemFactory;
+    private readonly ProductFactory _productFactory;
 
     public TestDataBuilder(MerchelloDbContext dbContext, ICurrencyService currencyService)
     {
@@ -53,6 +61,43 @@ public class TestDataBuilder
         _invoiceFactory = new InvoiceFactory(currencyService);
         _paymentFactory = new PaymentFactory(currencyService);
         _lineItemFactory = new LineItemFactory(currencyService);
+        _productFactory = new ProductFactory(new SlugHelper());
+    }
+
+    /// <summary>
+    /// Creates a Basket using BasketFactory.
+    /// </summary>
+    public Basket CreateBasket(Guid? customerId = null, string currencyCode = "GBP", string currencySymbol = "£")
+    {
+        return _basketFactory.Create(customerId, currencyCode, currencySymbol);
+    }
+
+    /// <summary>
+    /// Creates a basket line item from a product using LineItemFactory.
+    /// </summary>
+    public LineItem CreateBasketLineItem(Product product, int quantity = 1)
+    {
+        return _lineItemFactory.CreateFromProduct(product, quantity);
+    }
+
+    /// <summary>
+    /// Creates a discount line item using LineItemFactory.
+    /// Useful for basket-level discount scenarios in tests.
+    /// </summary>
+    public LineItem CreateDiscountLineItem(
+        string name,
+        string sku,
+        decimal amount,
+        string? dependantLineItemSku = null,
+        Dictionary<string, object>? extendedData = null)
+    {
+        return _lineItemFactory.CreateDiscountLineItem(
+            name,
+            sku,
+            amount,
+            dependantLineItemSku,
+            orderId: null,
+            extendedData: extendedData);
     }
 
     /// <summary>
@@ -94,7 +139,8 @@ public class TestDataBuilder
     /// </summary>
     public Warehouse CreateWarehouse(string name = "Test Warehouse", string countryCode = "GB", Supplier? supplier = null)
     {
-        var warehouse = _warehouseFactory.Create(name, new Address { CountryCode = countryCode });
+        var address = CreateTestAddress(countryCode: countryCode);
+        var warehouse = _warehouseFactory.Create(name, address);
         warehouse.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
 
         if (supplier != null)
@@ -119,15 +165,12 @@ public class TestDataBuilder
         taxGroup ??= CreateTaxGroup();
         productType ??= CreateProductType();
 
-        var productRoot = new ProductRoot
-        {
-            Id = Guid.NewGuid(), // Pre-generate ID for FK relationships
-            RootName = name,
-            TaxGroupId = taxGroup.Id,
-            TaxGroup = taxGroup,
-            ProductTypeId = productType.Id,
-            ProductType = productType
-        };
+        var productRoot = _productRootFactory.Create(
+            name,
+            taxGroup,
+            productType,
+            []);
+        productRoot.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
 
         _dbContext.RootProducts.Add(productRoot);
         return productRoot;
@@ -144,16 +187,17 @@ public class TestDataBuilder
     {
         productRoot ??= CreateProductRoot();
 
-        var product = new Product
-        {
-            Id = Guid.NewGuid(), // Pre-generate ID for FK relationships
-            ProductRootId = productRoot.Id,
-            ProductRoot = productRoot,
-            Name = name,
-            Price = price,
-            Default = isDefault,
-            Sku = $"SKU-{Guid.NewGuid():N}"[..12]
-        };
+        var sku = $"SKU-{Guid.NewGuid():N}"[..12];
+        var product = _productFactory.Create(
+            productRoot,
+            name,
+            price,
+            costOfGoods: 0m,
+            gtin: string.Empty,
+            sku: sku,
+            isDefault: isDefault);
+        product.Id = Guid.NewGuid(); // Pre-generate ID for FK relationships
+        product.ProductRootId = productRoot.Id;
 
         _dbContext.Products.Add(product);
         productRoot.Products.Add(product);
@@ -172,17 +216,16 @@ public class TestDataBuilder
         bool isNextDay = false)
     {
         warehouse ??= CreateWarehouse();
-
-        var shippingOption = new ShippingOption
-        {
-            Name = name,
-            WarehouseId = warehouse.Id,
-            Warehouse = warehouse,
-            DaysFrom = daysFrom,
-            DaysTo = daysTo,
-            FixedCost = fixedCost,
-            IsNextDay = isNextDay
-        };
+        var shippingOption = _shippingOptionFactory.Create(
+            name,
+            fixedCost,
+            warehouse,
+            daysFrom,
+            daysTo,
+            isNextDay,
+            nextDayCutOffTime: null);
+        shippingOption.Id = Guid.NewGuid();
+        shippingOption.WarehouseId = warehouse.Id;
 
         _dbContext.ShippingOptions.Add(shippingOption);
         warehouse.ShippingOptions.Add(shippingOption);
@@ -270,11 +313,7 @@ public class TestDataBuilder
     /// </summary>
     public ProductCollection CreateProductCollection(string name = "Test Collection")
     {
-        var collection = new ProductCollection
-        {
-            Name = name,
-
-        };
+        var collection = _productCollectionFactory.Create(name);
 
         _dbContext.ProductCollections.Add(collection);
         return collection;
@@ -492,20 +531,18 @@ public class TestDataBuilder
         else
         {
             // For test-only line items without a product (synthetic test data)
-            lineItem = new LineItem
-            {
-                ProductId = null,
-                Name = name,
-                Quantity = quantity,
-                Amount = amount,
-                Cost = cost,
-                Sku = $"LINE-{Guid.NewGuid():N}"[..12],
-                LineItemType = lineItemType,
-                IsTaxable = isTaxable,
-                TaxRate = taxRate,
-                DependantLineItemSku = dependantLineItemSku,
-                ExtendedData = extendedData ?? []
-            };
+            lineItem = LineItemFactory.CreateCustomLineItem(
+                order.Id,
+                name,
+                $"LINE-{Guid.NewGuid():N}"[..12],
+                amount,
+                cost,
+                quantity,
+                isTaxable,
+                taxRate,
+                extendedData);
+            lineItem.LineItemType = lineItemType;
+            lineItem.DependantLineItemSku = dependantLineItemSku;
         }
 
         lineItem.OrderId = order.Id;
@@ -534,23 +571,18 @@ public class TestDataBuilder
         {
             ["CostAdjustment"] = cost
         };
-
-        var lineItem = new LineItem
-        {
-            OrderId = order.Id,
-            Order = order,
-            ProductId = null,
-            Name = name,
-            Quantity = quantity,
-            Amount = amount,
-            Cost = cost,
-            Sku = $"ADDON-{Guid.NewGuid():N}"[..12],
-            LineItemType = LineItemType.Addon,
-            IsTaxable = isTaxable,
-            TaxRate = taxRate,
-            DependantLineItemSku = parentLineItem.Sku,
-            ExtendedData = extendedData
-        };
+        var lineItem = LineItemFactory.CreateAddonForOrderEdit(
+            order.Id,
+            parentLineItem.Sku,
+            name,
+            $"ADDON-{Guid.NewGuid():N}"[..12],
+            amount,
+            quantity,
+            isTaxable,
+            taxRate,
+            extendedData);
+        lineItem.Order = order;
+        lineItem.Cost = cost;
 
         _dbContext.LineItems.Add(lineItem);
         order.LineItems ??= [];
@@ -582,21 +614,14 @@ public class TestDataBuilder
         {
             extendedData[Constants.ExtendedDataKeys.ApplyAfterTax] = true;
         }
-
-        var discountLineItem = new LineItem
-        {
-            OrderId = order.Id,
-            Order = order,
-            Name = reason ?? "Discount",
-            Sku = $"DISCOUNT-{Guid.NewGuid():N}"[..12],
-            Quantity = 1,
-            Amount = -Math.Abs(discountAmount), // Store as negative
-            LineItemType = LineItemType.Discount,
-            DependantLineItemSku = parentLineItem.Sku,
-            IsTaxable = false,
-            TaxRate = 0,
-            ExtendedData = extendedData
-        };
+        var discountLineItem = _lineItemFactory.CreateDiscountLineItem(
+            reason ?? "Discount",
+            $"DISCOUNT-{Guid.NewGuid():N}"[..12],
+            -Math.Abs(discountAmount),
+            parentLineItem.Sku,
+            order.Id,
+            extendedData);
+        discountLineItem.Order = order;
 
         _dbContext.LineItems.Add(discountLineItem);
         order.LineItems ??= [];
@@ -627,21 +652,14 @@ public class TestDataBuilder
         {
             extendedData[Constants.ExtendedDataKeys.ApplyAfterTax] = true;
         }
-
-        var discountLineItem = new LineItem
-        {
-            OrderId = order.Id,
-            Order = order,
-            Name = name ?? "Order Discount",
-            Sku = $"COUPON-{Guid.NewGuid():N}"[..12],
-            Quantity = 1,
-            Amount = -Math.Abs(discountAmount), // Store as negative
-            LineItemType = LineItemType.Discount,
-            DependantLineItemSku = null, // Not linked to any specific product
-            IsTaxable = false,
-            TaxRate = 0,
-            ExtendedData = extendedData
-        };
+        var discountLineItem = _lineItemFactory.CreateDiscountLineItem(
+            name ?? "Order Discount",
+            $"COUPON-{Guid.NewGuid():N}"[..12],
+            -Math.Abs(discountAmount),
+            dependantLineItemSku: null,
+            orderId: order.Id,
+            extendedData: extendedData);
+        discountLineItem.Order = order;
 
         _dbContext.LineItems.Add(discountLineItem);
         order.LineItems ??= [];

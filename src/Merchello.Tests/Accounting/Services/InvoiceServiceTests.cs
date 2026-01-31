@@ -1,6 +1,9 @@
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
+using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -11,11 +14,13 @@ namespace Merchello.Tests.Accounting.Services;
 /// <summary>
 /// Integration tests for InvoiceService - manages invoices, orders, and their lifecycle.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IInvoiceService _invoiceService;
+    private readonly BasketFactory _basketFactory = new();
+    private readonly AddressFactory _addressFactory = new();
 
     public InvoiceServiceTests(ServiceTestFixture fixture)
     {
@@ -349,15 +354,17 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var invoice = dataBuilder.CreateInvoiceWithOrders(orderCount: 1);
         await dataBuilder.SaveChangesAsync();
 
-        var newAddress = new Address
-        {
-            Name = "New Name",
-            Email = "newemail@example.com",
-            AddressOne = "123 New Street",
-            TownCity = "New City",
-            CountryCode = "US",
-            PostalCode = "12345"
-        };
+        var newAddress = _addressFactory.CreateFromFormData(
+            firstName: "New",
+            lastName: "Name",
+            address1: "123 New Street",
+            address2: null,
+            city: "New City",
+            postalCode: "12345",
+            countryCode: "US",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "newemail@example.com");
 
         // Act
         var result = await _invoiceService.UpdateBillingAddressAsync(invoice.Id, newAddress);
@@ -381,14 +388,17 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var invoice = dataBuilder.CreateInvoiceWithOrders(orderCount: 1);
         await dataBuilder.SaveChangesAsync();
 
-        var newAddress = new Address
-        {
-            Name = "Shipping Name",
-            AddressOne = "456 Ship Street",
-            TownCity = "Ship City",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var newAddress = _addressFactory.CreateFromFormData(
+            firstName: "Shipping",
+            lastName: "Name",
+            address1: "456 Ship Street",
+            address2: null,
+            city: "Ship City",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: null);
 
         // Act
         var result = await _invoiceService.UpdateShippingAddressAsync(invoice.Id, newAddress);
@@ -564,18 +574,12 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc); // 5 mins after basket
 
         // Create a basket with line items
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = basketTime,
-            DateUpdated = basketTime,
-            LineItems =
-            [
-                new LineItem { Sku = "PROD-001", Quantity = 2, LineItemType = LineItemType.Product },
-                new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product }
-            ]
-        };
+        var basket = CreateBasket(
+            basketTime,
+            basketTime,
+            "GBP",
+            ("PROD-001", 2),
+            ("PROD-002", 1));
         _fixture.DbContext.Baskets.Add(basket);
 
         // Create an invoice with matching line items
@@ -588,11 +592,8 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse();
         var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
         var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
-        order.LineItems =
-        [
-            new LineItem { Sku = "PROD-001", Quantity = 2, LineItemType = LineItemType.Product, OrderId = order.Id },
-            new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id }
-        ];
+        CreateOrderLineItem(order, "PROD-001", 2);
+        CreateOrderLineItem(order, "PROD-002", 1);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -613,13 +614,10 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var customer = dataBuilder.CreateCustomer();
 
         // Create a basket
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = DateTime.UtcNow.AddMinutes(-10),
-            DateUpdated = DateTime.UtcNow.AddMinutes(-10)
-        };
+        var basket = CreateBasket(
+            DateTime.UtcNow.AddMinutes(-10),
+            DateTime.UtcNow.AddMinutes(-10),
+            "GBP");
         _fixture.DbContext.Baskets.Add(basket);
 
         // Create an invoice linked to the basket
@@ -650,13 +648,10 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var customer = dataBuilder.CreateCustomer();
 
         // Create a basket that was modified AFTER invoice creation
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = DateTime.UtcNow.AddMinutes(-10),
-            DateUpdated = DateTime.UtcNow // Modified just now
-        };
+        var basket = CreateBasket(
+            DateTime.UtcNow.AddMinutes(-10),
+            DateTime.UtcNow,
+            "GBP");
         _fixture.DbContext.Baskets.Add(basket);
 
         // Create an invoice linked to the basket (created before basket was modified)
@@ -681,13 +676,7 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var dataBuilder = _fixture.CreateDataBuilder();
 
         // Create a basket with no associated invoice
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = DateTime.UtcNow,
-            DateUpdated = DateTime.UtcNow
-        };
+        var basket = CreateBasket(DateTime.UtcNow, DateTime.UtcNow, "GBP");
         _fixture.DbContext.Baskets.Add(basket);
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -720,17 +709,11 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
 
         // Create basket with one SKU
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = basketTime,
-            DateUpdated = basketTime,
-            LineItems =
-            [
-                new LineItem { Sku = "PROD-NEW", Quantity = 2, LineItemType = LineItemType.Product }
-            ]
-        };
+        var basket = CreateBasket(
+            basketTime,
+            basketTime,
+            "GBP",
+            ("PROD-NEW", 2));
         _fixture.DbContext.Baskets.Add(basket);
 
         // Create invoice with different SKU
@@ -742,10 +725,7 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse();
         var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
         var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
-        order.LineItems =
-        [
-            new LineItem { Sku = "PROD-OLD", Quantity = 2, LineItemType = LineItemType.Product, OrderId = order.Id }
-        ];
+        CreateOrderLineItem(order, "PROD-OLD", 2);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -768,17 +748,11 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
 
         // Create basket with quantity 5
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = basketTime,
-            DateUpdated = basketTime,
-            LineItems =
-            [
-                new LineItem { Sku = "PROD-001", Quantity = 5, LineItemType = LineItemType.Product }
-            ]
-        };
+        var basket = CreateBasket(
+            basketTime,
+            basketTime,
+            "GBP",
+            ("PROD-001", 5));
         _fixture.DbContext.Baskets.Add(basket);
 
         // Create invoice with quantity 2 (different)
@@ -790,10 +764,7 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse();
         var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
         var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
-        order.LineItems =
-        [
-            new LineItem { Sku = "PROD-001", Quantity = 2, LineItemType = LineItemType.Product, OrderId = order.Id }
-        ];
+        CreateOrderLineItem(order, "PROD-001", 2);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -816,18 +787,12 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
 
         // Create basket with 2 items
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = basketTime,
-            DateUpdated = basketTime,
-            LineItems =
-            [
-                new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product },
-                new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product }
-            ]
-        };
+        var basket = CreateBasket(
+            basketTime,
+            basketTime,
+            "GBP",
+            ("PROD-001", 1),
+            ("PROD-002", 1));
         _fixture.DbContext.Baskets.Add(basket);
 
         // Create invoice with only 1 item
@@ -839,10 +804,7 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse();
         var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
         var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
-        order.LineItems =
-        [
-            new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id }
-        ];
+        CreateOrderLineItem(order, "PROD-001", 1);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -865,17 +827,11 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var invoiceTime = new DateTime(2026, 1, 1, 10, 5, 0, DateTimeKind.Utc);
 
         // Create basket with 1 item
-        var basket = new Core.Checkout.Models.Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            DateCreated = basketTime,
-            DateUpdated = basketTime,
-            LineItems =
-            [
-                new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product }
-            ]
-        };
+        var basket = CreateBasket(
+            basketTime,
+            basketTime,
+            "GBP",
+            ("PROD-001", 1));
         _fixture.DbContext.Baskets.Add(basket);
 
         // Create invoice with 2 items
@@ -887,11 +843,8 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         var warehouse = dataBuilder.CreateWarehouse();
         var shippingOption = dataBuilder.CreateShippingOption(warehouse: warehouse);
         var order = dataBuilder.CreateOrder(invoice: invoice, warehouse: warehouse, shippingOption: shippingOption);
-        order.LineItems =
-        [
-            new LineItem { Sku = "PROD-001", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id },
-            new LineItem { Sku = "PROD-002", Quantity = 1, LineItemType = LineItemType.Product, OrderId = order.Id }
-        ];
+        CreateOrderLineItem(order, "PROD-001", 1);
+        CreateOrderLineItem(order, "PROD-002", 1);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -904,4 +857,54 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     #endregion
+
+    private Core.Checkout.Models.Basket CreateBasket(
+        DateTime created,
+        DateTime updated,
+        string currency,
+        params (string Sku, int Quantity)[] items)
+    {
+        var currencySymbol = currency == "GBP" ? "GBP" : "$";
+        var basket = _basketFactory.Create(null, currency, currencySymbol);
+        basket.DateCreated = created;
+        basket.DateUpdated = updated;
+
+        foreach (var (sku, quantity) in items)
+        {
+            var lineItem = LineItemFactory.CreateCustomLineItem(
+                Guid.Empty,
+                "Product",
+                sku,
+                amount: 0m,
+                cost: 0m,
+                quantity: quantity,
+                isTaxable: false,
+                taxRate: 0m);
+            lineItem.LineItemType = LineItemType.Product;
+            lineItem.OrderId = null;
+            basket.LineItems.Add(lineItem);
+        }
+
+        return basket;
+    }
+
+    private LineItem CreateOrderLineItem(Order order, string sku, int quantity)
+    {
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            order.Id,
+            "Product",
+            sku,
+            amount: 0m,
+            cost: 0m,
+            quantity: quantity,
+            isTaxable: false,
+            taxRate: 0m);
+        lineItem.LineItemType = LineItemType.Product;
+        lineItem.OrderId = order.Id;
+        lineItem.Order = order;
+        _fixture.DbContext.LineItems.Add(lineItem);
+        order.LineItems ??= [];
+        order.LineItems.Add(lineItem);
+        return lineItem;
+    }
 }

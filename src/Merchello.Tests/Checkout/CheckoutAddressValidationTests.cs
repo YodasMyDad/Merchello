@@ -2,6 +2,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Extensions;
@@ -21,12 +22,13 @@ namespace Merchello.Tests.Checkout;
 /// 2. Basket addresses are used as fallback when session addresses are empty
 /// 3. Currency is properly preserved through the checkout flow
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IInvoiceService _invoiceService;
     private readonly IShippingService _shippingService;
+    private readonly ICheckoutService _checkoutService;
 
     public CheckoutAddressValidationTests(ServiceTestFixture fixture)
     {
@@ -34,6 +36,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         _fixture.ResetDatabase();
         _invoiceService = fixture.GetService<IInvoiceService>();
         _shippingService = fixture.GetService<IShippingService>();
+        _checkoutService = fixture.GetService<ICheckoutService>();
     }
 
     #region Helper Methods
@@ -54,13 +57,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
             }
         ]);
 
-        var regions = warehouse.ServiceRegions;
-        regions.Add(new WarehouseServiceRegion
-        {
-            CountryCode = "GB",
-            IsExcluded = false
-        });
-        warehouse.SetServiceRegions(regions);
+        dataBuilder.AddServiceRegion(warehouse, "GB");
         warehouse.ShippingOptions.Add(shippingOption);
 
         var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
@@ -68,19 +65,8 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("Test Product Variant", productRoot, price: 25.00m);
         product.Sku = "TEST-ADDR-001";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
@@ -88,44 +74,38 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         return (warehouse, shippingOption, product);
     }
 
-    private static Basket CreateBasketWithLineItem(Product product, string currency = "GBP")
+    private async Task<Basket> CreateBasketAsync(Product product, string currency = "GBP", string countryCode = "GB")
     {
-        return new Basket
+        var basket = _checkoutService.CreateBasket(currency);
+        var lineItem = _checkoutService.CreateLineItem(product, 1);
+        await _checkoutService.AddToBasketAsync(basket, lineItem, countryCode);
+        await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
         {
-            Id = Guid.NewGuid(),
-            Currency = currency,
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 25.00m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                }
-            ],
-            SubTotal = 25.00m,
-            Tax = 5.00m,
-            Total = 30.00m
-        };
+            Basket = basket,
+            CountryCode = countryCode
+        });
+        return basket;
     }
 
-    private static Address CreateCompleteAddress(string name, string email) => new()
+    private Address CreateCompleteAddress(string firstName, string lastName, string email, string countryCode = "GB")
     {
-        Name = name,
-        Email = email,
-        AddressOne = "123 Test Street",
-        TownCity = "London",
-        CountryCode = "GB",
-        PostalCode = "SW1A 1AA"
-    };
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(
+            email: email,
+            countryCode: countryCode,
+            firstName: firstName,
+            lastName: lastName);
+    }
 
-    private static Address CreateEmptyAddress() => new();
+    private Address CreateEmptyAddress()
+    {
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(
+            email: null,
+            countryCode: string.Empty,
+            firstName: string.Empty,
+            lastName: string.Empty);
+    }
 
     #endregion
 
@@ -137,9 +117,9 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var (warehouse, shippingOption, product) = await SetupWarehouseAndProduct();
 
-        var basket = CreateBasketWithLineItem(product);
-        var billingAddress = CreateCompleteAddress("John Smith", "john@example.com");
-        var shippingAddress = CreateCompleteAddress("John Smith", "john@example.com");
+        var basket = await CreateBasketAsync(product);
+        var billingAddress = CreateCompleteAddress("John", "Smith", "john@example.com");
+        var shippingAddress = CreateCompleteAddress("John", "Smith", "john@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -187,10 +167,10 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var (warehouse, shippingOption, product) = await SetupWarehouseAndProduct();
 
-        var basket = CreateBasketWithLineItem(product, "GBP");
+        var basket = await CreateBasketAsync(product, "GBP");
         basket.CurrencySymbol = "£";
-        var billingAddress = CreateCompleteAddress("John Smith", "john@example.com");
-        var shippingAddress = CreateCompleteAddress("John Smith", "john@example.com");
+        var billingAddress = CreateCompleteAddress("John", "Smith", "john@example.com");
+        var shippingAddress = CreateCompleteAddress("John", "Smith", "john@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -242,13 +222,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
             }
         ]);
 
-        var regions = warehouse.ServiceRegions;
-        regions.Add(new WarehouseServiceRegion
-        {
-            CountryCode = "US",
-            IsExcluded = false
-        });
-        warehouse.SetServiceRegions(regions);
+        dataBuilder.AddServiceRegion(warehouse, "US");
         warehouse.ShippingOptions.Add(shippingOption);
 
         var taxGroup = dataBuilder.CreateTaxGroup("US Tax", 10m);
@@ -256,45 +230,16 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("Test Product US Variant", productRoot, price: 25.00m);
         product.Sku = "TEST-USD-001";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasketWithLineItem(product, "USD");
+        var basket = await CreateBasketAsync(product, "USD", "US");
         basket.CurrencySymbol = "$";
-
-        var billingAddress = new Address
-        {
-            Name = "Jane Doe",
-            Email = "jane@example.com",
-            AddressOne = "456 Test Ave",
-            TownCity = "New York",
-            CountryCode = "US",
-            PostalCode = "10001"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Jane Doe",
-            Email = "jane@example.com",
-            AddressOne = "456 Test Ave",
-            TownCity = "New York",
-            CountryCode = "US",
-            PostalCode = "10001"
-        };
+        var billingAddress = CreateCompleteAddress("Jane", "Doe", "jane@example.com", "US");
+        var shippingAddress = CreateCompleteAddress("Jane", "Doe", "jane@example.com", "US");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -338,11 +283,11 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var (warehouse, shippingOption, product) = await SetupWarehouseAndProduct();
 
-        var basket = CreateBasketWithLineItem(product);
+        var basket = await CreateBasketAsync(product);
 
         // Basket has addresses (would be saved to database)
-        basket.BillingAddress = CreateCompleteAddress("John Smith", "john@example.com");
-        basket.ShippingAddress = CreateCompleteAddress("John Smith", "john@example.com");
+        basket.BillingAddress = CreateCompleteAddress("John", "Smith", "john@example.com");
+        basket.ShippingAddress = CreateCompleteAddress("John", "Smith", "john@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -384,13 +329,13 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var (warehouse, shippingOption, product) = await SetupWarehouseAndProduct();
 
-        var basket = CreateBasketWithLineItem(product);
-        basket.BillingAddress = CreateCompleteAddress("Basket Name", "basket@example.com");
-        basket.ShippingAddress = CreateCompleteAddress("Basket Name", "basket@example.com");
+        var basket = await CreateBasketAsync(product);
+        basket.BillingAddress = CreateCompleteAddress("Basket", "Name", "basket@example.com");
+        basket.ShippingAddress = CreateCompleteAddress("Basket", "Name", "basket@example.com");
 
         // Session has different name (not empty)
-        var sessionBillingAddress = CreateCompleteAddress("Session Name", "session@example.com");
-        var sessionShippingAddress = CreateCompleteAddress("Session Name", "session@example.com");
+        var sessionBillingAddress = CreateCompleteAddress("Session", "Name", "session@example.com");
+        var sessionShippingAddress = CreateCompleteAddress("Session", "Name", "session@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters

@@ -17,6 +17,8 @@ public class CreateUpsellDto
     public bool SuppressIfInCart { get; set; } = true;
     public UpsellDisplayLocation DisplayLocation { get; set; }
     public CheckoutUpsellMode CheckoutMode { get; set; } = CheckoutUpsellMode.Inline;
+    public bool DefaultChecked { get; set; }
+    public bool AutoAddToBasket { get; set; }
     public DateTime? StartsAt { get; set; }
     public DateTime? EndsAt { get; set; }
     public string? Timezone { get; set; }

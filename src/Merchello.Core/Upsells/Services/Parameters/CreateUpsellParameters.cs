@@ -20,6 +20,8 @@ public class CreateUpsellParameters
     public bool SuppressIfInCart { get; set; } = true;
     public UpsellDisplayLocation DisplayLocation { get; set; } = UpsellDisplayLocation.All;
     public CheckoutUpsellMode CheckoutMode { get; set; } = CheckoutUpsellMode.Inline;
+    public bool DefaultChecked { get; set; }
+    public bool AutoAddToBasket { get; set; }
 
     // Scheduling
     public DateTime? StartsAt { get; set; }

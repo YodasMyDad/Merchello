@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Merchello.Core;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Models;
@@ -13,7 +14,12 @@ using Merchello.Core.Protocols.UCP.Handlers;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Factories;
+using Merchello.Core.Locality.Factories;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -36,6 +42,12 @@ public class UcpOrderWebhookHandlerTests
     private readonly UcpOrderWebhookHandler _handler;
     private readonly MockHttpMessageHandler _mockHandler;
     private readonly ProtocolSettings _settings;
+    private readonly ICurrencyService _currencyService;
+    private readonly InvoiceFactory _invoiceFactory;
+    private readonly OrderFactory _orderFactory = new();
+    private readonly LineItemFactory _lineItemFactory;
+    private readonly ShipmentFactory _shipmentFactory = new();
+    private readonly AddressFactory _addressFactory = new();
 
     public UcpOrderWebhookHandlerTests()
     {
@@ -48,6 +60,15 @@ public class UcpOrderWebhookHandlerTests
         _signingKeyStoreMock = new Mock<ISigningKeyStore>();
         _httpClientFactoryMock = new Mock<IHttpClientFactory>();
         _loggerMock = new Mock<ILogger<UcpOrderWebhookHandler>>();
+
+        var currencyService = new CurrencyService(Options.Create(new MerchelloSettings
+        {
+            DefaultRounding = MidpointRounding.AwayFromZero,
+            StoreCurrencyCode = "USD"
+        }));
+        _currencyService = currencyService;
+        _invoiceFactory = new InvoiceFactory(currencyService);
+        _lineItemFactory = new LineItemFactory(currencyService);
 
         _mockHandler = new MockHttpMessageHandler();
         var httpClient = new HttpClient(_mockHandler);
@@ -212,7 +233,7 @@ public class UcpOrderWebhookHandlerTests
         _invoiceServiceMock.Setup(x => x.GetInvoiceAsync(order.InvoiceId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(invoice);
 
-        var shipment = new Shipment { OrderId = orderId, Status = ShipmentStatus.Shipped };
+        var shipment = CreateShipment(order, ShipmentStatus.Shipped);
         var notification = new ShipmentCreatedNotification(shipment);
 
         // Act
@@ -231,7 +252,7 @@ public class UcpOrderWebhookHandlerTests
         _invoiceServiceMock.Setup(x => x.GetOrderWithDetailsAsync(orderId, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Order?)null);
 
-        var shipment = new Shipment { OrderId = orderId, Status = ShipmentStatus.Shipped };
+        var shipment = CreateShipment(orderId, ShipmentStatus.Shipped);
         var notification = new ShipmentCreatedNotification(shipment);
 
         // Act
@@ -258,7 +279,7 @@ public class UcpOrderWebhookHandlerTests
         _invoiceServiceMock.Setup(x => x.GetInvoiceAsync(order.InvoiceId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(invoice);
 
-        var shipment = new Shipment { OrderId = orderId, Status = ShipmentStatus.Delivered };
+        var shipment = CreateShipment(order, ShipmentStatus.Delivered);
         var notification = new ShipmentSavedNotification(shipment);
 
         // Act
@@ -274,7 +295,7 @@ public class UcpOrderWebhookHandlerTests
     {
         // Arrange
         var orderId = Guid.NewGuid();
-        var shipment = new Shipment { OrderId = orderId, Status = ShipmentStatus.Shipped }; // Not delivered
+        var shipment = CreateShipment(orderId, ShipmentStatus.Shipped); // Not delivered
         var notification = new ShipmentSavedNotification(shipment);
 
         // Act
@@ -324,16 +345,7 @@ public class UcpOrderWebhookHandlerTests
         var order = CreateOrder(Guid.NewGuid());
         order.LineItems =
         [
-            new LineItem
-            {
-                Id = Guid.NewGuid(),
-                ProductId = Guid.NewGuid(),
-                Sku = "TEST-SKU",
-                Name = "Test Product",
-                Quantity = 2,
-                Amount = 19.99m,
-                LineItemType = LineItemType.Product
-            }
+            CreateProductLineItem(order.Id, "TEST-SKU", "Test Product", 2, 19.99m)
         ];
 
         var invoice = CreateUcpInvoiceWithWebhookUrl(order, "https://agent.example.com/webhooks/orders");
@@ -367,71 +379,132 @@ public class UcpOrderWebhookHandlerTests
 
     #region Helper Methods
 
-    private static Order CreateOrder(Guid orderId)
+    private Order CreateOrder(Guid orderId)
     {
-        var invoiceId = Guid.NewGuid();
-        return new Order
-        {
-            Id = orderId,
-            InvoiceId = invoiceId,
-            Status = OrderStatus.Pending,
-            LineItems = []
-        };
+        var order = _orderFactory.Create(
+            invoiceId: Guid.NewGuid(),
+            warehouseId: Guid.NewGuid(),
+            shippingOptionId: Guid.NewGuid(),
+            status: OrderStatus.Pending);
+        order.Id = orderId;
+        order.LineItems ??= [];
+        return order;
     }
 
-    private static Invoice CreateUcpInvoiceWithWebhookUrl(Order order, string webhookUrl)
+    private Invoice CreateUcpInvoiceWithWebhookUrl(Order order, string webhookUrl)
     {
-        return new Invoice
+        return CreateInvoiceForOrder(order, new InvoiceSource
         {
-            Id = order.InvoiceId,
-            Source = new InvoiceSource
+            Type = Constants.InvoiceSources.Ucp,
+            SessionId = "test-session-id",
+            Metadata = new Dictionary<string, object>
             {
-                Type = Constants.InvoiceSources.Ucp,
-                SessionId = "test-session-id",
-                Metadata = new Dictionary<string, object>
-                {
-                    [Constants.UcpMetadataKeys.WebhookUrl] = webhookUrl
-                }
-            },
-            Orders = [order],
-            SubTotal = 100m,
-            Tax = 10m,
-            Total = 110m
-        };
+                [Constants.UcpMetadataKeys.WebhookUrl] = webhookUrl
+            }
+        });
     }
 
-    private static Invoice CreateUcpInvoiceWithoutWebhookUrl(Order order)
+    private Invoice CreateUcpInvoiceWithoutWebhookUrl(Order order)
     {
-        return new Invoice
+        return CreateInvoiceForOrder(order, new InvoiceSource
         {
-            Id = order.InvoiceId,
-            Source = new InvoiceSource
-            {
-                Type = Constants.InvoiceSources.Ucp,
-                SessionId = "test-session-id",
-                Metadata = new Dictionary<string, object>() // No webhook URL
-            },
-            Orders = [order],
-            SubTotal = 100m,
-            Tax = 10m,
-            Total = 110m
-        };
+            Type = Constants.InvoiceSources.Ucp,
+            SessionId = "test-session-id",
+            Metadata = new Dictionary<string, object>() // No webhook URL
+        });
     }
 
-    private static Invoice CreateWebInvoice(Order order)
+    private Invoice CreateWebInvoice(Order order)
     {
-        return new Invoice
+        return CreateInvoiceForOrder(order, new InvoiceSource
         {
-            Id = order.InvoiceId,
-            Source = new InvoiceSource
-            {
-                Type = Constants.InvoiceSources.Web // Not UCP
-            },
-            Orders = [order],
-            SubTotal = 100m,
-            Tax = 10m,
-            Total = 110m
-        };
+            Type = Constants.InvoiceSources.Web // Not UCP
+        });
+    }
+
+    private Invoice CreateInvoiceForOrder(Order order, InvoiceSource source)
+    {
+        var billingAddress = _addressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Test St",
+            address2: null,
+            city: "Test City",
+            postalCode: "10001",
+            countryCode: "US",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "test@example.com");
+
+        var shippingAddress = _addressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Test St",
+            address2: null,
+            city: "Test City",
+            postalCode: "10001",
+            countryCode: "US",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "test@example.com");
+
+        var invoice = _invoiceFactory.CreateDraft(
+            invoiceNumber: $"INV-{Guid.NewGuid():N}"[..6],
+            customerId: Guid.NewGuid(),
+            billingAddress: billingAddress,
+            shippingAddress: shippingAddress,
+            currencyCode: "USD",
+            subTotal: 100m,
+            tax: 10m,
+            total: 110m);
+
+        invoice.Id = order.InvoiceId;
+        invoice.Source = source;
+        invoice.Orders = [order];
+        order.InvoiceId = invoice.Id;
+        order.Invoice = invoice;
+        return invoice;
+    }
+
+    private Shipment CreateShipment(Order order, ShipmentStatus status)
+    {
+        var address = _addressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Test St",
+            address2: null,
+            city: "Test City",
+            postalCode: "10001",
+            countryCode: "US",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "test@example.com");
+
+        var shipment = _shipmentFactory.Create(order, Guid.NewGuid(), address);
+        shipment.Status = status;
+        return shipment;
+    }
+
+    private Shipment CreateShipment(Guid orderId, ShipmentStatus status)
+    {
+        var order = CreateOrder(orderId);
+        return CreateShipment(order, status);
+    }
+
+    private LineItem CreateProductLineItem(Guid orderId, string sku, string name, int quantity, decimal amount)
+    {
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            orderId: orderId,
+            name: name,
+            sku: sku,
+            amount: amount,
+            cost: 0m,
+            quantity: quantity,
+            isTaxable: false,
+            taxRate: 0m);
+        lineItem.LineItemType = LineItemType.Product;
+        lineItem.ProductId = Guid.NewGuid();
+        return lineItem;
     }
 
     /// <summary>

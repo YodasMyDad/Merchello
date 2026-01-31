@@ -1,6 +1,8 @@
 using System.Linq;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
@@ -21,6 +23,7 @@ public class UpsellEngineTests : IClassFixture<ServiceTestFixture>
     private readonly IUpsellEngine _engine;
     private readonly IUpsellService _upsellService;
     private readonly IUpsellContextBuilder _contextBuilder;
+    private readonly LineItemFactory _lineItemFactory;
 
     public UpsellEngineTests(ServiceTestFixture fixture)
     {
@@ -29,6 +32,7 @@ public class UpsellEngineTests : IClassFixture<ServiceTestFixture>
         _engine = fixture.GetService<IUpsellEngine>();
         _upsellService = fixture.GetService<IUpsellService>();
         _contextBuilder = fixture.GetService<IUpsellContextBuilder>();
+        _lineItemFactory = new LineItemFactory(fixture.GetService<ICurrencyService>());
     }
 
     // =====================================================
@@ -239,14 +243,7 @@ public class UpsellEngineTests : IClassFixture<ServiceTestFixture>
 
         await _upsellService.ActivateAsync(ruleResult.ResultObject!.Id);
 
-        var lineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = triggerProduct.Id,
-            Quantity = 1,
-            Amount = triggerProduct.Price,
-            Sku = triggerProduct.Sku
-        };
+        var lineItem = _lineItemFactory.CreateFromProduct(triggerProduct, 1);
         var contextItems = await _contextBuilder.BuildLineItemsAsync([lineItem]);
 
         var context = new UpsellContext

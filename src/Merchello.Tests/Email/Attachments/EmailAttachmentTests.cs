@@ -1,13 +1,20 @@
 using System.Text;
 using Merchello.Core;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Email.Attachments;
 using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Models;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Invoice;
 using Merchello.Core.Notifications.Order;
+using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Xunit;
@@ -20,6 +27,13 @@ namespace Merchello.Tests.Email.Attachments;
 /// </summary>
 public class EmailAttachmentTests
 {
+    private static readonly ICurrencyService CurrencyService = new CurrencyService(
+        Options.Create(new MerchelloSettings { DefaultRounding = MidpointRounding.AwayFromZero, StoreCurrencyCode = "USD" }));
+    private static readonly InvoiceFactory InvoiceFactory = new(CurrencyService);
+    private static readonly AddressFactory AddressFactory = new();
+    private static readonly LineItemFactory LineItemFactory = new(CurrencyService);
+    private static readonly OrderFactory OrderFactory = new();
+
     #region StoredAttachment Tests
 
     [Fact]
@@ -474,97 +488,110 @@ public class EmailAttachmentTests
 
     private static Core.Accounting.Models.Order CreateTestOrder()
     {
-        var invoice = new Invoice
-        {
-            Id = Guid.NewGuid(),
-            InvoiceNumber = "INV-TEST",
-            CurrencySymbol = "$",
-            CurrencyCode = "USD",
-            SubTotal = 100m,
-            Tax = 10m,
-            Total = 150m,
-            BillingAddress = new Address
-            {
-                Name = "Test Customer",
-                AddressOne = "123 Test St",
-                TownCity = "Test City",
-                PostalCode = "12345",
-                Email = "test@example.com"
-            },
-            ShippingAddress = new Address
-            {
-                Name = "Test Customer",
-                AddressOne = "123 Test St",
-                TownCity = "Test City",
-                PostalCode = "12345"
-            }
-        };
+        var billingAddress = AddressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Test St",
+            address2: null,
+            city: "Test City",
+            postalCode: "12345",
+            countryCode: "US",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "test@example.com");
 
-        var order = new Core.Accounting.Models.Order
-        {
-            Id = Guid.NewGuid(),
-            InvoiceId = invoice.Id,
-            Invoice = invoice,
-            ShippingCost = 10m,
-            DateCreated = DateTime.UtcNow,
-            LineItems = new List<LineItem>
-            {
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    Sku = "TEST-001",
-                    Name = "Test Product",
-                    Quantity = 2,
-                    Amount = 25m,
-                    TaxRate = 10m,
-                    IsTaxable = true
-                },
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    Sku = "TEST-002",
-                    Name = "Another Product",
-                    Quantity = 1,
-                    Amount = 50m,
-                    TaxRate = 10m,
-                    IsTaxable = true
-                }
-            }
-        };
+        var shippingAddress = AddressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Test St",
+            address2: null,
+            city: "Test City",
+            postalCode: "12345",
+            countryCode: "US",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "test@example.com");
+
+        var invoice = InvoiceFactory.CreateDraft(
+            invoiceNumber: "INV-TEST",
+            customerId: Guid.NewGuid(),
+            billingAddress: billingAddress,
+            shippingAddress: shippingAddress,
+            currencyCode: "USD",
+            subTotal: 100m,
+            tax: 10m,
+            total: 150m);
+
+        var order = OrderFactory.Create(invoice, Guid.NewGuid(), Guid.NewGuid(), shippingCost: 10m);
+        invoice.Orders = [order];
+
+        var lineItem1 = LineItemFactory.CreateCustomLineItem(
+            orderId: order.Id,
+            name: "Test Product",
+            sku: "TEST-001",
+            amount: 25m,
+            cost: 0m,
+            quantity: 2,
+            isTaxable: true,
+            taxRate: 10m);
+        lineItem1.LineItemType = LineItemType.Product;
+        lineItem1.Order = order;
+
+        var lineItem2 = LineItemFactory.CreateCustomLineItem(
+            orderId: order.Id,
+            name: "Another Product",
+            sku: "TEST-002",
+            amount: 50m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: true,
+            taxRate: 10m);
+        lineItem2.LineItemType = LineItemType.Product;
+        lineItem2.Order = order;
+
+        order.LineItems = [lineItem1, lineItem2];
 
         return order;
     }
 
     private static Invoice CreateTestInvoice()
     {
-        return new Invoice
-        {
-            Id = Guid.NewGuid(),
-            InvoiceNumber = "INV-TEST-001",
-            CurrencySymbol = "£",
-            CurrencyCode = "GBP",
-            SubTotal = 200m,
-            Tax = 40m,
-            Discount = 20m,
-            Total = 220m,
-            DateCreated = DateTime.UtcNow,
-            BillingAddress = new Address
-            {
-                Name = "Test Billing",
-                AddressOne = "456 Billing St",
-                TownCity = "Billing City",
-                PostalCode = "BL1 2NG",
-                CountryCode = "GB",
-                Email = "billing@test.com"
-            },
-            ShippingAddress = new Address
-            {
-                Name = "Test Shipping",
-                AddressOne = "789 Shipping Ave",
-                TownCity = "Shipping City",
-                PostalCode = "SH1 3PP"
-            }
-        };
+        var billingAddress = AddressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Billing",
+            address1: "456 Billing St",
+            address2: null,
+            city: "Billing City",
+            postalCode: "BL1 2NG",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "billing@test.com");
+
+        var shippingAddress = AddressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Shipping",
+            address1: "789 Shipping Ave",
+            address2: null,
+            city: "Shipping City",
+            postalCode: "SH1 3PP",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: null);
+
+        var invoice = InvoiceFactory.CreateDraft(
+            invoiceNumber: "INV-TEST-001",
+            customerId: Guid.NewGuid(),
+            billingAddress: billingAddress,
+            shippingAddress: shippingAddress,
+            currencyCode: "GBP",
+            subTotal: 200m,
+            tax: 40m,
+            total: 220m);
+
+        invoice.Discount = 20m;
+        return invoice;
     }
 
     private static EmailModel<OrderCreatedNotification> CreateOrderEmailModel(Core.Accounting.Models.Order order)

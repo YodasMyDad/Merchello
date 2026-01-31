@@ -66,6 +66,7 @@ public static class Constants
 
         // Upsells
         public const string UpsellImpressions = "MerchelloUpsellImpressions";  // JSON array of upsell impression records
+        public const string AutoAddedByUpsellRule = "MerchelloAutoAddedByUpsellRule";  // Upsell rule ID that auto-added this line item
 
         // Digital products
         public const string DigitalDeliveryMethod = "DigitalDeliveryMethod";    // "InstantDownload" or "EmailDelivered"

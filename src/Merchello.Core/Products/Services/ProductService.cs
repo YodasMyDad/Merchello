@@ -1063,6 +1063,18 @@ public class ProductService(
                     pageIndex * pageSize,
                     pageSize,
                     cancellationToken);
+
+                // Fallback when there is no sales data (e.g., fresh catalog)
+                if (orderedIds.Count == 0)
+                {
+                    totalCount = await resultQuery.Select(x => x.Id).CountAsync(cancellationToken: cancellationToken);
+                    var orderedQuery = ApplyOrdering(resultQuery, ProductOrderBy.PriceAsc);
+                    orderedIds = await orderedQuery
+                        .Skip(pageIndex * pageSize)
+                        .Take(pageSize)
+                        .Select(x => x.Id)
+                        .ToListAsync(cancellationToken: cancellationToken);
+                }
             }
             else
             {

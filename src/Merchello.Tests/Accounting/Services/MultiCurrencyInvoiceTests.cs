@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
@@ -19,7 +20,7 @@ namespace Merchello.Tests.Accounting.Services;
 /// from store currency to presentment currency using the centralized
 /// ConvertToPresentmentCurrency() method.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
@@ -69,67 +70,16 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("T-Shirt Blue Large", productRoot, price: 100.00m);
         product.Sku = "TSH-BLU-L";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Create basket in USD (store currency) with GBP as display currency
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",  // Customer wants GBP
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 2,
-                    Amount = 100.00m,  // $100 USD per item (store currency)
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                }
-            ],
-            SubTotal = 200.00m,  // $200 USD
-            Tax = 40.00m,        // $40 USD
-            Total = 240.00m      // $240 USD
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "John Smith",
-            Email = "john@example.com",
-            AddressOne = "123 Test Street",
-            TownCity = "London",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "John Smith",
-            Email = "john@example.com",
-            AddressOne = "123 Test Street",
-            TownCity = "London",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var basket = CreateBasket("GBP", (product, 2));
+        var billingAddress = CreateAddress("GB", "john@example.com");
+        var shippingAddress = CreateAddress("GB", "john@example.com");
 
         // Get shipping options
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
@@ -206,75 +156,30 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("Item", productRoot, price: 50.00m);
         product.Sku = "ITEM-001";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 50
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 50);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
         var productLineItemId = Guid.NewGuid();
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = productLineItemId,
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 2,
-                    Amount = 50.00m,  // $50 USD
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                },
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "10% Discount",
-                    Sku = "DISC-10",
-                    Quantity = 1,
-                    Amount = -10.00m,  // $10 USD discount
-                    LineItemType = LineItemType.Discount,
-                    IsTaxable = false,
-                    DependantLineItemSku = product.Sku
-                }
-            ],
-            SubTotal = 100.00m,
-            Discount = 10.00m,
-            Tax = 18.00m,
-            Total = 108.00m
-        };
+        var basket = CreateBasket("GBP", (product, 2));
+        var productLineItem = basket.LineItems.First(li => li.ProductId == product.Id);
+        productLineItem.Id = productLineItemId;
 
-        var billingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var basketDiscountLineItem = dataBuilder.CreateDiscountLineItem(
+            name: "10% Discount",
+            sku: "DISC-10",
+            amount: -10.00m,
+            dependantLineItemSku: product.Sku);
+        basket.LineItems.Add(basketDiscountLineItem);
+        basket.SubTotal = 100.00m;
+        basket.Discount = 10.00m;
+        basket.Tax = 18.00m;
+        basket.Total = 108.00m;
 
-        var shippingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var billingAddress = CreateAddress("GB", "test@example.com");
+        var shippingAddress = CreateAddress("GB", "test@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -305,11 +210,11 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         invoice.CurrencyCode.ShouldBe("GBP");
 
         var order = invoice.Orders!.First();
-        var discountLineItem = order.LineItems!.FirstOrDefault(li => li.LineItemType == LineItemType.Discount);
+        var orderDiscountLineItem = order.LineItems!.FirstOrDefault(li => li.LineItemType == LineItemType.Discount);
 
-        discountLineItem.ShouldNotBeNull();
-        // $10 USD / 1.25 = £8 GBP (but stored as negative for discount)
-        Math.Abs(discountLineItem.Amount).ShouldBe(8.00m);
+        orderDiscountLineItem.ShouldNotBeNull();
+        // $10 USD / 1.25 = ?8 GBP (but stored as negative for discount)
+        Math.Abs(orderDiscountLineItem.Amount).ShouldBe(8.00m);
     }
 
     [Fact]
@@ -336,62 +241,15 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("Item", productRoot, price: 49.99m);
         product.Sku = "ITEM-US";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "USD",  // Same as store currency
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 49.99m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 8m
-                }
-            ],
-            SubTotal = 49.99m,
-            Tax = 4.00m,
-            Total = 53.99m
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "US",
-            PostalCode = "10001"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "US",
-            PostalCode = "10001"
-        };
+        var basket = CreateBasket("USD", (product, 1));
+        var billingAddress = CreateAddress("US", "test@example.com");
+        var shippingAddress = CreateAddress("US", "test@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -452,62 +310,15 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("Item", productRoot, price: 100.00m);
         product.Sku = "ITEM-JP";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "JPY",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 100.00m,  // $100 USD
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 10m
-                }
-            ],
-            SubTotal = 100.00m,
-            Tax = 10.00m,
-            Total = 110.00m
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "JP",
-            PostalCode = "100-0001"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "JP",
-            PostalCode = "100-0001"
-        };
+        var basket = CreateBasket("JPY", (product, 1));
+        var billingAddress = CreateAddress("JP", "test@example.com");
+        var shippingAddress = CreateAddress("JP", "test@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -569,74 +380,28 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("Item", productRoot, price: 54.00m);
         product.Sku = "ITEM-EU";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "EUR",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 54.00m,  // $54 USD
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 19m
-                },
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    Name = "Gift Wrapping",
-                    Sku = "ADDON-GIFT",
-                    Quantity = 1,
-                    Amount = 5.40m,  // $5.40 USD add-on
-                    LineItemType = LineItemType.Addon,
-                    IsTaxable = true,
-                    TaxRate = 19m,
-                    DependantLineItemSku = product.Sku
-                }
-            ],
-            SubTotal = 59.40m,
-            Tax = 11.29m,
-            Total = 70.69m
-        };
+        var basket = CreateBasket("EUR", (product, 1));
+        var basketAddonLineItem = dataBuilder.CreateDiscountLineItem(
+            name: "Gift Wrapping",
+            sku: "ADDON-GIFT",
+            amount: 5.40m,
+            dependantLineItemSku: product.Sku);
+        basketAddonLineItem.LineItemType = LineItemType.Addon;
+        basketAddonLineItem.IsTaxable = true;
+        basketAddonLineItem.TaxRate = 19m;
+        basket.LineItems.Add(basketAddonLineItem);
+        basket.SubTotal = 59.40m;
+        basket.Tax = 11.29m;
+        basket.Total = 70.69m;
 
-        var billingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "DE",
-            PostalCode = "10115"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "DE",
-            PostalCode = "10115"
-        };
+        var billingAddress = CreateAddress("DE", "test@example.com");
+        var shippingAddress = CreateAddress("DE", "test@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -673,9 +438,9 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         productLineItem.Amount.ShouldBe(50.00m);
 
         // Add-on: $5.40 USD / 1.08 = €5 EUR
-        var addonLineItem = order.LineItems!.FirstOrDefault(li => li.LineItemType == LineItemType.Addon);
-        addonLineItem.ShouldNotBeNull();
-        addonLineItem.Amount.ShouldBe(5.00m);
+        var orderAddonLineItem = order.LineItems!.FirstOrDefault(li => li.LineItemType == LineItemType.Addon);
+        orderAddonLineItem.ShouldNotBeNull();
+        orderAddonLineItem.Amount.ShouldBe(5.00m);
     }
 
     [Fact]
@@ -697,62 +462,15 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         var product = dataBuilder.CreateProduct("Item", productRoot, price: 100.00m);
         product.Sku = "ITEM-GB";
 
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 100.00m,  // $100 USD
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                }
-            ],
-            SubTotal = 100.00m,
-            Tax = 20.00m,
-            Total = 120.00m
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var basket = CreateBasket("GBP", (product, 1));
+        var billingAddress = CreateAddress("GB", "test@example.com");
+        var shippingAddress = CreateAddress("GB", "test@example.com");
 
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
@@ -794,5 +512,34 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
         invoice.TotalInStoreCurrency.ShouldNotBeNull();
         // The total includes shipping and tax, so it should be higher than SubTotalInStoreCurrency
         invoice.TotalInStoreCurrency.Value.ShouldBeGreaterThan(invoice.SubTotalInStoreCurrency!.Value);
+    }
+
+    private Basket CreateBasket(string currencyCode, params (Product Product, int Quantity)[] items)
+    {
+        var builder = _fixture.CreateDataBuilder();
+        var currencyService = _fixture.GetService<ICurrencyService>();
+        var currencyInfo = currencyService.GetCurrency(currencyCode);
+
+        var basket = builder.CreateBasket(null, currencyCode, currencyInfo.Symbol);
+        foreach (var (product, quantity) in items)
+        {
+            var lineItem = builder.CreateBasketLineItem(product, quantity);
+            basket.LineItems.Add(lineItem);
+        }
+
+        basket.SubTotal = basket.LineItems.Sum(li => li.Amount * li.Quantity);
+        basket.Tax = basket.LineItems
+            .Where(li => li.IsTaxable)
+            .Sum(li => currencyService.Round(li.Amount * li.Quantity * (li.TaxRate / 100m), currencyCode));
+        basket.AdjustedSubTotal = basket.SubTotal - basket.Discount;
+        basket.Total = basket.AdjustedSubTotal + basket.Tax;
+
+        return basket;
+    }
+
+    private Address CreateAddress(string countryCode, string email)
+    {
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(email: email, countryCode: countryCode);
     }
 }

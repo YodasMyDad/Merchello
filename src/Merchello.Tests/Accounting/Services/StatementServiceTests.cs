@@ -1,9 +1,13 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Data;
+using Merchello.Core.Customers.Factories;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Factories;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Models;
@@ -29,6 +33,10 @@ public class StatementServiceTests : IDisposable
     private readonly Mock<IPdfService> _pdfServiceMock;
     private readonly StatementService _service;
     private readonly Guid _customerId = Guid.NewGuid();
+    private readonly AddressFactory _addressFactory = new();
+    private readonly CustomerFactory _customerFactory = new();
+    private readonly InvoiceFactory _invoiceFactory;
+    private readonly PaymentFactory _paymentFactory;
 
     public StatementServiceTests()
     {
@@ -67,6 +75,9 @@ public class StatementServiceTests : IDisposable
         _currencyServiceMock
             .Setup(x => x.GetCurrency(It.IsAny<string>()))
             .Returns((string code) => new CurrencyInfo(code, "$", 2, true));
+        _currencyServiceMock
+            .Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns((decimal amount, string _) => amount);
 
         _pdfServiceMock = new Mock<IPdfService>();
 
@@ -75,6 +86,9 @@ public class StatementServiceTests : IDisposable
             StoreCurrencyCode = "USD",
             StoreName = "Test Store"
         });
+
+        _invoiceFactory = new InvoiceFactory(_currencyServiceMock.Object);
+        _paymentFactory = new PaymentFactory(_currencyServiceMock.Object);
 
         _service = new StatementService(scopeProvider, _paymentServiceMock.Object,
             _currencyServiceMock.Object, _pdfServiceMock.Object, settings);
@@ -120,14 +134,7 @@ public class StatementServiceTests : IDisposable
         var invoice = CreateInvoice(total: 500m, dateCreated: DateTime.UtcNow.AddDays(-5));
         invoice.Payments =
         [
-            new Payment
-            {
-                Id = Guid.NewGuid(),
-                Amount = 200m,
-                PaymentSuccess = true,
-                PaymentType = PaymentType.Payment,
-                DateCreated = DateTime.UtcNow.AddDays(-3)
-            }
+            CreatePayment(invoice.Id, 200m, DateTime.UtcNow.AddDays(-3))
         ];
         _db.Invoices.Add(invoice);
         await _db.SaveChangesAsync();
@@ -154,22 +161,8 @@ public class StatementServiceTests : IDisposable
         var invoice = CreateInvoice(total: 500m, dateCreated: DateTime.UtcNow.AddDays(-5));
         invoice.Payments =
         [
-            new Payment
-            {
-                Id = Guid.NewGuid(),
-                Amount = 500m,
-                PaymentSuccess = true,
-                PaymentType = PaymentType.Payment,
-                DateCreated = DateTime.UtcNow.AddDays(-4)
-            },
-            new Payment
-            {
-                Id = Guid.NewGuid(),
-                Amount = 100m,
-                PaymentSuccess = true,
-                PaymentType = PaymentType.Refund,
-                DateCreated = DateTime.UtcNow.AddDays(-2)
-            }
+            CreatePayment(invoice.Id, 500m, DateTime.UtcNow.AddDays(-4)),
+            CreatePayment(invoice.Id, 100m, DateTime.UtcNow.AddDays(-2), PaymentType.Refund)
         ];
         _db.Invoices.Add(invoice);
         await _db.SaveChangesAsync();
@@ -196,14 +189,7 @@ public class StatementServiceTests : IDisposable
         var oldInvoice = CreateInvoice(total: 1000m, dateCreated: DateTime.UtcNow.AddDays(-20));
         oldInvoice.Payments =
         [
-            new Payment
-            {
-                Id = Guid.NewGuid(),
-                Amount = 400m,
-                PaymentSuccess = true,
-                PaymentType = PaymentType.Payment,
-                DateCreated = DateTime.UtcNow.AddDays(-18)
-            }
+            CreatePayment(oldInvoice.Id, 400m, DateTime.UtcNow.AddDays(-18))
         ];
         _db.Invoices.Add(oldInvoice);
 
@@ -266,12 +252,12 @@ public class StatementServiceTests : IDisposable
 
         // Fully paid
         var paidInvoice = CreateInvoice(total: 100m, dateCreated: DateTime.UtcNow.AddDays(-5));
-        paidInvoice.Payments = [new Payment { Id = Guid.NewGuid(), Amount = 100m, PaymentSuccess = true, DateCreated = DateTime.UtcNow.AddDays(-4) }];
+        paidInvoice.Payments = [CreatePayment(paidInvoice.Id, 100m, DateTime.UtcNow.AddDays(-4))];
         _db.Invoices.Add(paidInvoice);
 
         // Partially paid
         var partialInvoice = CreateInvoice(total: 200m, dateCreated: DateTime.UtcNow.AddDays(-3));
-        partialInvoice.Payments = [new Payment { Id = Guid.NewGuid(), Amount = 50m, PaymentSuccess = true, DateCreated = DateTime.UtcNow.AddDays(-2) }];
+        partialInvoice.Payments = [CreatePayment(partialInvoice.Id, 50m, DateTime.UtcNow.AddDays(-2))];
         _db.Invoices.Add(partialInvoice);
 
         // Unpaid
@@ -332,7 +318,7 @@ public class StatementServiceTests : IDisposable
         await SeedCustomer();
 
         var paidInvoice = CreateInvoice(total: 100m, dateCreated: DateTime.UtcNow.AddDays(-5));
-        paidInvoice.Payments = [new Payment { Id = Guid.NewGuid(), Amount = 100m, PaymentSuccess = true, DateCreated = DateTime.UtcNow }];
+        paidInvoice.Payments = [CreatePayment(paidInvoice.Id, 100m, DateTime.UtcNow)];
         _db.Invoices.Add(paidInvoice);
 
         var unpaidInvoice = CreateInvoice(total: 200m, dateCreated: DateTime.UtcNow.AddDays(-3));
@@ -421,7 +407,7 @@ public class StatementServiceTests : IDisposable
 
         var paidInvoice = CreateInvoice(total: 500m, dateCreated: DateTime.UtcNow.AddDays(-50));
         paidInvoice.DueDate = DateTime.UtcNow.AddDays(-45);
-        paidInvoice.Payments = [new Payment { Id = Guid.NewGuid(), Amount = 500m, PaymentSuccess = true, DateCreated = DateTime.UtcNow.AddDays(-40) }];
+        paidInvoice.Payments = [CreatePayment(paidInvoice.Id, 500m, DateTime.UtcNow.AddDays(-40))];
         _db.Invoices.Add(paidInvoice);
 
         await _db.SaveChangesAsync();
@@ -442,43 +428,77 @@ public class StatementServiceTests : IDisposable
 
     private async Task SeedCustomer()
     {
-        _db.Customers.Add(new Merchello.Core.Customers.Models.Customer
-        {
-            Id = _customerId,
-            FirstName = "John",
-            LastName = "Doe",
-            Email = "john@test.com",
-            DateCreated = DateTime.UtcNow.AddMonths(-6)
-        });
+        var customer = _customerFactory.CreateFromEmail("john@test.com");
+        customer.Id = _customerId;
+        customer.FirstName = "John";
+        customer.LastName = "Doe";
+        customer.DateCreated = DateTime.UtcNow.AddMonths(-6);
+        customer.DateUpdated = customer.DateCreated;
+
+        _db.Customers.Add(customer);
         await _db.SaveChangesAsync();
     }
 
     private Invoice CreateInvoice(decimal total, DateTime dateCreated, bool isCancelled = false, bool isDeleted = false)
     {
-        return new Invoice
-        {
-            Id = Guid.NewGuid(),
-            InvoiceNumber = $"INV-{Guid.NewGuid().ToString()[..6]}",
-            CustomerId = _customerId,
-            Total = total,
-            TotalInStoreCurrency = total,
-            CurrencyCode = "USD",
-            CurrencySymbol = "$",
-            StoreCurrencyCode = "USD",
-            DateCreated = dateCreated,
-            IsCancelled = isCancelled,
-            IsDeleted = isDeleted,
-            BillingAddress = new Address
-            {
-                Name = "John Doe",
-                Email = "john@test.com",
-                AddressOne = "123 Main St",
-                TownCity = "London",
-                PostalCode = "SW1A 1AA",
-                CountryCode = "GB"
-            },
-            Payments = []
-        };
+        var billingAddress = _addressFactory.CreateFromFormData(
+            firstName: "John",
+            lastName: "Doe",
+            address1: "123 Main St",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "john@test.com");
+
+        var shippingAddress = _addressFactory.CreateFromFormData(
+            firstName: "John",
+            lastName: "Doe",
+            address1: "123 Main St",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "john@test.com");
+
+        var invoice = _invoiceFactory.CreateDraft(
+            invoiceNumber: $"INV-{Guid.NewGuid().ToString()[..6]}",
+            customerId: _customerId,
+            billingAddress: billingAddress,
+            shippingAddress: shippingAddress,
+            currencyCode: "USD",
+            subTotal: total,
+            tax: 0m,
+            total: total);
+
+        invoice.TotalInStoreCurrency = total;
+        invoice.DateCreated = dateCreated;
+        invoice.DateUpdated = dateCreated;
+        invoice.IsCancelled = isCancelled;
+        invoice.IsDeleted = isDeleted;
+        invoice.Payments ??= [];
+        return invoice;
+    }
+
+    private Payment CreatePayment(Guid invoiceId, decimal amount, DateTime dateCreated, PaymentType paymentType = PaymentType.Payment, bool success = true)
+    {
+        var payment = _paymentFactory.CreateManualPayment(
+            invoiceId: invoiceId,
+            amount: amount,
+            currencyCode: "USD",
+            storeCurrencyCode: "USD",
+            pricingExchangeRate: null,
+            paymentMethod: "Test");
+
+        payment.Amount = amount;
+        payment.PaymentType = paymentType;
+        payment.PaymentSuccess = success;
+        payment.DateCreated = dateCreated;
+        return payment;
     }
 
     private static IEFCoreScopeProvider<MerchelloDbContext> CreateScopeProvider(MerchelloDbContext db)

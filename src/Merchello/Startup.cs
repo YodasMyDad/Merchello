@@ -104,6 +104,7 @@ using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Handlers;
 using Merchello.Core.Email.Services;
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Notifications.BasketNotifications;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Suppliers.Services;
 using Merchello.Core.Suppliers.Services.Interfaces;
@@ -550,6 +551,8 @@ public static class Startup
         builder.AddNotificationAsyncHandler<OrderCreatedNotification, UpsellEmailEnrichmentHandler>();
         builder.AddNotificationAsyncHandler<OrderCreatedNotification, UpsellConversionHandler>();
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, PaymentPostPurchaseHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemAddedNotification, AutoAddUpsellHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemRemovedNotification, AutoAddRemovalTracker>();
 
         // =====================================================
         // Startup Handlers

@@ -1,9 +1,12 @@
 using Merchello.Core;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Invoice;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
 using Xunit;
@@ -13,14 +16,17 @@ namespace Merchello.Tests.Email.Services;
 /// <summary>
 /// Tests for EmailTokenResolver - resolves {{token}} expressions in email templates.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
 {
     private readonly IEmailTokenResolver _tokenResolver;
+    private readonly InvoiceFactory _invoiceFactory;
+    private readonly AddressFactory _addressFactory = new();
 
     public EmailTokenResolverTests(ServiceTestFixture fixture)
     {
         _tokenResolver = fixture.GetService<IEmailTokenResolver>();
+        _invoiceFactory = new InvoiceFactory(fixture.GetService<ICurrencyService>());
     }
 
     #region Simple Token Resolution Tests
@@ -139,12 +145,36 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
     public void ResolveTokens_NullNestedProperty_KeepsOriginal()
     {
         // Arrange - Create with null billing address
-        var invoice = new Invoice
-        {
-            Id = Guid.NewGuid(),
-            InvoiceNumber = "INV-001",
-            BillingAddress = null!
-        };
+        var invoice = _invoiceFactory.CreateDraft(
+            invoiceNumber: "INV-001",
+            customerId: Guid.NewGuid(),
+            billingAddress: _addressFactory.CreateFromFormData(
+                firstName: "John",
+                lastName: "Doe",
+                address1: "123 Test Street",
+                address2: null,
+                city: "Test City",
+                postalCode: "SW1A 1AA",
+                countryCode: "GB",
+                stateOrProvinceCode: null,
+                phone: null,
+                email: "customer@example.com"),
+            shippingAddress: _addressFactory.CreateFromFormData(
+                firstName: "John",
+                lastName: "Doe",
+                address1: "123 Test Street",
+                address2: null,
+                city: "Test City",
+                postalCode: "SW1A 1AA",
+                countryCode: "GB",
+                stateOrProvinceCode: null,
+                phone: null,
+                email: null),
+            currencyCode: "GBP",
+            subTotal: 0m,
+            tax: 0m,
+            total: 0m);
+        invoice.BillingAddress = null!;
         var notification = new InvoiceSavedNotification(invoice);
         var model = new EmailModel<InvoiceSavedNotification>
         {
@@ -432,7 +462,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
 
     #region Helper Methods
 
-    private static EmailModel<InvoiceSavedNotification> CreateInvoiceModel(
+    private EmailModel<InvoiceSavedNotification> CreateInvoiceModel(
         string storeName = "Test Store",
         string storeEmail = "store@test.com",
         string configName = "Test Config",
@@ -443,24 +473,42 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
         bool isCancelled = false,
         DateTime? dateCreated = null)
     {
-        var invoice = new Invoice
-        {
-            Id = Guid.NewGuid(),
-            InvoiceNumber = invoiceNumber,
-            Total = total,
-            IsCancelled = isCancelled,
-            DateCreated = dateCreated ?? DateTime.UtcNow,
-            BillingAddress = new Address
-            {
-                Email = billingEmail ?? "customer@example.com",
-                TownCity = billingCity ?? "Test City",
-                Name = "John Doe"
-            },
-            ShippingAddress = new Address
-            {
-                Name = "John Doe"
-            }
-        };
+        var billingAddress = _addressFactory.CreateFromFormData(
+            firstName: "John",
+            lastName: "Doe",
+            address1: "123 Test Street",
+            address2: null,
+            city: billingCity ?? "Test City",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: billingEmail ?? "customer@example.com");
+
+        var shippingAddress = _addressFactory.CreateFromFormData(
+            firstName: "John",
+            lastName: "Doe",
+            address1: "123 Test Street",
+            address2: null,
+            city: "Test City",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: null);
+
+        var invoice = _invoiceFactory.CreateDraft(
+            invoiceNumber: invoiceNumber,
+            customerId: Guid.NewGuid(),
+            billingAddress: billingAddress,
+            shippingAddress: shippingAddress,
+            currencyCode: "GBP",
+            subTotal: total,
+            tax: 0m,
+            total: total);
+        invoice.IsCancelled = isCancelled;
+        invoice.DateCreated = dateCreated ?? DateTime.UtcNow;
+        invoice.DateUpdated = invoice.DateCreated;
 
         var notification = new InvoiceSavedNotification(invoice);
 
@@ -473,7 +521,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
                 Email = storeEmail,
                 WebsiteUrl = "https://example.com",
                 CurrencyCode = "GBP",
-                CurrencySymbol = "£"
+                CurrencySymbol = "GBP"
             },
             Configuration = new EmailConfiguration
             {

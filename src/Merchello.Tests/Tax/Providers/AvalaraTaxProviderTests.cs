@@ -1,3 +1,4 @@
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Tax.Providers.BuiltIn;
@@ -15,6 +16,7 @@ namespace Merchello.Tests.Tax.Providers;
 /// </summary>
 public class AvalaraTaxProviderTests
 {
+    private static readonly AddressFactory AddressFactory = new();
     private readonly AvalaraTaxProvider _provider;
 
     public AvalaraTaxProviderTests()
@@ -217,9 +219,13 @@ public class AvalaraTaxProviderTests
         // Arrange - address without country code, provider not configured
         // Note: Without configuration, the "not configured" error will be returned first.
         // Country code validation would be tested in integration tests with real credentials.
+        var missingCountryAddress = CreateAddress(string.Empty, null);
+        missingCountryAddress.CountryCode = null;
+        missingCountryAddress.TownCity = "Los Angeles";
+
         var request = new TaxCalculationRequest
         {
-            ShippingAddress = new Address { TownCity = "Los Angeles" },
+            ShippingAddress = missingCountryAddress,
             CurrencyCode = "USD",
             LineItems =
             [
@@ -313,13 +319,17 @@ public class AvalaraTaxProviderTests
 
     private static Address CreateAddress(string countryCode, string? regionCode)
     {
-        var address = new Address
-        {
-            AddressOne = "123 Main Street",
-            TownCity = "Los Angeles",
-            PostalCode = "90001",
-            CountryCode = countryCode
-        };
+        var address = AddressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Main Street",
+            address2: null,
+            city: "Los Angeles",
+            postalCode: "90001",
+            countryCode: countryCode,
+            stateOrProvinceCode: regionCode,
+            phone: null,
+            email: "test@example.com");
 
         if (regionCode != null)
         {

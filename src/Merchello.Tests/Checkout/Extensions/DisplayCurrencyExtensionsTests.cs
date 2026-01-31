@@ -1,6 +1,8 @@
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -473,28 +475,24 @@ public class DisplayCurrencyExtensionsTests
 
     private static Basket CreateBasket()
     {
-        return new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "USD",
-            CurrencySymbol = "$",
-            LineItems = []
-        };
+        var basket = new BasketFactory().Create(null, "USD", "$");
+        basket.LineItems = [];
+        return basket;
     }
 
     private static LineItem CreateLineItem(decimal amount, int quantity, decimal taxRate)
     {
-        return new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Sku = $"SKU-{Guid.NewGuid():N}",
-            Name = "Test Product",
-            Amount = amount,
-            Quantity = quantity,
-            TaxRate = taxRate,
-            IsTaxable = taxRate > 0,
-            LineItemType = LineItemType.Product
-        };
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(),
+            "Test Product",
+            $"SKU-{Guid.NewGuid():N}",
+            amount,
+            cost: 0m,
+            quantity: quantity,
+            isTaxable: taxRate > 0,
+            taxRate: taxRate);
+        lineItem.LineItemType = LineItemType.Product;
+        return lineItem;
     }
 
     private static StorefrontDisplayContext CreateDisplayContext(
