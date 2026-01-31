@@ -73,7 +73,8 @@ public class CheckoutMemberService(
         if (signInResult.Succeeded)
         {
             ClearFailedAttempts(email);
-            return new SignInResultDto { Success = true };
+            await EnsureMemberInGroupAsync(member);
+            return new SignInResultDto { Success = true, MemberKey = member.Key };
         }
 
         var failedAttempts = IncrementFailedAttempts(email);
@@ -94,7 +95,20 @@ public class CheckoutMemberService(
         // 1. Ensure member group exists
         await GetOrEnsureMemberGroupAsync(ct);
 
-        // 2. Create member
+        // 2. Check if member already exists
+        var existingMember = await memberManager.FindByEmailAsync(parameters.Email);
+        if (existingMember != null)
+        {
+            // Validate password before linking — prevents account hijacking
+            var passwordValid = await memberManager.CheckPasswordAsync(existingMember, parameters.Password);
+            if (!passwordValid) return null;
+
+            await EnsureMemberInGroupAsync(existingMember);
+            await memberSignInManager.SignInAsync(existingMember, isPersistent: false);
+            return existingMember.Key;
+        }
+
+        // 3. Create member
         var identityUser = MemberIdentityUser.CreateNew(
             username: parameters.Email,
             email: parameters.Email,
@@ -106,14 +120,10 @@ public class CheckoutMemberService(
         var result = await memberManager.CreateAsync(identityUser, parameters.Password);
         if (!result.Succeeded) return null;
 
-        // 3. Add member to group
-        var group = await memberGroupService.GetByNameAsync(_settings.DefaultMemberGroup);
-        if (group != null)
-        {
-            await memberManager.AddToRolesAsync(identityUser, [group.Name!]);
-        }
+        // 4. Add member to group
+        await EnsureMemberInGroupAsync(identityUser);
 
-        // 4. Auto-login
+        // 5. Auto-login
         await memberSignInManager.SignInAsync(identityUser, isPersistent: false);
 
         return identityUser.Key;
@@ -136,6 +146,20 @@ public class CheckoutMemberService(
     {
         var member = await memberManager.FindByEmailAsync(email);
         return member?.Key;
+    }
+
+    /// <summary>
+    /// Ensures a member is in the default MerchelloCustomer group.
+    /// </summary>
+    private async Task EnsureMemberInGroupAsync(MemberIdentityUser member)
+    {
+        var group = await memberGroupService.GetByNameAsync(_settings.DefaultMemberGroup);
+        if (group == null) return;
+
+        var roles = await memberManager.GetRolesAsync(member);
+        if (roles.Contains(group.Name!)) return;
+
+        await memberManager.AddToRolesAsync(member, [group.Name!]);
     }
 
     /// <summary>

@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(dotnet build:*)",
-      "Bash(powershell -ExecutionPolicy Bypass -File scripts/add-migration.ps1:*)"
+      "Bash(powershell -ExecutionPolicy Bypass -File scripts/add-migration.ps1:*)",
+      "Bash(dotnet test:*)"
     ]
   }
 }
