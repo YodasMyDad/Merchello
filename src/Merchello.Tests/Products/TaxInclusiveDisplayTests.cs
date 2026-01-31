@@ -1,7 +1,11 @@
+using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Products.Extensions;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
@@ -16,6 +20,10 @@ public class TaxInclusiveDisplayTests
 {
     private readonly ICurrencyService _currencyService;
     private readonly Mock<ITaxService> _taxServiceMock;
+    private readonly TaxGroupFactory _taxGroupFactory = new();
+    private readonly ProductTypeFactory _productTypeFactory = new();
+    private readonly ProductRootFactory _productRootFactory = new();
+    private readonly ProductFactory _productFactory = new(new SlugHelper());
 
     public TaxInclusiveDisplayTests()
     {
@@ -38,14 +46,7 @@ public class TaxInclusiveDisplayTests
             TaxCountryCode: "GB",
             TaxRegionCode: null);
 
-        var taxGroupId = Guid.NewGuid();
-        var productRoot = new ProductRoot { TaxGroupId = taxGroupId };
-        var product = new Product
-        {
-            Price = 100.00m,
-            OnSale = false,
-            ProductRoot = productRoot
-        };
+        var (product, taxGroupId) = CreateProduct(price: 100.00m);
 
         // Act
         var result = await product.GetDisplayPriceAsync(displayContext, _taxServiceMock.Object, _currencyService);
@@ -71,14 +72,7 @@ public class TaxInclusiveDisplayTests
             TaxCountryCode: "GB",
             TaxRegionCode: null);
 
-        var taxGroupId = Guid.NewGuid();
-        var productRoot = new ProductRoot { TaxGroupId = taxGroupId };
-        var product = new Product
-        {
-            Price = 100.00m,
-            OnSale = false,
-            ProductRoot = productRoot
-        };
+        var (product, taxGroupId) = CreateProduct(price: 100.00m);
 
         _taxServiceMock
             .Setup(x => x.GetApplicableRateAsync(taxGroupId, "GB", null, It.IsAny<CancellationToken>()))
@@ -108,15 +102,7 @@ public class TaxInclusiveDisplayTests
             TaxCountryCode: "GB",
             TaxRegionCode: null);
 
-        var taxGroupId = Guid.NewGuid();
-        var productRoot = new ProductRoot { TaxGroupId = taxGroupId };
-        var product = new Product
-        {
-            Price = 80.00m,         // Current sale price
-            PreviousPrice = 100.00m, // Was price
-            OnSale = true,
-            ProductRoot = productRoot
-        };
+        var (product, taxGroupId) = CreateProduct(price: 80.00m, onSale: true, previousPrice: 100.00m);
 
         _taxServiceMock
             .Setup(x => x.GetApplicableRateAsync(taxGroupId, "GB", null, It.IsAny<CancellationToken>()))
@@ -145,14 +131,7 @@ public class TaxInclusiveDisplayTests
             TaxCountryCode: "US",
             TaxRegionCode: null);
 
-        var taxGroupId = Guid.NewGuid();
-        var productRoot = new ProductRoot { TaxGroupId = taxGroupId };
-        var product = new Product
-        {
-            Price = 100.00m,
-            OnSale = false,
-            ProductRoot = productRoot
-        };
+        var (product, taxGroupId) = CreateProduct(price: 100.00m);
 
         _taxServiceMock
             .Setup(x => x.GetApplicableRateAsync(taxGroupId, "US", null, It.IsAny<CancellationToken>()))
@@ -182,14 +161,7 @@ public class TaxInclusiveDisplayTests
             TaxCountryCode: "US",  // Tax exempt country
             TaxRegionCode: "DE");   // Delaware (no sales tax)
 
-        var taxGroupId = Guid.NewGuid();
-        var productRoot = new ProductRoot { TaxGroupId = taxGroupId };
-        var product = new Product
-        {
-            Price = 100.00m,
-            OnSale = false,
-            ProductRoot = productRoot
-        };
+        var (product, taxGroupId) = CreateProduct(price: 100.00m);
 
         _taxServiceMock
             .Setup(x => x.GetApplicableRateAsync(taxGroupId, "US", "DE", It.IsAny<CancellationToken>()))
@@ -318,14 +290,7 @@ public class TaxInclusiveDisplayTests
             TaxCountryCode: "JP",
             TaxRegionCode: null);
 
-        var taxGroupId = Guid.NewGuid();
-        var productRoot = new ProductRoot { TaxGroupId = taxGroupId };
-        var product = new Product
-        {
-            Price = 100.00m,
-            OnSale = false,
-            ProductRoot = productRoot
-        };
+        var (product, taxGroupId) = CreateProduct(price: 100.00m);
 
         _taxServiceMock
             .Setup(x => x.GetApplicableRateAsync(taxGroupId, "JP", null, It.IsAny<CancellationToken>()))
@@ -338,5 +303,30 @@ public class TaxInclusiveDisplayTests
         // £100 * 1.10 * 150 = ¥16,500
         result.Amount.ShouldBe(16500m);
         result.DecimalPlaces.ShouldBe(0);
+    }
+
+    private (Product Product, Guid TaxGroupId) CreateProduct(decimal price, bool onSale = false, decimal? previousPrice = null)
+    {
+        var taxGroup = _taxGroupFactory.Create("Test Tax", 0m);
+        taxGroup.Id = Guid.NewGuid();
+
+        var productType = _productTypeFactory.Create("Test Type", "test-type");
+        var productRoot = _productRootFactory.Create("Test Root", taxGroup, productType, []);
+        var product = _productFactory.Create(
+            productRoot,
+            "Test Product",
+            price,
+            costOfGoods: 0m,
+            gtin: string.Empty,
+            sku: $"SKU-{Guid.NewGuid():N}"[..12],
+            isDefault: true);
+
+        product.Id = Guid.NewGuid();
+        product.ProductRootId = productRoot.Id;
+        product.ProductRoot = productRoot;
+        product.OnSale = onSale;
+        product.PreviousPrice = previousPrice;
+
+        return (product, taxGroup.Id);
     }
 }

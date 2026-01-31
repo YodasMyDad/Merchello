@@ -1,5 +1,7 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Extensions;
@@ -18,17 +20,19 @@ namespace Merchello.Tests.Shipping.Services;
 /// Validates that items from different warehouses are correctly split into separate shipping groups,
 /// each with their own available shipping options.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class MultiWarehouseOrderGroupingTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IShippingService _shippingService;
+    private readonly ICheckoutService _checkoutService;
 
     public MultiWarehouseOrderGroupingTests(ServiceTestFixture fixture)
     {
         _fixture = fixture;
         _fixture.ResetDatabase();
         _shippingService = fixture.GetService<IShippingService>();
+        _checkoutService = fixture.GetService<ICheckoutService>();
     }
 
     [Fact]
@@ -61,7 +65,7 @@ public class MultiWarehouseOrderGroupingTests : IClassFixture<ServiceTestFixture
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket("GBP", productA, productB);
+        var basket = await CreateBasketAsync("GB", productA, productB);
         var shippingAddress = CreateAddress("GB");
 
         // Act
@@ -111,7 +115,7 @@ public class MultiWarehouseOrderGroupingTests : IClassFixture<ServiceTestFixture
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket("GBP", productA, productB);
+        var basket = await CreateBasketAsync("GB", productA, productB);
         var shippingAddress = CreateAddress("GB");
 
         // Act
@@ -150,7 +154,7 @@ public class MultiWarehouseOrderGroupingTests : IClassFixture<ServiceTestFixture
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = CreateBasket("GBP", product);
+        var basket = await CreateBasketAsync("GB", product);
         var shippingAddress = CreateAddress("GB");
 
         // First call to get the group ID
@@ -182,45 +186,28 @@ public class MultiWarehouseOrderGroupingTests : IClassFixture<ServiceTestFixture
         result.WarehouseGroups[0].SelectedShippingOptionId.ShouldBe(expressSelectionKey);
     }
 
-    private static Basket CreateBasket(string currency, params Product[] products)
+    private async Task<Basket> CreateBasketAsync(string countryCode, params Product[] products)
     {
-        var lineItems = products.Select(p => new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = p.Id,
-            Name = p.Name,
-            Sku = p.Sku,
-            Quantity = 1,
-            Amount = p.Price,
-            LineItemType = LineItemType.Product,
-            IsTaxable = true,
-            TaxRate = 20m
-        }).ToList();
+        var builder = _fixture.CreateDataBuilder();
+        var basket = builder.CreateBasket();
 
-        var subTotal = lineItems.Sum(li => li.Amount * li.Quantity);
-        var tax = Math.Round(subTotal * 0.2m, 2);
-
-        return new Basket
+        foreach (var product in products)
         {
-            Id = Guid.NewGuid(),
-            Currency = currency,
-            LineItems = lineItems,
-            SubTotal = subTotal,
-            Tax = tax,
-            Total = subTotal + tax
-        };
+            basket.LineItems.Add(builder.CreateBasketLineItem(product));
+        }
+
+        await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode
+        });
+
+        return basket;
     }
 
-    private static Address CreateAddress(string countryCode)
+    private Address CreateAddress(string countryCode)
     {
-        return new Address
-        {
-            Name = "Test Customer",
-            Email = "test@example.com",
-            AddressOne = "123 Test St",
-            TownCity = "London",
-            CountryCode = countryCode,
-            PostalCode = "SW1A 1AA"
-        };
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(countryCode: countryCode);
     }
 }

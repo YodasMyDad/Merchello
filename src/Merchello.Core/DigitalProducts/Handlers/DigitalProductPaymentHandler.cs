@@ -13,6 +13,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Events;
@@ -172,13 +173,15 @@ public class DigitalProductPaymentHandler(
         if (productIds.Count == 0)
             return false;
 
-        // Load products sequentially - EFCore scopes are not thread-safe for concurrent access
-        var products = new List<ProductRoot?>();
+        // Load products (variants) with their ProductRoot - EFCore scopes are not thread-safe
+        var productRoots = new List<ProductRoot?>();
         foreach (var id in productIds)
         {
-            products.Add(await productService.GetProductRoot(id, cancellationToken: ct));
+            var product = await productService.GetProduct(
+                new GetProductParameters { ProductId = id, IncludeProductRoot = true }, ct);
+            productRoots.Add(product?.ProductRoot);
         }
 
-        return products.Any(p => p != null && p.IsDigitalProduct && p.HasDigitalFiles());
+        return productRoots.Any(p => p != null && p.IsDigitalProduct && p.HasDigitalFiles());
     }
 }

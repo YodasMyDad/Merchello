@@ -81,6 +81,17 @@ public class UpsellRule
     /// </summary>
     public CheckoutUpsellMode CheckoutMode { get; set; } = CheckoutUpsellMode.Inline;
 
+    /// <summary>
+    /// When true and CheckoutMode is OrderBump, the checkbox renders checked by default (opt-out).
+    /// </summary>
+    public bool DefaultChecked { get; set; }
+
+    /// <summary>
+    /// When true, recommended products are automatically added to the basket when trigger conditions are met.
+    /// Customers can remove them (opt-out). Removed items are not re-added during the same session.
+    /// </summary>
+    public bool AutoAddToBasket { get; set; }
+
     // =====================================================
     // Scheduling
     // =====================================================

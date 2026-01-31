@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Services.Interfaces;
 using Moq;
 using Shouldly;
@@ -30,22 +32,28 @@ public class LineItemFactoryTests
     {
         // Arrange
         var taxGroupId = Guid.NewGuid();
-        var taxGroup = new TaxGroup { Id = taxGroupId, Name = "Books", TaxPercentage = 5m };
-        var productRoot = new ProductRoot
-        {
-            Id = Guid.NewGuid(),
-            RootName = "Test Book",
-            TaxGroupId = taxGroupId,
-            TaxGroup = taxGroup
-        };
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Book Hardcover",
-            Sku = "BOOK-001",
-            Price = 29.99m,
-            ProductRoot = productRoot
-        };
+        var taxGroupFactory = new TaxGroupFactory();
+        var productTypeFactory = new ProductTypeFactory();
+        var productRootFactory = new ProductRootFactory();
+        var productFactory = new ProductFactory(new SlugHelper());
+
+        var taxGroup = taxGroupFactory.Create("Books", 5m);
+        taxGroup.Id = taxGroupId;
+        var productType = productTypeFactory.Create("Books", "books");
+        productType.Id = Guid.NewGuid();
+        var productRoot = productRootFactory.Create("Test Book", taxGroup, productType, []);
+        productRoot.Id = Guid.NewGuid();
+
+        var product = productFactory.Create(
+            productRoot,
+            "Test Book Hardcover",
+            29.99m,
+            costOfGoods: 0m,
+            gtin: string.Empty,
+            sku: "BOOK-001",
+            isDefault: true);
+        product.Id = Guid.NewGuid();
+        product.ProductRootId = productRoot.Id;
 
         // Act
         var lineItem = _factory.CreateFromProduct(product, 2);
@@ -61,21 +69,30 @@ public class LineItemFactoryTests
     public void CreateFromProduct_WithNoTaxGroup_SetsTaxGroupIdAndZeroRate()
     {
         // Arrange - ProductRoot with no TaxGroup set
-        var productRoot = new ProductRoot
-        {
-            Id = Guid.NewGuid(),
-            RootName = "Test Product",
-            TaxGroupId = Guid.Empty,
-            TaxGroup = null
-        };
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Product Variant",
-            Sku = "PROD-001",
-            Price = 19.99m,
-            ProductRoot = productRoot
-        };
+        var taxGroupFactory = new TaxGroupFactory();
+        var productTypeFactory = new ProductTypeFactory();
+        var productRootFactory = new ProductRootFactory();
+        var productFactory = new ProductFactory(new SlugHelper());
+
+        var placeholderTaxGroup = taxGroupFactory.Create("Standard", 20m);
+        placeholderTaxGroup.Id = Guid.NewGuid();
+        var productType = productTypeFactory.Create("Products", "products");
+        productType.Id = Guid.NewGuid();
+        var productRoot = productRootFactory.Create("Test Product", placeholderTaxGroup, productType, []);
+        productRoot.Id = Guid.NewGuid();
+        productRoot.TaxGroupId = Guid.Empty;
+        productRoot.TaxGroup = null;
+
+        var product = productFactory.Create(
+            productRoot,
+            "Test Product Variant",
+            19.99m,
+            costOfGoods: 0m,
+            gtin: string.Empty,
+            sku: "PROD-001",
+            isDefault: true);
+        product.Id = Guid.NewGuid();
+        product.ProductRootId = productRoot.Id;
 
         // Act
         var lineItem = _factory.CreateFromProduct(product, 1);
@@ -95,19 +112,18 @@ public class LineItemFactoryTests
     {
         // Arrange
         var taxGroupId = Guid.NewGuid();
-        var basketLineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
-            Name = "Test Product",
-            Sku = "TEST-001",
-            Quantity = 5,
-            Amount = 10m,
-            LineItemType = LineItemType.Product,
-            IsTaxable = true,
-            TaxRate = 20m,
-            TaxGroupId = taxGroupId
-        };
+        var basketLineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Test Product",
+            "TEST-001",
+            10m,
+            cost: 0m,
+            quantity: 5,
+            isTaxable: true,
+            taxRate: 20m);
+        basketLineItem.ProductId = Guid.NewGuid();
+        basketLineItem.LineItemType = LineItemType.Product;
+        basketLineItem.TaxGroupId = taxGroupId;
 
         // Act
         var orderLineItem = _factory.CreateForOrder(basketLineItem, 3, 10m, 5m);
@@ -123,19 +139,18 @@ public class LineItemFactoryTests
     public void CreateForOrder_PreservesNullTaxGroupId()
     {
         // Arrange - Line item with null TaxGroupId (legacy scenario)
-        var basketLineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
-            Name = "Legacy Product",
-            Sku = "LEGACY-001",
-            Quantity = 2,
-            Amount = 15m,
-            LineItemType = LineItemType.Product,
-            IsTaxable = false,
-            TaxRate = 0m,
-            TaxGroupId = null
-        };
+        var basketLineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Legacy Product",
+            "LEGACY-001",
+            15m,
+            cost: 0m,
+            quantity: 2,
+            isTaxable: false,
+            taxRate: 0m);
+        basketLineItem.ProductId = Guid.NewGuid();
+        basketLineItem.LineItemType = LineItemType.Product;
+        basketLineItem.TaxGroupId = null;
 
         // Act
         var orderLineItem = _factory.CreateForOrder(basketLineItem, 2, 15m, 8m);
@@ -154,19 +169,18 @@ public class LineItemFactoryTests
     {
         // Arrange
         var taxGroupId = Guid.NewGuid();
-        var addonItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Gift Wrapping",
-            Sku = "ADDON-WRAP",
-            Quantity = 1,
-            Amount = 5m,
-            LineItemType = LineItemType.Addon,
-            IsTaxable = true,
-            TaxRate = 20m,
-            TaxGroupId = taxGroupId,
-            DependantLineItemSku = "PROD-001"
-        };
+        var addonItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Gift Wrapping",
+            "ADDON-WRAP",
+            5m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: true,
+            taxRate: 20m);
+        addonItem.LineItemType = LineItemType.Addon;
+        addonItem.TaxGroupId = taxGroupId;
+        addonItem.DependantLineItemSku = "PROD-001";
 
         // Act
         var orderAddon = _factory.CreateAddonForOrder(addonItem, 1, 5m);

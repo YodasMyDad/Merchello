@@ -82,5 +82,11 @@ public class CheckoutSession
     /// </summary>
     public List<UpsellImpressionRecord> UpsellImpressions { get; set; } = [];
 
+    /// <summary>
+    /// Tracks auto-added upsell products that the customer explicitly removed.
+    /// Prevents re-addition during the same checkout session.
+    /// </summary>
+    public List<RemovedAutoAddRecord> RemovedAutoAddUpsells { get; set; } = [];
+
 }
 

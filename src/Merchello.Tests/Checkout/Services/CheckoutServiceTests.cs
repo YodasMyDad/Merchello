@@ -1,11 +1,15 @@
 using System.Text.Json;
 using Merchello.Core;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -23,6 +27,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     private readonly ICheckoutService _checkoutService;
     private readonly ICheckoutDiscountService _checkoutDiscountService;
     private readonly ICheckoutSessionService _checkoutSessionService;
+    private readonly AddressFactory _addressFactory = new();
 
     public CheckoutServiceTests(ServiceTestFixture fixture)
     {
@@ -84,14 +89,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        var lineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Product",
-            Sku = "TEST-001",
-            Quantity = 1,
-            Amount = 10m
-        };
+        var lineItem = CreateLineItem("Test Product", "TEST-001", 1, 10m);
 
         // Act
         await _checkoutService.AddToBasketAsync(basket, lineItem, "GB");
@@ -108,24 +106,8 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var basket = _checkoutService.CreateBasket();
         var productId = Guid.NewGuid();
-        var lineItem1 = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = productId,
-            Name = "Test Product",
-            Sku = "TEST-001",
-            Quantity = 1,
-            Amount = 10m
-        };
-        var lineItem2 = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = productId,
-            Name = "Test Product",
-            Sku = "TEST-001",
-            Quantity = 2,
-            Amount = 10m
-        };
+        var lineItem1 = CreateLineItem("Test Product", "TEST-001", 1, 10m, productId);
+        var lineItem2 = CreateLineItem("Test Product", "TEST-001", 2, 10m, productId);
 
         // Act
         await _checkoutService.AddToBasketAsync(basket, lineItem1, "GB");
@@ -141,14 +123,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        var lineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Product",
-            Sku = "TEST-001",
-            Quantity = 3,
-            Amount = 10m
-        };
+        var lineItem = CreateLineItem("Test Product", "TEST-001", 3, 10m);
 
         // Act
         await _checkoutService.AddToBasketAsync(basket, lineItem, "GB");
@@ -166,14 +141,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange - test basket calculation directly
         var basket = _checkoutService.CreateBasket();
-        var lineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Test Product",
-            Sku = "TEST-001",
-            Quantity = 2,
-            Amount = 15m
-        };
+        var lineItem = CreateLineItem("Test Product", "TEST-001", 2, 15m);
         basket.LineItems.Add(lineItem);
 
         // Act - update quantity directly and recalculate
@@ -194,23 +162,13 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         var lineItem1Id = Guid.NewGuid();
         var lineItem2Id = Guid.NewGuid();
 
-        await _checkoutService.AddToBasketAsync(basket, new LineItem
-        {
-            Id = lineItem1Id,
-            Name = "Product 1",
-            Sku = "PROD-001",
-            Quantity = 1,
-            Amount = 20m
-        }, "GB");
+        var lineItem1 = CreateLineItem("Product 1", "PROD-001", 1, 20m);
+        lineItem1.Id = lineItem1Id;
+        await _checkoutService.AddToBasketAsync(basket, lineItem1, "GB");
 
-        await _checkoutService.AddToBasketAsync(basket, new LineItem
-        {
-            Id = lineItem2Id,
-            Name = "Product 2",
-            Sku = "PROD-002",
-            Quantity = 1,
-            Amount = 30m
-        }, "GB");
+        var lineItem2 = CreateLineItem("Product 2", "PROD-002", 1, 30m);
+        lineItem2.Id = lineItem2Id;
+        await _checkoutService.AddToBasketAsync(basket, lineItem2, "GB");
 
         // Act
         await _checkoutService.RemoveFromBasketAsync(basket, lineItem1Id, "GB");
@@ -226,14 +184,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange - create and save basket to database
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Product 1",
-            Sku = "PROD-001",
-            Quantity = 1,
-            Amount = 20m
-        });
+        basket.LineItems.Add(CreateLineItem("Product 1", "PROD-001", 1, 20m));
 
         // Save basket to database through the fixture's DbContext
         _fixture.DbContext.Baskets.Add(basket);
@@ -262,22 +213,8 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Product 1",
-            Sku = "PROD-001",
-            Quantity = 2,
-            Amount = 25m
-        });
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Product 2",
-            Sku = "PROD-002",
-            Quantity = 1,
-            Amount = 50m
-        });
+        basket.LineItems.Add(CreateLineItem("Product 1", "PROD-001", 2, 25m));
+        basket.LineItems.Add(CreateLineItem("Product 2", "PROD-002", 1, 50m));
 
         // Act
         await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
@@ -295,15 +232,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Taxable Product",
-            Sku = "TAX-001",
-            Quantity = 1,
-            Amount = 100m,
-            IsTaxable = true
-        });
+        basket.LineItems.Add(CreateLineItem("Taxable Product", "TAX-001", 1, 100m, isTaxable: true, taxRate: 0m));
 
         // Act
         await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
@@ -322,22 +251,8 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Item 1",
-            Sku = "ITEM-001",
-            Quantity = 3,
-            Amount = 10m
-        });
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Item 2",
-            Sku = "ITEM-002",
-            Quantity = 2,
-            Amount = 20m
-        });
+        basket.LineItems.Add(CreateLineItem("Item 1", "ITEM-001", 3, 10m));
+        basket.LineItems.Add(CreateLineItem("Item 2", "ITEM-002", 2, 20m));
 
         // Act
         await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
@@ -359,15 +274,14 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basketId = Guid.NewGuid();
-        var billing = new Address
-        {
-            Name = "John Doe",
-            Email = "john@example.com",
-            AddressOne = "123 Main St",
-            TownCity = "London",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var billing = CreateAddress(
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+            addressOne: "123 Main St",
+            townCity: "London",
+            countryCode: "GB",
+            postalCode: "SW1A 1AA");
 
         // Act
         await _checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -390,21 +304,22 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basketId = Guid.NewGuid();
-        var billing = new Address
-        {
-            Name = "John Doe",
-            Email = "john@example.com",
-            AddressOne = "123 Billing St",
-            TownCity = "London",
-            CountryCode = "GB"
-        };
-        var shipping = new Address
-        {
-            Name = "Jane Doe",
-            AddressOne = "456 Shipping Ave",
-            TownCity = "Manchester",
-            CountryCode = "GB"
-        };
+        var billing = CreateAddress(
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+            addressOne: "123 Billing St",
+            townCity: "London",
+            countryCode: "GB",
+            postalCode: "SW1A 1AA");
+        var shipping = CreateAddress(
+            firstName: "Jane",
+            lastName: "Doe",
+            email: "jane@example.com",
+            addressOne: "456 Shipping Ave",
+            townCity: "Manchester",
+            countryCode: "GB",
+            postalCode: "M1 1AE");
 
         // Act
         await _checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -447,14 +362,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Product",
-            Sku = "PROD-001",
-            Quantity = 1,
-            Amount = 100m
-        });
+        basket.LineItems.Add(CreateLineItem("Product", "PROD-001", 1, 100m));
 
         // Act
         var result = await _checkoutDiscountService.ApplyDiscountCodeAsync(basket, "INVALID-CODE", "GB");
@@ -469,24 +377,8 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var basket = _checkoutService.CreateBasket();
         var discountId = Guid.NewGuid();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Product",
-            Sku = "PROD-001",
-            Quantity = 1,
-            Amount = 100m
-        });
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Discount",
-            Sku = "DISCOUNT",
-            Quantity = 1,
-            Amount = -10m,
-            LineItemType = LineItemType.Discount,
-            ExtendedData = new Dictionary<string, object> { ["DiscountId"] = discountId }
-        });
+        basket.LineItems.Add(CreateLineItem("Product", "PROD-001", 1, 100m));
+        basket.LineItems.Add(CreateDiscountLineItem(discountId, 10m));
 
         // Act
         var result = await _checkoutDiscountService.RemovePromotionalDiscountAsync(basket, discountId, "GB");
@@ -511,15 +403,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         await dataBuilder.SaveChangesAsync();
 
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = product.Id,
-            Name = "Test Product",
-            Sku = product.Sku,
-            Quantity = 1,
-            Amount = 50m
-        });
+        basket.LineItems.Add(_checkoutService.CreateLineItem(product, 1));
 
         var session = await _checkoutSessionService.GetSessionAsync(basket.Id);
 
@@ -540,14 +424,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Checkout Product",
-            Sku = "CHECKOUT-001",
-            Quantity = 2,
-            Amount = 75m
-        });
+        basket.LineItems.Add(CreateLineItem("Checkout Product", "CHECKOUT-001", 2, 75m));
 
         // Save basket to database first (InitializeCheckoutAsync will update it)
         _fixture.DbContext.Baskets.Add(basket);
@@ -576,14 +453,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Persisted Product",
-            Sku = "PERSIST-001",
-            Quantity = 1,
-            Amount = 25m
-        });
+        basket.LineItems.Add(CreateLineItem("Persisted Product", "PERSIST-001", 1, 25m));
 
         // Save basket to session
         _checkoutSessionService.SaveBasketToSession(basket);
@@ -618,24 +488,10 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basket = _checkoutService.CreateBasket();
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Original Product",
-            Sku = "UPDATE-001",
-            Quantity = 1,
-            Amount = 50m
-        });
+        basket.LineItems.Add(CreateLineItem("Original Product", "UPDATE-001", 1, 50m));
 
         // Act - add another item
-        basket.LineItems.Add(new LineItem
-        {
-            Id = Guid.NewGuid(),
-            Name = "Added Product",
-            Sku = "UPDATE-002",
-            Quantity = 2,
-            Amount = 30m
-        });
+        basket.LineItems.Add(CreateLineItem("Added Product", "UPDATE-002", 2, 30m));
         await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
         {
             Basket = basket,
@@ -682,51 +538,64 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     public void CreateLineItem_WithVariantOptions_ExtractsSelectedOptions()
     {
         // Arrange - create product with variant options
-        var colorValueGrey = new ProductOptionValue { Id = Guid.NewGuid(), Name = "Grey", FullName = "Grey" };
-        var colorValueBlue = new ProductOptionValue { Id = Guid.NewGuid(), Name = "Blue", FullName = "Blue" };
-        var sizeValueS = new ProductOptionValue { Id = Guid.NewGuid(), Name = "S", FullName = "S" };
-        var sizeValueM = new ProductOptionValue { Id = Guid.NewGuid(), Name = "M", FullName = "M" };
+        var optionFactory = new ProductOptionFactory();
+        var colorValueGrey = optionFactory.CreateEmptyValue();
+        colorValueGrey.Name = "Grey";
+        colorValueGrey.FullName = "Grey";
+        var colorValueBlue = optionFactory.CreateEmptyValue();
+        colorValueBlue.Name = "Blue";
+        colorValueBlue.FullName = "Blue";
+        var sizeValueS = optionFactory.CreateEmptyValue();
+        sizeValueS.Name = "S";
+        sizeValueS.FullName = "S";
+        var sizeValueM = optionFactory.CreateEmptyValue();
+        sizeValueM.Name = "M";
+        sizeValueM.FullName = "M";
 
-        var colorOption = new ProductOption
-        {
-            Id = Guid.NewGuid(),
-            Name = "Color",
-            Alias = "color",
-            SortOrder = 1,
-            IsVariant = true,
-            ProductOptionValues = [colorValueGrey, colorValueBlue]
-        };
+        var colorOption = optionFactory.CreateEmpty();
+        colorOption.Name = "Color";
+        colorOption.Alias = "color";
+        colorOption.SortOrder = 1;
+        colorOption.IsVariant = true;
+        colorOption.ProductOptionValues = [colorValueGrey, colorValueBlue];
 
-        var sizeOption = new ProductOption
-        {
-            Id = Guid.NewGuid(),
-            Name = "Size",
-            Alias = "size",
-            SortOrder = 2,
-            IsVariant = true,
-            ProductOptionValues = [sizeValueS, sizeValueM]
-        };
+        var sizeOption = optionFactory.CreateEmpty();
+        sizeOption.Name = "Size";
+        sizeOption.Alias = "size";
+        sizeOption.SortOrder = 2;
+        sizeOption.IsVariant = true;
+        sizeOption.ProductOptionValues = [sizeValueS, sizeValueM];
 
-        var productRoot = new ProductRoot
-        {
-            Id = Guid.NewGuid(),
-            RootName = "Premium V-Neck",
-            ProductOptions = [colorOption, sizeOption]
-        };
+        var taxGroupFactory = new TaxGroupFactory();
+        var productTypeFactory = new ProductTypeFactory();
+        var taxGroup = taxGroupFactory.Create("Standard VAT", 20m);
+        taxGroup.Id = Guid.NewGuid();
+        var productType = productTypeFactory.Create("Apparel", "apparel");
+        productType.Id = Guid.NewGuid();
+
+        var productRootFactory = new ProductRootFactory();
+        var productRoot = productRootFactory.Create(
+            "Premium V-Neck",
+            taxGroup,
+            productType,
+            [colorOption, sizeOption]);
+        productRoot.Id = Guid.NewGuid();
 
         // Create comma-separated variant key (Grey + S)
         var variantOptionsKey = $"{colorValueGrey.Id},{sizeValueS.Id}";
 
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            ProductRootId = productRoot.Id,
-            ProductRoot = productRoot,
-            Name = "S-Grey",
-            Sku = "PREMIUM-V-NECK-S-GREY",
-            Price = 29.99m,
-            VariantOptionsKey = variantOptionsKey
-        };
+        var productFactory = new ProductFactory(new SlugHelper());
+        var product = productFactory.Create(
+            productRoot,
+            "S-Grey",
+            29.99m,
+            costOfGoods: 0m,
+            gtin: string.Empty,
+            sku: "PREMIUM-V-NECK-S-GREY",
+            isDefault: true,
+            variantOptionsKey: variantOptionsKey);
+        product.Id = Guid.NewGuid();
+        product.ProductRootId = productRoot.Id;
 
         // Act
         var lineItem = _checkoutService.CreateLineItem(product);
@@ -755,23 +624,33 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     public void CreateLineItem_WithoutVariantOptions_DoesNotStoreSelectedOptions()
     {
         // Arrange - create product without variant options (simple product)
-        var productRoot = new ProductRoot
-        {
-            Id = Guid.NewGuid(),
-            RootName = "Simple Widget",
-            ProductOptions = []
-        };
+        var taxGroupFactory = new TaxGroupFactory();
+        var productTypeFactory = new ProductTypeFactory();
+        var taxGroup = taxGroupFactory.Create("Standard VAT", 20m);
+        taxGroup.Id = Guid.NewGuid();
+        var productType = productTypeFactory.Create("Widgets", "widgets");
+        productType.Id = Guid.NewGuid();
 
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            ProductRootId = productRoot.Id,
-            ProductRoot = productRoot,
-            Name = "Simple Widget",
-            Sku = "SIMPLE-WIDGET",
-            Price = 9.99m,
-            VariantOptionsKey = null // No variant options
-        };
+        var productRootFactory = new ProductRootFactory();
+        var productRoot = productRootFactory.Create(
+            "Simple Widget",
+            taxGroup,
+            productType,
+            []);
+        productRoot.Id = Guid.NewGuid();
+
+        var productFactory = new ProductFactory(new SlugHelper());
+        var product = productFactory.Create(
+            productRoot,
+            "Simple Widget",
+            9.99m,
+            costOfGoods: 0m,
+            gtin: string.Empty,
+            sku: "SIMPLE-WIDGET",
+            isDefault: true,
+            variantOptionsKey: null);
+        product.Id = Guid.NewGuid();
+        product.ProductRootId = productRoot.Id;
 
         // Act
         var lineItem = _checkoutService.CreateLineItem(product);
@@ -782,6 +661,73 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
 
         // Assert - SelectedOptions should NOT be stored for simple products
         lineItem.ExtendedData.ShouldNotContainKey(Constants.ExtendedDataKeys.SelectedOptions);
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private static LineItem CreateLineItem(
+        string name,
+        string sku,
+        int quantity,
+        decimal amount,
+        Guid? productId = null,
+        bool isTaxable = false,
+        decimal taxRate = 0m)
+    {
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            name,
+            sku,
+            amount,
+            cost: 0m,
+            quantity: quantity,
+            isTaxable: isTaxable,
+            taxRate: taxRate);
+        lineItem.LineItemType = LineItemType.Product;
+        lineItem.ProductId = productId;
+        lineItem.OrderId = null;
+        return lineItem;
+    }
+
+    private static LineItem CreateDiscountLineItem(Guid discountId, decimal amount)
+    {
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Discount",
+            "DISCOUNT",
+            -Math.Abs(amount),
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m,
+            extendedData: new Dictionary<string, object> { ["DiscountId"] = discountId });
+        lineItem.LineItemType = LineItemType.Discount;
+        lineItem.OrderId = null;
+        return lineItem;
+    }
+
+    private Address CreateAddress(
+        string firstName,
+        string lastName,
+        string email,
+        string addressOne,
+        string townCity,
+        string countryCode,
+        string postalCode)
+    {
+        return _addressFactory.CreateFromFormData(
+            firstName,
+            lastName,
+            addressOne,
+            address2: null,
+            city: townCity,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            stateOrProvinceCode: null,
+            phone: null,
+            email: email);
     }
 
     #endregion

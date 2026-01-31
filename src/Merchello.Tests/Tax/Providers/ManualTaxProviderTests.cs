@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Providers;
@@ -19,6 +20,7 @@ namespace Merchello.Tests.Tax.Providers;
 /// </summary>
 public class ManualTaxProviderTests
 {
+    private static readonly AddressFactory AddressFactory = new();
     private readonly Mock<ITaxService> _taxServiceMock = new();
     private readonly Mock<ICurrencyService> _currencyServiceMock = new();
     private readonly ITaxCalculationService _taxCalculationService;
@@ -1150,7 +1152,17 @@ public class ManualTaxProviderTests
 
     private static Address CreateAddress(string countryCode, string? regionCode)
     {
-        var address = new Address { CountryCode = countryCode };
+        var address = AddressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Main Street",
+            address2: null,
+            city: "Test City",
+            postalCode: "10001",
+            countryCode: countryCode,
+            stateOrProvinceCode: regionCode,
+            phone: null,
+            email: "test@example.com");
         if (regionCode != null)
         {
             address.CountyState.RegionCode = regionCode;

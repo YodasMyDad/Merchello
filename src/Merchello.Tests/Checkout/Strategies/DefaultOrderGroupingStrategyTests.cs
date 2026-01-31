@@ -1,14 +1,21 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Models;
+using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
+using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Warehouses.Models;
+using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Notifications.Interfaces;
 using Umbraco.Cms.Core.Notifications;
 using Merchello.Core.Warehouses.Services.Interfaces;
@@ -291,25 +298,11 @@ public class DefaultOrderGroupingStrategyTests
         var warehouse = CreateWarehouse(warehouseId, "Main Warehouse", shippingOptionId);
         var product = CreateProduct(productId, warehouse);
         product.PackageConfigurations = [new ProductPackage { Weight = 1.5m, LengthCm = 30, WidthCm = 20, HeightCm = 10 }];
-        product.ProductRoot = new ProductRoot
-        {
-            Id = Guid.NewGuid(),
-            RootName = "Test Product",
-            AllowExternalCarrierShipping = true
-        };
+        product.ProductRoot!.AllowExternalCarrierShipping = true;
 
-        var lineItemId = Guid.NewGuid();
         var lineItems = new List<LineItem>
         {
-            new()
-            {
-                Id = lineItemId,
-                ProductId = productId,
-                Name = "Test Product",
-                Sku = "TEST-SKU",
-                Quantity = 1,
-                Amount = 50m
-            }
+            CreateLineItem(productId, quantity: 1, amount: 50m)
         };
 
         var context = CreateContext(
@@ -398,24 +391,11 @@ public class DefaultOrderGroupingStrategyTests
         var warehouse = CreateWarehouse(warehouseId, "Main Warehouse", shippingOptionId);
         var product = CreateProduct(productId, warehouse);
         product.PackageConfigurations = [new ProductPackage { Weight = 1.5m, LengthCm = 30, WidthCm = 20, HeightCm = 10 }];
-        product.ProductRoot = new ProductRoot
-        {
-            Id = Guid.NewGuid(),
-            RootName = "Test Product",
-            AllowExternalCarrierShipping = true
-        };
+        product.ProductRoot!.AllowExternalCarrierShipping = true;
 
         var lineItems = new List<LineItem>
         {
-            new()
-            {
-                Id = Guid.NewGuid(),
-                ProductId = productId,
-                Name = "Test Product",
-                Sku = "TEST-SKU",
-                Quantity = 1,
-                Amount = 50m
-            }
+            CreateLineItem(productId, quantity: 1, amount: 50m)
         };
 
         var context = CreateContext(
@@ -484,21 +464,39 @@ public class DefaultOrderGroupingStrategyTests
         List<LineItem>? lineItems = null,
         string countryCode = "GB")
     {
+        var basketFactory = new BasketFactory();
+        var addressFactory = new AddressFactory();
+        var basket = basketFactory.Create(null, "USD", "$");
+        basket.LineItems = lineItems ?? [];
+        basket.SubTotal = 100m;
+        basket.Tax = 20m;
+        basket.Total = 120m;
+
         return new OrderGroupingContext
         {
-            Basket = new Basket
-            {
-                Id = Guid.NewGuid(),
-                LineItems = lineItems ?? [],
-                SubTotal = 100m,
-                Tax = 20m,
-                Total = 120m
-            },
-            BillingAddress = new Address(),
-            ShippingAddress = new Address
-            {
-                CountryCode = countryCode
-            },
+            Basket = basket,
+            BillingAddress = addressFactory.CreateFromFormData(
+                firstName: "Test",
+                lastName: "User",
+                address1: "123 Main St",
+                address2: null,
+                city: "London",
+                postalCode: "SW1A 1AA",
+                countryCode: countryCode,
+                stateOrProvinceCode: null,
+                phone: null,
+                email: "test@example.com"),
+            ShippingAddress = addressFactory.CreateFromFormData(
+                firstName: "Test",
+                lastName: "User",
+                address1: "123 Main St",
+                address2: null,
+                city: "London",
+                postalCode: "SW1A 1AA",
+                countryCode: countryCode,
+                stateOrProvinceCode: null,
+                phone: null,
+                email: "test@example.com"),
             Products = products ?? new Dictionary<Guid, Product>(),
             Warehouses = warehouses ?? new Dictionary<Guid, Warehouse>()
         };
@@ -506,47 +504,87 @@ public class DefaultOrderGroupingStrategyTests
 
     private static LineItem CreateLineItem(Guid productId, int quantity = 1, decimal amount = 50m)
     {
-        return new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = productId,
-            Name = "Test Product",
-            Sku = "TEST-SKU",
-            Quantity = quantity,
-            Amount = amount
-        };
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Test Product",
+            "TEST-SKU",
+            amount,
+            cost: 0m,
+            quantity: quantity,
+            isTaxable: false,
+            taxRate: 0m);
+        lineItem.LineItemType = LineItemType.Product;
+        lineItem.ProductId = productId;
+        lineItem.OrderId = null;
+        return lineItem;
     }
 
     private static Warehouse CreateWarehouse(Guid id, string name, Guid shippingOptionId)
     {
-        return new Warehouse
-        {
-            Id = id,
-            Name = name,
-            ShippingOptions =
-            [
-                new()
-                {
-                    Id = shippingOptionId,
-                    Name = "Standard Delivery",
-                    DaysFrom = 3,
-                    DaysTo = 5,
-                    FixedCost = 5.99m
-                }
-            ]
-        };
+        var addressFactory = new AddressFactory();
+        var warehouseFactory = new WarehouseFactory();
+        var shippingOptionFactory = new ShippingOptionFactory();
+
+        var address = addressFactory.CreateFromFormData(
+            firstName: "Warehouse",
+            lastName: "Address",
+            address1: "1 Depot Way",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: null);
+
+        var warehouse = warehouseFactory.Create(name, address);
+        warehouse.Id = id;
+
+        var option = shippingOptionFactory.Create(
+            "Standard Delivery",
+            5.99m,
+            warehouse,
+            daysFrom: 3,
+            daysTo: 5,
+            isNextDay: false,
+            nextDayCutOffTime: null);
+        option.Id = shippingOptionId;
+        option.WarehouseId = warehouse.Id;
+
+        warehouse.ShippingOptions = [option];
+        return warehouse;
     }
 
     private static Product CreateProduct(Guid id, Warehouse? warehouse)
     {
-        var product = new Product
-        {
-            Id = id,
-            Name = "Test Product",
-            Sku = "TEST-SKU",
-            Price = 50m,
-            ShippingOptions = warehouse?.ShippingOptions.ToList() ?? []
-        };
+        var taxGroupFactory = new TaxGroupFactory();
+        var productTypeFactory = new ProductTypeFactory();
+        var productRootFactory = new ProductRootFactory();
+        var productFactory = new ProductFactory(new SlugHelper());
+
+        var taxGroup = taxGroupFactory.Create("Standard VAT", 20m);
+        taxGroup.Id = Guid.NewGuid();
+        var productType = productTypeFactory.Create("Default", "default");
+        productType.Id = Guid.NewGuid();
+
+        var productRoot = productRootFactory.Create(
+            "Test Product",
+            taxGroup,
+            productType,
+            []);
+        productRoot.Id = Guid.NewGuid();
+
+        var product = productFactory.Create(
+            productRoot,
+            "Test Product",
+            50m,
+            costOfGoods: 0m,
+            gtin: string.Empty,
+            sku: "TEST-SKU",
+            isDefault: true);
+        product.Id = id;
+        product.ProductRootId = productRoot.Id;
+        product.ShippingOptions = warehouse?.ShippingOptions.ToList() ?? [];
         return product;
     }
 }

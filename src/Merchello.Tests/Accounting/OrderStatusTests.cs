@@ -1,5 +1,12 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Handlers;
+using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Locality.Factories;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Warehouses.Factories;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;
@@ -15,11 +22,23 @@ public class OrderStatusTests
 {
     private readonly DefaultOrderStatusHandler _statusHandler;
     private readonly Mock<ILogger<DefaultOrderStatusHandler>> _loggerMock;
+    private readonly ICurrencyService _currencyService;
+    private readonly InvoiceFactory _invoiceFactory;
+    private readonly OrderFactory _orderFactory = new();
+    private readonly WarehouseFactory _warehouseFactory = new();
+    private readonly AddressFactory _addressFactory = new();
 
     public OrderStatusTests()
     {
         _loggerMock = new Mock<ILogger<DefaultOrderStatusHandler>>();
         _statusHandler = new DefaultOrderStatusHandler(_loggerMock.Object);
+        var settings = Options.Create(new MerchelloSettings
+        {
+            DefaultRounding = MidpointRounding.AwayFromZero,
+            StoreCurrencyCode = "USD"
+        });
+        _currencyService = new CurrencyService(settings);
+        _invoiceFactory = new InvoiceFactory(_currencyService);
     }
 
     #region Valid Transition Tests
@@ -28,7 +47,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromPendingToReadyToFulfill_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Pending };
+        var order = CreateOrder(OrderStatus.Pending);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.ReadyToFulfill);
@@ -41,7 +60,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromPendingToProcessing_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Pending };
+        var order = CreateOrder(OrderStatus.Pending);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Processing);
@@ -54,7 +73,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromReadyToFulfillToProcessing_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.ReadyToFulfill };
+        var order = CreateOrder(OrderStatus.ReadyToFulfill);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Processing);
@@ -67,7 +86,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromProcessingToShipped_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Processing };
+        var order = CreateOrder(OrderStatus.Processing);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped);
@@ -80,7 +99,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromShippedToCompleted_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Shipped };
+        var order = CreateOrder(OrderStatus.Shipped);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Completed);
@@ -93,7 +112,7 @@ public class OrderStatusTests
     public async Task CanTransition_SameStatus_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Processing };
+        var order = CreateOrder(OrderStatus.Processing);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Processing);
@@ -110,7 +129,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromCancelledToAnyStatus_ReturnsFalse()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Cancelled };
+        var order = CreateOrder(OrderStatus.Cancelled);
 
         // Act & Assert
         (await _statusHandler.CanTransitionAsync(order, OrderStatus.Pending)).ShouldBeFalse();
@@ -124,7 +143,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromCompletedToShipped_ReturnsTrue()
     {
         // Arrange - Completed orders can revert to Shipped (if delivery status changes)
-        var order = new Order { Status = OrderStatus.Completed };
+        var order = CreateOrder(OrderStatus.Completed);
 
         // Act & Assert
         (await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped)).ShouldBeTrue();
@@ -134,7 +153,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromCompletedToOtherStatuses_ReturnsFalse()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Completed };
+        var order = CreateOrder(OrderStatus.Completed);
 
         // Act & Assert - Can only revert to Shipped, not other statuses
         (await _statusHandler.CanTransitionAsync(order, OrderStatus.Pending)).ShouldBeFalse();
@@ -151,7 +170,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromShippedToCancelled_ReturnsFalse()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Shipped };
+        var order = CreateOrder(OrderStatus.Shipped);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled);
@@ -164,7 +183,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromPartiallyShippedToCancelled_ReturnsFalse()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.PartiallyShipped };
+        var order = CreateOrder(OrderStatus.PartiallyShipped);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled);
@@ -177,7 +196,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromPendingToCancelled_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Pending };
+        var order = CreateOrder(OrderStatus.Pending);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled);
@@ -190,7 +209,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromReadyToFulfillToCancelled_ReturnsTrue()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.ReadyToFulfill };
+        var order = CreateOrder(OrderStatus.ReadyToFulfill);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled);
@@ -207,8 +226,8 @@ public class OrderStatusTests
     public async Task CanTransition_BackwardsInFulfillment_ReturnsFalse()
     {
         // Arrange
-        var shippedOrder = new Order { Status = OrderStatus.Shipped };
-        var processingOrder = new Order { Status = OrderStatus.Processing };
+        var shippedOrder = CreateOrder(OrderStatus.Shipped);
+        var processingOrder = CreateOrder(OrderStatus.Processing);
 
         // Act & Assert
         (await _statusHandler.CanTransitionAsync(shippedOrder, OrderStatus.Processing)).ShouldBeFalse();
@@ -221,7 +240,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromPendingToShipped_ReturnsFalse()
     {
         // Arrange - Can't skip processing step
-        var order = new Order { Status = OrderStatus.Pending };
+        var order = CreateOrder(OrderStatus.Pending);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped);
@@ -234,7 +253,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromAwaitingStockToShipped_ReturnsFalse()
     {
         // Arrange - Can't skip processing step
-        var order = new Order { Status = OrderStatus.AwaitingStock };
+        var order = CreateOrder(OrderStatus.AwaitingStock);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped);
@@ -247,7 +266,7 @@ public class OrderStatusTests
     public async Task CanTransition_FromReadyToFulfillToShipped_ReturnsFalse()
     {
         // Arrange - Can't skip processing step
-        var order = new Order { Status = OrderStatus.ReadyToFulfill };
+        var order = CreateOrder(OrderStatus.ReadyToFulfill);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped);
@@ -264,7 +283,7 @@ public class OrderStatusTests
     public async Task OnStatusChanging_ToProcessing_SetsProcessingStartedDate()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.ReadyToFulfill };
+        var order = CreateOrder(OrderStatus.ReadyToFulfill);
         order.ProcessingStartedDate.ShouldBeNull();
 
         // Act
@@ -280,11 +299,8 @@ public class OrderStatusTests
     {
         // Arrange
         var existingDate = DateTime.UtcNow.AddDays(-1);
-        var order = new Order
-        {
-            Status = OrderStatus.Processing,
-            ProcessingStartedDate = existingDate
-        };
+        var order = CreateOrder(OrderStatus.Processing);
+        order.ProcessingStartedDate = existingDate;
 
         // Act
         await _statusHandler.OnStatusChangingAsync(order, OrderStatus.Processing, OrderStatus.Processing);
@@ -297,7 +313,7 @@ public class OrderStatusTests
     public async Task OnStatusChanging_ToShipped_SetsShippedDate()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Processing };
+        var order = CreateOrder(OrderStatus.Processing);
         order.ShippedDate.ShouldBeNull();
 
         // Act
@@ -312,7 +328,7 @@ public class OrderStatusTests
     public async Task OnStatusChanging_ToCompleted_SetsCompletedDate()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Shipped };
+        var order = CreateOrder(OrderStatus.Shipped);
         order.CompletedDate.ShouldBeNull();
 
         // Act
@@ -327,7 +343,7 @@ public class OrderStatusTests
     public async Task OnStatusChanging_ToCancelled_SetsCancelledDate()
     {
         // Arrange
-        var order = new Order { Status = OrderStatus.Pending };
+        var order = CreateOrder(OrderStatus.Pending);
         order.CancelledDate.ShouldBeNull();
 
         // Act
@@ -343,11 +359,8 @@ public class OrderStatusTests
     {
         // Arrange
         var oldDate = DateTime.UtcNow.AddDays(-1);
-        var order = new Order
-        {
-            Status = OrderStatus.Pending,
-            DateUpdated = oldDate
-        };
+        var order = CreateOrder(OrderStatus.Pending);
+        order.DateUpdated = oldDate;
 
         // Act
         await _statusHandler.OnStatusChangingAsync(order, OrderStatus.Pending, OrderStatus.ReadyToFulfill);
@@ -357,4 +370,57 @@ public class OrderStatusTests
     }
 
     #endregion
+
+    private Order CreateOrder(OrderStatus status)
+    {
+        var billing = _addressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Test Street",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "test@example.com");
+        var shipping = _addressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Customer",
+            address1: "123 Test Street",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "test@example.com");
+
+        var invoice = _invoiceFactory.CreateDraft(
+            invoiceNumber: $"INV-{Guid.NewGuid():N}"[..12],
+            customerId: Guid.NewGuid(),
+            billingAddress: billing,
+            shippingAddress: shipping,
+            currencyCode: "USD",
+            subTotal: 100m,
+            tax: 20m,
+            total: 120m);
+
+        var warehouse = _warehouseFactory.Create(
+            "Test Warehouse",
+            _addressFactory.CreateFromFormData(
+                firstName: "Warehouse",
+                lastName: "Address",
+                address1: "1 Depot Way",
+                address2: null,
+                city: "London",
+                postalCode: "SW1A 1AA",
+                countryCode: "GB",
+                stateOrProvinceCode: null,
+                phone: null,
+                email: null));
+        warehouse.Id = Guid.NewGuid();
+
+        return _orderFactory.Create(invoice, warehouse.Id, Guid.NewGuid(), shippingCost: 0m, status: status);
+    }
 }

@@ -12,7 +12,7 @@ namespace Merchello.Tests.Tax;
 /// Verifies that TaxGroupId flows correctly through:
 /// Product → LineItem (via factory) → TaxableLineItem (via InvoiceService) → Tax Provider
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class TaxCodeMappingIntegrationTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
@@ -87,19 +87,18 @@ public class TaxCodeMappingIntegrationTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange - Simulate basket line item with TaxGroupId
         var taxGroupId = Guid.NewGuid();
-        var basketLineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
-            Name = "Test Product",
-            Sku = "TEST-001",
-            Quantity = 10,
-            Amount = 25m,
-            LineItemType = LineItemType.Product,
-            IsTaxable = true,
-            TaxRate = 8.25m,
-            TaxGroupId = taxGroupId
-        };
+        var basketLineItem = LineItemFactory.CreateCustomLineItem(
+            orderId: Guid.Empty,
+            name: "Test Product",
+            sku: "TEST-001",
+            amount: 25m,
+            cost: 0m,
+            quantity: 10,
+            isTaxable: true,
+            taxRate: 8.25m);
+        basketLineItem.LineItemType = LineItemType.Product;
+        basketLineItem.ProductId = Guid.NewGuid();
+        basketLineItem.TaxGroupId = taxGroupId;
 
         // Act - Create order line item (simulates order creation from basket)
         var orderLineItem = _lineItemFactory.CreateForOrder(basketLineItem, 6, 25m, 10m);
@@ -115,19 +114,18 @@ public class TaxCodeMappingIntegrationTests : IClassFixture<ServiceTestFixture>
     public void FullFlow_NullTaxGroupId_GracefullyHandled()
     {
         // Arrange - Line item without TaxGroupId (legacy or non-taxable)
-        var basketLineItem = new LineItem
-        {
-            Id = Guid.NewGuid(),
-            ProductId = Guid.NewGuid(),
-            Name = "Gift Card",
-            Sku = "GIFT-001",
-            Quantity = 1,
-            Amount = 50m,
-            LineItemType = LineItemType.Product,
-            IsTaxable = false,
-            TaxRate = 0m,
-            TaxGroupId = null
-        };
+        var basketLineItem = LineItemFactory.CreateCustomLineItem(
+            orderId: Guid.Empty,
+            name: "Gift Card",
+            sku: "GIFT-001",
+            amount: 50m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m);
+        basketLineItem.LineItemType = LineItemType.Product;
+        basketLineItem.ProductId = Guid.NewGuid();
+        basketLineItem.TaxGroupId = null;
 
         // Act
         var orderLineItem = _lineItemFactory.CreateForOrder(basketLineItem, 1, 50m, 0m);

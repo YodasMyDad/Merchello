@@ -1,6 +1,8 @@
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -12,11 +14,13 @@ namespace Merchello.Tests.Checkout.Services;
 /// Integration tests for CheckoutSessionService - manages checkout session state
 /// including addresses, shipping selections, and basket persistence.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly ICheckoutSessionService _sessionService;
+    private readonly BasketFactory _basketFactory = new();
+    private readonly AddressFactory _addressFactory = new();
 
     public CheckoutSessionServiceTests(ServiceTestFixture fixture)
     {
@@ -24,6 +28,29 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
         _fixture.ResetDatabase();
         _fixture.MockHttpContext.ClearSession();
         _sessionService = fixture.GetService<ICheckoutSessionService>();
+    }
+
+    private Address CreateAddress(
+        string firstName,
+        string lastName,
+        string? email,
+        string addressOne,
+        string townCity,
+        string countryCode,
+        string postalCode,
+        string? phone = null)
+    {
+        return _addressFactory.CreateFromFormData(
+            firstName,
+            lastName,
+            addressOne,
+            address2: null,
+            city: townCity,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            stateOrProvinceCode: null,
+            phone: phone,
+            email: email);
     }
 
     #region GetSession Tests
@@ -70,16 +97,15 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basketId = Guid.NewGuid();
-        var billing = new Address
-        {
-            Name = "John Doe",
-            Email = "john@example.com",
-            AddressOne = "123 Main St",
-            TownCity = "Springfield",
-            CountryCode = "US",
-            PostalCode = "62701",
-            Phone = "555-1234"
-        };
+        var billing = CreateAddress(
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+            addressOne: "123 Main St",
+            townCity: "Springfield",
+            countryCode: "US",
+            postalCode: "62701",
+            phone: "555-1234");
 
         // Act
         await _sessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -106,23 +132,22 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basketId = Guid.NewGuid();
-        var billing = new Address
-        {
-            Name = "John Doe",
-            Email = "john@example.com",
-            AddressOne = "123 Main St",
-            TownCity = "Springfield",
-            CountryCode = "US",
-            PostalCode = "62701"
-        };
-        var shipping = new Address
-        {
-            Name = "Jane Smith",
-            AddressOne = "456 Oak Ave",
-            TownCity = "Portland",
-            CountryCode = "US",
-            PostalCode = "97201"
-        };
+        var billing = CreateAddress(
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+            addressOne: "123 Main St",
+            townCity: "Springfield",
+            countryCode: "US",
+            postalCode: "62701");
+        var shipping = CreateAddress(
+            firstName: "Jane",
+            lastName: "Smith",
+            email: null,
+            addressOne: "456 Oak Ave",
+            townCity: "Portland",
+            countryCode: "US",
+            postalCode: "97201");
 
         // Act
         await _sessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -148,15 +173,14 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basketId = Guid.NewGuid();
-        var billing = new Address
-        {
-            Name = "John Doe",
-            Email = "john@example.com",
-            AddressOne = "123 Main St",
-            TownCity = "Springfield",
-            CountryCode = "US",
-            PostalCode = "62701"
-        };
+        var billing = CreateAddress(
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+            addressOne: "123 Main St",
+            townCity: "Springfield",
+            countryCode: "US",
+            postalCode: "62701");
 
         // Act
         await _sessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -246,15 +270,14 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange
         var basketId = Guid.NewGuid();
-        var billing = new Address
-        {
-            Name = "John Doe",
-            Email = "john@example.com",
-            AddressOne = "123 Main St",
-            TownCity = "Springfield",
-            CountryCode = "US",
-            PostalCode = "62701"
-        };
+        var billing = CreateAddress(
+            firstName: "John",
+            lastName: "Doe",
+            email: "john@example.com",
+            addressOne: "123 Main St",
+            townCity: "Springfield",
+            countryCode: "US",
+            postalCode: "62701");
         await _sessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
         {
             BasketId = basketId,
@@ -311,13 +334,9 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
     public void SaveBasketToSession_AndGetBasketFromSession_Roundtrips()
     {
         // Arrange
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "USD",
-            CustomerId = Guid.NewGuid(),
-            LineItems = []
-        };
+        var customerId = Guid.NewGuid();
+        var basket = _basketFactory.Create(customerId, "USD", "$");
+        basket.LineItems = [];
 
         // Act
         _sessionService.SaveBasketToSession(basket);

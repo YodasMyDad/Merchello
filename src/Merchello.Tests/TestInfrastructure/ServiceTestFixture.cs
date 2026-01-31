@@ -18,6 +18,7 @@ using Merchello.Core.Protocols.Payments.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Protocols.UCP;
+using Merchello.Core.Protocols.UCP.Handlers;
 using Merchello.Core.Protocols.UCP.Services;
 using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Shared.Reflection;
@@ -36,8 +37,16 @@ using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
+using Merchello.Core.DigitalProducts.Factories;
+using Merchello.Core.DigitalProducts.Handlers;
+using Merchello.Core.DigitalProducts.Models;
+using Merchello.Core.DigitalProducts.Services;
+using Merchello.Core.DigitalProducts.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Email;
+using Merchello.Core.Email.Attachments;
+using Merchello.Core.Email.Handlers;
+using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services;
 using Merchello.Core.Email.Services.Interfaces;
@@ -45,6 +54,7 @@ using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.Handlers;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Factories;
@@ -94,9 +104,11 @@ using Merchello.Core.Locality.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Merchello.Core.Webhooks.Models;
+using Merchello.Core.Webhooks.Handlers;
 using Merchello.Core.Webhooks.Services;
 using Merchello.Core.Webhooks.Services.Interfaces;
 using Merchello.Core.Fulfilment;
+using Merchello.Core.Fulfilment.Handlers;
 using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services;
@@ -107,9 +119,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
+using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Scoping;
 using Umbraco.Cms.Core.Services;
@@ -308,6 +322,7 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<ProductOptionFactory>();
         services.AddSingleton<ProductCollectionFactory>();
         services.AddSingleton<ShippingOptionFactory>();
+        services.AddSingleton<ShipmentFactory>();
         services.AddSingleton<LineItemFactory>();
         services.AddSingleton<CustomerSegmentFactory>();
 
@@ -319,7 +334,9 @@ public class ServiceTestFixture : IDisposable
         {
             StoreCurrencyCode = "USD",
             DefaultShippingCountry = "US",
-            DefaultRounding = MidpointRounding.AwayFromZero
+            DefaultRounding = MidpointRounding.AwayFromZero,
+            WebsiteUrl = "https://test.example.com",
+            DownloadTokenSecret = "test-download-token-secret-32-chars"
         };
         services.AddSingleton(Options.Create(merchelloSettings));
 
@@ -377,19 +394,36 @@ public class ServiceTestFixture : IDisposable
             return mockStrategyResolver.Object;
         });
 
-        // Mock the notification publisher to not cancel notifications
-        var mockNotificationPublisher = new Mock<IMerchelloNotificationPublisher>();
-        mockNotificationPublisher
-            .Setup(p => p.PublishCancelableAsync(It.IsAny<ICancelableNotification>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
-        mockNotificationPublisher
-            .Setup(p => p.PublishAsync(It.IsAny<INotification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
-        services.AddSingleton(mockNotificationPublisher.Object);
+        // Notification publisher + handlers (close to production behavior)
+        services.AddSingleton<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
+        RegisterNotificationHandler<InvoiceTimelineHandler>(services);
+        RegisterNotificationHandler<EmailNotificationHandler>(services);
+        RegisterNotificationHandler<WebhookNotificationHandler>(services);
+        RegisterNotificationHandler<DigitalProductPaymentHandler>(services);
+        RegisterNotificationHandler<FulfilmentOrderSubmissionHandler>(services);
+        RegisterNotificationHandler<FulfilmentCancellationHandler>(services);
+        RegisterNotificationHandler<UcpOrderWebhookHandler>(services);
+        RegisterNotificationHandler<UpsellEmailEnrichmentHandler>(services);
+        RegisterNotificationHandler<UpsellConversionHandler>(services);
+        RegisterNotificationHandler<AutoAddUpsellHandler>(services);
+        RegisterNotificationHandler<AutoAddRemovalTracker>(services);
+        RegisterNotificationHandler<PaymentPostPurchaseHandler>(services);
 
         // Mock IContentTypeService (Umbraco service used by ProductService for product type rendering)
         var mockContentTypeService = new Mock<IContentTypeService>();
         services.AddSingleton(mockContentTypeService.Object);
+
+        // Mock IMediaService for digital product file lookups
+        var mockMediaService = new Mock<IMediaService>();
+        mockMediaService
+            .Setup(m => m.GetById(It.IsAny<Guid>()))
+            .Returns((Guid id) =>
+            {
+                var mediaMock = new Mock<Umbraco.Cms.Core.Models.IMedia>();
+                mediaMock.SetupGet(m => m.Name).Returns($"Media-{id:N}");
+                return mediaMock.Object;
+            });
+        services.AddSingleton(mockMediaService.Object);
 
         // Mock ApplicationPartManager (used by ProductService for view compilation checks)
         var applicationPartManager = new ApplicationPartManager();
@@ -404,9 +438,11 @@ public class ServiceTestFixture : IDisposable
         mockWebHostEnvironment.Setup(e => e.ContentRootFileProvider).Returns(new NullFileProvider());
         mockWebHostEnvironment.Setup(e => e.WebRootFileProvider).Returns(new NullFileProvider());
         services.AddSingleton(mockWebHostEnvironment.Object);
+        services.AddSingleton<IHostEnvironment>(sp => sp.GetRequiredService<IWebHostEnvironment>());
 
         services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
         services.AddScoped<IShippingService, ShippingService>();
+        services.AddScoped<IShipmentService, ShipmentService>();
 
         // Mock WarehouseProviderConfigService (returns empty configs for tests)
         var warehouseProviderConfigServiceMock = new Mock<IWarehouseProviderConfigService>();
@@ -464,6 +500,8 @@ public class ServiceTestFixture : IDisposable
 
         // Email services (P5 tests)
         services.AddSingleton<IEmailTopicRegistry, EmailTopicRegistry>();
+        services.AddSingleton<IEmailTemplateDiscoveryService, EmailTemplateDiscoveryService>();
+        services.AddSingleton<IEmailAttachmentResolver, EmailAttachmentResolver>();
         services.AddScoped<IEmailTokenResolver, EmailTokenResolver>();
         services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         services.AddScoped<IEmailService, EmailService>();
@@ -476,11 +514,14 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<CustomerFactory>();
         services.AddSingleton<PaymentFactory>();
         services.AddSingleton<DiscountFactory>();
+        services.AddSingleton<DownloadLinkFactory>();
 
         // Additional services
         services.AddScoped<ILineItemService, LineItemService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IDiscountService, DiscountService>();
+        services.AddScoped<IDigitalProductService, DigitalProductService>();
+        services.AddScoped<IInvoiceEditService, InvoiceEditService>();
 
         // Upsells
         services.AddSingleton<UpsellFactory>();
@@ -488,6 +529,7 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<IUpsellRuleNameResolver, UpsellRuleNameResolver>();
         services.AddScoped<IUpsellEngine, UpsellEngine>();
         services.AddScoped<IUpsellContextBuilder, UpsellContextBuilder>();
+        services.AddScoped<IPostPurchaseUpsellService, PostPurchaseUpsellService>();
         services.AddSingleton<IUpsellAnalyticsService, UpsellAnalyticsService>();
 
         // Mock rate limiter (always allows requests for tests)
@@ -679,7 +721,7 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<IPaymentHandlerExporter, PaymentHandlerExporter>();
 
         // ExtensionManager for protocol adapter discovery
-        services.AddScoped<ExtensionManager>();
+        services.AddSingleton<ExtensionManager>();
 
         // UCP Agent Profile Service (required by UCPProtocolAdapter)
         services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
@@ -722,6 +764,20 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<IFulfilmentSyncService, Merchello.Core.Fulfilment.Services.FulfilmentSyncService>();
 
         _serviceProvider = services.BuildServiceProvider();
+    }
+
+    private static void RegisterNotificationHandler<THandler>(IServiceCollection services)
+        where THandler : class
+    {
+        services.AddScoped<THandler>();
+
+        var handlerInterfaces = typeof(THandler).GetInterfaces()
+            .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(INotificationAsyncHandler<>));
+
+        foreach (var handlerInterface in handlerInterfaces)
+        {
+            services.AddScoped(handlerInterface, sp => sp.GetRequiredService<THandler>());
+        }
     }
 
     /// <summary>
@@ -1096,6 +1152,15 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<UpsellDashboardDto>>>()))
                     .Returns((Func<MerchelloDbContext, Task<UpsellDashboardDto>> func) => func(dbContext));
+
+                // Download link return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<DownloadLink?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<DownloadLink?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<DownloadLink>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<DownloadLink>>> func) => func(dbContext));
 
                 // Shipment return types
                 scopeMock

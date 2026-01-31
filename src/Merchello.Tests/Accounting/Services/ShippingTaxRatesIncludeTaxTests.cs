@@ -47,7 +47,7 @@ namespace Merchello.Tests.Accounting.Services;
 /// Verifies that shipping from providers with RatesIncludeTax = true
 /// is excluded from shipping tax calculation.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
@@ -268,7 +268,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var order = invoice.Orders!.First();
         order.ShippingCost = 20m;
         order.ShippingOptionId = Guid.NewGuid();
-        invoice.ShippingAddress = new Address { CountryCode = "US", TownCity = "New York", PostalCode = "10001" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "US");
 
         await dataBuilder.SaveChangesAsync();
 
@@ -300,7 +300,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var order = invoice.Orders!.First();
         order.ShippingCost = 20m;
         order.ShippingOptionId = shippingOptionId;
-        invoice.ShippingAddress = new Address { CountryCode = "US", TownCity = "New York", PostalCode = "10001" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "US");
 
         await dataBuilder.SaveChangesAsync();
 
@@ -332,7 +332,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var order = invoice.Orders!.First();
         order.ShippingCost = 20m;
         order.ShippingOptionId = shippingOptionId;
-        invoice.ShippingAddress = new Address { CountryCode = "US", TownCity = "New York", PostalCode = "10001" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "US");
 
         await dataBuilder.SaveChangesAsync();
 
@@ -377,7 +377,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var customer = dataBuilder.CreateCustomer();
 
         var invoice = dataBuilder.CreateInvoice(customer.Email, 200m, customer);
-        invoice.ShippingAddress = new Address { CountryCode = "US", TownCity = "New York", PostalCode = "10001" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "US");
 
         var order1 = dataBuilder.CreateOrder(invoice, warehouse1, shippingOption1);
         order1.ShippingCost = 15m;
@@ -431,7 +431,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var customer = dataBuilder.CreateCustomer();
 
         var invoice = dataBuilder.CreateInvoice(customer.Email, 200m, customer);
-        invoice.ShippingAddress = new Address { CountryCode = "US", TownCity = "New York", PostalCode = "10001" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "US");
 
         var order1 = dataBuilder.CreateOrder(invoice, warehouse1, shippingOption1);
         order1.ShippingCost = 15m;
@@ -469,7 +469,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var order = invoice.Orders!.First();
         order.ShippingCost = 0m; // No shipping
-        invoice.ShippingAddress = new Address { CountryCode = "US", TownCity = "New York", PostalCode = "10001" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "US");
 
         await dataBuilder.SaveChangesAsync();
 
@@ -645,7 +645,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var invoice = dataBuilder.CreateInvoice(customer.Email, 0m, customer);
         invoice.CurrencyCode = "GBP";
-        invoice.ShippingAddress = new Address { CountryCode = "GB" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "GB");
 
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption);
         order.ShippingCost = 10m;
@@ -691,7 +691,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
 
         var invoice = dataBuilder.CreateInvoice(customer.Email, 0m, customer);
         invoice.CurrencyCode = "GBP";
-        invoice.ShippingAddress = new Address { CountryCode = "GB" };
+        invoice.ShippingAddress = dataBuilder.CreateTestAddress(countryCode: "GB");
 
         var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption);
         order.ShippingCost = 10m;

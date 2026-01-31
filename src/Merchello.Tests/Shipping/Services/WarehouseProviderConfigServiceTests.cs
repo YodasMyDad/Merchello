@@ -1,7 +1,9 @@
 using Merchello.Core.Data;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Warehouses.Models;
+using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Shipping.Services;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -19,6 +21,8 @@ public class WarehouseProviderConfigServiceTests
 {
     private readonly ServiceTestFixture _fixture;
     private readonly WarehouseProviderConfigService _service;
+    private readonly WarehouseFactory _warehouseFactory = new();
+    private readonly AddressFactory _addressFactory = new();
 
     public WarehouseProviderConfigServiceTests(ServiceTestFixture fixture)
     {
@@ -425,12 +429,22 @@ public class WarehouseProviderConfigServiceTests
             return;
         }
 
-        _fixture.DbContext.Warehouses.Add(new Warehouse
-        {
-            Id = warehouseId,
-            Name = $"Test Warehouse {warehouseId:N}",
-            Address = new Address()
-        });
+        var address = _addressFactory.CreateFromFormData(
+            firstName: "Test",
+            lastName: "Warehouse",
+            address1: "123 Warehouse St",
+            address2: null,
+            city: "Test City",
+            postalCode: "10001",
+            countryCode: "US",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "warehouse@example.com");
+
+        var warehouse = _warehouseFactory.Create($"Test Warehouse {warehouseId:N}", address);
+        warehouse.Id = warehouseId;
+
+        _fixture.DbContext.Warehouses.Add(warehouse);
 
         await _fixture.DbContext.SaveChangesAsync();
     }

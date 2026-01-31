@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Services;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Models;
@@ -16,6 +17,7 @@ namespace Merchello.Tests.Shipping;
 /// </summary>
 public class DynamicShippingProviderTests
 {
+    private readonly AddressFactory _addressFactory = new();
     #region A.6.2 - Dynamic Provider Returns Rates > $0
 
     [Fact]
@@ -217,25 +219,8 @@ public class DynamicShippingProviderTests
         {
             BasketId = Guid.NewGuid(),
             CurrentStep = CheckoutStep.Shipping,
-            BillingAddress = new Address
-            {
-                Name = "John Doe",
-                Email = "john@example.com",
-                AddressOne = "456 Customer St",
-                TownCity = "Los Angeles",
-                CountyState = new CountyState { RegionCode = "CA" },
-                PostalCode = "90001",
-                CountryCode = "US"
-            },
-            ShippingAddress = new Address
-            {
-                Name = "John Doe",
-                AddressOne = "456 Customer St",
-                TownCity = "Los Angeles",
-                CountyState = new CountyState { RegionCode = "CA" },
-                PostalCode = "90001",
-                CountryCode = "US"
-            },
+            BillingAddress = CreateAddress("US", "CA", "Los Angeles", "90001", "john@example.com"),
+            ShippingAddress = CreateAddress("US", "CA", "Los Angeles", "90001"),
             // Dynamic selection: FedEx Ground
             SelectedShippingOptions = new Dictionary<Guid, string>
             {
@@ -302,8 +287,8 @@ public class DynamicShippingProviderTests
         {
             BasketId = Guid.NewGuid(),
             CurrentStep = CheckoutStep.Shipping,
-            BillingAddress = new Address { Email = "test@example.com", CountryCode = "GB" },
-            ShippingAddress = new Address { CountryCode = "GB" },
+            BillingAddress = CreateAddress("GB", null, "London", "SW1A 1AA", "test@example.com"),
+            ShippingAddress = CreateAddress("GB", null, "London", "SW1A 1AA"),
             // Flat-rate selection using the new format
             SelectedShippingOptions = new Dictionary<Guid, string>
             {
@@ -359,8 +344,8 @@ public class DynamicShippingProviderTests
         {
             BasketId = Guid.NewGuid(),
             CurrentStep = CheckoutStep.Shipping,
-            BillingAddress = new Address { Email = "test@example.com", CountryCode = "US" },
-            ShippingAddress = new Address { CountryCode = "US" },
+            BillingAddress = CreateAddress("US", null, "Los Angeles", "90001", "test@example.com"),
+            ShippingAddress = CreateAddress("US", null, "Los Angeles", "90001"),
             // UPS 2nd Day Air selection
             SelectedShippingOptions = new Dictionary<Guid, string>
             {
@@ -590,6 +575,28 @@ public class DynamicShippingProviderTests
 
         // Assert - Falls through to null (DefaultShippingMethod fallback at fulfilment time)
         category.ShouldBeNull();
+    }
+
+    private Address CreateAddress(string countryCode, string? regionCode, string city, string postalCode, string? email = null)
+    {
+        var address = _addressFactory.CreateFromFormData(
+            firstName: "John",
+            lastName: "Doe",
+            address1: "456 Customer St",
+            address2: null,
+            city: city,
+            postalCode: postalCode,
+            countryCode: countryCode,
+            stateOrProvinceCode: regionCode,
+            phone: null,
+            email: email);
+
+        if (regionCode != null)
+        {
+            address.CountyState.RegionCode = regionCode;
+        }
+
+        return address;
     }
 
     #endregion

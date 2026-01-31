@@ -1,10 +1,14 @@
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout;
+using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -16,12 +20,16 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IAbandonedCheckoutService _service;
+    private readonly ICurrencyService _currencyService;
+    private readonly BasketFactory _basketFactory = new();
+    private readonly AddressFactory _addressFactory = new();
 
     public AbandonedCheckoutServiceTests(ServiceTestFixture fixture)
     {
         _fixture = fixture;
         _fixture.ResetDatabase();
         _service = _fixture.GetService<IAbandonedCheckoutService>();
+        _currencyService = _fixture.GetService<ICurrencyService>();
     }
 
     public void Dispose() => GC.SuppressFinalize(this);
@@ -522,27 +530,48 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
 
     #endregion
 
-    private static Basket CreateTestBasket() => new()
+    private Basket CreateTestBasket()
     {
-        Id = Guid.NewGuid(),
-        Total = 100m,
-        Currency = "GBP",
-        CurrencySymbol = "£",
-        LineItems =
-        [
-            new LineItem
-            {
-                Id = Guid.NewGuid(),
-                Name = "Test Product",
-                Sku = "TEST-001",
-                Quantity = 1,
-                Amount = 100m,
-                LineItemType = LineItemType.Product
-            }
-        ],
-        BillingAddress = new Address { Name = "John Doe", Email = "customer@test.com" },
-        ShippingAddress = new Address { Name = "John Doe", CountryCode = "GB" }
-    };
+        var basket = _basketFactory.Create(null, "GBP", _currencyService.GetCurrency("GBP").Symbol);
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Test Product",
+            "TEST-001",
+            100m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m);
+        lineItem.LineItemType = LineItemType.Product;
+        lineItem.OrderId = null;
+        basket.LineItems.Add(lineItem);
+        basket.SubTotal = 100m;
+        basket.Total = 100m;
+
+        basket.BillingAddress = _addressFactory.CreateFromFormData(
+            firstName: "John",
+            lastName: "Doe",
+            address1: "123 Main St",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: "customer@test.com");
+        basket.ShippingAddress = _addressFactory.CreateFromFormData(
+            firstName: "John",
+            lastName: "Doe",
+            address1: "123 Main St",
+            address2: null,
+            city: "London",
+            postalCode: "SW1A 1AA",
+            countryCode: "GB",
+            stateOrProvinceCode: null,
+            phone: null,
+            email: null);
+        return basket;
+    }
 
     /// <summary>
     /// Seeds a minimal basket in the database and returns its ID.

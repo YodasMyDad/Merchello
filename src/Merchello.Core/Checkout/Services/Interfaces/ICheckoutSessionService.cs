@@ -1,6 +1,7 @@
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Upsells.Models;
 
 namespace Merchello.Core.Checkout.Services.Interfaces;
 
@@ -66,5 +67,10 @@ public interface ICheckoutSessionService
     /// <param name="invoiceId">The invoice ID created from this checkout.</param>
     /// <param name="ct">Cancellation token.</param>
     Task SetInvoiceIdAsync(Guid basketId, Guid invoiceId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Records that a customer removed an auto-added upsell product, preventing re-addition.
+    /// </summary>
+    Task TrackRemovedAutoAddAsync(Guid basketId, RemovedAutoAddRecord record, CancellationToken ct = default);
 
 }

@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Extensions;
@@ -21,12 +23,13 @@ namespace Merchello.Tests.Accounting.Services;
 /// This flow was previously untested and a bug was discovered where GroupId mismatches
 /// between shipping option calculation and invoice creation caused order creation to fail.
 /// </summary>
-[Collection("Integration")]
+[Collection("Integration Tests")]
 public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 {
     private readonly ServiceTestFixture _fixture;
     private readonly IInvoiceService _invoiceService;
     private readonly IShippingService _shippingService;
+    private readonly ICheckoutService _checkoutService;
 
     public CreateOrderFromBasketTests(ServiceTestFixture fixture)
     {
@@ -34,6 +37,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         _fixture.ResetDatabase();
         _invoiceService = fixture.GetService<IInvoiceService>();
         _shippingService = fixture.GetService<IShippingService>();
+        _checkoutService = fixture.GetService<ICheckoutService>();
     }
 
     [Fact]
@@ -71,70 +75,18 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         product.Sku = "TSH-BLU-M";
 
         // Link ProductRoot to Warehouse (required for shipping service to find the warehouse)
-        var productRootWarehouse = new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        };
-        _fixture.DbContext.ProductRootWarehouses.Add(productRootWarehouse);
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
 
         // Add stock to warehouse via ProductWarehouse
-        var productWarehouse = new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        };
-        _fixture.DbContext.ProductWarehouses.Add(productWarehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        // Create basket with line item
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 2,
-                    Amount = 25.00m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                }
-            ],
-            SubTotal = 50.00m,
-            Tax = 10.00m,
-            Total = 60.00m
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "John Smith",
-            Email = "john@example.com",
-            AddressOne = "123 Test Street",
-            TownCity = "London",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "John Smith",
-            Email = "john@example.com",
-            AddressOne = "123 Test Street",
-            TownCity = "London",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        // Create basket with line item via service/factory pipeline
+        var basket = await CreateBasketAsync("GB", "GBP", (product, 2));
+        var billingAddress = CreateAddress("GB", "john@example.com");
+        var shippingAddress = CreateAddress("GB", "john@example.com");
 
         // Act - Step 1: Get shipping options (simulates checkout UI call)
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
@@ -222,92 +174,20 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         product2.Sku = "HOO-BLK-XL";
 
         // Link ProductRoots to Warehouse
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot1.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot2.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot1, warehouse);
+        dataBuilder.AddWarehouseToProductRoot(productRoot2, warehouse);
 
         // Add stock via ProductWarehouse
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product1.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 50
-        });
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product2.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 30
-        });
+        dataBuilder.CreateProductWarehouse(product1, warehouse, stock: 50);
+        dataBuilder.CreateProductWarehouse(product2, warehouse, stock: 30);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        // Create basket with multiple products
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product1.Id,
-                    Name = product1.Name,
-                    Sku = product1.Sku,
-                    Quantity = 1,
-                    Amount = 29.99m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                },
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product2.Id,
-                    Name = product2.Name,
-                    Sku = product2.Sku,
-                    Quantity = 2,
-                    Amount = 49.99m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 20m
-                }
-            ],
-            SubTotal = 129.97m,
-            Tax = 25.99m,
-            Total = 155.96m
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "Jane Doe",
-            Email = "jane@example.com",
-            AddressOne = "456 Test Lane",
-            TownCity = "Manchester",
-            CountryCode = "GB",
-            PostalCode = "M1 1AA"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Jane Doe",
-            Email = "jane@example.com",
-            AddressOne = "456 Test Lane",
-            TownCity = "Manchester",
-            CountryCode = "GB",
-            PostalCode = "M1 1AA"
-        };
+        // Create basket with multiple products via service/factory pipeline
+        var basket = await CreateBasketAsync("GB", "GBP", (product1, 1), (product2, 2));
+        var billingAddress = CreateAddress("GB", "jane@example.com");
+        var shippingAddress = CreateAddress("GB", "jane@example.com");
 
         // Get shipping options
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
@@ -383,66 +263,16 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         product.Sku = "TEST-001";
 
         // Link ProductRoot to Warehouse
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
 
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 100
-        });
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "USD",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 19.99m,
-                    LineItemType = LineItemType.Product,
-                    IsTaxable = true,
-                    TaxRate = 8m
-                }
-            ],
-            SubTotal = 19.99m,
-            Tax = 1.60m,
-            Total = 21.59m
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "Bob Wilson",
-            Email = "bob@example.com",
-            AddressOne = "789 Main St",
-            TownCity = "New York",
-            CountryCode = "US",
-            PostalCode = "10001"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Bob Wilson",
-            Email = "bob@example.com",
-            AddressOne = "789 Main St",
-            TownCity = "New York",
-            CountryCode = "US",
-            PostalCode = "10001"
-        };
+        var basket = await CreateBasketAsync("US", "USD", (product, 1));
+        var billingAddress = CreateAddress("US", "bob@example.com");
+        var shippingAddress = CreateAddress("US", "bob@example.com");
 
         // Step 1: Get shipping options (PRE-SELECTION)
         // The GroupId here is based on warehouse + [ALL available options]
@@ -514,59 +344,16 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         product.Sku = "PROD-001";
 
         // Link ProductRoot to Warehouse
-        _fixture.DbContext.ProductRootWarehouses.Add(new ProductRootWarehouse
-        {
-            ProductRootId = productRoot.Id,
-            WarehouseId = warehouse.Id,
-            PriorityOrder = 1
-        });
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
 
-        _fixture.DbContext.ProductWarehouses.Add(new ProductWarehouse
-        {
-            ProductId = product.Id,
-            WarehouseId = warehouse.Id,
-            Stock = 10
-        });
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
 
         await dataBuilder.SaveChangesAsync();
         _fixture.DbContext.ChangeTracker.Clear();
 
-        var basket = new Basket
-        {
-            Id = Guid.NewGuid(),
-            Currency = "GBP",
-            LineItems =
-            [
-                new LineItem
-                {
-                    Id = Guid.NewGuid(),
-                    ProductId = product.Id,
-                    Name = product.Name,
-                    Sku = product.Sku,
-                    Quantity = 1,
-                    Amount = 10m,
-                    LineItemType = LineItemType.Product
-                }
-            ],
-            SubTotal = 10m,
-            Total = 10m
-        };
-
-        var billingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
-
-        var shippingAddress = new Address
-        {
-            Name = "Test User",
-            Email = "test@example.com",
-            CountryCode = "GB",
-            PostalCode = "SW1A 1AA"
-        };
+        var basket = await CreateBasketAsync("GB", "GBP", (product, 1));
+        var billingAddress = CreateAddress("GB", "test@example.com");
+        var shippingAddress = CreateAddress("GB", "test@example.com");
 
         // Don't select any shipping option - should still get warehouse groups
         // but fail to create order because no selection was made
@@ -591,5 +378,33 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         // Act & Assert - Should fail because no shipping option was selected
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
         result.Successful.ShouldBeFalse();
+    }
+
+    private async Task<Basket> CreateBasketAsync(
+        string countryCode,
+        string currencyCode,
+        params (Product Product, int Quantity)[] items)
+    {
+        var basket = _checkoutService.CreateBasket(currencyCode);
+
+        foreach (var (product, quantity) in items)
+        {
+            var lineItem = _checkoutService.CreateLineItem(product, quantity);
+            await _checkoutService.AddToBasketAsync(basket, lineItem, countryCode);
+        }
+
+        await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode
+        });
+
+        return basket;
+    }
+
+    private Address CreateAddress(string countryCode, string email)
+    {
+        var builder = _fixture.CreateDataBuilder();
+        return builder.CreateTestAddress(email: email, countryCode: countryCode);
     }
 }
