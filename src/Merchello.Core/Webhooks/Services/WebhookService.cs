@@ -360,19 +360,31 @@ public class WebhookService(
 
         var delivery = await scope.ExecuteWithContextAsync(async db =>
             await db.OutboundDeliveries
-                .Include(d => d.Subscription)
                 .FirstOrDefaultAsync(d => d.Id == deliveryId, ct));
 
-        if (delivery == null || delivery.Subscription == null)
+        if (delivery == null)
         {
             return new OutboundDeliveryResult
             {
                 Success = false,
-                ErrorMessage = "Delivery or subscription not found"
+                ErrorMessage = "Delivery not found"
             };
         }
 
-        var result = await dispatcher.SendAsync(delivery, delivery.Subscription, ct);
+        var subscription = await scope.ExecuteWithContextAsync(async db =>
+            await db.WebhookSubscriptions
+                .FirstOrDefaultAsync(s => s.Id == delivery.ConfigurationId, ct));
+
+        if (subscription == null)
+        {
+            return new OutboundDeliveryResult
+            {
+                Success = false,
+                ErrorMessage = "Subscription not found"
+            };
+        }
+
+        var result = await dispatcher.SendAsync(delivery, subscription, ct);
 
         // Update delivery record
         await scope.ExecuteWithContextAsync<bool>(async db =>

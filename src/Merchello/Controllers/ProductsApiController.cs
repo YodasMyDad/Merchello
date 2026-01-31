@@ -728,6 +728,8 @@ public class ProductsApiController(
             ShoppingFeedColour = product.ShoppingFeedColour,
             ShoppingFeedMaterial = product.ShoppingFeedMaterial,
             ShoppingFeedSize = product.ShoppingFeedSize,
+            ShoppingFeedWidth = product.ShoppingFeedWidth,
+            ShoppingFeedHeight = product.ShoppingFeedHeight,
             RemoveFromFeed = product.RemoveFromFeed,
             TotalStock = product.ProductWarehouses?.Sum(pw => pw.Stock) ?? 0,
             WarehouseStock = product.ProductWarehouses?.Select(pw => new VariantWarehouseStockDto

@@ -89,6 +89,11 @@ public class OutboundDeliveryDbMapping : IEntityTypeConfiguration<OutboundDelive
         // Extended data
         builder.Property(x => x.ExtendedData).ToJsonConversion(4000);
 
+        // OutboundDelivery now supports both webhook and email deliveries. The shared ConfigurationId
+        // is not a reliable FK to WebhookSubscription for email rows, so ignore the navigation to
+        // avoid enforcing a FK constraint that blocks email inserts.
+        builder.Ignore(x => x.Subscription);
+
         // Indexes
         builder.HasIndex(x => x.DeliveryType);
         builder.HasIndex(x => x.ConfigurationId);

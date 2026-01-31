@@ -41,6 +41,8 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
         builder.Property(x => x.ShoppingFeedColour).HasMaxLength(100);
         builder.Property(x => x.ShoppingFeedMaterial).HasMaxLength(100);
         builder.Property(x => x.ShoppingFeedSize).HasMaxLength(100);
+        builder.Property(x => x.ShoppingFeedWidth).HasMaxLength(100);
+        builder.Property(x => x.ShoppingFeedHeight).HasMaxLength(100);
 
         //builder.Property(x => x.VariantOptions).ToJsonConversion(2000);
         builder.Property(x => x.VariantOptionsKey).HasMaxLength(1500);

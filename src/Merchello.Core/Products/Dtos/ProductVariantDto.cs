@@ -50,6 +50,8 @@ public class ProductVariantDto
     public string? ShoppingFeedColour { get; set; }
     public string? ShoppingFeedMaterial { get; set; }
     public string? ShoppingFeedSize { get; set; }
+    public string? ShoppingFeedWidth { get; set; }
+    public string? ShoppingFeedHeight { get; set; }
     public bool RemoveFromFeed { get; set; }
 
     // Stock (aggregated from ProductWarehouses)

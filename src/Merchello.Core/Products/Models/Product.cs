@@ -124,6 +124,16 @@ public class Product
     /// </summary>
     public string? ShoppingFeedSize { get; set; }
 
+    /// <summary>
+    /// The shopping feed width (e.g. "10 cm")
+    /// </summary>
+    public string? ShoppingFeedWidth { get; set; }
+
+    /// <summary>
+    /// The shopping feed height (e.g. "15 cm")
+    /// </summary>
+    public string? ShoppingFeedHeight { get; set; }
+
 
     /// <summary>
     /// If this is ticked the product is removed from the product feed
