@@ -70,6 +70,22 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
                   @input=${(e: Event) => this._updateField("shoppingFeedSize", (e.target as HTMLInputElement).value)}>
                 </uui-input>
               </umb-property-layout>
+
+              <umb-property-layout label="Width" description="Product width for feed (e.g. 10 cm)">
+                <uui-input
+                  slot="editor"
+                  .value=${this.formData.shoppingFeedWidth || ""}
+                  @input=${(e: Event) => this._updateField("shoppingFeedWidth", (e.target as HTMLInputElement).value)}>
+                </uui-input>
+              </umb-property-layout>
+
+              <umb-property-layout label="Height" description="Product height for feed (e.g. 15 cm)">
+                <uui-input
+                  slot="editor"
+                  .value=${this.formData.shoppingFeedHeight || ""}
+                  @input=${(e: Event) => this._updateField("shoppingFeedHeight", (e.target as HTMLInputElement).value)}>
+                </uui-input>
+              </umb-property-layout>
             `
           : nothing}
       </uui-box>

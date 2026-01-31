@@ -1766,6 +1766,8 @@ public class ProductService(
             if (request.ShoppingFeedColour != null) variant.ShoppingFeedColour = request.ShoppingFeedColour;
             if (request.ShoppingFeedMaterial != null) variant.ShoppingFeedMaterial = request.ShoppingFeedMaterial;
             if (request.ShoppingFeedSize != null) variant.ShoppingFeedSize = request.ShoppingFeedSize;
+            if (request.ShoppingFeedWidth != null) variant.ShoppingFeedWidth = request.ShoppingFeedWidth;
+            if (request.ShoppingFeedHeight != null) variant.ShoppingFeedHeight = request.ShoppingFeedHeight;
             if (request.RemoveFromFeed.HasValue) variant.RemoveFromFeed = request.RemoveFromFeed.Value;
 
             // Warehouse stock settings
@@ -2294,6 +2296,8 @@ public class ProductService(
             ShoppingFeedColour = product.ShoppingFeedColour,
             ShoppingFeedMaterial = product.ShoppingFeedMaterial,
             ShoppingFeedSize = product.ShoppingFeedSize,
+            ShoppingFeedWidth = product.ShoppingFeedWidth,
+            ShoppingFeedHeight = product.ShoppingFeedHeight,
             RemoveFromFeed = product.RemoveFromFeed,
             TotalStock = warehouseStock.Sum(ws => ws.AvailableStock),
             TotalReservedStock = warehouseStock.Sum(ws => ws.ReservedStock),

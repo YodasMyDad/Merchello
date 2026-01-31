@@ -218,6 +218,8 @@ export interface ProductVariantDto {
   shoppingFeedColour: string | null;
   shoppingFeedMaterial: string | null;
   shoppingFeedSize: string | null;
+  shoppingFeedWidth: string | null;
+  shoppingFeedHeight: string | null;
   removeFromFeed: boolean;
 
   // Stock
@@ -358,6 +360,8 @@ export interface UpdateVariantDto {
   shoppingFeedColour?: string;
   shoppingFeedMaterial?: string;
   shoppingFeedSize?: string;
+  shoppingFeedWidth?: string;
+  shoppingFeedHeight?: string;
   removeFromFeed?: boolean;
   warehouseStock?: UpdateWarehouseStockDto[];
 }

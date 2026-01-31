@@ -74,10 +74,9 @@ public class WebhookSubscriptionDbMapping : IEntityTypeConfiguration<WebhookSubs
 
         builder.Property(x => x.ExtendedData).ToJsonConversion(4000);
 
-        builder.HasMany(x => x.Deliveries)
-            .WithOne(x => x.Subscription)
-            .HasForeignKey(x => x.ConfigurationId)
-            .OnDelete(DeleteBehavior.Cascade);
+        // OutboundDelivery is shared by webhook + email deliveries. Do not enforce a FK on
+        // ConfigurationId so email deliveries can point at EmailConfiguration IDs.
+        builder.Ignore(x => x.Deliveries);
 
         builder.HasIndex(x => x.Topic);
         builder.HasIndex(x => x.IsActive);
