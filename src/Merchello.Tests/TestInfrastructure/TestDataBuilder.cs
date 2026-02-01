@@ -573,7 +573,7 @@ public class TestDataBuilder
         };
         var lineItem = LineItemFactory.CreateAddonForOrderEdit(
             order.Id,
-            parentLineItem.Sku,
+            parentLineItem.Sku!,
             name,
             $"ADDON-{Guid.NewGuid():N}"[..12],
             amount,

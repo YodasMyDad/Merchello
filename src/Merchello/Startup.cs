@@ -1,4 +1,8 @@
 using System.Reflection;
+using Merchello.Core.AddressLookup.Providers;
+using Merchello.Core.AddressLookup.Providers.Interfaces;
+using Merchello.Core.AddressLookup.Services;
+using Merchello.Core.AddressLookup.Services.Interfaces;
 using Merchello.Composers;
 using Merchello.Core.Accounting.Handlers;
 using Merchello.Core.Accounting.Handlers.Interfaces;
@@ -334,6 +338,10 @@ public static class Startup
         builder.Services.AddScoped<ITaxProviderManager, TaxProviderManager>();
         builder.Services.AddSingleton<ITaxCalculationService, TaxCalculationService>();
 
+        // Address Lookup
+        builder.Services.AddScoped<IAddressLookupProviderManager, AddressLookupProviderManager>();
+        builder.Services.AddScoped<IAddressLookupService, AddressLookupService>();
+
         // Warehouses & Suppliers
         builder.Services.AddScoped<IWarehouseService, WarehouseService>();
         builder.Services.AddScoped<ISupplierService, SupplierService>();
@@ -617,6 +625,7 @@ public static class Startup
         var orderGroupingStrategyType = typeof(IOrderGroupingStrategy);
         var exchangeRateProviderType = typeof(IExchangeRateProvider);
         var taxProviderType = typeof(ITaxProvider);
+        var addressLookupProviderType = typeof(IAddressLookupProvider);
         var emailAttachmentType = typeof(IEmailAttachment);
 
         HashSet<Assembly> discoveredAssemblies = [];
@@ -645,6 +654,7 @@ public static class Startup
                      orderGroupingStrategyType.IsAssignableFrom(t) ||
                      exchangeRateProviderType.IsAssignableFrom(t) ||
                      taxProviderType.IsAssignableFrom(t) ||
+                     addressLookupProviderType.IsAssignableFrom(t) ||
                      emailAttachmentType.IsAssignableFrom(t)));
 
                 if (hasProviders)

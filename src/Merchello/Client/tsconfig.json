@@ -24,6 +24,7 @@
     "baseUrl": ".",
     "paths": {
       "@abandoned-checkouts/*": [ "src/abandoned-checkouts/*" ],
+      "@address-lookup-providers/*": [ "src/address-lookup-providers/*" ],
       "@api/*": [ "src/api/*" ],
       "@analytics/*": [ "src/analytics/*" ],
       "@collections/*": [ "src/collections/*" ],

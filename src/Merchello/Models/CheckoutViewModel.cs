@@ -1,3 +1,4 @@
+using Merchello.Core.AddressLookup.Dtos;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Shared.Dtos;
@@ -193,4 +194,9 @@ public class CheckoutViewModel
     /// Tax included message (e.g., "Including £10.17 in taxes").
     /// </summary>
     public string? TaxIncludedMessage { get; init; }
+
+    /// <summary>
+    /// Address lookup configuration for checkout UI.
+    /// </summary>
+    public AddressLookupClientConfigDto? AddressLookup { get; init; }
 }

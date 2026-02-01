@@ -60,12 +60,12 @@
                                 <span x-text="$store.country.name || 'Country'"></span>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <template x-for="country in $store.country.countries" :key="country.countryCode">
+                                <template x-for="country in $store.country.countries" :key="country.code">
                                     <li>
                                         <button class="dropdown-item"
-                                                :class="{ 'active': country.countryCode === $store.country.code }"
-                                                @@click="$store.country.setCountry(country.countryCode)"
-                                                x-text="country.countryName">
+                                                :class="{ 'active': country.code === $store.country.code }"
+                                                @@click="$store.country.setCountry(country.code)"
+                                                x-text="country.name">
                                         </button>
                                     </li>
                                 </template>

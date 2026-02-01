@@ -1,6 +1,7 @@
 @model CheckoutViewModel
 @using System.Text.Json
 @using System.Text.Encodings.Web
+@using Merchello.Extensions
 @{
     Layout = "~/Views/Checkout/_Layout.cshtml";
     var basket = Model.Basket;
@@ -107,7 +108,13 @@
         amount = Math.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, decimalPlaces),
         formattedAmount = $"{displayCurrencySymbol}{Math.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, decimalPlaces).ToString($"N{decimalPlaces}")}",
         isAutomatic = d.ExtendedData?.ContainsKey("DiscountCode") != true
-    })
+    }),
+    orderTerms = Model.Settings.OrderTerms != null ? new {
+        showCheckbox = Model.Settings.OrderTerms.ShowCheckbox,
+        checkboxText = Model.Settings.OrderTerms.CheckboxText,
+        checkboxRequired = Model.Settings.OrderTerms.CheckboxRequired
+    } : (object?)null,
+    addressLookup = Model.AddressLookup
 }, jsonOptions))
 </script>
 
@@ -649,6 +656,35 @@
                 </div>
             </div>
 
+            @if (Model.Settings.OrderTerms is { ShowCheckbox: true })
+            {
+                <!-- Order Terms & Conditions -->
+                <div class="mt-6">
+                    <label class="inline-flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox"
+                               x-model="form.acceptedTerms"
+                               @@change="$store.checkout?.clearError('acceptedTerms')"
+                               class="w-4 h-4 mt-0.5 rounded border-gray-300 text-accent focus:ring-accent"
+                               :class="errors.acceptedTerms ? 'border-red-500' : ''" />
+                        <span class="text-sm text-gray-700">
+                            @if (!string.IsNullOrWhiteSpace(Model.Settings.OrderTerms.CheckboxText))
+                            {
+                                @OrderTermsHtmlExtensions.RenderOrderTermsText(Model.Settings.OrderTerms.CheckboxText)
+                            }
+                            else
+                            {
+                                @:I agree to the terms and conditions
+                            }
+                            @if (Model.Settings.OrderTerms.CheckboxRequired)
+                            {
+                                <span class="text-red-500" aria-hidden="true">*</span>
+                            }
+                        </span>
+                    </label>
+                    <p x-show="errors.acceptedTerms" x-cloak class="checkout-error text-xs mt-1" x-text="errors.acceptedTerms"></p>
+                </div>
+            }
+
             <!-- Complete Order Button (Desktop) -->
             <div class="mt-6 hidden lg:block">
                 <button type="submit"
@@ -699,6 +735,57 @@
                 <span>Processing...</span>
             </span>
         </button>
+    </div>
+
+    <!-- Terms Side-Pane Modal -->
+    <div x-show="showTermsModal"
+         x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex justify-end bg-black/50"
+         @@keydown.escape.window="showTermsModal && closeTermsModal()"
+         @@click.self="closeTermsModal()">
+        <div class="relative bg-white w-full max-w-lg h-full shadow-xl flex flex-col"
+             x-show="showTermsModal"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="translate-x-full"
+             x-transition:enter-end="translate-x-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="translate-x-0"
+             x-transition:leave-end="translate-x-full"
+             @@click.stop>
+
+            <!-- Sticky header -->
+            <div class="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
+                <h3 class="font-heading text-lg font-semibold" x-text="termsModalTitle"></h3>
+                <button type="button"
+                        @@click="closeTermsModal()"
+                        class="text-gray-400 hover:text-gray-600 p-1"
+                        aria-label="Close">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Scrollable content -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <!-- Loading spinner -->
+                <div x-show="termsLoading" class="flex items-center justify-center py-12">
+                    <svg class="animate-spin h-8 w-8 text-accent" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+
+                <!-- Content -->
+                <div x-show="!termsLoading" x-html="termsContent"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Forgot Password Modal -->

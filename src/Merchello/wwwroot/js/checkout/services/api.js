@@ -42,6 +42,24 @@ const STOREFRONT_URL = '/api/merchello/storefront';
  */
 
 /**
+ * @typedef {Object} AddressLookupSuggestion
+ * @property {string} id
+ * @property {string} label
+ * @property {string} [description]
+ */
+
+/**
+ * @typedef {Object} AddressLookupConfig
+ * @property {boolean} isEnabled
+ * @property {string} [providerAlias]
+ * @property {string} [providerName]
+ * @property {string} [providerDescription]
+ * @property {string[]} [supportedCountries]
+ * @property {number} [minQueryLength]
+ * @property {number} [maxSuggestions]
+ */
+
+/**
  * @typedef {Object} ShippingOption
  * @property {string} id
  * @property {string} name
@@ -351,6 +369,45 @@ export const checkoutApi = {
      */
     processSavedPayment(data) {
         return fetchJson(`${BASE_URL}/process-saved-payment`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    /**
+     * Get address lookup configuration for checkout UI.
+     * @returns {Promise<AddressLookupConfig>}
+     */
+    getAddressLookupConfig() {
+        return fetchJson(`${BASE_URL}/address-lookup/config`);
+    },
+
+    /**
+     * Get address lookup suggestions.
+     * @param {Object} data
+     * @param {string} data.query
+     * @param {string} [data.countryCode]
+     * @param {number} [data.limit]
+     * @param {string} [data.sessionId]
+     * @returns {Promise<{success: boolean, errorMessage?: string, suggestions: AddressLookupSuggestion[]}>}
+     */
+    addressLookupSuggestions(data) {
+        return fetchJson(`${BASE_URL}/address-lookup/suggestions`, {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+
+    /**
+     * Resolve an address lookup suggestion.
+     * @param {Object} data
+     * @param {string} data.id
+     * @param {string} [data.countryCode]
+     * @param {string} [data.sessionId]
+     * @returns {Promise<{success: boolean, errorMessage?: string, address?: AddressFields}>}
+     */
+    addressLookupResolve(data) {
+        return fetchJson(`${BASE_URL}/address-lookup/resolve`, {
             method: 'POST',
             body: JSON.stringify(data)
         });

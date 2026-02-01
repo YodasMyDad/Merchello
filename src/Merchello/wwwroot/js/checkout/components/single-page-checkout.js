@@ -75,6 +75,29 @@ export function initSinglePageCheckout() {
             shippingSameAsBilling: true,
 
             // ============================================
+            // Address Lookup State
+            // ============================================
+
+            addressLookup: {
+                billing: {
+                    query: '',
+                    suggestions: [],
+                    loading: false,
+                    error: '',
+                    isOpen: false,
+                    requestId: 0
+                },
+                shipping: {
+                    query: '',
+                    suggestions: [],
+                    loading: false,
+                    error: '',
+                    isOpen: false,
+                    requestId: 0
+                }
+            },
+
+            // ============================================
             // Payment Local State
             // ============================================
 
@@ -90,6 +113,17 @@ export function initSinglePageCheckout() {
             selectedUpsellVariant: {},
             /** @type {string|null} Product ID currently being added from upsells */
             upsellAddingProductId: null,
+
+            // ============================================
+            // Order Terms State
+            // ============================================
+
+            showTermsModal: false,
+            termsModalTitle: '',
+            termsContent: '',
+            termsLoading: false,
+            /** @type {Object.<string, string>} Cached terms HTML by key */
+            _termsCache: {},
 
             // ============================================
             // Private State
@@ -176,6 +210,9 @@ export function initSinglePageCheckout() {
             get basketTax() { return this.$store.checkout?.basket?.tax ?? 0; },
             get basketSubtotal() { return this.$store.checkout?.basket?.subtotal ?? 0; },
             get currencySymbol() { return this.$store.checkout?.currency?.symbol ?? '£'; },
+            get addressLookupConfig() { return this.$store.checkout?.addressLookup ?? { isEnabled: false }; },
+            get addressLookupMinQueryLength() { return this.addressLookupConfig?.minQueryLength ?? 3; },
+            get addressLookupMaxSuggestions() { return this.addressLookupConfig?.maxSuggestions ?? 6; },
 
             // Upsell store getters
             get upsellSuggestions() { return this.$store.checkout?.upsellSuggestions ?? []; },
@@ -223,6 +260,12 @@ export function initSinglePageCheckout() {
                     if (!this.isSignedIn && (!this.form.password || !this.passwordValid)) {
                         return false;
                     }
+                }
+
+                // Order terms checkbox validation
+                const orderTerms = this.$store.checkout?.orderTerms;
+                if (orderTerms?.showCheckbox && orderTerms?.checkboxRequired && !this.form.acceptedTerms) {
+                    return false;
                 }
 
                 return this.allItemsShippable &&
@@ -469,6 +512,223 @@ export function initSinglePageCheckout() {
             },
 
             // ============================================
+            // Address Lookup
+            // ============================================
+
+            getAddressLookupState(prefix) {
+                return this.addressLookup?.[prefix] ?? this.addressLookup.billing;
+            },
+
+            isAddressLookupEnabled(prefix) {
+                const config = this.addressLookupConfig;
+                if (!config?.isEnabled) return false;
+
+                const countryCode = this.form?.[prefix]?.countryCode;
+                if (!countryCode) return false;
+
+                const supported = config.supportedCountries;
+                if (!supported || supported.length === 0) return true;
+
+                return supported.some(code => {
+                    if (!code) return false;
+                    if (code === '*') return true;
+                    return code.toUpperCase() === countryCode.toUpperCase();
+                });
+            },
+
+            openAddressLookup(prefix) {
+                const state = this.getAddressLookupState(prefix);
+                if (!state) return;
+                if (state.loading || state.error || state.suggestions.length > 0) {
+                    state.isOpen = true;
+                }
+            },
+
+            closeAddressLookup(prefix) {
+                const state = this.getAddressLookupState(prefix);
+                if (!state) return;
+                state.isOpen = false;
+            },
+
+            clearAddressLookup(prefix) {
+                const state = this.getAddressLookupState(prefix);
+                if (!state) return;
+                state.query = '';
+                state.suggestions = [];
+                state.error = '';
+                state.loading = false;
+                state.isOpen = false;
+                state.requestId += 1;
+            },
+
+            resetAddressLookup(prefix) {
+                this.clearAddressLookup(prefix);
+            },
+
+            onAddressLookupInput(prefix) {
+                const state = this.getAddressLookupState(prefix);
+                if (!state) return;
+
+                if (!this.isAddressLookupEnabled(prefix)) {
+                    this.clearAddressLookup(prefix);
+                    return;
+                }
+
+                const query = (state.query || '').trim();
+                if (query.length < this.addressLookupMinQueryLength) {
+                    state.suggestions = [];
+                    state.error = '';
+                    state.isOpen = false;
+                    return;
+                }
+
+                state.isOpen = true;
+                debouncer.debounce(`address-lookup-${prefix}`, () => this.searchAddressLookup(prefix), 250);
+            },
+
+            async searchAddressLookup(prefix) {
+                const state = this.getAddressLookupState(prefix);
+                if (!state) return;
+
+                const query = (state.query || '').trim();
+                if (!query || query.length < this.addressLookupMinQueryLength) {
+                    state.suggestions = [];
+                    state.error = '';
+                    state.isOpen = false;
+                    return;
+                }
+
+                state.loading = true;
+                state.error = '';
+                const requestId = ++state.requestId;
+
+                try {
+                    const response = await checkoutApi.addressLookupSuggestions({
+                        query,
+                        countryCode: this.form?.[prefix]?.countryCode,
+                        limit: this.addressLookupMaxSuggestions
+                    });
+
+                    if (requestId !== state.requestId) return;
+
+                    state.loading = false;
+
+                    if (!response.success) {
+                        state.error = response.errorMessage || 'Unable to find addresses. Please try again.';
+                        state.suggestions = [];
+                        state.isOpen = true;
+                        return;
+                    }
+
+                    state.suggestions = response.suggestions || [];
+                    state.error = state.suggestions.length === 0 ? 'No addresses found.' : '';
+                    state.isOpen = true;
+                } catch (error) {
+                    if (requestId !== state.requestId) return;
+                    state.loading = false;
+                    state.error = error?.message || 'Unable to find addresses. Please try again.';
+                    state.suggestions = [];
+                    state.isOpen = true;
+                }
+            },
+
+            async selectAddressSuggestion(prefix, suggestion) {
+                const state = this.getAddressLookupState(prefix);
+                if (!state || !suggestion?.id) return;
+
+                state.loading = true;
+                state.error = '';
+                const requestId = ++state.requestId;
+
+                try {
+                    const response = await checkoutApi.addressLookupResolve({
+                        id: suggestion.id,
+                        countryCode: this.form?.[prefix]?.countryCode
+                    });
+
+                    if (requestId !== state.requestId) return;
+
+                    state.loading = false;
+
+                    if (!response.success || !response.address) {
+                        state.error = response.errorMessage || 'Unable to resolve address. Please try again.';
+                        return;
+                    }
+
+                    await this.applyLookupAddress(prefix, response.address);
+                    state.query = suggestion.label || state.query;
+                    state.suggestions = [];
+                    state.isOpen = false;
+                } catch (error) {
+                    if (requestId !== state.requestId) return;
+                    state.loading = false;
+                    state.error = error?.message || 'Unable to resolve address. Please try again.';
+                }
+            },
+
+            async applyLookupAddress(prefix, address) {
+                const form = this.form?.[prefix];
+                if (!form) return;
+
+                form.address1 = address.address1 || '';
+                form.address2 = address.address2 || '';
+                form.city = address.city || '';
+                form.postalCode = address.postalCode || '';
+
+                if (address.company) {
+                    form.company = address.company;
+                }
+
+                if (address.countryCode) {
+                    form.countryCode = address.countryCode;
+                }
+                if (address.country) {
+                    form.country = address.country;
+                }
+
+                let regions = [];
+                if (form.countryCode) {
+                    regions = await loadRegions(prefix, form.countryCode);
+                    if (prefix === 'billing') {
+                        this.billingRegions = regions;
+                    } else {
+                        this.shippingRegions = regions;
+                    }
+                }
+
+                if (address.stateCode) {
+                    form.stateCode = address.stateCode;
+                }
+                if (address.state) {
+                    form.state = address.state;
+                }
+
+                if (form.stateCode && regions.length > 0) {
+                    const region = regions.find(r => r.code === form.stateCode);
+                    if (region) {
+                        form.state = region.name;
+                    }
+                } else if (!form.stateCode && form.state && regions.length > 0) {
+                    const region = regions.find(r => r.name?.toLowerCase() === form.state.toLowerCase());
+                    if (region) {
+                        form.stateCode = region.code;
+                    }
+                }
+
+                if (prefix === 'billing') {
+                    if (this.shippingSameAsBilling) {
+                        this.syncBillingToShipping();
+                        this.shippingRegions = [...this.billingRegions];
+                    }
+                    this.debouncedCalculateShipping();
+                    this.debouncedCaptureAddress();
+                } else {
+                    this.debouncedCalculateShipping();
+                    this.debouncedCaptureAddress();
+                }
+            },
+
+            // ============================================
             // Address Handlers (for template compatibility)
             // ============================================
 
@@ -481,6 +741,7 @@ export function initSinglePageCheckout() {
             async onBillingCountryChange() {
                 this.form.billing.state = '';
                 this.form.billing.stateCode = '';
+                this.resetAddressLookup('billing');
                 this.billingRegions = await loadRegions('billing', this.form.billing.countryCode);
                 if (this.shippingSameAsBilling) {
                     this.syncBillingToShipping();
@@ -527,6 +788,7 @@ export function initSinglePageCheckout() {
             async onShippingCountryChange() {
                 this.form.shipping.state = '';
                 this.form.shipping.stateCode = '';
+                this.resetAddressLookup('shipping');
                 this.shippingRegions = await loadRegions('shipping', this.form.shipping.countryCode);
                 this.debouncedCalculateShipping();
                 this.debouncedCaptureAddress();
@@ -543,6 +805,7 @@ export function initSinglePageCheckout() {
                     this.syncBillingToShipping();
                     this.shippingRegions = [...this.billingRegions];
                     this.debouncedCalculateShipping();
+                    this.resetAddressLookup('shipping');
                 }
                 this.debouncedCaptureAddress();
             },
@@ -1202,6 +1465,12 @@ export function initSinglePageCheckout() {
                 if (!this.allShippingSelected) store?.setGeneralError('Please select a shipping method.');
                 if (!this.selectedPaymentMethod) store?.setGeneralError(this.generalError || 'Please select a payment method.');
 
+                // Order terms checkbox validation
+                const orderTerms = store?.orderTerms;
+                if (orderTerms?.showCheckbox && orderTerms?.checkboxRequired && !this.form.acceptedTerms) {
+                    store?.setError('acceptedTerms', 'You must agree to the terms and conditions to place your order.');
+                }
+
                 return Object.keys(this.errors).length === 0 && !this.generalError;
             },
 
@@ -1356,6 +1625,47 @@ export function initSinglePageCheckout() {
 
             wasUpsellAdded(productRootId) {
                 return this.$store.checkout?.wasUpsellProductAdded(productRootId) ?? false;
+            },
+
+            // ============================================
+            // Order Terms Methods
+            // ============================================
+
+            async openTermsModal(key) {
+                // Derive title from key (capitalize first letter)
+                this.termsModalTitle = key.charAt(0).toUpperCase() + key.slice(1);
+                this.showTermsModal = true;
+                document.body.style.overflow = 'hidden';
+
+                // Use cached content if available
+                if (this._termsCache[key]) {
+                    this.termsContent = this._termsCache[key];
+                    return;
+                }
+
+                this.termsLoading = true;
+                this.termsContent = '';
+
+                try {
+                    const response = await fetch(`/api/merchello/checkout/terms/${encodeURIComponent(key)}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        this._termsCache[key] = data.html;
+                        this.termsContent = data.html;
+                    } else {
+                        this.termsContent = `<p class="text-gray-500">${data.message || 'No terms view found.'}</p>`;
+                    }
+                } catch (error) {
+                    console.error('Failed to load terms content:', error);
+                    this.termsContent = '<p class="text-red-500">Failed to load content. Please try again.</p>';
+                } finally {
+                    this.termsLoading = false;
+                }
+            },
+
+            closeTermsModal() {
+                this.showTermsModal = false;
+                document.body.style.overflow = '';
             },
 
             /**

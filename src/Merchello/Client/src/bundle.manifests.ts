@@ -23,6 +23,7 @@ import { manifests as shipping } from "./shipping/manifest.js";
 import { manifests as paymentProviders } from "./payment-providers/manifest.js";
 import { manifests as fulfilmentProviders } from "./fulfilment-providers/manifest.js";
 import { manifests as exchangeRateProviders } from "./exchange-rate-providers/manifest.js";
+import { manifests as addressLookupProviders } from "./address-lookup-providers/manifest.js";
 import { manifests as upsells } from "./upsells/manifest.js";
 import { manifests as settings } from "./settings/manifest.js";
 import { manifests as productPicker } from "./shared/product-picker/manifest.js";
@@ -60,6 +61,7 @@ export const manifests: Array<UmbExtensionManifest> = [
   ...paymentProviders,
   ...fulfilmentProviders,
   ...exchangeRateProviders,
+  ...addressLookupProviders,
   ...upsells,
   ...settings,
   ...productPicker,

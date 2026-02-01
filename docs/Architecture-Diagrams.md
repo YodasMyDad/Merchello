@@ -48,7 +48,7 @@ Feature/
 └── Extensions/       # Extension methods
 ```
 
-**Modules:** Accounting, Checkout, Customers, Discounts, Email, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores, Webhooks
+**Modules:** Accounting, AddressLookup, Checkout, Customers, Discounts, Email, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores, Webhooks
 
 ### Design Rules
 - DbContext only in services, never in controllers

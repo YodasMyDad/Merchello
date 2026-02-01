@@ -9,6 +9,7 @@ import {
   UpsellStatus,
   UpsellDisplayLocation,
   UpsellOrderBy,
+  CheckoutUpsellMode,
   type UpsellListItemDto,
   type UpsellQueryParams,
 } from "@upsells/types/upsell.types.js";
@@ -280,6 +281,16 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
     return icons;
   }
 
+  private _getCheckoutModeLabel(mode: CheckoutUpsellMode): string {
+    switch (mode) {
+      case CheckoutUpsellMode.Inline: return "Inline";
+      case CheckoutUpsellMode.Interstitial: return "Interstitial";
+      case CheckoutUpsellMode.OrderBump: return "Order Bump";
+      case CheckoutUpsellMode.PostPurchase: return "Post Purchase";
+      default: return mode;
+    }
+  }
+
   private _formatCtr(impressions: number, clicks: number): string {
     if (impressions === 0) return "0%";
     return `${formatNumber((clicks / impressions) * 100, 1)}%`;
@@ -330,10 +341,13 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
                 <uui-tag look="secondary" color=${upsell.statusColor}>${upsell.statusLabel}</uui-tag>
               </uui-table-cell>
               <uui-table-cell>
-                <div class="display-icons">
-                  ${this._getDisplayLocationIcons(upsell.displayLocation).map(
-                    (icon) => html`<uui-icon name=${icon}></uui-icon>`
-                  )}
+                <div class="display-cell">
+                  <span class="checkout-mode-label">${this._getCheckoutModeLabel(upsell.checkoutMode)}</span>
+                  <div class="display-icons">
+                    ${this._getDisplayLocationIcons(upsell.displayLocation).map(
+                      (icon) => html`<uui-icon name=${icon}></uui-icon>`
+                    )}
+                  </div>
                 </div>
               </uui-table-cell>
               <uui-table-cell>
@@ -508,6 +522,17 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
     .heading-preview {
       color: var(--uui-color-text-alt);
       font-size: 0.85em;
+    }
+
+    .display-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .checkout-mode-label {
+      font-size: 0.85em;
+      font-weight: 600;
     }
 
     .display-icons {

@@ -119,6 +119,13 @@ public class CheckoutSettings
     /// </summary>
     public string? PrivacyUrl { get; set; }
 
+    /// <summary>
+    /// Optional order terms configuration. When set, displays terms text and/or
+    /// an agreement checkbox above the place order button.
+    /// Supports {key:Label} link tokens that open a side-pane modal.
+    /// </summary>
+    public OrderTermsSettings? OrderTerms { get; set; }
+
     // === Session Timeout ===
 
     /// <summary>

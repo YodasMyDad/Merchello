@@ -23,6 +23,9 @@ using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Suppliers.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Parameters;
 using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Upsells.Models;
+using Merchello.Core.Upsells.Services.Interfaces;
+using Merchello.Core.Upsells.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
@@ -53,6 +56,7 @@ public class DbSeeder(
     ITaxProviderManager taxProviderManager,
     IWarehouseService warehouseService,
     ISupplierService supplierService,
+    IUpsellService upsellService,
     ILogger<DbSeeder> logger)
 {
     /// <summary>
@@ -166,6 +170,10 @@ public class DbSeeder(
         // 11. Create automatic discounts (10% off T-Shirts)
         await CreateAutomaticDiscountsAsync(productTypes, cancellationToken);
         logger.LogDebug("Created automatic discounts");
+
+        // 11b. Create upsell rules (cross-sells, order bumps, post-purchase offers)
+        await CreateUpsellRulesAsync(productTypes, collections, cancellationToken);
+        logger.LogDebug("Created upsell rules");
 
         // 12. Load products with TaxGroup for proper line item creation (via service)
         var products = await productService.GetAllProductsWithTaxGroupAsync(cancellationToken);
@@ -831,6 +839,247 @@ public class DbSeeder(
         await discountService.ActivateAsync(discount.Id, cancellationToken);
 
         logger.LogDebug("Created automatic discount: {Name}", discount.Name);
+    }
+
+    private async Task CreateUpsellRulesAsync(
+        Dictionary<string, ProductType> productTypes,
+        Dictionary<string, ProductCollection> collections,
+        CancellationToken cancellationToken)
+    {
+        // Extract lookups once
+        collections.TryGetValue("clothing", out var clothing);
+        collections.TryGetValue("headwear", out var headwear);
+        collections.TryGetValue("accessories", out var accessories);
+        collections.TryGetValue("jackets", out var jackets);
+        collections.TryGetValue("drinkware", out var drinkware);
+        productTypes.TryGetValue("tshirt", out var tshirtType);
+
+        var upsellConfigs = new List<CreateUpsellParameters>();
+
+        // Rule 1: "Complete Your Look" - Inline cross-sell
+        // When someone buys a T-shirt, suggest caps and accessories
+        if (tshirtType != null && headwear != null && accessories != null)
+        {
+            upsellConfigs.Add(new CreateUpsellParameters
+            {
+                Name = "Complete Your Look",
+                Heading = "Complete Your Look",
+                Description = "Cross-sell caps and accessories when a T-shirt is in the basket",
+                Message = "These items go great with your new tee!",
+                Priority = 1000,
+                DisplayLocation = UpsellDisplayLocation.Basket | UpsellDisplayLocation.Checkout,
+                CheckoutMode = CheckoutUpsellMode.Inline,
+                SuppressIfInCart = true,
+                TriggerRules =
+                [
+                    new CreateUpsellTriggerRuleParameters
+                    {
+                        TriggerType = UpsellTriggerType.ProductTypes,
+                        TriggerIds = [tshirtType.Id]
+                    }
+                ],
+                RecommendationRules =
+                [
+                    new CreateUpsellRecommendationRuleParameters
+                    {
+                        RecommendationType = UpsellRecommendationType.Collections,
+                        RecommendationIds = [headwear.Id, accessories.Id]
+                    }
+                ],
+                EligibilityRules =
+                [
+                    new CreateUpsellEligibilityRuleParameters
+                    {
+                        EligibilityType = UpsellEligibilityType.AllCustomers
+                    }
+                ]
+            });
+        }
+
+        // Rule 2: "Upgrade Your Style" - Interstitial high-value upsell
+        // Full-screen jacket upsell during checkout for any clothing purchase
+        if (clothing != null && jackets != null)
+        {
+            upsellConfigs.Add(new CreateUpsellParameters
+            {
+                Name = "Upgrade Your Style",
+                Heading = "Upgrade Your Style",
+                Description = "Full-screen jacket upsell during checkout for clothing purchases",
+                Message = "Looking for something to complete the outfit? Check out our premium jackets.",
+                Priority = 800,
+                DisplayLocation = UpsellDisplayLocation.Checkout,
+                CheckoutMode = CheckoutUpsellMode.Interstitial,
+                SuppressIfInCart = true,
+                TriggerRules =
+                [
+                    new CreateUpsellTriggerRuleParameters
+                    {
+                        TriggerType = UpsellTriggerType.Collections,
+                        TriggerIds = [clothing.Id]
+                    }
+                ],
+                RecommendationRules =
+                [
+                    new CreateUpsellRecommendationRuleParameters
+                    {
+                        RecommendationType = UpsellRecommendationType.Collections,
+                        RecommendationIds = [jackets.Id]
+                    }
+                ],
+                EligibilityRules =
+                [
+                    new CreateUpsellEligibilityRuleParameters
+                    {
+                        EligibilityType = UpsellEligibilityType.AllCustomers
+                    }
+                ]
+            });
+        }
+
+        // Rule 3: "Add a Mug?" - Order Bump checkbox
+        // Any apparel purchase gets a mug checkbox at checkout
+        if (drinkware != null)
+        {
+            var apparelTypeIds = new[] { "tshirt", "hoodie", "polo", "jacket" }
+                .Where(productTypes.ContainsKey)
+                .Select(alias => productTypes[alias].Id)
+                .ToList();
+
+            if (apparelTypeIds.Count > 0)
+            {
+                upsellConfigs.Add(new CreateUpsellParameters
+                {
+                    Name = "Add a Mug?",
+                    Heading = "Add a Mug?",
+                    Description = "Checkbox to add a mug during checkout for apparel purchases",
+                    Message = "Treat yourself to a matching mug!",
+                    Priority = 1200,
+                    MaxProducts = 2,
+                    DisplayLocation = UpsellDisplayLocation.Checkout,
+                    CheckoutMode = CheckoutUpsellMode.OrderBump,
+                    SuppressIfInCart = true,
+                    TriggerRules =
+                    [
+                        new CreateUpsellTriggerRuleParameters
+                        {
+                            TriggerType = UpsellTriggerType.ProductTypes,
+                            TriggerIds = apparelTypeIds
+                        }
+                    ],
+                    RecommendationRules =
+                    [
+                        new CreateUpsellRecommendationRuleParameters
+                        {
+                            RecommendationType = UpsellRecommendationType.Collections,
+                            RecommendationIds = [drinkware.Id]
+                        }
+                    ],
+                    EligibilityRules =
+                    [
+                        new CreateUpsellEligibilityRuleParameters
+                        {
+                            EligibilityType = UpsellEligibilityType.AllCustomers
+                        }
+                    ]
+                });
+            }
+        }
+
+        // Rule 4: "Free Shipping on Orders Over £50!" - Message-only (no recommendations)
+        // Encourage customers to add more to reach free shipping threshold
+        if (clothing != null)
+        {
+            upsellConfigs.Add(new CreateUpsellParameters
+            {
+                Name = "Free Shipping on Orders Over £50!",
+                Heading = "Free Shipping on Orders Over £50!",
+                Description = "Message-only upsell encouraging customers to reach the free shipping threshold",
+                Message = "You're so close to free shipping! Add a few more items to save on delivery.",
+                Priority = 500,
+                DisplayLocation = UpsellDisplayLocation.Basket | UpsellDisplayLocation.Checkout,
+                CheckoutMode = CheckoutUpsellMode.Inline,
+                SuppressIfInCart = true,
+                TriggerRules =
+                [
+                    new CreateUpsellTriggerRuleParameters
+                    {
+                        TriggerType = UpsellTriggerType.Collections,
+                        TriggerIds = [clothing.Id]
+                    }
+                ],
+                EligibilityRules =
+                [
+                    new CreateUpsellEligibilityRuleParameters
+                    {
+                        EligibilityType = UpsellEligibilityType.AllCustomers
+                    }
+                ]
+            });
+        }
+
+        // Rule 5: "One More Thing..." - Post-Purchase impulse buy
+        // After payment, offer headwear on the confirmation page
+        if (clothing != null && headwear != null)
+        {
+            upsellConfigs.Add(new CreateUpsellParameters
+            {
+                Name = "One More Thing...",
+                Heading = "One More Thing...",
+                Description = "Post-purchase headwear offer on the confirmation page",
+                Message = "Thanks for your order! How about adding one of these?",
+                Priority = 1000,
+                SortBy = UpsellSortBy.Random,
+                DisplayLocation = UpsellDisplayLocation.Confirmation,
+                CheckoutMode = CheckoutUpsellMode.PostPurchase,
+                SuppressIfInCart = true,
+                TriggerRules =
+                [
+                    new CreateUpsellTriggerRuleParameters
+                    {
+                        TriggerType = UpsellTriggerType.Collections,
+                        TriggerIds = [clothing.Id]
+                    }
+                ],
+                RecommendationRules =
+                [
+                    new CreateUpsellRecommendationRuleParameters
+                    {
+                        RecommendationType = UpsellRecommendationType.Collections,
+                        RecommendationIds = [headwear.Id]
+                    }
+                ],
+                EligibilityRules =
+                [
+                    new CreateUpsellEligibilityRuleParameters
+                    {
+                        EligibilityType = UpsellEligibilityType.AllCustomers
+                    }
+                ]
+            });
+        }
+
+        // Create and activate each upsell rule
+        foreach (var parameters in upsellConfigs)
+        {
+            try
+            {
+                var result = await upsellService.CreateAsync(parameters, cancellationToken);
+                if (result.ResultObject != null)
+                {
+                    await upsellService.ActivateAsync(result.ResultObject.Id, cancellationToken);
+                    logger.LogDebug("Created upsell rule: {Name}", parameters.Name);
+                }
+                else
+                {
+                    result.LogBadMessages(logger);
+                    logger.LogWarning("Failed to create upsell rule: {Name}", parameters.Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to create upsell rule: {Name}", parameters.Name);
+            }
+        }
     }
 
     private async Task CreateProductsAsync(

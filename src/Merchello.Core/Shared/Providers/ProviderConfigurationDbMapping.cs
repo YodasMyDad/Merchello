@@ -1,3 +1,4 @@
+using Merchello.Core.AddressLookup.Models;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Payments.Models;
@@ -28,6 +29,7 @@ public class ProviderConfigurationDbMapping : IEntityTypeConfiguration<ProviderC
             .HasValue<PaymentProviderSetting>(ProviderConfigurationTypes.Payment)
             .HasValue<FulfilmentProviderConfiguration>(ProviderConfigurationTypes.Fulfilment)
             .HasValue<TaxProviderSetting>(ProviderConfigurationTypes.Tax)
-            .HasValue<ExchangeRateProviderSetting>(ProviderConfigurationTypes.ExchangeRate);
+            .HasValue<ExchangeRateProviderSetting>(ProviderConfigurationTypes.ExchangeRate)
+            .HasValue<AddressLookupProviderSetting>(ProviderConfigurationTypes.AddressLookup);
     }
 }

@@ -339,6 +339,14 @@ import type {
   SaveExchangeRateProviderSettingsDto,
 } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 
+// Import address lookup provider types
+import type {
+  AddressLookupProviderDto,
+  AddressLookupProviderFieldDto,
+  SaveAddressLookupProviderSettingsDto,
+  TestAddressLookupProviderResultDto,
+} from '@address-lookup-providers/types/address-lookup-providers.types.js';
+
 // Import filter types
 import type {
   ProductFilterGroupDto,
@@ -1409,6 +1417,38 @@ export const MerchelloApi = {
   /** Get the current exchange rate snapshot from cache */
   getExchangeRateSnapshot: () =>
     apiGet<ExchangeRateSnapshotDto>('exchange-rate-providers/snapshot'),
+
+  // ============================================
+  // Address Lookup Providers API
+  // ============================================
+
+  /** Get all address lookup providers */
+  getAddressLookupProviders: () =>
+    apiGet<AddressLookupProviderDto[]>('address-lookup-providers'),
+
+  /** Get the currently active address lookup provider */
+  getActiveAddressLookupProvider: () =>
+    apiGet<AddressLookupProviderDto>('address-lookup-providers/active'),
+
+  /** Get configuration fields for an address lookup provider */
+  getAddressLookupProviderFields: (alias: string) =>
+    apiGet<AddressLookupProviderFieldDto[]>(`address-lookup-providers/${alias}/fields`),
+
+  /** Activate an address lookup provider (only one can be active at a time) */
+  activateAddressLookupProvider: (alias: string) =>
+    apiPut<{ message: string }>(`address-lookup-providers/${alias}/activate`),
+
+  /** Deactivate all address lookup providers */
+  deactivateAddressLookupProviders: () =>
+    apiPut<{ message: string }>('address-lookup-providers/deactivate'),
+
+  /** Save address lookup provider configuration settings */
+  saveAddressLookupProviderSettings: (alias: string, settings: SaveAddressLookupProviderSettingsDto) =>
+    apiPut<{ message: string }>(`address-lookup-providers/${alias}/settings`, settings),
+
+  /** Test/validate an address lookup provider's configuration */
+  testAddressLookupProvider: (alias: string) =>
+    apiPost<TestAddressLookupProviderResultDto>(`address-lookup-providers/${alias}/test`),
 
   // ============================================
   // Filters API

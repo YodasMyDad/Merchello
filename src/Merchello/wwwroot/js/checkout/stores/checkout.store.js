@@ -42,6 +42,17 @@ import { MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
  */
 
 /**
+ * @typedef {Object} AddressLookupConfig
+ * @property {boolean} isEnabled
+ * @property {string} [providerAlias]
+ * @property {string} [providerName]
+ * @property {string} [providerDescription]
+ * @property {string[]} [supportedCountries]
+ * @property {number} [minQueryLength]
+ * @property {number} [maxSuggestions]
+ */
+
+/**
  * @typedef {Object} AppliedDiscount
  * @property {string} id - Discount ID
  * @property {string} name - Display name
@@ -124,6 +135,7 @@ import { MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
  * @param {ShippingGroup[]} [initialData.shippingGroups]
  * @param {Object.<string, string>} [initialData.shippingSelections]
  * @param {PaymentMethod[]} [initialData.paymentMethods]
+ * @param {AddressLookupConfig} [initialData.addressLookup]
  */
 export function initCheckoutStore(initialData = {}) {
     const announcer = createAnnouncer();
@@ -178,8 +190,16 @@ export function initCheckoutStore(initialData = {}) {
             },
             sameAsBilling: initialData.shippingSameAsBilling ?? true,
             acceptsMarketing: false,
-            password: ''
+            password: '',
+            acceptedTerms: false
         },
+
+        // ============================================
+        // ADDRESS LOOKUP CONFIG
+        // ============================================
+
+        /** @type {AddressLookupConfig|null} */
+        addressLookup: initialData.addressLookup ?? { isEnabled: false },
 
         // ============================================
         // ACCOUNT STATE
@@ -322,6 +342,13 @@ export function initCheckoutStore(initialData = {}) {
 
         /** @type {boolean} Whether an upsell add-to-cart is in progress */
         upsellAddingToCart: false,
+
+        // ============================================
+        // ORDER TERMS STATE
+        // ============================================
+
+        /** @type {Object|null} Order terms configuration from settings */
+        orderTerms: initialData.orderTerms ?? null,
 
         // ============================================
         // UI STATE

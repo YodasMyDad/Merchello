@@ -1,12 +1,10 @@
-using System.Text.Json.Serialization;
-
 namespace Merchello.Core.Upsells.Models;
 
 /// <summary>
 /// Where upsell suggestions are displayed. Flags enum so a single rule can target multiple locations.
+/// Serialized as an integer so the frontend can use bitwise operations.
 /// </summary>
 [Flags]
-[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum UpsellDisplayLocation
 {
     None = 0,

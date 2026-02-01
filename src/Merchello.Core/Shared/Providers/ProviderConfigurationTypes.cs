@@ -10,4 +10,5 @@ public static class ProviderConfigurationTypes
     public const string Fulfilment = "fulfilment";
     public const string Tax = "tax";
     public const string ExchangeRate = "exchange-rate";
+    public const string AddressLookup = "address-lookup";
 }

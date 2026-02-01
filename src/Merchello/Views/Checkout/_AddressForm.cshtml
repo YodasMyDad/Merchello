@@ -50,6 +50,60 @@
                class="@inputClass" />
     </div>
 
+    <!-- Address Lookup (Optional) -->
+    <div x-show="isAddressLookupEnabled('@(prefix)')" x-cloak>
+        <label for="@(prefix)-lookup" class="@labelClass">
+            Find address
+        </label>
+        <div class="relative">
+            <input type="text"
+                   id="@(prefix)-lookup"
+                   x-model="addressLookup.@(prefix).query"
+                   @@input="onAddressLookupInput('@(prefix)')"
+                   @@focus="openAddressLookup('@(prefix)')"
+                   @@keydown.escape="closeAddressLookup('@(prefix)')"
+                   autocomplete="off"
+                   role="combobox"
+                   aria-autocomplete="list"
+                   :aria-expanded="addressLookup.@(prefix).isOpen"
+                   aria-controls="@(prefix)-lookup-list"
+                   placeholder="Start typing your address"
+                   class="@($"{inputClass} pr-16")" />
+            <button type="button"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-700"
+                    x-show="addressLookup.@(prefix).query"
+                    @@click="clearAddressLookup('@(prefix)')"
+                    aria-label="Clear address search">
+                Clear
+            </button>
+            <div x-show="addressLookup.@(prefix).isOpen"
+                 x-cloak
+                 @@click.away="closeAddressLookup('@(prefix)')"
+                 id="@(prefix)-lookup-list"
+                 role="listbox"
+                 class="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-lg border border-gray-200 bg-white shadow-xl divide-y divide-gray-200">
+                <template x-if="addressLookup.@(prefix).loading">
+                    <div class="px-3 py-2 text-xs text-gray-500">Searching...</div>
+                </template>
+                <template x-if="!addressLookup.@(prefix).loading && addressLookup.@(prefix).error">
+                    <div class="px-3 py-2 text-xs text-gray-500" x-text="addressLookup.@(prefix).error"></div>
+                </template>
+                <template x-if="!addressLookup.@(prefix).loading && addressLookup.@(prefix).suggestions.length === 0 && !addressLookup.@(prefix).error">
+                    <div class="px-3 py-2 text-xs text-gray-500">No addresses found.</div>
+                </template>
+                <template x-for="suggestion in addressLookup.@(prefix).suggestions" :key="suggestion.id">
+                    <button type="button"
+                            class="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-50 focus:outline-none focus:bg-gray-50"
+                            @@click="selectAddressSuggestion('@(prefix)', suggestion)">
+                        <span class="block text-sm text-gray-900" x-text="suggestion.label"></span>
+                        <span class="block text-xs text-gray-500 mt-0.5" x-show="suggestion.description" x-text="suggestion.description"></span>
+                    </button>
+                </template>
+            </div>
+        </div>
+        <p class="mt-1 text-xs text-gray-500">Start typing to search and autofill.</p>
+    </div>
+
     <!-- Address Line 1 -->
     <div>
         <label for="@(prefix)-address1" class="@labelClass">

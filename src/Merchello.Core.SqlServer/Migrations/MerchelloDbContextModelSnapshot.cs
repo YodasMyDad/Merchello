@@ -3323,6 +3323,13 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloProductRootShippingOptions");
                 });
 
+            modelBuilder.Entity("Merchello.Core.AddressLookup.Models.AddressLookupProviderSetting", b =>
+                {
+                    b.HasBaseType("Merchello.Core.Shared.Providers.ProviderConfiguration");
+
+                    b.HasDiscriminator().HasValue("address-lookup");
+                });
+
             modelBuilder.Entity("Merchello.Core.ExchangeRates.Models.ExchangeRateProviderSetting", b =>
                 {
                     b.HasBaseType("Merchello.Core.Shared.Providers.ProviderConfiguration");

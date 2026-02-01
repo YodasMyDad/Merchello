@@ -79,7 +79,7 @@ public class DigitalProductPaymentHandlerIntegrationTests : IClassFixture<Servic
         var invoiceWithNotes = await _fixture.DbContext.Invoices
             .FirstAsync(i => i.Id == invoice.Id);
         invoiceWithNotes.Notes.ShouldNotBeNull();
-        invoiceWithNotes.Notes!.Any(n => n.Description.Contains("Payment of", StringComparison.OrdinalIgnoreCase))
+        invoiceWithNotes.Notes!.Any(n => n.Description!.Contains("Payment of", StringComparison.OrdinalIgnoreCase))
             .ShouldBeTrue();
 
         // Verify the handler's ShouldSendDeliveryNotificationAsync logic works:

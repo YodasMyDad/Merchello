@@ -55,8 +55,8 @@ document.addEventListener('alpine:init', () => {
             const result = await MerchelloApi.shipping.getCountries();
             if (result.success) {
                 this.countries = result.data.countries;
-                this.code = result.data.current.countryCode;
-                this.name = result.data.current.countryName;
+                this.code = result.data.current.code;
+                this.name = result.data.current.name;
             }
         },
 

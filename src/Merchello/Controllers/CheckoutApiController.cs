@@ -1,4 +1,7 @@
 using Merchello.Core;
+using Merchello.Core.AddressLookup.Dtos;
+using Merchello.Core.AddressLookup.Services.Interfaces;
+using Merchello.Core.AddressLookup.Services.Parameters;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
@@ -20,7 +23,14 @@ using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.Razor;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -37,6 +47,7 @@ public class CheckoutApiController(
     ICheckoutValidator checkoutValidator,
     ICheckoutMemberService checkoutMemberService,
     ICheckoutDiscountService checkoutDiscountService,
+    IAddressLookupService addressLookupService,
     IRateLimiter rateLimiter,
     IStorefrontContextService storefrontContext,
     ICurrencyConversionService currencyConversion,
@@ -50,6 +61,9 @@ public class CheckoutApiController(
 
     private const int MaxRecoveryAttemptsPerMinute = 10;
     private static readonly TimeSpan RecoveryRateLimitWindow = TimeSpan.FromMinutes(1);
+    private const int MaxAddressLookupSuggestionsPerMinute = 30;
+    private const int MaxAddressLookupResolvesPerMinute = 20;
+    private static readonly TimeSpan AddressLookupRateLimitWindow = TimeSpan.FromMinutes(1);
 
     /// <summary>
     /// Get the current basket with formatted totals.
@@ -189,6 +203,144 @@ public class CheckoutApiController(
             Success = true,
             Message = "Addresses saved successfully.",
             Basket = await MapBasketToDtoWithCurrencyAsync(result.ResultObject!, ct)
+        });
+    }
+
+    /// <summary>
+    /// Get address lookup configuration for the checkout UI.
+    /// </summary>
+    [HttpGet("address-lookup/config")]
+    [ProducesResponseType<AddressLookupClientConfigDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAddressLookupConfig(CancellationToken ct)
+    {
+        var config = await addressLookupService.GetClientConfigAsync(null, ct);
+        return Ok(config);
+    }
+
+    /// <summary>
+    /// Get address lookup suggestions for a query.
+    /// </summary>
+    [HttpPost("address-lookup/suggestions")]
+    [ProducesResponseType<AddressLookupSuggestionsResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAddressLookupSuggestions(
+        [FromBody] AddressLookupSuggestionsRequestDto request,
+        CancellationToken ct)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Query))
+        {
+            return BadRequest(new AddressLookupSuggestionsResponseDto
+            {
+                Success = false,
+                ErrorMessage = "Query is required."
+            });
+        }
+
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"address-lookup:suggestions:{clientIp}";
+        var rateLimitResult = rateLimiter.TryAcquire(
+            rateLimitKey,
+            MaxAddressLookupSuggestionsPerMinute,
+            AddressLookupRateLimitWindow);
+
+        if (!rateLimitResult.IsAllowed)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new AddressLookupSuggestionsResponseDto
+            {
+                Success = false,
+                ErrorMessage = "Too many address lookup requests. Please try again shortly."
+            });
+        }
+
+        var result = await addressLookupService.GetSuggestionsAsync(new AddressLookupSuggestionsParameters
+        {
+            Query = request.Query,
+            CountryCode = request.CountryCode,
+            Limit = request.Limit,
+            SessionId = request.SessionId
+        }, ct);
+
+        var response = new AddressLookupSuggestionsResponseDto
+        {
+            Success = result.Success,
+            ErrorMessage = result.ErrorMessage,
+            Suggestions = result.Suggestions
+                .Select(s => new AddressLookupSuggestionDto
+                {
+                    Id = s.Id,
+                    Label = s.Label,
+                    Description = s.Description
+                })
+                .ToList()
+        };
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Resolve an address lookup suggestion into a full address.
+    /// </summary>
+    [HttpPost("address-lookup/resolve")]
+    [ProducesResponseType<AddressLookupResolveResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResolveAddressLookup(
+        [FromBody] AddressLookupResolveRequestDto request,
+        CancellationToken ct)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Id))
+        {
+            return BadRequest(new AddressLookupResolveResponseDto
+            {
+                Success = false,
+                ErrorMessage = "Address id is required."
+            });
+        }
+
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"address-lookup:resolve:{clientIp}";
+        var rateLimitResult = rateLimiter.TryAcquire(
+            rateLimitKey,
+            MaxAddressLookupResolvesPerMinute,
+            AddressLookupRateLimitWindow);
+
+        if (!rateLimitResult.IsAllowed)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new AddressLookupResolveResponseDto
+            {
+                Success = false,
+                ErrorMessage = "Too many address lookup requests. Please try again shortly."
+            });
+        }
+
+        var result = await addressLookupService.ResolveAddressAsync(new AddressLookupResolveParameters
+        {
+            Id = request.Id!,
+            CountryCode = request.CountryCode,
+            SessionId = request.SessionId
+        }, ct);
+
+        AddressLookupAddressDto? addressDto = null;
+        if (result.Address != null)
+        {
+            addressDto = new AddressLookupAddressDto
+            {
+                Company = result.Address.Company,
+                Address1 = result.Address.Address1,
+                Address2 = result.Address.Address2,
+                City = result.Address.City,
+                State = result.Address.State,
+                StateCode = result.Address.StateCode,
+                PostalCode = result.Address.PostalCode,
+                Country = result.Address.Country,
+                CountryCode = result.Address.CountryCode
+            };
+        }
+
+        return Ok(new AddressLookupResolveResponseDto
+        {
+            Success = result.Success,
+            ErrorMessage = result.ErrorMessage,
+            Address = addressDto
         });
     }
 
@@ -564,6 +716,60 @@ public class CheckoutApiController(
             Message = "Discount removed successfully.",
             Basket = updatedBasket != null ? await MapBasketToDtoWithCurrencyAsync(updatedBasket, ct) : null
         });
+    }
+
+    /// <summary>
+    /// Render a terms/policy Razor view by key.
+    /// The key maps to ~/Views/Checkout/{Key}.cshtml (PascalCase).
+    /// </summary>
+    [HttpGet("terms/{key}")]
+    public async Task<IActionResult> GetTermsContent(
+        string key,
+        [FromServices] IRazorViewEngine razorViewEngine,
+        [FromServices] IModelMetadataProvider modelMetadataProvider,
+        [FromServices] ITempDataDictionaryFactory tempDataDictionaryFactory)
+    {
+        // Sanitize key to alpha characters only
+        var sanitized = new string(key.Where(char.IsLetter).ToArray());
+        if (string.IsNullOrEmpty(sanitized))
+        {
+            return Ok(new { success = false, message = "Invalid terms key." });
+        }
+
+        // PascalCase the key
+        var viewName = char.ToUpperInvariant(sanitized[0]) + sanitized[1..].ToLowerInvariant();
+        var viewPath = $"~/Views/Checkout/{viewName}.cshtml";
+
+        var viewResult = razorViewEngine.GetView(null, viewPath, false);
+        if (viewResult.View == null)
+        {
+            return Ok(new { success = false, message = "No terms view found." });
+        }
+
+        try
+        {
+            var viewData = new ViewDataDictionary(modelMetadataProvider, new ModelStateDictionary());
+            var tempData = tempDataDictionaryFactory.GetTempData(HttpContext);
+            var routeData = HttpContext.GetRouteData();
+            var actionContext = new ActionContext(HttpContext, routeData, new ActionDescriptor());
+
+            await using var writer = new StringWriter();
+            var viewContext = new ViewContext(
+                actionContext,
+                viewResult.View,
+                viewData,
+                tempData,
+                writer,
+                new HtmlHelperOptions());
+
+            await viewResult.View.RenderAsync(viewContext);
+            return Ok(new { success = true, html = writer.ToString() });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to render terms view: {ViewName}", viewName);
+            return Ok(new { success = false, message = "Failed to load terms content." });
+        }
     }
 
     #region Member Account Endpoints

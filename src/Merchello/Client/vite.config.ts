@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@abandoned-checkouts": resolve(__dirname, "src/abandoned-checkouts"),
+      "@address-lookup-providers": resolve(__dirname, "src/address-lookup-providers"),
       "@api": resolve(__dirname, "src/api"),
       "@analytics": resolve(__dirname, "src/analytics"),
       "@collections": resolve(__dirname, "src/collections"),

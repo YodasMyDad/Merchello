@@ -4,6 +4,7 @@ using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.AddressLookup.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
@@ -36,6 +37,7 @@ public class MerchelloCheckoutController(
     ICheckoutSessionService checkoutSessionService,
     IStorefrontContextService storefrontContext,
     IDiscountService discountService,
+    IAddressLookupService addressLookupService,
     ICurrencyService currencyService,
     IMemberManager memberManager)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
@@ -428,6 +430,8 @@ public class MerchelloCheckoutController(
         // Calculate display amounts using centralized method (includes tax-inclusive calculations and GROSS reconciliation)
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
 
+        var addressLookupConfig = await addressLookupService.GetClientConfigAsync(null, ct);
+
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
             _settings,
@@ -456,7 +460,8 @@ public class MerchelloCheckoutController(
             DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
             TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
             FormattedTaxInclusiveDisplaySubTotal = $"{displayCurrencySymbol}{displayAmounts.TaxInclusiveSubTotal.ToString($"N{displayContext.DecimalPlaces}")}",
-            TaxIncludedMessage = displayAmounts.TaxIncludedMessage
+            TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
+            AddressLookup = addressLookupConfig
         };
 
         return View("~/Views/Checkout/SinglePage.cshtml", viewModel);

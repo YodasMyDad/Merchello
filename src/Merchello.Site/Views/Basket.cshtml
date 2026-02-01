@@ -156,12 +156,8 @@
                                                         class="btn btn-link btn-sm text-danger p-0"
                                                         :disabled="removingItemId === item.id"
                                                         @@click="removeItem(item.id)">
-                                                    <template x-if="removingItemId !== item.id">
-                                                        <span>Remove</span>
-                                                    </template>
-                                                    <template x-if="removingItemId === item.id">
-                                                        <span class="spinner-border spinner-border-sm"></span>
-                                                    </template>
+                                                    <span x-show="removingItemId !== item.id">Remove</span>
+                                                    <span x-show="removingItemId === item.id" x-cloak class="spinner-border spinner-border-sm"></span>
                                                 </button>
                                             </div>
                                         </div>

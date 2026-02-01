@@ -145,7 +145,7 @@ public static class ProductExtensions
         // CountryCode can be "*" for universal/wildcard shipping costs that apply to all countries.
         var validShippingOptions = baseOptions
             .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode))
-            .Where(so => so.ShippingCosts.Any(sc =>
+            .Where(so => so.ShippingCosts.Count == 0 || so.ShippingCosts.Any(sc =>
                 (sc.CountryCode == countryCode || sc.CountryCode == "*") &&
                 (stateOrProvinceCode == null || sc.StateOrProvinceCode == stateOrProvinceCode || sc.StateOrProvinceCode == null)))
             .ToList();
