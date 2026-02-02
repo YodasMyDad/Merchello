@@ -174,7 +174,7 @@ public class PaymentWebhookController(
         try
         {
             // Handle the event based on type
-            await HandleWebhookEventAsync(providerAlias, result, cancellationToken);
+            await HandleWebhookEventAsync(providerAlias, result, webhookEventId, cancellationToken);
 
             // Mark as permanently processed
             webhookSecurityService.MarkAsProcessed(providerAlias, webhookEventId);
@@ -198,6 +198,7 @@ public class PaymentWebhookController(
     private async Task HandleWebhookEventAsync(
         string providerAlias,
         WebhookProcessingResult result,
+        string webhookEventId,
         CancellationToken cancellationToken)
     {
         switch (result.EventType)
@@ -218,6 +219,7 @@ public class PaymentWebhookController(
                                 InvoiceId = result.InvoiceId.Value,
                                 ProviderAlias = providerAlias,
                                 TransactionId = result.TransactionId,
+                                WebhookEventId = webhookEventId,
                                 Amount = result.Amount.Value,
                                 Description = "Payment via " + providerAlias + " webhook",
                                 SettlementCurrencyCode = result.SettlementCurrency,

@@ -469,6 +469,11 @@ public class CheckoutService(
         AddProductWithAddonsParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        if (parameters.Quantity <= 0)
+        {
+            return AddProductWithAddonsResult.Failed("Quantity must be greater than zero");
+        }
+
         // Get the product (variant) with ProductRoot - ProductOptions is JSON so automatically loaded with ProductRoot
         var product = await productService.GetProduct(new Products.Services.Parameters.GetProductParameters
         {
@@ -552,6 +557,30 @@ public class CheckoutService(
             var lineItem = basket.LineItems.FirstOrDefault(li => li.Id == lineItemId);
             if (lineItem != null)
             {
+                if (quantity <= 0)
+                {
+                    await RemoveFromBasketAsync(basket, lineItemId, countryCode, cancellationToken);
+                    basket.DateUpdated = DateTime.UtcNow;
+
+                    using var removeScope = efCoreScopeProvider.CreateScope();
+                    await removeScope.ExecuteWithContextAsync<bool>(async db =>
+                    {
+                        db.Baskets.Update(basket);
+                        await db.SaveChangesAsync(cancellationToken);
+                        return true;
+                    });
+                    removeScope.Complete();
+
+                    httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+
+                    if (abandonedCheckoutService != null)
+                    {
+                        await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
+                    }
+
+                    return;
+                }
+
                 var oldQuantity = lineItem.Quantity;
 
                 // Publish cancelable notification before changing quantity
@@ -1405,7 +1434,7 @@ public class CheckoutService(
 
         // Calculate total shipping cost from selected options and store quoted costs
         decimal totalShipping = 0;
-        var quotedCosts = parameters.QuotedCosts ?? [];
+        var quotedCosts = session.QuotedShippingCosts;
         foreach (var group in groupingResult.Groups)
         {
             if (!string.IsNullOrEmpty(group.SelectedShippingOptionId))
@@ -1416,35 +1445,39 @@ public class CheckoutService(
                 if (selectedOption != null)
                 {
                     var costToCharge = selectedOption.Cost;
-                    if (quotedCosts.TryGetValue(group.GroupId, out var customerQuoted) && customerQuoted > 0)
+                    if (quotedCosts.TryGetValue(group.GroupId, out var quoted) && quoted.Cost > 0)
                     {
-                        // Only honor quoted cost if within reasonable bounds of the live rate.
-                        // Prevents frontend tampering while protecting customers from rate increases.
-                        var floor = selectedOption.Cost * 0.8m;
-                        if (customerQuoted >= floor)
-                        {
-                            // Take the lower of quoted vs live: customer never pays more than
-                            // quoted, but also benefits from any rate decrease.
-                            costToCharge = Math.Min(selectedOption.Cost, customerQuoted);
-                        }
+                        // Only honor server-stored quotes (never trust client-provided values).
+                        // Take the lower of quoted vs live: customer never pays more than quoted,
+                        // but also benefits from any rate decrease.
+                        costToCharge = Math.Min(selectedOption.Cost, quoted.Cost);
 
                         var smallestUnit = 1m / (decimal)Math.Pow(10, currencyService.GetDecimalPlaces(basket.Currency ?? _settings.StoreCurrencyCode));
                         if (Math.Abs(selectedOption.Cost - costToCharge) > smallestUnit)
                         {
                             logger.LogWarning(
                                 "Shipping rate adjusted for group {GroupId}: quoted {QuotedCost}, live {LiveCost}, charged {ChargedCost}",
-                                group.GroupId, customerQuoted, selectedOption.Cost, costToCharge);
+                                group.GroupId, quoted.Cost, selectedOption.Cost, costToCharge);
                         }
+                    }
+
+                    if (costToCharge < 0)
+                    {
+                        costToCharge = 0;
                     }
 
                     totalShipping += costToCharge;
                     session.QuotedShippingCosts[group.GroupId] = new QuotedShippingCost(costToCharge, DateTime.UtcNow);
                 }
-                else if (quotedCosts.TryGetValue(group.GroupId, out var quotedCost))
+                else
                 {
-                    // Fallback to quoted cost from parameters (for dynamic provider selections)
-                    totalShipping += quotedCost;
-                    session.QuotedShippingCosts[group.GroupId] = new QuotedShippingCost(quotedCost, DateTime.UtcNow);
+                    var result = new CrudResult<Basket>();
+                    result.Messages.Add(new ResultMessage
+                    {
+                        ResultMessageType = ResultMessageType.Error,
+                        Message = "Selected shipping option is no longer available. Please reselect shipping."
+                    });
+                    return result;
                 }
             }
         }

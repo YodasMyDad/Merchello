@@ -454,6 +454,7 @@ public class PostPurchaseUpsellService(
             InvoiceId = parameters.InvoiceId,
             ProviderAlias = savedMethod.ProviderAlias,
             TransactionId = paymentResult.TransactionId ?? Guid.NewGuid().ToString(),
+            IdempotencyKey = parameters.IdempotencyKey,
             Amount = chargeAmount,
             Description = "Post-purchase upsell",
         }, ct);

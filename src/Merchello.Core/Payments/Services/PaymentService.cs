@@ -261,6 +261,7 @@ public class PaymentService(
                         InvoiceId = request.InvoiceId,
                         ProviderAlias = request.ProviderAlias,
                         TransactionId = paymentResult.TransactionId ?? Guid.NewGuid().ToString("N"),
+                        IdempotencyKey = request.IdempotencyKey,
                         Amount = paymentResult.Amount ?? request.Amount ?? 0,
                         SettlementCurrencyCode = paymentResult.SettlementCurrency,
                         SettlementExchangeRate = paymentResult.SettlementExchangeRate,
@@ -323,6 +324,40 @@ public class PaymentService(
                 return false;
             }
 
+            // Check for duplicate webhook event ID
+            if (!string.IsNullOrEmpty(parameters.WebhookEventId))
+            {
+                var existingByWebhook = await db.Payments
+                    .FirstOrDefaultAsync(p => p.WebhookEventId == parameters.WebhookEventId, cancellationToken);
+                if (existingByWebhook != null)
+                {
+                    logger.LogWarning(
+                        "Duplicate webhook event {WebhookEventId} for invoice {InvoiceId}. Ignoring.",
+                        parameters.WebhookEventId, parameters.InvoiceId);
+
+                    result.ResultObject = existingByWebhook;
+                    result.AddWarningMessage("Payment already recorded for this webhook event.");
+                    return true;
+                }
+            }
+
+            // Check for duplicate idempotency key
+            if (!string.IsNullOrEmpty(parameters.IdempotencyKey))
+            {
+                var existingByIdempotency = await db.Payments
+                    .FirstOrDefaultAsync(p => p.IdempotencyKey == parameters.IdempotencyKey, cancellationToken);
+                if (existingByIdempotency != null)
+                {
+                    logger.LogWarning(
+                        "Duplicate idempotency key {IdempotencyKey} for invoice {InvoiceId}. Ignoring.",
+                        parameters.IdempotencyKey, parameters.InvoiceId);
+
+                    result.ResultObject = existingByIdempotency;
+                    result.AddWarningMessage("Payment already recorded for this idempotency key.");
+                    return true;
+                }
+            }
+
             // Check for duplicate transaction ID (single query to avoid race condition)
             var existingPayment = await db.Payments
                 .FirstOrDefaultAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
@@ -356,6 +391,9 @@ public class PaymentService(
                 riskScoreSource: parameters.RiskScoreSource,
                 methodDisplayName: parameters.MethodDisplayName);
 
+            payment.IdempotencyKey = parameters.IdempotencyKey;
+            payment.WebhookEventId = parameters.WebhookEventId;
+
             // Publish "Before" notification - handlers can cancel or modify
             var creatingNotification = new PaymentCreatingNotification(payment);
             if (await notificationPublisher.PublishCancelableAsync(creatingNotification, cancellationToken))
@@ -376,22 +414,41 @@ public class PaymentService(
                     "Payment recorded: {PaymentId} for invoice {InvoiceId}, amount {Amount}, transaction {TransactionId}",
                     payment.Id, parameters.InvoiceId, parameters.Amount, parameters.TransactionId);
             }
-            catch (DbUpdateException) when (!string.IsNullOrEmpty(parameters.TransactionId))
+            catch (DbUpdateException) when (!string.IsNullOrEmpty(parameters.TransactionId) ||
+                                            !string.IsNullOrEmpty(parameters.IdempotencyKey) ||
+                                            !string.IsNullOrEmpty(parameters.WebhookEventId))
             {
-                // Unique constraint violation on TransactionId - concurrent webhook created duplicate
+                // Unique constraint violation - concurrent insert detected
                 // Fetch the existing payment and return it (idempotent behavior)
                 db.ChangeTracker.Clear();
-                var concurrentPayment = await db.Payments
-                    .FirstOrDefaultAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
+                Payment? concurrentPayment = null;
+
+                if (!string.IsNullOrEmpty(parameters.TransactionId))
+                {
+                    concurrentPayment = await db.Payments
+                        .FirstOrDefaultAsync(p => p.TransactionId == parameters.TransactionId, cancellationToken);
+                }
+
+                if (concurrentPayment == null && !string.IsNullOrEmpty(parameters.IdempotencyKey))
+                {
+                    concurrentPayment = await db.Payments
+                        .FirstOrDefaultAsync(p => p.IdempotencyKey == parameters.IdempotencyKey, cancellationToken);
+                }
+
+                if (concurrentPayment == null && !string.IsNullOrEmpty(parameters.WebhookEventId))
+                {
+                    concurrentPayment = await db.Payments
+                        .FirstOrDefaultAsync(p => p.WebhookEventId == parameters.WebhookEventId, cancellationToken);
+                }
 
                 if (concurrentPayment != null)
                 {
                     logger.LogWarning(
-                        "Concurrent duplicate payment transaction {TransactionId} for invoice {InvoiceId}. Returning existing payment.",
-                        parameters.TransactionId, parameters.InvoiceId);
+                        "Concurrent duplicate payment detected for invoice {InvoiceId}. Returning existing payment.",
+                        parameters.InvoiceId);
 
                     result.ResultObject = concurrentPayment;
-                    result.AddWarningMessage("Payment already recorded for this transaction.");
+                    result.AddWarningMessage("Payment already recorded.");
                 }
                 else
                 {
@@ -611,6 +668,8 @@ public class PaymentService(
                 storeCurrencyCode: storeCurrency,
                 pricingExchangeRate: invoice?.PricingExchangeRate,
                 isPartialRefund: isPartialRefund);
+
+            refundPayment.IdempotencyKey = idempotencyKey;
 
             db.Payments.Add(refundPayment);
             await db.SaveChangesAsync(cancellationToken);
