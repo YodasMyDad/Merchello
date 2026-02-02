@@ -21,6 +21,16 @@ public class RecordPaymentParameters
     public required string TransactionId { get; init; }
 
     /// <summary>
+    /// Optional idempotency key to deduplicate payment records.
+    /// </summary>
+    public string? IdempotencyKey { get; init; }
+
+    /// <summary>
+    /// Optional webhook event ID for deduplicating provider webhooks.
+    /// </summary>
+    public string? WebhookEventId { get; init; }
+
+    /// <summary>
     /// Payment amount
     /// </summary>
     public required decimal Amount { get; init; }

@@ -61,6 +61,8 @@ public class CheckoutApiController(
 
     private const int MaxRecoveryAttemptsPerMinute = 10;
     private static readonly TimeSpan RecoveryRateLimitWindow = TimeSpan.FromMinutes(1);
+    private const int MaxCheckEmailAttemptsPerMinute = 10;
+    private static readonly TimeSpan CheckEmailRateLimitWindow = TimeSpan.FromMinutes(1);
     private const int MaxAddressLookupSuggestionsPerMinute = 30;
     private const int MaxAddressLookupResolvesPerMinute = 20;
     private static readonly TimeSpan AddressLookupRateLimitWindow = TimeSpan.FromMinutes(1);
@@ -781,12 +783,22 @@ public class CheckoutApiController(
     [HttpPost("check-email")]
     public async Task<IActionResult> CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Email))
+        if (string.IsNullOrWhiteSpace(request.Email) || !checkoutValidator.IsValidEmail(request.Email))
         {
             return BadRequest(new CheckEmailResultDto { HasExistingAccount = false });
         }
 
-        var result = await checkoutMemberService.CheckEmailAsync(request.Email, ct);
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"check-email:{clientIp}";
+        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxCheckEmailAttemptsPerMinute, CheckEmailRateLimitWindow);
+
+        if (!rateLimitResult.IsAllowed)
+        {
+            logger.LogWarning("Rate limit exceeded for check-email from IP: {IP}", clientIp);
+            return Ok(new CheckEmailResultDto { HasExistingAccount = false });
+        }
+
+        var result = await checkoutMemberService.CheckEmailAsync(request.Email.Trim(), ct);
         return Ok(result);
     }
 
