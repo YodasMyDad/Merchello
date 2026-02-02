@@ -48,9 +48,9 @@ public class StorefrontUpsellController(
         var regionCode = basket.ShippingAddress?.CountyState?.RegionCode;
         if (string.IsNullOrWhiteSpace(countryCode))
         {
-            var locationContext = await storefrontContextService.GetShippingLocationAsync(ct);
-            countryCode = locationContext.CountryCode;
-            regionCode = locationContext.RegionCode;
+            // DisplayContext already resolved the shipping location — reuse it
+            countryCode = displayContext.TaxCountryCode;
+            regionCode = displayContext.TaxRegionCode;
         }
 
         var context = new UpsellContext

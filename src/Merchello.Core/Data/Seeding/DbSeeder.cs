@@ -2416,6 +2416,7 @@ public class DbSeeder(
 
                     // Select first shipping option per group
                     var selectedShippingOptions = shippingResult.WarehouseGroups
+                        .DistinctBy(g => g.GroupId)
                         .ToDictionary(g => g.GroupId, g => g.AvailableShippingOptions.First().SelectionKey);
 
                     var checkoutSession = new CheckoutSession

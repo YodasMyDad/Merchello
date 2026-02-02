@@ -19,19 +19,19 @@
 @if (range > 0)
 {
     <div class="price-range-slider mb-4"
-         x-data="{ displayMultiplier: @Model.DisplayMultiplier, decimals: @Model.DecimalPlaces }"
-         x-init="
-            // Helper to convert store price to display price and format
-            $el.toDisplayPrice = (storePrice) => {
-                const displayPrice = storePrice * displayMultiplier;
+         x-data="{
+            displayMultiplier: @Model.DisplayMultiplier,
+            decimals: @Model.DecimalPlaces,
+            toDisplayPrice(storePrice) {
+                const displayPrice = storePrice * this.displayMultiplier;
                 return Alpine.store('currency').formatDisplayPrice(displayPrice);
-            };
-         ">
+            }
+         }">
         <h6 class="fw-bold mb-3">Price Range</h6>
 
         <div class="d-flex justify-content-between mb-2">
-            <span class="price-label" x-text="$el.toDisplayPrice(priceMin)">@Model.CurrencySymbol@displaySelectedMin.ToString(priceFormat)</span>
-            <span class="price-label" x-text="$el.toDisplayPrice(priceMax)">@Model.CurrencySymbol@displaySelectedMax.ToString(priceFormat)</span>
+            <span class="price-label" x-text="toDisplayPrice(priceMin)">@Model.CurrencySymbol@displaySelectedMin.ToString(priceFormat)</span>
+            <span class="price-label" x-text="toDisplayPrice(priceMax)">@Model.CurrencySymbol@displaySelectedMax.ToString(priceFormat)</span>
         </div>
 
         <div class="range-slider-container">

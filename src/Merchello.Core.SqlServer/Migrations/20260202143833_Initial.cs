@@ -542,14 +542,12 @@ namespace Merchello.Core.SqlServer.Migrations
                         name: "FK_merchelloGiftCards_merchelloCustomers_IssuedToCustomerId",
                         column: x => x.IssuedToCustomerId,
                         principalTable: "merchelloCustomers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_merchelloGiftCards_merchelloCustomers_PurchasedByCustomerId",
                         column: x => x.PurchasedByCustomerId,
                         principalTable: "merchelloCustomers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -586,7 +584,7 @@ namespace Merchello.Core.SqlServer.Migrations
                     ShippingPhone = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
                     Channel = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     PurchaseOrder = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    Notes = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
+                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     SubTotal = table.Column<decimal>(type: "decimal(18,4)", precision: 18, scale: 4, nullable: false),
                     CurrencyCode = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
                     CurrencySymbol = table.Column<string>(type: "nvarchar(10)", maxLength: 10, nullable: false),

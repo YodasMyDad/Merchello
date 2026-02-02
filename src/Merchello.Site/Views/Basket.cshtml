@@ -251,8 +251,11 @@
                                         <span class="spinner-border spinner-border-sm text-primary ms-1"></span>
                                     </template>
                                 </span>
-                                <template x-if="hasShippingEstimate && !isLoadingShipping">
+                                <template x-if="hasShippingEstimate && !isLoadingShipping && displayEstimatedShipping > 0">
                                     <span x-text="displayPricesIncTax ? formattedTaxInclusiveDisplayShipping : formattedDisplayEstimatedShipping"></span>
+                                </template>
+                                <template x-if="hasShippingEstimate && !isLoadingShipping && displayEstimatedShipping === 0">
+                                    <span class="text-success fw-semibold">FREE</span>
                                 </template>
                                 <template x-if="!hasShippingEstimate && !isLoadingShipping">
                                     <small class="text-muted">Calculated at checkout</small>

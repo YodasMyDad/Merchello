@@ -332,8 +332,10 @@
                           x-transition:enter-end="opacity-100"
                           class="text-gray-900 font-medium"
                           x-text="formatCurrency(shipping)"></span>
-                    <span x-show="shipping === 0 || shipping === undefined"
-                          class="text-gray-500 text-xs">Select shipping above</span>
+                    <span x-show="shipping === 0 && $store.checkout?.allShippingSelected()"
+                          class="text-green-600 font-medium">FREE</span>
+                    <span x-show="(shipping === 0 || shipping === undefined) && !$store.checkout?.allShippingSelected()"
+                          class="text-gray-500 text-xs">Select shipping</span>
                 }
                 else if (basket?.Shipping > 0)
                 {

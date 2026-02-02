@@ -8,19 +8,30 @@ using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Merchello.Core.Caching.Services.Interfaces;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Warehouses.Services;
 
-public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider, ILocalityCatalog catalog) : ILocationsService
+public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider, ILocalityCatalog catalog, ICacheService cacheService) : ILocationsService
 {
     public async Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken ct = default)
+    {
+        return await cacheService.GetOrCreateAsync(
+            "merchello:AvailableCountries",
+            async cancellationToken => await LoadAvailableCountriesAsync(cancellationToken),
+            TimeSpan.FromMinutes(5),
+            ["locations"],
+            ct);
+    }
+
+    private async Task<IReadOnlyCollection<CountryAvailability>> LoadAvailableCountriesAsync(CancellationToken ct)
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var warehouses = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
                 .AsNoTracking()
-                
+
                 .ToListAsync(ct));
         scope.Complete();
 

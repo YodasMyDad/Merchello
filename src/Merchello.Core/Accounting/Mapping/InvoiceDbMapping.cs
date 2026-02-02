@@ -68,7 +68,7 @@ public class InvoiceDbMapping : IEntityTypeConfiguration<Invoice>
         });
 
         // JSON conversions
-        builder.Property(x => x.Notes).ToJsonConversion(3000);
+        builder.Property(x => x.Notes).ToJsonConversion(null);
         builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
         builder.Property(x => x.Source).ToNullableJsonConversion(1000);
 
