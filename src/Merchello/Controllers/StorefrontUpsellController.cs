@@ -6,6 +6,9 @@ using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Umbraco.Cms.Core.Media;
+using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Controllers;
 
@@ -20,7 +23,9 @@ public class StorefrontUpsellController(
     ICheckoutService checkoutService,
     IUpsellContextBuilder upsellContextBuilder,
     IStorefrontContextService storefrontContextService,
-    ICheckoutSessionService checkoutSessionService) : ControllerBase
+    ICheckoutSessionService checkoutSessionService,
+    IMediaService mediaService,
+    MediaUrlGeneratorCollection mediaUrlGenerators) : ControllerBase
 {
     /// <summary>
     /// Get upsell suggestions for the current basket at a specific display location.
@@ -158,7 +163,7 @@ public class StorefrontUpsellController(
         return NoContent();
     }
 
-    private static UpsellSuggestionDto MapSuggestionToDto(UpsellSuggestion suggestion) => new()
+    private UpsellSuggestionDto MapSuggestionToDto(UpsellSuggestion suggestion) => new()
     {
         UpsellRuleId = suggestion.UpsellRuleId,
         Heading = suggestion.Heading,
@@ -168,7 +173,7 @@ public class StorefrontUpsellController(
         Products = suggestion.Products.Select(MapProductToDto).ToList()
     };
 
-    private static UpsellProductDto MapProductToDto(UpsellProduct product) => new()
+    private UpsellProductDto MapProductToDto(UpsellProduct product) => new()
     {
         ProductId = product.ProductId,
         ProductRootId = product.ProductRootId,
@@ -185,7 +190,7 @@ public class StorefrontUpsellController(
         PreviousPrice = product.PreviousPrice,
         FormattedPreviousPrice = product.FormattedPreviousPrice,
         Url = product.Url,
-        ImageUrl = product.Images.FirstOrDefault(),
+        ImageUrl = ResolveFirstImageUrl(product.Images),
         ProductTypeName = product.ProductTypeName,
         AvailableForPurchase = product.AvailableForPurchase,
         HasVariants = product.HasVariants,
@@ -201,4 +206,27 @@ public class StorefrontUpsellController(
         FormattedPrice = variant.FormattedPrice,
         AvailableForPurchase = variant.AvailableForPurchase
     };
+
+    private string? ResolveFirstImageUrl(List<string> images)
+    {
+        foreach (var image in images)
+        {
+            if (string.IsNullOrWhiteSpace(image)) continue;
+
+            if (image.StartsWith('/') || image.StartsWith("http"))
+                return image;
+
+            if (Guid.TryParse(image, out var mediaKey))
+            {
+                var media = mediaService.GetById(mediaKey);
+                if (media != null &&
+                    mediaUrlGenerators.TryGetMediaPath(media.ContentType.Alias, media.GetValue<string>("umbracoFile"), out var mediaPath))
+                {
+                    return mediaPath;
+                }
+            }
+        }
+
+        return null;
+    }
 }

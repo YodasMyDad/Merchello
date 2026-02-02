@@ -711,7 +711,7 @@ export function initSinglePageCheckout() {
                 } else if (!form.stateCode && form.state && regions.length > 0) {
                     const region = regions.find(r => r.name?.toLowerCase() === form.state.toLowerCase());
                     if (region) {
-                        form.stateCode = region.code;
+                        form.stateCode = region.regionCode;
                     }
                 }
 
@@ -1475,18 +1475,6 @@ export function initSinglePageCheckout() {
             },
 
             // ============================================
-            // Order Submission
-            // ============================================
-
-            /**
-             * Submit the order for payment processing.
-             *
-             * CRITICAL FLOW:
-             * 1. Validate all form fields
-             * 2. Set isSubmitting = true (blocks payment form re-init, see PHANTOM ORDER PREVENTION)
-             * 3. Save addresses to backend (with optional password for account creation)
-             * 4. Save shipping selections to backend
-            // ============================================
             // Upsell Methods
             // ============================================
 
@@ -1668,7 +1656,18 @@ export function initSinglePageCheckout() {
                 document.body.style.overflow = '';
             },
 
+            // ============================================
+            // Order Submission
+            // ============================================
+
             /**
+             * Submit the order for payment processing.
+             *
+             * CRITICAL FLOW:
+             * 1. Validate all form fields
+             * 2. Set isSubmitting = true (blocks payment form re-init, see PHANTOM ORDER PREVENTION)
+             * 3. Save addresses to backend (with optional password for account creation)
+             * 4. Save shipping selections to backend
              * 5. Get or create payment session
              * 6. For redirect payments: redirect to provider
              * 7. For hosted fields: submit payment via MerchelloPayment handler

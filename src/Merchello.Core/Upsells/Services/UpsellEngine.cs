@@ -701,7 +701,7 @@ public class UpsellEngine(
             : null;
 
         var images = BuildProductImages(product, useAbsoluteUrls);
-        var url = product.Url ?? product.ProductRoot?.RootUrl;
+        var url = BuildProductUrl(product);
         if (useAbsoluteUrls)
         {
             url = BuildAbsoluteUrl(url);
@@ -815,6 +815,23 @@ public class UpsellEngine(
             .Where(i => !string.IsNullOrWhiteSpace(i))
             .Select(i => i!)
             .ToList();
+    }
+
+    /// <summary>
+    /// Builds the full product URL in the format /{RootUrl}/{VariantUrl}.
+    /// Product.Url is just the variant segment; ProductRoot.RootUrl is the root segment.
+    /// </summary>
+    private static string? BuildProductUrl(Product product)
+    {
+        var rootUrl = product.ProductRoot?.RootUrl;
+        if (string.IsNullOrWhiteSpace(rootUrl))
+            return product.Url;
+
+        var variantUrl = product.Url;
+        if (string.IsNullOrWhiteSpace(variantUrl) || variantUrl == rootUrl)
+            return $"/{rootUrl.TrimStart('/')}";
+
+        return $"/{rootUrl.TrimStart('/')}/{variantUrl.TrimStart('/')}";
     }
 
     private string? BuildAbsoluteUrl(string? url)

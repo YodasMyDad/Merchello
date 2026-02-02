@@ -161,8 +161,8 @@
                         autocomplete="@prefix address-level1"
                         class="@selectClass">
                     <option value="">Select...</option>
-                    <template x-for="region in @(prefix)Regions" :key="region.code">
-                        <option :value="region.code" x-text="region.name"></option>
+                    <template x-for="region in @(prefix)Regions" :key="region.regionCode">
+                        <option :value="region.regionCode" x-text="region.name"></option>
                     </template>
                 </select>
             </template>

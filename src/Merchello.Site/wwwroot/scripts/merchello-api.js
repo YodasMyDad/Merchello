@@ -34,6 +34,10 @@ const MerchelloApi = {
                 };
             }
 
+            if (response.status === 204) {
+                return { success: true };
+            }
+
             const data = await response.json();
             return { success: true, data };
         } catch (error) {

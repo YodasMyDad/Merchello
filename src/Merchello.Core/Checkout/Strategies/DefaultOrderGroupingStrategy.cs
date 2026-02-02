@@ -241,16 +241,7 @@ public class DefaultOrderGroupingStrategy(
                     GroupName = $"Shipment from {warehouseName}",
                     WarehouseId = warehouseId,
                     SelectedShippingOptionId = lineItemSelectionKey,
-                    AvailableShippingOptions = shippingOptionsForGroup.Select(so => new ShippingOptionInfo
-                    {
-                        ShippingOptionId = so.Id,
-                        Name = so.Name ?? string.Empty,
-                        DaysFrom = so.DaysFrom,
-                        DaysTo = so.DaysTo,
-                        IsNextDay = so.IsNextDay,
-                        Cost = shippingCostResolver.GetTotalShippingCost(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
-                        ProviderKey = so.ProviderKey
-                    }).ToList()
+                    AvailableShippingOptions = ResolveShippingOptions(shippingOptionsForGroup, context)
                 };
 
                 orderGroups.Add(group);
@@ -302,16 +293,7 @@ public class DefaultOrderGroupingStrategy(
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
                         SelectedShippingOptionId = groupSelectionKey,
-                        AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
-                        {
-                            ShippingOptionId = so.Id,
-                            Name = so.Name ?? string.Empty,
-                            DaysFrom = so.DaysFrom,
-                            DaysTo = so.DaysTo,
-                            IsNextDay = so.IsNextDay,
-                            Cost = shippingCostResolver.GetTotalShippingCost(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
-                            ProviderKey = so.ProviderKey
-                        }).ToList()
+                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context)
                     };
                     orderGroups.Add(group);
                 }
@@ -338,16 +320,7 @@ public class DefaultOrderGroupingStrategy(
                         GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
-                        AvailableShippingOptions = allowedShippingOptions.Select(so => new ShippingOptionInfo
-                        {
-                            ShippingOptionId = so.Id,
-                            Name = so.Name ?? string.Empty,
-                            DaysFrom = so.DaysFrom,
-                            DaysTo = so.DaysTo,
-                            IsNextDay = so.IsNextDay,
-                            Cost = shippingCostResolver.GetTotalShippingCost(so, context.ShippingAddress.CountryCode!, context.ShippingAddress.CountyState?.RegionCode) ?? 0,
-                            ProviderKey = so.ProviderKey
-                        }).ToList()
+                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context)
                     };
                     orderGroups.Add(group);
                 }
@@ -604,5 +577,32 @@ public class DefaultOrderGroupingStrategy(
         }
 
         return product.ProductRoot?.DefaultPackageConfigurations ?? [];
+    }
+
+    /// <summary>
+    /// Resolves shipping options to ShippingOptionInfo, filtering out options
+    /// that have no cost configured for the destination country/region.
+    /// </summary>
+    private List<ShippingOptionInfo> ResolveShippingOptions(
+        IEnumerable<ShippingOption> shippingOptions,
+        OrderGroupingContext context)
+    {
+        var countryCode = context.ShippingAddress.CountryCode!;
+        var regionCode = context.ShippingAddress.CountyState?.RegionCode;
+
+        return shippingOptions
+            .Select(so => (Option: so, Cost: shippingCostResolver.GetTotalShippingCost(so, countryCode, regionCode)))
+            .Where(x => x.Cost.HasValue)
+            .Select(x => new ShippingOptionInfo
+            {
+                ShippingOptionId = x.Option.Id,
+                Name = x.Option.Name ?? string.Empty,
+                DaysFrom = x.Option.DaysFrom,
+                DaysTo = x.Option.DaysTo,
+                IsNextDay = x.Option.IsNextDay,
+                Cost = x.Cost!.Value,
+                ProviderKey = x.Option.ProviderKey
+            })
+            .ToList();
     }
 }

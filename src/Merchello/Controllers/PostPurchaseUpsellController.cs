@@ -2,6 +2,9 @@ using Merchello.Core.Upsells.Dtos;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
 using Microsoft.AspNetCore.Mvc;
+using Umbraco.Cms.Core.Media;
+using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Controllers;
 
@@ -11,7 +14,9 @@ namespace Merchello.Controllers;
 [Route("api/merchello/checkout/post-purchase")]
 [ApiController]
 public class PostPurchaseUpsellController(
-    IPostPurchaseUpsellService postPurchaseService) : ControllerBase
+    IPostPurchaseUpsellService postPurchaseService,
+    IMediaService mediaService,
+    MediaUrlGeneratorCollection mediaUrlGenerators) : ControllerBase
 {
     /// <summary>
     /// Get available post-purchase upsells for an invoice.
@@ -21,7 +26,10 @@ public class PostPurchaseUpsellController(
         Guid invoiceId, CancellationToken ct)
     {
         var result = await postPurchaseService.GetAvailableUpsellsAsync(invoiceId, ct);
-        return result == null ? NotFound() : Ok(result);
+        if (result == null) return NotFound();
+
+        ResolveProductImageUrls(result.Suggestions);
+        return Ok(result);
     }
 
     /// <summary>
@@ -73,5 +81,31 @@ public class PostPurchaseUpsellController(
     {
         var result = await postPurchaseService.SkipUpsellsAsync(invoiceId, ct);
         return result.IsSuccess ? NoContent() : BadRequest(result.ErrorMessage);
+    }
+
+    private void ResolveProductImageUrls(List<UpsellSuggestionDto> suggestions)
+    {
+        foreach (var product in suggestions.SelectMany(s => s.Products))
+        {
+            product.ImageUrl = ResolveMediaUrl(product.ImageUrl);
+        }
+    }
+
+    private string? ResolveMediaUrl(string? image)
+    {
+        if (string.IsNullOrWhiteSpace(image)) return null;
+        if (image.StartsWith('/') || image.StartsWith("http")) return image;
+
+        if (Guid.TryParse(image, out var mediaKey))
+        {
+            var media = mediaService.GetById(mediaKey);
+            if (media != null &&
+                mediaUrlGenerators.TryGetMediaPath(media.ContentType.Alias, media.GetValue<string>("umbracoFile"), out var mediaPath))
+            {
+                return mediaPath;
+            }
+        }
+
+        return null;
     }
 }
