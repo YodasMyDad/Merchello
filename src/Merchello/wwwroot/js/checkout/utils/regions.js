@@ -10,7 +10,7 @@ import { checkoutApi } from '../services/api.js';
 
 /**
  * @typedef {Object} Region
- * @property {string} code - The region code (e.g., 'CA', 'NY')
+ * @property {string} regionCode - The region code (e.g., 'CA', 'NY')
  * @property {string} name - The region name (e.g., 'California', 'New York')
  */
 
@@ -69,7 +69,7 @@ export function isValidRegion(regionCode, regions) {
     if (!regionCode || !Array.isArray(regions)) {
         return false;
     }
-    return regions.some(r => r.code === regionCode);
+    return regions.some(r => r.regionCode === regionCode);
 }
 
 /**
@@ -83,7 +83,7 @@ export function getRegionName(regionCode, regions) {
     if (!regionCode || !Array.isArray(regions)) {
         return '';
     }
-    const region = regions.find(r => r.code === regionCode);
+    const region = regions.find(r => r.regionCode === regionCode);
     return region?.name || '';
 }
 

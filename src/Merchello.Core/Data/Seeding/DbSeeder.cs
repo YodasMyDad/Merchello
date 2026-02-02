@@ -388,8 +388,16 @@ public class DbSeeder(
                 // UK-ONLY option (for country-restricted products)
                 new ShippingOptionConfig { Name = "UK Domestic Only", DaysFrom = 2, DaysTo = 4, Cost = 4.49m },
 
-                // International from UK warehouse
-                new ShippingOptionConfig { Name = "Royal Mail International Tracked", DaysFrom = 7, DaysTo = 14, Cost = 14.99m }
+                // International from UK warehouse (no FixedCost — only resolves for listed countries)
+                new ShippingOptionConfig
+                {
+                    Name = "Royal Mail International Tracked", DaysFrom = 7, DaysTo = 14,
+                    CountrySpecificCosts = new Dictionary<string, decimal>
+                    {
+                        { "US", 14.99m }, { "CA", 14.99m }, { "AU", 16.99m },
+                        { "DE", 9.99m }, { "FR", 9.99m }, { "JP", 18.99m }
+                    }
+                }
             ]
         }, cancellationToken);
 
@@ -498,8 +506,16 @@ public class DbSeeder(
                 new ShippingOptionConfig { Name = "FedEx 2Day", DaysFrom = 2, DaysTo = 2, Cost = 15.99m, ProviderKey = "fedex", ServiceType = "FEDEX_2_DAY" },
                 new ShippingOptionConfig { Name = "FedEx Priority Overnight", DaysFrom = 1, DaysTo = 1, Cost = 29.99m, ProviderKey = "fedex", ServiceType = "PRIORITY_OVERNIGHT", IsNextDay = true },
 
-                // International from US East
-                new ShippingOptionConfig { Name = "USPS Priority Intl (East)", DaysFrom = 10, DaysTo = 14, Cost = 24.99m }
+                // International from US East (no FixedCost — only resolves for listed countries)
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Priority Intl (East)", DaysFrom = 10, DaysTo = 14,
+                    CountrySpecificCosts = new Dictionary<string, decimal>
+                    {
+                        { "GB", 24.99m }, { "CA", 19.99m }, { "MX", 18.99m },
+                        { "DE", 26.99m }, { "FR", 26.99m }, { "AU", 32.99m }, { "JP", 34.99m }
+                    }
+                }
             ]
         }, cancellationToken);
 
@@ -555,8 +571,16 @@ public class DbSeeder(
                 new ShippingOptionConfig { Name = "FedEx Express Saver (West)", DaysFrom = 3, DaysTo = 3, Cost = 12.99m, ProviderKey = "fedex", ServiceType = "FEDEX_EXPRESS_SAVER" },
                 new ShippingOptionConfig { Name = "FedEx 2Day (West)", DaysFrom = 2, DaysTo = 2, Cost = 14.99m, ProviderKey = "fedex", ServiceType = "FEDEX_2_DAY" },
 
-                // International from US West (Mexico/Canada focus)
-                new ShippingOptionConfig { Name = "USPS Priority Intl (West)", DaysFrom = 8, DaysTo = 12, Cost = 22.99m }
+                // International from US West (no FixedCost — only resolves for listed countries)
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Priority Intl (West)", DaysFrom = 8, DaysTo = 12,
+                    CountrySpecificCosts = new Dictionary<string, decimal>
+                    {
+                        { "GB", 22.99m }, { "CA", 16.99m }, { "MX", 14.99m },
+                        { "DE", 24.99m }, { "FR", 24.99m }, { "AU", 28.99m }, { "JP", 29.99m }
+                    }
+                }
             ]
         }, cancellationToken);
 
@@ -1134,7 +1158,7 @@ public class DbSeeder(
             "100% organic cotton crew neck, sustainably produced.",
             27.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["Forest Green", "Black", "Natural"], standardSizes,
-            [(0, 0, 0, true), (1, 0, 0, true), (2, 15, 25, true), (3, 10, 20, true)]);
+            [(2, 15, 25, true), (3, 10, 20, true)]);
 
         // Graphic Print Tee - MIXED STOCK levels
         await CreateProduct("Graphic Print Tee",
@@ -1194,7 +1218,7 @@ public class DbSeeder(
             "Moisture-wicking performance polo, perfect for golf or active wear.",
             39.99m, productTypes["polo"], [collections["clothing"], collections["polos"]],
             0.25m, ["White", "Black", "Grey", "Navy"], standardSizes,
-            [(2, 20, 40, true), (3, 15, 30, true), (0, 8, 15, true)]);
+            [(2, 20, 40, true), (3, 15, 30, true)]);
 
         // ============ JACKETS (3 products) - UK and EU only (cold climate) ============
 

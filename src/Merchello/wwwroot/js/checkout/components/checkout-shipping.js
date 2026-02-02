@@ -168,12 +168,12 @@ export function initCheckoutShipping() {
         },
 
         /**
-         * Return options in the order provided by the backend (source of truth).
+         * Sort options: Free first, then Next Day, then by price ascending.
          * @param {ShippingOption[]} options
          * @returns {ShippingOption[]}
          */
         sortOptions(options) {
-            return options;
+            return sortShippingOptions(options);
         }
     }));
 }
@@ -199,12 +199,22 @@ export function getSelectedShippingName(group, selections) {
 }
 
 /**
- * Return options in the order provided by the backend (source of truth).
+ * Sort options: Free first, then Next Day, then by price ascending.
  * @param {ShippingOption[]} options
  * @returns {ShippingOption[]}
  */
 export function sortShippingOptions(options) {
-    return options;
+    return [...options].sort((a, b) => {
+        const aFree = a.cost === 0 ? 0 : 1;
+        const bFree = b.cost === 0 ? 0 : 1;
+        if (aFree !== bFree) return aFree - bFree;
+
+        const aNext = a.isNextDay ? 0 : 1;
+        const bNext = b.isNextDay ? 0 : 1;
+        if (aNext !== bNext) return aNext - bNext;
+
+        return a.cost - b.cost;
+    });
 }
 
 /**
