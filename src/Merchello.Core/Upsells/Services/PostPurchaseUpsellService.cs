@@ -310,7 +310,7 @@ public class PostPurchaseUpsellService(
             return new PostPurchasePreviewDto
             {
                 ProductId = parameters.ProductId,
-                ProductName = product?.Name ?? product?.ProductRoot?.RootName ?? "Product",
+                ProductName = product?.ProductRoot?.RootName ?? product?.Name ?? "Product",
                 Quantity = parameters.Quantity,
                 CurrencyCode = invoice.CurrencyCode,
                 CurrencySymbol = invoice.CurrencySymbol,
@@ -348,7 +348,7 @@ public class PostPurchaseUpsellService(
         return new PostPurchasePreviewDto
         {
             ProductId = parameters.ProductId,
-            ProductName = product.Name ?? product.ProductRoot?.RootName ?? "Product",
+            ProductName = product.ProductRoot?.RootName ?? product.Name ?? "Product",
             Quantity = parameters.Quantity,
             UnitPrice = currencyService.Round(displayUnitPrice, invoice.CurrencyCode),
             SubTotal = currencyService.Round(displaySubTotal, invoice.CurrencyCode),

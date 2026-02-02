@@ -1001,32 +1001,40 @@ public class CheckoutApiController(
     [HttpPost("capture-address")]
     public async Task<IActionResult> CaptureAddress([FromBody] SaveAddressesRequestDto request, CancellationToken ct)
     {
-        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        if (basket == null || basket.LineItems.Count == 0)
+        try
         {
-            return BadRequest(new { success = false, message = "No items in basket." });
+            var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+            if (basket == null || basket.LineItems.Count == 0)
+            {
+                return BadRequest(new { success = false, message = "No items in basket." });
+            }
+
+            var result = await checkoutService.SaveAddressesAsync(new SaveAddressesParameters
+            {
+                Basket = basket,
+                Email = request.Email,
+                BillingAddress = request.BillingAddress,
+                ShippingAddress = request.ShippingAddress,
+                ShippingSameAsBilling = request.ShippingSameAsBilling,
+                AcceptsMarketing = request.AcceptsMarketing,
+                IsPartial = true
+            }, ct);
+
+            if (!result.Successful)
+            {
+                var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to capture address.";
+                return BadRequest(new { success = false, message });
+            }
+
+            logger.LogDebug("Address captured for basket: {BasketId}", basket.Id);
+
+            return Ok(new { success = true });
         }
-
-        var result = await checkoutService.SaveAddressesAsync(new SaveAddressesParameters
+        catch (Exception ex)
         {
-            Basket = basket,
-            Email = request.Email,
-            BillingAddress = request.BillingAddress,
-            ShippingAddress = request.ShippingAddress,
-            ShippingSameAsBilling = request.ShippingSameAsBilling,
-            AcceptsMarketing = request.AcceptsMarketing,
-            IsPartial = true
-        }, ct);
-
-        if (!result.Successful)
-        {
-            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to capture address.";
-            return BadRequest(new { success = false, message });
+            logger.LogError(ex, "Error capturing address");
+            return StatusCode(500, new { success = false, message = "Failed to capture address." });
         }
-
-        logger.LogDebug("Address captured for basket: {BasketId}", basket.Id);
-
-        return Ok(new { success = true });
     }
 
     /// <summary>

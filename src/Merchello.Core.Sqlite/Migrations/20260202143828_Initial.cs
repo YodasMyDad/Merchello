@@ -542,14 +542,12 @@ namespace Merchello.Core.Sqlite.Migrations
                         name: "FK_merchelloGiftCards_merchelloCustomers_IssuedToCustomerId",
                         column: x => x.IssuedToCustomerId,
                         principalTable: "merchelloCustomers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_merchelloGiftCards_merchelloCustomers_PurchasedByCustomerId",
                         column: x => x.PurchasedByCustomerId,
                         principalTable: "merchelloCustomers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -586,7 +584,7 @@ namespace Merchello.Core.Sqlite.Migrations
                     ShippingPhone = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
                     Channel = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     PurchaseOrder = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
-                    Notes = table.Column<string>(type: "TEXT", maxLength: 3000, nullable: false),
+                    Notes = table.Column<string>(type: "TEXT", nullable: false),
                     SubTotal = table.Column<decimal>(type: "TEXT", precision: 18, scale: 4, nullable: false),
                     CurrencyCode = table.Column<string>(type: "TEXT", maxLength: 3, nullable: false),
                     CurrencySymbol = table.Column<string>(type: "TEXT", maxLength: 10, nullable: false),

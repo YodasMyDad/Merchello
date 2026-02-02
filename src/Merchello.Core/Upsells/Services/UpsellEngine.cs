@@ -276,8 +276,11 @@ public class UpsellEngine(
             candidateProducts = candidateProducts.Take(rule.MaxProducts).ToList();
 
             // Build suggestion
-            var mappedProducts = await Task.WhenAll(
-                candidateProducts.Select(p => MapToUpsellProductAsync(p, displayContext, useAbsoluteUrls, ct)));
+            var mappedProducts = new List<UpsellProduct>();
+            foreach (var p in candidateProducts)
+            {
+                mappedProducts.Add(await MapToUpsellProductAsync(p, displayContext, useAbsoluteUrls, ct));
+            }
 
             suggestions.Add(new UpsellSuggestion
             {
@@ -714,7 +717,7 @@ public class UpsellEngine(
         {
             ProductId = product.Id,
             ProductRootId = product.ProductRootId,
-            Name = product.Name ?? product.ProductRoot?.RootName ?? string.Empty,
+            Name = product.ProductRoot?.RootName ?? product.Name ?? string.Empty,
             Description = product.ProductRoot?.MetaDescription ?? product.ProductRoot?.Description,
             Sku = product.Sku,
             Price = displayPrice.Amount,
@@ -758,10 +761,13 @@ public class UpsellEngine(
             return null;
         }
 
-        var mappedVariants = await Task.WhenAll(
-            orderedVariants.Select(v => MapToUpsellVariantAsync(v, displayContext, ct)));
+        var mappedVariants = new List<UpsellVariant>();
+        foreach (var v in orderedVariants)
+        {
+            mappedVariants.Add(await MapToUpsellVariantAsync(v, displayContext, ct));
+        }
 
-        return mappedVariants.ToList();
+        return mappedVariants;
     }
 
     private async Task<UpsellVariant> MapToUpsellVariantAsync(

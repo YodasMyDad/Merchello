@@ -4,6 +4,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Base;
+using Merchello.Core.Upsells.Extensions;
 using Merchello.Core.Upsells.Models;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -349,9 +350,8 @@ public class MjmlHelper : IMjmlHelper
 
     public IHtmlContent UpsellSuggestions(MerchelloNotification notification)
     {
-        if (!notification.State.TryGetValue("UpsellSuggestions", out var raw) ||
-            raw is not List<UpsellSuggestion> suggestions ||
-            suggestions.Count == 0)
+        var suggestions = notification.GetUpsellSuggestions();
+        if (suggestions.Count == 0)
         {
             return HtmlString.Empty;
         }

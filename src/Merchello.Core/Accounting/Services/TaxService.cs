@@ -8,6 +8,7 @@ using Merchello.Core.Notifications.TaxGroup;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
+using Merchello.Core.Caching.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
@@ -16,6 +17,7 @@ namespace Merchello.Core.Accounting.Services;
 public class TaxService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IMerchelloNotificationPublisher notificationPublisher,
+    ICacheService cacheService,
     ILogger<TaxService> logger) : ITaxService
 {
     /// <summary>
@@ -285,46 +287,55 @@ public class TaxService(
         if (string.IsNullOrWhiteSpace(countryCode))
             return 0m;
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        var rate = await scope.ExecuteWithContextAsync(async db =>
-        {
-            // Priority 1: State-specific rate
-            if (!string.IsNullOrWhiteSpace(stateOrProvinceCode))
+        var cacheKey = $"tax-rate:{taxGroupId}:{countryCode}:{stateOrProvinceCode ?? "_"}";
+        return await cacheService.GetOrCreateAsync(
+            cacheKey,
+            async ct =>
             {
-                var stateRate = await db.TaxGroupRates
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(r =>
-                        r.TaxGroupId == taxGroupId &&
-                        r.CountryCode == countryCode &&
-                        r.StateOrProvinceCode == stateOrProvinceCode,
-                        cancellationToken);
+                using var scope = efCoreScopeProvider.CreateScope();
+                var rate = await scope.ExecuteWithContextAsync(async db =>
+                {
+                    // Priority 1: State-specific rate
+                    if (!string.IsNullOrWhiteSpace(stateOrProvinceCode))
+                    {
+                        var stateRate = await db.TaxGroupRates
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(r =>
+                                r.TaxGroupId == taxGroupId &&
+                                r.CountryCode == countryCode &&
+                                r.StateOrProvinceCode == stateOrProvinceCode,
+                                ct);
 
-                if (stateRate != null)
-                    return stateRate.TaxPercentage;
-            }
+                        if (stateRate != null)
+                            return stateRate.TaxPercentage;
+                    }
 
-            // Priority 2: Country-level rate (no state specified)
-            var countryRate = await db.TaxGroupRates
-                .AsNoTracking()
-                .FirstOrDefaultAsync(r =>
-                    r.TaxGroupId == taxGroupId &&
-                    r.CountryCode == countryCode &&
-                    r.StateOrProvinceCode == null,
-                    cancellationToken);
+                    // Priority 2: Country-level rate (no state specified)
+                    var countryRate = await db.TaxGroupRates
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(r =>
+                            r.TaxGroupId == taxGroupId &&
+                            r.CountryCode == countryCode &&
+                            r.StateOrProvinceCode == null,
+                            ct);
 
-            if (countryRate != null)
-                return countryRate.TaxPercentage;
+                    if (countryRate != null)
+                        return countryRate.TaxPercentage;
 
-            // Priority 3: Fallback to TaxGroup's default rate
-            var taxGroup = await db.TaxGroups
-                .AsNoTracking()
-                .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, cancellationToken);
+                    // Priority 3: Fallback to TaxGroup's default rate
+                    var taxGroup = await db.TaxGroups
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(tg => tg.Id == taxGroupId, ct);
 
-            return taxGroup?.TaxPercentage ?? 0m;
-        });
+                    return taxGroup?.TaxPercentage ?? 0m;
+                });
 
-        scope.Complete();
-        return rate;
+                scope.Complete();
+                return rate;
+            },
+            TimeSpan.FromMinutes(5),
+            ["tax-rates"],
+            cancellationToken);
     }
 
     /// <summary>

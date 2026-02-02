@@ -38,6 +38,12 @@ public class StorefrontContextService(
     public async Task<ShippingLocation> GetShippingLocationAsync(CancellationToken ct = default)
     {
         var httpContext = httpContextAccessor.HttpContext;
+
+        // Cache per-request to avoid repeated DB lookups within the same HTTP request
+        const string cacheKey = "merchello:ShippingLocation";
+        if (httpContext?.Items.TryGetValue(cacheKey, out var cached) == true && cached is ShippingLocation cachedLocation)
+            return cachedLocation;
+
         string? countryCode = null;
         string? regionCode = null;
 
@@ -87,13 +93,19 @@ public class StorefrontContextService(
             }
         }
 
-        return new ShippingLocation(countryCode.ToUpperInvariant(), countryName, regionCode?.ToUpperInvariant(), regionName);
+        var location = new ShippingLocation(countryCode.ToUpperInvariant(), countryName, regionCode?.ToUpperInvariant(), regionName);
+        httpContext?.Items[cacheKey] = location;
+        return location;
     }
 
     public void SetShippingCountry(string countryCode, string? regionCode = null)
     {
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext == null) return;
+
+        // Invalidate per-request caches since location is changing
+        httpContext.Items.Remove("merchello:ShippingLocation");
+        httpContext.Items.Remove("merchello:DisplayContext");
 
         var cookieOptions = new CookieOptions
         {
@@ -393,6 +405,12 @@ public class StorefrontContextService(
 
     public async Task<StorefrontDisplayContext> GetDisplayContextAsync(CancellationToken ct = default)
     {
+        // Cache per-request to avoid repeated tax provider/currency lookups within the same HTTP request
+        const string cacheKey = "merchello:DisplayContext";
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext?.Items.TryGetValue(cacheKey, out var cached) == true && cached is StorefrontDisplayContext cachedContext)
+            return cachedContext;
+
         var currencyContext = await GetCurrencyContextAsync(ct);
         var shippingLocation = await GetShippingLocationAsync(ct);
 
@@ -408,7 +426,7 @@ public class StorefrontContextService(
             shippingLocation.RegionCode,
             ct);
 
-        return new StorefrontDisplayContext(
+        var displayContext = new StorefrontDisplayContext(
             currencyContext.CurrencyCode,
             currencyContext.CurrencySymbol,
             currencyContext.DecimalPlaces,
@@ -419,6 +437,8 @@ public class StorefrontContextService(
             shippingLocation.RegionCode,
             IsShippingTaxable: isShippingTaxed,
             ShippingTaxRate: shippingTaxRate);
+        httpContext?.Items[cacheKey] = displayContext;
+        return displayContext;
     }
 
     /// <summary>

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.SqlServer.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20260201131131_Initial")]
+    [Migration("20260202143833_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -109,8 +109,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("Notes")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("PricingExchangeRate")
                         .HasPrecision(18, 8)
@@ -3730,12 +3729,12 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.HasOne("Merchello.Core.Customers.Models.Customer", "IssuedToCustomer")
                         .WithMany()
                         .HasForeignKey("IssuedToCustomerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Merchello.Core.Customers.Models.Customer", "PurchasedByCustomer")
                         .WithMany()
                         .HasForeignKey("PurchasedByCustomerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("IssuedToCustomer");
 

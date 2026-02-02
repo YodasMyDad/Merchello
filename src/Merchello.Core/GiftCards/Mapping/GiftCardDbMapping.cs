@@ -35,15 +35,16 @@ public class GiftCardDbMapping : IEntityTypeConfiguration<GiftCard>
         builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
 
         // Customer relationships (both optional, both to Customer)
+        // NoAction required: SQL Server disallows multiple cascade paths to the same table
         builder.HasOne(x => x.PurchasedByCustomer)
             .WithMany()
             .HasForeignKey(x => x.PurchasedByCustomerId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         builder.HasOne(x => x.IssuedToCustomer)
             .WithMany()
             .HasForeignKey(x => x.IssuedToCustomerId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.NoAction);
 
         // Indexes
         builder.HasIndex(x => x.Code).IsUnique();

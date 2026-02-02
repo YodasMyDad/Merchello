@@ -1039,8 +1039,7 @@ public class CheckoutService(
 
             if (parameters.BillingAddress != null)
             {
-                UpdateAddressFromDto(basket.BillingAddress, parameters.BillingAddress);
-                hasChanges = true;
+                hasChanges |= UpdateAddressFromDto(basket.BillingAddress, parameters.BillingAddress);
             }
 
             if (parameters.ShippingSameAsBilling && parameters.BillingAddress != null)
@@ -1050,8 +1049,7 @@ public class CheckoutService(
             }
             else if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
             {
-                UpdateAddressFromDto(basket.ShippingAddress, parameters.ShippingAddress);
-                hasChanges = true;
+                hasChanges |= UpdateAddressFromDto(basket.ShippingAddress, parameters.ShippingAddress);
             }
 
             if (!hasChanges)
@@ -1277,81 +1275,78 @@ public class CheckoutService(
     /// <inheritdoc />
     public async Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default)
     {
-        // Update concurrency stamp before saving
-        basket.ConcurrencyStamp = Guid.NewGuid().ToString();
+        const int maxRetries = 3;
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        try
+        for (var attempt = 0; attempt < maxRetries; attempt++)
         {
-            await scope.ExecuteWithContextAsync<bool>(async db =>
+            using var scope = efCoreScopeProvider.CreateScope();
+            try
             {
-                var exists = await db.Baskets.AnyAsync(b => b.Id == basket.Id, cancellationToken);
-                if (exists)
+                await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
-                    db.Baskets.Update(basket);
-                }
-                else
-                {
-                    db.Baskets.Add(basket);
-                }
-                await db.SaveChangesAsync(cancellationToken);
-                return true;
-            });
-            scope.Complete();
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            logger.LogWarning(ex, "Basket {BasketId} was modified concurrently. Reloading and retrying.", basket.Id);
+                    var freshBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basket.Id, cancellationToken);
+                    if (freshBasket != null)
+                    {
+                        db.Entry(freshBasket).CurrentValues.SetValues(basket);
+                        freshBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        await db.SaveChangesAsync(cancellationToken);
+                        basket.ConcurrencyStamp = freshBasket.ConcurrencyStamp;
+                    }
+                    else
+                    {
+                        basket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        db.Baskets.Add(basket);
+                        await db.SaveChangesAsync(cancellationToken);
+                    }
+                    return true;
+                });
+                scope.Complete();
 
-            // Retry once with fresh data
-            using var retryScope = efCoreScopeProvider.CreateScope();
-            await retryScope.ExecuteWithContextAsync<bool>(async db =>
+                // Update HTTP session to keep in sync
+                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+                return;
+            }
+            catch (DbUpdateConcurrencyException ex)
             {
-                var freshBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basket.Id, cancellationToken);
-                if (freshBasket != null)
+                if (attempt < maxRetries - 1)
                 {
-                    // Apply current values to the fresh entity
-                    db.Entry(freshBasket).CurrentValues.SetValues(basket);
-                    freshBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                    await db.SaveChangesAsync(cancellationToken);
-                    basket.ConcurrencyStamp = freshBasket.ConcurrencyStamp;
+                    logger.LogWarning(ex, "Basket {BasketId} was modified concurrently (attempt {Attempt}). Retrying.", basket.Id, attempt + 1);
+                    continue;
                 }
-                else
-                {
-                    db.Baskets.Add(basket);
-                    await db.SaveChangesAsync(cancellationToken);
-                }
-                return true;
-            });
-            retryScope.Complete();
-        }
 
-        // Update HTTP session to keep in sync
-        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+                logger.LogError(ex, "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts.", basket.Id, maxRetries);
+                throw;
+            }
+        }
     }
 
-    private static void UpdateAddressFromDto(Locality.Models.Address address, AddressDto dto)
+    private static bool UpdateAddressFromDto(Locality.Models.Address address, AddressDto dto)
     {
-        if (!string.IsNullOrEmpty(dto.Name)) address.Name = dto.Name;
-        if (!string.IsNullOrEmpty(dto.Company)) address.Company = dto.Company;
-        if (!string.IsNullOrEmpty(dto.AddressOne)) address.AddressOne = dto.AddressOne;
-        if (dto.AddressTwo != null) address.AddressTwo = dto.AddressTwo;
-        if (!string.IsNullOrEmpty(dto.TownCity)) address.TownCity = dto.TownCity;
-        if (!string.IsNullOrEmpty(dto.PostalCode)) address.PostalCode = dto.PostalCode;
-        if (!string.IsNullOrEmpty(dto.Country)) address.Country = dto.Country;
-        if (!string.IsNullOrEmpty(dto.CountryCode)) address.CountryCode = dto.CountryCode;
-        if (!string.IsNullOrEmpty(dto.Phone)) address.Phone = dto.Phone;
+        var changed = false;
+
+        if (!string.IsNullOrEmpty(dto.Name)) { address.Name = dto.Name; changed = true; }
+        if (!string.IsNullOrEmpty(dto.Company)) { address.Company = dto.Company; changed = true; }
+        if (!string.IsNullOrEmpty(dto.AddressOne)) { address.AddressOne = dto.AddressOne; changed = true; }
+        if (dto.AddressTwo != null) { address.AddressTwo = dto.AddressTwo; changed = true; }
+        if (!string.IsNullOrEmpty(dto.TownCity)) { address.TownCity = dto.TownCity; changed = true; }
+        if (!string.IsNullOrEmpty(dto.PostalCode)) { address.PostalCode = dto.PostalCode; changed = true; }
+        if (!string.IsNullOrEmpty(dto.Country)) { address.Country = dto.Country; changed = true; }
+        if (!string.IsNullOrEmpty(dto.CountryCode)) { address.CountryCode = dto.CountryCode; changed = true; }
+        if (!string.IsNullOrEmpty(dto.Phone)) { address.Phone = dto.Phone; changed = true; }
 
         if (!string.IsNullOrEmpty(dto.CountyState) || !string.IsNullOrEmpty(dto.RegionCode))
         {
             address.CountyState ??= new Locality.Models.CountyState();
-            if (!string.IsNullOrEmpty(dto.CountyState)) address.CountyState.Name = dto.CountyState;
-            if (!string.IsNullOrEmpty(dto.RegionCode)) address.CountyState.RegionCode = dto.RegionCode;
+            if (!string.IsNullOrEmpty(dto.CountyState)) { address.CountyState.Name = dto.CountyState; changed = true; }
+            if (!string.IsNullOrEmpty(dto.RegionCode)) { address.CountyState.RegionCode = dto.RegionCode; changed = true; }
             else if (!string.IsNullOrEmpty(dto.CountyState) && string.IsNullOrEmpty(address.CountyState.RegionCode))
             {
                 address.CountyState.RegionCode = dto.CountyState;
+                changed = true;
             }
         }
+
+        return changed;
     }
 
     private static void CopyAddress(Locality.Models.Address source, Locality.Models.Address target)

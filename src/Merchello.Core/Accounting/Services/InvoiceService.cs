@@ -127,11 +127,13 @@ public class InvoiceService(
         }
 
         // Pre-validate stock availability before any further processing
+        // IMPORTANT: Use the allocated quantity from the warehouse group line item (not basket quantity)
+        // For multi-warehouse fulfillment, a single basket line item may be split across multiple orders
         var stockValidationItems = shippingResult.WarehouseGroups
             .SelectMany(g => g.LineItems
-                .Select(li => basket.LineItems.FirstOrDefault(bl => bl.Id == li.LineItemId))
-                .Where(bl => bl?.ProductId != null)
-                .Select(bl => (bl!.ProductId!.Value, g.WarehouseId, bl.Quantity)))
+                .Select(li => (li, bl: basket.LineItems.FirstOrDefault(bl => bl.Id == li.LineItemId)))
+                .Where(x => x.bl?.ProductId != null)
+                .Select(x => (x.bl!.ProductId!.Value, g.WarehouseId, x.li.Quantity)))
             .ToList();
 
         if (stockValidationItems.Count > 0)

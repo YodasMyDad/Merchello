@@ -106,8 +106,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("Notes")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("PricingExchangeRate")
                         .HasPrecision(18, 8)
@@ -3727,12 +3726,12 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.HasOne("Merchello.Core.Customers.Models.Customer", "IssuedToCustomer")
                         .WithMany()
                         .HasForeignKey("IssuedToCustomerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Merchello.Core.Customers.Models.Customer", "PurchasedByCustomer")
                         .WithMany()
                         .HasForeignKey("PurchasedByCustomerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("IssuedToCustomer");
 
