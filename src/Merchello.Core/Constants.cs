@@ -433,7 +433,7 @@ public static class Constants
 
     public static class InvoiceChannels
     {
-        public const string DraftOrder = "Draft order";
+        public const string ManualOrder = "Manual order";
     }
 
     /// <summary>
@@ -467,9 +467,9 @@ public static class Constants
         public const string Mobile = "mobile";
 
         /// <summary>
-        /// Admin-created draft order.
+        /// Admin-created manual order.
         /// </summary>
-        public const string Draft = "draft";
+        public const string Manual = "manual";
 
         /// <summary>
         /// Import from external system.

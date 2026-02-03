@@ -7,7 +7,9 @@ using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Shipment;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Protocols.Models;
+using Merchello.Core.Protocols.Notifications;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
@@ -30,6 +32,7 @@ public class UcpOrderWebhookHandler(
     IWebhookSigner webhookSigner,
     ISigningKeyStore signingKeyStore,
     IHttpClientFactory httpClientFactory,
+    IMerchelloNotificationPublisher notificationPublisher,
     IOptions<ProtocolSettings> protocolSettings,
     ILogger<UcpOrderWebhookHandler> logger)
     : INotificationAsyncHandler<OrderStatusChangedNotification>,
@@ -238,13 +241,33 @@ public class UcpOrderWebhookHandler(
         Guid invoiceId,
         CancellationToken ct)
     {
+        var sendingNotification = new ProtocolWebhookSendingNotification(
+            payload,
+            webhookUrl,
+            eventType,
+            protocol: "ucp");
+
+        if (await notificationPublisher.PublishCancelableAsync(sendingNotification, ct))
+        {
+            logger.LogInformation(
+                "UCP webhook sending cancelled for invoice {InvoiceId} to {WebhookUrl}",
+                invoiceId,
+                webhookUrl);
+            return;
+        }
+
+        var payloadToSend = sendingNotification.ModifiedPayload ?? sendingNotification.Entity;
+        var success = false;
+        int? statusCode = null;
+        string? errorMessage = null;
+
         try
         {
             var client = httpClientFactory.CreateClient("UcpWebhooks");
             client.Timeout = TimeSpan.FromSeconds(_protocolSettings.Ucp.WebhookTimeoutSeconds);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, webhookUrl);
-            request.Content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+            request.Content = new StringContent(payloadToSend, System.Text.Encoding.UTF8, "application/json");
 
             // Add UCP webhook headers
             request.Headers.Add("Request-Signature", signature);
@@ -253,8 +276,10 @@ public class UcpOrderWebhookHandler(
             request.Headers.Add("User-Agent", "Merchello-UCP/1.0");
 
             using var response = await client.SendAsync(request, ct);
+            statusCode = (int)response.StatusCode;
+            success = response.IsSuccessStatusCode;
 
-            if (response.IsSuccessStatusCode)
+            if (success)
             {
                 logger.LogInformation(
                     "UCP webhook delivered successfully for invoice {InvoiceId} to {WebhookUrl}",
@@ -263,6 +288,7 @@ public class UcpOrderWebhookHandler(
             }
             else
             {
+                errorMessage = $"Non-success status code: {(int)response.StatusCode}";
                 logger.LogWarning(
                     "UCP webhook delivery failed for invoice {InvoiceId}. Status: {StatusCode}",
                     invoiceId,
@@ -271,11 +297,26 @@ public class UcpOrderWebhookHandler(
         }
         catch (TaskCanceledException)
         {
+            errorMessage = "Webhook request timed out";
             logger.LogWarning("UCP webhook delivery timed out for invoice {InvoiceId}", invoiceId);
         }
         catch (HttpRequestException ex)
         {
+            errorMessage = ex.Message;
             logger.LogWarning(ex, "HTTP error sending UCP webhook for invoice {InvoiceId}", invoiceId);
+        }
+        finally
+        {
+            await notificationPublisher.PublishAsync(
+                new ProtocolWebhookSentNotification(
+                    payloadToSend,
+                    webhookUrl,
+                    eventType,
+                    protocol: "ucp",
+                    success,
+                    statusCode,
+                    errorMessage),
+                ct);
         }
     }
 

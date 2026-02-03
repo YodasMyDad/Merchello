@@ -18,7 +18,7 @@ public class Invoice
     public Guid CustomerId { get; set; }
 
     /// <summary>
-    /// The basket this invoice was created from (null for draft orders).
+    /// The basket this invoice was created from (null for manual orders).
     /// Used to find existing unpaid invoices when a customer returns to checkout,
     /// preventing duplicate "ghost" invoices.
     /// </summary>

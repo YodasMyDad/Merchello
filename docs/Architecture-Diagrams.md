@@ -547,6 +547,24 @@ public class ExtensionManager(IServiceProvider serviceProvider)
 4. Excluded services filtered, markup applied from `WarehouseProviderConfig`
 5. Rates returned in basket currency
 
+**Shipping Option Visibility Rules:**
+
+| ProviderKey | Provider Status | Visibility |
+|-------------|-----------------|------------|
+| `flat-rate` | N/A (always available) | Always shown with configured `FixedCost` |
+| External (e.g., `fedex`) | Enabled & configured | Shown with live rates from carrier API |
+| External (e.g., `fedex`) | Not enabled | Hidden - options filtered out |
+
+**Important:** External/dynamic providers (`UsesLiveRates = true`) **cannot have fixed costs**. They fetch rates from carrier APIs at runtime. If you need flat-rate options named after carriers (e.g., "FedEx Ground" with a fixed $8.99 cost), use `ProviderKey = "flat-rate"`:
+
+```csharp
+// ✓ Correct: Flat-rate option named after carrier
+new ShippingOptionConfig { Name = "FedEx Ground", Cost = 8.99m } // ProviderKey defaults to "flat-rate"
+
+// ✗ Wrong: Dynamic provider with fixed cost (will show "Calculated at checkout" or be hidden)
+new ShippingOptionConfig { Name = "FedEx Ground", Cost = 8.99m, ProviderKey = "fedex", ServiceType = "FEDEX_GROUND" }
+```
+
 **Built-in:** `FlatRateShippingProvider`, `FedExShippingProvider`, `UpsShippingProvider`
 
 **Currency Conversion:** External providers use `IExchangeRateCache` for currency conversion.
@@ -1202,28 +1220,31 @@ public class WebhookNotificationHandler : INotificationAsyncHandler<OrderCreated
 | **Payment** | Creating✓/Created, Refunding✓/Refunded | PaymentService |
 | **Shipment** | Creating✓/Created, Saving✓/Saved, StatusChanging✓/Changed | ShipmentService |
 | **Product** | All 6 | ProductService |
-| **ProductOption** | Creating✓/Created, Deleting✓/Deleted | ProductService |
 | **Customer** | All 6 + PasswordResetRequested | CustomerService |
 | **CustomerSegment** | All 6 | CustomerSegmentService |
 | **Discount** | All 6 + StatusChanging✓/Changed | DiscountService |
+| **UpsellRule** | All 6 + StatusChanging✓/Changed | UpsellService |
+| **SavedPaymentMethod** | Creating✓/Created, Deleting✓/Deleted | SavedPaymentMethodService |
 | **Supplier** | All 6 | SupplierService |
 | **Warehouse** | All 6 | WarehouseService |
 | **TaxGroup** | All 6 | TaxService |
 | **ShippingTaxOverride** | All 6 | TaxService |
 | **ShippingOption** | All 6 | ShippingService |
 
-**Inventory Events** (InventoryService/WarehouseService):
+**Inventory Events** (InventoryService):
 - StockReserving✓/Reserved, StockReleasing✓/Released, StockAllocating✓/Allocated, StockAdjusted, LowStock
 
-**Checkout Events** (CheckoutService):
-- AddressesChanging✓/Changed, DiscountCodeApplying✓/Applied/Removed, ShippingSelectionChanging✓/Changed, StockValidationFailed
+**Checkout Events:**
+- AddressesChanging✓/Changed, DiscountCodeApplying✓/Applied/Removed, ShippingSelectionChanging✓/Changed (CheckoutService)
+- StockValidationFailed (CheckoutPaymentsApiController)
 
 **Order Grouping Events** (IOrderGroupingStrategy):
 - OrderGroupingModifying✓ - Before grouping is finalized (cancelable, allows modification)
 - OrderGrouping - After grouping is complete
 
-**Abandoned Checkout Events** (AbandonedCheckoutService):
-- Abandoned (initial detection), AbandonedFirst, AbandonedReminder, AbandonedFinal, Recovered, RecoveryConverted
+**Abandoned Checkout Events:**
+- Abandoned (initial detection), Recovered, RecoveryConverted (AbandonedCheckoutService)
+- AbandonedFirst, AbandonedReminder, AbandonedFinal (AbandonedCheckoutService scheduled job; AbandonedCheckoutApiController for manual send)
 
 **Reminder Events** (InvoiceReminderJob):
 - InvoiceReminder, InvoiceOverdue
@@ -1237,17 +1258,16 @@ public class WebhookNotificationHandler : INotificationAsyncHandler<OrderCreated
 
 **Special Events:**
 - `InvoiceAggregateChangedNotification` - Fires on any Invoice/child change
-- `MerchelloCacheRefresherNotification` - Distributed cache invalidation
+- `MerchelloCacheRefresherNotification` - Distributed cache invalidation (Umbraco cache refresher)
 
-**Protocol Events** (AgentAuthenticationMiddleware):
-- AgentAuthenticating✓/Authenticated - External agent authentication
-- ProtocolSessionCreating✓/Created - Protocol checkout session lifecycle
-- ProtocolSessionUpdating✓/Updated
-- ProtocolSessionCompleting✓/Completed
-- ProtocolWebhookSending✓/Sent - Protocol webhook delivery
+**Protocol Events:**
+- AgentAuthenticating✓/Authenticated - External agent authentication (AgentAuthenticationMiddleware)
+- ProtocolSessionCreating✓/Created, ProtocolSessionUpdating✓/Updated, ProtocolSessionCompleting✓/Completed (UcpProtocolAdapter)
+- ProtocolWebhookSending✓/Sent - Protocol webhook delivery (UcpOrderWebhookHandler)
 
-**Fulfilment Events** (FulfilmentService/FulfilmentPollingJob):
-- FulfilmentSubmitting✓/Submitted, InventoryUpdated, ProductSynced, SubmissionFailed
+**Fulfilment Events:**
+- FulfilmentSubmitting✓/Submitted, SubmissionFailed (FulfilmentOrderSubmissionHandler, FulfilmentRetryJob)
+- InventoryUpdated, ProductSynced (FulfilmentSyncService)
 
 ### 8.4 Integration Points
 

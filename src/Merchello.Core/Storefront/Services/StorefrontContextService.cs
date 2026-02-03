@@ -6,7 +6,6 @@ using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
-using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
@@ -492,21 +491,23 @@ public class StorefrontContextService(
             ? await GetShippingLocationAsync(ct)
             : new ShippingLocation(countryCode, countryCode, regionCode, null);
 
+        var productIds = lineItems
+            .Where(li => li.ProductId.HasValue)
+            .Select(li => li.ProductId!.Value)
+            .Distinct()
+            .ToList();
+
+        var products = productIds.Count > 0
+            ? await productService.GetVariantsByIds(productIds, ct)
+            : [];
+        var productLookup = products.ToDictionary(p => p.Id);
+
         List<BasketItemLocationAvailability> items = [];
         var allAvailable = true;
 
         foreach (var lineItem in lineItems.Where(li => li.ProductId.HasValue))
         {
-            var product = await productService.GetProduct(new GetProductParameters
-            {
-                ProductId = lineItem.ProductId!.Value,
-                IncludeProductRoot = true,
-                IncludeProductWarehouses = true,
-                IncludeProductRootWarehouses = true,
-                NoTracking = true
-            }, ct);
-
-            if (product == null)
+            if (!productLookup.TryGetValue(lineItem.ProductId!.Value, out var product))
             {
                 items.Add(new BasketItemLocationAvailability(
                     LineItemId: lineItem.Id,

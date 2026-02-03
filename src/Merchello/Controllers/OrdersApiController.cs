@@ -25,6 +25,9 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.AddressLookup.Dtos;
+using Merchello.Core.AddressLookup.Services.Interfaces;
+using Merchello.Core.AddressLookup.Services.Parameters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Core.Security;
@@ -44,6 +47,7 @@ public class OrdersApiController(
     IProductService productService,
     ICurrencyService currencyService,
     ILocalityCatalog localityCatalog,
+    IAddressLookupService addressLookupService,
     IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
     private readonly ICurrencyService _currencyService = currencyService;
@@ -100,16 +104,8 @@ public class OrdersApiController(
         // Execute query using service with real DB paging
         var result = await invoiceService.QueryInvoices(parameters, ct);
 
-        // Lookup shipping option names for delivery method display
-        var shippingOptionIds = result.Items
-            .SelectMany(i => i.Orders ?? [])
-            .Select(o => o.ShippingOptionId)
-            .Distinct()
-            .ToList();
-        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds, ct);
-
         // Map to DTOs
-        var items = result.Items.Select(i => MapToListItem(i, shippingOptionNames)).ToList();
+        var items = result.Items.Select(MapToListItem).ToList();
 
         return new OrderPageDto
         {
@@ -482,7 +478,7 @@ public class OrdersApiController(
         };
     }
 
-    private OrderListItemDto MapToListItem(Invoice invoice, Dictionary<Guid, string> shippingOptionNames)
+    private OrderListItemDto MapToListItem(Invoice invoice)
     {
         var orders = invoice.Orders?.ToList() ?? [];
         var payments = invoice.Payments?.ToList() ?? [];
@@ -499,13 +495,6 @@ public class OrdersApiController(
 
         var fulfillmentStatus = GetFulfillmentStatus(orders);
         var deliveryStatus = GetDeliveryStatus(orders);
-
-        // Get delivery method from first order's shipping option (fallback to "Unknown")
-        var firstOrderShippingOptionId = orders.FirstOrDefault()?.ShippingOptionId;
-        var deliveryMethod = firstOrderShippingOptionId.HasValue
-            && shippingOptionNames.TryGetValue(firstOrderShippingOptionId.Value, out var name)
-            ? name
-            : "Unknown";
 
         return new OrderListItemDto
         {
@@ -529,7 +518,6 @@ public class OrdersApiController(
             IsCancelled = invoice.IsCancelled,
             ItemCount = itemCount,
             DeliveryStatus = deliveryStatus,
-            DeliveryMethod = deliveryMethod,
             DueDate = invoice.DueDate,
             IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
             DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null,
@@ -933,18 +921,18 @@ public class OrdersApiController(
     }
 
     // ============================================
-    // Draft Order Creation Endpoints
+    // Manual Order Creation Endpoints
     // ============================================
 
     /// <summary>
-    /// Create a new draft order from the admin backoffice
+    /// Create a new manual order from the admin backoffice
     /// </summary>
-    [HttpPost("orders/draft")]
-    [ProducesResponseType<CreateDraftOrderResultDto>(StatusCodes.Status200OK)]
+    [HttpPost("orders/manual")]
+    [ProducesResponseType<CreateManualOrderResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CreateDraftOrder([FromBody] CreateDraftOrderDto request, CancellationToken ct)
+    public async Task<IActionResult> CreateManualOrder([FromBody] CreateManualOrderDto request, CancellationToken ct)
     {
-        var validation = await new CreateDraftOrderDtoValidator().ValidateAsync(request, ct);
+        var validation = await new CreateManualOrderDtoValidator().ValidateAsync(request, ct);
         if (!validation.IsValid)
         {
             return BadRequest((object)validation.Errors[0].ErrorMessage);
@@ -955,7 +943,7 @@ public class OrdersApiController(
         var authorId = currentUser?.Key;
         var authorName = currentUser?.Name;
 
-        var result = await invoiceService.CreateDraftOrderAsync(
+        var result = await invoiceService.CreateManualOrderAsync(
             request,
             authorId,
             authorName,
@@ -963,7 +951,7 @@ public class OrdersApiController(
 
         if (!result.IsSuccess)
         {
-            return BadRequest(result.ErrorMessage ?? "Failed to create draft order");
+            return BadRequest(result.ErrorMessage ?? "Failed to create manual order");
         }
 
         return Ok(result.Data);
@@ -1000,18 +988,110 @@ public class OrdersApiController(
 
         var invoices = await invoiceService.GetInvoicesByBillingEmailAsync(decodedEmail, ct);
 
-        // Lookup shipping option names for delivery method display
-        var shippingOptionIds = invoices
-            .SelectMany(i => i.Orders ?? [])
-            .Select(o => o.ShippingOptionId)
-            .Distinct()
-            .ToList();
-        var shippingOptionNames = await invoiceService.GetShippingOptionNamesAsync(shippingOptionIds, ct);
-
         // Map to DTOs
-        var items = invoices.Select(i => MapToListItem(i, shippingOptionNames)).ToList();
+        var items = invoices.Select(MapToListItem).ToList();
 
         return Ok(items);
+    }
+
+    // ============================================
+    // Address Lookup Endpoints (Backoffice)
+    // ============================================
+
+    /// <summary>
+    /// Get address lookup configuration for the backoffice order creation UI.
+    /// </summary>
+    [HttpGet("orders/address-lookup/config")]
+    [ProducesResponseType<AddressLookupClientConfigDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAddressLookupConfig(CancellationToken ct)
+    {
+        var config = await addressLookupService.GetClientConfigAsync(null, ct);
+        return Ok(config);
+    }
+
+    /// <summary>
+    /// Get address lookup suggestions for a query (backoffice - no rate limiting).
+    /// </summary>
+    [HttpPost("orders/address-lookup/suggestions")]
+    [ProducesResponseType<AddressLookupSuggestionsResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetAddressLookupSuggestions(
+        [FromBody] AddressLookupSuggestionsRequestDto request,
+        CancellationToken ct)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Query))
+        {
+            return BadRequest(new AddressLookupSuggestionsResponseDto
+            {
+                Success = false,
+                ErrorMessage = "Query is required."
+            });
+        }
+
+        var result = await addressLookupService.GetSuggestionsAsync(new AddressLookupSuggestionsParameters
+        {
+            Query = request.Query,
+            CountryCode = request.CountryCode,
+            Limit = request.Limit,
+            SessionId = request.SessionId
+        }, ct);
+
+        return Ok(new AddressLookupSuggestionsResponseDto
+        {
+            Success = result.Success,
+            ErrorMessage = result.ErrorMessage,
+            Suggestions = result.Suggestions?.Select(s => new AddressLookupSuggestionDto
+            {
+                Id = s.Id,
+                Label = s.Label,
+                Description = s.Description
+            }).ToList() ?? []
+        });
+    }
+
+    /// <summary>
+    /// Resolve an address lookup suggestion into a full address (backoffice - no rate limiting).
+    /// </summary>
+    [HttpPost("orders/address-lookup/resolve")]
+    [ProducesResponseType<AddressLookupResolveResponseDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResolveAddressLookup(
+        [FromBody] AddressLookupResolveRequestDto request,
+        CancellationToken ct)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Id))
+        {
+            return BadRequest(new AddressLookupResolveResponseDto
+            {
+                Success = false,
+                ErrorMessage = "Address id is required."
+            });
+        }
+
+        var result = await addressLookupService.ResolveAddressAsync(new AddressLookupResolveParameters
+        {
+            Id = request.Id!,
+            CountryCode = request.CountryCode,
+            SessionId = request.SessionId
+        }, ct);
+
+        return Ok(new AddressLookupResolveResponseDto
+        {
+            Success = result.Success,
+            ErrorMessage = result.ErrorMessage,
+            Address = result.Address != null ? new AddressLookupAddressDto
+            {
+                Company = result.Address.Company,
+                Address1 = result.Address.Address1,
+                Address2 = result.Address.Address2,
+                City = result.Address.City,
+                State = result.Address.State,
+                StateCode = result.Address.StateCode,
+                PostalCode = result.Address.PostalCode,
+                Country = result.Address.Country,
+                CountryCode = result.Address.CountryCode
+            } : null
+        });
     }
 
     // ============================================

@@ -501,10 +501,10 @@ public class DbSeeder(
                 new ShippingOptionConfig { Name = "UPS 3 Day Select", DaysFrom = 3, DaysTo = 3, Cost = 14.99m },
                 new ShippingOptionConfig { Name = "UPS Next Day Air (East)", DaysFrom = 1, DaysTo = 1, Cost = 34.99m, IsNextDay = true },
 
-                // FedEx options
-                new ShippingOptionConfig { Name = "FedEx Ground", DaysFrom = 5, DaysTo = 7, Cost = 8.99m, ProviderKey = "fedex", ServiceType = "FEDEX_GROUND" },
-                new ShippingOptionConfig { Name = "FedEx 2Day", DaysFrom = 2, DaysTo = 2, Cost = 15.99m, ProviderKey = "fedex", ServiceType = "FEDEX_2_DAY" },
-                new ShippingOptionConfig { Name = "FedEx Priority Overnight", DaysFrom = 1, DaysTo = 1, Cost = 29.99m, ProviderKey = "fedex", ServiceType = "PRIORITY_OVERNIGHT", IsNextDay = true },
+                // FedEx options (flat-rate with carrier branding)
+                new ShippingOptionConfig { Name = "FedEx Ground", DaysFrom = 5, DaysTo = 7, Cost = 8.99m },
+                new ShippingOptionConfig { Name = "FedEx 2Day", DaysFrom = 2, DaysTo = 2, Cost = 15.99m },
+                new ShippingOptionConfig { Name = "FedEx Priority Overnight", DaysFrom = 1, DaysTo = 1, Cost = 29.99m, IsNextDay = true },
 
                 // International from US East (no FixedCost — only resolves for listed countries)
                 new ShippingOptionConfig
@@ -566,10 +566,10 @@ public class DbSeeder(
                 new ShippingOptionConfig { Name = "UPS 2nd Day Air (West)", DaysFrom = 2, DaysTo = 2, Cost = 18.99m },
                 new ShippingOptionConfig { Name = "UPS Next Day Air Saver (West)", DaysFrom = 1, DaysTo = 1, Cost = 32.99m, IsNextDay = true },
 
-                // FedEx options (West Coast)
-                new ShippingOptionConfig { Name = "FedEx Ground (West)", DaysFrom = 4, DaysTo = 6, Cost = 7.99m, ProviderKey = "fedex", ServiceType = "FEDEX_GROUND" },
-                new ShippingOptionConfig { Name = "FedEx Express Saver (West)", DaysFrom = 3, DaysTo = 3, Cost = 12.99m, ProviderKey = "fedex", ServiceType = "FEDEX_EXPRESS_SAVER" },
-                new ShippingOptionConfig { Name = "FedEx 2Day (West)", DaysFrom = 2, DaysTo = 2, Cost = 14.99m, ProviderKey = "fedex", ServiceType = "FEDEX_2_DAY" },
+                // FedEx options (flat-rate with carrier branding)
+                new ShippingOptionConfig { Name = "FedEx Ground (West)", DaysFrom = 4, DaysTo = 6, Cost = 7.99m },
+                new ShippingOptionConfig { Name = "FedEx Express Saver (West)", DaysFrom = 3, DaysTo = 3, Cost = 12.99m },
+                new ShippingOptionConfig { Name = "FedEx 2Day (West)", DaysFrom = 2, DaysTo = 2, Cost = 14.99m },
 
                 // International from US West (no FixedCost — only resolves for listed countries)
                 new ShippingOptionConfig
@@ -1747,8 +1747,8 @@ public class DbSeeder(
 
         // Manual payment methods for variety
         var manualPaymentMethods = new[] { "Bank Transfer", "Cash", "Check", "Phone Order", "Wire Transfer", "Direct Debit", "Store Credit" };
-        // Carriers for flat-rate shipments
-        var flatRateCarriers = new[] { "Royal Mail", "DHL", "Hermes", "USPS", "UPS" };
+        // Carriers for shipments
+        var carriers = new[] { "Royal Mail", "DHL", "Hermes", "USPS", "UPS", "FedEx" };
 
         // Pre-compute which products can ship to which countries (via service)
         var productsByCountry = await productService.GetProductIdsByCountryAvailabilityAsync(cancellationToken);
@@ -1809,18 +1809,12 @@ public class DbSeeder(
                 continue;
             }
 
-            // 3. Build checkout session - select shipping option per group (mix of flat-rate and FedEx)
+            // 3. Build checkout session - select random shipping option per group
             Dictionary<Guid, string> selectedShippingOptions = [];
             foreach (var group in shippingResult.WarehouseGroups)
             {
-                // Prefer FedEx options ~40% of the time for US orders
                 var options = group.AvailableShippingOptions.ToList();
-                var fedexOptions = options.Where(o => o.ProviderKey == "fedex").ToList();
-                var useFedex = fedexOptions.Count > 0 && random.Next(100) < 40;
-
-                selectedShippingOptions[group.GroupId] = useFedex
-                    ? fedexOptions[random.Next(fedexOptions.Count)].SelectionKey
-                    : options[random.Next(options.Count)].SelectionKey;
+                selectedShippingOptions[group.GroupId] = options[random.Next(options.Count)].SelectionKey;
             }
 
             var checkoutSession = new CheckoutSession
@@ -1885,7 +1879,7 @@ public class DbSeeder(
                     if (status is OrderStatus.Shipped or OrderStatus.Completed or OrderStatus.PartiallyShipped)
                     {
                         var shipmentCreated = await CreateShipmentForOrderAsync(
-                            order, status, random, flatRateCarriers, cancellationToken);
+                            order, status, random, carriers, cancellationToken);
                         if (shipmentCreated) shipmentCount++;
                     }
                 }
@@ -2106,7 +2100,7 @@ public class DbSeeder(
         Order order,
         OrderStatus status,
         Random random,
-        string[] flatRateCarriers,
+        string[] carriers,
         CancellationToken cancellationToken)
     {
         if (order.LineItems == null || order.LineItems.Count == 0)
@@ -2114,10 +2108,9 @@ public class DbSeeder(
 
         try
         {
-            // Determine carrier based on shipping option provider (via service)
+            // Determine carrier based on shipping option name or random selection
             var shippingOption = await shippingService.GetShippingOptionByIdAsync(order.ShippingOptionId, cancellationToken);
-            var isFedex = shippingOption?.ProviderKey == "fedex";
-            var carrier = isFedex ? "FedEx" : flatRateCarriers[random.Next(flatRateCarriers.Length)];
+            var carrier = InferCarrierFromName(shippingOption?.Name) ?? carriers[random.Next(carriers.Length)];
             var trackingNumber = GenerateTrackingNumber(carrier, random);
 
             // For partial shipments, only ship first half of line items
@@ -2523,6 +2516,25 @@ public class DbSeeder(
             result.LogBadMessages(logger);
             logger.LogWarning("Failed to create High Spenders segment");
         }
+    }
+
+    /// <summary>
+    /// Infers carrier name from shipping option name.
+    /// </summary>
+    private static string? InferCarrierFromName(string? optionName)
+    {
+        if (string.IsNullOrEmpty(optionName)) return null;
+
+        return optionName switch
+        {
+            _ when optionName.Contains("FedEx", StringComparison.OrdinalIgnoreCase) => "FedEx",
+            _ when optionName.Contains("UPS", StringComparison.OrdinalIgnoreCase) => "UPS",
+            _ when optionName.Contains("USPS", StringComparison.OrdinalIgnoreCase) => "USPS",
+            _ when optionName.Contains("DHL", StringComparison.OrdinalIgnoreCase) => "DHL",
+            _ when optionName.Contains("Royal Mail", StringComparison.OrdinalIgnoreCase) => "Royal Mail",
+            _ when optionName.Contains("Hermes", StringComparison.OrdinalIgnoreCase) => "Hermes",
+            _ => null
+        };
     }
 
     /// <summary>

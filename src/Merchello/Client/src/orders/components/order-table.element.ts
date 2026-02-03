@@ -203,9 +203,6 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
       case "itemCount":
         return html`<uui-table-cell>${formatItemCount(order.itemCount)}</uui-table-cell>`;
 
-      case "deliveryMethod":
-        return html`<uui-table-cell>${order.deliveryMethod}</uui-table-cell>`;
-
       default:
         return nothing;
     }

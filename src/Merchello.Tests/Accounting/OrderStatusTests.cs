@@ -396,7 +396,7 @@ public class OrderStatusTests
             phone: null,
             email: "test@example.com");
 
-        var invoice = _invoiceFactory.CreateDraft(
+        var invoice = _invoiceFactory.CreateManual(
             invoiceNumber: $"INV-{Guid.NewGuid():N}"[..12],
             customerId: Guid.NewGuid(),
             billingAddress: billing,

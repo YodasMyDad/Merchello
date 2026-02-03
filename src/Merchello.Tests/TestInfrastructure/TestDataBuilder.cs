@@ -376,7 +376,7 @@ public class TestDataBuilder
         var subTotal = Math.Round(total / 1.2m, 2); // Reverse calculate from total assuming 20% VAT
         var tax = total - subTotal;
 
-        var invoice = _invoiceFactory.CreateDraft(
+        var invoice = _invoiceFactory.CreateManual(
             invoiceNumber: $"INV-{Guid.NewGuid():N}"[..12],
             customerId: customer.Id,
             billingAddress: billingAddress,

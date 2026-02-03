@@ -9,6 +9,7 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Notifications.Order;
 using Merchello.Core.Notifications.Shipment;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.UCP.Handlers;
 using Merchello.Core.Protocols.Webhooks;
@@ -38,6 +39,7 @@ public class UcpOrderWebhookHandlerTests
     private readonly Mock<IWebhookSigner> _webhookSignerMock;
     private readonly Mock<ISigningKeyStore> _signingKeyStoreMock;
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
+    private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
     private readonly Mock<ILogger<UcpOrderWebhookHandler>> _loggerMock;
     private readonly UcpOrderWebhookHandler _handler;
     private readonly MockHttpMessageHandler _mockHandler;
@@ -59,6 +61,7 @@ public class UcpOrderWebhookHandlerTests
         _webhookSignerMock = new Mock<IWebhookSigner>();
         _signingKeyStoreMock = new Mock<ISigningKeyStore>();
         _httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
         _loggerMock = new Mock<ILogger<UcpOrderWebhookHandler>>();
 
         var currencyService = new CurrencyService(Options.Create(new MerchelloSettings
@@ -95,6 +98,7 @@ public class UcpOrderWebhookHandlerTests
             _webhookSignerMock.Object,
             _signingKeyStoreMock.Object,
             _httpClientFactoryMock.Object,
+            _notificationPublisherMock.Object,
             Options.Create(_settings),
             _loggerMock.Object);
     }
@@ -448,7 +452,7 @@ public class UcpOrderWebhookHandlerTests
             phone: null,
             email: "test@example.com");
 
-        var invoice = _invoiceFactory.CreateDraft(
+        var invoice = _invoiceFactory.CreateManual(
             invoiceNumber: $"INV-{Guid.NewGuid():N}"[..6],
             customerId: Guid.NewGuid(),
             billingAddress: billingAddress,

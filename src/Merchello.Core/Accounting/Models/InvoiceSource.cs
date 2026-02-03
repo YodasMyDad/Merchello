@@ -7,7 +7,7 @@ namespace Merchello.Core.Accounting.Models;
 public class InvoiceSource
 {
     /// <summary>
-    /// The source type identifier (e.g., "web", "ucp", "api", "pos", "mobile", "draft").
+    /// The source type identifier (e.g., "web", "ucp", "api", "pos", "mobile", "manual").
     /// Use <see cref="Constants.InvoiceSources"/> for well-known values.
     /// </summary>
     public string Type { get; set; } = Constants.InvoiceSources.Web;

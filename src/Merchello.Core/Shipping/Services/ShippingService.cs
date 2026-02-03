@@ -15,6 +15,7 @@ using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
+using Merchello.Core.Warehouses.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -183,7 +184,14 @@ public class ShippingService(
         var productIds = basket.LineItems
             .Where(li => li.ProductId.HasValue)
             .Select(li => li.ProductId!.Value)
+            .Distinct()
             .ToList();
+
+        var strategy = strategyResolver.GetStrategy();
+        var useAllWarehouses = !string.Equals(
+            strategy.Metadata.Key,
+            "default-warehouse",
+            StringComparison.OrdinalIgnoreCase);
 
         // Load products with necessary relationships for warehouse selection
         using var scope = efCoreScopeProvider.CreateScope();
@@ -194,12 +202,12 @@ public class ShippingService(
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
                         .ThenInclude(prw => prw.Warehouse)
-                            
+
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                
+
                 .Include(p => p.ProductWarehouses)
                     .ThenInclude(pw => pw.Warehouse)
                 .Include(p => p.ShippingOptions)
@@ -209,13 +217,33 @@ public class ShippingService(
                 .AsSplitQuery()
                 .ToDictionaryAsync(p => p.Id, cancellationToken);
 
-            // Load all warehouses for the context
-            var loadedWarehouses = await db.Warehouses
-                .AsNoTracking()
-                .Include(w => w.ShippingOptions)
-                    
-                
-                .ToDictionaryAsync(w => w.Id, cancellationToken);
+            Dictionary<Guid, Warehouse> loadedWarehouses;
+            if (useAllWarehouses)
+            {
+                // Custom strategies may rely on full warehouse context.
+                loadedWarehouses = await db.Warehouses
+                    .AsNoTracking()
+                    .Include(w => w.ShippingOptions)
+                    .ToDictionaryAsync(w => w.Id, cancellationToken);
+            }
+            else
+            {
+                // Default strategy only needs warehouses referenced by products in the basket.
+                var warehouseIds = loadedProducts.Values
+                    .SelectMany(p => p.ProductRoot?.ProductRootWarehouses ?? [])
+                    .Select(prw => prw.WarehouseId)
+                    .Concat(loadedProducts.Values.SelectMany(p => p.ProductWarehouses ?? []).Select(pw => pw.WarehouseId))
+                    .Distinct()
+                    .ToList();
+
+                loadedWarehouses = warehouseIds.Count == 0
+                    ? []
+                    : await db.Warehouses
+                        .AsNoTracking()
+                        .Include(w => w.ShippingOptions)
+                        .Where(w => warehouseIds.Contains(w.Id))
+                        .ToDictionaryAsync(w => w.Id, cancellationToken);
+            }
 
             return (loadedProducts, loadedWarehouses);
         });
@@ -235,7 +263,6 @@ public class ShippingService(
         };
 
         // Get the configured strategy and execute grouping
-        var strategy = strategyResolver.GetStrategy();
         logger.LogDebug("Using order grouping strategy: {StrategyKey}", strategy.Metadata.Key);
 
         var groupingResult = await strategy.GroupItemsAsync(context, cancellationToken);
@@ -620,8 +647,11 @@ public class ShippingService(
             };
         }
 
-        // Build lookup of provider capabilities (UsesLiveRates) by provider key
-        var providers = await providerManager.GetProvidersAsync(cancellationToken);
+        // Build set of enabled provider keys and lookup for live rates capability
+        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken);
+        var enabledProviderKeys = providers
+            .Select(p => p.Provider.Metadata.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var usesLiveRatesLookup = providers.ToDictionary(
             p => p.Provider.Metadata.Key,
             p => p.Provider.Metadata.ConfigCapabilities.UsesLiveRates,
@@ -663,6 +693,13 @@ public class ShippingService(
 
             foreach (var shippingOption in warehouse.ShippingOptions)
             {
+                // Skip options whose provider is not enabled (unless it's flat-rate which is always available)
+                var isBuiltInProvider = string.Equals(shippingOption.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase);
+                if (!isBuiltInProvider && !enabledProviderKeys.Contains(shippingOption.ProviderKey))
+                {
+                    continue;
+                }
+
                 var cost = shippingCostResolver.ResolveBaseCost(
                     shippingOption.ShippingCosts,
                     destinationCountryCode,

@@ -17,7 +17,7 @@ namespace Merchello.Core.Shipping.Providers.UPS;
 public class UpsShippingProvider(
     IOptions<MerchelloSettings> settings,
     IExchangeRateCache exchangeRateCache,
-    ICurrencyService currencyService) : ShippingProviderBase, IDisposable
+    ICurrencyService currencyService) : ShippingProviderBase(currencyService), IDisposable
 {
     private readonly MerchelloSettings _settings = settings.Value;
     private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;

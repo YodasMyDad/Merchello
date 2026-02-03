@@ -168,8 +168,8 @@ import type {
   PreviewDiscountRequestDto,
   PreviewDiscountResultDto,
   TaxGroupDto,
-  CreateDraftOrderDto,
-  CreateDraftOrderResultDto,
+  CreateManualOrderDto,
+  CreateManualOrderResultDto,
   CustomerLookupResultDto,
 } from '@orders/types/order.types.js';
 
@@ -345,6 +345,11 @@ import type {
   AddressLookupProviderFieldDto,
   SaveAddressLookupProviderSettingsDto,
   TestAddressLookupProviderResultDto,
+  AddressLookupClientConfigDto,
+  AddressLookupSuggestionsRequestDto,
+  AddressLookupSuggestionsResponseDto,
+  AddressLookupResolveRequestDto,
+  AddressLookupResolveResponseDto,
 } from '@address-lookup-providers/types/address-lookup-providers.types.js';
 
 // Import filter types
@@ -609,9 +614,9 @@ export const MerchelloApi = {
   getOrderStats: () => apiGet<OrderStatsDto>('orders/stats'),
   getDashboardStats: () => apiGet<DashboardStatsDto>('orders/dashboard-stats'),
 
-  /** Create a draft order from the admin backoffice */
-  createDraftOrder: (request: CreateDraftOrderDto) =>
-    apiPost<CreateDraftOrderResultDto>('orders/draft', request),
+  /** Create a manual order from the admin backoffice */
+  createManualOrder: (request: CreateManualOrderDto) =>
+    apiPost<CreateManualOrderResultDto>('orders/manual', request),
 
   /** Search for customers by email or name (returns matching customers with their past shipping addresses) */
   searchCustomers: (email?: string, name?: string) => {
@@ -625,6 +630,19 @@ export const MerchelloApi = {
   /** Get all orders for a customer by their billing email address */
   getCustomerOrders: (email: string) =>
     apiGet<OrderListItemDto[]>(`orders/customer/${encodeURIComponent(email)}`),
+
+  // Address Lookup (Backoffice) API
+  /** Get address lookup configuration for the backoffice order creation UI */
+  getOrderAddressLookupConfig: () =>
+    apiGet<AddressLookupClientConfigDto>('orders/address-lookup/config'),
+
+  /** Get address lookup suggestions for a query (backoffice - no rate limiting) */
+  getOrderAddressLookupSuggestions: (request: AddressLookupSuggestionsRequestDto) =>
+    apiPost<AddressLookupSuggestionsResponseDto>('orders/address-lookup/suggestions', request),
+
+  /** Resolve an address lookup suggestion into a full address (backoffice - no rate limiting) */
+  resolveOrderAddressLookup: (request: AddressLookupResolveRequestDto) =>
+    apiPost<AddressLookupResolveResponseDto>('orders/address-lookup/resolve', request),
 
   /** Export orders within a date range for CSV generation */
   exportOrders: (request: ExportOrderDto) =>

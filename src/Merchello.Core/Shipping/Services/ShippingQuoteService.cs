@@ -12,8 +12,11 @@ using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
+using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Shipping.Services;
@@ -24,9 +27,13 @@ public class ShippingQuoteService(
     IShippingCostResolver shippingCostResolver,
     IWarehouseProviderConfigService warehouseProviderConfigService,
     ICacheService cacheService,
+    IOptions<MerchelloSettings> settings,
+    ICurrencyService currencyService,
     ILogger<ShippingQuoteService> logger) : IShippingQuoteService
 {
     private static readonly TimeSpan _quoteCacheTtl = TimeSpan.FromMinutes(10);
+    private readonly MerchelloSettings _settings = settings.Value;
+    private readonly ICurrencyService _currencyService = currencyService;
 
     public async Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesAsync(
         Basket basket,
@@ -207,7 +214,7 @@ public class ShippingQuoteService(
         return $"{Constants.CacheKeys.ShippingQuotePrefix}wh:{warehouseId}:{destination}:{currency}:{packagesHash}";
     }
 
-    private static string BuildCacheKey(Basket basket, string countryCode, string? stateOrProvinceCode)
+    private string BuildCacheKey(Basket basket, string countryCode, string? stateOrProvinceCode)
     {
         // Create a deterministic key based on basket contents and destination
         var productIds = string.Join("-", basket.LineItems
@@ -225,7 +232,7 @@ public class ShippingQuoteService(
             ? countryCode
             : $"{countryCode}-{stateOrProvinceCode}";
 
-        var currency = basket.Currency ?? string.Empty;
+        var currency = _settings.StoreCurrencyCode;
 
         // Hash the product and addon IDs to keep key under HybridCache's 1024 char limit
         var contentHash = Convert.ToHexString(
@@ -379,11 +386,14 @@ public class ShippingQuoteService(
             if (markup > 0m)
             {
                 var markedUpCost = sl.TotalCost * (1 + (markup / 100m));
+                var roundingCurrency = !string.IsNullOrWhiteSpace(sl.CurrencyCode)
+                    ? sl.CurrencyCode
+                    : request.CurrencyCode ?? _settings.StoreCurrencyCode;
                 filteredLevels.Add(new ShippingServiceLevel
                 {
                     ServiceCode = sl.ServiceCode,
                     ServiceName = sl.ServiceName,
-                    TotalCost = Math.Round(markedUpCost, 2, MidpointRounding.AwayFromZero),
+                    TotalCost = _currencyService.Round(markedUpCost, roundingCurrency),
                     CurrencyCode = sl.CurrencyCode,
                     TransitTime = sl.TransitTime,
                     EstimatedDeliveryDate = sl.EstimatedDeliveryDate,
@@ -429,8 +439,12 @@ public class ShippingQuoteService(
         }
 
         var lineItems = basket.LineItems
-            .Where(item => item.LineItemType == LineItemType.Product && item.ProductId.HasValue)
+            .Where(item => item.LineItemType == LineItemType.Product && item.ProductId.HasValue && !IsDigitalLineItem(item))
             .ToList();
+        var shippableSkus = lineItems
+            .Where(li => !string.IsNullOrEmpty(li.Sku))
+            .Select(li => li.Sku!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (!lineItems.Any())
         {
@@ -438,14 +452,17 @@ public class ShippingQuoteService(
             {
                 CountryCode = countryCode,
                 StateOrProvinceCode = stateOrProvinceCode,
-                CurrencyCode = basket.Currency,
+                CurrencyCode = _settings.StoreCurrencyCode,
                 Items = Array.Empty<ShippingQuoteItem>(),
                 Packages = Array.Empty<ShipmentPackage>()
             }, errors);
         }
 
-        // Build lookup of provider capabilities (UsesLiveRates) by provider key
-        var providers = await providerRegistry.GetProvidersAsync(cancellationToken);
+        // Build lookup of provider capabilities (UsesLiveRates) by provider key - only enabled providers
+        var providers = await providerRegistry.GetEnabledProvidersAsync(cancellationToken);
+        var enabledProviderKeys = providers
+            .Select(p => p.Provider.Metadata.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var usesLiveRatesLookup = providers.ToDictionary(
             p => p.Provider.Metadata.Key,
             p => p.Provider.Metadata.ConfigCapabilities.UsesLiveRates,
@@ -460,30 +477,10 @@ public class ShippingQuoteService(
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                
-                .Include(product => product.ProductRoot)
-                    .ThenInclude(pr => pr!.ProductRootWarehouses)
-                        .ThenInclude(prw => prw.Warehouse)
-                            .ThenInclude(w => w!.ShippingOptions)
-                                
-                .Include(product => product.ProductRoot)
-                    .ThenInclude(pr => pr!.ProductRootWarehouses)
-                        .ThenInclude(prw => prw.Warehouse)
-                            
-                .Include(product => product.ShippingOptions)
-                    
-                .Include(product => product.ShippingOptions)
-                    
                 .Include(product => product.ShippingOptions)
                     .ThenInclude(option => option.Warehouse)
-                        
-                .Include(product => product.AllowedShippingOptions)
-                    
-                .Include(product => product.AllowedShippingOptions)
-                    
                 .Include(product => product.AllowedShippingOptions)
                     .ThenInclude(option => option.Warehouse)
-                        
                 .Include(product => product.ExcludedShippingOptions)
                 .AsSplitQuery()
                 .AsNoTracking()
@@ -507,7 +504,7 @@ public class ShippingQuoteService(
                 continue;
             }
 
-            var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode, shippingCostResolver, usesLiveRatesLookup);
+            var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode, shippingCostResolver, usesLiveRatesLookup, enabledProviderKeys);
 
             // Get effective packages (variant override or root default)
             var productPackages = GetEffectivePackages(product);
@@ -546,6 +543,12 @@ public class ShippingQuoteService(
 
         foreach (var addon in addonLineItems)
         {
+            if (!string.IsNullOrEmpty(addon.DependantLineItemSku) &&
+                !shippableSkus.Contains(addon.DependantLineItemSku))
+            {
+                continue;
+            }
+
             // Extract weight from ExtendedData (stored when add-on was added to basket)
             var weightKg = GetDecimalFromExtendedData(addon.ExtendedData, "WeightKg");
 
@@ -566,7 +569,7 @@ public class ShippingQuoteService(
             BasketId = basket.Id,
             CountryCode = countryCode,
             StateOrProvinceCode = stateOrProvinceCode,
-            CurrencyCode = basket.Currency,
+            CurrencyCode = _settings.StoreCurrencyCode,
             ItemsSubtotal = subtotal,
             Items = items,
             Packages = packages
@@ -580,10 +583,13 @@ public class ShippingQuoteService(
         string countryCode,
         string? stateOrProvinceCode,
         IShippingCostResolver costResolver,
-        Dictionary<string, bool> usesLiveRatesLookup)
+        Dictionary<string, bool> usesLiveRatesLookup,
+        HashSet<string> enabledProviderKeys)
     {
-        // Get allowed shipping options based on product restrictions
-        var allowedOptions = product.GetAllowedShippingOptions();
+        // Get allowed shipping options based on product restrictions, filtering out disabled providers
+        var allowedOptions = product.GetAllowedShippingOptions()
+            .Where(o => string.Equals(o.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase) ||
+                        enabledProviderKeys.Contains(o.ProviderKey));
 
         // Build lookup for warehouses from ProductRootWarehouses (used when option.Warehouse.ServiceRegions isn't loaded)
         var warehouseLookup = product.ProductRoot?.ProductRootWarehouses
@@ -705,6 +711,23 @@ public class ShippingQuoteService(
         {
             return 0m;
         }
+    }
+
+    private static bool IsDigitalLineItem(LineItem lineItem)
+    {
+        if (!lineItem.ExtendedData.TryGetValue("IsDigital", out var value))
+        {
+            return false;
+        }
+
+        return value switch
+        {
+            bool b => b,
+            string s => bool.TryParse(s, out var parsed) && parsed,
+            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
+                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
+            _ => false
+        };
     }
 }
 

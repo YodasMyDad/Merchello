@@ -5,6 +5,11 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CountryDto } from "@api/merchello-api.js";
+import type { SubdivisionInfo } from "@warehouses/types/warehouses.types.js";
+import type {
+  AddressLookupClientConfigDto,
+  AddressLookupSuggestionDto,
+} from "@address-lookup-providers/types/address-lookup-providers.types.js";
 import type {
   AddressDto,
   CustomerLookupResultDto,
@@ -60,11 +65,28 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
   // Reference data
   @state() private _countries: CountryDto[] = [];
 
+  // Region state (for dynamic state/province dropdown)
+  @state() private _billingRegions: SubdivisionInfo[] = [];
+  @state() private _shippingRegions: SubdivisionInfo[] = [];
+  @state() private _isLoadingBillingRegions: boolean = false;
+  @state() private _isLoadingShippingRegions: boolean = false;
+
+  // Address lookup state
+  @state() private _addressLookupConfig: AddressLookupClientConfigDto | null = null;
+  @state() private _billingAddressSuggestions: AddressLookupSuggestionDto[] = [];
+  @state() private _shippingAddressSuggestions: AddressLookupSuggestionDto[] = [];
+  @state() private _isSearchingBillingAddress: boolean = false;
+  @state() private _isSearchingShippingAddress: boolean = false;
+  @state() private _showBillingAddressDropdown: boolean = false;
+  @state() private _showShippingAddressDropdown: boolean = false;
+
   // Validation
   @state() private _validationErrors: Record<string, string> = {};
 
   #notificationContext?: UmbNotificationContext;
   #customerSearchDebounceTimer?: ReturnType<typeof setTimeout>;
+  #billingAddressSearchDebounceTimer?: ReturnType<typeof setTimeout>;
+  #shippingAddressSearchDebounceTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     super();
@@ -83,15 +105,47 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     if (this.#customerSearchDebounceTimer) {
       clearTimeout(this.#customerSearchDebounceTimer);
     }
+    if (this.#billingAddressSearchDebounceTimer) {
+      clearTimeout(this.#billingAddressSearchDebounceTimer);
+    }
+    if (this.#shippingAddressSearchDebounceTimer) {
+      clearTimeout(this.#shippingAddressSearchDebounceTimer);
+    }
   }
 
   private async _loadReferenceData(): Promise<void> {
     this._isLoading = true;
 
-    const { data } = await MerchelloApi.getCountries();
-    this._countries = data ?? [];
+    // Load countries and address lookup config in parallel
+    const [countriesResult, lookupConfigResult] = await Promise.all([
+      MerchelloApi.getCountries(),
+      MerchelloApi.getOrderAddressLookupConfig(),
+    ]);
+
+    this._countries = countriesResult.data ?? [];
+    this._addressLookupConfig = lookupConfigResult.data ?? null;
 
     this._isLoading = false;
+  }
+
+  private async _loadRegions(prefix: "billing" | "shipping", countryCode: string): Promise<void> {
+    if (prefix === "billing") {
+      this._isLoadingBillingRegions = true;
+      this._billingRegions = [];
+    } else {
+      this._isLoadingShippingRegions = true;
+      this._shippingRegions = [];
+    }
+
+    const { data } = await MerchelloApi.getLocalityRegions(countryCode);
+
+    if (prefix === "billing") {
+      this._billingRegions = data ?? [];
+      this._isLoadingBillingRegions = false;
+    } else {
+      this._shippingRegions = data ?? [];
+      this._isLoadingShippingRegions = false;
+    }
   }
 
   private _handleCustomerSearchInput(e: Event): void {
@@ -139,6 +193,11 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     // Populate billing address from customer
     this._billingAddress = { ...customer.billingAddress };
 
+    // Load regions if customer has a country code
+    if (customer.billingAddress.countryCode) {
+      this._loadRegions("billing", customer.billingAddress.countryCode);
+    }
+
     // Check credit status if customer has account terms
     if (customer.hasAccountTerms && customer.customerId && customer.creditLimit != null) {
       const { data, error } = await MerchelloApi.getCustomerOutstandingBalance(customer.customerId);
@@ -173,6 +232,11 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
 
   private _selectPastShippingAddress(address: AddressDto): void {
     this._shippingAddress = { ...address };
+
+    // Load regions if address has a country code
+    if (address.countryCode) {
+      this._loadRegions("shipping", address.countryCode);
+    }
   }
 
   private _updateBillingField(field: keyof AddressDto, value: string | null): void {
@@ -316,7 +380,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       customItems: [], // Items are added in the edit modal
     };
 
-    const { data, error } = await MerchelloApi.createDraftOrder(request);
+    const { data, error } = await MerchelloApi.createManualOrder(request);
 
     this._isSaving = false;
 
@@ -395,9 +459,255 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             const country = this._countries.find((c) => c.code === select.value);
             updateFn.call(this, "countryCode", select.value || null);
             updateFn.call(this, "country", country?.name ?? null);
+            // Clear region selection and load regions for new country
+            updateFn.call(this, "countyState", null);
+            if (prefix === "billing") {
+              this._billingRegions = [];
+            } else {
+              this._shippingRegions = [];
+            }
+            if (select.value) {
+              this._loadRegions(prefix, select.value);
+            }
           }}>
         </uui-select>
       </umb-property-layout>
+    `;
+  }
+
+  private _renderRegionSelect(prefix: "billing" | "shipping") {
+    const address = prefix === "billing" ? this._billingAddress : this._shippingAddress;
+    const regions = prefix === "billing" ? this._billingRegions : this._shippingRegions;
+    const isLoading = prefix === "billing" ? this._isLoadingBillingRegions : this._isLoadingShippingRegions;
+    const updateFn = prefix === "billing" ? this._updateBillingField : this._updateShippingField;
+    const hasCountry = !!address.countryCode;
+
+    // Show loading state
+    if (isLoading) {
+      return html`
+        <umb-property-layout label="County/State">
+          <div slot="editor" class="region-loading">
+            <uui-loader-circle></uui-loader-circle>
+            <span>Loading regions...</span>
+          </div>
+        </umb-property-layout>
+      `;
+    }
+
+    // Show dropdown if regions exist for the country
+    if (hasCountry && regions.length > 0) {
+      const options: Array<{ name: string; value: string; selected?: boolean }> = [
+        { name: "Select region...", value: "", selected: !address.countyState }
+      ];
+      regions.forEach(r => {
+        options.push({
+          name: r.name,
+          value: r.regionCode,
+          selected: r.regionCode === address.countyState || r.name === address.countyState
+        });
+      });
+
+      return html`
+        <umb-property-layout label="County/State">
+          <uui-select
+            slot="editor"
+            .options=${options}
+            @change=${(e: Event) => {
+              const select = e.target as HTMLSelectElement;
+              const region = regions.find(r => r.regionCode === select.value);
+              // Store the region name in countyState for display, regionCode could be stored separately if needed
+              updateFn.call(this, "countyState", (region?.name ?? select.value) || null);
+            }}>
+          </uui-select>
+        </umb-property-layout>
+      `;
+    }
+
+    // Fallback to text input when no regions or no country selected
+    return this._renderAddressField(prefix, "countyState", "County/State");
+  }
+
+  private _isAddressLookupAvailable(prefix: "billing" | "shipping"): boolean {
+    if (!this._addressLookupConfig?.isEnabled) return false;
+
+    const address = prefix === "billing" ? this._billingAddress : this._shippingAddress;
+    const countryCode = address.countryCode;
+
+    // If no country selected yet, don't show address lookup
+    if (!countryCode) return false;
+
+    // Check if country is in supported countries (if specified)
+    const supportedCountries = this._addressLookupConfig.supportedCountries;
+    if (supportedCountries && supportedCountries.length > 0) {
+      return supportedCountries.some(c => c.toUpperCase() === countryCode.toUpperCase());
+    }
+
+    // If no supported countries specified, assume all countries are supported
+    return true;
+  }
+
+  private _handleAddressLookupInput(prefix: "billing" | "shipping", e: Event): void {
+    const input = e.target as HTMLInputElement;
+    const searchValue = input.value.trim();
+    const debounceTimer = prefix === "billing"
+      ? this.#billingAddressSearchDebounceTimer
+      : this.#shippingAddressSearchDebounceTimer;
+
+    // Clear previous debounce timer
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+
+    const minQueryLength = this._addressLookupConfig?.minQueryLength ?? 3;
+    if (searchValue.length < minQueryLength) {
+      if (prefix === "billing") {
+        this._billingAddressSuggestions = [];
+        this._showBillingAddressDropdown = false;
+      } else {
+        this._shippingAddressSuggestions = [];
+        this._showShippingAddressDropdown = false;
+      }
+      return;
+    }
+
+    const address = prefix === "billing" ? this._billingAddress : this._shippingAddress;
+
+    // Debounce the search (300ms)
+    const timer = setTimeout(async () => {
+      if (prefix === "billing") {
+        this._isSearchingBillingAddress = true;
+      } else {
+        this._isSearchingShippingAddress = true;
+      }
+
+      const { data, error } = await MerchelloApi.getOrderAddressLookupSuggestions({
+        query: searchValue,
+        countryCode: address.countryCode ?? undefined,
+        limit: this._addressLookupConfig?.maxSuggestions ?? 10,
+      });
+
+      if (prefix === "billing") {
+        this._isSearchingBillingAddress = false;
+      } else {
+        this._isSearchingShippingAddress = false;
+      }
+
+      if (error || !data?.success) {
+        return;
+      }
+
+      if (prefix === "billing") {
+        this._billingAddressSuggestions = data.suggestions ?? [];
+        this._showBillingAddressDropdown = this._billingAddressSuggestions.length > 0;
+      } else {
+        this._shippingAddressSuggestions = data.suggestions ?? [];
+        this._showShippingAddressDropdown = this._shippingAddressSuggestions.length > 0;
+      }
+    }, 300);
+
+    if (prefix === "billing") {
+      this.#billingAddressSearchDebounceTimer = timer;
+    } else {
+      this.#shippingAddressSearchDebounceTimer = timer;
+    }
+  }
+
+  private async _selectAddressSuggestion(prefix: "billing" | "shipping", suggestion: AddressLookupSuggestionDto): Promise<void> {
+    const address = prefix === "billing" ? this._billingAddress : this._shippingAddress;
+    const updateFn = prefix === "billing" ? this._updateBillingField : this._updateShippingField;
+
+    // Hide dropdown
+    if (prefix === "billing") {
+      this._showBillingAddressDropdown = false;
+      this._billingAddressSuggestions = [];
+    } else {
+      this._showShippingAddressDropdown = false;
+      this._shippingAddressSuggestions = [];
+    }
+
+    // Resolve the full address
+    const { data, error } = await MerchelloApi.resolveOrderAddressLookup({
+      id: suggestion.id,
+      countryCode: address.countryCode ?? undefined,
+    });
+
+    if (error || !data?.success || !data.address) {
+      this.#notificationContext?.peek("warning", {
+        data: {
+          headline: "Address Lookup Error",
+          message: data?.errorMessage ?? "Failed to resolve address",
+        },
+      });
+      return;
+    }
+
+    // Populate address fields
+    const resolved = data.address;
+    if (resolved.company) updateFn.call(this, "company", resolved.company);
+    if (resolved.address1) updateFn.call(this, "addressOne", resolved.address1);
+    if (resolved.address2) updateFn.call(this, "addressTwo", resolved.address2);
+    if (resolved.city) updateFn.call(this, "townCity", resolved.city);
+    if (resolved.state) updateFn.call(this, "countyState", resolved.state);
+    if (resolved.postalCode) updateFn.call(this, "postalCode", resolved.postalCode);
+
+    // Load regions for the country if we have a state code
+    if (resolved.countryCode && resolved.stateCode) {
+      await this._loadRegions(prefix, resolved.countryCode);
+    }
+  }
+
+  private _renderAddressLookup(prefix: "billing" | "shipping") {
+    if (!this._isAddressLookupAvailable(prefix)) {
+      return nothing;
+    }
+
+    const suggestions = prefix === "billing" ? this._billingAddressSuggestions : this._shippingAddressSuggestions;
+    const isSearching = prefix === "billing" ? this._isSearchingBillingAddress : this._isSearchingShippingAddress;
+    const showDropdown = prefix === "billing" ? this._showBillingAddressDropdown : this._showShippingAddressDropdown;
+
+    return html`
+      <div class="address-lookup-wrapper">
+        <umb-property-layout
+          label="Find address"
+          description="Start typing to search for an address">
+          <div slot="editor" class="search-input-wrapper">
+            <uui-input
+              type="text"
+              placeholder="Start typing address..."
+              @input=${(e: Event) => this._handleAddressLookupInput(prefix, e)}
+              @focus=${() => {
+                if (suggestions.length > 0) {
+                  if (prefix === "billing") {
+                    this._showBillingAddressDropdown = true;
+                  } else {
+                    this._showShippingAddressDropdown = true;
+                  }
+                }
+              }}>
+              ${isSearching
+                ? html`<uui-loader-circle slot="append"></uui-loader-circle>`
+                : html`<uui-icon slot="prepend" name="icon-search"></uui-icon>`}
+            </uui-input>
+          </div>
+        </umb-property-layout>
+
+        ${showDropdown ? html`
+          <div class="address-lookup-dropdown">
+            ${suggestions.map((suggestion) => html`
+              <button
+                class="address-suggestion"
+                @click=${() => this._selectAddressSuggestion(prefix, suggestion)}>
+                <div class="suggestion-info">
+                  <span class="suggestion-label">${suggestion.label}</span>
+                  ${suggestion.description ? html`
+                    <span class="suggestion-description">${suggestion.description}</span>
+                  ` : nothing}
+                </div>
+              </button>
+            `)}
+          </div>
+        ` : nothing}
+      </div>
     `;
   }
 
@@ -463,12 +773,13 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
           ${this._renderAddressField("billing", "email", "Email", "email", true)}
           ${this._renderAddressField("billing", "phone", "Phone", "tel")}
           ${this._renderAddressField("billing", "company", "Company")}
+          ${this._renderCountrySelect("billing")}
+          ${this._renderAddressLookup("billing")}
           ${this._renderAddressField("billing", "addressOne", "Address Line 1", "text", true)}
           ${this._renderAddressField("billing", "addressTwo", "Address Line 2")}
           ${this._renderAddressField("billing", "townCity", "Town/City", "text", true)}
-          ${this._renderAddressField("billing", "countyState", "County/State")}
+          ${this._renderRegionSelect("billing")}
           ${this._renderAddressField("billing", "postalCode", "Postal Code", "text", true)}
-          ${this._renderCountrySelect("billing")}
         </div>
       </uui-box>
     `;
@@ -510,12 +821,13 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             ${this._renderAddressField("shipping", "name", "Name", "text", true)}
             ${this._renderAddressField("shipping", "phone", "Phone", "tel")}
             ${this._renderAddressField("shipping", "company", "Company")}
+            ${this._renderCountrySelect("shipping")}
+            ${this._renderAddressLookup("shipping")}
             ${this._renderAddressField("shipping", "addressOne", "Address Line 1", "text", true)}
             ${this._renderAddressField("shipping", "addressTwo", "Address Line 2")}
             ${this._renderAddressField("shipping", "townCity", "Town/City", "text", true)}
-            ${this._renderAddressField("shipping", "countyState", "County/State")}
+            ${this._renderRegionSelect("shipping")}
             ${this._renderAddressField("shipping", "postalCode", "Postal Code", "text", true)}
-            ${this._renderCountrySelect("shipping")}
           </div>
         ` : nothing}
       </uui-box>
@@ -694,6 +1006,68 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       background: var(--uui-color-surface-alt);
       border-radius: var(--uui-border-radius);
       margin-top: var(--uui-size-space-2);
+    }
+
+    /* Address Lookup */
+    .address-lookup-wrapper {
+      position: relative;
+    }
+
+    .address-lookup-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      box-shadow: var(--uui-shadow-depth-3);
+      z-index: 100;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+
+    .address-suggestion {
+      display: block;
+      width: 100%;
+      padding: var(--uui-size-space-3);
+      background: none;
+      border: none;
+      border-bottom: 1px solid var(--uui-color-border);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .address-suggestion:last-child {
+      border-bottom: none;
+    }
+
+    .address-suggestion:hover {
+      background: var(--uui-color-surface-alt);
+    }
+
+    .suggestion-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .suggestion-label {
+      font-weight: 500;
+    }
+
+    .suggestion-description {
+      font-size: 0.875rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    /* Region Loading */
+    .region-loading {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      color: var(--uui-color-text-alt);
+      font-size: 0.875rem;
     }
 
     /* Info Banner */

@@ -1325,6 +1325,24 @@ public class CheckoutPaymentsApiController(
             });
         }
 
+        // Validate digital products require a customer account
+        if (await checkoutService.BasketHasDigitalProductsAsync(basket, cancellationToken))
+        {
+            var isAuthenticated = User.Identity?.IsAuthenticated == true;
+            var email = request.CustomerData.Email;
+            var hasMemberAccount = !isAuthenticated && !string.IsNullOrEmpty(email) &&
+                await checkoutMemberService.GetMemberKeyByEmailAsync(email, cancellationToken) != null;
+
+            if (!isAuthenticated && !hasMemberAccount)
+            {
+                return BadRequest(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "An account is required to purchase digital products. Please sign in or create an account."
+                });
+            }
+        }
+
         // Verify provider is enabled
         var provider = await providerManager.GetProviderAsync(
             request.ProviderAlias,
@@ -1382,100 +1400,115 @@ public class CheckoutPaymentsApiController(
                 }
             }
 
-            // Create transient session for validation (NOT persisted yet)
-            // This ensures we don't corrupt session state if shipping validation fails
-            var sameAsBilling = request.CustomerData.BillingAddress == null ||
-                                string.IsNullOrWhiteSpace(request.CustomerData.BillingAddress.Line1);
-            var effectiveShippingAddress = sameAsBilling ? billingAddress : (shippingAddress ?? billingAddress);
+            var requiresShipping = BasketRequiresShipping(basket);
+            Dictionary<Guid, string> shippingSelections = [];
 
-            var transientSession = new CheckoutSession
+            if (requiresShipping)
             {
-                BasketId = basket.Id,
-                BillingAddress = billingAddress,
-                ShippingAddress = effectiveShippingAddress,
-                ShippingSameAsBilling = sameAsBilling,
-                AcceptsMarketing = false,
-                CurrentStep = CheckoutStep.Shipping
-            };
+                // Create transient session for validation (NOT persisted yet)
+                // This ensures we don't corrupt session state if shipping validation fails
+                var sameAsBilling = request.CustomerData.BillingAddress == null ||
+                                    string.IsNullOrWhiteSpace(request.CustomerData.BillingAddress.Line1);
+                var effectiveShippingAddress = sameAsBilling ? billingAddress : (shippingAddress ?? billingAddress);
 
-            // Validate shipping BEFORE persisting addresses
-            var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, transientSession, cancellationToken);
-
-            if (!groupingResult.Success || groupingResult.Groups.Count == 0)
-            {
-                logger.LogWarning(
-                    "Express checkout: Unable to calculate shipping options for basket {BasketId}. Address not persisted.",
-                    basket.Id);
-
-                return BadRequest(new ExpressCheckoutResponseDto
+                var transientSession = new CheckoutSession
                 {
-                    Success = false,
-                    ErrorMessage = "Unable to calculate shipping for your address. Please try a different address or use standard checkout."
-                });
-            }
+                    BasketId = basket.Id,
+                    BillingAddress = billingAddress,
+                    ShippingAddress = effectiveShippingAddress,
+                    ShippingSameAsBilling = sameAsBilling,
+                    AcceptsMarketing = false,
+                    CurrentStep = CheckoutStep.Shipping
+                };
 
-            // Check if user already has shipping selections in their session
-            var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+                // Validate shipping BEFORE persisting addresses
+                var groupingResult = await checkoutService.GetOrderGroupsAsync(basket, transientSession, cancellationToken);
 
-            Dictionary<Guid, string> shippingSelections;
+                if (!groupingResult.Success || groupingResult.Groups.Count == 0)
+                {
+                    logger.LogWarning(
+                        "Express checkout: Unable to calculate shipping options for basket {BasketId}. Address not persisted.",
+                        basket.Id);
 
-            if (existingSession.SelectedShippingOptions.Count > 0)
-            {
-                // User already selected shipping on checkout page - use their selection
-                shippingSelections = existingSession.SelectedShippingOptions;
+                    return BadRequest(new ExpressCheckoutResponseDto
+                    {
+                        Success = false,
+                        ErrorMessage = "Unable to calculate shipping for your address. Please try a different address or use standard checkout."
+                    });
+                }
+
+                // Check if user already has shipping selections in their session
+                var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+
+                if (existingSession.SelectedShippingOptions.Count > 0)
+                {
+                    // User already selected shipping on checkout page - use their selection
+                    shippingSelections = existingSession.SelectedShippingOptions;
+
+                    logger.LogInformation(
+                        "Express checkout: Using {Count} existing shipping selections from session for basket {BasketId}",
+                        shippingSelections.Count,
+                        basket.Id);
+                }
+                else
+                {
+                    // No prior selection (true express checkout from cart) - auto-select cheapest
+                    shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+
+                    logger.LogInformation(
+                        "Express checkout: Auto-selected cheapest shipping for {Count} groups, basket {BasketId}",
+                        shippingSelections.Count,
+                        basket.Id);
+                }
+
+                if (shippingSelections.Count == 0)
+                {
+                    logger.LogWarning(
+                        "Express checkout: No shipping options available for basket {BasketId}. Address not persisted.",
+                        basket.Id);
+
+                    return BadRequest(new ExpressCheckoutResponseDto
+                    {
+                        Success = false,
+                        ErrorMessage = "No shipping methods available for your location."
+                    });
+                }
+
+                // Validation passed - NOW persist addresses to session
+                await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+                {
+                    BasketId = basket.Id,
+                    Billing = billingAddress,
+                    Shipping = sameAsBilling ? null : shippingAddress,
+                    SameAsBilling = sameAsBilling
+                }, cancellationToken);
+
+                // Save shipping selections to session
+                await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
+                {
+                    BasketId = basket.Id,
+                    Selections = shippingSelections
+                }, cancellationToken);
 
                 logger.LogInformation(
-                    "Express checkout: Using {Count} existing shipping selections from session for basket {BasketId}",
+                    "Express checkout: Shipping selections saved for {GroupCount} groups, combined total: {Total}",
                     shippingSelections.Count,
-                    basket.Id);
+                    ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, shippingSelections));
             }
             else
             {
-                // No prior selection (true express checkout from cart) - auto-select cheapest
-                shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
-
-                logger.LogInformation(
-                    "Express checkout: Auto-selected cheapest shipping for {Count} groups, basket {BasketId}",
-                    shippingSelections.Count,
-                    basket.Id);
-            }
-
-            if (shippingSelections.Count == 0)
-            {
-                logger.LogWarning(
-                    "Express checkout: No shipping options available for basket {BasketId}. Address not persisted.",
-                    basket.Id);
-
-                return BadRequest(new ExpressCheckoutResponseDto
+                // Digital-only order: no shipping selections required.
+                await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
                 {
-                    Success = false,
-                    ErrorMessage = "No shipping methods available for your location."
-                });
+                    BasketId = basket.Id,
+                    Billing = billingAddress,
+                    Shipping = billingAddress,
+                    SameAsBilling = true
+                }, cancellationToken);
             }
-
-            // Validation passed - NOW persist addresses to session
-            await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
-            {
-                BasketId = basket.Id,
-                Billing = billingAddress,
-                Shipping = sameAsBilling ? null : shippingAddress,
-                SameAsBilling = sameAsBilling
-            }, cancellationToken);
-
-            // Save shipping selections to session
-            await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
-            {
-                BasketId = basket.Id,
-                Selections = shippingSelections
-            }, cancellationToken);
 
             // Get the persisted session for subsequent operations
             var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
-
-            logger.LogInformation(
-                "Express checkout: Shipping selections saved for {GroupCount} groups, combined total: {Total}",
-                shippingSelections.Count,
-                ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, shippingSelections));
 
             // Check for existing unpaid invoice to prevent phantom orders
             // This handles cases where express checkout is triggered multiple times
@@ -2534,6 +2567,29 @@ public class CheckoutPaymentsApiController(
         }
 
         return (true, null);
+    }
+
+    private static bool BasketRequiresShipping(Basket basket)
+    {
+        return basket.LineItems.Any(li =>
+            li.LineItemType == LineItemType.Product && !IsDigitalLineItem(li));
+    }
+
+    private static bool IsDigitalLineItem(LineItem lineItem)
+    {
+        if (!lineItem.ExtendedData.TryGetValue("IsDigital", out var value))
+        {
+            return false;
+        }
+
+        return value switch
+        {
+            bool b => b,
+            string s => bool.TryParse(s, out var parsed) && parsed,
+            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
+                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
+            _ => false
+        };
     }
 
     // =====================================================

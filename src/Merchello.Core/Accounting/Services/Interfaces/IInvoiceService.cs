@@ -116,16 +116,16 @@ public interface IInvoiceService
     Task<Dictionary<Guid, string>> GetShippingOptionNamesAsync(IEnumerable<Guid> shippingOptionIds, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Create a draft order from the admin backoffice.
+    /// Create a manual order from the admin backoffice.
     /// Creates an invoice with a single order, ready for products to be added via edit.
     /// </summary>
-    /// <param name="request">The draft order request with addresses and optional custom items</param>
+    /// <param name="request">The manual order request with addresses and optional custom items</param>
     /// <param name="authorId">Optional author user ID for timeline note</param>
     /// <param name="authorName">Optional author name for timeline note</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Result containing the new invoice ID and number, or error message</returns>
-    Task<OperationResult<CreateDraftOrderResultDto>> CreateDraftOrderAsync(
-        CreateDraftOrderDto request,
+    Task<OperationResult<CreateManualOrderResultDto>> CreateManualOrderAsync(
+        CreateManualOrderDto request,
         Guid? authorId,
         string? authorName,
         CancellationToken cancellationToken = default);

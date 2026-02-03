@@ -255,7 +255,7 @@ public class LineItemFactory(ICurrencyService currencyService)
     }
 
     /// <summary>
-    /// Creates a custom line item for draft/manual orders.
+    /// Creates a custom line item for manual orders.
     /// </summary>
     public static LineItem CreateCustomLineItem(
         Guid orderId,

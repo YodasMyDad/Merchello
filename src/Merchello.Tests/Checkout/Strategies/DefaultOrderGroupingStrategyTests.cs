@@ -11,6 +11,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Shipping.Factories;
@@ -21,9 +22,11 @@ using Umbraco.Cms.Core.Notifications;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Xunit;
+using Merchello.Core.Shared.Models;
 
 namespace Merchello.Tests.Checkout.Strategies;
 
@@ -32,6 +35,7 @@ public class DefaultOrderGroupingStrategyTests
     private readonly Mock<IWarehouseService> _warehouseServiceMock;
     private readonly Mock<IShippingCostResolver> _shippingCostResolverMock;
     private readonly Mock<IShippingQuoteService> _shippingQuoteServiceMock;
+    private readonly Mock<IShippingProviderManager> _shippingProviderManagerMock;
     private readonly Mock<IWarehouseProviderConfigService> _warehouseProviderConfigServiceMock;
     private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
     private readonly Mock<ILogger<DefaultOrderGroupingStrategy>> _loggerMock;
@@ -48,18 +52,25 @@ public class DefaultOrderGroupingStrategyTests
                 It.IsAny<decimal?>()))
             .Returns((ShippingOption so, string _, string? __, decimal? ___) => so.FixedCost ?? 0);
         _shippingQuoteServiceMock = new Mock<IShippingQuoteService>();
+        _shippingProviderManagerMock = new Mock<IShippingProviderManager>();
+        _shippingProviderManagerMock
+            .Setup(x => x.GetEnabledProvidersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<RegisteredShippingProvider>());
         _warehouseProviderConfigServiceMock = new Mock<IWarehouseProviderConfigService>();
         _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
         _notificationPublisherMock
             .Setup(p => p.PublishCancelableAsync(It.IsAny<ICancelableNotification>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
         _loggerMock = new Mock<ILogger<DefaultOrderGroupingStrategy>>();
+        var settings = Options.Create(new MerchelloSettings());
         _strategy = new DefaultOrderGroupingStrategy(
             _warehouseServiceMock.Object,
             _shippingCostResolverMock.Object,
             _shippingQuoteServiceMock.Object,
+            _shippingProviderManagerMock.Object,
             _warehouseProviderConfigServiceMock.Object,
             _notificationPublisherMock.Object,
+            settings,
             _loggerMock.Object);
     }
 

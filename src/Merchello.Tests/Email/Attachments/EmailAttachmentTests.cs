@@ -512,7 +512,7 @@ public class EmailAttachmentTests
             phone: null,
             email: "test@example.com");
 
-        var invoice = InvoiceFactory.CreateDraft(
+        var invoice = InvoiceFactory.CreateManual(
             invoiceNumber: "INV-TEST",
             customerId: Guid.NewGuid(),
             billingAddress: billingAddress,
@@ -580,7 +580,7 @@ public class EmailAttachmentTests
             phone: null,
             email: null);
 
-        var invoice = InvoiceFactory.CreateDraft(
+        var invoice = InvoiceFactory.CreateManual(
             invoiceNumber: "INV-TEST-001",
             customerId: Guid.NewGuid(),
             billingAddress: billingAddress,
