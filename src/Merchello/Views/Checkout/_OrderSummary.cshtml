@@ -1,5 +1,6 @@
 @using Merchello.Core.Accounting.Models
 @using Merchello.Core.Checkout.Dtos
+@inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @{
     var model = ViewData.Model as CheckoutViewModel;
     var basket = model?.Basket;
@@ -189,7 +190,7 @@
                                 {
                                     lineAmount *= (1 + (item.TaxRate / 100m));
                                 }
-                                var displayLineAmount = Math.Round(lineAmount * exchangeRate, decimalPlaces);
+                                var displayLineAmount = CurrencyService.Round(lineAmount * exchangeRate, displayCurrencyCode);
                             }
                             @displayCurrencySymbol@displayLineAmount.ToString(numberFormat)
                         </div>

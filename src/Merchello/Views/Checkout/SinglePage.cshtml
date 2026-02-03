@@ -2,6 +2,7 @@
 @using System.Text.Json
 @using System.Text.Encodings.Web
 @using Merchello.Extensions
+@inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @{
     Layout = "~/Views/Checkout/_Layout.cshtml";
     var basket = Model.Basket;
@@ -101,13 +102,18 @@
         selectedOptionId = g.SelectedShippingOptionId?.ToString()
     }),
     hasShippingGroups = hasShippingGroups,
-    appliedDiscounts = discountLineItems.Select(d => new {
-        id = d.ExtendedData?.TryGetValue("DiscountId", out var idObj) == true ? idObj?.ToString() : d.Id.ToString(),
-        name = d.Name,
-        code = d.ExtendedData?.TryGetValue("DiscountCode", out var codeObj) == true ? codeObj?.ToString() : (string?)null,
-        amount = Math.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, decimalPlaces),
-        formattedAmount = $"{displayCurrencySymbol}{Math.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, decimalPlaces).ToString($"N{decimalPlaces}")}",
-        isAutomatic = d.ExtendedData?.ContainsKey("DiscountCode") != true
+    appliedDiscounts = discountLineItems.Select(d =>
+    {
+        var discountAmount = CurrencyService.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, displayCurrencyCode);
+        return new
+        {
+            id = d.ExtendedData?.TryGetValue("DiscountId", out var idObj) == true ? idObj?.ToString() : d.Id.ToString(),
+            name = d.Name,
+            code = d.ExtendedData?.TryGetValue("DiscountCode", out var codeObj) == true ? codeObj?.ToString() : (string?)null,
+            amount = discountAmount,
+            formattedAmount = $"{displayCurrencySymbol}{discountAmount.ToString($"N{decimalPlaces}")}",
+            isAutomatic = d.ExtendedData?.ContainsKey("DiscountCode") != true
+        };
     }),
     orderTerms = Model.Settings.OrderTerms != null ? new {
         showCheckbox = Model.Settings.OrderTerms.ShowCheckbox,

@@ -109,18 +109,28 @@ public class InvoiceService(
         // Set customer on basket for discount eligibility
         basket.CustomerId = customer.Id;
 
+        var requiresShipping = BasketRequiresShipping(basket);
+
         // Get the warehouse shipping groups using the same logic used during checkout
         // IMPORTANT: Get shipping BEFORE refreshing discounts so free shipping discounts have accurate costs
-        var shippingResult = await shippingService.GetShippingOptionsForBasket(
-            new GetShippingOptionsParameters
+        var shippingResult = requiresShipping
+            ? await shippingService.GetShippingOptionsForBasket(
+                new GetShippingOptionsParameters
+                {
+                    Basket = basket,
+                    ShippingAddress = checkoutSession.ShippingAddress,
+                    SelectedShippingOptions = checkoutSession.SelectedShippingOptions
+                },
+                cancellationToken)
+            : new ShippingSelectionResult
             {
-                Basket = basket,
-                ShippingAddress = checkoutSession.ShippingAddress,
-                SelectedShippingOptions = checkoutSession.SelectedShippingOptions
-            },
-            cancellationToken);
+                WarehouseGroups = [],
+                SubTotal = basket.SubTotal,
+                Tax = basket.Tax,
+                Total = basket.Total
+            };
 
-        if (!shippingResult.WarehouseGroups.Any())
+        if (requiresShipping && !shippingResult.WarehouseGroups.Any())
         {
             result.AddErrorMessage("No warehouse shipping groups found for basket. Cannot create order.");
             return result;
@@ -151,31 +161,34 @@ public class InvoiceService(
         // Calculate total shipping cost from selected options before refreshing discounts
         // This ensures free shipping discounts have accurate shipping costs to work with
         var totalShippingCost = 0m;
-        foreach (var group in shippingResult.WarehouseGroups)
+        if (requiresShipping)
         {
-            // First check if the strategy already resolved the selection (POST-SELECTION flow)
-            var selectionKey = group.SelectedShippingOptionId ?? string.Empty;
+            foreach (var group in shippingResult.WarehouseGroups)
+            {
+                // First check if the strategy already resolved the selection (POST-SELECTION flow)
+                var selectionKey = group.SelectedShippingOptionId ?? string.Empty;
 
-            // Fall back to lookup from checkout session if not set
-            if (string.IsNullOrEmpty(selectionKey))
-            {
-                selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId) ?? string.Empty;
-            }
-            if (string.IsNullOrEmpty(selectionKey))
-            {
-                selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.WarehouseId) ?? string.Empty;
-            }
+                // Fall back to lookup from checkout session if not set
+                if (string.IsNullOrEmpty(selectionKey))
+                {
+                    selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId) ?? string.Empty;
+                }
+                if (string.IsNullOrEmpty(selectionKey))
+                {
+                    selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.WarehouseId) ?? string.Empty;
+                }
 
-            var selectedOption = group.AvailableShippingOptions
-                .FirstOrDefault(o => o.SelectionKey == selectionKey);
-            if (selectedOption != null)
-            {
-                totalShippingCost += selectedOption.Cost;
-            }
-            else if (checkoutSession.QuotedShippingCosts.TryGetValue(group.GroupId, out var quotedCost))
-            {
-                // Fallback to quoted cost for dynamic providers
-                totalShippingCost += quotedCost.Cost;
+                var selectedOption = group.AvailableShippingOptions
+                    .FirstOrDefault(o => o.SelectionKey == selectionKey);
+                if (selectedOption != null)
+                {
+                    totalShippingCost += selectedOption.Cost;
+                }
+                else if (checkoutSession.QuotedShippingCosts.TryGetValue(group.GroupId, out var quotedCost))
+                {
+                    // Fallback to quoted cost for dynamic providers
+                    totalShippingCost += quotedCost.Cost;
+                }
             }
         }
 
@@ -472,6 +485,88 @@ public class InvoiceService(
                 orders.Add(order);
             }
 
+            var groupedLineItemIds = shippingResult.WarehouseGroups
+                .SelectMany(g => g.LineItems)
+                .Select(li => li.LineItemId)
+                .ToHashSet();
+
+            var ungroupedProductItems = basket.LineItems
+                .Where(li => li.LineItemType == LineItemType.Product && !groupedLineItemIds.Contains(li.Id))
+                .ToList();
+
+            if (ungroupedProductItems.Count > 0)
+            {
+                var targetOrder = orders.FirstOrDefault();
+                if (targetOrder == null)
+                {
+                    var fallbackWarehouseId = await db.Warehouses
+                        .AsNoTracking()
+                        .Select(w => w.Id)
+                        .FirstOrDefaultAsync(cancellationToken);
+
+                    if (fallbackWarehouseId == Guid.Empty)
+                    {
+                        result.AddErrorMessage("No warehouse available for digital order creation.");
+                        return (null, []);
+                    }
+
+                    targetOrder = orderFactory.Create(newInvoice.Id, fallbackWarehouseId, Guid.Empty, 0);
+                    targetOrder.ShippingProviderKey = "digital";
+                    targetOrder.ShippingServiceCode = "digital";
+                    targetOrder.ShippingServiceName = "Digital delivery";
+                    orders.Add(targetOrder);
+                }
+
+                foreach (var basketLineItem in ungroupedProductItems)
+                {
+                    var cost = 0m;
+                    if (basketLineItem.ProductId.HasValue &&
+                        products.TryGetValue(basketLineItem.ProductId.Value, out var product))
+                    {
+                        cost = product.CostOfGoods;
+                    }
+
+                    var orderLineItem = lineItemFactory.CreateForOrder(
+                        basketLineItem,
+                        basketLineItem.Quantity,
+                        ConvertToPresentmentCurrency(basketLineItem.Amount, pricingQuote, presentmentCurrency),
+                        cost);
+
+                    targetOrder.LineItems!.Add(orderLineItem);
+
+                    var dependentAddons = basket.LineItems
+                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == basketLineItem.Sku)
+                        .ToList();
+
+                    foreach (var addon in dependentAddons)
+                    {
+                        var addonOrderLine = lineItemFactory.CreateAddonForOrder(
+                            addon,
+                            basketLineItem.Quantity,
+                            ConvertToPresentmentCurrency(addon.Amount, pricingQuote, presentmentCurrency));
+                        targetOrder.LineItems.Add(addonOrderLine);
+                    }
+
+                    var dependentDiscounts = basket.LineItems
+                        .Where(li => li.LineItemType == LineItemType.Discount &&
+                                     !string.IsNullOrEmpty(li.DependantLineItemSku) &&
+                                     !string.IsNullOrEmpty(basketLineItem.Sku) &&
+                                     li.DependantLineItemSku == basketLineItem.Sku)
+                        .ToList();
+
+                    foreach (var discountLineItem in dependentDiscounts)
+                    {
+                        var discountOrderLine = lineItemFactory.CreateDiscountForOrder(
+                            discountLineItem,
+                            basketLineItem.Quantity,
+                            basketLineItem.Quantity,
+                            ConvertToPresentmentCurrency(discountLineItem.Amount, pricingQuote, presentmentCurrency),
+                            presentmentCurrency);
+                        targetOrder.LineItems.Add(discountOrderLine);
+                    }
+                }
+            }
+
             if (!orders.Any())
             {
                 result.AddErrorMessage("No orders were created from basket. Check shipping selections.");
@@ -534,6 +629,12 @@ public class InvoiceService(
 
                 foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
                 {
+                    if (IsDigitalLineItem(lineItem))
+                    {
+                        reservationResults.Add($"Item '{lineItem.Name}' - Digital product (no stock reservation)");
+                        continue;
+                    }
+
                     var isTracked = await inventoryService.IsStockTrackedAsync(
                         lineItem.ProductId!.Value,
                         order.WarehouseId,
@@ -679,6 +780,17 @@ public class InvoiceService(
             }
         }
 
+        // Record discount usage after invoice creation (soft enforcement).
+        // If limits are exceeded or a duplicate record exists, log but do not fail the order.
+        try
+        {
+            await RecordDiscountUsageAsync(invoice, orders, invoice.CustomerId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to record discount usage for invoice {InvoiceId}", invoice.Id);
+        }
+
         result.ResultObject = invoice;
         return result;
     }
@@ -709,6 +821,138 @@ public class InvoiceService(
             shippingOption.Id, countryCode, stateOrProvinceCode);
 
         return 0;
+    }
+
+    private static bool BasketRequiresShipping(Basket basket)
+    {
+        return basket.LineItems.Any(li =>
+            li.LineItemType == LineItemType.Product && !IsDigitalLineItem(li));
+    }
+
+    private static bool IsDigitalLineItem(LineItem lineItem)
+    {
+        if (!lineItem.ExtendedData.TryGetValue("IsDigital", out var value))
+        {
+            return false;
+        }
+
+        return value switch
+        {
+            bool b => b,
+            string s => bool.TryParse(s, out var parsed) && parsed,
+            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
+                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
+            _ => false
+        };
+    }
+
+    private async Task RecordDiscountUsageAsync(
+        Invoice invoice,
+        IReadOnlyCollection<Order> orders,
+        Guid? customerId,
+        CancellationToken ct)
+    {
+        var discountLineItems = orders
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .ToList();
+
+        if (discountLineItems.Count == 0)
+        {
+            return;
+        }
+
+        var discountAmounts = new Dictionary<Guid, decimal>();
+        foreach (var lineItem in discountLineItems)
+        {
+            var discountId = TryGetDiscountId(lineItem);
+            if (!discountId.HasValue)
+            {
+                continue;
+            }
+
+            var amount = Math.Abs((lineItem.AmountInStoreCurrency ?? lineItem.Amount) * lineItem.Quantity);
+            if (amount <= 0)
+            {
+                continue;
+            }
+
+            discountAmounts.TryAdd(discountId.Value, 0m);
+            discountAmounts[discountId.Value] += amount;
+        }
+
+        if (discountAmounts.Count == 0)
+        {
+            return;
+        }
+
+        var discounts = await discountService.GetByIdsAsync(discountAmounts.Keys.ToList(), ct);
+        var discountLookup = discounts.ToDictionary(d => d.Id);
+
+        foreach (var (discountId, amount) in discountAmounts)
+        {
+            discountLookup.TryGetValue(discountId, out var discount);
+            var totalLimit = discount?.TotalUsageLimit;
+            var perCustomerLimit = discount?.PerCustomerUsageLimit;
+
+            var recorded = await discountService.TryRecordUsageAsync(
+                discountId,
+                invoice.Id,
+                customerId,
+                amount,
+                totalLimit,
+                perCustomerLimit,
+                ct);
+
+            if (recorded)
+            {
+                continue;
+            }
+
+            if (discount == null)
+            {
+                logger.LogWarning(
+                    "Discount usage not recorded for invoice {InvoiceId}: discount {DiscountId} not found.",
+                    invoice.Id,
+                    discountId);
+                continue;
+            }
+
+            if (discount.TotalUsageLimit.HasValue ||
+                (discount.PerCustomerUsageLimit.HasValue && customerId.HasValue))
+            {
+                logger.LogWarning(
+                    "Discount usage limit exceeded for discount {DiscountId} ({Code}) on invoice {InvoiceId}. Order created (soft enforcement).",
+                    discount.Id,
+                    discount.Code ?? "no-code",
+                    invoice.Id);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Discount usage not recorded for discount {DiscountId} ({Code}) on invoice {InvoiceId} (duplicate or unavailable).",
+                    discount.Id,
+                    discount.Code ?? "no-code",
+                    invoice.Id);
+            }
+        }
+    }
+
+    private static Guid? TryGetDiscountId(LineItem lineItem)
+    {
+        if (!lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var value) || value == null)
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            Guid guid => guid,
+            string s when Guid.TryParse(s, out var parsed) => parsed,
+            System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
+                && Guid.TryParse(je.GetString(), out var parsed) => parsed,
+            _ => null
+        };
     }
 
     public async Task<CrudResult<bool>> UpdateOrderStatusAsync(
@@ -1960,8 +2204,8 @@ public class InvoiceService(
 
 
     /// <inheritdoc />
-    public async Task<OperationResult<CreateDraftOrderResultDto>> CreateDraftOrderAsync(
-        CreateDraftOrderDto request,
+    public async Task<OperationResult<CreateManualOrderResultDto>> CreateManualOrderAsync(
+        CreateManualOrderDto request,
         Guid? authorId,
         string? authorName,
         CancellationToken cancellationToken = default)
@@ -1970,7 +2214,7 @@ public class InvoiceService(
         var billingEmail = request.BillingAddress.Email;
         if (string.IsNullOrWhiteSpace(billingEmail))
         {
-            return OperationResult<CreateDraftOrderResultDto>.Fail("Billing email is required to create a draft order.");
+            return OperationResult<CreateManualOrderResultDto>.Fail("Billing email is required to create a manual order.");
         }
 
         // Get or create customer from billing email (outside scope to avoid nesting)
@@ -1983,7 +2227,7 @@ public class InvoiceService(
         }, cancellationToken);
 
         using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync<OperationResult<CreateDraftOrderResultDto>>(async db =>
+        var result = await scope.ExecuteWithContextAsync<OperationResult<CreateManualOrderResultDto>>(async db =>
         {
             // Generate next invoice number using MAX+1 (unique index prevents duplicates)
             var maxNumbers = await db.Invoices
@@ -1999,62 +2243,49 @@ public class InvoiceService(
 
             var invoiceNumber = $"{_settings.InvoiceNumberPrefix}{nextNumber:D4}";
 
-            // Get first warehouse and its first shipping option for the draft order
-            var warehouse = await db.Warehouses
-                .Include(w => w.ShippingOptions)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (warehouse == null)
-            {
-                return OperationResult<CreateDraftOrderResultDto>.Fail("No warehouse found. Please configure at least one warehouse.");
-            }
-
-            var shippingOption = warehouse.ShippingOptions.FirstOrDefault();
-            if (shippingOption == null)
-            {
-                return OperationResult<CreateDraftOrderResultDto>.Fail($"Warehouse '{warehouse.Name}' has no shipping options. Please configure at least one shipping option.");
-            }
-
-            // Get tax groups for custom items
-            var taxGroupIds = request.CustomItems
-                .Where(c => c.TaxGroupId.HasValue)
-                .Select(c => c.TaxGroupId!.Value)
-                .Distinct()
-                .ToList();
-
-            var taxGroups = taxGroupIds.Count > 0
-                ? await db.TaxGroups
-                    .Where(tg => taxGroupIds.Contains(tg.Id))
-                    .ToDictionaryAsync(tg => tg.Id, tg => tg.TaxPercentage, cancellationToken)
-                : [];
-
-            var now = DateTime.UtcNow;
-
             // Use shipping address if provided, otherwise use billing address
             var shippingAddress = request.ShippingAddress != null
                 ? MapDtoToAddress(request.ShippingAddress)
                 : CloneAddress(billingAddress);
 
-            // Calculate totals from custom items
+            var currencyCode = _settings.StoreCurrencyCode;
+
+            // Calculate totals from custom items (if any)
             decimal subTotal = 0;
             decimal tax = 0;
+            Dictionary<Guid, decimal> taxGroups = [];
 
-            foreach (var item in request.CustomItems)
+            if (request.CustomItems.Any())
             {
-                var itemTotal = item.Price * item.Quantity;
-                subTotal += itemTotal;
+                // Get tax groups for custom items
+                var taxGroupIds = request.CustomItems
+                    .Where(c => c.TaxGroupId.HasValue)
+                    .Select(c => c.TaxGroupId!.Value)
+                    .Distinct()
+                    .ToList();
 
-                if (item.TaxGroupId.HasValue && taxGroups.TryGetValue(item.TaxGroupId.Value, out var taxRate))
+                taxGroups = taxGroupIds.Count > 0
+                    ? await db.TaxGroups
+                        .Where(tg => taxGroupIds.Contains(tg.Id))
+                        .ToDictionaryAsync(tg => tg.Id, tg => tg.TaxPercentage, cancellationToken)
+                    : [];
+
+                foreach (var item in request.CustomItems)
                 {
-                    tax += itemTotal * (taxRate / 100m);
+                    var itemTotal = item.Price * item.Quantity;
+                    subTotal += itemTotal;
+
+                    if (item.TaxGroupId.HasValue && taxGroups.TryGetValue(item.TaxGroupId.Value, out var taxRate))
+                    {
+                        tax += itemTotal * (taxRate / 100m);
+                    }
                 }
             }
 
             var total = subTotal + tax;
-            var currencyCode = _settings.StoreCurrencyCode;
 
             // Create the invoice
-            var invoice = invoiceFactory.CreateDraft(
+            var invoice = invoiceFactory.CreateManual(
                 invoiceNumber,
                 customer.Id,
                 billingAddress,
@@ -2066,45 +2297,71 @@ public class InvoiceService(
                 authorName,
                 authorId);
 
-            // Create the order
-            var order = orderFactory.Create(
-                invoice.Id,
-                warehouse.Id,
-                shippingOption.Id,
-                shippingCost: 0); // Will be set when fulfilling
-            order.Invoice = invoice;
-            order.LineItems = [];
-
-            // Add custom items as line items
-            foreach (var customItem in request.CustomItems)
+            // Only create an order if there are custom items to add
+            // Otherwise, orders will be created when products are added via the edit flow
+            if (request.CustomItems.Any())
             {
-                var taxRate = customItem.TaxGroupId.HasValue && taxGroups.TryGetValue(customItem.TaxGroupId.Value, out var rate)
-                    ? rate
-                    : 0m;
+                // Get first warehouse and its first shipping option for custom items
+                var warehouse = await db.Warehouses
+                    .Include(w => w.ShippingOptions)
+                    .FirstOrDefaultAsync(cancellationToken);
 
-                var lineItem = LineItemFactory.CreateCustomLineItem(
-                    orderId: order.Id,
-                    name: customItem.Name,
-                    sku: customItem.Sku,
-                    amount: customItem.Price,
-                    cost: customItem.Cost,
-                    quantity: customItem.Quantity,
-                    isTaxable: customItem.TaxGroupId.HasValue,
-                    taxRate: taxRate,
-                    extendedData: new Dictionary<string, object>
-                    {
-                        [Constants.ExtendedDataKeys.IsPhysicalProduct] = customItem.IsPhysicalProduct
-                    });
-                lineItem.Order = order;
+                if (warehouse == null)
+                {
+                    return OperationResult<CreateManualOrderResultDto>.Fail("No warehouse found. Please configure at least one warehouse.");
+                }
 
-                order.LineItems.Add(lineItem);
-                db.LineItems.Add(lineItem);
+                var shippingOption = warehouse.ShippingOptions.FirstOrDefault();
+                if (shippingOption == null)
+                {
+                    return OperationResult<CreateManualOrderResultDto>.Fail($"Warehouse '{warehouse.Name}' has no shipping options. Please configure at least one shipping option.");
+                }
+
+                var order = orderFactory.Create(
+                    invoice.Id,
+                    warehouse.Id,
+                    shippingOption.Id,
+                    shippingCost: 0);
+                order.Invoice = invoice;
+                order.LineItems = [];
+
+                // Add custom items as line items
+                foreach (var customItem in request.CustomItems)
+                {
+                    var taxRate = customItem.TaxGroupId.HasValue && taxGroups.TryGetValue(customItem.TaxGroupId.Value, out var rate)
+                        ? rate
+                        : 0m;
+
+                    var lineItem = LineItemFactory.CreateCustomLineItem(
+                        orderId: order.Id,
+                        name: customItem.Name,
+                        sku: customItem.Sku,
+                        amount: customItem.Price,
+                        cost: customItem.Cost,
+                        quantity: customItem.Quantity,
+                        isTaxable: customItem.TaxGroupId.HasValue,
+                        taxRate: taxRate,
+                        extendedData: new Dictionary<string, object>
+                        {
+                            [Constants.ExtendedDataKeys.IsPhysicalProduct] = customItem.IsPhysicalProduct
+                        });
+                    lineItem.Order = order;
+
+                    order.LineItems.Add(lineItem);
+                    db.LineItems.Add(lineItem);
+                }
+
+                invoice.Orders = [order];
+                db.Orders.Add(order);
+            }
+            else
+            {
+                // No custom items - create invoice without orders
+                // Orders will be created when products are added via the edit modal
+                invoice.Orders = [];
             }
 
-            invoice.Orders = [order];
-
             db.Invoices.Add(invoice);
-            db.Orders.Add(order);
 
             // Retry with a new invoice number on unique constraint violation (race condition)
             for (var attempt = 0; attempt < 3; attempt++)
@@ -2131,7 +2388,7 @@ public class InvoiceService(
                 }
             }
 
-            return OperationResult<CreateDraftOrderResultDto>.Success(new CreateDraftOrderResultDto
+            return OperationResult<CreateManualOrderResultDto>.Success(new CreateManualOrderResultDto
             {
                 IsSuccessful = true,
                 InvoiceId = invoice.Id,

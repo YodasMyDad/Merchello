@@ -270,7 +270,6 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     "paymentStatus",
     "fulfillmentStatus",
     "itemCount",
-    "deliveryMethod",
   ];
 
   private _renderLoadingState(): unknown {

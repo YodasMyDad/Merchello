@@ -465,7 +465,7 @@ public class StatementServiceTests : IDisposable
             phone: null,
             email: "john@test.com");
 
-        var invoice = _invoiceFactory.CreateDraft(
+        var invoice = _invoiceFactory.CreateManual(
             invoiceNumber: $"INV-{Guid.NewGuid().ToString()[..6]}",
             customerId: _customerId,
             billingAddress: billingAddress,

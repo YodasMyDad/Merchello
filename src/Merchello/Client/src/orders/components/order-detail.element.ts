@@ -549,7 +549,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <uui-icon name="icon-truck"></uui-icon>
           <div class="fulfillment-shipping-details">
             <span class="fulfillment-shipping-name">${fulfillmentOrder.deliveryMethod}</span>
-            <span class="fulfillment-shipping-cost">${formatCurrency(fulfillmentOrder.shippingCost, currencyCode, currencySymbol)}</span>
+            <span class="fulfillment-shipping-cost ${fulfillmentOrder.shippingCost === 0 ? 'free-shipping' : ''}">${fulfillmentOrder.shippingCost === 0 ? 'FREE' : formatCurrency(fulfillmentOrder.shippingCost, currencyCode, currencySymbol)}</span>
           </div>
         </div>
         <div class="fulfillment-line-items">
@@ -830,7 +830,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 <div class="summary-row">
                   <span>Shipping</span>
                   <span>${order.orders[0]?.deliveryMethod || "Standard"}</span>
-                  <span>${formatCurrency(order.shippingCost, order.currencyCode, order.currencySymbol)}</span>
+                  <span class="${order.shippingCost === 0 ? 'free-shipping' : ''}">${order.shippingCost === 0 ? 'FREE' : formatCurrency(order.shippingCost, order.currencyCode, order.currencySymbol)}</span>
                 </div>
                 ${order.tax > 0 ? html`
                   <div class="summary-row">
@@ -1250,7 +1250,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       color: white;
     }
 
-    .badge.source-draft {
+    .badge.source-manual {
       background: var(--uui-color-border-standalone);
       color: var(--uui-color-text);
     }
@@ -1417,6 +1417,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     .fulfillment-shipping-cost {
       font-weight: 600;
       color: var(--uui-color-text);
+    }
+
+    .free-shipping {
+      color: var(--uui-color-positive);
     }
 
     .fulfillment-line-items {

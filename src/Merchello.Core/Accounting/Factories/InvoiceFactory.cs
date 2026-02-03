@@ -76,7 +76,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
     }
 
     /// <summary>
-    /// Creates a draft invoice for admin-created orders.
+    /// Creates a manual invoice for admin-created orders.
     /// </summary>
     /// <param name="invoiceNumber">The invoice number to assign.</param>
     /// <param name="customerId">The customer ID.</param>
@@ -90,7 +90,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
     /// <param name="authorId">Optional author ID for the note.</param>
     /// <param name="hasAccountTerms">Whether the customer has account terms enabled.</param>
     /// <param name="paymentTermsDays">Payment terms in days (e.g., 30 for Net 30).</param>
-    public Invoice CreateDraft(
+    public Invoice CreateManual(
         string invoiceNumber,
         Guid customerId,
         Address billingAddress,
@@ -118,7 +118,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
             CustomerId = customerId,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            Channel = "Draft order",
+            Channel = "Manual order",
             CurrencyCode = currencyCode,
             CurrencySymbol = currencyService.GetCurrency(currencyCode).Symbol,
             StoreCurrencyCode = currencyCode,
@@ -130,8 +130,8 @@ public class InvoiceFactory(ICurrencyService currencyService)
             DueDate = dueDate,
             Source = new InvoiceSource
             {
-                Type = Constants.InvoiceSources.Draft,
-                DisplayName = "Draft order",
+                Type = Constants.InvoiceSources.Manual,
+                DisplayName = "Manual order",
                 SourceId = authorId?.ToString(),
                 SourceName = authorName,
                 RecordedAtUtc = now
@@ -143,7 +143,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
                 new InvoiceNote
                 {
                     DateCreated = now,
-                    Description = "Draft order created",
+                    Description = "Manual order created",
                     AuthorId = authorId,
                     Author = authorName ?? "System",
                     VisibleToCustomer = false

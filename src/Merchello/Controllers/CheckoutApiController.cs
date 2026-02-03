@@ -200,6 +200,14 @@ public class CheckoutApiController(
 
         logger.LogInformation("Addresses saved for basket {BasketId}", basket.Id);
 
+        var savedShippingAddress = result.ResultObject?.ShippingAddress;
+        if (savedShippingAddress != null && !string.IsNullOrWhiteSpace(savedShippingAddress.CountryCode))
+        {
+            storefrontContext.SetShippingCountry(
+                savedShippingAddress.CountryCode,
+                savedShippingAddress.CountyState?.RegionCode);
+        }
+
         return Ok(new SaveAddressesResponseDto
         {
             Success = true,
@@ -425,6 +433,8 @@ public class CheckoutApiController(
                 Message = "Country code is required."
             });
         }
+
+        storefrontContext.SetShippingCountry(request.CountryCode, request.StateCode);
 
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null || basket.LineItems.Count == 0)
@@ -1227,7 +1237,6 @@ public class CheckoutApiController(
             {
                 li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj);
                 li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var discountCodeObj);
-
                 var discountAmount = Math.Abs(li.Amount * li.Quantity);
                 var displayDiscountAmount = currencyConversion.Convert(discountAmount, exchangeRate, displayCurrencyCode);
 
@@ -1352,8 +1361,11 @@ public class CheckoutApiController(
                 li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj);
                 li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var discountCodeObj);
 
-                var discountAmount = Math.Abs(li.Amount * li.Quantity);
-                var displayDiscountAmount = currencyConversion.Convert(discountAmount, exchangeRate, displayCurrencyCode);
+                var linkedItem = !string.IsNullOrEmpty(li.DependantLineItemSku)
+                    ? basket.LineItems.FirstOrDefault(p => p.Sku == li.DependantLineItemSku)
+                    : null;
+                var linkedTaxRate = linkedItem is { IsTaxable: true } ? linkedItem.TaxRate : (decimal?)null;
+                var displayDiscountAmount = li.GetDisplayDiscountTotal(displayContext, currencyService, linkedTaxRate);
 
                 return new AppliedDiscountDto
                 {
@@ -1428,12 +1440,8 @@ public class CheckoutApiController(
 
     private async Task<CheckoutBasketDto> MapBasketToDtoWithCurrencyAsync(Basket basket, CancellationToken ct)
     {
-        var currencyContext = await storefrontContext.GetCurrencyContextAsync(ct);
-        return MapBasketToDto(
-            basket,
-            currencyContext.CurrencyCode,
-            currencyContext.CurrencySymbol,
-            currencyContext.ExchangeRate);
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        return MapBasketToDto(basket, displayContext);
     }
 
     private static AddressDto? MapAddressToDto(Address? address)

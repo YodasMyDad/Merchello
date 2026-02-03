@@ -299,7 +299,7 @@ public class ResolveShippingServiceCodeTests
             phone: null,
             email: "test@example.com");
 
-        var invoice = InvoiceFactory.CreateDraft(
+        var invoice = InvoiceFactory.CreateManual(
             invoiceNumber: $"INV-{Guid.NewGuid():N}"[..6],
             customerId: Guid.NewGuid(),
             billingAddress: billingAddress,

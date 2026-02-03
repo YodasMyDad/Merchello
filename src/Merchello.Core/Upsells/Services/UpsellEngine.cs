@@ -113,22 +113,11 @@ public class UpsellEngine(
         if (!_settings.Enabled)
             return [];
 
-        var product = await productService.GetProduct(new GetProductParameters
-        {
-            ProductId = productId,
-            IncludeProductRoot = true,
-            IncludeProductWarehouses = true,
-            NoTracking = true
-        }, ct);
-        if (product == null)
-            return [];
-
         var syntheticLineItem = await upsellContextBuilder.BuildLineItemAsync(
-            product.Id,
+            productId,
             1,
-            product.Price,
+            0m,
             ct);
-
         if (syntheticLineItem == null)
             return [];
 

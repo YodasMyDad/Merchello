@@ -145,7 +145,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
     public void ResolveTokens_NullNestedProperty_KeepsOriginal()
     {
         // Arrange - Create with null billing address
-        var invoice = _invoiceFactory.CreateDraft(
+        var invoice = _invoiceFactory.CreateManual(
             invoiceNumber: "INV-001",
             customerId: Guid.NewGuid(),
             billingAddress: _addressFactory.CreateFromFormData(
@@ -497,7 +497,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
             phone: null,
             email: null);
 
-        var invoice = _invoiceFactory.CreateDraft(
+        var invoice = _invoiceFactory.CreateManual(
             invoiceNumber: invoiceNumber,
             customerId: Guid.NewGuid(),
             billingAddress: billingAddress,

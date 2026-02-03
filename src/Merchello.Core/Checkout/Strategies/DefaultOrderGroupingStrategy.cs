@@ -7,13 +7,16 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.OrderGrouping;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
+using Merchello.Core.Shared.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Checkout.Strategies;
 
@@ -26,10 +29,14 @@ public class DefaultOrderGroupingStrategy(
     IWarehouseService warehouseService,
     IShippingCostResolver shippingCostResolver,
     IShippingQuoteService shippingQuoteService,
+    IShippingProviderManager shippingProviderManager,
     IWarehouseProviderConfigService warehouseProviderConfigService,
     IMerchelloNotificationPublisher notificationPublisher,
+    IOptions<MerchelloSettings> settings,
     ILogger<DefaultOrderGroupingStrategy> logger) : IOrderGroupingStrategy
 {
+    private readonly MerchelloSettings _settings = settings.Value;
+
     /// <inheritdoc />
     public OrderGroupingStrategyMetadata Metadata => new(
         Key: "default-warehouse",
@@ -47,6 +54,12 @@ public class DefaultOrderGroupingStrategy(
             return OrderGroupingResult.Fail("Shipping address must have a valid country code");
         }
 
+        // Get enabled provider keys for filtering shipping options
+        var enabledProviders = await shippingProviderManager.GetEnabledProvidersAsync(cancellationToken) ?? [];
+        var enabledProviderKeys = enabledProviders
+            .Select(p => p.Provider.Metadata.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         List<OrderGroup> orderGroups = [];
         List<string> errors = [];
 
@@ -55,6 +68,12 @@ public class DefaultOrderGroupingStrategy(
             if (!context.Products.TryGetValue(lineItem.ProductId!.Value, out var product))
             {
                 errors.Add($"Product {lineItem.Name} not found");
+                continue;
+            }
+
+            // Digital products do not require shipping groups.
+            if (product.ProductRoot?.IsDigitalProduct == true)
+            {
                 continue;
             }
 
@@ -94,7 +113,8 @@ public class DefaultOrderGroupingStrategy(
                     lineItem.GetProductRootName(),
                     lineItem.GetSelectedOptions(),
                     lineItem.Quantity,
-                    lineItem.Amount);
+                    lineItem.Amount,
+                    enabledProviderKeys);
             }
             // Handle multi-warehouse fulfillment (split across multiple warehouses)
             else if (selectionResult.WarehouseAllocations.Any())
@@ -130,7 +150,8 @@ public class DefaultOrderGroupingStrategy(
                         productRootName,
                         selectedOptions,
                         allocatedQuantity,
-                        proportionalAmount);
+                        proportionalAmount,
+                        enabledProviderKeys);
                 }
             }
         }
@@ -182,7 +203,8 @@ public class DefaultOrderGroupingStrategy(
         string productRootName,
         List<SelectedOption> selectedOptions,
         int quantity,
-        decimal amount)
+        decimal amount,
+        HashSet<string> enabledProviderKeys)
     {
         // Get allowed shipping options for this product based on restrictions
         var baseShippingOptions = product.ShippingOptions.Any()
@@ -241,7 +263,7 @@ public class DefaultOrderGroupingStrategy(
                     GroupName = $"Shipment from {warehouseName}",
                     WarehouseId = warehouseId,
                     SelectedShippingOptionId = lineItemSelectionKey,
-                    AvailableShippingOptions = ResolveShippingOptions(shippingOptionsForGroup, context)
+                    AvailableShippingOptions = ResolveShippingOptions(shippingOptionsForGroup, context, enabledProviderKeys)
                 };
 
                 orderGroups.Add(group);
@@ -293,7 +315,7 @@ public class DefaultOrderGroupingStrategy(
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
                         SelectedShippingOptionId = groupSelectionKey,
-                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context)
+                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context, enabledProviderKeys)
                     };
                     orderGroups.Add(group);
                 }
@@ -320,7 +342,7 @@ public class DefaultOrderGroupingStrategy(
                         GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
-                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context)
+                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context, enabledProviderKeys)
                     };
                     orderGroups.Add(group);
                 }
@@ -433,7 +455,7 @@ public class DefaultOrderGroupingStrategy(
                         DestinationCountry = context.ShippingAddress.CountryCode!,
                         DestinationState = context.ShippingAddress.CountyState?.RegionCode,
                         DestinationPostal = context.ShippingAddress.PostalCode,
-                        Currency = context.Basket.Currency ?? "USD"
+                        Currency = _settings.StoreCurrencyCode
                     },
                     cancellationToken);
 
@@ -581,16 +603,20 @@ public class DefaultOrderGroupingStrategy(
 
     /// <summary>
     /// Resolves shipping options to ShippingOptionInfo, filtering out options
-    /// that have no cost configured for the destination country/region.
+    /// that have no cost configured for the destination country/region or whose provider is not enabled.
     /// </summary>
     private List<ShippingOptionInfo> ResolveShippingOptions(
         IEnumerable<ShippingOption> shippingOptions,
-        OrderGroupingContext context)
+        OrderGroupingContext context,
+        HashSet<string> enabledProviderKeys)
     {
         var countryCode = context.ShippingAddress.CountryCode!;
         var regionCode = context.ShippingAddress.CountyState?.RegionCode;
 
         return shippingOptions
+            // Filter out options whose provider is not enabled (flat-rate is always available)
+            .Where(so => string.Equals(so.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase) ||
+                         enabledProviderKeys.Contains(so.ProviderKey))
             .Select(so => (Option: so, Cost: shippingCostResolver.GetTotalShippingCost(so, countryCode, regionCode)))
             .Where(x => x.Cost.HasValue)
             .Select(x => new ShippingOptionInfo

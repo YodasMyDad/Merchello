@@ -12,9 +12,12 @@ using Merchello.Core.Shipping.Services;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Xunit;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 
 namespace Merchello.Tests.Shipping.Services;
 
@@ -24,6 +27,7 @@ public class ShippingQuoteServiceTests
     private readonly Mock<IShippingCostResolver> _costResolverMock;
     private readonly Mock<IWarehouseProviderConfigService> _warehouseConfigServiceMock;
     private readonly Mock<ICacheService> _cacheServiceMock;
+    private readonly Mock<ICurrencyService> _currencyServiceMock;
     private readonly Mock<ILogger<ShippingQuoteService>> _loggerMock;
     private readonly ShippingQuoteService _sut;
     private readonly AddressFactory _addressFactory = new();
@@ -35,7 +39,12 @@ public class ShippingQuoteServiceTests
         _costResolverMock = new Mock<IShippingCostResolver>();
         _warehouseConfigServiceMock = new Mock<IWarehouseProviderConfigService>();
         _cacheServiceMock = new Mock<ICacheService>();
+        _currencyServiceMock = new Mock<ICurrencyService>();
+        _currencyServiceMock
+            .Setup(x => x.Round(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns<decimal, string>((amount, _) => amount);
         _loggerMock = new Mock<ILogger<ShippingQuoteService>>();
+        var settings = Options.Create(new MerchelloSettings());
 
         // Configure cache to always invoke the factory (bypass caching in tests)
         _cacheServiceMock
@@ -56,6 +65,8 @@ public class ShippingQuoteServiceTests
             _costResolverMock.Object,
             _warehouseConfigServiceMock.Object,
             _cacheServiceMock.Object,
+            settings,
+            _currencyServiceMock.Object,
             _loggerMock.Object);
     }
 

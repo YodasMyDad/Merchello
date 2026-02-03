@@ -1,6 +1,7 @@
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shared.Providers;
+using Merchello.Core.Shared.Services.Interfaces;
 
 namespace Merchello.Core.Shipping.Providers;
 
@@ -9,6 +10,13 @@ namespace Merchello.Core.Shipping.Providers;
 /// </summary>
 public abstract class ShippingProviderBase : IShippingProvider
 {
+    protected ShippingProviderBase(ICurrencyService currencyService)
+    {
+        CurrencyService = currencyService;
+    }
+
+    protected ICurrencyService CurrencyService { get; }
+
     /// <summary>
     /// Stored configuration after ConfigureAsync is called.
     /// </summary>
@@ -134,7 +142,7 @@ public abstract class ShippingProviderBase : IShippingProvider
         // Apply warehouse config: exclusions and markup
         var filteredLevels = quote.ServiceLevels
             .Where(sl => !warehouseConfig.IsServiceExcluded(sl.ServiceType?.Code ?? sl.ServiceCode))
-            .Select(sl => ApplyMarkup(sl, warehouseConfig))
+            .Select(sl => ApplyMarkup(sl, warehouseConfig, request.CurrencyCode))
             .ToList();
 
         return new ShippingRateQuote
@@ -152,7 +160,7 @@ public abstract class ShippingProviderBase : IShippingProvider
     /// <summary>
     /// Applies markup from warehouse config to a service level.
     /// </summary>
-    protected static ShippingServiceLevel ApplyMarkup(ShippingServiceLevel sl, WarehouseProviderConfig config)
+    protected ShippingServiceLevel ApplyMarkup(ShippingServiceLevel sl, WarehouseProviderConfig config, string? currencyCode = null)
     {
         var serviceCode = sl.ServiceType?.Code ?? sl.ServiceCode;
         var markupPercent = config.GetMarkupForService(serviceCode);
@@ -163,11 +171,14 @@ public abstract class ShippingProviderBase : IShippingProvider
         }
 
         var markedUpCost = sl.TotalCost * (1 + (markupPercent / 100m));
+        var roundingCurrency = !string.IsNullOrWhiteSpace(sl.CurrencyCode)
+            ? sl.CurrencyCode
+            : currencyCode ?? string.Empty;
         return new ShippingServiceLevel
         {
             ServiceCode = sl.ServiceCode,
             ServiceName = sl.ServiceName,
-            TotalCost = Math.Round(markedUpCost, 2, MidpointRounding.AwayFromZero),
+            TotalCost = CurrencyService.Round(markedUpCost, roundingCurrency),
             CurrencyCode = sl.CurrencyCode,
             TransitTime = sl.TransitTime,
             EstimatedDeliveryDate = sl.EstimatedDeliveryDate,

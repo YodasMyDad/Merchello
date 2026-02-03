@@ -46,7 +46,6 @@ public class OrderListItemDto
     public bool IsCancelled { get; set; }
     public int ItemCount { get; set; }
     public string DeliveryStatus { get; set; } = string.Empty;
-    public string DeliveryMethod { get; set; } = string.Empty;
 
     /// <summary>
     /// Payment due date for account customers with payment terms.

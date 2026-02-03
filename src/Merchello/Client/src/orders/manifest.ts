@@ -73,7 +73,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     js: () => import("./modals/add-discount-modal.element.js"),
   },
 
-  // Create order modal for creating draft orders from backoffice
+  // Create order modal for creating manual orders from backoffice
   {
     type: "modal",
     alias: "Merchello.CreateOrder.Modal",

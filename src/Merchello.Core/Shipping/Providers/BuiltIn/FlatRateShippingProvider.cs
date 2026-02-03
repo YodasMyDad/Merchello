@@ -13,7 +13,7 @@ namespace Merchello.Core.Shipping.Providers.BuiltIn;
 public class FlatRateShippingProvider(
     IOptions<MerchelloSettings> settings,
     IExchangeRateCache exchangeRateCache,
-    ICurrencyService currencyService) : ShippingProviderBase
+    ICurrencyService currencyService) : ShippingProviderBase(currencyService)
 {
     private readonly MerchelloSettings _settings = settings.Value;
     private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;

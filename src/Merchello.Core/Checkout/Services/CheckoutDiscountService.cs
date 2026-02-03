@@ -45,7 +45,7 @@ public class CheckoutDiscountService(
         var reason = parameters.Reason;
         var countryCode = parameters.CountryCode;
 
-        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        var currencyCode = _settings.StoreCurrencyCode;
         var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
         {
             LineItems = basket.LineItems,
@@ -185,7 +185,7 @@ public class CheckoutDiscountService(
         }
 
         // Add discount as a line item
-        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        var currencyCode = _settings.StoreCurrencyCode;
         var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
         {
             LineItems = basket.LineItems,
@@ -312,7 +312,7 @@ public class CheckoutDiscountService(
             .ToList();
 
         // Apply each automatic discount that passed combination filtering
-        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        var currencyCode = _settings.StoreCurrencyCode;
         foreach (var applicableDiscount in discountsToApply)
         {
             var discount = applicableDiscount.Discount;
@@ -395,7 +395,7 @@ public class CheckoutDiscountService(
             CustomerId = basket.CustomerId,
             SubTotal = basket.SubTotal,
             ShippingTotal = basket.Shipping,
-            CurrencyCode = basket.Currency ?? _settings.StoreCurrencyCode,
+            CurrencyCode = _settings.StoreCurrencyCode,
             ShippingAddress = basket.ShippingAddress,
             AppliedDiscountIds = basket.LineItems
                 .Where(li => li.LineItemType == LineItemType.Discount)

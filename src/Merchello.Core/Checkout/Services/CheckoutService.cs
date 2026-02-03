@@ -32,6 +32,7 @@ using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Shared.Providers;
@@ -68,7 +69,8 @@ public class CheckoutService(
     IAbandonedCheckoutService? abandonedCheckoutService = null,
     ITaxProviderManager? taxProviderManager = null,
     ITaxService? taxService = null,
-    Lazy<ICheckoutDiscountService>? checkoutDiscountService = null) : ICheckoutService
+    Lazy<ICheckoutDiscountService>? checkoutDiscountService = null,
+    ICountryCurrencyMappingService? countryCurrencyMappingService = null) : ICheckoutService
 {
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
     private readonly MerchelloSettings _settings = settings.Value;
@@ -243,7 +245,7 @@ public class CheckoutService(
                         .Select(level => level.TotalCost)
                         .FirstOrDefault()));
 
-        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        var currencyCode = _settings.StoreCurrencyCode;
 
         // Use the unified calculation method that handles discount line items
         var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
@@ -883,6 +885,46 @@ public class CheckoutService(
         return parameters.Basket;
     }
 
+    private async Task SyncBasketCurrencyToCountryAsync(
+        Basket basket,
+        string? countryCode,
+        CancellationToken cancellationToken)
+    {
+        if (countryCurrencyMappingService == null || string.IsNullOrWhiteSpace(countryCode))
+        {
+            return;
+        }
+
+        var mappedCurrency = countryCurrencyMappingService.GetCurrencyForCountry(countryCode);
+        if (string.IsNullOrWhiteSpace(mappedCurrency))
+        {
+            return;
+        }
+
+        if (string.Equals(basket.Currency, mappedCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        // If mapping changes away from store currency, ensure we have a valid exchange rate.
+        if (!string.Equals(_settings.StoreCurrencyCode, mappedCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            var rate = await exchangeRateCache.GetRateAsync(_settings.StoreCurrencyCode, mappedCurrency, cancellationToken);
+            if (rate is null or <= 0m)
+            {
+                logger.LogWarning(
+                    "Exchange rate unavailable for {StoreCurrency} -> {MappedCurrency}. Basket {BasketId} currency not updated.",
+                    _settings.StoreCurrencyCode,
+                    mappedCurrency,
+                    basket.Id);
+                return;
+            }
+        }
+
+        basket.Currency = mappedCurrency;
+        basket.CurrencySymbol = currencyService.GetCurrency(mappedCurrency).Symbol;
+    }
+
     /// <summary>
     /// Creates a line item for a product with metadata for discount matching and display
     /// </summary>
@@ -897,6 +939,10 @@ public class CheckoutService(
         var productRoot = product.ProductRoot;
         if (productRoot != null)
         {
+            var isDigital = productRoot.IsDigitalProduct;
+            lineItem.ExtendedData["IsDigital"] = isDigital;
+            lineItem.ExtendedData[Constants.ExtendedDataKeys.IsPhysicalProduct] = !isDigital;
+
             lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductTypeId] = productRoot.ProductTypeId.ToString();
 
             // Add collection IDs if collections are loaded
@@ -997,9 +1043,34 @@ public class CheckoutService(
         var products = await productService.GetVariantsByIds(productIds, cancellationToken);
         var productDict = products.ToDictionary(p => p.Id);
 
-        // Load all warehouses
-        var warehouses = await warehouseService.GetWarehouses(cancellationToken);
-        var warehouseDict = warehouses.ToDictionary(w => w.Id);
+        // Build warehouse lookup from loaded products to avoid loading all warehouses
+        var warehouseDict = new Dictionary<Guid, Warehouse>();
+        foreach (var product in products)
+        {
+            if (product.ProductRoot?.ProductRootWarehouses != null)
+            {
+                foreach (var prw in product.ProductRoot.ProductRootWarehouses)
+                {
+                    if (prw.Warehouse == null) continue;
+                    warehouseDict.TryAdd(prw.Warehouse.Id, prw.Warehouse);
+                }
+            }
+
+            if (product.ProductWarehouses != null)
+            {
+                foreach (var pw in product.ProductWarehouses)
+                {
+                    if (pw.Warehouse == null) continue;
+                    warehouseDict.TryAdd(pw.Warehouse.Id, pw.Warehouse);
+                }
+            }
+        }
+
+        if (warehouseDict.Count == 0)
+        {
+            var warehouses = await warehouseService.GetWarehouses(cancellationToken);
+            warehouseDict = warehouses.ToDictionary(w => w.Id);
+        }
 
         // Build the context for the grouping strategy
         var context = new OrderGroupingContext
@@ -1058,6 +1129,7 @@ public class CheckoutService(
                 return result;
             }
 
+            await SyncBasketCurrencyToCountryAsync(basket, basket.ShippingAddress.CountryCode, cancellationToken);
             await SaveBasketAsync(basket, cancellationToken);
 
             var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
@@ -1146,6 +1218,8 @@ public class CheckoutService(
         // Update basket addresses
         basket.BillingAddress = billingAddress;
         basket.ShippingAddress = shippingAddress;
+
+        await SyncBasketCurrencyToCountryAsync(basket, shippingAddress.CountryCode, cancellationToken);
 
         // Recalculate with the new shipping address country
         await CalculateBasketAsync(new CalculateBasketParameters
@@ -1447,7 +1521,7 @@ public class CheckoutService(
                         // but also benefits from any rate decrease.
                         costToCharge = Math.Min(selectedOption.Cost, quoted.Cost);
 
-                        var smallestUnit = 1m / (decimal)Math.Pow(10, currencyService.GetDecimalPlaces(basket.Currency ?? _settings.StoreCurrencyCode));
+                        var smallestUnit = 1m / (decimal)Math.Pow(10, currencyService.GetDecimalPlaces(_settings.StoreCurrencyCode));
                         if (Math.Abs(selectedOption.Cost - costToCharge) > smallestUnit)
                         {
                             logger.LogWarning(
@@ -1759,6 +1833,8 @@ public class CheckoutService(
         basket.BillingAddress.CountryCode = parameters.CountryCode;
         basket.DateUpdated = DateTime.UtcNow;
 
+        await SyncBasketCurrencyToCountryAsync(basket, parameters.CountryCode, cancellationToken);
+
         // Calculate basket with shipping country
         await CalculateBasketAsync(new CalculateBasketParameters
         {
@@ -1889,6 +1965,11 @@ public class CheckoutService(
             SameAsBilling = true
         }, cancellationToken);
 
+        if (abandonedCheckoutService != null && !string.IsNullOrWhiteSpace(parameters.Email))
+        {
+            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, parameters.Email, cancellationToken);
+        }
+
         result.ResultObject = new InitializeCheckoutResult
         {
             Basket = basket,
@@ -1999,16 +2080,26 @@ public class CheckoutService(
     /// <inheritdoc />
     public async Task<bool> BasketHasDigitalProductsAsync(Basket basket, CancellationToken cancellationToken = default)
     {
+        var hasDigital = false;
         foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
         {
             var product = await productService.GetProductRoot(lineItem.ProductId!.Value, cancellationToken: cancellationToken);
-            if (product is { IsDigitalProduct: true })
+            if (product == null)
             {
-                return true;
+                continue;
+            }
+
+            var isDigital = product.IsDigitalProduct;
+            lineItem.ExtendedData["IsDigital"] = isDigital;
+            lineItem.ExtendedData[Constants.ExtendedDataKeys.IsPhysicalProduct] = !isDigital;
+
+            if (isDigital)
+            {
+                hasDigital = true;
             }
         }
 
-        return false;
+        return hasDigital;
     }
 
     /// <inheritdoc />
@@ -2056,6 +2147,8 @@ public class CheckoutService(
         var messages = MapProtocolMessages(basket);
 
         // Map to protocol state
+        var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+
         return new CheckoutSessionState
         {
             SessionId = basketId.ToString(),
@@ -2063,14 +2156,14 @@ public class CheckoutService(
             CreatedAt = basket.DateCreated,
             UpdatedAt = basket.DateUpdated,
             ExpiresAt = session.CreatedAt.AddHours(24),
-            Currency = basket.Currency ?? _settings.StoreCurrencyCode,
-            LineItems = MapLineItems(basket),
+            Currency = currencyCode,
+            LineItems = MapLineItems(basket, currencyCode),
             BillingAddress = MapAddress(basket.BillingAddress),
             ShippingAddress = MapAddress(basket.ShippingAddress),
             ShippingSameAsBilling = session.ShippingSameAsBilling,
-            Discounts = MapDiscounts(basket),
-            Fulfillment = MapFulfillment(orderGroups, session, basket.Currency ?? _settings.StoreCurrencyCode),
-            Totals = MapTotals(basket),
+            Discounts = MapDiscounts(basket, currencyCode),
+            Fulfillment = MapFulfillment(orderGroups, session, currencyCode),
+            Totals = MapTotals(basket, currencyCode),
             Messages = messages,
             ContinueUrl = status == ProtocolConstants.SessionStatus.RequiresEscalation
                 ? $"/checkout/{basketId}"
@@ -2131,7 +2224,19 @@ public class CheckoutService(
 
     private static bool IsDigitalProduct(LineItem li)
     {
-        return li.ExtendedData.TryGetValue("IsDigital", out var isDigital) && isDigital is true;
+        if (!li.ExtendedData.TryGetValue("IsDigital", out var isDigital))
+        {
+            return false;
+        }
+
+        return isDigital switch
+        {
+            bool b => b,
+            string s => bool.TryParse(s, out var parsed) && parsed,
+            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
+                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
+            _ => false
+        };
     }
 
     private static ShippingAutoSelectStrategy ParseAutoSelectStrategy(string? value) => value switch
@@ -2141,7 +2246,7 @@ public class CheckoutService(
         _ => ShippingAutoSelectStrategy.Cheapest
     };
 
-    private static IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket)
+    private IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket, string currencyCode)
     {
         return basket.LineItems
             .Where(li => li.LineItemType == LineItemType.Product)
@@ -2154,12 +2259,12 @@ public class CheckoutService(
                 Name = li.Name ?? string.Empty,
                 Description = li.ExtendedData.TryGetValue("Description", out var desc) ? desc?.ToString() : null,
                 Quantity = li.Quantity,
-                UnitPrice = ToMinorUnits(li.Amount),
-                LineTotal = ToMinorUnits(li.Amount * li.Quantity),
+                UnitPrice = ToMinorUnits(li.Amount, currencyCode),
+                LineTotal = ToMinorUnits(li.Amount * li.Quantity, currencyCode),
                 DiscountAmount = 0, // Line-level discounts would need additional calculation
-                TaxAmount = li.IsTaxable ? ToMinorUnits(li.Amount * li.Quantity * li.TaxRate / 100) : 0,
-                FinalTotal = ToMinorUnits(li.Amount * li.Quantity),
-                RequiresShipping = !li.ExtendedData.TryGetValue("IsDigital", out var isDigital) || isDigital is not true,
+                TaxAmount = li.IsTaxable ? ToMinorUnits(li.Amount * li.Quantity * li.TaxRate / 100, currencyCode) : 0,
+                FinalTotal = ToMinorUnits(li.Amount * li.Quantity, currencyCode),
+                RequiresShipping = !IsDigitalProduct(li),
                 ImageUrl = li.ExtendedData.TryGetValue("ImageUrl", out var img) ? img?.ToString() : null,
                 ProductUrl = li.ExtendedData.TryGetValue("ProductUrl", out var url) ? url?.ToString() : null,
                 SelectedOptions = MapLineItemOptions(li)
@@ -2220,7 +2325,7 @@ public class CheckoutService(
         };
     }
 
-    private static IReadOnlyList<CheckoutDiscountState> MapDiscounts(Basket basket)
+    private IReadOnlyList<CheckoutDiscountState> MapDiscounts(Basket basket, string currencyCode)
     {
         return basket.LineItems
             .Where(li => li.LineItemType == LineItemType.Discount)
@@ -2232,7 +2337,7 @@ public class CheckoutService(
                 Type = li.ExtendedData.TryGetValue("DiscountType", out var type)
                     ? MapDiscountType(type?.ToString())
                     : ProtocolConstants.DiscountTypes.FixedAmount,
-                Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity)),
+                Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity), currencyCode),
                 IsAutomatic = li.ExtendedData.TryGetValue("IsAutomatic", out var auto) && auto is true,
                 Method = ProtocolConstants.DiscountAllocationMethods.Across
             })
@@ -2247,7 +2352,7 @@ public class CheckoutService(
         _ => ProtocolConstants.DiscountTypes.FixedAmount
     };
 
-    private static CheckoutFulfillmentState? MapFulfillment(
+    private CheckoutFulfillmentState? MapFulfillment(
         OrderGroupingResult? orderGroups,
         CheckoutSession? session,
         string currency)
@@ -2284,7 +2389,7 @@ public class CheckoutService(
                             OptionId = opt.ShippingOptionId.ToString(),
                             Title = opt.Name,
                             Description = opt.DeliveryTimeDescription,
-                            Amount = ToMinorUnits(opt.Cost),
+                            Amount = ToMinorUnits(opt.Cost, currency),
                             Currency = currency,
                             EstimatedDeliveryDays = opt.DaysTo > 0 ? opt.DaysTo : null
                         }).ToList()
@@ -2294,40 +2399,38 @@ public class CheckoutService(
         };
     }
 
-    private static CheckoutTotalsState MapTotals(Basket basket)
+    private CheckoutTotalsState MapTotals(Basket basket, string currency)
     {
-        var currency = basket.Currency ?? "USD";
-
         var breakdown = new List<CheckoutTotalBreakdown>
         {
-            new() { Label = "Subtotal", Amount = ToMinorUnits(basket.SubTotal), Type = "subtotal" }
+            new() { Label = "Subtotal", Amount = ToMinorUnits(basket.SubTotal, currency), Type = "subtotal" }
         };
 
         if (basket.Discount > 0)
         {
-            breakdown.Add(new CheckoutTotalBreakdown { Label = "Discount", Amount = -ToMinorUnits(basket.Discount), Type = "discount" });
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Discount", Amount = -ToMinorUnits(basket.Discount, currency), Type = "discount" });
         }
 
         if (basket.Shipping > 0)
         {
-            breakdown.Add(new CheckoutTotalBreakdown { Label = "Shipping", Amount = ToMinorUnits(basket.Shipping), Type = "fulfillment" });
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Shipping", Amount = ToMinorUnits(basket.Shipping, currency), Type = "fulfillment" });
         }
 
         if (basket.Tax > 0)
         {
-            breakdown.Add(new CheckoutTotalBreakdown { Label = "Tax", Amount = ToMinorUnits(basket.Tax), Type = "tax" });
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Tax", Amount = ToMinorUnits(basket.Tax, currency), Type = "tax" });
         }
 
-        breakdown.Add(new CheckoutTotalBreakdown { Label = "Total", Amount = ToMinorUnits(basket.Total), Type = "total" });
+        breakdown.Add(new CheckoutTotalBreakdown { Label = "Total", Amount = ToMinorUnits(basket.Total, currency), Type = "total" });
 
         return new CheckoutTotalsState
         {
-            Subtotal = ToMinorUnits(basket.SubTotal),
+            Subtotal = ToMinorUnits(basket.SubTotal, currency),
             ItemsDiscount = 0,
-            Discount = ToMinorUnits(basket.Discount),
-            Fulfillment = ToMinorUnits(basket.Shipping),
-            Tax = ToMinorUnits(basket.Tax),
-            Total = ToMinorUnits(basket.Total),
+            Discount = ToMinorUnits(basket.Discount, currency),
+            Fulfillment = ToMinorUnits(basket.Shipping, currency),
+            Tax = ToMinorUnits(basket.Tax, currency),
+            Total = ToMinorUnits(basket.Total, currency),
             Currency = currency,
             Breakdown = breakdown
         };
@@ -2416,7 +2519,7 @@ public class CheckoutService(
     /// Converts a decimal amount to minor units (cents).
     /// UCP requires all monetary amounts in minor units.
     /// </summary>
-    private static long ToMinorUnits(decimal amount) => (long)Math.Round(amount * 100);
+    private long ToMinorUnits(decimal amount, string currencyCode) => currencyService.ToMinorUnits(amount, currencyCode);
 
     private sealed class NoopLocationsService : ILocationsService
     {

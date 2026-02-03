@@ -195,7 +195,6 @@ export interface OrderListItemDto {
   isCancelled: boolean;
   itemCount: number;
   deliveryStatus: string;
-  deliveryMethod: string;
   /** Due date for payment (null = due immediately) */
   dueDate?: string | null;
   /** Whether this invoice is overdue (calculated from DueDate) */
@@ -906,8 +905,8 @@ export interface PreviewDiscountResultDto {
 // Create Order Types
 // ============================================
 
-/** Request to create a draft order from the admin backoffice */
-export interface CreateDraftOrderDto {
+/** Request to create a manual order from the admin backoffice */
+export interface CreateManualOrderDto {
   /** Billing address for the order (required) */
   billingAddress: AddressDto;
   /** Shipping address for the order. If null, billing address is used. */
@@ -916,9 +915,9 @@ export interface CreateDraftOrderDto {
   customItems: AddCustomItemDto[];
 }
 
-/** Result DTO returned after creating a draft order */
-export interface CreateDraftOrderResultDto {
-  /** Whether the draft order was created successfully */
+/** Result DTO returned after creating a manual order */
+export interface CreateManualOrderResultDto {
+  /** Whether the manual order was created successfully */
   isSuccessful: boolean;
   /** The ID of the created invoice (if successful) */
   invoiceId?: string;
@@ -965,8 +964,7 @@ export type OrderColumnKey =
   | "total" // Order total
   | "paymentStatus" // Payment status badge
   | "fulfillmentStatus" // Fulfillment status badge
-  | "itemCount" // Number of items
-  | "deliveryMethod"; // Delivery method
+  | "itemCount"; // Number of items
 
 /** Column header labels */
 export const ORDER_COLUMN_LABELS: Record<OrderColumnKey, string> = {
@@ -979,7 +977,6 @@ export const ORDER_COLUMN_LABELS: Record<OrderColumnKey, string> = {
   paymentStatus: "Payment",
   fulfillmentStatus: "Fulfillment",
   itemCount: "Items",
-  deliveryMethod: "Delivery",
 };
 
 /** Default columns for a full order list */
