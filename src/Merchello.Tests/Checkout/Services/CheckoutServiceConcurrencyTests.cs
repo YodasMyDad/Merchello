@@ -247,6 +247,134 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         updatedBasket.LineItems.First(li => li.Id == lineItem.Id).Quantity.ShouldBe(3);
     }
 
+    [Fact]
+    public async Task InitializeCheckoutAsync_PreservesConcurrentLineItemChange()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "GB");
+        var shippingOption = dataBuilder.CreateShippingOption("Standard", warehouse, fixedCost: 5.00m);
+        shippingOption.ShippingCosts.Add(new Merchello.Core.Shipping.Models.ShippingCost { CountryCode = "GB", Cost = 5.00m });
+        dataBuilder.AddServiceRegion(warehouse, "GB");
+
+        var productRoot = dataBuilder.CreateProductRoot("Product", taxGroup);
+        var product = dataBuilder.CreateProduct("Widget", productRoot, price: 30.00m);
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 50);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var basket = dataBuilder.CreateBasket();
+        var lineItem = dataBuilder.CreateBasketLineItem(product, 1);
+        lineItem.Id = Guid.NewGuid();
+        basket.LineItems.Add(lineItem);
+
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        _checkoutSessionService.SaveBasketToSession(basket);
+
+        using (var concurrentContext = _fixture.CreateDbContext())
+        {
+            var concurrentBasket = await concurrentContext.Baskets.FirstAsync(b => b.Id == basket.Id);
+            var concurrentLineItem = concurrentBasket.LineItems.First(li => li.Id == lineItem.Id);
+            concurrentLineItem.Quantity = 4;
+            concurrentBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+            await concurrentContext.SaveChangesAsync();
+        }
+
+        var result = await _checkoutService.InitializeCheckoutAsync(new InitializeCheckoutParameters
+        {
+            Basket = basket,
+            CountryCode = "GB"
+        });
+
+        result.ResultObject.ShouldNotBeNull();
+
+        using var verifyContext = _fixture.CreateDbContext();
+        var updatedBasket = await verifyContext.Baskets.FirstAsync(b => b.Id == basket.Id);
+        updatedBasket.LineItems.First(li => li.Id == lineItem.Id).Quantity.ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task ConvertBasketCurrencyAsync_PreservesConcurrentLineItemChange()
+    {
+        var basket = _checkoutService.CreateBasket();
+        var lineItemA = CreateLineItem("Item A", "ITEM-A", 1, 10m);
+        var lineItemB = CreateLineItem("Item B", "ITEM-B", 1, 12m);
+        lineItemA.Id = Guid.NewGuid();
+        lineItemB.Id = Guid.NewGuid();
+        basket.LineItems.Add(lineItemA);
+        basket.LineItems.Add(lineItemB);
+
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        _checkoutSessionService.SaveBasketToSession(basket);
+
+        using (var concurrentContext = _fixture.CreateDbContext())
+        {
+            var concurrentBasket = await concurrentContext.Baskets.FirstAsync(b => b.Id == basket.Id);
+            var concurrentLineItemB = concurrentBasket.LineItems.First(li => li.Id == lineItemB.Id);
+            concurrentLineItemB.Quantity = 5;
+            concurrentBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+            await concurrentContext.SaveChangesAsync();
+        }
+
+        var result = await _checkoutService.ConvertBasketCurrencyAsync(new ConvertBasketCurrencyParameters
+        {
+            NewCurrencyCode = "GBP"
+        });
+
+        result.Messages.ShouldBeEmpty();
+        result.ResultObject.ShouldNotBeNull();
+
+        using var verifyContext = _fixture.CreateDbContext();
+        var updatedBasket = await verifyContext.Baskets.FirstAsync(b => b.Id == basket.Id);
+        updatedBasket.LineItems.First(li => li.Id == lineItemB.Id).Quantity.ShouldBe(5);
+    }
+
+    [Fact]
+    public async Task EnsureBasketCurrencyAsync_PreservesConcurrentLineItemChange()
+    {
+        var basket = _checkoutService.CreateBasket();
+        var lineItemA = CreateLineItem("Item A", "ITEM-A", 1, 10m);
+        var lineItemB = CreateLineItem("Item B", "ITEM-B", 1, 12m);
+        lineItemA.Id = Guid.NewGuid();
+        lineItemB.Id = Guid.NewGuid();
+        basket.LineItems.Add(lineItemA);
+        basket.LineItems.Add(lineItemB);
+
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        _checkoutSessionService.SaveBasketToSession(basket);
+
+        using (var concurrentContext = _fixture.CreateDbContext())
+        {
+            var concurrentBasket = await concurrentContext.Baskets.FirstAsync(b => b.Id == basket.Id);
+            var concurrentLineItemB = concurrentBasket.LineItems.First(li => li.Id == lineItemB.Id);
+            concurrentLineItemB.Quantity = 6;
+            concurrentBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+            await concurrentContext.SaveChangesAsync();
+        }
+
+        var updated = await _checkoutService.EnsureBasketCurrencyAsync(new EnsureBasketCurrencyParameters
+        {
+            Basket = basket,
+            CurrencyCode = "GBP",
+            CurrencySymbol = "GBP"
+        });
+
+        updated.ShouldNotBeNull();
+
+        using var verifyContext = _fixture.CreateDbContext();
+        var updatedBasket = await verifyContext.Baskets.FirstAsync(b => b.Id == basket.Id);
+        updatedBasket.LineItems.First(li => li.Id == lineItemB.Id).Quantity.ShouldBe(6);
+    }
+
     private static LineItem CreateLineItem(string name, string sku, int quantity, decimal amount)
     {
         var lineItem = LineItemFactory.CreateCustomLineItem(

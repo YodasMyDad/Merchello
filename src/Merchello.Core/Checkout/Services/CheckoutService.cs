@@ -970,37 +970,106 @@ public class CheckoutService(
             return result;
         }
 
-        // Publish "Before" notification - handlers can cancel
-        var changingNotification = new BasketCurrencyChangingNotification(
-            basket, storeCurrencyCode, newCurrencyCode, rate.Value);
+        var basketId = basket.Id;
+        var currencySymbol = currencyService.GetCurrency(newCurrencyCode).Symbol;
+        const int maxRetries = 3;
 
-        if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+        for (var attempt = 0; attempt < maxRetries; attempt++)
         {
-            result.Messages.Add(new ResultMessage
+            using var scope = efCoreScopeProvider.CreateScope();
+            Basket? updatedBasket = null;
+            var hasEarlyResult = false;
+
+            try
             {
-                Message = changingNotification.CancelReason ?? "Currency change cancelled.",
-                ResultMessageType = ResultMessageType.Error
-            });
-            return result;
+                result.Messages.Clear();
+
+                await scope.ExecuteWithContextAsync<bool>(async db =>
+                {
+                    updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
+                    if (updatedBasket == null)
+                    {
+                        result.Messages.Add(new ResultMessage
+                        {
+                            Message = "Basket not found",
+                            ResultMessageType = ResultMessageType.Error
+                        });
+                        hasEarlyResult = true;
+                        return false;
+                    }
+
+                    // Publish "Before" notification - handlers can cancel
+                    var changingNotification = new BasketCurrencyChangingNotification(
+                        updatedBasket, storeCurrencyCode, newCurrencyCode, rate.Value);
+
+                    if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+                    {
+                        result.Messages.Add(new ResultMessage
+                        {
+                            Message = changingNotification.CancelReason ?? "Currency change cancelled.",
+                            ResultMessageType = ResultMessageType.Error
+                        });
+                        hasEarlyResult = true;
+                        return false;
+                    }
+
+                    // NOTE: We intentionally do NOT modify basket amounts here.
+                    // Basket amounts always stay in store currency.
+                    // Display conversion happens at render time using DisplayCurrencyExtensions.
+
+                    // Update display preference only - NO amount conversion (Shopify approach)
+                    updatedBasket.Currency = newCurrencyCode;
+                    updatedBasket.CurrencySymbol = currencySymbol;
+                    updatedBasket.DateUpdated = DateTime.UtcNow;
+
+                    updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                    await db.SaveChangesAsync(cancellationToken);
+                    return true;
+                });
+                scope.Complete();
+
+                if (hasEarlyResult)
+                {
+                    return result;
+                }
+
+                if (updatedBasket == null)
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = "Basket not found",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                    return result;
+                }
+
+                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+
+                // Publish "After" notification (rate provided for notification handlers that need it)
+                await notificationPublisher.PublishAsync(
+                    new BasketCurrencyChangedNotification(updatedBasket, storeCurrencyCode, newCurrencyCode, rate.Value),
+                    cancellationToken);
+
+                result.ResultObject = updatedBasket;
+                return result;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                if (attempt < maxRetries - 1)
+                {
+                    logger.LogWarning(ex,
+                        "Basket {BasketId} was modified concurrently during ConvertBasketCurrencyAsync (attempt {Attempt}). Retrying.",
+                        basketId, attempt + 1);
+                    continue;
+                }
+
+                logger.LogError(ex,
+                    "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts in ConvertBasketCurrencyAsync.",
+                    basketId, maxRetries);
+                throw;
+            }
         }
 
-        // NOTE: We intentionally do NOT modify basket amounts here.
-        // Basket amounts always stay in store currency.
-        // Display conversion happens at render time using DisplayCurrencyExtensions.
-
-        // Update display preference only - NO amount conversion (Shopify approach)
-        basket.Currency = newCurrencyCode;
-        basket.CurrencySymbol = currencyService.GetCurrency(newCurrencyCode).Symbol;
-        basket.DateUpdated = DateTime.UtcNow;
-
-        await SaveBasketAsync(basket, cancellationToken);
-
-        // Publish "After" notification (rate provided for notification handlers that need it)
-        await notificationPublisher.PublishAsync(
-            new BasketCurrencyChangedNotification(basket, storeCurrencyCode, newCurrencyCode, rate.Value),
-            cancellationToken);
-
-        result.ResultObject = basket;
         return result;
     }
 
@@ -1012,9 +1081,69 @@ public class CheckoutService(
         if (string.IsNullOrEmpty(parameters.Basket.Currency) ||
             !string.Equals(parameters.Basket.Currency, parameters.CurrencyCode, StringComparison.OrdinalIgnoreCase))
         {
-            parameters.Basket.Currency = parameters.CurrencyCode;
-            parameters.Basket.CurrencySymbol = parameters.CurrencySymbol;
-            await SaveBasketAsync(parameters.Basket, cancellationToken);
+            var basketId = parameters.Basket.Id;
+            const int maxRetries = 3;
+
+            for (var attempt = 0; attempt < maxRetries; attempt++)
+            {
+                using var scope = efCoreScopeProvider.CreateScope();
+                Basket? updatedBasket = null;
+
+                try
+                {
+                    await scope.ExecuteWithContextAsync<bool>(async db =>
+                    {
+                        updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
+                        if (updatedBasket == null)
+                        {
+                            updatedBasket = parameters.Basket;
+                            updatedBasket.Currency = parameters.CurrencyCode;
+                            updatedBasket.CurrencySymbol = parameters.CurrencySymbol;
+                            updatedBasket.DateUpdated = DateTime.UtcNow;
+                            updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                            db.Baskets.Add(updatedBasket);
+                            await db.SaveChangesAsync(cancellationToken);
+                            return true;
+                        }
+
+                        if (string.Equals(updatedBasket.Currency, parameters.CurrencyCode, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+
+                        updatedBasket.Currency = parameters.CurrencyCode;
+                        updatedBasket.CurrencySymbol = parameters.CurrencySymbol;
+                        updatedBasket.DateUpdated = DateTime.UtcNow;
+                        updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        await db.SaveChangesAsync(cancellationToken);
+                        return true;
+                    });
+                    scope.Complete();
+
+                    if (updatedBasket != null)
+                    {
+                        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                        return updatedBasket;
+                    }
+
+                    return parameters.Basket;
+                }
+                catch (DbUpdateConcurrencyException ex)
+                {
+                    if (attempt < maxRetries - 1)
+                    {
+                        logger.LogWarning(ex,
+                            "Basket {BasketId} was modified concurrently during EnsureBasketCurrencyAsync (attempt {Attempt}). Retrying.",
+                            basketId, attempt + 1);
+                        continue;
+                    }
+
+                    logger.LogError(ex,
+                        "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts in EnsureBasketCurrencyAsync.",
+                        basketId, maxRetries);
+                    throw;
+                }
+            }
         }
 
         return parameters.Basket;
@@ -2107,7 +2236,6 @@ public class CheckoutService(
         InitializeCheckoutParameters parameters,
         CancellationToken cancellationToken = default)
     {
-        var basket = parameters.Basket;
         var result = new CrudResult<InitializeCheckoutResult>();
 
         // Validate country code
@@ -2116,6 +2244,17 @@ public class CheckoutService(
             result.Messages.Add(new ResultMessage
             {
                 Message = "Country code is required",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        var basketId = parameters.Basket?.Id ?? Guid.Empty;
+        if (basketId == Guid.Empty)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Basket not found",
                 ResultMessageType = ResultMessageType.Error
             });
             return result;
@@ -2131,147 +2270,226 @@ public class CheckoutService(
             Email = parameters.Email ?? string.Empty
         };
 
-        // Update basket with shipping address for calculation purposes
-        basket.ShippingAddress = shippingAddress;
-        // Also update billing address country to match (storefront selection takes precedence)
-        basket.BillingAddress.CountryCode = parameters.CountryCode;
-        basket.DateUpdated = DateTime.UtcNow;
-
-        await SyncBasketCurrencyToCountryAsync(basket, parameters.CountryCode, cancellationToken);
-
-        // Calculate basket with shipping country
-        await CalculateBasketAsync(new CalculateBasketParameters
-        {
-            Basket = basket,
-            CountryCode = parameters.CountryCode
-        }, cancellationToken);
-
-        // Get or create checkout session
-        var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
-        session.ShippingAddress = shippingAddress;
-
-        // Get order groups with shipping options
-        var groupingResult = await GetOrderGroupsAsync(basket, session, cancellationToken);
-
-        // Add any grouping errors to basket.Errors so frontend can display item-level shipping errors
-        // (e.g., "Product X cannot be shipped to Country Y")
-        foreach (var error in groupingResult.Errors)
-        {
-            basket.Errors.Add(new BasketError
-            {
-                Message = error,
-                IsShippingError = true
-            });
-        }
-
-        // If there are no valid shipping groups at all (complete failure), add to result messages
-        // but continue processing to return the basket with errors for the frontend
-        if (!groupingResult.Success && groupingResult.Groups.Count == 0)
-        {
-            foreach (var error in groupingResult.Errors)
-            {
-                result.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
-            }
-        }
-
-        // Determine shipping selections: restore previous selections if valid, otherwise auto-select
-        var finalSelections = new Dictionary<Guid, string>();
+        const int maxRetries = 3;
+        Basket? updatedBasket = null;
+        CheckoutSession? session = null;
+        OrderGroupingResult? groupingResult = null;
+        Dictionary<Guid, string> finalSelections = [];
         decimal combinedShippingTotal = 0;
         var shippingAutoSelected = false;
 
-        if (groupingResult.Groups.Count > 0)
+        for (var attempt = 0; attempt < maxRetries; attempt++)
         {
-            // First, try to validate and restore previous selections from frontend
-            var validPreviousSelections = ShippingAutoSelector.ValidatePreviousSelections(
-                groupingResult.Groups,
-                parameters.PreviousShippingSelections);
+            using var scope = efCoreScopeProvider.CreateScope();
+            var hasEarlyResult = false;
 
-            // Start with valid previous selections
-            foreach (var selection in validPreviousSelections)
+            try
             {
-                finalSelections[selection.Key] = selection.Value;
-            }
+                result.Messages.Clear();
 
-            // For groups without a valid previous selection, auto-select using configured strategy
-            if (parameters.AutoSelectShipping)
-            {
-                var groupsNeedingAutoSelect = groupingResult.Groups
-                    .Where(g => !finalSelections.ContainsKey(g.GroupId))
-                    .ToList();
-
-                if (groupsNeedingAutoSelect.Count > 0)
+                await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
-                    var strategy = ParseAutoSelectStrategy(_settings.ShippingAutoSelectStrategy);
-
-                    var autoSelectedOptions = ShippingAutoSelector.SelectOptions(
-                        groupsNeedingAutoSelect,
-                        strategy);
-
-                    foreach (var selection in autoSelectedOptions)
+                    updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
+                    if (updatedBasket == null)
                     {
-                        finalSelections[selection.Key] = selection.Value;
+                        result.Messages.Add(new ResultMessage
+                        {
+                            Message = "Basket not found",
+                            ResultMessageType = ResultMessageType.Error
+                        });
+                        hasEarlyResult = true;
+                        return false;
                     }
 
-                    // Only mark as auto-selected if we actually auto-selected (not restored)
-                    shippingAutoSelected = autoSelectedOptions.Count > 0 && validPreviousSelections.Count == 0;
+                    // Update basket with shipping address for calculation purposes
+                    updatedBasket.ShippingAddress = shippingAddress;
+                    // Also update billing address country to match (storefront selection takes precedence)
+                    updatedBasket.BillingAddress.CountryCode = parameters.CountryCode;
+                    updatedBasket.DateUpdated = DateTime.UtcNow;
+
+                    await SyncBasketCurrencyToCountryAsync(updatedBasket, parameters.CountryCode, cancellationToken);
+
+                    // Calculate basket with shipping country
+                    await CalculateBasketAsync(new CalculateBasketParameters
+                    {
+                        Basket = updatedBasket,
+                        CountryCode = parameters.CountryCode
+                    }, cancellationToken);
+
+                    // Get or create checkout session
+                    session = await checkoutSessionService.GetSessionAsync(updatedBasket.Id, cancellationToken);
+                    session.ShippingAddress = shippingAddress;
+
+                    // Get order groups with shipping options
+                    groupingResult = await GetOrderGroupsAsync(updatedBasket, session, cancellationToken);
+
+                    // Add any grouping errors to basket.Errors so frontend can display item-level shipping errors
+                    // (e.g., "Product X cannot be shipped to Country Y")
+                    foreach (var error in groupingResult.Errors)
+                    {
+                        updatedBasket.Errors.Add(new BasketError
+                        {
+                            Message = error,
+                            IsShippingError = true
+                        });
+                    }
+
+                    // If there are no valid shipping groups at all (complete failure), add to result messages
+                    // but continue processing to return the basket with errors for the frontend
+                    if (!groupingResult.Success && groupingResult.Groups.Count == 0)
+                    {
+                        foreach (var error in groupingResult.Errors)
+                        {
+                            result.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
+                        }
+                    }
+
+                    // Determine shipping selections: restore previous selections if valid, otherwise auto-select
+                    finalSelections = new Dictionary<Guid, string>();
+                    combinedShippingTotal = 0;
+                    shippingAutoSelected = false;
+
+                    if (groupingResult.Groups.Count > 0)
+                    {
+                        // First, try to validate and restore previous selections from frontend
+                        var validPreviousSelections = ShippingAutoSelector.ValidatePreviousSelections(
+                            groupingResult.Groups,
+                            parameters.PreviousShippingSelections);
+
+                        // Start with valid previous selections
+                        foreach (var selection in validPreviousSelections)
+                        {
+                            finalSelections[selection.Key] = selection.Value;
+                        }
+
+                        // For groups without a valid previous selection, auto-select using configured strategy
+                        if (parameters.AutoSelectShipping)
+                        {
+                            var groupsNeedingAutoSelect = groupingResult.Groups
+                                .Where(g => !finalSelections.ContainsKey(g.GroupId))
+                                .ToList();
+
+                            if (groupsNeedingAutoSelect.Count > 0)
+                            {
+                                var strategy = ParseAutoSelectStrategy(_settings.ShippingAutoSelectStrategy);
+
+                                var autoSelectedOptions = ShippingAutoSelector.SelectOptions(
+                                    groupsNeedingAutoSelect,
+                                    strategy);
+
+                                foreach (var selection in autoSelectedOptions)
+                                {
+                                    finalSelections[selection.Key] = selection.Value;
+                                }
+
+                                // Only mark as auto-selected if we actually auto-selected (not restored)
+                                shippingAutoSelected = autoSelectedOptions.Count > 0 && validPreviousSelections.Count == 0;
+                            }
+                        }
+
+                        // Apply all selections to groups
+                        ShippingAutoSelector.ApplySelectionsToGroups(groupingResult.Groups, finalSelections);
+
+                        // Calculate combined shipping total from final selections
+                        combinedShippingTotal = ShippingAutoSelector.CalculateCombinedTotal(
+                            groupingResult.Groups,
+                            finalSelections);
+
+                        // Recalculate totals with the selected shipping amount
+                        await CalculateBasketAsync(new CalculateBasketParameters
+                        {
+                            Basket = updatedBasket,
+                            CountryCode = parameters.CountryCode,
+                            ShippingAmountOverride = combinedShippingTotal
+                        }, cancellationToken);
+                    }
+
+                    // Refresh automatic discounts (may include free shipping based on threshold)
+                    if (checkoutDiscountService != null)
+                    {
+                        updatedBasket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
+                            updatedBasket,
+                            parameters.CountryCode,
+                            cancellationToken);
+                    }
+
+                    updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                    await db.SaveChangesAsync(cancellationToken);
+                    return true;
+                });
+                scope.Complete();
+
+                if (hasEarlyResult)
+                {
+                    return result;
                 }
+
+                if (updatedBasket == null || groupingResult == null)
+                {
+                    if (!result.Messages.Any())
+                    {
+                        result.Messages.Add(new ResultMessage
+                        {
+                            Message = "Basket not found",
+                            ResultMessageType = ResultMessageType.Error
+                        });
+                    }
+                    return result;
+                }
+
+                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+
+                if (groupingResult.Groups.Count > 0)
+                {
+                    // Save selections to session
+                    await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
+                    {
+                        BasketId = updatedBasket.Id,
+                        Selections = finalSelections
+                    }, cancellationToken);
+                }
+
+                // Update checkout session with shipping address
+                await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+                {
+                    BasketId = updatedBasket.Id,
+                    Billing = shippingAddress,
+                    Shipping = shippingAddress,
+                    SameAsBilling = true
+                }, cancellationToken);
+
+                if (abandonedCheckoutService != null && !string.IsNullOrWhiteSpace(parameters.Email))
+                {
+                    await abandonedCheckoutService.TrackCheckoutActivityAsync(updatedBasket, parameters.Email, cancellationToken);
+                }
+
+                result.ResultObject = new InitializeCheckoutResult
+                {
+                    Basket = updatedBasket,
+                    GroupingResult = groupingResult,
+                    AutoSelectedShippingOptions = finalSelections,
+                    CombinedShippingTotal = combinedShippingTotal,
+                    ShippingAutoSelected = shippingAutoSelected
+                };
+
+                return result;
             }
-
-            // Apply all selections to groups
-            ShippingAutoSelector.ApplySelectionsToGroups(groupingResult.Groups, finalSelections);
-
-            // Calculate combined shipping total from final selections
-            combinedShippingTotal = ShippingAutoSelector.CalculateCombinedTotal(
-                groupingResult.Groups,
-                finalSelections);
-
-            // Recalculate totals with the selected shipping amount
-            await CalculateBasketAsync(new CalculateBasketParameters
+            catch (DbUpdateConcurrencyException ex)
             {
-                Basket = basket,
-                CountryCode = parameters.CountryCode,
-                ShippingAmountOverride = combinedShippingTotal
-            }, cancellationToken);
+                if (attempt < maxRetries - 1)
+                {
+                    logger.LogWarning(ex,
+                        "Basket {BasketId} was modified concurrently during InitializeCheckoutAsync (attempt {Attempt}). Retrying.",
+                        basketId, attempt + 1);
+                    continue;
+                }
 
-            // Save selections to session
-            await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
-            {
-                BasketId = basket.Id,
-                Selections = finalSelections
-            }, cancellationToken);
+                logger.LogError(ex,
+                    "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts in InitializeCheckoutAsync.",
+                    basketId, maxRetries);
+                throw;
+            }
         }
-
-        // Refresh automatic discounts (may include free shipping based on threshold)
-        if (checkoutDiscountService != null)
-        {
-            basket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(basket, parameters.CountryCode, cancellationToken);
-        }
-
-        // Save basket to database (handles concurrency with retries)
-        await SaveBasketAsync(basket, cancellationToken);
-
-        // Update checkout session with shipping address
-        await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
-        {
-            BasketId = basket.Id,
-            Billing = shippingAddress,
-            Shipping = shippingAddress,
-            SameAsBilling = true
-        }, cancellationToken);
-
-        if (abandonedCheckoutService != null && !string.IsNullOrWhiteSpace(parameters.Email))
-        {
-            await abandonedCheckoutService.TrackCheckoutActivityAsync(basket, parameters.Email, cancellationToken);
-        }
-
-        result.ResultObject = new InitializeCheckoutResult
-        {
-            Basket = basket,
-            GroupingResult = groupingResult,
-            AutoSelectedShippingOptions = finalSelections,
-            CombinedShippingTotal = combinedShippingTotal,
-            ShippingAutoSelected = shippingAutoSelected
-        };
 
         return result;
     }
