@@ -186,6 +186,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
               : nothing}
             <uui-input
               id="${field.key}"
+              label="${field.label}"
               type="${field.fieldType === "Url" ? "url" : "text"}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -205,6 +206,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
               : nothing}
             <uui-input
               id="${field.key}"
+              label="${field.label}"
               type="password"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -227,6 +229,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
               : nothing}
             <uui-textarea
               id="${field.key}"
+              label="${field.label}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
               ?required=${field.isRequired}
@@ -241,6 +244,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
           <div class="form-field checkbox-field">
             <uui-checkbox
               id="${field.key}"
+              label="${field.label}"
               ?checked=${value === "true"}
               @change=${(e: Event) =>
                 this._handleCheckboxChange(field.key, (e.target as HTMLInputElement).checked)}
@@ -262,6 +266,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
               : nothing}
             <uui-select
               id="${field.key}"
+              label="${field.label}"
               .options=${this._getSelectFieldOptions(field, value)}
               ?required=${field.isRequired}
               @change=${(e: Event) =>
@@ -306,6 +311,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
                   </p>
                   <uui-input
                     id="displayName"
+                    label="Display name"
                     .value=${this._displayName}
                     required
                     @input=${(e: Event) =>
@@ -316,6 +322,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
                 <div class="form-field checkbox-field">
                   <uui-checkbox
                     id="isEnabled"
+                    label="Show in checkout"
                     ?checked=${this._isEnabled}
                     @change=${(e: Event) =>
                       (this._isEnabled = (e.target as HTMLInputElement).checked)}
@@ -331,6 +338,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
                 <div class="form-field checkbox-field">
                   <uui-checkbox
                     id="isTestMode"
+                    label="Test mode"
                     ?checked=${this._isTestMode}
                     @change=${(e: Event) =>
                       (this._isTestMode = (e.target as HTMLInputElement).checked)}
@@ -346,6 +354,7 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
                   <div class="form-field checkbox-field">
                     <uui-checkbox
                       id="isVaultingEnabled"
+                      label="Enable vaulting"
                       ?checked=${this._isVaultingEnabled}
                       @change=${(e: Event) =>
                         (this._isVaultingEnabled = (e.target as HTMLInputElement).checked)}

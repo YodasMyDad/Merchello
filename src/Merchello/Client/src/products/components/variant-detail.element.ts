@@ -387,6 +387,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
                   description="By default, this variant inherits packages from the product. Enable to define variant-specific packages.">
                   <uui-toggle
                     slot="editor"
+                    label="Override Product Packages"
                     .checked=${isOverriding}
                     @change=${() => this._togglePackageOverride()}>
                   </uui-toggle>

@@ -133,19 +133,21 @@
 
         <!-- Interstitial Upsells (replaces checkout form until dismissed) -->
         <template x-if="showInterstitial">
-            <div class="checkout-interstitial">
+            <div class="space-y-6">
                 <template x-for="suggestion in interstitialSuggestions" :key="suggestion.upsellRuleId">
-                    <div class="interstitial-group">
+                    <div class="space-y-4">
                         <h2 class="font-heading text-lg font-normal mb-2" x-text="suggestion.heading"></h2>
                         <p x-show="suggestion.message" x-text="suggestion.message" class="text-sm text-gray-600 mb-4"></p>
 
-                        <div class="interstitial-products">
+                        <div class="space-y-3">
                             <template x-for="product in suggestion.products" :key="product.productId">
-                                <div class="interstitial-product-card" :class="{ 'border-green-300 bg-green-50': wasUpsellAdded(product.productRootId) }">
-                                    <img x-show="product.imageUrl" :src="product.imageUrl" :alt="product.name" class="interstitial-product-img" />
+                                <div class="flex flex-col p-4 border border-gray-200 rounded-lg bg-white transition-colors"
+                                     :class="{ 'border-green-300 bg-green-50': wasUpsellAdded(product.productRootId) }">
+                                    <img x-show="product.imageUrl" :src="product.imageUrl" :alt="product.name"
+                                         class="w-full h-32 object-cover rounded-md mb-3" />
                                     <div class="flex-1 min-w-0">
                                         <h3 class="text-sm font-medium text-gray-900" x-text="product.name"></h3>
-                                        <p x-show="product.description" x-text="product.description" class="text-xs text-gray-500 mt-1"></p>
+                                        <p x-show="product.description" x-html="product.description" class="text-xs text-gray-500 mt-1"></p>
                                         <span class="text-sm font-semibold text-gray-900 mt-1 inline-block" x-text="product.formattedPrice"></span>
                                     </div>
 
@@ -177,7 +179,7 @@
                     </div>
                 </template>
 
-                <div class="interstitial-actions">
+                <div class="pt-4 border-t border-gray-200 mt-6">
                     <button type="button" class="checkout-button-primary w-full" @@click="dismissInterstitial()">
                         Continue to Checkout
                     </button>

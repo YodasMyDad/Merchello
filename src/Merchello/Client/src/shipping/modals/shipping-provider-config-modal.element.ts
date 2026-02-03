@@ -232,6 +232,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
             description="${field.description ?? ""}">
             <uui-checkbox
               slot="editor"
+              label="${field.label}"
               ?checked=${value === "true"}
               @change=${(e: Event) =>
                 this._handleCheckboxChange(field.key, (e.target as HTMLInputElement).checked)}
@@ -302,6 +303,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
                   <umb-property-layout label="Enabled" description="When enabled, this shipping provider will be active and available for use">
                     <uui-checkbox
                       slot="editor"
+                      label="Enabled"
                       ?checked=${this._isEnabled}
                       @change=${(e: Event) =>
                         (this._isEnabled = (e.target as HTMLInputElement).checked)}

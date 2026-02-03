@@ -759,7 +759,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       <div class="error-state">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._errorMessage}</span>
-        <uui-button look="secondary" @click=${this._loadInvoice}>Retry</uui-button>
+        <uui-button look="secondary" label="Retry" @click=${this._loadInvoice}>Retry</uui-button>
       </div>
     `;
   }
@@ -770,7 +770,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         <uui-icon name="icon-lock"></uui-icon>
         <h3>Cannot Edit This Order</h3>
         <p>${this._invoice?.cannotEditReason ?? "This order cannot be edited."}</p>
-        <uui-button look="secondary" @click=${this._handleCancel}>Close</uui-button>
+        <uui-button look="secondary" label="Close" @click=${this._handleCancel}>Close</uui-button>
       </div>
     `;
   }
@@ -881,6 +881,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       ${qtyDecreased && lineItem.productId && lineItem.isStockTracked ? html`
         <div class="return-to-stock-row">
           <uui-checkbox
+            label="Return to stock"
             .checked=${lineItem.returnToStock}
             @change=${() => this._toggleReturnToStock(lineItem.id)}
           >
@@ -946,13 +947,14 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         <div class="removed-item-options">
           ${lineItem.productId && lineItem.isStockTracked ? html`
             <uui-checkbox
+              label="Return to stock"
               .checked=${lineItem.returnToStock}
               @change=${() => this._toggleReturnToStock(lineItem.id)}
             >
               Return to stock
             </uui-checkbox>
           ` : nothing}
-          <uui-button look="secondary" compact @click=${() => this._restoreLineItem(lineItem.id)}>
+          <uui-button look="secondary" compact label="Undo" @click=${() => this._restoreLineItem(lineItem.id)}>
             Undo
           </uui-button>
         </div>
@@ -1259,15 +1261,15 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
           <!-- Add Items Actions -->
           <div class="add-items-section">
-            <uui-button look="secondary" @click=${this._openProductPickerModal}>
+            <uui-button look="secondary" label="Add product" @click=${this._openProductPickerModal}>
               <uui-icon name="icon-add"></uui-icon>
               Add product
             </uui-button>
-            <uui-button look="secondary" @click=${this._openAddCustomItemModal}>
+            <uui-button look="secondary" label="Add custom item" @click=${this._openAddCustomItemModal}>
               <uui-icon name="icon-add"></uui-icon>
               Add custom item
             </uui-button>
-            <uui-button look="secondary" @click=${this._openAddDiscountModal}>
+            <uui-button look="secondary" label="Add discount" @click=${this._openAddDiscountModal}>
               <uui-icon name="icon-add"></uui-icon>
               Add discount
             </uui-button>
@@ -1311,7 +1313,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
                 <div class="summary-edit-controls">
                   ${this._removedShippingOrders.has(order.id) ? html`
                     <span class="removed-label">Removed</span>
-                    <uui-button compact look="secondary" @click=${() => this._restoreShipping(order.id)}>Undo</uui-button>
+                    <uui-button compact look="secondary" label="Undo" @click=${() => this._restoreShipping(order.id)}>Undo</uui-button>
                   ` : html`
                     <div class="summary-input">
                       <span class="prefix">${currencySymbol}</span>
@@ -1323,7 +1325,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
                         step="0.01"
                       ></uui-input>
                     </div>
-                    <uui-button compact look="secondary" @click=${() => this._removeShipping(order.id)} title="Remove shipping">
+                    <uui-button compact look="secondary" label="Remove shipping" @click=${() => this._removeShipping(order.id)} title="Remove shipping">
                       <uui-icon name="icon-delete"></uui-icon>
                     </uui-button>
                   `}
@@ -1337,10 +1339,10 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
               <div class="summary-edit-controls">
                 ${this._taxRemoved ? html`
                   <span class="removed-label">Removed (VAT exemption)</span>
-                  <uui-button compact look="secondary" @click=${() => this._restoreTax()}>Undo</uui-button>
+                  <uui-button compact look="secondary" label="Undo" @click=${() => this._restoreTax()}>Undo</uui-button>
                 ` : html`
                   <span>${currencySymbol}${formatNumber(newTax, 2)} ${currencyCode}</span>
-                  <uui-button compact look="secondary" @click=${() => this._removeTax()} title="Remove tax (VAT exemption)">
+                  <uui-button compact look="secondary" label="Remove tax" @click=${() => this._removeTax()} title="Remove tax (VAT exemption)">
                     <uui-icon name="icon-delete"></uui-icon>
                   </uui-button>
                 `}
@@ -1359,6 +1361,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           <div class="reason-section">
             <h3>Reason for edit</h3>
             <uui-textarea
+              label="Reason for edit"
               .value=${this._editReason}
               @input=${(e: Event) => (this._editReason = (e.target as HTMLTextAreaElement).value)}
               placeholder="Add a reason for this edit..."

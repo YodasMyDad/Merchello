@@ -336,7 +336,7 @@ public class CommerceProtocolManagerTests
     }
 
     [Fact]
-    public void Dispose_ClearsAdapters()
+    public void Dispose_ClearsAdapters_AndThrowsOnAccess()
     {
         // Arrange
         var mockAdapter = CreateMockAdapter("ucp", "UCP", "1.0");
@@ -345,9 +345,85 @@ public class CommerceProtocolManagerTests
         // Act
         manager.Dispose();
 
-        // Assert - Adapters property should return empty after dispose
-        manager.Adapters.ShouldBeEmpty();
+        // Assert - Adapters property should throw after dispose since cache is nullified
+        Should.Throw<InvalidOperationException>(() => _ = manager.Adapters);
     }
+
+    #region Fail-Fast Behavior Tests
+
+    /// <summary>
+    /// Creates an uninitialized manager for testing fail-fast behavior.
+    /// GetAdaptersAsync() has NOT been called, so sync methods should throw.
+    /// </summary>
+    private CommerceProtocolManager CreateUninitializedManager()
+    {
+        return new CommerceProtocolManager(
+            _cacheServiceMock.Object,
+            _loggerMock.Object,
+            uninitialized: true);
+    }
+
+    [Fact]
+    public void Adapters_BeforeInitialization_ThrowsInvalidOperationException()
+    {
+        // Arrange - use production constructor (not pre-populated test constructor)
+        var manager = CreateUninitializedManager();
+
+        // Act & Assert
+        var ex = Should.Throw<InvalidOperationException>(() => _ = manager.Adapters);
+        ex.Message.ShouldContain("GetAdaptersAsync()");
+        ex.Message.ShouldContain("Adapters");
+    }
+
+    [Fact]
+    public void GetAdapter_BeforeInitialization_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var manager = CreateUninitializedManager();
+
+        // Act & Assert
+        var ex = Should.Throw<InvalidOperationException>(() => manager.GetAdapter("ucp"));
+        ex.Message.ShouldContain("GetAdaptersAsync()");
+        ex.Message.ShouldContain("GetAdapter");
+    }
+
+    [Fact]
+    public void IsProtocolSupported_BeforeInitialization_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var manager = CreateUninitializedManager();
+
+        // Act & Assert
+        var ex = Should.Throw<InvalidOperationException>(() => manager.IsProtocolSupported("ucp"));
+        ex.Message.ShouldContain("GetAdaptersAsync()");
+        ex.Message.ShouldContain("IsProtocolSupported");
+    }
+
+    [Fact]
+    public void GetEnabledProtocols_BeforeInitialization_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var manager = CreateUninitializedManager();
+
+        // Act & Assert
+        var ex = Should.Throw<InvalidOperationException>(() => manager.GetEnabledProtocols());
+        ex.Message.ShouldContain("GetAdaptersAsync()");
+        ex.Message.ShouldContain("GetEnabledProtocols");
+    }
+
+    [Fact]
+    public async Task GetCachedManifestAsync_BeforeInitialization_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var manager = CreateUninitializedManager();
+
+        // Act & Assert - GetCachedManifestAsync calls GetAdapter which throws
+        var ex = await Should.ThrowAsync<InvalidOperationException>(
+            async () => await manager.GetCachedManifestAsync("ucp"));
+        ex.Message.ShouldContain("GetAdaptersAsync()");
+    }
+
+    #endregion
 
     // Helper methods
 

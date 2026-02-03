@@ -106,6 +106,7 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
                         </uui-table-cell>
                         <uui-table-cell>
                           <uui-toggle
+                            label="Track stock"
                             .checked=${ws.trackStock}
                             @change=${(e: Event) => this._handleTrackStockChange(ws.warehouseId, (e.target as HTMLInputElement).checked)}>
                           </uui-toggle>

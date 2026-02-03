@@ -177,19 +177,22 @@ export class MerchelloTokenAutocompleteElement extends UmbElementMixin(LitElemen
   }
 
   override render() {
+    // Using native <input> instead of uui-input because we need access to
+    // selectionStart/setSelectionRange for cursor position detection.
+    // This matches Umbraco's approach in search-modal.element.ts.
     return html`
       <div class="autocomplete-container">
-        <uui-input
+        <input
           id="input"
           type="text"
           .value=${this.value}
           placeholder=${this.placeholder}
-          label=${this.label}
+          aria-label=${this.label}
           @input=${this._handleInput}
           @keydown=${this._handleKeyDown}
           @blur=${this._handleBlur}
-          @focus=${this._handleFocus}>
-        </uui-input>
+          @focus=${this._handleFocus}
+        />
         ${this._renderDropdown()}
       </div>
     `;
@@ -206,8 +209,32 @@ export class MerchelloTokenAutocompleteElement extends UmbElementMixin(LitElemen
         position: relative;
       }
 
-      uui-input {
+      /* Native input styled to match uui-input */
+      input {
         width: 100%;
+        height: var(--uui-size-11, 36px);
+        padding: 0 var(--uui-size-space-3, 9px);
+        font-family: inherit;
+        font-size: inherit;
+        color: var(--uui-color-text);
+        background: var(--uui-color-surface);
+        border: 1px solid var(--uui-color-border);
+        border-radius: var(--uui-border-radius, 3px);
+        box-sizing: border-box;
+      }
+
+      input:hover {
+        border-color: var(--uui-color-border-emphasis);
+      }
+
+      input:focus {
+        outline: none;
+        border-color: var(--uui-color-focus);
+        box-shadow: 0 0 0 1px var(--uui-color-focus);
+      }
+
+      input::placeholder {
+        color: var(--uui-color-text-alt);
       }
 
       .dropdown {

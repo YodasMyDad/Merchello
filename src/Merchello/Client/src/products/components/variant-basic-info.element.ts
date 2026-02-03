@@ -100,6 +100,7 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
         <umb-property-layout label="On Sale" description="Enable sale pricing">
           <uui-toggle
             slot="editor"
+            label="On Sale"
             .checked=${this.formData.onSale ?? false}
             @change=${(e: Event) => this._updateField("onSale", (e.target as HTMLInputElement).checked)}>
           </uui-toggle>
@@ -124,6 +125,7 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
         <umb-property-layout label="Visible on Website" description="Show on storefront and allow adding to cart">
           <uui-toggle
             slot="editor"
+            label="Visible on Website"
             .checked=${this.formData.availableForPurchase ?? true}
             @change=${(e: Event) => this._updateField("availableForPurchase", (e.target as HTMLInputElement).checked)}>
           </uui-toggle>
@@ -132,6 +134,7 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
         <umb-property-layout label="Allow Purchase" description="Enable checkout (used for stock/inventory validation)">
           <uui-toggle
             slot="editor"
+            label="Allow Purchase"
             .checked=${this.formData.canPurchase ?? true}
             @change=${(e: Event) => this._updateField("canPurchase", (e.target as HTMLInputElement).checked)}>
           </uui-toggle>

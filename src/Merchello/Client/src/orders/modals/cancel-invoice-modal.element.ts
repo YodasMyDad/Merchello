@@ -84,6 +84,7 @@ export class MerchelloCancelInvoiceModalElement extends UmbModalBaseElement<
             <label for="reason">Reason for Cancellation *</label>
             <uui-textarea
               id="reason"
+              label="Reason for cancellation"
               .value=${this._reason}
               placeholder="Enter the reason for cancelling this invoice..."
               required

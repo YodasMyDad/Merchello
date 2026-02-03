@@ -172,6 +172,7 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
             <label for="description">Description (Optional)</label>
             <uui-textarea
               id="description"
+              label="Description"
               .value=${this._description}
               placeholder="Add any notes about this payment..."
               @input=${(e: Event) => {

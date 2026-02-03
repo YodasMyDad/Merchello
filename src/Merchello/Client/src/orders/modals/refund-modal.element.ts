@@ -207,6 +207,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
             <label for="reason">Reason for Refund *</label>
             <uui-textarea
               id="reason"
+              label="Reason for refund"
               .value=${this._reason}
               placeholder="Enter the reason for this refund..."
               required
@@ -233,6 +234,7 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
                 <div class="form-field checkbox-field">
                   <uui-checkbox
                     id="isManualRefund"
+                    label="Manual refund"
                     ?checked=${this._isManualRefund}
                     ?disabled=${!this._canRefundViaProvider}
                     @change=${(e: Event) => {

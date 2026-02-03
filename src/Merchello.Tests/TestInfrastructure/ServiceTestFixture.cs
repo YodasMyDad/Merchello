@@ -504,6 +504,8 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<IEmailAttachmentResolver, EmailAttachmentResolver>();
         services.AddScoped<IEmailTokenResolver, EmailTokenResolver>();
         services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
+        services.AddSingleton<IEmailTemplateRenderer, StubEmailTemplateRenderer>();
+        services.AddSingleton<ISampleNotificationFactory, SampleNotificationFactory>();
         services.AddScoped<IEmailService, EmailService>();
 
         // Invoice/Checkout service dependencies (P2/P3 tests)

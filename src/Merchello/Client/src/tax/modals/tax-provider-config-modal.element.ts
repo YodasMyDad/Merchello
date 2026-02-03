@@ -532,6 +532,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
           <div class="form-field checkbox-field">
             <uui-checkbox
               id="${field.key}"
+              label="${field.label}"
               ?checked=${value === "true"}
               @change=${(e: Event) =>
                 this._handleCheckboxChange(field.key, (e.target as HTMLInputElement).checked)}
@@ -553,6 +554,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
               : nothing}
             <uui-select
               id="${field.key}"
+              label="${field.label}"
               .options=${field.options?.map((o) => ({
                 name: o.label,
                 value: o.value,
@@ -730,6 +732,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
 
           <div class="form-field checkbox-field">
             <uui-checkbox
+              label="Tax shipping"
               ?checked=${isShippingTaxable}
               @change=${(e: Event) =>
                 this._handleCheckboxChange("isShippingTaxable", (e.target as HTMLInputElement).checked)}
@@ -751,6 +754,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
                     ? html`<uui-loader-circle></uui-loader-circle>`
                     : html`
                         <uui-select
+                          label="Shipping tax group"
                           .options=${taxGroupOptions}
                           @change=${(e: Event) =>
                             this._handleValueChange("shippingTaxGroupId", (e.target as HTMLSelectElement).value)}

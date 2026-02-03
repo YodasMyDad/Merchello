@@ -32,6 +32,9 @@ public class UcpOrdersController(
             return NotFound(new { error = "UCP protocol not available" });
         }
 
+        // Ensure adapters are loaded (triggers ExtensionManager discovery on first call)
+        await protocolManager.GetAdaptersAsync(ct);
+
         var adapter = protocolManager.GetAdapter(ProtocolConstants.Protocols.Ucp);
         if (adapter == null)
         {

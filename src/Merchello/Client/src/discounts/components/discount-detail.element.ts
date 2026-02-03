@@ -581,6 +581,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             description="Include this discount as a promotion in product feeds (e.g. Google Merchant Center)">
             <uui-toggle
               slot="editor"
+              label="Show in feed"
               .checked=${this._discount?.showInFeed ?? false}
               @change=${(e: Event) =>
                 this._handleInputChange("showInFeed", (e.target as HTMLInputElement).checked)}

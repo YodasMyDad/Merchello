@@ -90,6 +90,7 @@ export class MerchelloFilterGroupPickerModalElement extends UmbModalBaseElement<
         @click=${() => this._toggleSelection(filterGroup)}>
         <uui-table-cell style="width: 40px;">
           <uui-checkbox
+            label="Select"
             .checked=${isSelected}
             @change=${(e: Event) => {
               e.stopPropagation();

@@ -24,6 +24,7 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
         <umb-property-layout label="Remove from Feed" description="Exclude this product from shopping feeds">
           <uui-toggle
             slot="editor"
+            label="Remove from Feed"
             .checked=${this.formData.removeFromFeed ?? false}
             @change=${(e: Event) => this._updateField("removeFromFeed", (e.target as HTMLInputElement).checked)}>
           </uui-toggle>

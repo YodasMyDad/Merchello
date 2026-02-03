@@ -220,6 +220,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
               : html`
                   <uui-select
                     id="countryCode"
+                    label="Country"
                     .options=${this._countryOptions}
                     ?disabled=${isEditing}
                     @change=${this._handleCountryChange}
@@ -242,6 +243,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
                       ? html`
                           <uui-select
                             id="stateCode"
+                            label="Region/State"
                             .options=${this._regionOptions}
                             ?disabled=${isEditing}
                             @change=${(e: Event) =>
@@ -251,6 +253,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
                       : html`
                           <uui-input
                             id="stateCode"
+                            label="Region/State"
                             .value=${this._stateOrProvinceCode}
                             ?disabled=${isEditing}
                             @input=${(e: InputEvent) =>
@@ -272,6 +275,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
             <div class="rate-input-wrapper">
               <uui-input
                 id="taxPercentage"
+                label="Tax rate"
                 type="number"
                 step="0.01"
                 min="0"

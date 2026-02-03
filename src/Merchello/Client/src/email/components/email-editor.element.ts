@@ -413,7 +413,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
     }
 
     return html`
-      <uui-select .options=${options} @change=${this._handleTopicChange}></uui-select>
+      <uui-select label="Topic" .options=${options} @change=${this._handleTopicChange}></uui-select>
     `;
   }
 
@@ -431,7 +431,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
     }
 
     return html`
-      <uui-select .options=${options} @change=${this._handleTemplateChange}></uui-select>
+      <uui-select label="Template" .options=${options} @change=${this._handleTemplateChange}></uui-select>
     `;
   }
 
@@ -441,6 +441,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
         <umb-property-layout label="Description" description="Optional description for this email">
           <uui-textarea
             slot="editor"
+            label="Description"
             .value=${this._formData.description || ""}
             @input=${this._handleDescriptionChange}
             placeholder="Describe when this email is sent...">
@@ -502,6 +503,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
         <umb-property-layout label="Enabled" description="Enable or disable this email">
           <uui-toggle
             slot="editor"
+            label="Enabled"
             .checked=${this._formData.enabled ?? true}
             @change=${this._handleEnabledChange}>
           </uui-toggle>
@@ -523,11 +525,12 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
                 </uui-input>
                 <uui-button
                   look="secondary"
+                  label="Send Test"
                   ?disabled=${!this._testEmailRecipient.trim() || this._isSendingTest}
                   @click=${this._handleSendTest}>
                   ${this._isSendingTest ? "Sending..." : "Send Test"}
                 </uui-button>
-                <uui-button look="secondary" @click=${this._handlePreview}>
+                <uui-button look="secondary" label="Preview" @click=${this._handlePreview}>
                   <uui-icon name="icon-eye"></uui-icon>
                   Preview
                 </uui-button>
@@ -667,6 +670,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
           <umb-icon name="icon-mailbox"></umb-icon>
           <uui-input
             id="name-input"
+            label="Email name"
             .value=${this._formData.name || ""}
             @input=${this._handleNameChange}
             placeholder="Enter email name..."

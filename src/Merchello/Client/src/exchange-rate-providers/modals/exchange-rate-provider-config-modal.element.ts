@@ -189,6 +189,7 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
           <div class="form-field checkbox-field">
             <uui-checkbox
               id="${field.key}"
+              label="${field.label}"
               ?checked=${value === "true"}
               @change=${(e: Event) =>
                 this._handleCheckboxChange(field.key, (e.target as HTMLInputElement).checked)}

@@ -968,16 +968,17 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         </div>
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleBackToProducts}>
+          <uui-button look="secondary" label="Back" @click=${this._handleBackToProducts}>
             <uui-icon name="icon-arrow-left"></uui-icon>
             Back
           </uui-button>
-          <uui-button look="secondary" @click=${this._handleSkipAddons}>
+          <uui-button look="secondary" label="Skip Add-ons" @click=${this._handleSkipAddons}>
             Skip Add-ons
           </uui-button>
           <uui-button
             look="primary"
             color="positive"
+            label="Continue"
             ?disabled=${!canContinue}
             @click=${this._handleConfirmWithAddons}
           >
@@ -998,7 +999,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
           <span class="addon-optional">(optional)</span>
           ${selectedAddon
             ? html`
-                <uui-button compact look="secondary" @click=${() => this._handleAddonClear(option.id)}>
+                <uui-button compact look="secondary" label="Clear" @click=${() => this._handleAddonClear(option.id)}>
                   Clear
                 </uui-button>
               `
@@ -1075,13 +1076,14 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         </div>
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleBackFromShipping}>
+          <uui-button look="secondary" label="Back" @click=${this._handleBackFromShipping}>
             <uui-icon name="icon-arrow-left"></uui-icon>
             Back
           </uui-button>
           <uui-button
             look="primary"
             color="positive"
+            label="Add to Order"
             ?disabled=${!this._selectedShippingOptionId || pending.isLoadingOptions}
             @click=${this._handleConfirmWithShipping}
           >

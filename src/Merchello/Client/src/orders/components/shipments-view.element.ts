@@ -140,13 +140,18 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
   }
 
-  private _toggleMarkAsShippedForm(shipmentId: string): void {
-    if (this._expandedShipmentId === shipmentId) {
+  private _toggleMarkAsShippedForm(shipment: ShipmentDetailDto): void {
+    if (this._expandedShipmentId === shipment.id) {
       this._expandedShipmentId = null;
       this._trackingForm = { carrier: "", trackingNumber: "", trackingUrl: "" };
     } else {
-      this._expandedShipmentId = shipmentId;
-      this._trackingForm = { carrier: "", trackingNumber: "", trackingUrl: "" };
+      this._expandedShipmentId = shipment.id;
+      // Pre-populate with existing tracking data
+      this._trackingForm = {
+        carrier: shipment.carrier ?? "",
+        trackingNumber: shipment.trackingNumber ?? "",
+        trackingUrl: shipment.trackingUrl ?? "",
+      };
     }
   }
 
@@ -377,7 +382,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
                 compact
                 label="Mark as Shipped"
                 ?disabled=${this._isUpdatingStatus}
-                @click=${() => this._toggleMarkAsShippedForm(shipment.id)}
+                @click=${() => this._toggleMarkAsShippedForm(shipment)}
               >
                 <uui-icon name="icon-truck"></uui-icon>
                 Mark as Shipped
@@ -465,7 +470,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
             look="secondary"
             label="Cancel"
             ?disabled=${this._isUpdatingStatus}
-            @click=${() => this._toggleMarkAsShippedForm(shipment.id)}
+            @click=${() => this._toggleMarkAsShippedForm(shipment)}
           >
             Cancel
           </uui-button>

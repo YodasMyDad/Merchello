@@ -4,6 +4,7 @@ using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Runtime.CompilerServices;
 
 namespace Merchello.Core.Protocols;
 
@@ -51,8 +52,42 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
         _cachedAdapters = adapters.ToList();
     }
 
+    /// <summary>
+    /// Internal constructor for testing fail-fast behavior - creates uninitialized manager.
+    /// </summary>
+    internal CommerceProtocolManager(
+        ICacheService cacheService,
+        ILogger<CommerceProtocolManager> logger,
+        bool uninitialized)
+    {
+        _extensionManager = null;
+        _cacheService = cacheService;
+        _logger = logger;
+        // _cachedAdapters intentionally left null to test fail-fast behavior
+    }
+
     /// <inheritdoc />
-    public IReadOnlyList<ICommerceProtocolAdapter> Adapters => _cachedAdapters ?? [];
+    public IReadOnlyList<ICommerceProtocolAdapter> Adapters
+    {
+        get
+        {
+            EnsureInitialized();
+            return _cachedAdapters!;
+        }
+    }
+
+    /// <summary>
+    /// Ensures adapters have been loaded. Throws if GetAdaptersAsync() hasn't been called.
+    /// </summary>
+    private void EnsureInitialized([CallerMemberName] string? caller = null)
+    {
+        if (_cachedAdapters == null)
+        {
+            throw new InvalidOperationException(
+                $"Protocol adapters not initialized. Call GetAdaptersAsync() before using {caller}(). " +
+                "This is a programming error - ensure async initialization completes before accessing adapters.");
+        }
+    }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ICommerceProtocolAdapter>> GetAdaptersAsync(CancellationToken ct = default)
@@ -126,25 +161,29 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
     /// <inheritdoc />
     public ICommerceProtocolAdapter? GetAdapter(string alias)
     {
+        EnsureInitialized();
+
         if (string.IsNullOrWhiteSpace(alias))
         {
             return null;
         }
 
-        return Adapters.FirstOrDefault(a =>
+        return _cachedAdapters!.FirstOrDefault(a =>
             string.Equals(a.Metadata.Alias, alias, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <inheritdoc />
     public bool IsProtocolSupported(string alias)
     {
+        EnsureInitialized();
         return GetAdapter(alias)?.IsEnabled == true;
     }
 
     /// <inheritdoc />
     public IReadOnlyList<string> GetEnabledProtocols()
     {
-        return Adapters
+        EnsureInitialized();
+        return _cachedAdapters!
             .Where(a => a.IsEnabled)
             .Select(a => a.Metadata.Alias)
             .ToList();

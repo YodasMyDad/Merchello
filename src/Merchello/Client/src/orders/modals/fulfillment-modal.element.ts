@@ -479,6 +479,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     return html`
       <div class="item-row ${isSelected ? "selected" : ""}">
         <uui-checkbox
+          label="Select item"
           ?checked=${isSelected}
           @change=${() => this._toggleItemSelection(orderId, item)}
           aria-label="Select ${item.name || 'item'}"
@@ -591,7 +592,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
       <div class="error">
         <uui-icon name="icon-alert"></uui-icon>
         ${this._errorMessage}
-        <uui-button look="secondary" @click=${this._loadFulfillmentSummary}>
+        <uui-button look="secondary" label="Retry" @click=${this._loadFulfillmentSummary}>
           Retry
         </uui-button>
       </div>
