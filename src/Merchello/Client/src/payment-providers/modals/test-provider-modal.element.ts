@@ -770,6 +770,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       <div class="form-row">
         <label>Test Amount (${currencySymbol})</label>
         <uui-input
+          label="Test amount"
           type="number"
           min="0.01"
           step="0.01"
@@ -1049,6 +1050,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
           <div class="form-row">
             <label>
               <uui-checkbox
+                label="Use custom payload"
                 ?checked=${this._useCustomPayload}
                 @change=${(e: Event) => this._useCustomPayload = (e.target as HTMLInputElement).checked}
               ></uui-checkbox>
@@ -1060,6 +1062,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             <div class="form-row">
               <label>Custom Payload (JSON)</label>
               <uui-textarea
+                label="Custom payload"
                 .value=${this._customWebhookPayload}
                 @input=${(e: Event) => this._customWebhookPayload = (e.target as HTMLTextAreaElement).value}
                 placeholder='{"type": "payment.completed", ...}'
@@ -1300,6 +1303,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
               <div class="form-row">
                 <label>Payment Method Token / Nonce</label>
                 <uui-input
+                  label="Payment method token"
                   .value=${this._vaultPaymentMethodToken}
                   placeholder="${tokenPlaceholder}"
                   @input=${(e: Event) => (this._vaultPaymentMethodToken = (e.target as HTMLInputElement).value)}
@@ -1386,6 +1390,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             <div class="form-row">
               <label>Charge Amount</label>
               <uui-input
+                label="Charge amount"
                 type="number"
                 min="0.01"
                 step="0.01"
@@ -1602,7 +1607,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             <div class="error-banner">
               <uui-icon name="icon-alert"></uui-icon>
               <span>${this._errorMessage}</span>
-              <uui-button look="secondary" compact @click=${() => (this._errorMessage = null)}>Dismiss</uui-button>
+              <uui-button look="secondary" compact label="Dismiss" @click=${() => (this._errorMessage = null)}>Dismiss</uui-button>
             </div>
           ` : nothing}
 

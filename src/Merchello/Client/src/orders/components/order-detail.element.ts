@@ -804,7 +804,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <!-- Payment Summary -->
             <div class="card payment-card">
               <div class="card-header">
-                <uui-checkbox checked disabled aria-label="Payment status"></uui-checkbox>
+                <uui-checkbox label="Payment status" checked disabled aria-label="Payment status"></uui-checkbox>
                 <span>${order.paymentStatusDisplay}</span>
               </div>
               <div class="payment-summary">
@@ -891,6 +891,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 </div>
                 <div class="timeline-input-wrapper">
                   <uui-textarea
+                    label="Comment"
                     placeholder="Leave a comment..."
                     .value=${this._newNoteText}
                     @input=${(e: Event) => {
@@ -913,6 +914,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               </div>
               <div class="timeline-visibility-note">
                 <uui-checkbox
+                  label="Visible to customer"
                   ?checked=${this._isVisibleToCustomer}
                   @change=${(e: CustomEvent) => this._isVisibleToCustomer = (e.target as HTMLInputElement).checked}
                 >

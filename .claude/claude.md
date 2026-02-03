@@ -61,6 +61,27 @@ RESTful, attribute routing, versioning; async/await, IMemoryCache, pagination; e
 // GOOD: QueryAsync(InvoiceQueryParameters p)
 ```
 
+## Dependency Injection
+**Always use proper constructor injection.** Never use workarounds like:
+- Setter injection (`SetXxx()` methods called after construction)
+- Factory delegates in DI registration that configure services post-construction
+- Startup handlers that wire services together
+
+If a service in `Merchello.Core` needs a dependency from `Merchello` (web project), define the interface in Core:
+```csharp
+// In Merchello.Core/Feature/Services/Interfaces/
+public interface IMyRenderer { Task<string> RenderAsync(...); }
+
+// In Merchello/Feature/Services/
+public class MyRazorRenderer : IMyRenderer { ... }
+
+// In Merchello/Startup.cs
+services.AddScoped<IMyRenderer, MyRazorRenderer>();
+services.AddScoped<IMyService, MyService>(); // MyService injects IMyRenderer
+```
+
+This keeps dependency direction correct (web → core) while allowing Core services to use web implementations.
+
 ## Migrations/Testing/Security/Blazor
 - Migrations: `scripts/add-migration.ps1` only
 - Testing: xUnit, Moq, **Shouldly** (`result.ShouldBe(expected)`); integration tests; run after changes

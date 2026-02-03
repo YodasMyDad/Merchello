@@ -296,6 +296,7 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
           <div class="form-field checkbox-field">
             <uui-checkbox
               id="${field.key}"
+              label="${field.label}"
               ?checked=${value === "true"}
               @change=${(e: Event) =>
                 this._handleCheckboxChange(field.key, (e.target as HTMLInputElement).checked)}
@@ -317,6 +318,7 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
               : nothing}
             <uui-select
               id="${field.key}"
+              label="${field.label}"
               .options=${this._getSelectFieldOptions(field, value)}
               ?required=${field.isRequired}
               @change=${(e: Event) =>
@@ -371,6 +373,7 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
                 <div class="form-field checkbox-field">
                   <uui-checkbox
                     id="isEnabled"
+                    label="Enabled"
                     ?checked=${this._isEnabled}
                     @change=${(e: Event) =>
                       (this._isEnabled = (e.target as HTMLInputElement).checked)}

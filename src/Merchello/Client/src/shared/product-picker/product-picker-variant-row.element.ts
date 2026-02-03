@@ -169,6 +169,13 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
 
     .variant-row.selected {
       background-color: var(--uui-color-selected);
+      color: var(--uui-color-selected-contrast);
+    }
+
+    .variant-row.selected .variant-sku,
+    .variant-row.selected .variant-price,
+    .variant-row.selected .status {
+      color: var(--uui-color-selected-contrast);
     }
 
     .variant-row.blocked {

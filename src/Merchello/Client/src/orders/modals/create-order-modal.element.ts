@@ -754,7 +754,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
           ${this._selectedCustomer ? html`
             <div class="selected-customer">
               <span>Selected: <strong>${this._selectedCustomer.name}</strong> (${this._selectedCustomer.email})</span>
-              <uui-button compact look="secondary" @click=${this._clearSelectedCustomer}>
+              <uui-button compact look="secondary" label="Clear customer" @click=${this._clearSelectedCustomer}>
                 <uui-icon name="icon-delete"></uui-icon>
               </uui-button>
             </div>
@@ -773,13 +773,13 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
           ${this._renderAddressField("billing", "email", "Email", "email", true)}
           ${this._renderAddressField("billing", "phone", "Phone", "tel")}
           ${this._renderAddressField("billing", "company", "Company")}
-          ${this._renderCountrySelect("billing")}
           ${this._renderAddressLookup("billing")}
           ${this._renderAddressField("billing", "addressOne", "Address Line 1", "text", true)}
           ${this._renderAddressField("billing", "addressTwo", "Address Line 2")}
           ${this._renderAddressField("billing", "townCity", "Town/City", "text", true)}
           ${this._renderRegionSelect("billing")}
           ${this._renderAddressField("billing", "postalCode", "Postal Code", "text", true)}
+          ${this._renderCountrySelect("billing")}
         </div>
       </uui-box>
     `;
@@ -793,6 +793,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
           description="Enable to enter a separate shipping address">
           <uui-toggle
             slot="editor"
+            label="Ship to different address"
             .checked=${this._useShippingAddress}
             @change=${this._toggleShippingAddress}>
           </uui-toggle>
@@ -821,13 +822,13 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             ${this._renderAddressField("shipping", "name", "Name", "text", true)}
             ${this._renderAddressField("shipping", "phone", "Phone", "tel")}
             ${this._renderAddressField("shipping", "company", "Company")}
-            ${this._renderCountrySelect("shipping")}
             ${this._renderAddressLookup("shipping")}
             ${this._renderAddressField("shipping", "addressOne", "Address Line 1", "text", true)}
             ${this._renderAddressField("shipping", "addressTwo", "Address Line 2")}
             ${this._renderAddressField("shipping", "townCity", "Town/City", "text", true)}
             ${this._renderRegionSelect("shipping")}
             ${this._renderAddressField("shipping", "postalCode", "Postal Code", "text", true)}
+            ${this._renderCountrySelect("shipping")}
           </div>
         ` : nothing}
       </uui-box>

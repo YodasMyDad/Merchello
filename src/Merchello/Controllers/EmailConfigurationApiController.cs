@@ -89,7 +89,8 @@ public class EmailConfigurationApiController(
             CcExpression = dto.CcExpression,
             BccExpression = dto.BccExpression,
             FromExpression = dto.FromExpression,
-            Description = dto.Description
+            Description = dto.Description,
+            AttachmentAliases = dto.AttachmentAliases
         }, ct);
 
         if (!result.Successful)
@@ -125,7 +126,8 @@ public class EmailConfigurationApiController(
             CcExpression = dto.CcExpression,
             BccExpression = dto.BccExpression,
             FromExpression = dto.FromExpression,
-            Description = dto.Description
+            Description = dto.Description,
+            AttachmentAliases = dto.AttachmentAliases
         }, ct);
 
         if (!result.Successful)
@@ -237,7 +239,8 @@ public class EmailConfigurationApiController(
             DateModified = config.DateModified,
             TotalSent = config.TotalSent,
             TotalFailed = config.TotalFailed,
-            LastSentUtc = config.LastSentUtc
+            LastSentUtc = config.LastSentUtc,
+            AttachmentAliases = config.AttachmentAliases
         };
     }
 
@@ -263,7 +266,8 @@ public class EmailConfigurationApiController(
             DateModified = config.DateModified,
             TotalSent = config.TotalSent,
             TotalFailed = config.TotalFailed,
-            LastSentUtc = config.LastSentUtc
+            LastSentUtc = config.LastSentUtc,
+            AttachmentAliases = config.AttachmentAliases
         };
     }
 }

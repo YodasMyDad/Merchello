@@ -180,6 +180,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
         <div class="value-content">
           <div class="value-name-row">
             <uui-input
+              label="Value name"
               .value=${value.name}
               placeholder="Value name"
               @input=${(e: Event) => this._updateValue(index, "name", (e.target as HTMLInputElement).value)}>
@@ -188,6 +189,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
             ${uiAlias === "colour"
               ? html`
                   <uui-input
+                    label="Color"
                     type="color"
                     class="color-input"
                     .value=${value.hexValue || "#000000"}
@@ -203,6 +205,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                   <div class="addon-field">
                     <label class="field-label">Price +/-</label>
                     <uui-input
+                      label="Price adjustment"
                       type="number"
                       step="0.01"
                       .value=${String(value.priceAdjustment)}
@@ -214,6 +217,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                   <div class="addon-field">
                     <label class="field-label">Cost +/-</label>
                     <uui-input
+                      label="Cost adjustment"
                       type="number"
                       step="0.01"
                       .value=${String(value.costAdjustment)}
@@ -225,6 +229,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                   <div class="addon-field sku-field">
                     <label class="field-label">SKU Suffix</label>
                     <uui-input
+                      label="SKU suffix"
                       .value=${value.skuSuffix || ""}
                       placeholder="e.g., -GW"
                       @input=${(e: Event) => this._updateValue(index, "skuSuffix", (e.target as HTMLInputElement).value)}>
@@ -236,6 +241,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                   <div class="addon-field weight-field">
                     <label class="field-label">+ Weight (kg)</label>
                     <uui-input
+                      label="Weight"
                       type="number"
                       step="0.001"
                       .value=${value.weightKg != null ? String(value.weightKg) : ""}
@@ -253,7 +259,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
             : nothing}
         </div>
 
-        <uui-button compact look="secondary" color="danger" @click=${() => this._removeValue(index)}>
+        <uui-button compact look="secondary" color="danger" label="Remove value" @click=${() => this._removeValue(index)}>
           <uui-icon name="icon-trash"></uui-icon>
         </uui-button>
       </div>
@@ -317,6 +323,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               ?mandatory=${true}>
               <uui-input
                 slot="editor"
+                label="Option name"
                 .value=${this._formData.name || ""}
                 placeholder="e.g., Size, Color, Material"
                 @input=${(e: Event) => (this._formData = { ...this._formData, name: (e.target as HTMLInputElement).value })}
@@ -329,6 +336,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               description="Used in code/integrations (auto-generated if empty)">
               <uui-input
                 slot="editor"
+                label="Alias"
                 .value=${this._formData.alias || ""}
                 placeholder="Optional: machine-readable name"
                 @input=${(e: Event) => (this._formData = { ...this._formData, alias: (e.target as HTMLInputElement).value })}>
@@ -362,6 +370,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               description="Creates all combinations (e.g., 3 sizes × 4 colors = 12 variants). If disabled, this is an add-on that modifies price.">
               <uui-toggle
                 slot="editor"
+                label="Generates Variants"
                 .checked=${this._formData.isVariant ?? false}
                 @change=${(e: Event) => (this._formData = { ...this._formData, isVariant: (e.target as HTMLInputElement).checked })}>
               </uui-toggle>
@@ -403,7 +412,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
         </div>
 
         <div slot="actions">
-          <uui-button look="secondary" @click=${() => this.modalContext?.reject()}> Cancel </uui-button>
+          <uui-button look="secondary" label="Cancel" @click=${() => this.modalContext?.reject()}> Cancel </uui-button>
           ${!isNew
             ? html`
                 <uui-button look="primary" color="danger" @click=${this._handleDelete} label="Delete Option">
@@ -412,7 +421,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                 </uui-button>
               `
             : nothing}
-          <uui-button look="primary" color="positive" ?disabled=${this._isSaving} @click=${this._handleSave}>
+          <uui-button look="primary" color="positive" label="Save" ?disabled=${this._isSaving} @click=${this._handleSave}>
             <uui-icon name="icon-check"></uui-icon>
             ${this._isSaving ? "Saving..." : "Save"}
           </uui-button>

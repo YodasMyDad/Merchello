@@ -155,7 +155,7 @@ export class MerchelloDiscountPerformanceElement extends UmbElementMixin(LitElem
       <div class="error">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._error}</span>
-        <uui-button look="secondary" @click=${this._loadPerformance}>Retry</uui-button>
+        <uui-button look="secondary" label="Retry" @click=${this._loadPerformance}>Retry</uui-button>
       </div>
     `;
   }

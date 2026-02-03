@@ -372,6 +372,8 @@ public static class Startup
         builder.Services.AddSingleton<IMjmlCompiler, MjmlCompiler>();
         builder.Services.AddSingleton<IEmailAttachmentResolver, EmailAttachmentResolver>();
         builder.Services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
+        builder.Services.AddScoped<IEmailTemplateRenderer, EmailRazorViewRenderer>();
+        builder.Services.AddSingleton<ISampleNotificationFactory, SampleNotificationFactory>();
         builder.Services.AddScoped<IEmailService, EmailService>();
 
         // PDF & Statements
@@ -401,8 +403,6 @@ public static class Startup
         // Checkout member service (requires IMemberSignInManager from Umbraco.Cms.Web.Common)
         builder.Services.AddScoped<ICheckoutMemberService, CheckoutMemberService>();
 
-        // Email rendering (requires Razor view engine)
-        builder.Services.AddScoped<IEmailRazorViewRenderer, EmailRazorViewRenderer>();
 
         // Front-End Rendering
         builder.Services.AddScoped<MerchelloPublishedElementFactory>();

@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,29 +16,6 @@ namespace Merchello.Email.Services;
 
 /// <summary>
 /// Renders Razor views to strings for email templates.
-/// </summary>
-public interface IEmailRazorViewRenderer
-{
-    /// <summary>
-    /// Renders a Razor view to a string.
-    /// </summary>
-    /// <typeparam name="TModel">The model type.</typeparam>
-    /// <param name="viewPath">The relative path to the view (e.g., "OrderConfirmation.cshtml").</param>
-    /// <param name="model">The model to pass to the view.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>The rendered HTML string.</returns>
-    Task<string> RenderAsync<TModel>(string viewPath, TModel model, CancellationToken ct = default);
-
-    /// <summary>
-    /// Checks if a view exists at the specified path.
-    /// </summary>
-    /// <param name="viewPath">The relative path to the view.</param>
-    /// <returns>True if the view exists, false otherwise.</returns>
-    bool ViewExists(string viewPath);
-}
-
-/// <summary>
-/// Renders Razor views to strings for email templates.
 /// If the rendered output is MJML markup, it is automatically compiled to responsive HTML.
 /// </summary>
 public class EmailRazorViewRenderer(
@@ -49,11 +25,11 @@ public class EmailRazorViewRenderer(
     IServiceProvider serviceProvider,
     IOptions<EmailSettings> emailSettings,
     IMjmlCompiler mjmlCompiler,
-    ILogger<EmailRazorViewRenderer> logger) : IEmailRazorViewRenderer
+    ILogger<EmailRazorViewRenderer> logger) : IEmailTemplateRenderer
 {
     private readonly EmailSettings _settings = emailSettings.Value;
 
-    public async Task<string> RenderAsync<TModel>(string viewPath, TModel model, CancellationToken ct = default)
+    public async Task<string> RenderAsync(string viewPath, object model, CancellationToken ct = default)
     {
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext == null)

@@ -148,7 +148,7 @@ export class MerchelloTestTaxProviderModalElement extends UmbModalBaseElement<
                 <div class="error-banner">
                   <uui-icon name="icon-alert"></uui-icon>
                   <span>${this._errorMessage}</span>
-                  <uui-button look="secondary" compact @click=${() => (this._errorMessage = null)}>
+                  <uui-button look="secondary" compact label="Dismiss" @click=${() => (this._errorMessage = null)}>
                     Dismiss
                   </uui-button>
                 </div>

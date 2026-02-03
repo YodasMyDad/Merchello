@@ -811,11 +811,18 @@ public class ShipmentService(
         {
             Id = shipment.Id,
             OrderId = shipment.OrderId,
+            Status = shipment.Status,
+            StatusLabel = shipment.Status.ToLabel(),
+            StatusCssClass = shipment.Status.ToCssClass(),
             Carrier = shipment.Carrier,
             TrackingNumber = shipment.TrackingNumber,
             TrackingUrl = shipment.TrackingUrl,
             DateCreated = shipment.DateCreated,
+            ShippedDate = shipment.ShippedDate,
             ActualDeliveryDate = shipment.ActualDeliveryDate,
+            CanMarkAsShipped = shipment.Status == ShipmentStatus.Preparing,
+            CanMarkAsDelivered = shipment.Status == ShipmentStatus.Shipped,
+            CanCancel = shipment.Status != ShipmentStatus.Delivered && shipment.Status != ShipmentStatus.Cancelled,
             LineItems = shipment.LineItems?
                 .Where(li => li.LineItemType != LineItemType.Discount)
                 .Select(li => new ShipmentLineItemDto

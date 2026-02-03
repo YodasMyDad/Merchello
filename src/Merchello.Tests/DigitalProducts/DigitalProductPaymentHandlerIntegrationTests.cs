@@ -51,12 +51,6 @@ public class DigitalProductPaymentHandlerIntegrationTests : IClassFixture<Servic
         var (invoice, orderId) = await CreateDigitalInvoiceAsync();
         await ConfigureEmailAndWebhookAsync();
 
-        var emailService = _fixture.GetService<IEmailService>();
-        if (emailService is EmailService concreteEmail)
-        {
-            concreteEmail.SetTemplateRenderer((_, _, _) => Task.FromResult("<html>Digital delivery</html>"));
-        }
-
         // Act
         var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
         {

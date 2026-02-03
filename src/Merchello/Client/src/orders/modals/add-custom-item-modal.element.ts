@@ -399,6 +399,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
 
       <div class="form-row checkbox-row">
         <uui-checkbox
+          label="Physical product"
           .checked=${this._isPhysicalProduct}
           @change=${(e: Event) => (this._isPhysicalProduct = (e.target as HTMLInputElement).checked)}
         >

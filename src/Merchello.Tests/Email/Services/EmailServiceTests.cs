@@ -31,7 +31,9 @@ public class EmailServiceTests
     private readonly Mock<IEmailConfigurationService> _configServiceMock;
     private readonly Mock<IEmailTokenResolver> _tokenResolverMock;
     private readonly Mock<IEmailAttachmentResolver> _attachmentResolverMock;
+    private readonly Mock<IEmailTemplateRenderer> _templateRendererMock;
     private readonly Mock<IEmailSender> _emailSenderMock;
+    private readonly Mock<ISampleNotificationFactory> _sampleNotificationFactoryMock;
     private readonly EmailService _service;
 
     public EmailServiceTests(ServiceTestFixture fixture)
@@ -42,12 +44,19 @@ public class EmailServiceTests
         _configServiceMock = new Mock<IEmailConfigurationService>();
         _tokenResolverMock = new Mock<IEmailTokenResolver>();
         _attachmentResolverMock = new Mock<IEmailAttachmentResolver>();
+        _templateRendererMock = new Mock<IEmailTemplateRenderer>();
         _emailSenderMock = new Mock<IEmailSender>();
+        _sampleNotificationFactoryMock = new Mock<ISampleNotificationFactory>();
 
         // Default token resolver behavior
         _tokenResolverMock
             .Setup(x => x.ResolveTokens<TestOrderNotification>(It.IsAny<string>(), It.IsAny<EmailModel<TestOrderNotification>>()))
             .Returns((string template, EmailModel<TestOrderNotification> _) => template);
+
+        // Default template renderer behavior
+        _templateRendererMock
+            .Setup(x => x.RenderAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("<html>Body</html>");
 
         var emailSettings = Options.Create(new EmailSettings
         {
@@ -67,7 +76,9 @@ public class EmailServiceTests
             _configServiceMock.Object,
             _tokenResolverMock.Object,
             _attachmentResolverMock.Object,
+            _templateRendererMock.Object,
             _emailSenderMock.Object,
+            _sampleNotificationFactoryMock.Object,
             emailSettings,
             NullLogger<EmailService>.Instance);
     }
@@ -75,9 +86,8 @@ public class EmailServiceTests
     #region QueueDeliveryAsync
 
     [Fact]
-    public async Task QueueDelivery_WithTemplateRenderer_CreatesPendingDelivery()
+    public async Task QueueDelivery_CreatesPendingDelivery()
     {
-        _service.SetTemplateRenderer((_, _, _) => Task.FromResult("<html>Body</html>"));
         _tokenResolverMock
             .Setup(x => x.ResolveTokens<TestOrderNotification>("{{customer.email}}", It.IsAny<EmailModel<TestOrderNotification>>()))
             .Returns("customer@test.com");
@@ -103,23 +113,11 @@ public class EmailServiceTests
     }
 
     [Fact]
-    public async Task QueueDelivery_WithoutRenderer_CreatesFailedDelivery()
-    {
-        // No template renderer set
-        var config = CreateEmailConfig();
-        var notification = new TestOrderNotification { OrderNumber = "ORD-001" };
-
-        var delivery = await _service.QueueDeliveryAsync(config, notification);
-
-        delivery.Status.ShouldBe(OutboundDeliveryStatus.Failed);
-        delivery.ErrorMessage.ShouldNotBeNull();
-        delivery.ErrorMessage.ShouldContain("renderer not configured");
-    }
-
-    [Fact]
     public async Task QueueDelivery_TemplateRenderError_CreatesFailedDelivery()
     {
-        _service.SetTemplateRenderer((_, _, _) => throw new Exception("Template not found"));
+        _templateRendererMock
+            .Setup(x => x.RenderAsync(It.IsAny<string>(), It.IsAny<object>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("Template not found"));
 
         var config = CreateEmailConfig();
         var notification = new TestOrderNotification { OrderNumber = "ORD-001" };
@@ -134,8 +132,6 @@ public class EmailServiceTests
     [Fact]
     public async Task QueueDelivery_UsesDefaultFromAddress_WhenNotConfigured()
     {
-        _service.SetTemplateRenderer((_, _, _) => Task.FromResult("<html>Body</html>"));
-
         var config = CreateEmailConfig();
         config.FromExpression = null; // No from expression
 
@@ -296,8 +292,6 @@ public class EmailServiceTests
     [Fact]
     public async Task SendImmediate_Success_ReturnsTrue()
     {
-        _service.SetTemplateRenderer((_, _, _) => Task.FromResult("<html>Body</html>"));
-
         _emailSenderMock
             .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
             .Returns(Task.CompletedTask);
@@ -315,21 +309,8 @@ public class EmailServiceTests
     }
 
     [Fact]
-    public async Task SendImmediate_WithoutRenderer_ReturnsFalse()
-    {
-        var config = CreateEmailConfig();
-        var notification = new TestOrderNotification { OrderNumber = "ORD-001" };
-
-        var result = await _service.SendImmediateAsync(config, notification);
-
-        result.ShouldBeFalse();
-    }
-
-    [Fact]
     public async Task SendImmediate_SendFailure_ReturnsFalse()
     {
-        _service.SetTemplateRenderer((_, _, _) => Task.FromResult("<html>Body</html>"));
-
         _emailSenderMock
             .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
             .ThrowsAsync(new Exception("SMTP error"));

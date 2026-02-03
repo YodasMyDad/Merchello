@@ -32,7 +32,7 @@ public class UcpCheckoutSessionsController(
         [FromBody] UcpCreateSessionRequestDto request,
         CancellationToken ct)
     {
-        var adapter = GetUcpAdapter();
+        var adapter = await GetUcpAdapterAsync(ct);
         if (adapter == null)
         {
             return NotFound(new { error = "UCP protocol not available" });
@@ -53,7 +53,7 @@ public class UcpCheckoutSessionsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetSession(string sessionId, CancellationToken ct)
     {
-        var adapter = GetUcpAdapter();
+        var adapter = await GetUcpAdapterAsync(ct);
         if (adapter == null)
         {
             return NotFound(new { error = "UCP protocol not available" });
@@ -78,7 +78,7 @@ public class UcpCheckoutSessionsController(
         [FromBody] UcpUpdateSessionRequestDto request,
         CancellationToken ct)
     {
-        var adapter = GetUcpAdapter();
+        var adapter = await GetUcpAdapterAsync(ct);
         if (adapter == null)
         {
             return NotFound(new { error = "UCP protocol not available" });
@@ -103,7 +103,7 @@ public class UcpCheckoutSessionsController(
         [FromBody] UcpCompleteSessionRequestDto request,
         CancellationToken ct)
     {
-        var adapter = GetUcpAdapter();
+        var adapter = await GetUcpAdapterAsync(ct);
         if (adapter == null)
         {
             return NotFound(new { error = "UCP protocol not available" });
@@ -125,7 +125,7 @@ public class UcpCheckoutSessionsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CancelSession(string sessionId, CancellationToken ct)
     {
-        var adapter = GetUcpAdapter();
+        var adapter = await GetUcpAdapterAsync(ct);
         if (adapter == null)
         {
             return NotFound(new { error = "UCP protocol not available" });
@@ -137,12 +137,15 @@ public class UcpCheckoutSessionsController(
         return ToActionResult(response);
     }
 
-    private ICommerceProtocolAdapter? GetUcpAdapter()
+    private async Task<ICommerceProtocolAdapter?> GetUcpAdapterAsync(CancellationToken ct)
     {
         if (!settings.Value.Enabled || !settings.Value.Ucp.Enabled)
         {
             return null;
         }
+
+        // Ensure adapters are loaded (triggers ExtensionManager discovery on first call)
+        await protocolManager.GetAdaptersAsync(ct);
 
         return protocolManager.GetAdapter(ProtocolConstants.Protocols.Ucp);
     }

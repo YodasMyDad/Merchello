@@ -135,6 +135,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
             ? html`
                 <uui-table-head-cell class="checkbox-col">
                   <uui-checkbox
+                    label="Select all"
                     aria-label="Select all discounts"
                     @change=${this._handleSelectAll}
                     ?checked=${this.selectedIds.length === this.discounts.length && this.discounts.length > 0}
@@ -161,6 +162,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
                 ? html`
                     <uui-table-cell class="checkbox-col">
                       <uui-checkbox
+                        label="Select"
                         aria-label="Select discount ${discount.name}"
                         ?checked=${this.selectedIds.includes(discount.id)}
                         @change=${(e: Event) => this._handleSelectDiscount(discount.id, e)}

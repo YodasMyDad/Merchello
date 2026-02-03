@@ -26,23 +26,13 @@ public class EmailService(
     IEmailConfigurationService configurationService,
     IEmailTokenResolver tokenResolver,
     IEmailAttachmentResolver attachmentResolver,
+    IEmailTemplateRenderer templateRenderer,
     IEmailSender emailSender,
+    ISampleNotificationFactory sampleNotificationFactory,
     IOptions<EmailSettings> emailSettings,
     ILogger<EmailService> logger) : IEmailService
 {
     private readonly EmailSettings _settings = emailSettings.Value;
-
-    // Note: IEmailRazorViewRenderer is injected separately in the web project
-    // because it requires ASP.NET Core MVC dependencies
-    private Func<string, object, CancellationToken, Task<string>>? _renderTemplate;
-
-    /// <summary>
-    /// Sets the template renderer function. Called during DI setup.
-    /// </summary>
-    public void SetTemplateRenderer(Func<string, object, CancellationToken, Task<string>> renderer)
-    {
-        _renderTemplate = renderer;
-    }
 
     public async Task<OutboundDelivery> QueueDeliveryAsync<TNotification>(
         EmailConfiguration config,
@@ -75,21 +65,14 @@ public class EmailService(
         // Render the template
         string? body = null;
         string? templateError = null;
-        if (_renderTemplate != null)
+        try
         {
-            try
-            {
-                body = await _renderTemplate(config.TemplatePath, emailModel, ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to render email template {TemplatePath}", config.TemplatePath);
-                templateError = $"Template render failed: {ex.Message}";
-            }
+            body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel, ct);
         }
-        else
+        catch (Exception ex)
         {
-            templateError = "Template renderer not configured";
+            logger.LogError(ex, "Failed to render email template {TemplatePath}", config.TemplatePath);
+            templateError = $"Template render failed: {ex.Message}";
         }
 
         // Generate attachments if configured
@@ -204,13 +187,7 @@ public class EmailService(
             var subject = tokenResolver.ResolveTokens(config.SubjectExpression, emailModel);
 
             // Render the template
-            if (_renderTemplate == null)
-            {
-                logger.LogError("Template renderer not configured");
-                return false;
-            }
-
-            var body = await _renderTemplate(config.TemplatePath, emailModel, ct);
+            var body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel, ct);
 
             // Send the email
             var message = new EmailMessage(
@@ -402,12 +379,7 @@ public class EmailService(
         EmailModel<TNotification> model,
         CancellationToken ct = default) where TNotification : MerchelloNotification
     {
-        if (_renderTemplate == null)
-        {
-            throw new InvalidOperationException("Template renderer not configured");
-        }
-
-        return await _renderTemplate(templatePath, model, ct);
+        return await templateRenderer.RenderAsync(templatePath, model, ct);
     }
 
     public async Task<EmailSendTestResultDto> SendTestEmailAsync(
@@ -429,7 +401,7 @@ public class EmailService(
             var storeContext = GetStoreContext();
 
             // Create a sample notification for testing
-            var sampleNotification = CreateSampleNotification(config.Topic);
+            var sampleNotification = sampleNotificationFactory.CreateSampleNotification(config.Topic);
             if (sampleNotification == null)
             {
                 result.ErrorMessage = $"Cannot create sample notification for topic: {config.Topic}";
@@ -458,13 +430,7 @@ public class EmailService(
             var subject = ResolveTokensNonGeneric(config.SubjectExpression, nonGenericModel);
 
             // Render the template
-            if (_renderTemplate == null)
-            {
-                result.ErrorMessage = "Template renderer not configured";
-                return result;
-            }
-
-            var body = await _renderTemplate(config.TemplatePath, emailModel!, ct);
+            var body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel!, ct);
 
             // Generate attachments if configured
             IEnumerable<EmailMessageAttachment>? emailAttachments = null;
@@ -551,7 +517,7 @@ public class EmailService(
             var storeContext = GetStoreContext();
 
             // Create a sample notification for preview
-            var sampleNotification = CreateSampleNotification(config.Topic);
+            var sampleNotification = sampleNotificationFactory.CreateSampleNotification(config.Topic);
             if (sampleNotification == null)
             {
                 result.ErrorMessage = $"Cannot create sample notification for topic: {config.Topic}";
@@ -580,34 +546,26 @@ public class EmailService(
             result.Subject = ResolveTokensNonGeneric(config.SubjectExpression, nonGenericModel);
 
             // Render the template
-            if (_renderTemplate != null)
+            try
             {
-                try
-                {
-                    // Build a generic EmailModel using reflection
-                    var emailModelType = typeof(EmailModel<>).MakeGenericType(sampleNotification.GetType());
-                    var emailModel = Activator.CreateInstance(emailModelType);
-                    emailModelType.GetProperty("Notification")!.SetValue(emailModel, sampleNotification);
-                    emailModelType.GetProperty("Store")!.SetValue(emailModel, storeContext);
-                    emailModelType.GetProperty("Configuration")!.SetValue(emailModel, config);
+                // Build a generic EmailModel using reflection
+                var emailModelType = typeof(EmailModel<>).MakeGenericType(sampleNotification.GetType());
+                var emailModel = Activator.CreateInstance(emailModelType);
+                emailModelType.GetProperty("Notification")!.SetValue(emailModel, sampleNotification);
+                emailModelType.GetProperty("Store")!.SetValue(emailModel, storeContext);
+                emailModelType.GetProperty("Configuration")!.SetValue(emailModel, config);
 
-                    result.Body = await _renderTemplate(config.TemplatePath, emailModel!, ct);
-                }
-                catch (FileNotFoundException)
-                {
-                    result.Warnings.Add($"Template not found: {config.TemplatePath}");
-                    result.Body = $"<p style='color: red;'>Template not found: {config.TemplatePath}</p>";
-                }
-                catch (Exception ex)
-                {
-                    result.Warnings.Add($"Template render error: {ex.Message}");
-                    result.Body = $"<p style='color: red;'>Template render error: {ex.Message}</p>";
-                }
+                result.Body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel!, ct);
             }
-            else
+            catch (FileNotFoundException)
             {
-                result.Warnings.Add("Template renderer not configured");
-                result.Body = "<p style='color: orange;'>Template renderer not configured</p>";
+                result.Warnings.Add($"Template not found: {config.TemplatePath}");
+                result.Body = $"<p style='color: red;'>Template not found: {config.TemplatePath}</p>";
+            }
+            catch (Exception ex)
+            {
+                result.Warnings.Add($"Template render error: {ex.Message}");
+                result.Body = $"<p style='color: red;'>Template render error: {ex.Message}</p>";
             }
 
             result.Success = true;
@@ -723,30 +681,5 @@ public class EmailService(
             System.Reflection.BindingFlags.IgnoreCase);
 
         return property?.GetValue(obj);
-    }
-
-    /// <summary>
-    /// Creates a sample notification for preview/test purposes.
-    /// </summary>
-    private MerchelloNotification? CreateSampleNotification(string topic)
-    {
-        // This creates minimal sample notifications for testing
-        // In a real scenario, you might want to load actual sample data
-
-        // For now, return a basic notification that can be used with reflection
-        // The EmailTopicRegistry should be used to get the actual notification type
-        return new SampleNotification();
-    }
-
-    /// <summary>
-    /// Sample notification for preview/test scenarios.
-    /// </summary>
-    private class SampleNotification : MerchelloNotification
-    {
-        public string OrderNumber { get; set; } = "ORD-12345";
-        public string CustomerEmail { get; set; } = "customer@example.com";
-        public string CustomerName { get; set; } = "John Doe";
-        public decimal Total { get; set; } = 99.99m;
-        public string FormattedTotal { get; set; } = "$99.99";
     }
 }

@@ -314,11 +314,12 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
                   <uui-button
                     look="secondary"
                     compact
+                    label=${isEditing ? "Done" : "Edit"}
                     @click=${() => (this._editingRule = isEditing ? undefined : { index, rule })}
                   >
                     ${isEditing ? "Done" : "Edit"}
                   </uui-button>
-                  <uui-button look="secondary" color="danger" compact @click=${() => this._handleRemoveRule(index)}>
+                  <uui-button look="secondary" color="danger" compact label="Remove" @click=${() => this._handleRemoveRule(index)}>
                     Remove
                   </uui-button>
                 </div>
@@ -352,7 +353,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
                 ${rule.targetType !== DiscountTargetType.AllProducts
                   ? html`
                       <div class="selection-area">
-                        <uui-button look="secondary" @click=${() => this._openPicker(index, rule)}>
+                        <uui-button look="secondary" label="Select items" @click=${() => this._openPicker(index, rule)}>
                           <uui-icon name="icon-search"></uui-icon>
                           ${this._getPickerButtonLabel(rule.targetType)}
                         </uui-button>
@@ -420,7 +421,7 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
 
         ${!this.readonly
           ? html`
-              <uui-button look="secondary" @click=${this._handleAddRule}>
+              <uui-button look="secondary" label="Add target rule" @click=${this._handleAddRule}>
                 <uui-icon name="icon-add"></uui-icon>
                 Add target rule
               </uui-button>

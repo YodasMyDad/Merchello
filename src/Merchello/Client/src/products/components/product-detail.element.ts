@@ -1044,6 +1044,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             description="No shipping costs, instant delivery, no warehouse needed">
             <uui-toggle
               slot="editor"
+              label="Digital Product"
               .checked=${this._formData.isDigitalProduct ?? false}
               @change=${(e: Event) => this._handleToggleChange("isDigitalProduct", (e.target as HTMLInputElement).checked)}>
             </uui-toggle>
@@ -1298,6 +1299,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             description="Adds noindex meta tag to prevent search engines from indexing this page">
             <uui-toggle
               slot="editor"
+              label="Hide from Search Engines"
               .checked=${this._formData.noIndex ?? false}
               @change=${(e: Event) => this._handleToggleChange("noIndex", (e.target as HTMLInputElement).checked)}>
             </uui-toggle>
@@ -1401,6 +1403,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           (warehouse) => html`
             <div class="toggle-field">
               <uui-toggle
+                label="${warehouse.name}"
                 .checked=${selectedWarehouseIds.includes(warehouse.id)}
                 @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
               </uui-toggle>

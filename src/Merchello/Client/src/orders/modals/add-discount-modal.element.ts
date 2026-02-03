@@ -213,6 +213,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
 
           <div class="form-row checkbox-row">
             <uui-checkbox
+              label="Visible to customer"
               .checked=${this._isVisibleToCustomer}
               @change=${(e: Event) => (this._isVisibleToCustomer = (e.target as HTMLInputElement).checked)}
             >

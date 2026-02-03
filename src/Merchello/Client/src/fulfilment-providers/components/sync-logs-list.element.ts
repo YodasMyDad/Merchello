@@ -116,7 +116,7 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
                 <div class="error-message">
                   <uui-icon name="icon-alert"></uui-icon>
                   ${this._errorMessage}
-                  <uui-button look="secondary" @click=${() => this._loadLogs()}>Retry</uui-button>
+                  <uui-button look="secondary" label="Retry" @click=${() => this._loadLogs()}>Retry</uui-button>
                 </div>
               `
             : this._logs.length === 0
@@ -185,7 +185,7 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
             ></uui-select>
           </div>
 
-          <uui-button look="secondary" compact @click=${() => this._loadLogs()}>
+          <uui-button look="secondary" compact label="Refresh" @click=${() => this._loadLogs()}>
             <uui-icon name="icon-refresh"></uui-icon>
             Refresh
           </uui-button>

@@ -223,4 +223,5 @@ namespace Merchello.Composers
             logger.LogDebug("ProductRootExtensions initialized");
         }
     }
+
 }

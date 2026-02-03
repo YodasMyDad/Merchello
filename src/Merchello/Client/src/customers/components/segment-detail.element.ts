@@ -307,6 +307,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
         <umb-property-layout label="Active" description="Inactive segments are not evaluated for membership">
           <uui-toggle
             slot="editor"
+            label="Active"
             .checked=${this._formData.isActive ?? true}
             @change=${this._handleActiveChange}>
           </uui-toggle>

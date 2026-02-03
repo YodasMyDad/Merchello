@@ -271,6 +271,7 @@ export class MerchelloPaymentMethodEditModalElement extends UmbModalBaseElement<
           <div class="form-row">
             <label>Display Name</label>
             <uui-input
+              label="Display name"
               .value=${this._displayNameOverride}
               placeholder="${method?.defaultDisplayName ?? 'Enter display name'}"
               @input=${this._handleDisplayNameChange}

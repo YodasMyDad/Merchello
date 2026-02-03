@@ -38,6 +38,9 @@ public class WellKnownController(
             return NotFound(new { error = "Protocol endpoints are disabled" });
         }
 
+        // Ensure adapters are loaded (triggers ExtensionManager discovery on first call)
+        await protocolManager.GetAdaptersAsync(ct);
+
         // Check if the specific protocol is supported
         if (!protocolManager.IsProtocolSupported(protocol))
         {

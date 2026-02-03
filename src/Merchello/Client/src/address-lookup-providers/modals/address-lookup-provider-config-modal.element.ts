@@ -182,6 +182,7 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
               : nothing}
             <uui-textarea
               id="${field.key}"
+              label="${field.label}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
               ?required=${field.isRequired}
@@ -196,6 +197,7 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
           <div class="form-field checkbox-field">
             <uui-checkbox
               id="${field.key}"
+              label="${field.label}"
               ?checked=${value === "true"}
               @change=${(e: Event) =>
                 this._handleCheckboxChange(field.key, (e.target as HTMLInputElement).checked)}

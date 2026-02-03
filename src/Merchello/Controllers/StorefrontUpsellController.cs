@@ -5,6 +5,7 @@ using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
 using Merchello.Core.Storefront.Services.Interfaces;
+using Merchello.Services;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Core.Media;
 using Umbraco.Cms.Core.PropertyEditors;
@@ -25,7 +26,8 @@ public class StorefrontUpsellController(
     IStorefrontContextService storefrontContextService,
     ICheckoutSessionService checkoutSessionService,
     IMediaService mediaService,
-    MediaUrlGeneratorCollection mediaUrlGenerators) : ControllerBase
+    MediaUrlGeneratorCollection mediaUrlGenerators,
+    IRichTextRenderer richTextRenderer) : ControllerBase
 {
     /// <summary>
     /// Get upsell suggestions for the current basket at a specific display location.
@@ -178,7 +180,7 @@ public class StorefrontUpsellController(
         ProductId = product.ProductId,
         ProductRootId = product.ProductRootId,
         Name = product.Name,
-        Description = product.Description,
+        Description = richTextRenderer.Render(product.Description).ToHtmlString(),
         Sku = product.Sku,
         Price = product.Price,
         FormattedPrice = product.FormattedPrice,
