@@ -1,27 +1,16 @@
 using System.Threading.RateLimiting;
-using Asp.Versioning;
-using Merchello.Core.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
-using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Composing;
 using Umbraco.Cms.Core.DependencyInjection;
-using Umbraco.Cms.Core.Events;
-using Umbraco.Cms.Core.Notifications;
-using Umbraco.Cms.Core.Services;
-using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Api.Common.OpenApi;
-using Merchello.Middleware;
+using Umbraco.Cms.Api.Management.OpenApi;
 
 namespace Merchello.Composers
 {
@@ -127,101 +116,5 @@ namespace Merchello.Composers
             });
         }
 
-        public class MerchelloOperationSecurityFilter : BackOfficeSecurityRequirementsOperationFilterBase
-        {
-            protected override string ApiName => Core.Constants.ApiName;
-        }
-
-        // This is used to generate nice operation IDs in our swagger json file
-        // So that the generated TypeScript client has nice method names and not too verbose
-        // https://docs.umbraco.com/umbraco-cms/tutorials/creating-a-backoffice-api/umbraco-schema-and-operation-ids#operation-ids
-        public class CustomOperationHandler : OperationIdHandler
-        {
-            public CustomOperationHandler(IOptions<ApiVersioningOptions> apiVersioningOptions) : base(apiVersioningOptions)
-            {
-            }
-
-            protected override bool CanHandle(ApiDescription apiDescription, ControllerActionDescriptor controllerActionDescriptor)
-            {
-                return controllerActionDescriptor.ControllerTypeInfo.Namespace?.StartsWith("Merchello.Controllers", comparisonType: StringComparison.InvariantCultureIgnoreCase) is true;
-            }
-
-            public override string Handle(ApiDescription apiDescription) => $"{apiDescription.ActionDescriptor.RouteValues["action"]}";
-        }
     }
-
-    /// <summary>
-    /// Startup filter that adds Merchello middleware to the request pipeline.
-    /// This allows middleware to be added from the NuGet package without requiring
-    /// changes to the consuming application's Program.cs.
-    /// </summary>
-    public class MerchelloStartupFilter : IStartupFilter
-    {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
-        {
-            return app =>
-            {
-                // Add rate limiter middleware before other middleware
-                app.UseRateLimiter();
-
-                // Add agent authentication middleware for protocol requests
-                app.UseAgentAuthentication();
-
-                // Continue with the rest of the pipeline
-                next(app);
-            };
-        }
-    }
-
-    /// <summary>
-    /// Notification handler that initializes Merchello DataTypes on application startup.
-    /// This ensures required DataTypes (like the Product Description TipTap editor) exist.
-    /// </summary>
-    public class InitializeMerchelloDataTypesHandler(
-        MerchelloDataTypeInitializer initializer,
-        ILogger<InitializeMerchelloDataTypesHandler> logger,
-        IRuntimeState runtimeState)
-        : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
-    {
-        public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
-        {
-            // Skip if Umbraco isn't fully installed/running
-            if (runtimeState.Level != RuntimeLevel.Run)
-            {
-                logger.LogDebug("Skipping DataType initialization - Umbraco runtime level is {Level}", runtimeState.Level);
-                return;
-            }
-
-            try
-            {
-                var dataTypeKey = await initializer.EnsureProductDescriptionDataTypeExistsAsync(cancellationToken);
-                logger.LogInformation("Merchello DataTypes initialized. Product Description DataType: {Key}", dataTypeKey);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to initialize Merchello DataTypes");
-                // Don't throw - allow app to continue even if DataType creation fails
-                // The frontend will handle the missing DataType gracefully
-            }
-        }
-    }
-
-    /// <summary>
-    /// Notification handler that initializes ProductRootExtensions on application startup.
-    /// This provides the singleton services needed by the static extension methods.
-    /// </summary>
-    public class InitializeProductRootExtensionsHandler(
-        Umbraco.Cms.Core.Models.PublishedContent.IPublishedValueFallback publishedValueFallback,
-        IOptions<Core.Shared.Models.MerchelloSettings> merchelloSettings,
-        Factories.MerchelloPublishedElementFactory elementFactory,
-        ILogger<InitializeProductRootExtensionsHandler> logger)
-        : INotificationHandler<UmbracoApplicationStartedNotification>
-    {
-        public void Handle(UmbracoApplicationStartedNotification notification)
-        {
-            Extensions.ProductRootExtensions.Initialize(publishedValueFallback, merchelloSettings, elementFactory);
-            logger.LogDebug("ProductRootExtensions initialized");
-        }
-    }
-
 }

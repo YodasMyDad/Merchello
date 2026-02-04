@@ -24,9 +24,11 @@ using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Customers.Services.Interfaces;
@@ -52,6 +54,7 @@ public class CheckoutService(
     IShippingCostResolver shippingCostResolver,
     BasketFactory basketFactory,
     LineItemFactory lineItemFactory,
+    AddressFactory addressFactory,
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
     IOrderGroupingStrategyResolver orderGroupingStrategyResolver,
@@ -821,13 +824,25 @@ public class CheckoutService(
     }
 
     // Convenience facade methods for locations
-    public Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken cancellationToken = default)
-        => _locationsService.GetAvailableCountriesAsync(cancellationToken);
-
-    public async Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(string countryCode, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(
+        GetAvailableShippingCountriesParameters parameters,
+        CancellationToken cancellationToken = default)
     {
+        return _locationsService.GetAvailableCountriesAsync(
+            new GetAvailableCountriesParameters(),
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(
+        GetAvailableShippingRegionsParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var countryCode = parameters.CountryCode;
+
         // Start from globally available regions (warehouse service regions + catalog)
-        var regions = await _locationsService.GetAvailableRegionsAsync(countryCode, cancellationToken);
+        var regions = await _locationsService.GetAvailableRegionsAsync(
+            new GetAvailableRegionsParameters { CountryCode = countryCode },
+            cancellationToken);
 
         // If no basket or no product items, return the base regions
         var basket = await GetBasket(new GetBasketParameters(), cancellationToken);
@@ -906,14 +921,18 @@ public class CheckoutService(
     /// <summary>
     /// Gets all countries from the locality catalog (for billing address which has no restrictions).
     /// </summary>
-    public Task<IReadOnlyCollection<CountryInfo>> GetAllCountriesAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyCollection<CountryInfo>> GetAllCountriesAsync(
+        GetAvailableBillingCountriesParameters parameters,
+        CancellationToken cancellationToken = default)
         => localityCatalog.GetCountriesAsync(cancellationToken);
 
     /// <summary>
     /// Gets all regions for a country from the locality catalog (for billing address which has no restrictions).
     /// </summary>
-    public Task<IReadOnlyCollection<SubdivisionInfo>> GetAllRegionsAsync(string countryCode, CancellationToken cancellationToken = default)
-        => localityCatalog.GetRegionsAsync(countryCode, cancellationToken);
+    public Task<IReadOnlyCollection<SubdivisionInfo>> GetAllRegionsAsync(
+        GetAvailableBillingRegionsParameters parameters,
+        CancellationToken cancellationToken = default)
+        => localityCatalog.GetRegionsAsync(parameters.CountryCode, cancellationToken);
 
     /// <summary>
     /// Creates a new basket with the specified currency
@@ -1287,10 +1306,12 @@ public class CheckoutService(
 
     /// <inheritdoc />
     public async Task<OrderGroupingResult> GetOrderGroupsAsync(
-        Basket basket,
-        CheckoutSession session,
+        GetOrderGroupsParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var basket = parameters.Basket;
+        var session = parameters.Session;
+
         if (string.IsNullOrWhiteSpace(session.ShippingAddress.CountryCode))
         {
             return OrderGroupingResult.Fail("Shipping address must have a valid country code");
@@ -1701,31 +1722,28 @@ public class CheckoutService(
         return result;
     }
 
-    private static Locality.Models.Address MapDtoToAddress(AddressDto dto)
+    private Locality.Models.Address MapDtoToAddress(AddressDto dto)
     {
-        return new Locality.Models.Address
-        {
-            Name = dto.Name,
-            Company = dto.Company,
-            AddressOne = dto.AddressOne,
-            AddressTwo = dto.AddressTwo,
-            TownCity = dto.TownCity,
-            CountyState = new CountyState
-            {
-                Name = dto.CountyState,
-                RegionCode = dto.RegionCode ?? dto.CountyState
-            },
-            PostalCode = dto.PostalCode,
-            Country = dto.Country,
-            CountryCode = dto.CountryCode,
-            Email = dto.Email,
-            Phone = dto.Phone
-        };
+        var address = addressFactory.CreateAddress(
+            dto.Name,
+            dto.AddressOne,
+            dto.AddressTwo,
+            dto.TownCity,
+            dto.PostalCode,
+            dto.CountryCode,
+            dto.CountyState,
+            dto.RegionCode,
+            dto.Company,
+            dto.Phone,
+            dto.Email);
+        address.Country = dto.Country;
+        return address;
     }
 
     /// <inheritdoc />
-    public async Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default)
+    public async Task SaveBasketAsync(SaveBasketParameters parameters, CancellationToken cancellationToken = default)
     {
+        var basket = parameters.Basket;
         const int maxRetries = 3;
 
         for (var attempt = 0; attempt < maxRetries; attempt++)
@@ -1893,7 +1911,13 @@ public class CheckoutService(
                     }
 
                     // Get order groups with the new selections to calculate shipping costs
-                    var groupingResult = await GetOrderGroupsAsync(updatedBasket, session, cancellationToken);
+                    var groupingResult = await GetOrderGroupsAsync(
+                        new GetOrderGroupsParameters
+                        {
+                            Basket = updatedBasket,
+                            Session = session
+                        },
+                        cancellationToken);
 
                     if (!groupingResult.Success)
                     {
@@ -2321,7 +2345,13 @@ public class CheckoutService(
                     session.ShippingAddress = shippingAddress;
 
                     // Get order groups with shipping options
-                    groupingResult = await GetOrderGroupsAsync(updatedBasket, session, cancellationToken);
+                    groupingResult = await GetOrderGroupsAsync(
+                        new GetOrderGroupsParameters
+                        {
+                            Basket = updatedBasket,
+                            Session = session
+                        },
+                        cancellationToken);
 
                     // Add any grouping errors to basket.Errors so frontend can display item-level shipping errors
                     // (e.g., "Product X cannot be shipped to Country Y")
@@ -2590,8 +2620,11 @@ public class CheckoutService(
     }
 
     /// <inheritdoc />
-    public async Task<bool> BasketHasDigitalProductsAsync(Basket basket, CancellationToken cancellationToken = default)
+    public async Task<bool> BasketHasDigitalProductsAsync(
+        BasketHasDigitalProductsParameters parameters,
+        CancellationToken cancellationToken = default)
     {
+        var basket = parameters.Basket;
         var hasDigital = false;
         foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
         {
@@ -2616,9 +2649,11 @@ public class CheckoutService(
 
     /// <inheritdoc />
     public async Task<CheckoutSessionState?> GetSessionStateAsync(
-        Guid basketId,
+        GetSessionStateParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var basketId = parameters.BasketId;
+
         // Load basket directly from database
         using var scope = efCoreScopeProvider.CreateScope();
         var basket = await scope.ExecuteWithContextAsync(async db =>
@@ -2636,7 +2671,13 @@ public class CheckoutService(
         OrderGroupingResult? orderGroups = null;
         if (!string.IsNullOrEmpty(basket.ShippingAddress.CountryCode))
         {
-            orderGroups = await GetOrderGroupsAsync(basket, session, cancellationToken);
+            orderGroups = await GetOrderGroupsAsync(
+                new GetOrderGroupsParameters
+                {
+                    Basket = basket,
+                    Session = session
+                },
+                cancellationToken);
 
             // Propagate grouping errors (e.g., warehouse cannot serve region) to basket for protocol message mapping
             foreach (var error in orderGroups.Errors)
@@ -2677,7 +2718,7 @@ public class CheckoutService(
             Fulfillment = MapFulfillment(orderGroups, session, currencyCode),
             Totals = MapTotals(basket, currencyCode),
             Messages = messages,
-            ContinueUrl = status == ProtocolConstants.SessionStatus.RequiresEscalation
+            ContinueUrl = status == ProtocolSessionStatuses.RequiresEscalation
                 ? $"/checkout/{basketId}"
                 : null,
             BuyerEmail = basket.BillingAddress.Email ?? basket.ShippingAddress.Email
@@ -2689,20 +2730,20 @@ public class CheckoutService(
         // Check for errors
         if (basket.Errors.Count > 0)
         {
-            return ProtocolConstants.SessionStatus.Incomplete;
+            return ProtocolSessionStatuses.Incomplete;
         }
 
         // Check if line items exist
         if (basket.LineItems.Count == 0)
         {
-            return ProtocolConstants.SessionStatus.Incomplete;
+            return ProtocolSessionStatuses.Incomplete;
         }
 
         // Check billing address
         if (string.IsNullOrEmpty(basket.BillingAddress.Email) ||
             string.IsNullOrEmpty(basket.BillingAddress.CountryCode))
         {
-            return ProtocolConstants.SessionStatus.Incomplete;
+            return ProtocolSessionStatuses.Incomplete;
         }
 
         // Check shipping address for physical products
@@ -2713,7 +2754,7 @@ public class CheckoutService(
         {
             if (string.IsNullOrEmpty(basket.ShippingAddress.CountryCode))
             {
-                return ProtocolConstants.SessionStatus.Incomplete;
+                return ProtocolSessionStatuses.Incomplete;
             }
 
             // Check shipping selections
@@ -2725,13 +2766,13 @@ public class CheckoutService(
 
                 if (!allGroupsHaveSelection)
                 {
-                    return ProtocolConstants.SessionStatus.Incomplete;
+                    return ProtocolSessionStatuses.Incomplete;
                 }
             }
         }
 
         // All required info collected
-        return ProtocolConstants.SessionStatus.ReadyForComplete;
+        return ProtocolSessionStatuses.ReadyForComplete;
     }
 
     private static bool IsDigitalProduct(LineItem li)
@@ -2824,10 +2865,10 @@ public class CheckoutService(
             FirstName = nameParts.Length > 0 ? nameParts[0] : null,
             LastName = nameParts.Length > 1 ? nameParts[1] : null,
             Company = address.Company,
-            Address1 = address.AddressOne,
-            Address2 = address.AddressTwo,
-            City = address.TownCity,
-            Region = address.CountyState.Name,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = address.CountyState.Name,
             RegionCode = address.CountyState.RegionCode,
             PostalCode = address.PostalCode,
             Country = address.Country,
@@ -2848,20 +2889,20 @@ public class CheckoutService(
                 Name = li.Name ?? "Discount",
                 Type = li.ExtendedData.TryGetValue("DiscountType", out var type)
                     ? MapDiscountType(type?.ToString())
-                    : ProtocolConstants.DiscountTypes.FixedAmount,
+                    : ProtocolDiscountTypes.FixedAmount,
                 Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity), currencyCode),
                 IsAutomatic = li.ExtendedData.TryGetValue("IsAutomatic", out var auto) && auto is true,
-                Method = ProtocolConstants.DiscountAllocationMethods.Across
+                Method = ProtocolDiscountAllocationMethods.Across
             })
             .ToList();
     }
 
     private static string MapDiscountType(string? type) => type?.ToLowerInvariant() switch
     {
-        "percentage" => ProtocolConstants.DiscountTypes.Percentage,
-        "freeshipping" or "free_shipping" => ProtocolConstants.DiscountTypes.FreeShipping,
-        "buyxgety" or "buy_x_get_y" => ProtocolConstants.DiscountTypes.BuyXGetY,
-        _ => ProtocolConstants.DiscountTypes.FixedAmount
+        "percentage" => ProtocolDiscountTypes.Percentage,
+        "freeshipping" or "free_shipping" => ProtocolDiscountTypes.FreeShipping,
+        "buyxgety" or "buy_x_get_y" => ProtocolDiscountTypes.BuyXGetY,
+        _ => ProtocolDiscountTypes.FixedAmount
     };
 
     private CheckoutFulfillmentState? MapFulfillment(
@@ -2885,7 +2926,7 @@ public class CheckoutService(
             [
                 new FulfillmentMethodState
                 {
-                    Type = ProtocolConstants.FulfillmentTypes.Shipping,
+                    Type = ProtocolFulfillmentTypes.Shipping,
                     LineItemIds = allLineItemIds,
                     Groups = orderGroups.Groups.Select(g => new FulfillmentGroupState
                     {
@@ -2953,26 +2994,28 @@ public class CheckoutService(
         return basket.Errors
             .Select(e => new CheckoutMessageState
             {
-                Type = ProtocolConstants.MessageTypes.Error,
+                Type = ProtocolMessageTypes.Error,
                 Code = e.IsShippingError
-                    ? ProtocolConstants.MessageCodes.ShippingUnavailable
+                    ? ProtocolMessageCodes.ShippingUnavailable
                     : (e.RelatedLineItemId.HasValue
-                        ? ProtocolConstants.MessageCodes.OutOfStock
-                        : ProtocolConstants.MessageCodes.Missing),
+                        ? ProtocolMessageCodes.OutOfStock
+                        : ProtocolMessageCodes.Missing),
                 Path = e.RelatedLineItemId.HasValue
                     ? $"$.line_items[?(@.id=='{e.RelatedLineItemId}')]"
                     : (e.IsShippingError ? "$.fulfillment" : null),
                 Content = e.Message ?? "An error occurred",
-                Severity = ProtocolConstants.MessageSeverity.RequiresBuyerInput
+                Severity = ProtocolMessageSeverities.RequiresBuyerInput
             })
             .ToList();
     }
 
     /// <inheritdoc />
     public async Task<Basket?> GetBasketByIdAsync(
-        Guid basketId,
+        GetBasketByIdParameters parameters,
         CancellationToken cancellationToken = default)
     {
+        var basketId = parameters.BasketId;
+
         using var scope = efCoreScopeProvider.CreateScope();
         return await scope.ExecuteWithContextAsync(async db =>
             await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken));
@@ -2994,18 +3037,17 @@ public class CheckoutService(
         var session = new CheckoutSession
         {
             BasketId = basket.Id,
-            ShippingAddress = new Address
-            {
-                CountryCode = parameters.CountryCode,
-                CountyState = new CountyState
-                {
-                    RegionCode = parameters.RegionCode
-                }
-            }
+            ShippingAddress = addressFactory.CreateCountryOnly(parameters.CountryCode, parameters.RegionCode)
         };
 
         // Get order groups with shipping options
-        var groupingResult = await GetOrderGroupsAsync(basket, session, cancellationToken);
+        var groupingResult = await GetOrderGroupsAsync(
+            new GetOrderGroupsParameters
+            {
+                Basket = basket,
+                Session = session
+            },
+            cancellationToken);
         if (!groupingResult.Success || groupingResult.Groups.Count == 0)
         {
             return GetEstimatedShippingResult.Fail(
@@ -3032,21 +3074,6 @@ public class CheckoutService(
     /// UCP requires all monetary amounts in minor units.
     /// </summary>
     private long ToMinorUnits(decimal amount, string currencyCode) => currencyService.ToMinorUnits(amount, currencyCode);
-
-    private sealed class NoopLocationsService : ILocationsService
-    {
-        public Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyCollection<CountryAvailability>>(Array.Empty<CountryAvailability>());
-
-        public Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(string countryCode, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyCollection<RegionAvailability>>(Array.Empty<RegionAvailability>());
-
-        public Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesForWarehouseAsync(Guid warehouseId, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyCollection<CountryAvailability>>(Array.Empty<CountryAvailability>());
-
-        public Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsForWarehouseAsync(Guid warehouseId, string countryCode, CancellationToken ct = default)
-            => Task.FromResult<IReadOnlyCollection<RegionAvailability>>(Array.Empty<RegionAvailability>());
-    }
 }
 
 

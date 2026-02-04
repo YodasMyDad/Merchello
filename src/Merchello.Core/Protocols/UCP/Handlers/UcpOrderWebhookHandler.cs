@@ -211,7 +211,7 @@ public class UcpOrderWebhookHandler(
             ucp = new
             {
                 version = _protocolSettings.Ucp.Version,
-                capabilities = new[] { ProtocolConstants.UcpCapabilities.Order }
+                capabilities = new[] { UcpCapabilityNames.Order }
             },
             @event = eventType,
             id = invoice.Id.ToString(),
@@ -408,11 +408,11 @@ public class UcpOrderWebhookHandler(
     {
         return status switch
         {
-            ShipmentStatus.Preparing => ProtocolConstants.FulfillmentEventTypes.Processing,
-            ShipmentStatus.Shipped => ProtocolConstants.FulfillmentEventTypes.Shipped,
-            ShipmentStatus.Delivered => ProtocolConstants.FulfillmentEventTypes.Delivered,
-            ShipmentStatus.Cancelled => ProtocolConstants.FulfillmentEventTypes.Canceled,
-            _ => ProtocolConstants.FulfillmentEventTypes.Processing
+            ShipmentStatus.Preparing => ProtocolFulfillmentEventTypes.Processing,
+            ShipmentStatus.Shipped => ProtocolFulfillmentEventTypes.Shipped,
+            ShipmentStatus.Delivered => ProtocolFulfillmentEventTypes.Delivered,
+            ShipmentStatus.Cancelled => ProtocolFulfillmentEventTypes.Canceled,
+            _ => ProtocolFulfillmentEventTypes.Processing
         };
     }
 

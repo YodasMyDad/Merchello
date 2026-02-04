@@ -1,0 +1,2956 @@
+using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Extensions;
+using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Services;
+using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Checkout.Strategies;
+using Merchello.Core.Customers.Services.Interfaces;
+using Merchello.Core.ExchangeRates.Services.Interfaces;
+using Merchello.Core.Locality.Models;
+using Merchello.Core.Locality.Factories;
+using Merchello.Core.Payments.Dtos;
+using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Providers;
+using Merchello.Core.Payments.Providers.Interfaces;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Notifications.CheckoutNotifications;
+using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Shared.Providers;
+using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Storefront.Services;
+using Merchello.Core.Storefront.Services.Interfaces;
+using Merchello.Core.Upsells.Services.Interfaces;
+using Merchello.Core.Upsells.Services.Parameters;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Media;
+using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Security;
+using Umbraco.Cms.Core.Services;
+
+namespace Merchello.Services;
+
+/// <summary>
+/// Orchestrates checkout payment workflows for the public checkout API.
+/// </summary>
+public class CheckoutPaymentsOrchestrationService(
+    IPaymentProviderManager providerManager,
+    IPaymentService paymentService,
+    ISavedPaymentMethodService savedPaymentMethodService,
+    IInvoiceService invoiceService,
+    ICheckoutService checkoutService,
+    ICheckoutSessionService checkoutSessionService,
+    ICheckoutMemberService checkoutMemberService,
+    ICustomerService customerService,
+    IStorefrontContextService storefrontContextService,
+    ICurrencyService currencyService,
+    IExchangeRateCache exchangeRateCache,
+    IMerchelloNotificationPublisher notificationPublisher,
+    IPostPurchaseUpsellService postPurchaseUpsellService,
+    IMediaService mediaService,
+    MediaUrlGeneratorCollection mediaUrlGenerators,
+    IMemberManager memberManager,
+    AddressFactory addressFactory,
+    IOptions<MerchelloSettings> settings,
+    IHttpContextAccessor httpContextAccessor,
+    ILogger<CheckoutPaymentsOrchestrationService> logger) : ICheckoutPaymentsOrchestrationService
+{
+    private HttpContext CurrentHttpContext =>
+        httpContextAccessor.HttpContext ?? throw new InvalidOperationException("No active HTTP context.");
+
+
+    /// <summary>
+    /// Get available payment methods for checkout.
+    /// Only returns methods where ShowInCheckout is true (excludes backoffice-only methods like Manual Payment).
+    /// </summary>
+    public async Task<IReadOnlyCollection<PaymentMethodDto>> GetPaymentMethodsAsync(CancellationToken cancellationToken = default)
+    {
+        var methods = await providerManager.GetCheckoutPaymentMethodsAsync(cancellationToken);
+
+        // Resolve custom icon URLs for methods with IconMediaKey
+        foreach (var method in methods.Where(m => m.IconMediaKey.HasValue))
+        {
+            method.IconMediaUrl = ResolveMediaUrl(method.IconMediaKey!.Value);
+        }
+
+        return methods;
+    }
+
+    /// <summary>
+    /// Resolves a media key to a URL.
+    /// </summary>
+    private string? ResolveMediaUrl(Guid mediaKey)
+    {
+        var media = mediaService.GetById(mediaKey);
+        if (media == null)
+        {
+            return null;
+        }
+
+        if (mediaUrlGenerators.TryGetMediaPath(media.ContentType.Alias, media.GetValue<string>("umbracoFile"), out var mediaPath))
+        {
+            return mediaPath;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Create a payment session for an invoice
+    /// </summary>
+    public async Task<CheckoutApiResult> CreatePaymentSessionAsync(
+        Guid invoiceId,
+        InitiatePaymentDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderAlias))
+        {
+            return CheckoutApiResult.BadRequest("ProviderAlias is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ReturnUrl))
+        {
+            return CheckoutApiResult.BadRequest("ReturnUrl is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CancelUrl))
+        {
+            return CheckoutApiResult.BadRequest("CancelUrl is required.");
+        }
+
+        // Fetch invoice and validate ownership
+        var invoice = await invoiceService.GetInvoiceAsync(invoiceId, cancellationToken);
+
+        if (invoice == null)
+        {
+            return CheckoutApiResult.NotFound("Invoice not found.");
+        }
+
+        // Validate invoice state before allowing payment
+        if (invoice.IsCancelled)
+        {
+            logger.LogWarning("Payment attempt on cancelled invoice: {InvoiceId}", invoiceId);
+            return CheckoutApiResult.BadRequest("This invoice has been cancelled and cannot be paid.");
+        }
+
+        var invoicePaymentStatus = await paymentService.GetInvoicePaymentStatusAsync(invoiceId, cancellationToken);
+        if (invoicePaymentStatus == InvoicePaymentStatus.Paid)
+        {
+            logger.LogWarning("Payment attempt on already-paid invoice: {InvoiceId}", invoiceId);
+            return CheckoutApiResult.BadRequest("This invoice has already been paid.");
+        }
+
+        if (invoicePaymentStatus == InvoicePaymentStatus.Refunded)
+        {
+            logger.LogWarning("Payment attempt on refunded invoice: {InvoiceId}", invoiceId);
+            return CheckoutApiResult.BadRequest("This invoice has been refunded and cannot accept new payments.");
+        }
+
+        // Validate that the current checkout session owns this invoice
+        // This prevents users from paying invoices that don't belong to them
+        var currentBasket = await checkoutService.GetBasket(
+            new GetBasketParameters(),
+            cancellationToken);
+
+        if (currentBasket == null)
+        {
+            return CheckoutApiResult.Forbidden("No active checkout session.");
+        }
+
+        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+        // Validate ownership with multiple checks for defense in depth:
+        // 1. Session must have the invoice ID that was created from this checkout
+        // 2. Billing email must match (fallback for sessions created before InvoiceId tracking)
+        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == invoiceId;
+        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasValidInvoiceId && !hasValidEmail)
+        {
+            logger.LogWarning(
+                "Invoice ownership validation failed: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
+                invoiceId,
+                invoice.BillingAddress.Email,
+                session.InvoiceId,
+                session.BillingAddress.Email);
+
+            return CheckoutApiResult.Forbidden("You do not have permission to pay this invoice.");
+        }
+
+        // Verify provider is enabled
+        var provider = await providerManager.GetProviderAsync(
+            request.ProviderAlias,
+            requireEnabled: true,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return CheckoutApiResult.BadRequest($"Payment provider '{request.ProviderAlias}' is not available.");
+        }
+
+        var shouldSavePaymentMethod = request.SavePaymentMethod
+            && provider.Metadata.SupportsVaultedPayments
+            && provider.Setting?.IsVaultingEnabled == true;
+
+        if (shouldSavePaymentMethod)
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member == null)
+            {
+                shouldSavePaymentMethod = false;
+            }
+        }
+
+        // Create payment session
+        var result = await paymentService.CreatePaymentSessionAsync(
+            new CreatePaymentSessionParameters
+            {
+                InvoiceId = invoiceId,
+                ProviderAlias = request.ProviderAlias,
+                MethodAlias = request.MethodAlias,
+                ReturnUrl = request.ReturnUrl,
+                CancelUrl = request.CancelUrl,
+                SavePaymentMethod = shouldSavePaymentMethod
+            },
+            cancellationToken);
+
+        var response = new PaymentSessionResultDto
+        {
+            Success = result.Success,
+            InvoiceId = invoiceId,
+            SessionId = result.SessionId,
+            IntegrationType = result.IntegrationType,
+            RedirectUrl = result.RedirectUrl,
+            ClientToken = result.ClientToken,
+            ClientSecret = result.ClientSecret,
+            JavaScriptSdkUrl = result.JavaScriptSdkUrl,
+            SdkConfiguration = result.SdkConfiguration,
+            AdapterUrl = result.AdapterUrl,
+            // Use result values if set, otherwise fall back to request values
+            ProviderAlias = result.ProviderAlias ?? request.ProviderAlias,
+            MethodAlias = result.MethodAlias ?? request.MethodAlias,
+            FormFields = result.FormFields?.Select(f => new CheckoutFormFieldDto
+            {
+                Key = f.Key,
+                Label = f.Label,
+                Description = f.Description,
+                FieldType = f.FieldType.ToString(),
+                IsRequired = f.IsRequired,
+                DefaultValue = f.DefaultValue,
+                Placeholder = f.Placeholder,
+                ValidationPattern = f.ValidationPattern,
+                ValidationMessage = f.ValidationMessage,
+                Options = f.Options?.Select(o => new SelectOption
+                {
+                    Value = o.Value,
+                    Label = o.Label
+                }).ToList()
+            }).ToList(),
+            ErrorMessage = result.ErrorMessage
+        };
+
+        if (!result.Success)
+        {
+            logger.LogWarning(
+                "Payment session creation failed for invoice {InvoiceId} with provider {Provider}: {Error}",
+                invoiceId,
+                request.ProviderAlias,
+                result.ErrorMessage);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Payment session created for invoice {InvoiceId} with provider {Provider}, SessionId: {SessionId}",
+                invoiceId,
+                request.ProviderAlias,
+                result.SessionId);
+        }
+
+        return CheckoutApiResult.Ok(response);
+    }
+
+    /// <summary>
+    /// Handle return from payment gateway after successful payment
+    /// </summary>
+    public async Task<PaymentReturnResultDto> HandleReturnAsync(
+        PaymentReturnQueryDto query,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Payment return received: InvoiceId={InvoiceId}, TransactionId={TransactionId}, Provider={Provider}",
+            query.InvoiceId,
+            query.TransactionId,
+            query.Provider);
+
+        // If we have a transaction ID, check if payment was already recorded (via webhook)
+        if (!string.IsNullOrEmpty(query.TransactionId))
+        {
+            var existingPayment = await paymentService.GetPaymentByTransactionIdAsync(
+                query.TransactionId,
+                cancellationToken);
+
+            if (existingPayment != null)
+            {
+                // Clear basket on successful payment
+                if (existingPayment.PaymentSuccess)
+                {
+                    ClearBasketCookieAndSession();
+                }
+
+                return new PaymentReturnResultDto
+                {
+                    Success = existingPayment.PaymentSuccess,
+                    Message = existingPayment.PaymentSuccess
+                        ? "Payment completed successfully."
+                        : "Payment was not successful.",
+                    InvoiceId = existingPayment.InvoiceId,
+                    PaymentId = existingPayment.Id
+                };
+            }
+        }
+
+        // Amazon Pay: complete the checkout session on return
+        var providerAlias = query.Provider ?? CurrentHttpContext.Request.Query["provider"].ToString();
+        if (string.Equals(providerAlias, "amazonpay", StringComparison.OrdinalIgnoreCase))
+        {
+            var sessionId = query.SessionId;
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                sessionId = CurrentHttpContext.Request.Query["amazonCheckoutSessionId"].FirstOrDefault()
+                    ?? CurrentHttpContext.Request.Query["checkoutSessionId"].FirstOrDefault();
+            }
+
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return new PaymentReturnResultDto
+                {
+                    Success = false,
+                    Message = "Amazon Pay checkout session ID is required.",
+                    InvoiceId = query.InvoiceId
+                };
+            }
+
+            if (!query.InvoiceId.HasValue)
+            {
+                return new PaymentReturnResultDto
+                {
+                    Success = false,
+                    Message = "InvoiceId is required to complete Amazon Pay payment."
+                };
+            }
+
+            var invoice = await invoiceService.GetInvoiceAsync(query.InvoiceId.Value, cancellationToken);
+            if (invoice == null)
+            {
+                return new PaymentReturnResultDto
+                {
+                    Success = false,
+                    Message = "Invoice not found.",
+                    InvoiceId = query.InvoiceId
+                };
+            }
+
+            // If payment already recorded, return success without re-processing
+            var existingPayments = await paymentService.GetPaymentsForInvoiceAsync(invoice.Id, cancellationToken);
+            var existingAmazonPayment = existingPayments.FirstOrDefault(p =>
+                string.Equals(p.PaymentProviderAlias, providerAlias, StringComparison.OrdinalIgnoreCase) &&
+                p.PaymentSuccess);
+
+            if (existingAmazonPayment != null)
+            {
+                SetConfirmationToken(invoice.Id);
+                ClearBasketCookieAndSession();
+                return new PaymentReturnResultDto
+                {
+                    Success = true,
+                    Message = "Payment completed successfully.",
+                    InvoiceId = invoice.Id,
+                    PaymentId = existingAmazonPayment.Id
+                };
+            }
+
+            var methodAlias = CurrentHttpContext.Request.Query["methodAlias"].FirstOrDefault();
+            var processResult = await paymentService.ProcessPaymentAsync(
+                new ProcessPaymentRequest
+                {
+                    InvoiceId = invoice.Id,
+                    ProviderAlias = providerAlias,
+                    MethodAlias = methodAlias,
+                    SessionId = sessionId,
+                    Amount = invoice.Total,
+                    CurrencyCode = invoice.CurrencyCode,
+                    CustomerEmail = invoice.BillingAddress?.Email,
+                    CustomerName = invoice.BillingAddress?.Name,
+                    Description = $"Payment for Invoice {invoice.InvoiceNumber}"
+                },
+                cancellationToken);
+
+            if (processResult.Successful && processResult.ResultObject != null)
+            {
+                SetConfirmationToken(invoice.Id);
+                ClearBasketCookieAndSession();
+                return new PaymentReturnResultDto
+                {
+                    Success = true,
+                    Message = "Payment completed successfully.",
+                    InvoiceId = invoice.Id,
+                    PaymentId = processResult.ResultObject.Id
+                };
+            }
+
+            var errorMessage = processResult.Messages
+                .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
+                ?? "Payment processing failed.";
+
+            return new PaymentReturnResultDto
+            {
+                Success = false,
+                Message = errorMessage,
+                InvoiceId = invoice.Id
+            };
+        }
+
+        // Payment not yet recorded - it may be processed via webhook shortly
+        // Return a pending status
+        return new PaymentReturnResultDto
+        {
+            Success = true,
+            Message = "Payment is being processed. Please wait for confirmation.",
+            InvoiceId = query.InvoiceId
+        };
+    }
+
+    /// <summary>
+    /// Handle cancel from payment gateway
+    /// </summary>
+    public Task<PaymentReturnResultDto> HandleCancelAsync(
+        PaymentReturnQueryDto query,
+        CancellationToken cancellationToken = default)
+    {
+        logger.LogInformation(
+            "Payment cancelled: InvoiceId={InvoiceId}, TransactionId={TransactionId}, Provider={Provider}",
+            query.InvoiceId,
+            query.TransactionId,
+            query.Provider);
+
+        return Task.FromResult(new PaymentReturnResultDto
+        {
+            Success = false,
+            Message = "Payment was cancelled.",
+            InvoiceId = query.InvoiceId
+        });
+    }
+
+    /// <summary>
+    /// Initiate payment from checkout.
+    /// Creates an invoice from the current basket, then creates a payment session.
+    /// </summary>
+    public async Task<CheckoutApiResult> InitiatePaymentAsync(
+        InitiatePaymentDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderAlias))
+        {
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "ProviderAlias is required."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ReturnUrl))
+        {
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "ReturnUrl is required."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CancelUrl))
+        {
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "CancelUrl is required."
+            });
+        }
+
+        // Get the current basket
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
+
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "No items in basket."
+            });
+        }
+
+        // Get checkout session
+        var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+
+        // Validate checkout session has progressed far enough for payment.
+        // If the session is still at the Information step, the customer hasn't completed
+        // address entry or shipping selection (prevents stage-skipping via direct API calls).
+        if (session.CurrentStep < CheckoutStep.Shipping &&
+            string.IsNullOrWhiteSpace(session.BillingAddress.Email))
+        {
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "Your checkout session has expired. Please restart checkout."
+            });
+        }
+
+        // Validate digital products require a customer account
+        if (await checkoutService.BasketHasDigitalProductsAsync(
+                new BasketHasDigitalProductsParameters { Basket = basket },
+                cancellationToken))
+        {
+            var isAuthenticated = CurrentHttpContext.User.Identity?.IsAuthenticated == true;
+            var email = session.BillingAddress.Email;
+            var hasMemberAccount = !isAuthenticated && !string.IsNullOrEmpty(email) &&
+                await checkoutMemberService.GetMemberKeyByEmailAsync(email, cancellationToken) != null;
+
+            if (!isAuthenticated && !hasMemberAccount)
+            {
+                return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "An account is required to purchase digital products. Please sign in or create an account."
+                });
+            }
+        }
+
+        // Fallback to basket addresses if session is empty (session expired, different browser, etc.)
+        // The basket addresses are persisted to the database, while session is volatile (HTTP session)
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.Name) &&
+            !string.IsNullOrWhiteSpace(basket.BillingAddress.Name))
+        {
+            logger.LogWarning(
+                "Checkout session addresses empty, falling back to basket addresses for basket {BasketId}",
+                basket.Id);
+            session.BillingAddress = basket.BillingAddress;
+            session.ShippingAddress = basket.ShippingAddress;
+        }
+
+        // Validate checkout session has all required address data
+        var validation = ValidateCheckoutSession(session);
+        if (!validation.IsValid)
+        {
+            logger.LogWarning(
+                "Checkout session validation failed for basket {BasketId}: {Error}",
+                basket.Id,
+                validation.ErrorMessage);
+
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = validation.ErrorMessage
+            });
+        }
+
+        // Verify provider is enabled
+        var provider = await providerManager.GetProviderAsync(
+            request.ProviderAlias,
+            requireEnabled: true,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = $"Payment provider '{request.ProviderAlias}' is not available."
+            });
+        }
+
+        var shouldSavePaymentMethod = request.SavePaymentMethod
+            && provider.Metadata.SupportsVaultedPayments
+            && provider.Setting?.IsVaultingEnabled == true;
+
+        if (shouldSavePaymentMethod)
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member == null)
+            {
+                shouldSavePaymentMethod = false;
+            }
+        }
+
+        // Check if this is a DirectForm payment method (e.g., Purchase Order)
+        // For DirectForm types, we defer invoice creation until ProcessDirectPayment
+        // after form validation passes. This prevents ghost orders when validation fails.
+        var methodDefinition = provider.Provider.GetAvailablePaymentMethods()
+            .FirstOrDefault(m => m.Alias == (request.MethodAlias ?? request.ProviderAlias));
+        var isDirectForm = methodDefinition?.IntegrationType == PaymentIntegrationType.DirectForm;
+
+        // Re-validate stock availability before creating order
+        // This catches cases where stock changed while user was completing checkout
+        var availability = await storefrontContextService.GetBasketAvailabilityAsync(
+            basket.LineItems,
+            session.ShippingAddress.CountryCode,
+            session.ShippingAddress.CountyState?.RegionCode,
+            cancellationToken);
+
+        if (!availability.AllItemsAvailable)
+        {
+            var unavailableItems = availability.Items
+                .Where(i => !i.CanShipToLocation || !i.HasStock)
+                .Select(i => i.StatusMessage)
+                .ToList();
+
+            logger.LogWarning(
+                "Stock validation failed at checkout for basket {BasketId}: {UnavailableItems}",
+                basket.Id,
+                string.Join(", ", unavailableItems));
+
+            await notificationPublisher.PublishAsync(
+                new StockValidationFailedAtCheckoutNotification(basket.Id, unavailableItems),
+                cancellationToken);
+
+            return CheckoutApiResult.BadRequest(new PaymentSessionResultDto
+            {
+                Success = false,
+                ErrorMessage = "Some items in your basket are no longer available. Please review your basket and try again.",
+                UnavailableItems = unavailableItems
+            });
+        }
+
+        // Get or create invoice from basket (skip for DirectForm - will be created in ProcessDirectPayment)
+        Invoice? invoice = null;
+        if (!isDirectForm)
+        {
+            // Check for existing unpaid invoice to prevent ghost orders when users abandon and return
+            invoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id, cancellationToken);
+
+            if (invoice != null)
+            {
+                logger.LogInformation(
+                    "Reusing existing unpaid invoice {InvoiceId} for basket {BasketId}",
+                    invoice.Id,
+                    basket.Id);
+            }
+            else
+            {
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                if (!createResult.Successful || createResult.ResultObject == null)
+                {
+                    var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                    logger.LogError("Invoice creation failed for basket {BasketId}: {Error}", basket.Id, errorMsg);
+                    return CheckoutApiResult.BadRequest(errorMsg);
+                }
+
+                invoice = createResult.ResultObject;
+                logger.LogInformation(
+                    "Invoice {InvoiceId} created from basket {BasketId}",
+                    invoice.Id,
+                    basket.Id);
+            }
+
+            // Store invoice ID in session for ownership validation during payment
+            await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
+        }
+        else
+        {
+            logger.LogInformation(
+                "DirectForm payment session for basket {BasketId} - invoice deferred until form validation",
+                basket.Id);
+        }
+
+        // Create payment session
+        var result = await paymentService.CreatePaymentSessionAsync(
+            new CreatePaymentSessionParameters
+            {
+                InvoiceId = invoice?.Id ?? Guid.Empty,
+                ProviderAlias = request.ProviderAlias,
+                MethodAlias = request.MethodAlias,
+                ReturnUrl = request.ReturnUrl,
+                CancelUrl = request.CancelUrl,
+                SavePaymentMethod = shouldSavePaymentMethod
+            },
+            cancellationToken);
+
+        var response = new PaymentSessionResultDto
+        {
+            Success = result.Success,
+            InvoiceId = invoice?.Id,
+            SessionId = result.SessionId,
+            IntegrationType = result.IntegrationType,
+            RedirectUrl = result.RedirectUrl,
+            ClientToken = result.ClientToken,
+            ClientSecret = result.ClientSecret,
+            JavaScriptSdkUrl = result.JavaScriptSdkUrl,
+            SdkConfiguration = result.SdkConfiguration,
+            AdapterUrl = result.AdapterUrl,
+            // Use result values if set, otherwise fall back to request values
+            ProviderAlias = result.ProviderAlias ?? request.ProviderAlias,
+            MethodAlias = result.MethodAlias ?? request.MethodAlias,
+            FormFields = result.FormFields?.Select(f => new CheckoutFormFieldDto
+            {
+                Key = f.Key,
+                Label = f.Label,
+                Description = f.Description,
+                FieldType = f.FieldType.ToString(),
+                IsRequired = f.IsRequired,
+                DefaultValue = f.DefaultValue,
+                Placeholder = f.Placeholder,
+                ValidationPattern = f.ValidationPattern,
+                ValidationMessage = f.ValidationMessage,
+                Options = f.Options?.Select(o => new SelectOption
+                {
+                    Value = o.Value,
+                    Label = o.Label
+                }).ToList()
+            }).ToList(),
+            ErrorMessage = result.ErrorMessage
+        };
+
+        if (!result.Success)
+        {
+            logger.LogWarning(
+                "Payment session creation failed for {PaymentType} with provider {Provider}: {Error}",
+                invoice != null ? $"invoice {invoice.Id}" : "DirectForm (no invoice yet)",
+                request.ProviderAlias,
+                result.ErrorMessage);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Payment session created for {PaymentType} with provider {Provider}, SessionId: {SessionId}",
+                invoice != null ? $"invoice {invoice.Id}" : "DirectForm (invoice deferred)",
+                request.ProviderAlias,
+                result.SessionId);
+        }
+
+        return CheckoutApiResult.Ok(response);
+    }
+
+    /// <summary>
+    /// Process a payment after client-side tokenization (e.g., Braintree Drop-in, Stripe Elements).
+    /// Used for HostedFields integration type where the client obtains a payment method token/nonce.
+    /// </summary>
+    public async Task<CheckoutApiResult> ProcessPaymentAsync(
+        ProcessPaymentDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderAlias))
+        {
+            return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "ProviderAlias is required."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.PaymentMethodToken))
+        {
+            return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "PaymentMethodToken is required."
+            });
+        }
+
+        // Get the invoice
+        var invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId, cancellationToken);
+
+        if (invoice == null)
+        {
+            return CheckoutApiResult.NotFound(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Invoice not found."
+            });
+        }
+
+        // Validate that the current checkout session owns this invoice
+        var currentBasket = await checkoutService.GetBasket(
+            new GetBasketParameters(),
+            cancellationToken);
+
+        if (currentBasket == null)
+        {
+            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "No active checkout session."
+            });
+        }
+
+        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+        // Validate ownership with multiple checks for defense in depth
+        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
+        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasValidInvoiceId && !hasValidEmail)
+        {
+            logger.LogWarning(
+                "Invoice ownership validation failed in ProcessPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
+                request.InvoiceId,
+                invoice.BillingAddress.Email,
+                session.InvoiceId,
+                session.BillingAddress.Email);
+
+            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "You do not have permission to pay this invoice."
+            });
+        }
+
+        // Verify provider is enabled
+        var provider = await providerManager.GetProviderAsync(
+            request.ProviderAlias,
+            requireEnabled: true,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = $"Payment provider '{request.ProviderAlias}' is not available."
+            });
+        }
+
+        // Check if vaulting is available and requested
+        var vaultingEnabled = provider.Metadata.SupportsVaultedPayments
+            && provider.Setting?.IsVaultingEnabled == true;
+        var shouldSavePaymentMethod = request.SavePaymentMethod && vaultingEnabled;
+
+        // Get customer ID if logged in (required for vaulting)
+        Guid? customerId = null;
+        if (shouldSavePaymentMethod)
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member != null)
+            {
+                var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+                customerId = customer?.Id;
+            }
+
+            // If customer not found, can't save payment method
+            if (!customerId.HasValue)
+            {
+                shouldSavePaymentMethod = false;
+                logger.LogDebug("SavePaymentMethod requested but customer not found. Skipping vault.");
+            }
+        }
+
+        // Build the process payment request
+        var processRequest = new ProcessPaymentRequest
+        {
+            InvoiceId = request.InvoiceId,
+            ProviderAlias = request.ProviderAlias,
+            MethodAlias = request.MethodAlias,
+            PaymentMethodToken = request.PaymentMethodToken,
+            Amount = invoice.Total,
+            FormData = request.FormData,
+            // Vault fields
+            CustomerId = customerId,
+            CurrencyCode = invoice.CurrencyCode,
+            CustomerEmail = invoice.BillingAddress?.Email,
+            CustomerName = invoice.BillingAddress?.Name,
+            SavePaymentMethod = shouldSavePaymentMethod,
+            SetAsDefaultMethod = request.SetAsDefaultMethod
+        };
+
+        // Process the payment
+        var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
+
+        if (!result.Successful || result.ResultObject == null)
+        {
+            var errorMessage = result.Messages
+                .Where(m => m.ResultMessageType == Merchello.Core.Shared.Models.Enums.ResultMessageType.Error)
+                .Select(m => m.Message)
+                .FirstOrDefault() ?? "Payment processing failed.";
+
+            logger.LogWarning(
+                "Payment processing failed for invoice {InvoiceId} with provider {Provider}: {Error}",
+                request.InvoiceId,
+                request.ProviderAlias,
+                errorMessage);
+
+            return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+            {
+                Success = false,
+                InvoiceId = request.InvoiceId,
+                ErrorMessage = errorMessage
+            });
+        }
+
+        var paymentResult = result.ResultObject;
+
+        logger.LogInformation(
+            "Payment processed successfully for invoice {InvoiceId} with provider {Provider}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
+            request.InvoiceId,
+            request.ProviderAlias,
+            paymentResult.Id,
+            paymentResult.TransactionId);
+
+        // If payment succeeded and vault details returned, save to database
+        var paymentMethodSaved = false;
+        Guid? savedPaymentMethodId = null;
+        if (shouldSavePaymentMethod
+            && customerId.HasValue
+            && paymentResult.PaymentResult?.VaultedMethodDetails is { Success: true } vaultDetails)
+        {
+            var saveResult = await savedPaymentMethodService.SaveFromCheckoutAsync(
+                new SavePaymentMethodFromCheckoutParameters
+                {
+                    CustomerId = customerId.Value,
+                    ProviderAlias = request.ProviderAlias,
+                    ProviderMethodId = vaultDetails.ProviderMethodId!,
+                    ProviderCustomerId = vaultDetails.ProviderCustomerId,
+                    MethodType = vaultDetails.MethodType,
+                    CardBrand = vaultDetails.CardBrand,
+                    Last4 = vaultDetails.Last4,
+                    ExpiryMonth = vaultDetails.ExpiryMonth,
+                    ExpiryYear = vaultDetails.ExpiryYear,
+                    BillingName = invoice.BillingAddress?.Name,
+                    BillingEmail = invoice.BillingAddress?.Email,
+                    SetAsDefault = request.SetAsDefaultMethod,
+                    IpAddress = CurrentHttpContext.Connection.RemoteIpAddress?.ToString(),
+                    ExtendedData = vaultDetails.ExtendedData
+                },
+                cancellationToken);
+
+            if (saveResult.Successful)
+            {
+                paymentMethodSaved = true;
+                savedPaymentMethodId = saveResult.ResultObject?.Id;
+                logger.LogInformation(
+                    "Payment method saved for customer {CustomerId} with provider {Provider}",
+                    customerId.Value,
+                    request.ProviderAlias);
+            }
+            else
+            {
+                // Log but don't fail payment if vault save fails
+                logger.LogWarning(
+                    "Failed to save payment method after checkout for customer {CustomerId}: {Error}",
+                    customerId.Value,
+                    saveResult.Messages.FirstOrDefault()?.Message);
+            }
+        }
+        else if (shouldSavePaymentMethod)
+        {
+            logger.LogDebug(
+                "SavePaymentMethod requested for provider {Provider}, but no vault details were returned.",
+                request.ProviderAlias);
+        }
+
+        // Set confirmation token to authorize viewing the confirmation page
+        SetConfirmationToken(request.InvoiceId);
+
+        // Clear basket after successful payment
+        ClearBasketCookieAndSession();
+
+        var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+            request.InvoiceId,
+            request.ProviderAlias,
+            savedPaymentMethodId,
+            cancellationToken);
+
+        return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+        {
+            Success = true,
+            InvoiceId = request.InvoiceId,
+            PaymentId = paymentResult.Id,
+            TransactionId = paymentResult.TransactionId,
+            RedirectUrl = redirectUrl,
+            PaymentMethodSaved = paymentMethodSaved
+        });
+    }
+
+    /// <summary>
+    /// Process a DirectForm payment (e.g., Purchase Order, Manual Payment).
+    /// Used for payment methods that require form data instead of a payment token.
+    /// </summary>
+    public async Task<CheckoutApiResult> ProcessDirectPaymentAsync(
+        ProcessDirectPaymentDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ProviderAlias))
+        {
+            return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "ProviderAlias is required."
+            });
+        }
+
+        // Get current basket and session first (needed for invoice lookup/creation)
+        var currentBasket = await checkoutService.GetBasket(
+            new GetBasketParameters(),
+            cancellationToken);
+
+        if (currentBasket == null)
+        {
+            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "No active checkout session."
+            });
+        }
+
+        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+        // Get or create invoice
+        // For DirectForm types (Purchase Order), invoice may not exist yet because we defer
+        // creation until after form validation passes to prevent ghost orders.
+        Invoice? invoice = null;
+        var invoiceCreatedInThisRequest = false;
+
+        // Try to get invoice from request
+        if (request.InvoiceId.HasValue && request.InvoiceId.Value != Guid.Empty)
+        {
+            invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId.Value, cancellationToken);
+        }
+        // Try to get invoice from session
+        else if (session.InvoiceId.HasValue)
+        {
+            invoice = await invoiceService.GetInvoiceAsync(session.InvoiceId.Value, cancellationToken);
+        }
+
+        // Check for existing unpaid invoice to prevent ghost orders when users abandon and return
+        if (invoice == null)
+        {
+            invoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(currentBasket.Id, cancellationToken);
+            if (invoice != null)
+            {
+                logger.LogInformation(
+                    "Reusing existing unpaid invoice {InvoiceId} for basket {BasketId} in DirectForm payment",
+                    invoice.Id,
+                    currentBasket.Id);
+                await checkoutSessionService.SetInvoiceIdAsync(currentBasket.Id, invoice.Id, cancellationToken);
+            }
+        }
+
+        // If no invoice exists, create one now (DirectForm flow - validation passed on frontend)
+        if (invoice == null)
+        {
+            logger.LogInformation(
+                "Creating invoice from basket {BasketId} during DirectForm payment submission",
+                currentBasket.Id);
+
+            // Validate checkout session has all required address data
+            var validation = ValidateCheckoutSession(session);
+            if (!validation.IsValid)
+            {
+                return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+                {
+                    Success = false,
+                    ErrorMessage = validation.ErrorMessage
+                });
+            }
+
+            // Re-validate stock before creating invoice
+            var availability = await storefrontContextService.GetBasketAvailabilityAsync(
+                currentBasket.LineItems,
+                session.ShippingAddress.CountryCode,
+                session.ShippingAddress.CountyState?.RegionCode,
+                cancellationToken);
+
+            if (!availability.AllItemsAvailable)
+            {
+                return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "Some items in your basket are no longer available."
+                });
+            }
+
+            var createResult = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, source: null, cancellationToken);
+            if (!createResult.Successful || createResult.ResultObject == null)
+            {
+                var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                logger.LogError("Invoice creation failed for basket {BasketId}: {Error}", currentBasket.Id, errorMsg);
+                return CheckoutApiResult.BadRequest(errorMsg);
+            }
+
+            invoice = createResult.ResultObject;
+            await checkoutSessionService.SetInvoiceIdAsync(currentBasket.Id, invoice.Id, cancellationToken);
+            invoiceCreatedInThisRequest = true;
+
+            logger.LogInformation(
+                "Invoice {InvoiceId} created from basket {BasketId} during DirectForm payment",
+                invoice.Id,
+                currentBasket.Id);
+        }
+
+        // Validate ownership with multiple checks for defense in depth
+        // Skip this check if we just created the invoice - we know it's valid
+        if (!invoiceCreatedInThisRequest)
+        {
+            var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == invoice.Id;
+            var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+                string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+            if (!hasValidInvoiceId && !hasValidEmail)
+            {
+                logger.LogWarning(
+                    "Invoice ownership validation failed in ProcessDirectPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
+                    invoice.Id,
+                    invoice.BillingAddress.Email,
+                    session.InvoiceId,
+                    session.BillingAddress.Email);
+
+                return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "You do not have permission to pay this invoice."
+                });
+            }
+        }
+
+        // Verify provider is enabled
+        var provider = await providerManager.GetProviderAsync(
+            request.ProviderAlias,
+            requireEnabled: true,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Payment provider '" + request.ProviderAlias + "' is not available."
+            });
+        }
+
+        // Sanitize form data to prevent injection attacks
+        var sanitizedFormData = SanitizeFormData(request.FormData);
+
+        // Log form fields being processed (for security monitoring)
+        if (sanitizedFormData.Any())
+        {
+            logger.LogInformation(
+                "Processing DirectForm payment for invoice {InvoiceId} with provider {Provider}, fields: {Fields}",
+                invoice.Id,
+                request.ProviderAlias,
+                string.Join(", ", sanitizedFormData.Keys));
+        }
+
+        // Build the process payment request for DirectForm
+        var processRequest = new ProcessPaymentRequest
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = request.ProviderAlias,
+            MethodAlias = request.MethodAlias,
+            Amount = invoice.Total,
+            FormData = sanitizedFormData
+        };
+
+        // Process the payment
+        var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
+
+        if (!result.Successful)
+        {
+            var errorMessage = result.Messages
+                .Where(m => m.ResultMessageType == Merchello.Core.Shared.Models.Enums.ResultMessageType.Error)
+                .Select(m => m.Message)
+                .FirstOrDefault() ?? "Payment processing failed.";
+
+            logger.LogWarning(
+                "DirectForm payment processing failed for invoice {InvoiceId} with provider {Provider}: {Error}",
+                invoice.Id,
+                request.ProviderAlias,
+                errorMessage);
+
+            return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+            {
+                Success = false,
+                InvoiceId = invoice.Id,
+                ErrorMessage = errorMessage
+            });
+        }
+
+        // Set confirmation token to authorize viewing the confirmation page
+        SetConfirmationToken(invoice.Id);
+
+        // Clear basket after successful payment
+        ClearBasketCookieAndSession();
+
+        // Check if payment was recorded (may be skipped for Purchase Order)
+        if (result.ResultObject == null)
+        {
+            logger.LogInformation(
+                "DirectForm payment accepted for invoice {InvoiceId} with provider {Provider} (no payment recorded - awaiting payment)",
+                invoice.Id,
+                request.ProviderAlias);
+
+            return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+            {
+                Success = true,
+                InvoiceId = invoice.Id,
+                PaymentId = null,
+                TransactionId = null,
+                RedirectUrl = "/checkout/confirmation/" + invoice.Id
+            });
+        }
+
+        logger.LogInformation(
+            "DirectForm payment processed successfully for invoice {InvoiceId} with provider {Provider}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
+            invoice.Id,
+            request.ProviderAlias,
+            result.ResultObject.Id,
+            result.ResultObject.TransactionId);
+
+        var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+            invoice.Id,
+            request.ProviderAlias,
+            null,
+            cancellationToken);
+
+        return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+        {
+            Success = true,
+            InvoiceId = invoice.Id,
+            PaymentId = result.ResultObject.Id,
+            TransactionId = result.ResultObject.TransactionId,
+            RedirectUrl = redirectUrl
+        });
+    }
+
+    // =====================================================
+    // Express Checkout
+    // =====================================================
+
+    /// <summary>
+    /// Get available express checkout methods (Apple Pay, Google Pay, PayPal, etc.).
+    /// These methods appear at the start of checkout and collect customer data from the provider.
+    /// </summary>
+    public async Task<IReadOnlyCollection<ExpressCheckoutMethodDto>> GetExpressCheckoutMethodsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var methods = await providerManager.GetExpressCheckoutMethodsAsync(cancellationToken);
+
+        return methods.Select(m => new ExpressCheckoutMethodDto
+        {
+            ProviderAlias = m.ProviderAlias,
+            MethodAlias = m.MethodAlias,
+            DisplayName = m.DisplayName,
+            Icon = m.Icon,
+            MethodType = m.MethodType,
+            SortOrder = m.SortOrder
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Process an express checkout payment.
+    /// Creates an invoice from the basket, processes payment, and returns the result.
+    /// </summary>
+    public async Task<CheckoutApiResult> ProcessExpressCheckoutAsync(
+        ExpressCheckoutRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        // Validate request
+        if (string.IsNullOrWhiteSpace(request.ProviderAlias))
+        {
+            return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+            {
+                Success = false,
+                ErrorMessage = "ProviderAlias is required."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.PaymentToken))
+        {
+            return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+            {
+                Success = false,
+                ErrorMessage = "PaymentToken is required."
+            });
+        }
+
+        if (request.CustomerData == null)
+        {
+            return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+            {
+                Success = false,
+                ErrorMessage = "CustomerData is required."
+            });
+        }
+
+        // Get the current basket
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
+
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+            {
+                Success = false,
+                ErrorMessage = "No items in basket."
+            });
+        }
+
+        // Validate digital products require a customer account
+        if (await checkoutService.BasketHasDigitalProductsAsync(
+                new BasketHasDigitalProductsParameters { Basket = basket },
+                cancellationToken))
+        {
+            var isAuthenticated = CurrentHttpContext.User.Identity?.IsAuthenticated == true;
+            var email = request.CustomerData.Email;
+            var hasMemberAccount = !isAuthenticated && !string.IsNullOrEmpty(email) &&
+                await checkoutMemberService.GetMemberKeyByEmailAsync(email, cancellationToken) != null;
+
+            if (!isAuthenticated && !hasMemberAccount)
+            {
+                return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "An account is required to purchase digital products. Please sign in or create an account."
+                });
+            }
+        }
+
+        // Verify provider is enabled
+        var provider = await providerManager.GetProviderAsync(
+            request.ProviderAlias,
+            requireEnabled: true,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+            {
+                Success = false,
+                ErrorMessage = $"Payment provider '{request.ProviderAlias}' is not available."
+            });
+        }
+
+        try
+        {
+            // Convert express checkout customer data to checkout session addresses
+            var billingAddress = MapExpressAddress(
+                request.CustomerData.BillingAddress ?? request.CustomerData.ShippingAddress,
+                request.CustomerData.Email,
+                request.CustomerData.FullName,
+                request.CustomerData.Phone);
+
+            var shippingAddress = MapExpressAddress(
+                request.CustomerData.ShippingAddress,
+                request.CustomerData.Email,
+                request.CustomerData.FullName,
+                request.CustomerData.Phone);
+
+            // If no addresses were provided by the payment provider, we can't complete express checkout
+            // The user needs to complete the regular checkout flow instead
+            if (billingAddress == null)
+            {
+                return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "No address provided. Please complete the checkout form."
+                });
+            }
+
+            // PayPal often returns a partial billing address (name and country only, no street).
+            // If billing address is incomplete, copy missing fields from shipping address.
+            if (shippingAddress != null && string.IsNullOrWhiteSpace(billingAddress.AddressOne))
+            {
+                billingAddress.AddressOne = shippingAddress.AddressOne;
+                billingAddress.AddressTwo = shippingAddress.AddressTwo;
+                billingAddress.TownCity = shippingAddress.TownCity;
+                billingAddress.PostalCode = shippingAddress.PostalCode;
+                billingAddress.CountyState = shippingAddress.CountyState;
+                // Keep billing country if it was provided, otherwise use shipping
+                if (string.IsNullOrWhiteSpace(billingAddress.CountryCode))
+                {
+                    billingAddress.CountryCode = shippingAddress.CountryCode;
+                }
+            }
+
+            var requiresShipping = BasketRequiresShipping(basket);
+            Dictionary<Guid, string> shippingSelections = [];
+
+            if (requiresShipping)
+            {
+                // Create transient session for validation (NOT persisted yet)
+                // This ensures we don't corrupt session state if shipping validation fails
+                var sameAsBilling = request.CustomerData.BillingAddress == null ||
+                                    string.IsNullOrWhiteSpace(request.CustomerData.BillingAddress.AddressOne);
+                var effectiveShippingAddress = sameAsBilling ? billingAddress : (shippingAddress ?? billingAddress);
+
+                var transientSession = new CheckoutSession
+                {
+                    BasketId = basket.Id,
+                    BillingAddress = billingAddress,
+                    ShippingAddress = effectiveShippingAddress,
+                    ShippingSameAsBilling = sameAsBilling,
+                    AcceptsMarketing = false,
+                    CurrentStep = CheckoutStep.Shipping
+                };
+
+                // Validate shipping BEFORE persisting addresses
+                var groupingResult = await checkoutService.GetOrderGroupsAsync(
+                    new GetOrderGroupsParameters
+                    {
+                        Basket = basket,
+                        Session = transientSession
+                    },
+                    cancellationToken);
+
+                if (!groupingResult.Success || groupingResult.Groups.Count == 0)
+                {
+                    logger.LogWarning(
+                        "Express checkout: Unable to calculate shipping options for basket {BasketId}. Address not persisted.",
+                        basket.Id);
+
+                    return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+                    {
+                        Success = false,
+                        ErrorMessage = "Unable to calculate shipping for your address. Please try a different address or use standard checkout."
+                    });
+                }
+
+                // Check if user already has shipping selections in their session
+                var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+
+                if (existingSession.SelectedShippingOptions.Count > 0)
+                {
+                    // User already selected shipping on checkout page - use their selection
+                    shippingSelections = existingSession.SelectedShippingOptions;
+
+                    logger.LogInformation(
+                        "Express checkout: Using {Count} existing shipping selections from session for basket {BasketId}",
+                        shippingSelections.Count,
+                        basket.Id);
+                }
+                else
+                {
+                    // No prior selection (true express checkout from cart) - auto-select cheapest
+                    shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+
+                    logger.LogInformation(
+                        "Express checkout: Auto-selected cheapest shipping for {Count} groups, basket {BasketId}",
+                        shippingSelections.Count,
+                        basket.Id);
+                }
+
+                if (shippingSelections.Count == 0)
+                {
+                    logger.LogWarning(
+                        "Express checkout: No shipping options available for basket {BasketId}. Address not persisted.",
+                        basket.Id);
+
+                    return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+                    {
+                        Success = false,
+                        ErrorMessage = "No shipping methods available for your location."
+                    });
+                }
+
+                // Validation passed - NOW persist addresses to session
+                await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+                {
+                    BasketId = basket.Id,
+                    Billing = billingAddress,
+                    Shipping = sameAsBilling ? null : shippingAddress,
+                    SameAsBilling = sameAsBilling
+                }, cancellationToken);
+
+                // Save shipping selections to session
+                await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
+                {
+                    BasketId = basket.Id,
+                    Selections = shippingSelections
+                }, cancellationToken);
+
+                logger.LogInformation(
+                    "Express checkout: Shipping selections saved for {GroupCount} groups, combined total: {Total}",
+                    shippingSelections.Count,
+                    ShippingAutoSelector.CalculateCombinedTotal(groupingResult.Groups, shippingSelections));
+            }
+            else
+            {
+                // Digital-only order: no shipping selections required.
+                await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
+                {
+                    BasketId = basket.Id,
+                    Billing = billingAddress,
+                    Shipping = billingAddress,
+                    SameAsBilling = true
+                }, cancellationToken);
+            }
+
+            // Get the persisted session for subsequent operations
+            var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+
+            // Check for existing unpaid invoice to prevent phantom orders
+            // This handles cases where express checkout is triggered multiple times
+            var existingInvoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id, cancellationToken);
+            Invoice invoice;
+            if (existingInvoice != null)
+            {
+                logger.LogInformation(
+                    "Express checkout: Reusing existing unpaid invoice {InvoiceId} for basket {BasketId}",
+                    existingInvoice.Id,
+                    basket.Id);
+                invoice = existingInvoice;
+            }
+            else
+            {
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                if (!createResult.Successful || createResult.ResultObject == null)
+                {
+                    var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                    logger.LogError("Express checkout invoice creation failed for basket {BasketId}: {Error}", basket.Id, errorMsg);
+                    return CheckoutApiResult.Ok(new ExpressCheckoutResponseDto { Success = false, ErrorMessage = errorMsg });
+                }
+
+                invoice = createResult.ResultObject;
+                logger.LogInformation(
+                    "Express checkout: Invoice {InvoiceId} created from basket {BasketId} for {Email}",
+                    invoice.Id,
+                    basket.Id,
+                    request.CustomerData.Email);
+            }
+
+            // Store invoice ID in session for ownership validation during payment
+            await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
+
+            // Build express checkout request for the provider
+            // Use invoice currency - this is the currency the customer agreed to pay
+            var expressRequest = new ExpressCheckoutRequest
+            {
+                BasketId = basket.Id,
+                MethodAlias = request.MethodAlias ?? request.ProviderAlias,
+                PaymentToken = request.PaymentToken,
+                Amount = invoice.Total,
+                Currency = invoice.CurrencyCode,
+                CustomerData = new ExpressCheckoutCustomerData
+                {
+                    Email = request.CustomerData.Email,
+                    Phone = request.CustomerData.Phone,
+                    FullName = request.CustomerData.FullName,
+                    ShippingAddress = MapDtoToExpressAddress(request.CustomerData.ShippingAddress),
+                    BillingAddress = request.CustomerData.BillingAddress != null
+                        ? MapDtoToExpressAddress(request.CustomerData.BillingAddress)
+                        : null
+                },
+                ProviderData = request.ProviderData
+            };
+
+            // Process the express checkout payment
+            var result = await provider.Provider.ProcessExpressCheckoutAsync(expressRequest, cancellationToken);
+
+            if (!result.Success)
+            {
+                logger.LogWarning(
+                    "Express checkout payment failed for invoice {InvoiceId}: {Error}",
+                    invoice.Id,
+                    result.ErrorMessage);
+
+                return CheckoutApiResult.Ok(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = result.ErrorMessage,
+                    ErrorCode = result.ErrorCode
+                });
+            }
+
+            // Record the payment (RecordPaymentAsync is for successful payments)
+            // If provider doesn't return a TransactionId, generate a deterministic one
+            // based on invoice, provider, and payment token to ensure idempotency
+            var transactionId = result.TransactionId;
+            if (string.IsNullOrEmpty(transactionId))
+            {
+                // Create deterministic ID from invoice + provider + payment token
+                // This ensures the same express checkout attempt produces the same transaction ID
+                var idempotencyKey = invoice.Id + ":" + request.ProviderAlias + ":" +
+                    (request.MethodAlias ?? "") + ":" + request.PaymentToken;
+                var hashBytes = System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(idempotencyKey));
+                transactionId = "express_" + Convert.ToHexString(hashBytes)[..16].ToLowerInvariant();
+            }
+            var paymentResult = await paymentService.RecordPaymentAsync(
+                new RecordPaymentParameters
+                {
+                    InvoiceId = invoice.Id,
+                    ProviderAlias = request.ProviderAlias,
+                    Amount = result.Amount,
+                    TransactionId = transactionId
+                },
+                cancellationToken);
+
+            if (!paymentResult.Successful || paymentResult.ResultObject == null)
+            {
+                logger.LogError(
+                    "Failed to record payment for invoice {InvoiceId}: {Error}",
+                    invoice.Id,
+                    paymentResult.Messages.FirstOrDefault()?.Message ?? "Unknown error");
+
+                return CheckoutApiResult.Ok(new ExpressCheckoutResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = "Payment was processed but failed to record. Please contact support."
+                });
+            }
+
+            var payment = paymentResult.ResultObject;
+
+            logger.LogInformation(
+                "Express checkout completed for invoice {InvoiceId}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
+                invoice.Id,
+                payment.Id,
+                transactionId);
+
+            // Set confirmation token to authorize viewing the confirmation page
+            SetConfirmationToken(invoice.Id);
+
+            // Clear basket after successful payment
+            ClearBasketCookieAndSession();
+
+            var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+                invoice.Id,
+                request.ProviderAlias,
+                null,
+                cancellationToken);
+
+            return CheckoutApiResult.Ok(new ExpressCheckoutResponseDto
+            {
+                Success = true,
+                InvoiceId = invoice.Id,
+                PaymentId = payment.Id,
+                TransactionId = result.TransactionId,
+                RedirectUrl = redirectUrl,
+                Status = result.Status switch
+                {
+                    PaymentResultStatus.Completed => "completed",
+                    PaymentResultStatus.Pending => "pending",
+                    _ => "unknown"
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Express checkout failed for basket {BasketId}", basket.Id);
+
+            return CheckoutApiResult.Ok(new ExpressCheckoutResponseDto
+            {
+                Success = false,
+                ErrorMessage = "An error occurred processing your payment. Please try again."
+            });
+        }
+    }
+
+    /// <summary>
+    /// Get SDK configuration for initializing express checkout buttons.
+    /// Returns provider-specific configuration needed to render express checkout buttons.
+    /// Each provider dynamically returns its own SDK configuration.
+    /// </summary>
+    public async Task<ExpressCheckoutConfigDto> GetExpressCheckoutConfigAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var methods = await providerManager.GetExpressCheckoutMethodsAsync(cancellationToken);
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
+
+        if (basket == null || !basket.LineItems.Any(li => li.ProductId.HasValue))
+        {
+            var emptyCurrency = basket?.Currency ?? settings.Value.StoreCurrencyCode;
+            return new ExpressCheckoutConfigDto { Currency = emptyCurrency, Methods = [] };
+        }
+
+        // Get shipping location from storefront context (respects cookie or store default)
+        var displayContext = await storefrontContextService.GetDisplayContextAsync(cancellationToken);
+        var countryCode = displayContext.TaxCountryCode;
+
+        // Check if user already has shipping selections in their session (from checkout page)
+        var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+        var shippingAddress = string.IsNullOrEmpty(existingSession.ShippingAddress.CountryCode)
+            ? addressFactory.CreateCountryOnly(countryCode)
+            : existingSession.ShippingAddress;
+
+        // Pre-calculate shipping using same flow as ProcessExpressCheckout
+        // This ensures the amount shown to PayPal matches what will be charged
+        var estimatedShipping = 0m;
+        var tempSession = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            ShippingAddress = shippingAddress,
+            SelectedShippingOptions = existingSession.SelectedShippingOptions
+        };
+
+        var groupingResult = await checkoutService.GetOrderGroupsAsync(
+            new GetOrderGroupsParameters
+            {
+                Basket = basket,
+                Session = tempSession
+            },
+            cancellationToken);
+        if (groupingResult.Success && groupingResult.Groups.Count > 0)
+        {
+            Dictionary<Guid, string> shippingSelections;
+
+            if (existingSession.SelectedShippingOptions.Count > 0)
+            {
+                // User already selected shipping on checkout page - use their selection
+                shippingSelections = existingSession.SelectedShippingOptions;
+            }
+            else
+            {
+                // No prior selection - auto-select cheapest for initial estimate
+                shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+            }
+
+            estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(
+                groupingResult.Groups,
+                shippingSelections);
+        }
+
+        // Recalculate basket with shipping to get accurate totals
+        await checkoutService.CalculateBasketAsync(
+            new CalculateBasketParameters
+            {
+                Basket = basket,
+                CountryCode = shippingAddress.CountryCode ?? countryCode,
+                ShippingAmountOverride = estimatedShipping
+            },
+            cancellationToken);
+
+        // Sync basket currency from storefront context (same as main checkout)
+        var currencyCtx = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
+        basket = await checkoutService.EnsureBasketCurrencyAsync(new EnsureBasketCurrencyParameters
+        {
+            Basket = basket,
+            CurrencyCode = currencyCtx.CurrencyCode,
+            CurrencySymbol = currencyCtx.CurrencySymbol
+        }, cancellationToken);
+
+        // Use same calculation path as invoice creation (NOT display amounts)
+        // This ensures PayPal authorizes the exact amount that will be charged
+        var presentmentCurrency = currencyCtx.CurrencyCode;
+        var storeCurrency = settings.Value.StoreCurrencyCode;
+
+        decimal total, subTotal, shipping, tax;
+
+        if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            // Get exchange rate same way as CreateOrderFromBasketAsync
+            var pricingQuote = await exchangeRateCache.GetRateQuoteAsync(
+                presentmentCurrency, storeCurrency, cancellationToken);
+
+            if (pricingQuote == null || pricingQuote.Rate <= 0m)
+            {
+                throw new InvalidOperationException(
+                    $"No exchange rate available for express checkout: {presentmentCurrency} → {storeCurrency}");
+            }
+
+            // Pre-invoice amount calculation: derives payment amount from basket totals before full invoice creation.
+            // Uses the same ConvertToPresentmentCurrency path as InvoiceService.ApplyPricingRateToStoreAmounts().
+            total = currencyService.ConvertToPresentmentCurrency(basket.Total, pricingQuote.Rate, presentmentCurrency);
+            subTotal = currencyService.ConvertToPresentmentCurrency(basket.SubTotal, pricingQuote.Rate, presentmentCurrency);
+            shipping = currencyService.ConvertToPresentmentCurrency(basket.Shipping, pricingQuote.Rate, presentmentCurrency);
+            tax = currencyService.ConvertToPresentmentCurrency(basket.Tax, pricingQuote.Rate, presentmentCurrency);
+        }
+        else
+        {
+            // Same currency - no conversion needed
+            total = basket.Total;
+            subTotal = basket.SubTotal;
+            shipping = basket.Shipping;
+            tax = basket.Tax;
+        }
+
+        var config = new ExpressCheckoutConfigDto
+        {
+            Currency = presentmentCurrency,
+            Amount = total,
+            SubTotal = subTotal,
+            Shipping = shipping,
+            Tax = tax,
+            DecimalPlaces = currencyCtx.DecimalPlaces,
+            Methods = []
+        };
+
+        // Group methods by provider to minimize provider lookups
+        var methodsByProvider = methods.GroupBy(m => m.ProviderAlias);
+
+        foreach (var providerGroup in methodsByProvider)
+        {
+            var provider = await providerManager.GetProviderAsync(
+                providerGroup.Key,
+                requireEnabled: true,
+                cancellationToken);
+
+            if (provider == null)
+            {
+                continue;
+            }
+
+            // Get SDK config from each provider for each of its express methods
+            foreach (var method in providerGroup)
+            {
+                var clientConfig = await provider.Provider.GetExpressCheckoutClientConfigAsync(
+                    method.MethodAlias,
+                    config.Amount,
+                    config.Currency,
+                    cancellationToken);
+
+                // If provider returns config, use it; otherwise use basic info
+                if (clientConfig != null)
+                {
+                    // Skip unavailable methods (e.g., Apple Pay not supported on this device/browser)
+                    if (!clientConfig.IsAvailable)
+                    {
+                        continue;
+                    }
+
+                    config.Methods.Add(new ExpressMethodConfigDto
+                    {
+                        ProviderAlias = method.ProviderAlias,
+                        MethodAlias = method.MethodAlias,
+                        DisplayName = method.DisplayName,
+                        MethodType = clientConfig.MethodType ?? method.MethodType,
+                        SdkUrl = clientConfig.SdkUrl,
+                        AdapterUrl = clientConfig.CustomAdapterUrl,
+                        SdkConfig = clientConfig.SdkConfig
+                    });
+                }
+                else
+                {
+                    // Provider doesn't have SDK config - add basic info for custom handling
+                    config.Methods.Add(new ExpressMethodConfigDto
+                    {
+                        ProviderAlias = method.ProviderAlias,
+                        MethodAlias = method.MethodAlias,
+                        DisplayName = method.DisplayName,
+                        MethodType = method.MethodType
+                    });
+                }
+            }
+        }
+
+        return config;
+    }
+
+    /// <summary>
+    /// Create a PaymentIntent for express checkout.
+    /// Called by the frontend after the express checkout element collects payment details.
+    /// Returns the client secret needed to confirm the payment.
+    /// </summary>
+    public async Task<CheckoutApiResult> CreateExpressPaymentIntentAsync(
+        ExpressPaymentIntentRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        // Get the current basket
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
+
+        if (basket == null || basket.LineItems.Count == 0)
+        {
+            return CheckoutApiResult.BadRequest(new ExpressPaymentIntentResponseDto
+            {
+                Success = false,
+                ErrorMessage = "No items in basket."
+            });
+        }
+
+        // Verify provider is enabled
+        var provider = await providerManager.GetProviderAsync(
+            request.ProviderAlias,
+            requireEnabled: true,
+            cancellationToken);
+
+        if (provider == null)
+        {
+            return CheckoutApiResult.BadRequest(new ExpressPaymentIntentResponseDto
+            {
+                Success = false,
+                ErrorMessage = $"Payment provider '{request.ProviderAlias}' is not available."
+            });
+        }
+
+        // Use same calculation path as invoice creation (NOT display amounts)
+        // This ensures the PaymentIntent amount matches what will be charged
+        var displayContext = await storefrontContextService.GetDisplayContextAsync(cancellationToken);
+        var countryCode = displayContext.TaxCountryCode;
+
+        // Check if user already has shipping selections in their session (from checkout page)
+        var existingSession = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+        var shippingAddress = string.IsNullOrEmpty(existingSession.ShippingAddress.CountryCode)
+            ? addressFactory.CreateCountryOnly(countryCode)
+            : existingSession.ShippingAddress;
+
+        // Calculate shipping - use existing selections if available, otherwise auto-select cheapest
+        var estimatedShipping = 0m;
+        var tempSession = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            ShippingAddress = shippingAddress,
+            SelectedShippingOptions = existingSession.SelectedShippingOptions
+        };
+
+        var groupingResult = await checkoutService.GetOrderGroupsAsync(
+            new GetOrderGroupsParameters
+            {
+                Basket = basket,
+                Session = tempSession
+            },
+            cancellationToken);
+        if (groupingResult.Success && groupingResult.Groups.Count > 0)
+        {
+            Dictionary<Guid, string> shippingSelections;
+
+            if (existingSession.SelectedShippingOptions.Count > 0)
+            {
+                // User already selected shipping on checkout page - use their selection
+                shippingSelections = existingSession.SelectedShippingOptions;
+            }
+            else
+            {
+                // No prior selection - auto-select cheapest for estimation
+                shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+            }
+
+            estimatedShipping = ShippingAutoSelector.CalculateCombinedTotal(
+                groupingResult.Groups,
+                shippingSelections);
+        }
+
+        // Recalculate basket with shipping to get accurate totals
+        await checkoutService.CalculateBasketAsync(
+            new CalculateBasketParameters
+            {
+                Basket = basket,
+                CountryCode = shippingAddress.CountryCode ?? countryCode,
+                ShippingAmountOverride = estimatedShipping
+            },
+            cancellationToken);
+
+        // Sync basket currency from storefront context (same as main checkout)
+        var currencyCtx2 = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
+        basket = await checkoutService.EnsureBasketCurrencyAsync(new EnsureBasketCurrencyParameters
+        {
+            Basket = basket,
+            CurrencyCode = currencyCtx2.CurrencyCode,
+            CurrencySymbol = currencyCtx2.CurrencySymbol
+        }, cancellationToken);
+
+        // Calculate amounts using invoice path (divide by rate)
+        var presentmentCurrency = currencyCtx2.CurrencyCode;
+        var storeCurrency = settings.Value.StoreCurrencyCode;
+        decimal total;
+
+        if (!string.Equals(presentmentCurrency, storeCurrency, StringComparison.OrdinalIgnoreCase))
+        {
+            var pricingQuote = await exchangeRateCache.GetRateQuoteAsync(
+                presentmentCurrency, storeCurrency, cancellationToken);
+
+            if (pricingQuote == null || pricingQuote.Rate <= 0m)
+            {
+                return CheckoutApiResult.BadRequest(new ExpressPaymentIntentResponseDto
+                {
+                    Success = false,
+                    ErrorMessage = $"No exchange rate available: {presentmentCurrency} → {storeCurrency}"
+                });
+            }
+
+            total = currencyService.ConvertToPresentmentCurrency(basket.Total, pricingQuote.Rate, presentmentCurrency);
+        }
+        else
+        {
+            total = basket.Total;
+        }
+
+        // Create payment session which will create the PaymentIntent
+        var paymentRequest = new PaymentRequest
+        {
+            InvoiceId = Guid.Empty, // Will be created after express checkout completes
+            Amount = total,
+            Currency = presentmentCurrency,
+            MethodAlias = request.MethodAlias,
+            ReturnUrl = $"{CurrentHttpContext.Request.Scheme}://{CurrentHttpContext.Request.Host}/checkout/confirmation",
+            CancelUrl = $"{CurrentHttpContext.Request.Scheme}://{CurrentHttpContext.Request.Host}/checkout"
+        };
+
+        var sessionResult = await provider.Provider.CreatePaymentSessionAsync(paymentRequest, cancellationToken);
+
+        if (!sessionResult.Success)
+        {
+            return CheckoutApiResult.BadRequest(new ExpressPaymentIntentResponseDto
+            {
+                Success = false,
+                ErrorMessage = sessionResult.ErrorMessage ?? "Failed to create payment session."
+            });
+        }
+
+        return CheckoutApiResult.Ok(new ExpressPaymentIntentResponseDto
+        {
+            Success = true,
+            ClientSecret = sessionResult.ClientToken ?? sessionResult.ClientSecret,
+            PaymentIntentId = sessionResult.SessionId
+        });
+    }
+
+    /// <summary>
+    /// Maps an express checkout address DTO to a checkout session address.
+    /// Returns null if the source address is null.
+    /// </summary>
+    private Address? MapExpressAddress(
+        ExpressCheckoutAddressDto? source,
+        string email,
+        string? fullName,
+        string? phone)
+    {
+        if (source == null)
+        {
+            return null;
+        }
+
+        return addressFactory.CreateAddress(
+            name: fullName ?? string.Empty,
+            addressOne: source.AddressOne ?? string.Empty,
+            addressTwo: source.AddressTwo,
+            townCity: source.TownCity ?? string.Empty,
+            postalCode: source.PostalCode ?? string.Empty,
+            countryCode: source.CountryCode ?? string.Empty,
+            countyState: source.CountyState,
+            regionCode: source.CountyState,
+            phone: phone,
+            email: email);
+    }
+
+    /// <summary>
+    /// Maps an express checkout address DTO to an express checkout address model.
+    /// Returns null if the source DTO is null.
+    /// </summary>
+    private static ExpressCheckoutAddress? MapDtoToExpressAddress(ExpressCheckoutAddressDto? dto)
+    {
+        if (dto == null)
+        {
+            return null;
+        }
+
+        return new ExpressCheckoutAddress
+        {
+            AddressOne = dto.AddressOne,
+            AddressTwo = dto.AddressTwo,
+            TownCity = dto.TownCity,
+            CountyState = dto.CountyState,
+            PostalCode = dto.PostalCode,
+            CountryCode = dto.CountryCode
+        };
+    }
+
+    // =====================================================
+    // Widget Payment Flow (Create Order / Capture)
+    // =====================================================
+    // Supports any provider implementing the widget pattern:
+    // PayPal, Klarna, Afterpay, and other BNPL solutions.
+    // =====================================================
+
+    /// <summary>
+    /// Create a widget order for payment flows that use the create-order/capture pattern.
+    /// Called by the provider's button/widget createOrder callback when no pre-created order exists.
+    /// </summary>
+    /// <remarks>
+    /// This endpoint is typically used as a fallback. The standard flow pre-creates the
+    /// order during the InitiatePayment call and returns the orderId in sdkConfiguration.
+    /// </remarks>
+    /// <param name="providerAlias">The payment provider alias (e.g., "paypal", "klarna").</param>
+    /// <param name="request">The create order request.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<CheckoutApiResult> CreateWidgetOrderAsync(
+        string providerAlias,
+        CreateWidgetOrderDto request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // Get the provider
+            var provider = await providerManager.GetProviderAsync(
+                providerAlias,
+                requireEnabled: true,
+                cancellationToken);
+
+            if (provider == null)
+            {
+                return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = $"Payment provider '{providerAlias}' is not available."
+                });
+            }
+
+            var shouldSavePaymentMethod = request.SavePaymentMethod
+                && provider.Metadata.SupportsVaultedPayments
+                && provider.Setting?.IsVaultingEnabled == true;
+
+            if (shouldSavePaymentMethod)
+            {
+                var member = await memberManager.GetCurrentMemberAsync();
+                if (member == null)
+                {
+                    shouldSavePaymentMethod = false;
+                }
+            }
+
+            // Get the current basket
+            var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
+
+            if (basket == null || basket.LineItems.Count == 0)
+            {
+                return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "No items in basket."
+                });
+            }
+
+            // Get checkout session
+            var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+
+            // Validate checkout session has required data
+            if (string.IsNullOrWhiteSpace(session.BillingAddress.Email))
+            {
+                return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "Please complete the checkout information step first."
+                });
+            }
+
+            // Check for existing unpaid invoice to prevent phantom orders
+            // This handles cases where widget checkout is triggered multiple times (e.g., PayPal button clicked repeatedly)
+            var existingInvoice = await invoiceService.GetUnpaidInvoiceForBasketAsync(basket.Id, cancellationToken);
+            Invoice invoice;
+            if (existingInvoice != null)
+            {
+                logger.LogInformation(
+                    "Widget create-order ({Provider}): Reusing existing unpaid invoice {InvoiceId} for basket {BasketId}",
+                    providerAlias,
+                    existingInvoice.Id,
+                    basket.Id);
+                invoice = existingInvoice;
+            }
+            else
+            {
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                if (!createResult.Successful || createResult.ResultObject == null)
+                {
+                    var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
+                    logger.LogError("Widget create-order ({Provider}) invoice creation failed for basket {BasketId}: {Error}", providerAlias, basket.Id, errorMsg);
+                    return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto { Success = false, ErrorMessage = errorMsg });
+                }
+
+                invoice = createResult.ResultObject;
+                logger.LogInformation(
+                    "Widget create-order ({Provider}): Invoice {InvoiceId} created from basket {BasketId}",
+                    providerAlias,
+                    invoice.Id,
+                    basket.Id);
+            }
+
+            // Store invoice ID in session for ownership validation during payment
+            await checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, cancellationToken);
+
+            // Create payment session to get the provider order ID
+            var baseUrl = $"{CurrentHttpContext.Request.Scheme}://{CurrentHttpContext.Request.Host}";
+            var methodAlias = request.MethodAlias ?? providerAlias;
+            var result = await paymentService.CreatePaymentSessionAsync(
+                new CreatePaymentSessionParameters
+                {
+                    InvoiceId = invoice.Id,
+                    ProviderAlias = providerAlias,
+                    MethodAlias = methodAlias,
+                    ReturnUrl = $"{baseUrl}/checkout/confirmation/{invoice.Id}",
+                    CancelUrl = $"{baseUrl}/checkout/payment",
+                    SavePaymentMethod = shouldSavePaymentMethod
+                },
+                cancellationToken);
+
+            if (!result.Success || result.SdkConfiguration == null)
+            {
+                logger.LogWarning(
+                    "Widget create-order ({Provider}) failed for invoice {InvoiceId}: {Error}",
+                    providerAlias,
+                    invoice.Id,
+                    result.ErrorMessage);
+
+                return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = result.ErrorMessage ?? $"Failed to create {providerAlias} order."
+                });
+            }
+
+            // Extract orderId from SDK configuration
+            var orderId = result.SdkConfiguration.TryGetValue("orderId", out var orderIdObj)
+                ? orderIdObj?.ToString()
+                : result.SessionId;
+
+            if (string.IsNullOrEmpty(orderId))
+            {
+                return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = $"Failed to get {providerAlias} order ID."
+                });
+            }
+
+            logger.LogInformation(
+                "Widget order ({Provider}) {OrderId} created for invoice {InvoiceId}",
+                providerAlias,
+                orderId,
+                invoice.Id);
+
+            return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto
+            {
+                Success = true,
+                OrderId = orderId
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Widget create-order ({Provider}) failed", providerAlias);
+
+            return CheckoutApiResult.Ok(new CreateWidgetOrderResultDto
+            {
+                Success = false,
+                ErrorMessage = $"An error occurred creating the {providerAlias} order."
+            });
+        }
+    }
+
+    /// <summary>
+    /// Capture an approved widget order.
+    /// Called after the user approves payment in the provider's UI (e.g., PayPal popup, Klarna modal).
+    /// </summary>
+    /// <param name="providerAlias">The payment provider alias (e.g., "paypal", "klarna").</param>
+    /// <param name="request">The capture order request.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<CheckoutApiResult> CaptureWidgetOrderAsync(
+        string providerAlias,
+        CaptureWidgetOrderDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.OrderId))
+        {
+            return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+            {
+                Success = false,
+                ErrorMessage = "OrderId is required."
+            });
+        }
+
+        try
+        {
+            // Get the provider
+            var provider = await providerManager.GetProviderAsync(
+                providerAlias,
+                requireEnabled: true,
+                cancellationToken);
+
+            if (provider == null)
+            {
+                return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = $"Payment provider '{providerAlias}' is not available."
+                });
+            }
+
+            var methodAlias = request.MethodAlias ?? providerAlias;
+
+            // Check if vaulting is available and requested
+            var vaultingEnabled = provider.Metadata.SupportsVaultedPayments
+                && provider.Setting?.IsVaultingEnabled == true;
+            var shouldSavePaymentMethod = request.SavePaymentMethod && vaultingEnabled;
+
+            // Get customer ID if logged in (required for vaulting)
+            Guid? customerId = null;
+            if (shouldSavePaymentMethod)
+            {
+                var member = await memberManager.GetCurrentMemberAsync();
+                if (member != null)
+                {
+                    var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+                    customerId = customer?.Id;
+                }
+
+                // If customer not found, can't save payment method
+                if (!customerId.HasValue)
+                {
+                    shouldSavePaymentMethod = false;
+                    logger.LogDebug("SavePaymentMethod requested but customer not found. Skipping vault.");
+                }
+            }
+
+            // Get the invoice ID from the request
+            if (!request.InvoiceId.HasValue)
+            {
+                return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "InvoiceId is required."
+                });
+            }
+
+            // Get the invoice
+            var invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId.Value, cancellationToken);
+
+            if (invoice == null)
+            {
+                return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = "Invoice not found."
+                });
+            }
+
+            // Validate that the current checkout session owns this invoice
+            var currentBasket = await checkoutService.GetBasket(
+                new GetBasketParameters(),
+                cancellationToken);
+
+            if (currentBasket != null)
+            {
+                var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+                // Validate ownership with multiple checks for defense in depth
+                var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId.Value;
+                var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+                    string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+                if (!hasValidInvoiceId && !hasValidEmail)
+                {
+                    logger.LogWarning(
+                        "Invoice ownership validation failed in CaptureWidgetOrder ({Provider}): Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
+                        providerAlias,
+                        request.InvoiceId.Value,
+                        invoice.BillingAddress.Email,
+                        session.InvoiceId,
+                        session.BillingAddress.Email);
+
+                    return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+                    {
+                        Success = false,
+                        ErrorMessage = "You do not have permission to pay this invoice."
+                    });
+                }
+            }
+
+            // Process the payment (capture the order)
+            var processRequest = new ProcessPaymentRequest
+            {
+                InvoiceId = invoice.Id,
+                ProviderAlias = providerAlias,
+                MethodAlias = methodAlias,
+                SessionId = request.OrderId,
+                Amount = invoice.Total,
+                // Vault fields
+                CustomerId = customerId,
+                CurrencyCode = invoice.CurrencyCode,
+                CustomerEmail = invoice.BillingAddress?.Email,
+                CustomerName = invoice.BillingAddress?.Name,
+                SavePaymentMethod = shouldSavePaymentMethod,
+                SetAsDefaultMethod = request.SetAsDefaultMethod
+            };
+
+            var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
+
+            if (!result.Successful || result.ResultObject == null)
+            {
+                var errorMessage = result.Messages
+                    .Where(m => m.ResultMessageType == Core.Shared.Models.Enums.ResultMessageType.Error)
+                    .Select(m => m.Message)
+                    .FirstOrDefault() ?? "Payment capture failed.";
+
+                logger.LogWarning(
+                    "Widget capture ({Provider}) failed for order {OrderId}, invoice {InvoiceId}: {Error}",
+                    providerAlias,
+                    request.OrderId,
+                    invoice.Id,
+                    errorMessage);
+
+                return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+                {
+                    Success = false,
+                    ErrorMessage = errorMessage
+                });
+            }
+
+            var payment = result.ResultObject;
+
+            logger.LogInformation(
+                "Widget order ({Provider}) {OrderId} captured for invoice {InvoiceId}, PaymentId: {PaymentId}, TransactionId: {TransactionId}",
+                providerAlias,
+                request.OrderId,
+                invoice.Id,
+                payment.Id,
+                payment.TransactionId);
+
+            // If payment succeeded and vault details returned, save to database
+            var paymentMethodSaved = false;
+            Guid? savedPaymentMethodId = null;
+            if (shouldSavePaymentMethod
+                && customerId.HasValue
+                && payment.PaymentResult?.VaultedMethodDetails is { Success: true } vaultDetails)
+            {
+                var saveResult = await savedPaymentMethodService.SaveFromCheckoutAsync(
+                    new SavePaymentMethodFromCheckoutParameters
+                    {
+                        CustomerId = customerId.Value,
+                        ProviderAlias = providerAlias,
+                        ProviderMethodId = vaultDetails.ProviderMethodId!,
+                        ProviderCustomerId = vaultDetails.ProviderCustomerId,
+                        MethodType = vaultDetails.MethodType,
+                        CardBrand = vaultDetails.CardBrand,
+                        Last4 = vaultDetails.Last4,
+                        ExpiryMonth = vaultDetails.ExpiryMonth,
+                        ExpiryYear = vaultDetails.ExpiryYear,
+                        BillingName = invoice.BillingAddress?.Name,
+                        BillingEmail = invoice.BillingAddress?.Email,
+                        SetAsDefault = request.SetAsDefaultMethod,
+                        IpAddress = CurrentHttpContext.Connection.RemoteIpAddress?.ToString(),
+                        ExtendedData = vaultDetails.ExtendedData
+                    },
+                    cancellationToken);
+
+                if (saveResult.Successful)
+                {
+                    paymentMethodSaved = true;
+                    savedPaymentMethodId = saveResult.ResultObject?.Id;
+                    logger.LogInformation(
+                        "Payment method saved for customer {CustomerId} with provider {Provider}",
+                        customerId.Value,
+                        providerAlias);
+                }
+                else
+                {
+                    // Log but don't fail payment if vault save fails
+                    logger.LogWarning(
+                        "Failed to save payment method after checkout for customer {CustomerId}: {Error}",
+                        customerId.Value,
+                        saveResult.Messages.FirstOrDefault()?.Message);
+                }
+            }
+            else if (shouldSavePaymentMethod)
+            {
+                logger.LogDebug(
+                    "SavePaymentMethod requested for provider {Provider}, but no vault details were returned.",
+                    providerAlias);
+            }
+
+            // Set confirmation token to authorize viewing the confirmation page
+            SetConfirmationToken(invoice.Id);
+
+            // Clear basket after successful payment
+            ClearBasketCookieAndSession();
+
+            var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+                invoice.Id,
+                providerAlias,
+                savedPaymentMethodId,
+                cancellationToken);
+
+            return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+            {
+                Success = true,
+                InvoiceId = invoice.Id,
+                PaymentId = payment.Id,
+                TransactionId = payment.TransactionId,
+                RedirectUrl = redirectUrl,
+                PaymentMethodSaved = paymentMethodSaved
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Widget capture-order ({Provider}) failed for order {OrderId}", providerAlias, request.OrderId);
+
+            return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
+            {
+                Success = false,
+                ErrorMessage = $"An error occurred capturing the {providerAlias} order."
+            });
+        }
+    }
+
+    // =====================================================
+    // Helper Methods
+    // =====================================================
+
+    /// <summary>
+    /// Sanitizes form data values to prevent injection attacks.
+    /// Trims whitespace and limits string length for security.
+    /// </summary>
+    private static Dictionary<string, string> SanitizeFormData(Dictionary<string, string>? formData)
+    {
+        if (formData == null || formData.Count == 0)
+        {
+            return new Dictionary<string, string>();
+        }
+
+        const int maxValueLength = 10000; // Reasonable limit for form field values
+
+        return formData
+            .Where(kvp => !string.IsNullOrEmpty(kvp.Key))
+            .ToDictionary(
+                kvp => kvp.Key.Trim(),
+                kvp => kvp.Value?.Trim().Length > maxValueLength
+                    ? kvp.Value.Trim()[..maxValueLength]
+                    : kvp.Value?.Trim() ?? string.Empty
+            );
+    }
+
+    /// <summary>
+    /// Validates that the checkout session has all required address data for invoice creation.
+    /// </summary>
+    private static (bool IsValid, string? ErrorMessage) ValidateCheckoutSession(CheckoutSession session)
+    {
+        // Validate billing address
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.Email))
+            return (false, "Email is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.Name))
+            return (false, "Billing name is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.AddressOne))
+            return (false, "Billing address is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.TownCity))
+            return (false, "Billing city is required. Please complete the checkout information step first.");
+
+        if (string.IsNullOrWhiteSpace(session.BillingAddress.CountryCode))
+            return (false, "Billing country is required. Please complete the checkout information step first.");
+
+        // Validate shipping address (only if not same as billing)
+        if (!session.ShippingSameAsBilling)
+        {
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.Name))
+                return (false, "Shipping name is required. Please complete the checkout information step first.");
+
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.AddressOne))
+                return (false, "Shipping address is required. Please complete the checkout information step first.");
+
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.TownCity))
+                return (false, "Shipping city is required. Please complete the checkout information step first.");
+
+            if (string.IsNullOrWhiteSpace(session.ShippingAddress.CountryCode))
+                return (false, "Shipping country is required. Please complete the checkout information step first.");
+        }
+
+        return (true, null);
+    }
+
+    private static bool BasketRequiresShipping(Basket basket)
+    {
+        return basket.LineItems.Any(li =>
+            li.LineItemType == LineItemType.Product && !IsDigitalLineItem(li));
+    }
+
+    private static bool IsDigitalLineItem(LineItem lineItem)
+    {
+        if (!lineItem.ExtendedData.TryGetValue("IsDigital", out var value))
+        {
+            return false;
+        }
+
+        return value switch
+        {
+            bool b => b,
+            string s => bool.TryParse(s, out var parsed) && parsed,
+            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
+                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
+            _ => false
+        };
+    }
+
+    // =====================================================
+    // Wallet Payment Validation
+    // =====================================================
+
+    /// <summary>
+    /// Validate an Apple Pay merchant session.
+    /// Called during Apple Pay's onvalidatemerchant event to validate the merchant identity.
+    /// </summary>
+    /// <param name="request">The validation request containing the Apple validation URL.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<CheckoutApiResult> ValidateWorldPayApplePayMerchantAsync(
+        ApplePayValidationRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.ValidationUrl))
+        {
+            return CheckoutApiResult.BadRequest(new { success = false, error = "ValidationUrl is required." });
+        }
+
+        // Validate the URL is from Apple (security check)
+        if (!Uri.TryCreate(request.ValidationUrl, UriKind.Absolute, out var uri) ||
+            !uri.Host.EndsWith(".apple.com", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning("Apple Pay validation rejected: invalid URL host {Url}", request.ValidationUrl);
+            return CheckoutApiResult.BadRequest(new { success = false, error = "Invalid validation URL." });
+        }
+
+        // Get the WorldPay provider
+        var provider = await providerManager.GetProviderAsync("worldpay", requireEnabled: true, cancellationToken);
+        if (provider == null)
+        {
+            return CheckoutApiResult.BadRequest(new { success = false, error = "WorldPay provider is not available." });
+        }
+
+        // Cast to WorldPayPaymentProvider to access the validation method
+        if (provider.Provider is not global::Merchello.Core.Payments.Providers.WorldPay.WorldPayPaymentProvider worldPayProvider)
+        {
+            return CheckoutApiResult.BadRequest(new { success = false, error = "Invalid provider type." });
+        }
+
+        // Validate the merchant session
+        var merchantSession = await worldPayProvider.ValidateApplePayMerchantAsync(
+            request.ValidationUrl,
+            request.DisplayName ?? settings.Value.StoreName ?? "Store",
+            cancellationToken);
+
+        if (merchantSession == null)
+        {
+            logger.LogWarning("Apple Pay merchant validation failed for URL: {Url}", request.ValidationUrl);
+            return CheckoutApiResult.BadRequest(new { success = false, error = "Merchant validation failed." });
+        }
+
+        return CheckoutApiResult.Ok(merchantSession);
+    }
+
+    // =====================================================
+    // Saved Payment Methods Endpoints
+    // =====================================================
+
+    /// <summary>
+    /// Get payment options for checkout, including saved payment methods if customer is logged in.
+    /// </summary>
+    public async Task<CheckoutApiResult> GetPaymentOptionsAsync(CancellationToken cancellationToken = default)
+    {
+        var result = new CheckoutPaymentOptionsDto();
+
+        // Get available payment providers
+        var methods = await providerManager.GetCheckoutPaymentMethodsAsync(cancellationToken);
+        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken);
+
+        // Resolve custom icon URLs for methods with IconMediaKey
+        foreach (var method in methods.Where(m => m.IconMediaKey.HasValue))
+        {
+            method.IconMediaUrl = ResolveMediaUrl(method.IconMediaKey!.Value);
+        }
+
+        result.Providers = methods.ToList();
+        result.CanSavePaymentMethods = methods.Any(m => m.SupportsVaulting);
+
+        // Get saved payment methods if customer is logged in
+        var member = await memberManager.GetCurrentMemberAsync();
+        if (member != null)
+        {
+            var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+            if (customer != null)
+            {
+                var savedMethods = await savedPaymentMethodService.GetCustomerPaymentMethodsAsync(
+                    customer.Id,
+                    cancellationToken);
+
+                foreach (var method in savedMethods)
+                {
+                    var provider = providers.FirstOrDefault(p =>
+                        p.Metadata.Alias.Equals(method.ProviderAlias, StringComparison.OrdinalIgnoreCase));
+
+                    // Skip methods for providers that are disabled or have vaulting turned off
+                    if (provider?.Metadata.SupportsVaultedPayments != true
+                        || provider.Setting?.IsVaultingEnabled != true)
+                    {
+                        continue;
+                    }
+
+                    result.SavedPaymentMethods.Add(new StorefrontSavedMethodDto
+                    {
+                        Id = method.Id,
+                        ProviderAlias = method.ProviderAlias,
+                        MethodType = method.MethodType,
+                        CardBrand = method.CardBrand,
+                        Last4 = method.Last4,
+                        ExpiryFormatted = FormatExpiry(method.ExpiryMonth, method.ExpiryYear),
+                        IsExpired = IsExpired(method.ExpiryMonth, method.ExpiryYear),
+                        DisplayLabel = method.DisplayLabel,
+                        IsDefault = method.IsDefault,
+                        IconHtml = provider?.Metadata.IconHtml
+                    });
+                }
+            }
+        }
+
+        return CheckoutApiResult.Ok(result);
+    }
+
+    /// <summary>
+    /// Process a payment using a saved payment method.
+    /// </summary>
+    public async Task<CheckoutApiResult> ProcessSavedPaymentAsync(
+        ProcessSavedPaymentMethodDto request,
+        CancellationToken cancellationToken = default)
+    {
+        // Customer must be logged in to use saved payment methods
+        var member = await memberManager.GetCurrentMemberAsync();
+        if (member == null)
+        {
+            return CheckoutApiResult.Unauthorized(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Please sign in to use a saved payment method."
+            });
+        }
+
+        var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+        if (customer == null)
+        {
+            return CheckoutApiResult.Unauthorized(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Customer account not found."
+            });
+        }
+
+        // Get the saved payment method
+        var savedMethod = await savedPaymentMethodService.GetPaymentMethodAsync(
+            request.SavedPaymentMethodId,
+            cancellationToken);
+
+        if (savedMethod == null)
+        {
+            return CheckoutApiResult.NotFound(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Saved payment method not found."
+            });
+        }
+
+        // Verify the payment method belongs to this customer
+        if (savedMethod.CustomerId != customer.Id)
+        {
+            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "You do not have permission to use this payment method."
+            });
+        }
+
+        // Check if the card is expired
+        if (IsExpired(savedMethod.ExpiryMonth, savedMethod.ExpiryYear))
+        {
+            return CheckoutApiResult.BadRequest(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "This payment method has expired. Please use a different payment method."
+            });
+        }
+
+        // Get the invoice
+        var invoice = await invoiceService.GetInvoiceAsync(request.InvoiceId, cancellationToken);
+        if (invoice == null)
+        {
+            return CheckoutApiResult.NotFound(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "Invoice not found."
+            });
+        }
+
+        // Validate that the current checkout session owns this invoice
+        var currentBasket = await checkoutService.GetBasket(
+            new GetBasketParameters(),
+            cancellationToken);
+
+        if (currentBasket == null)
+        {
+            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "No active checkout session."
+            });
+        }
+
+        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+        // Validate ownership
+        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
+        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
+            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasValidInvoiceId && !hasValidEmail)
+        {
+            logger.LogWarning(
+                "Invoice ownership validation failed in ProcessSavedPayment: Invoice {InvoiceId}, Session invoice: {SessionInvoiceId}",
+                request.InvoiceId,
+                session.InvoiceId);
+
+            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
+            {
+                Success = false,
+                ErrorMessage = "You do not have permission to pay this invoice."
+            });
+        }
+
+        // Charge the saved payment method
+        var chargeResult = await savedPaymentMethodService.ChargeAsync(
+            new ChargeSavedMethodParameters
+            {
+                SavedPaymentMethodId = request.SavedPaymentMethodId,
+                InvoiceId = request.InvoiceId,
+                Amount = invoice.Total,
+                Description = $"Payment for Invoice #{invoice.InvoiceNumber}",
+                IdempotencyKey = request.IdempotencyKey
+            },
+            cancellationToken);
+
+        if (!chargeResult.Successful || chargeResult.ResultObject == null)
+        {
+            var errorMessage = chargeResult.Messages
+                .Where(m => m.ResultMessageType == Core.Shared.Models.Enums.ResultMessageType.Error)
+                .Select(m => m.Message)
+                .FirstOrDefault() ?? "Payment processing failed.";
+
+            logger.LogWarning(
+                "Saved payment method charge failed for invoice {InvoiceId} with method {MethodId}: {Error}",
+                request.InvoiceId,
+                request.SavedPaymentMethodId,
+                errorMessage);
+
+            return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+            {
+                Success = false,
+                InvoiceId = request.InvoiceId,
+                ErrorMessage = errorMessage
+            });
+        }
+
+        var paymentResult = chargeResult.ResultObject;
+
+        logger.LogInformation(
+            "Payment processed successfully using saved method {MethodId} for invoice {InvoiceId}, TransactionId: {TransactionId}",
+            request.SavedPaymentMethodId,
+            request.InvoiceId,
+            paymentResult.TransactionId);
+
+        // Set confirmation token to authorize viewing the confirmation page
+        SetConfirmationToken(request.InvoiceId);
+
+        // Clear basket after successful payment
+        ClearBasketCookieAndSession();
+
+        var redirectUrl = await ResolvePostPurchaseRedirectAsync(
+            request.InvoiceId,
+            savedMethod.ProviderAlias,
+            request.SavedPaymentMethodId,
+            cancellationToken);
+
+        return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+        {
+            Success = true,
+            InvoiceId = request.InvoiceId,
+            TransactionId = paymentResult.TransactionId,
+            RedirectUrl = redirectUrl
+        });
+    }
+
+    private static string? FormatExpiry(int? month, int? year)
+    {
+        if (!month.HasValue || !year.HasValue)
+        {
+            return null;
+        }
+        return $"{month.Value:D2}/{year.Value % 100:D2}";
+    }
+
+    private static bool IsExpired(int? month, int? year)
+    {
+        if (!month.HasValue || !year.HasValue)
+        {
+            return false;
+        }
+        var now = DateTime.UtcNow;
+        var expiryDate = new DateTime(year.Value, month.Value, 1).AddMonths(1);
+        return now >= expiryDate;
+    }
+
+    private async Task<string> ResolvePostPurchaseRedirectAsync(
+        Guid invoiceId,
+        string providerAlias,
+        Guid? savedPaymentMethodId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(providerAlias))
+        {
+            return $"/checkout/confirmation/{invoiceId}";
+        }
+
+        try
+        {
+            var initResult = await postPurchaseUpsellService.InitializePostPurchaseAsync(
+                new InitializePostPurchaseParameters
+                {
+                    InvoiceId = invoiceId,
+                    ProviderAlias = providerAlias,
+                    SavedPaymentMethodId = savedPaymentMethodId
+                },
+                cancellationToken);
+
+            if (initResult.IsSuccess && initResult.Data)
+            {
+                return $"/checkout/post-purchase/{invoiceId}";
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Post-purchase initialization failed for invoice {InvoiceId}. Proceeding to confirmation.",
+                invoiceId);
+        }
+
+        return $"/checkout/confirmation/{invoiceId}";
+    }
+
+    /// <summary>
+    /// Sets a secure confirmation token cookie that authorizes the user to view the order confirmation page.
+    /// This prevents unauthorized users from viewing order details by guessing invoice IDs.
+    /// </summary>
+    private void SetConfirmationToken(Guid invoiceId)
+    {
+        CurrentHttpContext.Response.Cookies.Append(
+            Core.Constants.Cookies.ConfirmationToken,
+            invoiceId.ToString(),
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                // Token expires after 24 hours - enough time to view confirmation but not forever
+                Expires = DateTimeOffset.UtcNow.AddHours(24)
+            });
+    }
+
+    /// <summary>
+    /// Clears the basket cookie and session cache after successful payment.
+    /// This prevents items from reappearing in the cart after order completion.
+    /// </summary>
+    private void ClearBasketCookieAndSession()
+    {
+        CurrentHttpContext.Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
+        CurrentHttpContext.Session.Remove("Basket");
+    }
+}
+
+
+
+

@@ -97,7 +97,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].Type.ShouldBe(ProtocolConstants.PaymentHandlerTypes.Redirect);
+        handlers[0].Type.ShouldBe(ProtocolPaymentHandlerTypes.Redirect);
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].Type.ShouldBe(ProtocolConstants.PaymentHandlerTypes.Tokenized);
+        handlers[0].Type.ShouldBe(ProtocolPaymentHandlerTypes.Tokenized);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].Type.ShouldBe(ProtocolConstants.PaymentHandlerTypes.Wallet);
+        handlers[0].Type.ShouldBe(ProtocolPaymentHandlerTypes.Wallet);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class PaymentHandlerExporterTests
         var handlers = await _exporter.ExportHandlersAsync("ucp");
 
         // Assert
-        handlers[0].Type.ShouldBe(ProtocolConstants.PaymentHandlerTypes.Form);
+        handlers[0].Type.ShouldBe(ProtocolPaymentHandlerTypes.Form);
     }
 
     [Fact]

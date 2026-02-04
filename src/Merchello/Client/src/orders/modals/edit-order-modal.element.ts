@@ -405,7 +405,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         shippingDestination: this._invoice.shippingCountryCode
           ? {
               countryCode: this._invoice.shippingCountryCode,
-              stateCode: this._invoice.shippingRegion ?? undefined,
+              regionCode: this._invoice.shippingRegion ?? undefined,
             }
           : null,
       },
@@ -451,7 +451,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           shippingAddress: this._invoice.shippingCountryCode
             ? {
                 countryCode: this._invoice.shippingCountryCode,
-                stateCode: this._invoice.shippingRegion ?? undefined,
+                regionCode: this._invoice.shippingRegion ?? undefined,
               }
             : null,
           excludeProductIds: [...existingProductIds, ...pendingProductIds],

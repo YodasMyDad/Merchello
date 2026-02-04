@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
@@ -17,6 +18,7 @@ namespace Merchello.Core.Accounting.Services;
 public class TaxService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IMerchelloNotificationPublisher notificationPublisher,
+    TaxGroupFactory taxGroupFactory,
     ICacheService cacheService,
     ILogger<TaxService> logger) : ITaxService
 {
@@ -66,12 +68,8 @@ public class TaxService(
             return result;
         }
 
-        var taxGroup = new TaxGroup
-        {
-            Id = Guid.NewGuid(),
-            Name = name,
-            TaxPercentage = rate
-        };
+        var taxGroup = taxGroupFactory.Create(name, rate);
+        taxGroup.Id = Guid.NewGuid();
 
         // Publish creating notification (cancelable)
         var creatingNotification = new TaxGroupCreatingNotification(taxGroup);

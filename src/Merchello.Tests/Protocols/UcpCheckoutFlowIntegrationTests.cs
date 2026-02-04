@@ -169,7 +169,7 @@ public class UcpCheckoutFlowIntegrationTests : IClassFixture<ServiceTestFixture>
         var sessionState = ExtractSessionState(response.Data);
         sessionState.ShouldNotBeNull();
         // New sessions without buyer info should be incomplete
-        sessionState.Status.ShouldBe(ProtocolConstants.SessionStatus.Incomplete);
+        sessionState.Status.ShouldBe(ProtocolSessionStatuses.Incomplete);
     }
 
     [Fact]
@@ -214,8 +214,8 @@ public class UcpCheckoutFlowIntegrationTests : IClassFixture<ServiceTestFixture>
         var sessionState = ExtractSessionState(response.Data);
         sessionState.ShouldNotBeNull();
         // Sessions with complete buyer info should be ready for complete
-        (sessionState.Status == ProtocolConstants.SessionStatus.ReadyForComplete ||
-         sessionState.Status == ProtocolConstants.SessionStatus.Incomplete).ShouldBeTrue(
+        (sessionState.Status == ProtocolSessionStatuses.ReadyForComplete ||
+         sessionState.Status == ProtocolSessionStatuses.Incomplete).ShouldBeTrue(
             $"Expected ready_for_complete or incomplete, got {sessionState.Status}");
     }
 
@@ -629,12 +629,12 @@ public class UcpCheckoutFlowIntegrationTests : IClassFixture<ServiceTestFixture>
         return new AgentIdentity
         {
             AgentId = $"test-agent-{Guid.NewGuid():N}",
-            Protocol = ProtocolConstants.Protocols.Ucp,
+            Protocol = ProtocolAliases.Ucp,
             ProfileUri = "https://test-agent.example.com/profile",
             Capabilities =
             [
-                ProtocolConstants.UcpCapabilities.Checkout,
-                ProtocolConstants.UcpCapabilities.Order
+                UcpCapabilityNames.Checkout,
+                UcpCapabilityNames.Order
             ]
         };
     }

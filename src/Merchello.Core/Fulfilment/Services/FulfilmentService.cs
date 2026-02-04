@@ -682,8 +682,8 @@ public class FulfilmentService(
         {
             return new FulfilmentAddress
             {
-                Address1 = "",
-                City = "",
+                AddressOne = "",
+                TownCity = "",
                 PostalCode = "",
                 CountryCode = ""
             };
@@ -693,10 +693,10 @@ public class FulfilmentService(
         {
             Name = address.Name,
             Company = address.Company,
-            Address1 = address.AddressOne ?? "",
-            Address2 = address.AddressTwo,
-            City = address.TownCity ?? "",
-            StateOrProvince = address.CountyState?.RegionCode,
+            AddressOne = address.AddressOne ?? "",
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity ?? "",
+            CountyState = address.CountyState?.RegionCode,
             PostalCode = address.PostalCode ?? "",
             CountryCode = address.CountryCode ?? "",
             Phone = address.Phone

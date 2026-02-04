@@ -192,7 +192,7 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
     /// <inheritdoc />
     public async Task<object?> GetCachedManifestAsync(string alias, CancellationToken ct = default)
     {
-        var cacheKey = $"{ProtocolConstants.CacheKeys.ManifestPrefix}{alias.ToLowerInvariant()}";
+        var cacheKey = $"{ProtocolCacheKeys.ManifestPrefix}{alias.ToLowerInvariant()}";
 
         return await _cacheService.GetOrCreateAsync(
             cacheKey,
@@ -206,7 +206,7 @@ public class CommerceProtocolManager : ICommerceProtocolManager, IDisposable
 
                 return await adapter.GenerateManifestAsync(ct);
             },
-            ProtocolConstants.CacheDurations.ManifestCache,
+            ProtocolCacheDurations.ManifestCache,
             ["protocols", $"protocol:{alias}"],
             ct);
     }

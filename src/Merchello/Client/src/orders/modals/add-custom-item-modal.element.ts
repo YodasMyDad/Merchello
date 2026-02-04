@@ -112,7 +112,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
       const { data, error } = await MerchelloApi.getShippingOptionsForWarehouse(
         this._selectedWarehouseId,
         destination.countryCode,
-        destination.stateCode
+        destination.regionCode
       );
 
       if (error || !data) {
@@ -460,7 +460,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         ${destination ? html`
           <div class="destination-info">
             <uui-icon name="icon-navigation"></uui-icon>
-            <span>Shipping to: ${destination.stateCode ? `${destination.stateCode}, ` : ''}${destination.countryCode}</span>
+            <span>Shipping to: ${destination.regionCode ? `${destination.regionCode}, ` : ''}${destination.countryCode}</span>
           </div>
         ` : html`
           <div class="shipping-error">

@@ -147,7 +147,7 @@ public class UcpCheckoutSessionsController(
         // Ensure adapters are loaded (triggers ExtensionManager discovery on first call)
         await protocolManager.GetAdaptersAsync(ct);
 
-        return protocolManager.GetAdapter(ProtocolConstants.Protocols.Ucp);
+        return protocolManager.GetAdapter(ProtocolAliases.Ucp);
     }
 
     private IActionResult ToActionResult(ProtocolResponse response)

@@ -14,7 +14,7 @@ public sealed class MerchelloCacheRefresher(
     IJsonSerializer serializer,
     IEventAggregator eventAggregator,
     ICacheRefresherNotificationFactory factory)
-    : PayloadCacheRefresherBase<MerchelloCacheRefresherNotification, MerchelloCacheRefresher.CachePayload>(
+    : PayloadCacheRefresherBase<MerchelloCacheRefresherNotification, MerchelloCachePayload>(
         appCaches, serializer, eventAggregator, factory)
 {
     /// <summary>
@@ -31,7 +31,7 @@ public sealed class MerchelloCacheRefresher(
     /// <summary>
     /// Called when receiving from OTHER servers (via IServerMessenger).
     /// </summary>
-    public override void Refresh(CachePayload[] payloads)
+    public override void Refresh(MerchelloCachePayload[] payloads)
     {
         ClearCacheByPayloads(payloads);
         base.Refresh(payloads);
@@ -40,13 +40,13 @@ public sealed class MerchelloCacheRefresher(
     /// <summary>
     /// Called on the ORIGINATING server (before sending to others).
     /// </summary>
-    public override void RefreshInternal(CachePayload[] payloads)
+    public override void RefreshInternal(MerchelloCachePayload[] payloads)
     {
         ClearCacheByPayloads(payloads);
         base.RefreshInternal(payloads);
     }
 
-    private void ClearCacheByPayloads(CachePayload[] payloads)
+    private void ClearCacheByPayloads(MerchelloCachePayload[] payloads)
     {
         foreach (var payload in payloads)
         {
@@ -63,26 +63,5 @@ public sealed class MerchelloCacheRefresher(
                 AppCaches.RuntimeCache.ClearByKey(payload.Key);
             }
         }
-    }
-
-    /// <summary>
-    /// Payload for cache refresh messages.
-    /// </summary>
-    public sealed class CachePayload
-    {
-        /// <summary>
-        /// Cache key prefix to clear (e.g., "exchange-rates", "locality", "shipping").
-        /// </summary>
-        public string? Prefix { get; init; }
-
-        /// <summary>
-        /// Specific cache key to clear.
-        /// </summary>
-        public string? Key { get; init; }
-
-        /// <summary>
-        /// When true, clears all Merchello cache entries.
-        /// </summary>
-        public bool ClearAll { get; init; }
     }
 }

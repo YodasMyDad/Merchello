@@ -331,7 +331,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       const { data, error } = await MerchelloApi.getProductFulfillmentOptions(
         variantId,
         address.countryCode,
-        address.stateCode
+        address.regionCode
       );
 
       if (error) {
@@ -715,7 +715,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     const { data, error } = await MerchelloApi.getShippingOptionsForWarehouse(
       warehouseId,
       address.countryCode,
-      address.stateCode
+      address.regionCode
     );
 
     // Guard against race condition - user may have navigated away during API call

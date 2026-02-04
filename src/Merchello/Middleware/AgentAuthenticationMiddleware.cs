@@ -89,7 +89,7 @@ public class AgentAuthenticationMiddleware(
         // Check if authentication is required for this protocol
         var requiresAuth = protocol switch
         {
-            ProtocolConstants.Protocols.Ucp => settings.Value.Ucp.RequireAuthentication,
+            ProtocolAliases.Ucp => settings.Value.Ucp.RequireAuthentication,
             _ => false
         };
 
@@ -127,7 +127,7 @@ public class AgentAuthenticationMiddleware(
             await context.Response.WriteAsJsonAsync(new
             {
                 error = "unauthorized",
-                message = $"Missing required {ProtocolConstants.Headers.UcpAgent} header"
+                message = $"Missing required {ProtocolHeaders.UcpAgent} header"
             });
             return;
         }
@@ -149,7 +149,7 @@ public class AgentAuthenticationMiddleware(
 
         // Populate agent capabilities from profile for well-known negotiation
         if (agentInfo != null &&
-            protocol == ProtocolConstants.Protocols.Ucp &&
+            protocol == ProtocolAliases.Ucp &&
             path.StartsWith("/.well-known/ucp", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -204,16 +204,16 @@ public class AgentAuthenticationMiddleware(
     private static string? DetectProtocol(HttpRequest request)
     {
         // Check for UCP-Agent header
-        if (request.Headers.ContainsKey(ProtocolConstants.Headers.UcpAgent))
+        if (request.Headers.ContainsKey(ProtocolHeaders.UcpAgent))
         {
-            return ProtocolConstants.Protocols.Ucp;
+            return ProtocolAliases.Ucp;
         }
 
         // Check path
         var path = request.Path.Value?.ToLowerInvariant() ?? "";
         if (path.StartsWith("/.well-known/ucp"))
         {
-            return ProtocolConstants.Protocols.Ucp;
+            return ProtocolAliases.Ucp;
         }
 
         return null;
@@ -221,7 +221,7 @@ public class AgentAuthenticationMiddleware(
 
     private static AgentIdentity? ParseAgentInfo(HttpRequest request)
     {
-        if (!request.Headers.TryGetValue(ProtocolConstants.Headers.UcpAgent, out var agentHeader))
+        if (!request.Headers.TryGetValue(ProtocolHeaders.UcpAgent, out var agentHeader))
         {
             return null;
         }
@@ -242,7 +242,7 @@ public class AgentAuthenticationMiddleware(
         {
             AgentId = profileUri,
             ProfileUri = profileUri,
-            Protocol = ProtocolConstants.Protocols.Ucp,
+            Protocol = ProtocolAliases.Ucp,
             Capabilities = []
         };
     }
@@ -291,7 +291,7 @@ public class AgentAuthenticationMiddleware(
     {
         var allowedAgents = protocol switch
         {
-            ProtocolConstants.Protocols.Ucp => settings.Value.Ucp.AllowedAgents,
+            ProtocolAliases.Ucp => settings.Value.Ucp.AllowedAgents,
             _ => ["*"]
         };
 
@@ -320,19 +320,5 @@ public class AgentAuthenticationMiddleware(
         return context.Items.TryGetValue(AgentIdentityKey, out var value)
             ? value as AgentIdentity
             : null;
-    }
-}
-
-/// <summary>
-/// Extension methods for adding agent authentication middleware.
-/// </summary>
-public static class AgentAuthenticationMiddlewareExtensions
-{
-    /// <summary>
-    /// Adds agent authentication middleware to the pipeline.
-    /// </summary>
-    public static IApplicationBuilder UseAgentAuthentication(this IApplicationBuilder app)
-    {
-        return app.UseMiddleware<AgentAuthenticationMiddleware>();
     }
 }

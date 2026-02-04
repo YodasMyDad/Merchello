@@ -142,10 +142,10 @@ public class StatementService(
                 ? new StatementAddressDto
                 {
                     Company = latestInvoice.BillingAddress.Company,
-                    AddressLine1 = latestInvoice.BillingAddress.AddressOne,
-                    AddressLine2 = latestInvoice.BillingAddress.AddressTwo,
-                    City = latestInvoice.BillingAddress.TownCity,
-                    Region = latestInvoice.BillingAddress.CountyState?.Name,
+                    AddressOne = latestInvoice.BillingAddress.AddressOne,
+                    AddressTwo = latestInvoice.BillingAddress.AddressTwo,
+                    TownCity = latestInvoice.BillingAddress.TownCity,
+                    CountyState = latestInvoice.BillingAddress.CountyState?.Name,
                     PostalCode = latestInvoice.BillingAddress.PostalCode,
                     Country = latestInvoice.BillingAddress.CountryCode
                 }
@@ -274,21 +274,21 @@ public class StatementService(
             pdfService.DrawText(graphics, address.Company, x, y, pdfService.Fonts.Small);
             y += 12;
         }
-        if (!string.IsNullOrEmpty(address.AddressLine1))
+        if (!string.IsNullOrEmpty(address.AddressOne))
         {
-            pdfService.DrawText(graphics, address.AddressLine1, x, y, pdfService.Fonts.Small);
+            pdfService.DrawText(graphics, address.AddressOne, x, y, pdfService.Fonts.Small);
             y += 12;
         }
-        if (!string.IsNullOrEmpty(address.AddressLine2))
+        if (!string.IsNullOrEmpty(address.AddressTwo))
         {
-            pdfService.DrawText(graphics, address.AddressLine2, x, y, pdfService.Fonts.Small);
+            pdfService.DrawText(graphics, address.AddressTwo, x, y, pdfService.Fonts.Small);
             y += 12;
         }
 
         var cityRegionPostal = string.Join(", ", new[]
         {
-            address.City,
-            address.Region,
+            address.TownCity,
+            address.CountyState,
             address.PostalCode
         }.Where(s => !string.IsNullOrEmpty(s)));
 

@@ -145,10 +145,10 @@ public class GetAddressLookupProvider(
 
             var address = new AddressLookupAddress
             {
-                Address1 = address1,
-                Address2 = address2,
-                City = data.TownOrCity?.Trim(),
-                State = data.County?.Trim(),
+                AddressOne = address1,
+                AddressTwo = address2,
+                TownCity = data.TownOrCity?.Trim(),
+                CountyState = data.County?.Trim(),
                 PostalCode = data.Postcode?.Trim(),
                 Country = data.Country?.Trim(),
                 CountryCode = request.CountryCode
@@ -204,23 +204,4 @@ public class GetAddressLookupProvider(
 
         return segments.Count == 0 ? null : string.Join(", ", segments);
     }
-
-    private sealed record GetAddressAutocompleteResponse(
-        [property: JsonPropertyName("suggestions")] List<GetAddressSuggestion>? Suggestions);
-
-    private sealed record GetAddressSuggestion(
-        [property: JsonPropertyName("address")] string? Address,
-        [property: JsonPropertyName("url")] string? Url,
-        [property: JsonPropertyName("id")] string? Id);
-
-    private sealed record GetAddressAddressResponse(
-        [property: JsonPropertyName("postcode")] string? Postcode,
-        [property: JsonPropertyName("line_1")] string? Line1,
-        [property: JsonPropertyName("line_2")] string? Line2,
-        [property: JsonPropertyName("line_3")] string? Line3,
-        [property: JsonPropertyName("line_4")] string? Line4,
-        [property: JsonPropertyName("town_or_city")] string? TownOrCity,
-        [property: JsonPropertyName("county")] string? County,
-        [property: JsonPropertyName("country")] string? Country,
-        [property: JsonPropertyName("formatted_address")] string[]? FormattedAddress);
 }

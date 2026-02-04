@@ -601,7 +601,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
                       </uui-checkbox>
                       <div class="attachment-info">
                         ${attachment.iconSvg
-                          ? html`<span class="attachment-icon" .innerHTML=${attachment.iconSvg}></span>`
+                          ? html`<span class="attachment-icon"><uui-icon name="icon-paperclip"></uui-icon></span>`
                           : nothing}
                         <span class="attachment-name">${attachment.displayName}</span>
                         ${attachment.description

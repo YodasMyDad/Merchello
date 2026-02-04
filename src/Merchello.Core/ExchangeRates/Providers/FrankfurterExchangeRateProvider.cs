@@ -120,10 +120,4 @@ public class FrankfurterExchangeRateProvider(
             return null;
         }
     }
-
-    private record FrankfurterResponse(
-        string Base,
-        string Date,
-        Dictionary<string, decimal> Rates);
 }
-

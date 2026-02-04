@@ -46,7 +46,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         var metadata = _adapter.Metadata;
 
         // Assert
-        metadata.Alias.ShouldBe(ProtocolConstants.Protocols.Ucp);
+        metadata.Alias.ShouldBe(ProtocolAliases.Ucp);
     }
 
     [Fact]
@@ -195,7 +195,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         var fullManifest = await _adapter.GenerateManifestAsync();
         var agentCapabilities = new List<string>
         {
-            ProtocolConstants.UcpCapabilities.Checkout // Only checkout
+            UcpCapabilityNames.Checkout // Only checkout
         };
 
         // Act
@@ -231,8 +231,8 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         var fullManifest = await _adapter.GenerateManifestAsync();
         var agentCapabilities = new List<string>
         {
-            ProtocolConstants.UcpCapabilities.Checkout,
-            ProtocolConstants.UcpExtensions.Discount // Only discount extension
+            UcpCapabilityNames.Checkout,
+            UcpExtensionNames.Discount // Only discount extension
         };
 
         // Act
@@ -269,7 +269,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         var fullManifest = await _adapter.GenerateManifestAsync() as UcpManifest;
         var agentCapabilities = new List<string>
         {
-            ProtocolConstants.UcpCapabilities.Checkout
+            UcpCapabilityNames.Checkout
         };
 
         // Act
@@ -287,7 +287,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         var fullManifest = await _adapter.GenerateManifestAsync() as UcpManifest;
         var agentCapabilities = new List<string>
         {
-            ProtocolConstants.UcpCapabilities.Order
+            UcpCapabilityNames.Order
         };
 
         // Act
@@ -305,7 +305,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         var fullManifest = await _adapter.GenerateManifestAsync() as UcpManifest;
         var agentCapabilities = new List<string>
         {
-            ProtocolConstants.UcpCapabilities.Checkout
+            UcpCapabilityNames.Checkout
         };
 
         // Act

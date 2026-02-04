@@ -90,7 +90,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
     /// <inheritdoc />
     public CommerceProtocolAdapterMetadata Metadata => new(
-        Alias: ProtocolConstants.Protocols.Ucp,
+        Alias: ProtocolAliases.Ucp,
         DisplayName: "Universal Commerce Protocol",
         Version: _protocolSettings.Ucp.Version,
         Icon: "icon-globe",
@@ -107,7 +107,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     {
         var capabilities = BuildCapabilities();
         var paymentHandlers = await _paymentHandlerExporter.ExportHandlersAsync(
-            ProtocolConstants.Protocols.Ucp, null, ct);
+            ProtocolAliases.Ucp, null, ct);
         var signingKeys = await _signingKeyStore.GetPublicKeysAsync(ct);
 
         return new UcpManifest
@@ -153,7 +153,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         {
             // Publish "Creating" notification - handlers can cancel
             var creatingNotification = new ProtocolSessionCreatingNotification(
-                request, ProtocolConstants.Protocols.Ucp, agentIdentity);
+                request, ProtocolAliases.Ucp, agentIdentity);
             if (await _notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
             {
                 return ProtocolResponse.BadRequest(
@@ -179,7 +179,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
             // Save basket first - must exist in DB before applying buyer info or discounts
             // because SaveAddressesAsync and ApplyDiscountCodeAsync use Update()
-            await _checkoutService.SaveBasketAsync(basket, ct);
+            await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
 
             // Apply buyer info if provided (updates the basket in DB)
             if (ucpRequest?.Buyer != null)
@@ -197,7 +197,9 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 }
             }
 
-            var sessionState = await _checkoutService.GetSessionStateAsync(basket.Id, ct);
+            var sessionState = await _checkoutService.GetSessionStateAsync(
+                new GetSessionStateParameters { BasketId = basket.Id },
+                ct);
             if (sessionState == null)
             {
                 return ProtocolResponse.NotFound("Failed to create session");
@@ -205,7 +207,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
             // Publish "Created" notification
             await _notificationPublisher.PublishAsync(
-                new ProtocolSessionCreatedNotification(sessionState, ProtocolConstants.Protocols.Ucp, agentIdentity), ct);
+                new ProtocolSessionCreatedNotification(sessionState, ProtocolAliases.Ucp, agentIdentity), ct);
 
             var envelope = await WrapSessionInEnvelopeAsync(sessionState, ct);
             return ProtocolResponse.Created(envelope);
@@ -228,7 +230,9 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             return ProtocolResponse.BadRequest("Invalid session ID format");
         }
 
-        var sessionState = await _checkoutService.GetSessionStateAsync(basketId, ct);
+        var sessionState = await _checkoutService.GetSessionStateAsync(
+            new GetSessionStateParameters { BasketId = basketId },
+            ct);
         if (sessionState == null)
         {
             return ProtocolResponse.NotFound($"Session '{sessionId}' not found");
@@ -254,7 +258,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         {
             // Publish "Updating" notification - handlers can cancel
             var updatingNotification = new ProtocolSessionUpdatingNotification(
-                sessionId, request, ProtocolConstants.Protocols.Ucp, agentIdentity);
+                sessionId, request, ProtocolAliases.Ucp, agentIdentity);
             if (await _notificationPublisher.PublishCancelableAsync(updatingNotification, ct))
             {
                 return ProtocolResponse.BadRequest(
@@ -262,7 +266,9 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             }
 
             // Load the basket
-            var basket = await _checkoutService.GetBasketByIdAsync(basketId, ct);
+            var basket = await _checkoutService.GetBasketByIdAsync(
+                new GetBasketByIdParameters { BasketId = basketId },
+                ct);
             if (basket == null)
             {
                 return ProtocolResponse.NotFound($"Session '{sessionId}' not found");
@@ -347,9 +353,11 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             }
 
             // Save basket and return updated state
-            await _checkoutService.SaveBasketAsync(basket, ct);
+            await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
 
-            var sessionState = await _checkoutService.GetSessionStateAsync(basketId, ct);
+            var sessionState = await _checkoutService.GetSessionStateAsync(
+                new GetSessionStateParameters { BasketId = basketId },
+                ct);
             if (sessionState == null)
             {
                 return ProtocolResponse.NotFound($"Session '{sessionId}' not found after update");
@@ -357,7 +365,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
             // Publish "Updated" notification
             await _notificationPublisher.PublishAsync(
-                new ProtocolSessionUpdatedNotification(sessionState, ProtocolConstants.Protocols.Ucp, agentIdentity), ct);
+                new ProtocolSessionUpdatedNotification(sessionState, ProtocolAliases.Ucp, agentIdentity), ct);
 
             var envelope = await WrapSessionInEnvelopeAsync(sessionState, ct);
             return ProtocolResponse.Ok(envelope);
@@ -385,7 +393,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         {
             // Publish "Completing" notification - handlers can cancel
             var completingNotification = new ProtocolSessionCompletingNotification(
-                sessionId, paymentData, ProtocolConstants.Protocols.Ucp, agentIdentity);
+                sessionId, paymentData, ProtocolAliases.Ucp, agentIdentity);
             if (await _notificationPublisher.PublishCancelableAsync(completingNotification, ct))
             {
                 return ProtocolResponse.BadRequest(
@@ -393,14 +401,18 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             }
 
             // Get basket
-            var basket = await _checkoutService.GetBasketByIdAsync(basketId, ct);
+            var basket = await _checkoutService.GetBasketByIdAsync(
+                new GetBasketByIdParameters { BasketId = basketId },
+                ct);
             if (basket == null)
             {
                 return ProtocolResponse.NotFound($"Session '{sessionId}' not found");
             }
 
             // Get session state to verify status
-            var sessionState = await _checkoutService.GetSessionStateAsync(basketId, ct);
+            var sessionState = await _checkoutService.GetSessionStateAsync(
+                new GetSessionStateParameters { BasketId = basketId },
+                ct);
             if (sessionState == null)
             {
                 return ProtocolResponse.NotFound($"Session '{sessionId}' not found");
@@ -424,7 +436,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
             // Validate handler exists
             var availableHandlers = await _paymentHandlerExporter.ExportHandlersAsync(
-                ProtocolConstants.Protocols.Ucp,
+                ProtocolAliases.Ucp,
                 sessionId,
                 ct);
 
@@ -442,14 +454,16 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             // If there is only one shipping option per group and no selection yet, auto-select it.
             if (await AutoSelectSingleOptionGroupsAsync(basket, sessionState, checkoutSession, ct))
             {
-                sessionState = await _checkoutService.GetSessionStateAsync(basketId, ct);
+                sessionState = await _checkoutService.GetSessionStateAsync(
+                    new GetSessionStateParameters { BasketId = basketId },
+                    ct);
                 if (sessionState == null)
                 {
                     return ProtocolResponse.NotFound($"Session '{sessionId}' not found");
                 }
             }
 
-            if (sessionState.Status != ProtocolConstants.SessionStatus.ReadyForComplete)
+            if (sessionState.Status != ProtocolSessionStatuses.ReadyForComplete)
             {
                 return ProtocolResponse.BadRequest(
                     $"Session is not ready for completion. Current status: {sessionState.Status}");
@@ -495,22 +509,22 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             var instrumentData = ConvertInstrumentData(completeRequest.PaymentInstrument?.Data);
             var paymentMethodToken = completeRequest.PaymentInstrument?.Token;
 
-            if (selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Tokenized && string.IsNullOrWhiteSpace(paymentMethodToken))
+            if (selectedHandler.Type == ProtocolPaymentHandlerTypes.Tokenized && string.IsNullOrWhiteSpace(paymentMethodToken))
             {
                 return ProtocolResponse.BadRequest("Payment token is required for tokenized handlers");
             }
 
-            if (selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Wallet && string.IsNullOrWhiteSpace(paymentMethodToken))
+            if (selectedHandler.Type == ProtocolPaymentHandlerTypes.Wallet && string.IsNullOrWhiteSpace(paymentMethodToken))
             {
                 return ProtocolResponse.BadRequest("Authorization token is required for wallet handlers");
             }
 
-            if (selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Form && (instrumentData == null || instrumentData.Count == 0))
+            if (selectedHandler.Type == ProtocolPaymentHandlerTypes.Form && (instrumentData == null || instrumentData.Count == 0))
             {
                 return ProtocolResponse.BadRequest("Form data is required for form handlers");
             }
 
-            if (selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Redirect && (instrumentData == null || instrumentData.Count == 0))
+            if (selectedHandler.Type == ProtocolPaymentHandlerTypes.Redirect && (instrumentData == null || instrumentData.Count == 0))
             {
                 return ProtocolResponse.BadRequest("Redirect parameters are required for redirect handlers");
             }
@@ -521,16 +535,16 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 InvoiceId = invoice.Id,
                 ProviderAlias = providerAlias,
                 MethodAlias = methodAlias,
-                PaymentMethodToken = selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Tokenized
+                PaymentMethodToken = selectedHandler.Type == ProtocolPaymentHandlerTypes.Tokenized
                     ? paymentMethodToken
                     : null,
-                AuthorizationToken = selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Wallet
+                AuthorizationToken = selectedHandler.Type == ProtocolPaymentHandlerTypes.Wallet
                     ? paymentMethodToken
                     : null,
-                FormData = selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Form
+                FormData = selectedHandler.Type == ProtocolPaymentHandlerTypes.Form
                     ? instrumentData
                     : null,
-                RedirectParams = selectedHandler.Type == ProtocolConstants.PaymentHandlerTypes.Redirect
+                RedirectParams = selectedHandler.Type == ProtocolPaymentHandlerTypes.Redirect
                     ? instrumentData
                     : null,
                 Amount = invoice.Total,
@@ -575,20 +589,20 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             var paymentStatus = paymentResult.ResultObject?.PaymentResult?.Status;
             var completionStatus = paymentStatus switch
             {
-                PaymentResultStatus.Completed => ProtocolConstants.SessionStatus.Completed,
-                PaymentResultStatus.Pending => ProtocolConstants.SessionStatus.CompleteInProgress,
-                PaymentResultStatus.Authorized => ProtocolConstants.SessionStatus.CompleteInProgress,
-                _ => ProtocolConstants.SessionStatus.CompleteInProgress
+                PaymentResultStatus.Completed => ProtocolSessionStatuses.Completed,
+                PaymentResultStatus.Pending => ProtocolSessionStatuses.CompleteInProgress,
+                PaymentResultStatus.Authorized => ProtocolSessionStatuses.CompleteInProgress,
+                _ => ProtocolSessionStatuses.CompleteInProgress
             };
 
-            if (completionStatus == ProtocolConstants.SessionStatus.Completed)
+            if (completionStatus == ProtocolSessionStatuses.Completed)
             {
                 await _checkoutService.DeleteBasket(basketId, ct);
 
                 // Publish "Completed" notification
                 await _notificationPublisher.PublishAsync(
                     new ProtocolSessionCompletedNotification(
-                        sessionState, invoice.Id.ToString(), ProtocolConstants.Protocols.Ucp, agentIdentity), ct);
+                        sessionState, invoice.Id.ToString(), ProtocolAliases.Ucp, agentIdentity), ct);
             }
 
             var completionData = new
@@ -623,7 +637,9 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         try
         {
             // Check if basket exists before attempting to delete
-            var basket = await _checkoutService.GetBasketByIdAsync(basketId, ct);
+            var basket = await _checkoutService.GetBasketByIdAsync(
+                new GetBasketByIdParameters { BasketId = basketId },
+                ct);
             if (basket == null)
             {
                 return ProtocolResponse.NotFound($"Session '{sessionId}' not found");
@@ -634,7 +650,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             var cancelData = new
             {
                 id = sessionId,
-                status = ProtocolConstants.SessionStatus.Canceled
+                status = ProtocolSessionStatuses.Canceled
             };
 
             return ProtocolResponse.Ok(WrapDataInEnvelope(cancelData));
@@ -830,11 +846,11 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     {
         return status switch
         {
-            ShipmentStatus.Preparing => ProtocolConstants.FulfillmentEventTypes.Processing,
-            ShipmentStatus.Shipped => ProtocolConstants.FulfillmentEventTypes.Shipped,
-            ShipmentStatus.Delivered => ProtocolConstants.FulfillmentEventTypes.Delivered,
-            ShipmentStatus.Cancelled => ProtocolConstants.FulfillmentEventTypes.Canceled,
-            _ => ProtocolConstants.FulfillmentEventTypes.Processing
+            ShipmentStatus.Preparing => ProtocolFulfillmentEventTypes.Processing,
+            ShipmentStatus.Shipped => ProtocolFulfillmentEventTypes.Shipped,
+            ShipmentStatus.Delivered => ProtocolFulfillmentEventTypes.Delivered,
+            ShipmentStatus.Cancelled => ProtocolFulfillmentEventTypes.Canceled,
+            _ => ProtocolFulfillmentEventTypes.Processing
         };
     }
 
@@ -869,7 +885,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         CancellationToken ct = default)
     {
         return await _paymentHandlerExporter.ExportHandlersAsync(
-            ProtocolConstants.Protocols.Ucp, sessionId, ct);
+            ProtocolAliases.Ucp, sessionId, ct);
     }
 
     /// <inheritdoc />
@@ -1447,7 +1463,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         {
             capabilities.Add(new UcpCapability
             {
-                Name = ProtocolConstants.UcpCapabilities.Checkout,
+                Name = UcpCapabilityNames.Checkout,
                 Version = settings.Version,
                 Spec = "https://ucp.dev/specifications/checkout.md",
                 Schema = "https://ucp.dev/schemas/shopping/checkout.json"
@@ -1458,11 +1474,11 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             {
                 capabilities.Add(new UcpCapability
                 {
-                    Name = ProtocolConstants.UcpExtensions.Discount,
+                    Name = UcpExtensionNames.Discount,
                     Version = settings.Version,
                     Spec = "https://ucp.dev/specifications/discount.md",
                     Schema = "https://ucp.dev/schemas/shopping/discount.json",
-                    Extends = ProtocolConstants.UcpCapabilities.Checkout
+                    Extends = UcpCapabilityNames.Checkout
                 });
             }
 
@@ -1470,11 +1486,11 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             {
                 capabilities.Add(new UcpCapability
                 {
-                    Name = ProtocolConstants.UcpExtensions.Fulfillment,
+                    Name = UcpExtensionNames.Fulfillment,
                     Version = settings.Version,
                     Spec = "https://ucp.dev/specifications/fulfillment.md",
                     Schema = "https://ucp.dev/schemas/shopping/fulfillment.json",
-                    Extends = ProtocolConstants.UcpCapabilities.Checkout
+                    Extends = UcpCapabilityNames.Checkout
                 });
             }
 
@@ -1482,11 +1498,11 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             {
                 capabilities.Add(new UcpCapability
                 {
-                    Name = ProtocolConstants.UcpExtensions.BuyerConsent,
+                    Name = UcpExtensionNames.BuyerConsent,
                     Version = settings.Version,
                     Spec = "https://ucp.dev/specifications/buyer-consent.md",
                     Schema = "https://ucp.dev/schemas/shopping/buyer-consent.json",
-                    Extends = ProtocolConstants.UcpCapabilities.Checkout
+                    Extends = UcpCapabilityNames.Checkout
                 });
             }
         }
@@ -1495,7 +1511,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         {
             capabilities.Add(new UcpCapability
             {
-                Name = ProtocolConstants.UcpCapabilities.Order,
+                Name = UcpCapabilityNames.Order,
                 Version = settings.Version,
                 Spec = "https://ucp.dev/specifications/order.md",
                 Schema = "https://ucp.dev/schemas/shopping/order.json"
@@ -1506,7 +1522,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         {
             capabilities.Add(new UcpCapability
             {
-                Name = ProtocolConstants.UcpCapabilities.IdentityLinking,
+                Name = UcpCapabilityNames.IdentityLinking,
                 Version = settings.Version,
                 Spec = "https://ucp.dev/specifications/identity-linking.md",
                 Schema = "https://ucp.dev/schemas/common/identity-linking.json"
@@ -1521,7 +1537,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         CancellationToken ct)
     {
         var handlers = await _paymentHandlerExporter.ExportHandlersAsync(
-            ProtocolConstants.Protocols.Ucp,
+            ProtocolAliases.Ucp,
             session.SessionId,
             ct);
 
@@ -1604,10 +1620,10 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             GivenName = address.FirstName,
             FamilyName = address.LastName,
             Organization = address.Company,
-            AddressLine1 = address.Address1,
-            AddressLine2 = address.Address2,
-            Locality = address.City,
-            AdministrativeArea = address.RegionCode ?? address.Region,
+            AddressLine1 = address.AddressOne,
+            AddressLine2 = address.AddressTwo,
+            Locality = address.TownCity,
+            AdministrativeArea = address.RegionCode ?? address.CountyState,
             PostalCode = address.PostalCode,
             CountryCode = address.CountryCode,
             Phone = address.Phone
@@ -1797,16 +1813,16 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
         if (settings.Capabilities.Checkout)
         {
-            capabilities.Add(ProtocolConstants.UcpCapabilities.Checkout);
+            capabilities.Add(UcpCapabilityNames.Checkout);
 
             if (settings.Extensions.Discount)
-                capabilities.Add(ProtocolConstants.UcpExtensions.Discount);
+                capabilities.Add(UcpExtensionNames.Discount);
             if (settings.Extensions.Fulfillment)
-                capabilities.Add(ProtocolConstants.UcpExtensions.Fulfillment);
+                capabilities.Add(UcpExtensionNames.Fulfillment);
         }
 
         if (settings.Capabilities.Order)
-            capabilities.Add(ProtocolConstants.UcpCapabilities.Order);
+            capabilities.Add(UcpCapabilityNames.Order);
 
         return capabilities;
     }

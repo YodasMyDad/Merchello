@@ -30,6 +30,29 @@ public class LineItemFactory(ICurrencyService currencyService)
     }
 
     /// <summary>
+    /// Creates a product line item for auto-add upsell scenarios.
+    /// </summary>
+    public LineItem CreateAutoAddProductLineItem(
+        Guid productId,
+        string name,
+        string sku,
+        decimal amount,
+        Dictionary<string, object>? extendedData = null)
+    {
+        return new LineItem
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            ProductId = productId,
+            Name = name,
+            Sku = sku,
+            Quantity = 1,
+            Amount = amount,
+            LineItemType = LineItemType.Product,
+            ExtendedData = extendedData ?? []
+        };
+    }
+
+    /// <summary>
     /// Creates an add-on line item for a basket from a product option value.
     /// Ensures TaxGroupId is preserved and tax rate is resolved from the product's tax group.
     /// </summary>

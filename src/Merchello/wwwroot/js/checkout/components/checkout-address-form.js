@@ -11,7 +11,7 @@ import { validatePhone } from '../services/validation.js';
 
 /**
  * @typedef {Object} Region
- * @property {string} code
+ * @property {string} regionCode
  * @property {string} name
  */
 
@@ -19,11 +19,11 @@ import { validatePhone } from '../services/validation.js';
  * @typedef {Object} AddressFields
  * @property {string} name
  * @property {string} company
- * @property {string} address1
- * @property {string} address2
- * @property {string} city
- * @property {string} state
- * @property {string} stateCode
+ * @property {string} addressOne
+ * @property {string} addressTwo
+ * @property {string} townCity
+ * @property {string} countyState
+ * @property {string} regionCode
  * @property {string} country
  * @property {string} countryCode
  * @property {string} postalCode
@@ -31,7 +31,7 @@ import { validatePhone } from '../services/validation.js';
  */
 
 /** Required address fields */
-const REQUIRED_FIELDS = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
+const REQUIRED_FIELDS = ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'];
 
 /**
  * Initialize the checkout address form Alpine.data component
@@ -173,8 +173,8 @@ export function initCheckoutAddressForm() {
          */
         async onCountryChange() {
             // Clear state when country changes
-            this.$store.checkout?.setFormField(`${this.prefix}.state`, '');
-            this.$store.checkout?.setFormField(`${this.prefix}.stateCode`, '');
+            this.$store.checkout?.setFormField(`${this.prefix}.countyState`, '');
+            this.$store.checkout?.setFormField(`${this.prefix}.regionCode`, '');
 
             // Load new regions
             await this.loadRegions();
@@ -193,18 +193,18 @@ export function initCheckoutAddressForm() {
          */
         onStateChange() {
             // Update state name from code
-            if (this.fields.stateCode && this.regions.length > 0) {
-                const stateName = getRegionName(this.fields.stateCode, this.regions);
+            if (this.fields.regionCode && this.regions.length > 0) {
+                const stateName = getRegionName(this.fields.regionCode, this.regions);
                 if (stateName) {
-                    this.$store.checkout?.setFormField(`${this.prefix}.state`, stateName);
+                    this.$store.checkout?.setFormField(`${this.prefix}.countyState`, stateName);
                 }
             }
 
             // Dispatch event
             this.$dispatch('address-changed', {
                 prefix: this.prefix,
-                field: 'stateCode',
-                value: this.fields.stateCode
+                field: 'regionCode',
+                value: this.fields.regionCode
             });
         },
 

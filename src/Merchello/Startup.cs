@@ -402,6 +402,10 @@ public static class Startup
 
         // Checkout member service (requires IMemberSignInManager from Umbraco.Cms.Web.Common)
         builder.Services.AddScoped<ICheckoutMemberService, CheckoutMemberService>();
+        builder.Services.AddScoped<ICheckoutDtoMapper, CheckoutDtoMapper>();
+        builder.Services.AddScoped<ICheckoutPaymentsOrchestrationService, CheckoutPaymentsOrchestrationService>();
+        builder.Services.AddScoped<IOrdersDtoMapper, OrdersDtoMapper>();
+        builder.Services.AddScoped<IOrdersRequestMapper, OrdersRequestMapper>();
 
 
         // Front-End Rendering
@@ -580,10 +584,7 @@ public static class Startup
         builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
 
-        // 5. Initialize ProductRootExtensions with singleton services
-        builder.AddNotificationHandler<UmbracoApplicationStartedNotification, InitializeProductRootExtensionsHandler>();
-
-        // 6. Seed US shipping tax overrides (states where shipping is not taxable)
+        // 5. Seed US shipping tax overrides (states where shipping is not taxable)
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureShippingTaxOverridesHandler>();
 
         // =====================================================

@@ -48,7 +48,7 @@ Feature/
 └── Extensions/       # Extension methods
 ```
 
-**Modules:** Accounting, AddressLookup, Checkout, Customers, Discounts, Email, Products, Shipping, Payments, Suppliers, Warehouses, Locality, Notifications, Stores, Webhooks
+**Modules:** Accounting, AddressLookup, Auditing, Caching, Checkout, Customers, Data, Developer, DigitalProducts, Discounts, Email, ExchangeRates, Fulfilment, GiftCards, Locality, Notifications, Payments, Products, Protocols, Reporting, Returns, Search, Settings, Shared, Shipping, Storefront, Stores, Subscriptions, Suppliers, Tax, Upsells, Warehouses, Webhooks
 
 ### Design Rules
 - DbContext only in services, never in controllers
@@ -401,6 +401,60 @@ Digital products use `ProductRoot.ExtendedData` with constant keys (no new model
 - Rate limiting on download endpoint (30 requests/minute)
 - Token format: `{linkId:N}-{hmacSignature}`
 
+### 2.13 Storefront Context
+
+**IStorefrontContextService:**
+- `GetShippingLocationAsync()` - Get customer's shipping location from cookie/settings
+- `SetShippingCountry()` - Set customer's preferred shipping country (writes cookie, auto-updates currency)
+- `GetCurrencyAsync()` - Get current currency from cookie, derived from country, or store default
+- `SetCurrency()` - Set customer's preferred currency
+- `GetDisplayContextAsync()` - Get complete display context (currency, tax, location) for product display
+- `GetAvailableStockAsync()` - Get stock available to customer's location (location-aware)
+- `GetProductAvailabilityAsync()` - Get full availability info for product at current location
+- `GetBasketAvailabilityAsync()` - Get availability for all basket items at a specific location
+- `ConvertToCustomerCurrencyAsync()` - Convert amount to customer's selected currency
+
+**ICountryCurrencyMappingService:**
+- `GetCurrencyForCountry()` - Auto-map country code to default currency (80+ mappings)
+
+### 2.14 Fulfilment
+
+**IFulfilmentService:**
+- `SubmitOrderAsync()` - Submit order to configured 3PL provider
+- `RetrySubmissionAsync()` - Retry failed order submission
+- `CancelOrderAsync()` - Cancel order at fulfilment provider
+- `ProcessStatusUpdateAsync()` - Process status update from provider webhook
+- `ProcessShipmentUpdateAsync()` - Process shipment update from provider webhook
+- `GetOrdersForPollingAsync()` - Get orders needing status polling
+- `ResolveProviderForWarehouseAsync()` - Resolve fulfilment provider for warehouse
+- `IsDuplicateWebhookAsync()` - Check webhook idempotency
+
+### 2.15 Upsells
+
+**IUpsellService:**
+- `QueryAsync()` - Query upsell rules with pagination
+- `GetByIdAsync()` - Get upsell rule by ID
+- `CreateAsync()` - Create upsell rule
+- `UpdateAsync()` - Update upsell rule
+- `DeleteAsync()` - Delete upsell rule
+- `ActivateAsync()` / `DeactivateAsync()` - Manage rule status
+- `GetActiveUpsellRulesAsync()` - Get all active rules
+- `GetActiveUpsellRulesForLocationAsync()` - Get active rules for display location
+
+**IUpsellEngine:**
+- `GetSuggestionsAsync()` - Evaluate rules against basket context and return suggestions
+- `GetSuggestionsForLocationAsync()` - Get suggestions filtered by display location
+- `GetSuggestionsForInvoiceAsync()` - Get suggestions for email templates
+- `GetSuggestionsForProductAsync()` - Get suggestions for product page
+
+**IPostPurchaseUpsellService:**
+- `InitializePostPurchaseAsync()` - Initialize post-purchase window after payment
+- `GetAvailableUpsellsAsync()` - Get available post-purchase upsells for invoice
+- `PreviewAddToOrderAsync()` - Preview adding item without committing
+- `AddToOrderAsync()` - Add item and charge saved payment method
+- `SkipUpsellsAsync()` - Skip upsells and release fulfillment hold
+- `IsPostPurchaseWindowValidAsync()` - Check if post-purchase window is still valid
+
 ---
 
 ## 3. Tax System
@@ -591,7 +645,7 @@ new ShippingOptionConfig { Name = "FedEx Ground", Cost = 8.99m, ProviderKey = "f
 | `Widget` | Provider's embedded widget | Apple Pay, Google Pay, PayPal |
 | `DirectForm` | Simple form fields (backoffice) | Manual payments |
 
-**Built-in:** `ManualPaymentProvider`
+**Built-in:** `ManualPaymentProvider`, `AmazonPayPaymentProvider`, `BraintreePaymentProvider`, `PayPalPaymentProvider`, `StripePaymentProvider`, `WorldPayPaymentProvider`
 
 ### 4.4 Tax Providers
 
@@ -603,7 +657,7 @@ new ShippingOptionConfig { Name = "FedEx Ground", Cost = 8.99m, ProviderKey = "f
 | **Calculation** | `CalculateOrderTaxAsync()` |
 | **Shipping Tax** | `GetShippingTaxRateForLocationAsync()` |
 
-Single active provider at a time. **Built-in:** `ManualTaxProvider` (uses TaxGroup/TaxGroupRate)
+Single active provider at a time. **Built-in:** `ManualTaxProvider` (uses TaxGroup/TaxGroupRate), `AvalaraTaxProvider` (external API integration)
 
 ### 4.5 Order Grouping Strategies
 
@@ -642,10 +696,11 @@ Protocol adapters enable Merchello to expose checkout and order capabilities to 
 
 | Category | Methods |
 |----------|---------|
-| **Identity** | `Alias`, `Metadata` |
-| **Discovery** | `GetManifestAsync()`, `GetNegotiatedManifestAsync()` |
-| **Checkout** | `GetSessionStateAsync()`, `UpdateSessionAsync()`, `CompleteSessionAsync()` |
-| **Orders** | `GetOrderAsync()`, `QueryOrdersAsync()` |
+| **Identity** | `Metadata`, `IsEnabled` |
+| **Discovery** | `GenerateManifestAsync()`, `NegotiateCapabilitiesAsync()` |
+| **Sessions** | `CreateSessionAsync()`, `GetSessionAsync()`, `UpdateSessionAsync()`, `CompleteSessionAsync()`, `CancelSessionAsync()` |
+| **Orders** | `GetOrderAsync()` |
+| **Payments** | `GetPaymentHandlersAsync()` |
 
 **CommerceProtocolManager:**
 - Discovers adapters via `ExtensionManager`
@@ -708,7 +763,7 @@ Pluggable system for 3PL (third-party logistics) integration. **Separate from Sh
 | **Polling** | `PollOrderStatusAsync()` |
 | **Sync** | `SyncProductsAsync()`, `GetInventoryLevelsAsync()` |
 
-**Built-in:** `ManualFulfilmentProvider`, `ShipBobFulfilmentProvider`
+**Built-in:** `ShipBobFulfilmentProvider`
 
 **Shipping → Fulfilment Bridge (Service Category Inference):**
 
@@ -1419,6 +1474,8 @@ All domain objects are created via factories for consistency, thread safety, and
 | `ShippingOptionFactory` | `Create(params)` - Creates shipping options |
 | `SupplierFactory` | `Create(params)` - Creates supplier entities |
 | `WarehouseFactory` | `Create(params)` - Creates warehouse entities |
+| `SavedPaymentMethodFactory` | `CreateFromVaultConfirmation()` - Creates saved payment method from vault |
+| `UpsellFactory` | `Create(params)` - Creates upsell rule entities |
 
 ---
 
@@ -1432,6 +1489,9 @@ All domain objects are created via factories for consistency, thread safety, and
 | `InvoiceReminderJob` | Sends payment reminders and overdue notices |
 | `FulfilmentPollingJob` | Polls 3PLs for order status updates |
 | `FulfilmentRetryJob` | Retries failed 3PL order submissions |
+| `FulfilmentCleanupJob` | Cleans up old fulfilment sync and webhook logs |
+| `ExchangeRateRefreshJob` | Periodically refreshes exchange rates from configured provider |
+| `UpsellStatusJob` | Transitions upsell rules: Scheduled → Active → Expired; cleans up old analytics |
 
 ---
 
@@ -1658,15 +1718,47 @@ Secure file download endpoints for digital products.
 - `403 Forbidden` - Max downloads reached
 - `429 Too Many Requests` - Rate limit exceeded
 
+### 13.6 Admin API (`/umbraco/backoffice/merchello/api`)
+
+Backoffice APIs for store management. All endpoints require Umbraco backoffice authentication.
+
+| Category | Controllers |
+|----------|-------------|
+| Products | `ProductsApiController`, `FiltersApiController`, `ProductTypesApiController`, `ProductCollectionsApiController` |
+| Orders | `OrdersApiController`, `ShippingOptionsApiController`, `ShipmentsApiController` |
+| Customers | `CustomersApiController`, `CustomerSegmentsApiController` |
+| Payments | `PaymentsApiController`, `SavedPaymentMethodsApiController`, `PaymentLinksApiController` |
+| Providers | `PaymentProvidersApiController`, `ShippingProvidersApiController`, `TaxProvidersApiController`, `FulfilmentProvidersApiController`, `ExchangeRateProvidersApiController`, `AddressLookupProvidersApiController` |
+| Marketing | `DiscountsApiController`, `UpsellsApiController`, `AbandonedCheckoutApiController` |
+| Configuration | `SettingsApiController`, `TaxApiController`, `WarehousesApiController`, `SuppliersApiController` |
+| Notifications | `EmailConfigurationApiController`, `WebhooksApiController`, `NotificationsApiController` |
+| Reporting | `ReportingApiController` |
+
 ---
 
 ## 14. DTOs
 
-### Storefront DTOs
-`AddToBasketDto`, `UpdateQuantityDto`, `StorefrontBasketDto`, `StorefrontLineItemDto`, `ShippingCountriesDto`, `StorefrontCountryDto`, `StorefrontRegionDto`, `ProductAvailabilityDto`, `BasketAvailabilityDto`, `EstimatedShippingDto`
+DTOs are organized by domain module. See CLAUDE.md for naming conventions.
 
-### Checkout DTOs
-`CheckoutBasketDto`, `CheckoutLineItemDto`, `SaveAddressesRequestDto`, `InitializeCheckoutRequestDto`, `ShippingGroupDto`, `ShippingOptionDto`, `PaymentMethodDto`, `PaymentSessionResultDto`
+### DTO Organization by Domain
+
+| Domain | Count | Key Types |
+|--------|-------|-----------|
+| Accounting | ~62 | `InvoiceDto`, `OrderDto`, `LineItemDto`, `PaymentDto`, `StatementDto` |
+| Payments | ~62 | `PaymentMethodDto`, `RefundDto`, `PaymentSessionDto`, `SavedPaymentMethodDto` |
+| Products | ~38 | `ProductDto`, `VariantDto`, `ProductOptionDto`, `ProductTypeDto` |
+| Checkout | ~37 | `BasketDto`, `CheckoutSessionDto`, `ShippingGroupDto`, `ShippingOptionDto` |
+| Shipping | ~33 | `ShipmentDto`, `ShippingOptionDto`, `ShippingCostDto`, `ServiceRegionDto` |
+| Upsells | ~25 | `UpsellDto`, `UpsellRuleDto`, `UpsellSuggestionDto`, `PostPurchaseUpsellsDto` |
+| Customers | ~19 | `CustomerDto`, `CustomerSegmentDto`, `SegmentCriteriaDto` |
+| Discounts | ~16 | `DiscountDto`, `DiscountRuleDto`, `DiscountUsageDto` |
+| Storefront | ~16 | `StorefrontBasketDto`, `ProductAvailabilityDto`, `StorefrontCountryDto` |
+| Protocols/UCP | ~14 | `UcpSessionDto`, `UcpOrderDto`, `UcpManifestDto` |
+| Fulfilment | ~9 | `FulfilmentOrderDto`, `FulfilmentStatusDto`, `FulfilmentProviderDto` |
+| Warehouses | ~10 | `WarehouseDto`, `ServiceRegionDto`, `StockDto` |
+| Webhooks | ~11 | `WebhookSubscriptionDto`, `WebhookDeliveryDto`, `WebhookTopicDto` |
+| Email | ~14 | `EmailConfigurationDto`, `EmailTemplateDto`, `EmailTokenDto` |
+| Reporting | ~5 | `SalesBreakdownDto`, `DashboardStatsDto`, `OrderStatsDto` |
 
 ---
 

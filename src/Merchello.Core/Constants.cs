@@ -462,14 +462,20 @@ public static class Constants
         public const string Pos = "pos";
 
         /// <summary>
+        /// Admin-created draft order.
+        /// </summary>
+        public const string Draft = "draft";
+
+        /// <summary>
+        /// Legacy alias for draft admin-created orders.
+        /// Prefer <see cref="Draft"/>.
+        /// </summary>
+        public const string Manual = Draft;
+
+        /// <summary>
         /// Mobile application.
         /// </summary>
         public const string Mobile = "mobile";
-
-        /// <summary>
-        /// Admin-created manual order.
-        /// </summary>
-        public const string Manual = "manual";
 
         /// <summary>
         /// Import from external system.

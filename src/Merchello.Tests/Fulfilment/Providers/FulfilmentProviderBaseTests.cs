@@ -234,8 +234,8 @@ public class FulfilmentProviderBaseTests
             ShippingAddress = new FulfilmentAddress
             {
                 Name = "Test Customer",
-                Address1 = "123 Test Street",
-                City = "London",
+                AddressOne = "123 Test Street",
+                TownCity = "London",
                 PostalCode = "SW1A 1AA",
                 CountryCode = "GB"
             }

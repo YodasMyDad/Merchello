@@ -125,7 +125,7 @@ public class UcpCheckoutSmokeTests : IClassFixture<ServiceTestFixture>
 
             using var completionDoc = JsonDocument.Parse(JsonSerializer.Serialize(completionData));
             var completionRoot = completionDoc.RootElement;
-            completionRoot.GetProperty("status").GetString().ShouldBe(ProtocolConstants.SessionStatus.Completed);
+            completionRoot.GetProperty("status").GetString().ShouldBe(ProtocolSessionStatuses.Completed);
             var orderId = completionRoot.GetProperty("order_id").GetString();
             orderId.ShouldNotBeNullOrWhiteSpace("Order ID should be returned on completion.");
 
@@ -228,7 +228,7 @@ public class UcpCheckoutSmokeTests : IClassFixture<ServiceTestFixture>
 
             using var completionDoc = JsonDocument.Parse(JsonSerializer.Serialize(completionData));
             var completionRoot = completionDoc.RootElement;
-            completionRoot.GetProperty("status").GetString().ShouldBe(ProtocolConstants.SessionStatus.CompleteInProgress);
+            completionRoot.GetProperty("status").GetString().ShouldBe(ProtocolSessionStatuses.CompleteInProgress);
             var orderId = completionRoot.GetProperty("order_id").GetString();
             orderId.ShouldNotBeNullOrWhiteSpace("Order ID should be returned on pending completion.");
 
@@ -385,7 +385,7 @@ public class UcpCheckoutSmokeTests : IClassFixture<ServiceTestFixture>
 
             using var completionDoc = JsonDocument.Parse(JsonSerializer.Serialize(completionData));
             var completionRoot = completionDoc.RootElement;
-            completionRoot.GetProperty("status").GetString().ShouldBe(ProtocolConstants.SessionStatus.Completed);
+            completionRoot.GetProperty("status").GetString().ShouldBe(ProtocolSessionStatuses.Completed);
         }
         finally
         {
@@ -594,12 +594,12 @@ public class UcpCheckoutSmokeTests : IClassFixture<ServiceTestFixture>
         return new AgentIdentity
         {
             AgentId = $"smoke-agent-{Guid.NewGuid():N}",
-            Protocol = ProtocolConstants.Protocols.Ucp,
+            Protocol = ProtocolAliases.Ucp,
             ProfileUri = "https://test-agent.example.com/profile",
             Capabilities =
             [
-                ProtocolConstants.UcpCapabilities.Checkout,
-                ProtocolConstants.UcpCapabilities.Order
+                UcpCapabilityNames.Checkout,
+                UcpCapabilityNames.Order
             ]
         };
     }

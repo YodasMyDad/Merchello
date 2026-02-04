@@ -22,6 +22,7 @@ using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Aggregate;
@@ -76,6 +77,7 @@ public class InvoiceService(
     InvoiceFactory invoiceFactory,
     OrderFactory orderFactory,
     LineItemFactory lineItemFactory,
+    AddressFactory addressFactory,
     IOptions<MerchelloSettings> settings,
     ILogger<InvoiceService> logger,
     IAbandonedCheckoutService? abandonedCheckoutService = null) : IInvoiceService
@@ -2400,44 +2402,40 @@ public class InvoiceService(
         return result;
     }
 
-    private static Address MapDtoToAddress(AddressDto dto)
+    private Address MapDtoToAddress(AddressDto dto)
     {
-        return new Address
-        {
-            Name = dto.Name,
-            Company = dto.Company,
-            AddressOne = dto.AddressOne,
-            AddressTwo = dto.AddressTwo,
-            TownCity = dto.TownCity,
-            CountyState = new CountyState
-            {
-                Name = dto.CountyState,
-                RegionCode = dto.RegionCode ?? dto.CountyState
-            },
-            PostalCode = dto.PostalCode,
-            Country = dto.Country,
-            CountryCode = dto.CountryCode,
-            Email = dto.Email,
-            Phone = dto.Phone
-        };
+        var address = addressFactory.CreateAddress(
+            dto.Name,
+            dto.AddressOne,
+            dto.AddressTwo,
+            dto.TownCity,
+            dto.PostalCode,
+            dto.CountryCode,
+            dto.CountyState,
+            dto.RegionCode,
+            dto.Company,
+            dto.Phone,
+            dto.Email);
+        address.Country = dto.Country;
+        return address;
     }
 
-    private static Address CloneAddress(Address source)
+    private Address CloneAddress(Address source)
     {
-        return new Address
-        {
-            Name = source.Name,
-            Company = source.Company,
-            AddressOne = source.AddressOne,
-            AddressTwo = source.AddressTwo,
-            TownCity = source.TownCity,
-            CountyState = new CountyState { Name = source.CountyState?.Name, RegionCode = source.CountyState?.RegionCode },
-            PostalCode = source.PostalCode,
-            Country = source.Country,
-            CountryCode = source.CountryCode,
-            Email = source.Email,
-            Phone = source.Phone
-        };
+        var clone = addressFactory.CreateAddress(
+            source.Name,
+            source.AddressOne,
+            source.AddressTwo,
+            source.TownCity,
+            source.PostalCode,
+            source.CountryCode,
+            source.CountyState?.Name,
+            source.CountyState?.RegionCode,
+            source.Company,
+            source.Phone,
+            source.Email);
+        clone.Country = source.Country;
+        return clone;
     }
 
 

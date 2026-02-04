@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -23,6 +24,7 @@ public class AutoAddUpsellHandler(
     IUpsellService upsellService,
     IUpsellContextBuilder upsellContextBuilder,
     ILineItemService lineItemService,
+    LineItemFactory lineItemFactory,
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
     IOptions<UpsellSettings> upsellSettings,
@@ -90,19 +92,15 @@ public class AutoAddUpsellHandler(
                     if (suppressedItems.Contains((suggestion.UpsellRuleId, product.ProductId))) continue;
 
                     // Create line item — use AddLineItem directly to avoid recursive notification
-                    var lineItem = new LineItem
-                    {
-                        ProductId = product.ProductId,
-                        Name = product.Name,
-                        Sku = product.Sku,
-                        Quantity = 1,
-                        Amount = product.Price,
-                        LineItemType = LineItemType.Product,
-                        ExtendedData = new Dictionary<string, object>
+                    var lineItem = lineItemFactory.CreateAutoAddProductLineItem(
+                        product.ProductId,
+                        product.Name,
+                        product.Sku ?? string.Empty,
+                        product.Price,
+                        new Dictionary<string, object>
                         {
                             [Constants.ExtendedDataKeys.AutoAddedByUpsellRule] = suggestion.UpsellRuleId.ToString()
-                        }
-                    };
+                        });
 
                     var errors = lineItemService.AddLineItem(basket.LineItems, lineItem);
                     if (errors.Count == 0)

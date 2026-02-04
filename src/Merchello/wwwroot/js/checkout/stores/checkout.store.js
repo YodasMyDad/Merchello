@@ -30,11 +30,11 @@ import { MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
  * @typedef {Object} AddressState
  * @property {string} name
  * @property {string} company
- * @property {string} address1
- * @property {string} address2
- * @property {string} city
- * @property {string} state
- * @property {string} stateCode
+ * @property {string} addressOne
+ * @property {string} addressTwo
+ * @property {string} townCity
+ * @property {string} countyState
+ * @property {string} regionCode
  * @property {string} country
  * @property {string} countryCode
  * @property {string} postalCode
@@ -163,11 +163,11 @@ export function initCheckoutStore(initialData = {}) {
             billing: {
                 name: '',
                 company: '',
-                address1: '',
-                address2: '',
-                city: '',
-                state: '',
-                stateCode: '',
+                addressOne: '',
+                addressTwo: '',
+                townCity: '',
+                countyState: '',
+                regionCode: '',
                 country: '',
                 countryCode: initialData.billing?.countryCode ?? '',
                 postalCode: '',
@@ -177,11 +177,11 @@ export function initCheckoutStore(initialData = {}) {
             shipping: {
                 name: '',
                 company: '',
-                address1: '',
-                address2: '',
-                city: '',
-                state: '',
-                stateCode: '',
+                addressOne: '',
+                addressTwo: '',
+                townCity: '',
+                countyState: '',
+                regionCode: '',
                 country: '',
                 countryCode: initialData.shipping?.countryCode ?? '',
                 postalCode: '',

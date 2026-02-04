@@ -8,14 +8,14 @@ public class CheckoutAddressState
     public string? FirstName { get; init; }
     public string? LastName { get; init; }
     public string? Company { get; init; }
-    public string? Address1 { get; init; }
-    public string? Address2 { get; init; }
-    public string? City { get; init; }
+    public string? AddressOne { get; init; }
+    public string? AddressTwo { get; init; }
+    public string? TownCity { get; init; }
 
     /// <summary>
     /// State/Province name.
     /// </summary>
-    public string? Region { get; init; }
+    public string? CountyState { get; init; }
 
     /// <summary>
     /// State/Province code.

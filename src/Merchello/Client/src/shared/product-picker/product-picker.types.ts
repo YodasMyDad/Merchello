@@ -18,7 +18,7 @@ export interface ProductPickerConfig {
    */
   shippingAddress?: {
     countryCode: string;
-    stateCode?: string;
+    regionCode?: string;
   } | null;
 
   /** Product IDs that are already selected (for property editor use) */

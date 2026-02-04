@@ -13,6 +13,7 @@ using Merchello.Core.Storefront.Services.Parameters;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
@@ -54,7 +55,9 @@ public class StorefrontContextService(
         }
 
         // Validate country code against available countries
-        var availableCountries = await locationsService.GetAvailableCountriesAsync(ct);
+        var availableCountries = await locationsService.GetAvailableCountriesAsync(
+            new GetAvailableCountriesParameters(),
+            ct);
         var availableCountryCodes = availableCountries.Select(c => c.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // If cookie country is invalid, try settings default

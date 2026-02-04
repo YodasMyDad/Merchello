@@ -9,22 +9,22 @@ public class ExpressCheckoutAddress
     /// <summary>
     /// Street address line 1.
     /// </summary>
-    public string? Line1 { get; set; }
+    public string? AddressOne { get; set; }
 
     /// <summary>
     /// Street address line 2 (apartment, suite, etc.).
     /// </summary>
-    public string? Line2 { get; set; }
+    public string? AddressTwo { get; set; }
 
     /// <summary>
     /// City or locality.
     /// </summary>
-    public string? City { get; set; }
+    public string? TownCity { get; set; }
 
     /// <summary>
     /// State, province, or region.
     /// </summary>
-    public string? Region { get; set; }
+    public string? CountyState { get; set; }
 
     /// <summary>
     /// Postal or ZIP code.

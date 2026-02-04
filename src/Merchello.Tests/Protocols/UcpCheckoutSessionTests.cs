@@ -536,7 +536,7 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
         {
             Fulfillment = new UcpFulfillmentRequestDto
             {
-                Methods = [new UcpFulfillmentMethodRequestDto { Type = ProtocolConstants.FulfillmentTypes.Shipping }]
+                Methods = [new UcpFulfillmentMethodRequestDto { Type = ProtocolFulfillmentTypes.Shipping }]
             }
         };
 
@@ -859,12 +859,12 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
         return new AgentIdentity
         {
             AgentId = Guid.NewGuid().ToString(),
-            Protocol = ProtocolConstants.Protocols.Ucp,
+            Protocol = ProtocolAliases.Ucp,
             ProfileUri = "https://test-agent.example.com/profile",
             Capabilities =
             [
-                ProtocolConstants.UcpCapabilities.Checkout,
-                ProtocolConstants.UcpCapabilities.Order
+                UcpCapabilityNames.Checkout,
+                UcpCapabilityNames.Order
             ]
         };
     }

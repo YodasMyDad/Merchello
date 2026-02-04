@@ -408,7 +408,11 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         var session = await _checkoutSessionService.GetSessionAsync(basket.Id);
 
         // Act
-        var result = await _checkoutService.GetOrderGroupsAsync(basket, session);
+        var result = await _checkoutService.GetOrderGroupsAsync(new GetOrderGroupsParameters
+        {
+            Basket = basket,
+            Session = session
+        });
 
         // Assert
         result.ShouldNotBeNull();
@@ -511,7 +515,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     public async Task GetAvailableCountriesAsync_ReturnsCountries()
     {
         // Act
-        var countries = await _checkoutService.GetAvailableCountriesAsync();
+        var countries = await _checkoutService.GetAvailableCountriesAsync(new GetAvailableShippingCountriesParameters());
 
         // Assert
         countries.ShouldNotBeNull();
@@ -522,7 +526,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     public async Task GetAllCountriesAsync_ReturnsAllCountries()
     {
         // Act
-        var countries = await _checkoutService.GetAllCountriesAsync();
+        var countries = await _checkoutService.GetAllCountriesAsync(new GetAvailableBillingCountriesParameters());
 
         // Assert
         countries.ShouldNotBeNull();

@@ -101,7 +101,7 @@ public class WellKnownController(
     private AgentIdentity? ParseAgentIdentity()
     {
         // Check for UCP-Agent header
-        if (!Request.Headers.TryGetValue(ProtocolConstants.Headers.UcpAgent, out var agentHeader))
+        if (!Request.Headers.TryGetValue(ProtocolHeaders.UcpAgent, out var agentHeader))
         {
             return null;
         }
@@ -123,7 +123,7 @@ public class WellKnownController(
         {
             AgentId = profileUri,
             ProfileUri = profileUri,
-            Protocol = ProtocolConstants.Protocols.Ucp,
+            Protocol = ProtocolAliases.Ucp,
             Capabilities = [] // Will be populated from profile fetch if needed
         };
     }

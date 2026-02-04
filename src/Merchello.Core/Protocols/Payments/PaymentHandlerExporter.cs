@@ -57,10 +57,10 @@ public class PaymentHandlerExporter(
 
     private static string MapIntegrationType(PaymentIntegrationType type) => type switch
     {
-        PaymentIntegrationType.Redirect => ProtocolConstants.PaymentHandlerTypes.Redirect,
-        PaymentIntegrationType.HostedFields => ProtocolConstants.PaymentHandlerTypes.Tokenized,
-        PaymentIntegrationType.Widget => ProtocolConstants.PaymentHandlerTypes.Wallet,
-        PaymentIntegrationType.DirectForm => ProtocolConstants.PaymentHandlerTypes.Form,
+        PaymentIntegrationType.Redirect => ProtocolPaymentHandlerTypes.Redirect,
+        PaymentIntegrationType.HostedFields => ProtocolPaymentHandlerTypes.Tokenized,
+        PaymentIntegrationType.Widget => ProtocolPaymentHandlerTypes.Wallet,
+        PaymentIntegrationType.DirectForm => ProtocolPaymentHandlerTypes.Form,
         _ => "unknown"
     };
 

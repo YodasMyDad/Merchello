@@ -1,57 +1,16 @@
 using System.Text.Json;
 using Merchello.Core.Products.Models;
-using Merchello.Core.Shared.Models;
 using Merchello.Factories;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models.PublishedContent;
-using Umbraco.Extensions;
 
 namespace Merchello.Extensions;
 
 /// <summary>
 /// Extension methods for accessing Umbraco Element Type properties on ProductRoot.
-/// Enables Value&lt;T&gt;("alias") syntax when querying products via EF Core.
-/// Uses Umbraco's property value converters for type conversion.
+/// Supports direct JSON access and optional conversion through MerchelloPublishedElementFactory.
 /// </summary>
 public static class ProductRootExtensions
 {
-    // Services are initialized during application startup via Initialize()
-    private static IPublishedValueFallback? _publishedValueFallback;
-    private static MerchelloSettings? _merchelloSettings;
-    private static MerchelloPublishedElementFactory? _elementFactory;
-
-    private static IPublishedValueFallback PublishedValueFallback =>
-        _publishedValueFallback ?? throw new InvalidOperationException(
-            "ProductRootExtensions not initialized. Call ProductRootExtensions.Initialize() during application startup.");
-
-    private static MerchelloSettings MerchelloSettings =>
-        _merchelloSettings ?? throw new InvalidOperationException(
-            "ProductRootExtensions not initialized. Call ProductRootExtensions.Initialize() during application startup.");
-
-    private static MerchelloPublishedElementFactory ElementFactory =>
-        _elementFactory ?? throw new InvalidOperationException(
-            "ProductRootExtensions not initialized. Call ProductRootExtensions.Initialize() during application startup.");
-
-    /// <summary>
-    /// Initializes the static extension methods with required services.
-    /// Call this during application startup (e.g., in a hosted service or notification handler).
-    /// </summary>
-    public static void Initialize(
-        IPublishedValueFallback publishedValueFallback,
-        IOptions<MerchelloSettings> merchelloSettings,
-        MerchelloPublishedElementFactory elementFactory)
-    {
-        _publishedValueFallback = publishedValueFallback;
-        _merchelloSettings = merchelloSettings.Value;
-        _elementFactory = elementFactory;
-    }
-
-    /// <summary>
-    /// Returns true if the extension methods have been initialized.
-    /// </summary>
-    public static bool IsInitialized =>
-        _publishedValueFallback != null && _merchelloSettings != null && _elementFactory != null;
-
     // JSON options matching ProductService for consistent deserialization
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -78,10 +37,17 @@ public static class ProductRootExtensions
         Fallback fallback = default,
         T? defaultValue = default)
     {
-        var element = productRoot.GetPublishedElement();
-        if (element is null) return defaultValue;
+        if (!TryGetPropertyValue(productRoot, alias, out var rawValue))
+        {
+            return defaultValue;
+        }
 
-        return element.Value(PublishedValueFallback, alias, culture, segment, fallback, defaultValue);
+        if (TryConvertValue(rawValue, out T? convertedValue))
+        {
+            return convertedValue;
+        }
+
+        return defaultValue;
     }
 
     /// <summary>
@@ -102,10 +68,12 @@ public static class ProductRootExtensions
         Fallback fallback = default,
         object? defaultValue = default)
     {
-        var element = productRoot.GetPublishedElement();
-        if (element is null) return defaultValue;
+        if (!TryGetPropertyValue(productRoot, alias, out var rawValue))
+        {
+            return defaultValue;
+        }
 
-        return element.Value(PublishedValueFallback, alias, culture, segment, fallback, defaultValue);
+        return NormalizeRawValue(rawValue) ?? defaultValue;
     }
 
     /// <summary>
@@ -122,40 +90,195 @@ public static class ProductRootExtensions
         string? culture = null,
         string? segment = null)
     {
-        var element = productRoot.GetPublishedElement();
-        return element?.HasValue(alias, culture, segment) ?? false;
+        if (!TryGetPropertyValue(productRoot, alias, out var rawValue))
+        {
+            return false;
+        }
+
+        return HasValue(rawValue);
     }
 
     /// <summary>
     /// Gets the underlying IPublishedElement for this ProductRoot.
-    /// Returns null if no Element Type is configured or no property data exists.
     /// </summary>
     /// <param name="productRoot">The product root.</param>
+    /// <returns>
+    /// Always null. Use the overload that accepts <see cref="MerchelloPublishedElementFactory"/>
+    /// and <paramref name="elementTypeAlias"/> to resolve a published element.
+    /// </returns>
+    [Obsolete("Use GetPublishedElement(ProductRoot, string?, MerchelloPublishedElementFactory) and pass explicit dependencies.")]
+    public static IPublishedElement? GetPublishedElement(this ProductRoot productRoot) => null;
+
+    /// <summary>
+    /// Gets the underlying IPublishedElement for this ProductRoot using explicit dependencies.
+    /// </summary>
+    /// <param name="productRoot">The product root.</param>
+    /// <param name="elementTypeAlias">The configured element type alias.</param>
+    /// <param name="elementFactory">The published element factory.</param>
     /// <returns>IPublishedElement with converted properties, or null.</returns>
-    public static IPublishedElement? GetPublishedElement(this ProductRoot productRoot)
+    public static IPublishedElement? GetPublishedElement(
+        this ProductRoot productRoot,
+        string? elementTypeAlias,
+        MerchelloPublishedElementFactory elementFactory)
     {
-        if (string.IsNullOrEmpty(productRoot.ElementPropertyData))
+        if (string.IsNullOrWhiteSpace(productRoot.ElementPropertyData))
             return null;
 
-        var elementTypeAlias = MerchelloSettings.ProductElementTypeAlias;
-        if (string.IsNullOrEmpty(elementTypeAlias))
+        if (string.IsNullOrWhiteSpace(elementTypeAlias))
             return null;
 
-        // Deserialize property values inline (avoid resolving scoped IProductService)
         var propertyValues = DeserializeElementProperties(productRoot.ElementPropertyData);
         if (propertyValues.Count == 0)
             return null;
 
-        return ElementFactory.CreateElement(
+        return elementFactory.CreateElement(
             elementTypeAlias,
             productRoot.Id,
             propertyValues);
+    }
+
+    private static bool TryGetPropertyValue(ProductRoot productRoot, string alias, out object? value)
+    {
+        value = null;
+        if (string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(productRoot.ElementPropertyData))
+        {
+            return false;
+        }
+
+        var properties = DeserializeElementProperties(productRoot.ElementPropertyData);
+        return properties.TryGetValue(alias, out value);
+    }
+
+    private static bool TryConvertValue<T>(object? rawValue, out T? value)
+    {
+        value = default;
+        if (rawValue is null)
+        {
+            return false;
+        }
+
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+
+        if (rawValue is JsonElement jsonElement)
+        {
+            if (jsonElement.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                return false;
+            }
+
+            try
+            {
+                value = jsonElement.Deserialize<T>(JsonOptions);
+                return value is not null;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        try
+        {
+            if (typeof(T) == typeof(string))
+            {
+                value = (T?)(object?)rawValue.ToString();
+                return value is not null;
+            }
+
+            var targetType = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+            var converted = Convert.ChangeType(rawValue, targetType);
+            if (converted is T convertedValue)
+            {
+                value = convertedValue;
+                return true;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            var serialized = JsonSerializer.Serialize(rawValue, JsonOptions);
+            value = JsonSerializer.Deserialize<T>(serialized, JsonOptions);
+            return value is not null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static object? NormalizeRawValue(object? rawValue)
+    {
+        if (rawValue is not JsonElement jsonElement)
+        {
+            return rawValue;
+        }
+
+        return jsonElement.ValueKind switch
+        {
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            JsonValueKind.String => jsonElement.GetString(),
+            JsonValueKind.Number => jsonElement.TryGetInt64(out var numberLong)
+                ? numberLong
+                : jsonElement.TryGetDecimal(out var numberDecimal)
+                    ? numberDecimal
+                    : jsonElement.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => JsonSerializer.Deserialize<object?>(jsonElement.GetRawText(), JsonOptions)
+        };
+    }
+
+    private static bool HasValue(object? rawValue)
+    {
+        if (rawValue is null)
+        {
+            return false;
+        }
+
+        if (rawValue is string stringValue)
+        {
+            return !string.IsNullOrWhiteSpace(stringValue);
+        }
+
+        if (rawValue is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.Null or JsonValueKind.Undefined => false,
+                JsonValueKind.String => !string.IsNullOrWhiteSpace(jsonElement.GetString()),
+                JsonValueKind.Array => jsonElement.GetArrayLength() > 0,
+                _ => true
+            };
+        }
+
+        return true;
     }
 
     /// <summary>
     /// Deserializes element property values from JSON storage.
     /// Uses same format as ProductService for consistency.
     /// </summary>
-    private static Dictionary<string, object?> DeserializeElementProperties(string json)
-        => JsonSerializer.Deserialize<Dictionary<string, object?>>(json, JsonOptions) ?? [];
+    private static Dictionary<string, object?> DeserializeElementProperties(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, object?>>(json, JsonOptions) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
 }

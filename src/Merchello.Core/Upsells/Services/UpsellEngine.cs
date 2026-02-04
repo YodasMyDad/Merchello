@@ -336,17 +336,6 @@ public class UpsellEngine(
     // Batch Product Fetching
     // =====================================================
 
-    private sealed class RecommendationCriteriaBuilder
-    {
-        public HashSet<Guid> Ids { get; } = [];
-        public bool RequiresPopularity { get; set; }
-    }
-
-    private record RecommendationCriteria(
-        UpsellRecommendationType Type,
-        List<Guid> Ids,
-        bool RequiresPopularity);
-
     private static List<RecommendationCriteria> CollectRecommendationCriteria(
         List<(UpsellRule Rule, List<UpsellContextLineItem> MatchingLineItems, Dictionary<Guid, HashSet<Guid>> ExtractedFilters)> matchedRules)
     {

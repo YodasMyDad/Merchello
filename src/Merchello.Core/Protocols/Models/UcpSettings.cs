@@ -13,7 +13,7 @@ public class UcpSettings
     /// <summary>
     /// UCP protocol version this implementation supports.
     /// </summary>
-    public string Version { get; set; } = ProtocolConstants.CurrentUcpVersion;
+    public string Version { get; set; } = ProtocolVersions.CurrentUcpVersion;
 
     /// <summary>
     /// Whether to require agent authentication.

@@ -27,7 +27,7 @@ export const MIN_POSTAL_CODE_LENGTH = 3;
  * Required address fields
  * @type {string[]}
  */
-const REQUIRED_ADDRESS_FIELDS = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
+const REQUIRED_ADDRESS_FIELDS = ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'];
 
 /**
  * @typedef {Object} ValidationResult
@@ -39,11 +39,11 @@ const REQUIRED_ADDRESS_FIELDS = ['name', 'address1', 'city', 'countryCode', 'pos
  * @typedef {Object} AddressFields
  * @property {string} [name]
  * @property {string} [company]
- * @property {string} [address1]
- * @property {string} [address2]
- * @property {string} [city]
- * @property {string} [state]
- * @property {string} [stateCode]
+ * @property {string} [addressOne]
+ * @property {string} [addressTwo]
+ * @property {string} [townCity]
+ * @property {string} [countyState]
+ * @property {string} [regionCode]
  * @property {string} [countryCode]
  * @property {string} [country]
  * @property {string} [postalCode]

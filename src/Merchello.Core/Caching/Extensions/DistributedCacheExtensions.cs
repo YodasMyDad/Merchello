@@ -17,7 +17,7 @@ public static class DistributedCacheExtensions
     {
         cache.RefreshByPayload(
             MerchelloCacheRefresher.UniqueId,
-            [new MerchelloCacheRefresher.CachePayload { Prefix = prefix }]);
+            [new MerchelloCachePayload { Prefix = prefix }]);
     }
 
     /// <summary>
@@ -29,7 +29,7 @@ public static class DistributedCacheExtensions
     {
         cache.RefreshByPayload(
             MerchelloCacheRefresher.UniqueId,
-            [new MerchelloCacheRefresher.CachePayload { Key = key }]);
+            [new MerchelloCachePayload { Key = key }]);
     }
 
     /// <summary>
@@ -40,6 +40,6 @@ public static class DistributedCacheExtensions
     {
         cache.RefreshByPayload(
             MerchelloCacheRefresher.UniqueId,
-            [new MerchelloCacheRefresher.CachePayload { ClearAll = true }]);
+            [new MerchelloCachePayload { ClearAll = true }]);
     }
 }

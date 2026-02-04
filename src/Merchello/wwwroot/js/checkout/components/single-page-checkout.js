@@ -240,15 +240,15 @@ export function initSinglePageCheckout() {
 
             get canSubmit() {
                 const billingValid = this.form.billing.name &&
-                                    this.form.billing.address1 &&
-                                    this.form.billing.city &&
+                                    this.form.billing.addressOne &&
+                                    this.form.billing.townCity &&
                                     this.form.billing.countryCode &&
                                     this.form.billing.postalCode;
 
                 const shippingValid = this.shippingSameAsBilling || (
                     this.form.shipping.name &&
-                    this.form.shipping.address1 &&
-                    this.form.shipping.city &&
+                    this.form.shipping.addressOne &&
+                    this.form.shipping.townCity &&
                     this.form.shipping.countryCode &&
                     this.form.shipping.postalCode
                 );
@@ -670,9 +670,10 @@ export function initSinglePageCheckout() {
                 const form = this.form?.[prefix];
                 if (!form) return;
 
-                form.address1 = address.address1 || '';
-                form.address2 = address.address2 || '';
-                form.city = address.city || '';
+                // Apply address lookup result to form fields
+                form.addressOne = address.addressOne || '';
+                form.addressTwo = address.addressTwo || '';
+                form.townCity = address.townCity || '';
                 form.postalCode = address.postalCode || '';
 
                 if (address.company) {
@@ -696,22 +697,22 @@ export function initSinglePageCheckout() {
                     }
                 }
 
-                if (address.stateCode) {
-                    form.stateCode = address.stateCode;
+                if (address.regionCode) {
+                    form.regionCode = address.regionCode;
                 }
-                if (address.state) {
-                    form.state = address.state;
+                if (address.countyState) {
+                    form.countyState = address.countyState;
                 }
 
-                if (form.stateCode && regions.length > 0) {
-                    const region = regions.find(r => r.code === form.stateCode);
+                if (form.regionCode && regions.length > 0) {
+                    const region = regions.find(r => r.regionCode === form.regionCode);
                     if (region) {
-                        form.state = region.name;
+                        form.countyState = region.name;
                     }
-                } else if (!form.stateCode && form.state && regions.length > 0) {
-                    const region = regions.find(r => r.name?.toLowerCase() === form.state.toLowerCase());
+                } else if (!form.regionCode && form.countyState && regions.length > 0) {
+                    const region = regions.find(r => r.name?.toLowerCase() === form.countyState.toLowerCase());
                     if (region) {
-                        form.stateCode = region.regionCode;
+                        form.regionCode = region.regionCode;
                     }
                 }
 
@@ -739,8 +740,8 @@ export function initSinglePageCheckout() {
             },
 
             async onBillingCountryChange() {
-                this.form.billing.state = '';
-                this.form.billing.stateCode = '';
+                this.form.billing.countyState = '';
+                this.form.billing.regionCode = '';
                 this.resetAddressLookup('billing');
                 this.billingRegions = await loadRegions('billing', this.form.billing.countryCode);
                 if (this.shippingSameAsBilling) {
@@ -752,7 +753,7 @@ export function initSinglePageCheckout() {
 
                 // Clear payment error if billing info is now complete
                 const hasBillingInfo = this.form.billing.name &&
-                                       this.form.billing.address1 &&
+                                       this.form.billing.addressOne &&
                                        this.form.billing.countryCode;
                 if (hasBillingInfo && this.$store.checkout?.paymentError === 'Please complete your billing address first.') {
                     this.$store.checkout?.setPaymentError(null);
@@ -760,8 +761,8 @@ export function initSinglePageCheckout() {
             },
 
             onBillingStateChange() {
-                const region = this.billingRegions.find(r => r.code === this.form.billing.stateCode);
-                if (region) this.form.billing.state = region.name;
+                const region = this.billingRegions.find(r => r.regionCode === this.form.billing.regionCode);
+                if (region) this.form.billing.countyState = region.name;
                 if (this.shippingSameAsBilling) {
                     this.syncBillingToShipping();
                     this.debouncedCalculateShipping();
@@ -778,7 +779,7 @@ export function initSinglePageCheckout() {
 
                 // Clear payment error if billing info is now complete
                 const hasBillingInfo = this.form.billing.name &&
-                                       this.form.billing.address1 &&
+                                       this.form.billing.addressOne &&
                                        this.form.billing.countryCode;
                 if (hasBillingInfo && this.$store.checkout?.paymentError === 'Please complete your billing address first.') {
                     this.$store.checkout?.setPaymentError(null);
@@ -786,8 +787,8 @@ export function initSinglePageCheckout() {
             },
 
             async onShippingCountryChange() {
-                this.form.shipping.state = '';
-                this.form.shipping.stateCode = '';
+                this.form.shipping.countyState = '';
+                this.form.shipping.regionCode = '';
                 this.resetAddressLookup('shipping');
                 this.shippingRegions = await loadRegions('shipping', this.form.shipping.countryCode);
                 this.debouncedCalculateShipping();
@@ -795,8 +796,8 @@ export function initSinglePageCheckout() {
             },
 
             onShippingStateChange() {
-                const region = this.shippingRegions.find(r => r.code === this.form.shipping.stateCode);
-                if (region) this.form.shipping.state = region.name;
+                const region = this.shippingRegions.find(r => r.regionCode === this.form.shipping.regionCode);
+                if (region) this.form.shipping.countyState = region.name;
                 this.debouncedCaptureAddress();
             },
 
@@ -846,8 +847,8 @@ export function initSinglePageCheckout() {
                 if (this._lastAddressHash === addressHash) return;
 
                 const hasBillingData = this.form.billing.name ||
-                    this.form.billing.address1 ||
-                    this.form.billing.city ||
+                    this.form.billing.addressOne ||
+                    this.form.billing.townCity ||
                     this.form.billing.postalCode ||
                     this.form.billing.countryCode;
                 if (!this.form.email && !hasBillingData) return;
@@ -908,7 +909,7 @@ export function initSinglePageCheckout() {
                 try {
                     const data = await checkoutApi.initialize({
                         countryCode: this.form.shipping.countryCode,
-                        stateCode: this.form.shipping.stateCode,
+                        regionCode: this.form.shipping.regionCode,
                         autoSelectShipping: true,
                         email: this.form.email,
                         previousShippingSelections: this.shippingSelections
@@ -1126,7 +1127,7 @@ export function initSinglePageCheckout() {
 
                 // Check billing info before selecting payment method
                 const hasBillingInfo = this.form.billing.name &&
-                                       this.form.billing.address1 &&
+                                       this.form.billing.addressOne &&
                                        this.form.billing.countryCode;
 
                 if (!hasBillingInfo) {
@@ -1196,7 +1197,7 @@ export function initSinglePageCheckout() {
                     // fraud tools) need customer address data during session creation
                     // for risk assessment. We save here so the backend has current data.
                     // Note: submitOrder() also saves addresses (includes password for account creation)
-                    if (this.form.billing.name && this.form.billing.address1 && this.form.billing.countryCode) {
+                    if (this.form.billing.name && this.form.billing.addressOne && this.form.billing.countryCode) {
                         await checkoutApi.saveAddresses({
                             email: this.form.email,
                             billingAddress: this.form.billing,
@@ -1434,7 +1435,7 @@ export function initSinglePageCheckout() {
                     }
                 } else if (field.startsWith('billing.') || field.startsWith('shipping.')) {
                     const [prefix, key] = field.split('.');
-                    const requiredFields = ['name', 'address1', 'city', 'countryCode', 'postalCode'];
+                    const requiredFields = ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'];
                     if (requiredFields.includes(key) && !this.form[prefix][key]) {
                         store?.setError(field, 'This field is required.');
                     } else if (key === 'phone') {
@@ -1452,11 +1453,11 @@ export function initSinglePageCheckout() {
                 store?.setGeneralError('');
 
                 this.validateField('email');
-                ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(f => this.validateField('billing.' + f));
+                ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'].forEach(f => this.validateField('billing.' + f));
                 this.validateField('billing.phone');
 
                 if (!this.shippingSameAsBilling) {
-                    ['name', 'address1', 'city', 'countryCode', 'postalCode'].forEach(f => {
+                    ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'].forEach(f => {
                         if (!this.form.shipping[f]) store?.setError('shipping.' + f, 'This field is required.');
                     });
                     this.validateField('shipping.phone');

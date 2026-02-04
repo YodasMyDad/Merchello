@@ -33,6 +33,28 @@ Create folders only when needed.
 ## Naming
 PascalCase: classes/methods/public | camelCase: locals | _camelCase: private | UPPERCASE: constants | I: interfaces
 
+## Cross-Boundary Type Consistency (CRITICAL)
+
+**When a type appears in multiple layers (C# DTOs, internal models, TypeScript interfaces, JavaScript objects), field names MUST be identical** (differing only by casing convention: PascalCase in C#, camelCase in JSON/JS).
+
+**Rules:**
+
+1. **Backend is source of truth** — C# DTO field names define the canonical names
+2. **One name per concept** — never use synonyms (`city` vs `townCity`, `state` vs `countyState`, `address1` vs `addressOne`)
+3. **Map at boundaries** — when integrating external APIs that use different names, map to standard names immediately at the integration point
+4. **Check before creating** — before adding a new shared type, search for existing types with similar purpose
+
+**Example - Address fields** (reference: `Merchello.Core/Locality/Dtos/AddressDto.cs`):
+
+- `AddressOne`/`addressOne` (not `address1`, `line1`, `street`)
+- `TownCity`/`townCity` (not `city`, `locality`)
+- `CountyState`/`countyState` (not `state`, `county`, `province`)
+- `RegionCode`/`regionCode` (not `stateCode`, `provinceCode`)
+
+**Example - Region fields** (reference: `Merchello.Core/Shared/Dtos/RegionDto.cs`):
+
+- `RegionCode`/`regionCode` (not `code`, `stateCode`)
+
 ## DTOs
 `Dtos/` = API (`Dto` suffix), `Models/` = internal (no suffix)
 

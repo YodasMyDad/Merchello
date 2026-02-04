@@ -68,7 +68,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
     if (column === "select") {
       return html`
         <uui-table-head-cell class="checkbox-col">
-          <uui-checkbox label="Select all" aria-label="Select all" @change=${this._handleSelectAll}
+          <uui-checkbox aria-label="Select all" @change=${this._handleSelectAll}
             ?checked=${this.selectedIds.length === this.products.length && this.products.length > 0}></uui-checkbox>
         </uui-table-head-cell>
       `;
@@ -81,7 +81,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
       case "select":
         return html`
           <uui-table-cell class="checkbox-col">
-            <uui-checkbox label="Select" aria-label="Select ${product.rootName}" ?checked=${this.selectedIds.includes(product.id)}
+            <uui-checkbox aria-label="Select ${product.rootName}" ?checked=${this.selectedIds.includes(product.id)}
               @change=${(e: Event) => this._handleSelectProduct(product.id, e)}
               @click=${(e: Event) => e.stopPropagation()}></uui-checkbox>
           </uui-table-cell>

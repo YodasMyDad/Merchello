@@ -830,6 +830,7 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
             _upsellService,
             _fixture.GetService<IUpsellContextBuilder>(),
             _lineItemService,
+            _fixture.GetService<LineItemFactory>(),
             _checkoutService,
             _checkoutSessionService,
             settings,
