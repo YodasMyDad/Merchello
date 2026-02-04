@@ -55,7 +55,7 @@ public class UcpAgentProfileService : IUcpAgentProfileService
         return await _cacheService.GetOrCreateAsync(
             cacheKey,
             async _ => await FetchProfileAsync(uri, ct),
-            ProtocolConstants.CacheDurations.AgentProfileCache,
+            ProtocolCacheDurations.AgentProfileCache,
             ["protocols", "agent-profiles"],
             ct);
     }
@@ -70,7 +70,7 @@ public class UcpAgentProfileService : IUcpAgentProfileService
 
         // Find the Order capability and extract the webhook URL
         var orderCapability = profile.Ucp.Capabilities
-            .FirstOrDefault(c => string.Equals(c.Name, ProtocolConstants.UcpCapabilities.Order, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(c => string.Equals(c.Name, UcpCapabilityNames.Order, StringComparison.OrdinalIgnoreCase));
 
         return orderCapability?.Config?.WebhookUrl;
     }
@@ -140,6 +140,6 @@ public class UcpAgentProfileService : IUcpAgentProfileService
         // Hash the URI for a consistent-length cache key
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(profileUri));
         var hashString = Convert.ToHexString(hash)[..16].ToLowerInvariant();
-        return $"{ProtocolConstants.CacheKeys.AgentProfilePrefix}{hashString}";
+        return $"{ProtocolCacheKeys.AgentProfilePrefix}{hashString}";
     }
 }

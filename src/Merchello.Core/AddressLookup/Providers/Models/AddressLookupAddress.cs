@@ -7,15 +7,15 @@ public class AddressLookupAddress
 {
     public string? Company { get; set; }
 
-    public string? Address1 { get; set; }
+    public string? AddressOne { get; set; }
 
-    public string? Address2 { get; set; }
+    public string? AddressTwo { get; set; }
 
-    public string? City { get; set; }
+    public string? TownCity { get; set; }
 
-    public string? State { get; set; }
+    public string? CountyState { get; set; }
 
-    public string? StateCode { get; set; }
+    public string? RegionCode { get; set; }
 
     public string? PostalCode { get; set; }
 

@@ -12,6 +12,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -121,6 +122,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
         var shippingCostResolver = new ShippingCostResolver();
+        var addressFactory = new AddressFactory();
 
         return new InvoiceService(
             scopeProvider,
@@ -141,6 +143,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             invoiceFactory,
             orderFactory,
             lineItemFactory,
+            addressFactory,
             settings,
             logger);
     }
@@ -555,6 +558,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         var invoiceFactory = new InvoiceFactory(currencyService);
         var orderFactory = new OrderFactory();
         var shippingCostResolver = new ShippingCostResolver();
+        var addressFactory = new AddressFactory();
 
         return new InvoiceService(
             scopeProvider,
@@ -575,6 +579,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             invoiceFactory,
             orderFactory,
             lineItemFactory,
+            addressFactory,
             settings,
             logger);
     }

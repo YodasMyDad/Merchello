@@ -27,6 +27,7 @@ function createEmptyAddress(): AddressDto {
     addressTwo: null,
     townCity: null,
     countyState: null,
+    regionCode: null,
     postalCode: null,
     country: null,
     countryCode: null,
@@ -461,10 +462,11 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             updateFn.call(this, "country", country?.name ?? null);
             // Clear region selection and load regions for new country
             updateFn.call(this, "countyState", null);
+            updateFn.call(this, "regionCode", null);
             if (prefix === "billing") {
-              this._billingRegions = [];
+                this._billingRegions = [];
             } else {
-              this._shippingRegions = [];
+                this._shippingRegions = [];
             }
             if (select.value) {
               this._loadRegions(prefix, select.value);
@@ -497,13 +499,13 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     // Show dropdown if regions exist for the country
     if (hasCountry && regions.length > 0) {
       const options: Array<{ name: string; value: string; selected?: boolean }> = [
-        { name: "Select region...", value: "", selected: !address.countyState }
+        { name: "Select region...", value: "", selected: !address.regionCode }
       ];
       regions.forEach(r => {
         options.push({
           name: r.name,
           value: r.regionCode,
-          selected: r.regionCode === address.countyState || r.name === address.countyState
+          selected: r.regionCode === address.regionCode
         });
       });
 
@@ -515,7 +517,7 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
             @change=${(e: Event) => {
               const select = e.target as HTMLSelectElement;
               const region = regions.find(r => r.regionCode === select.value);
-              // Store the region name in countyState for display, regionCode could be stored separately if needed
+              updateFn.call(this, "regionCode", select.value || null);
               updateFn.call(this, "countyState", (region?.name ?? select.value) || null);
             }}>
           </uui-select>
@@ -644,14 +646,15 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     // Populate address fields
     const resolved = data.address;
     if (resolved.company) updateFn.call(this, "company", resolved.company);
-    if (resolved.address1) updateFn.call(this, "addressOne", resolved.address1);
-    if (resolved.address2) updateFn.call(this, "addressTwo", resolved.address2);
-    if (resolved.city) updateFn.call(this, "townCity", resolved.city);
-    if (resolved.state) updateFn.call(this, "countyState", resolved.state);
+    if (resolved.addressOne) updateFn.call(this, "addressOne", resolved.addressOne);
+    if (resolved.addressTwo) updateFn.call(this, "addressTwo", resolved.addressTwo);
+    if (resolved.townCity) updateFn.call(this, "townCity", resolved.townCity);
+    if (resolved.countyState) updateFn.call(this, "countyState", resolved.countyState);
+    if (resolved.regionCode) updateFn.call(this, "regionCode", resolved.regionCode);
     if (resolved.postalCode) updateFn.call(this, "postalCode", resolved.postalCode);
 
-    // Load regions for the country if we have a state code
-    if (resolved.countryCode && resolved.stateCode) {
+    // Load regions for the country if we have a region code
+    if (resolved.countryCode && resolved.regionCode) {
       await this._loadRegions(prefix, resolved.countryCode);
     }
   }

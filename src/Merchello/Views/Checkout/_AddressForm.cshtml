@@ -106,28 +106,28 @@
 
     <!-- Address Line 1 -->
     <div>
-        <label for="@(prefix)-address1" class="@labelClass">
+        <label for="@(prefix)-addressOne" class="@labelClass">
             Address @if (showRequired) { <span class="text-red-500">*</span> }
         </label>
         <input type="text"
-               id="@(prefix)-address1"
-               x-model="form.@(prefix).address1"
+               id="@(prefix)-addressOne"
+               x-model="form.@(prefix).addressOne"
                @if (prefix == "shipping") { <text>:required="!shippingSameAsBilling"</text> } else { <text>required</text> }
                autocomplete="@prefix address-line1"
-               @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).address1'); @(onBlurCallback)"</text> }
-               :class="errors['@(prefix).address1'] ? 'checkout-input-error' : ''"
+               @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).addressOne'); @(onBlurCallback)"</text> }
+               :class="errors['@(prefix).addressOne'] ? 'checkout-input-error' : ''"
                class="@inputClass" />
-        <p x-show="errors['@(prefix).address1']" x-text="errors['@(prefix).address1']" class="checkout-error" x-cloak></p>
+        <p x-show="errors['@(prefix).addressOne']" x-text="errors['@(prefix).addressOne']" class="checkout-error" x-cloak></p>
     </div>
 
     <!-- Address Line 2 (Optional) -->
     <div>
-        <label for="@(prefix)-address2" class="sr-only">
+        <label for="@(prefix)-addressTwo" class="sr-only">
             Address line 2
         </label>
         <input type="text"
-               id="@(prefix)-address2"
-               x-model="form.@(prefix).address2"
+               id="@(prefix)-addressTwo"
+               x-model="form.@(prefix).addressTwo"
                autocomplete="@prefix address-line2"
                class="@inputClass" />
     </div>
@@ -135,28 +135,28 @@
     <!-- City, State, Postal Code -->
     <div class="@gridClass @gapClass">
         <div>
-            <label for="@(prefix)-city" class="@labelClass">
+            <label for="@(prefix)-townCity" class="@labelClass">
                 City @if (showRequired) { <span class="text-red-500">*</span> }
             </label>
             <input type="text"
-                   id="@(prefix)-city"
-                   x-model="form.@(prefix).city"
+                   id="@(prefix)-townCity"
+                   x-model="form.@(prefix).townCity"
                    @if (prefix == "shipping") { <text>:required="!shippingSameAsBilling"</text> } else { <text>required</text> }
                    autocomplete="@prefix address-level2"
-                   @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).city'); @(onBlurCallback)"</text> }
-                   :class="errors['@(prefix).city'] ? 'checkout-input-error' : ''"
+                   @if (hasBlurCallback) { <text>@@blur="validateField('@(prefix).townCity'); @(onBlurCallback)"</text> }
+                   :class="errors['@(prefix).townCity'] ? 'checkout-input-error' : ''"
                    class="@inputClass" />
-            <p x-show="errors['@(prefix).city']" x-text="errors['@(prefix).city']" class="checkout-error" x-cloak></p>
+            <p x-show="errors['@(prefix).townCity']" x-text="errors['@(prefix).townCity']" class="checkout-error" x-cloak></p>
         </div>
 
         <div>
-            <label for="@(prefix)-state" class="@labelClass">
+            <label for="@(prefix)-countyState" class="@labelClass">
                 State/Region
             </label>
             <!-- Show dropdown if regions are loaded, otherwise show text input -->
             <template x-if="@(prefix)Regions.length > 0">
-                <select id="@(prefix)-state"
-                        x-model="form.@(prefix).stateCode"
+                <select id="@(prefix)-countyState"
+                        x-model="form.@(prefix).regionCode"
                         @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))StateChange()@(hasBlurCallback ? $"; {onBlurCallback}" : "")"
                         autocomplete="@prefix address-level1"
                         class="@selectClass">
@@ -168,8 +168,8 @@
             </template>
             <template x-if="@(prefix)Regions.length === 0">
                 <input type="text"
-                       id="@(prefix)-state"
-                       x-model="form.@(prefix).state"
+                       id="@(prefix)-countyState"
+                       x-model="form.@(prefix).countyState"
                        autocomplete="@prefix address-level1"
                        class="@inputClass" />
             </template>

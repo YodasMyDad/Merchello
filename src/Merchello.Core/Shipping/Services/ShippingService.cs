@@ -56,15 +56,6 @@ public class ShippingService(
     }
 
     /// <summary>
-    /// Result of warehouse stock calculation for a product.
-    /// </summary>
-    private record WarehouseStockResult(
-        int TotalAvailableStock,
-        bool HasAnyStock,
-        bool HasAnyTrackingWarehouse,
-        FulfillmentWarehouseDto? FulfillingWarehouse);
-
-    /// <summary>
     /// Calculates warehouse stock information for a product.
     /// </summary>
     /// <param name="product">The product with loaded warehouse associations</param>

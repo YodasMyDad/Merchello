@@ -7,6 +7,7 @@ using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -242,7 +243,9 @@ public class StorefrontApiController(
     [HttpGet("shipping/countries")]
     public async Task<IActionResult> GetShippingCountries(CancellationToken ct)
     {
-        var countries = await locationsService.GetAvailableCountriesAsync(ct);
+        var countries = await locationsService.GetAvailableCountriesAsync(
+            new GetAvailableCountriesParameters(),
+            ct);
         var current = await storefrontContext.GetShippingLocationAsync(ct);
         var currency = await storefrontContext.GetCurrencyAsync(ct);
 
@@ -291,7 +294,9 @@ public class StorefrontApiController(
     public async Task<IActionResult> SetCurrentCountry([FromBody] SetCountryDto request, CancellationToken ct)
     {
         // Validate the country code
-        var countries = await locationsService.GetAvailableCountriesAsync(ct);
+        var countries = await locationsService.GetAvailableCountriesAsync(
+            new GetAvailableCountriesParameters(),
+            ct);
         var country = countries.FirstOrDefault(c =>
             c.Code.Equals(request.CountryCode, StringComparison.OrdinalIgnoreCase));
 
@@ -376,7 +381,9 @@ public class StorefrontApiController(
     [HttpGet("shipping/countries/{countryCode}/regions")]
     public async Task<IActionResult> GetRegions(string countryCode, CancellationToken ct)
     {
-        var regions = await locationsService.GetAvailableRegionsAsync(countryCode, ct);
+        var regions = await locationsService.GetAvailableRegionsAsync(
+            new GetAvailableRegionsParameters { CountryCode = countryCode },
+            ct);
 
         return Ok(regions.Select(r => new RegionDto
         {

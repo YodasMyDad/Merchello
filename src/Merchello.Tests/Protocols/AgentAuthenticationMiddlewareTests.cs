@@ -63,7 +63,7 @@ public class AgentAuthenticationMiddlewareTests
         var agentIdentity = AgentAuthenticationMiddleware.GetAgentIdentity(context);
         agentIdentity.ShouldNotBeNull();
         agentIdentity.ProfileUri.ShouldBe("https://test-agent.example.com/profile");
-        agentIdentity.Protocol.ShouldBe(ProtocolConstants.Protocols.Ucp);
+        agentIdentity.Protocol.ShouldBe(ProtocolAliases.Ucp);
     }
 
     [Fact]
@@ -401,7 +401,7 @@ public class AgentAuthenticationMiddlewareTests
 
         if (ucpAgentHeader != null)
         {
-            context.Request.Headers[ProtocolConstants.Headers.UcpAgent] = ucpAgentHeader;
+            context.Request.Headers[ProtocolHeaders.UcpAgent] = ucpAgentHeader;
         }
 
         // Set up response body stream so WriteAsJsonAsync works

@@ -7,6 +7,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
 using Microsoft.EntityFrameworkCore;
 using Merchello.Core.Caching.Services.Interfaces;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -15,7 +16,9 @@ namespace Merchello.Core.Warehouses.Services;
 
 public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider, ILocalityCatalog catalog, ICacheService cacheService) : ILocationsService
 {
-    public async Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(
+        GetAvailableCountriesParameters parameters,
+        CancellationToken ct = default)
     {
         return await cacheService.GetOrCreateAsync(
             "merchello:AvailableCountries",
@@ -117,8 +120,11 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         return result;
     }
 
-    public async Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(string countryCode, CancellationToken ct = default)
+    public async Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(
+        GetAvailableRegionsParameters parameters,
+        CancellationToken ct = default)
     {
+        var countryCode = parameters.CountryCode;
         if (string.IsNullOrWhiteSpace(countryCode))
         {
             return Array.Empty<RegionAvailability>();
@@ -217,8 +223,11 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         return result;
     }
 
-    public async Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesForWarehouseAsync(Guid warehouseId, CancellationToken ct = default)
+    public async Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesForWarehouseAsync(
+        GetAvailableCountriesForWarehouseParameters parameters,
+        CancellationToken ct = default)
     {
+        var warehouseId = parameters.WarehouseId;
         using var scope = efCoreScopeProvider.CreateScope();
         var warehouse = await scope.ExecuteWithContextAsync(async db =>
             await db.Warehouses
@@ -297,8 +306,12 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         return result;
     }
 
-    public async Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsForWarehouseAsync(Guid warehouseId, string countryCode, CancellationToken ct = default)
+    public async Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsForWarehouseAsync(
+        GetAvailableRegionsForWarehouseParameters parameters,
+        CancellationToken ct = default)
     {
+        var warehouseId = parameters.WarehouseId;
+        var countryCode = parameters.CountryCode;
         if (string.IsNullOrWhiteSpace(countryCode))
         {
             return [];

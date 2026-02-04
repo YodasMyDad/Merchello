@@ -130,7 +130,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
             DueDate = dueDate,
             Source = new InvoiceSource
             {
-                Type = Constants.InvoiceSources.Manual,
+                Type = Constants.InvoiceSources.Draft,
                 DisplayName = "Manual order",
                 SourceId = authorId?.ToString(),
                 SourceName = authorName,

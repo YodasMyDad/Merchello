@@ -28,7 +28,7 @@ export interface ProductPickerModalValue {
  *       currencySymbol: "£",
  *       shippingAddress: {
  *         countryCode: "GB",
- *         stateCode: undefined,
+ *         regionCode: undefined,
  *       },
  *       excludeProductIds: existingProductIds,
  *     },

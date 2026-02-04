@@ -53,6 +53,7 @@ using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.ExchangeRates.Services;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Handlers;
 using Merchello.Core.Notifications.Interfaces;
@@ -99,6 +100,7 @@ using Merchello.Core.Warehouses.Factories;
 using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services;
 using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -324,6 +326,7 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<ShippingOptionFactory>();
         services.AddSingleton<ShipmentFactory>();
         services.AddSingleton<LineItemFactory>();
+        services.AddSingleton<AddressFactory>();
         services.AddSingleton<CustomerSegmentFactory>();
 
         // Utilities
@@ -635,9 +638,13 @@ public class ServiceTestFixture : IDisposable
 
         // Mock locations service
         var locationsServiceMock = new Mock<ILocationsService>();
-        locationsServiceMock.Setup(x => x.GetAvailableCountriesAsync(It.IsAny<CancellationToken>()))
+        locationsServiceMock.Setup(x => x.GetAvailableCountriesAsync(
+                It.IsAny<GetAvailableCountriesParameters>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<CountryAvailability>());
-        locationsServiceMock.Setup(x => x.GetAvailableRegionsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        locationsServiceMock.Setup(x => x.GetAvailableRegionsAsync(
+                It.IsAny<GetAvailableRegionsParameters>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<RegionAvailability>());
         services.AddSingleton(locationsServiceMock.Object);
 

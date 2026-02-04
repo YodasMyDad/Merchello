@@ -15,7 +15,6 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Reporting.Services.Interfaces;
-using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
@@ -28,6 +27,7 @@ using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.AddressLookup.Dtos;
 using Merchello.Core.AddressLookup.Services.Interfaces;
 using Merchello.Core.AddressLookup.Services.Parameters;
+using Merchello.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Core.Security;
@@ -45,13 +45,11 @@ public class OrdersApiController(
     IReportingService reportingService,
     IStatementService statementService,
     IProductService productService,
-    ICurrencyService currencyService,
-    ILocalityCatalog localityCatalog,
     IAddressLookupService addressLookupService,
+    IOrdersDtoMapper ordersDtoMapper,
+    IOrdersRequestMapper ordersRequestMapper,
     IBackOfficeSecurityAccessor backOfficeSecurityAccessor) : MerchelloApiControllerBase
 {
-    private readonly ICurrencyService _currencyService = currencyService;
-    private readonly ILocalityCatalog _localityCatalog = localityCatalog;
     /// <summary>
     /// Get paginated list of orders/invoices
     /// </summary>
@@ -59,53 +57,13 @@ public class OrdersApiController(
     [ProducesResponseType<OrderPageDto>(StatusCodes.Status200OK)]
     public async Task<OrderPageDto> GetOrders([FromQuery] OrderQueryDto query, CancellationToken ct)
     {
-        // Map query to parameters
-        var parameters = new InvoiceQueryParameters
-        {
-            CurrentPage = query.Page,
-            AmountPerPage = query.PageSize,
-            Search = query.Search,
-            OrderBy = MapOrderBy(query.SortBy, query.SortDir)
-        };
-
-        // Map payment status filter
-        if (!string.IsNullOrEmpty(query.PaymentStatus))
-        {
-            parameters.PaymentStatusFilter = query.PaymentStatus.ToLower() switch
-            {
-                Constants.QueryFilters.PaymentStatus.Paid => InvoicePaymentStatusFilter.Paid,
-                Constants.QueryFilters.PaymentStatus.Unpaid => InvoicePaymentStatusFilter.Unpaid,
-                _ => InvoicePaymentStatusFilter.All
-            };
-        }
-
-        // Map fulfillment status filter
-        if (!string.IsNullOrEmpty(query.FulfillmentStatus))
-        {
-            parameters.FulfillmentStatusFilter = query.FulfillmentStatus.ToLower() switch
-            {
-                Constants.QueryFilters.FulfillmentStatus.Fulfilled => InvoiceFulfillmentStatusFilter.Fulfilled,
-                Constants.QueryFilters.FulfillmentStatus.Unfulfilled => InvoiceFulfillmentStatusFilter.Unfulfilled,
-                _ => InvoiceFulfillmentStatusFilter.All
-            };
-        }
-
-        // Map cancellation status filter
-        if (!string.IsNullOrEmpty(query.CancellationStatus))
-        {
-            parameters.CancellationStatusFilter = query.CancellationStatus.ToLower() switch
-            {
-                Constants.QueryFilters.CancellationStatus.Cancelled => InvoiceCancellationStatusFilter.Cancelled,
-                Constants.QueryFilters.CancellationStatus.Active => InvoiceCancellationStatusFilter.Active,
-                _ => InvoiceCancellationStatusFilter.All
-            };
-        }
+        var parameters = ordersRequestMapper.MapInvoiceQuery(query);
 
         // Execute query using service with real DB paging
         var result = await invoiceService.QueryInvoices(parameters, ct);
 
         // Map to DTOs
-        var items = result.Items.Select(MapToListItem).ToList();
+        var items = result.Items.Select(ordersDtoMapper.MapToListItem).ToList();
 
         return new OrderPageDto
         {
@@ -114,18 +72,6 @@ public class OrdersApiController(
             PageSize = query.PageSize,
             TotalItems = result.TotalItems,
             TotalPages = result.TotalPages
-        };
-    }
-
-    private static InvoiceOrderBy MapOrderBy(string? sortBy, string? sortDir)
-    {
-        var isAsc = sortDir?.ToLower() == Constants.QueryFilters.SortDirection.Ascending;
-        return sortBy?.ToLower() switch
-        {
-            Constants.QueryFilters.SortBy.Total => isAsc ? InvoiceOrderBy.TotalAsc : InvoiceOrderBy.TotalDesc,
-            Constants.QueryFilters.SortBy.Customer => isAsc ? InvoiceOrderBy.CustomerAsc : InvoiceOrderBy.CustomerDesc,
-            Constants.QueryFilters.SortBy.InvoiceNumber => isAsc ? InvoiceOrderBy.InvoiceNumberAsc : InvoiceOrderBy.InvoiceNumberDesc,
-            _ => isAsc ? InvoiceOrderBy.DateAsc : InvoiceOrderBy.DateDesc
         };
     }
 
@@ -199,7 +145,7 @@ public class OrdersApiController(
             .Distinct() ?? [];
         var productImages = await productService.GetProductImagesAsync(productIds, ct);
 
-        var detail = await MapToDetailAsync(invoice, shippingOptionNames, productImages);
+        var detail = await ordersDtoMapper.MapToDetailAsync(invoice, shippingOptionNames, productImages, ct);
 
         // Get customer order count by billing email
         var billingEmail = invoice.BillingAddress?.Email;
@@ -325,7 +271,7 @@ public class OrdersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateBillingAddress(Guid invoiceId, [FromBody] AddressDto request, CancellationToken ct)
     {
-        var address = MapDtoToAddress(request);
+        var address = ordersDtoMapper.MapDtoToAddress(request);
         var result = await invoiceService.UpdateBillingAddressAsync(invoiceId, address, ct);
 
         if (result.ResultObject == null)
@@ -333,7 +279,7 @@ public class OrdersApiController(
             return NotFound("Invoice not found");
         }
 
-        return Ok(MapAddress(result.ResultObject));
+        return Ok(ordersDtoMapper.MapAddress(result.ResultObject));
     }
 
     /// <summary>
@@ -344,7 +290,7 @@ public class OrdersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateShippingAddress(Guid invoiceId, [FromBody] AddressDto request, CancellationToken ct)
     {
-        var address = MapDtoToAddress(request);
+        var address = ordersDtoMapper.MapDtoToAddress(request);
         var result = await invoiceService.UpdateShippingAddressAsync(invoiceId, address, ct);
 
         if (result.ResultObject == null)
@@ -352,7 +298,7 @@ public class OrdersApiController(
             return NotFound("Invoice not found");
         }
 
-        return Ok(MapAddress(result.ResultObject));
+        return Ok(ordersDtoMapper.MapAddress(result.ResultObject));
     }
 
     /// <summary>
@@ -460,329 +406,6 @@ public class OrdersApiController(
         return Ok(result.Data);
     }
 
-    private static Core.Locality.Models.Address MapDtoToAddress(AddressDto dto)
-    {
-        return new Core.Locality.Models.Address
-        {
-            Name = dto.Name,
-            Company = dto.Company,
-            AddressOne = dto.AddressOne,
-            AddressTwo = dto.AddressTwo,
-            TownCity = dto.TownCity,
-            CountyState = new Core.Locality.Models.CountyState { Name = dto.CountyState },
-            PostalCode = dto.PostalCode,
-            Country = dto.Country,
-            CountryCode = dto.CountryCode,
-            Email = dto.Email,
-            Phone = dto.Phone
-        };
-    }
-
-    private OrderListItemDto MapToListItem(Invoice invoice)
-    {
-        var orders = invoice.Orders?.ToList() ?? [];
-        var payments = invoice.Payments?.ToList() ?? [];
-
-        // Use centralized payment status calculation from PaymentService
-        var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
-        {
-            Payments = payments,
-            InvoiceTotal = invoice.Total,
-            CurrencyCode = invoice.CurrencyCode
-        });
-
-        var itemCount = GetItemCount(orders, li => li.LineItemType != LineItemType.Discount);
-
-        var fulfillmentStatus = GetFulfillmentStatus(orders);
-        var deliveryStatus = GetDeliveryStatus(orders);
-
-        return new OrderListItemDto
-        {
-            Id = invoice.Id,
-            InvoiceNumber = invoice.InvoiceNumber,
-            DateCreated = invoice.DateCreated,
-            CustomerName = invoice.BillingAddress?.Name ?? "Unknown",
-            Channel = invoice.Channel,
-            CurrencyCode = invoice.CurrencyCode,
-            CurrencySymbol = invoice.CurrencySymbol,
-            StoreCurrencyCode = invoice.StoreCurrencyCode,
-            StoreCurrencySymbol = _currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
-            Total = invoice.Total,
-            TotalInStoreCurrency = invoice.TotalInStoreCurrency,
-            IsMultiCurrency = !string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase),
-            PaymentStatus = paymentDetails.Status,
-            PaymentStatusDisplay = paymentDetails.StatusDisplay,
-            PaymentStatusCssClass = paymentDetails.Status.GetPaymentStatusCssClass(),
-            FulfillmentStatus = fulfillmentStatus,
-            FulfillmentStatusCssClass = GetFulfillmentStatusCssClass(orders),
-            IsCancelled = invoice.IsCancelled,
-            ItemCount = itemCount,
-            DeliveryStatus = deliveryStatus,
-            DueDate = invoice.DueDate,
-            IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
-            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null,
-            SourceType = invoice.Source?.Type,
-            SourceName = invoice.Source?.SourceName ?? invoice.Source?.DisplayName
-        };
-    }
-
-    private async Task<OrderDetailDto> MapToDetailAsync(Invoice invoice, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
-    {
-        var orders = invoice.Orders?.ToList() ?? [];
-        var payments = invoice.Payments?.ToList() ?? [];
-
-        // Use centralized payment status calculation from PaymentService (includes store currency)
-        var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
-        {
-            Payments = payments,
-            InvoiceTotal = invoice.Total,
-            CurrencyCode = invoice.CurrencyCode,
-            InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
-            StoreCurrencyCode = invoice.StoreCurrencyCode
-        });
-
-        var shippingCost = orders.Sum(o => o.ShippingCost);
-        var shippingCostInStoreCurrency = orders.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);
-
-        // Get discount line items
-        var discountLineItems = orders
-            .SelectMany(o => o.LineItems ?? [])
-            .Where(li => li.LineItemType == LineItemType.Discount)
-            .ToList();
-
-        var discountTotal = discountLineItems.Sum(li => Math.Abs(li.Amount));
-
-        // Map discount line items to DTOs for display
-        var discounts = discountLineItems.Select(d => new DiscountLineItemDto
-        {
-            Id = d.Id,
-            Name = d.Name,
-            Amount = Math.Abs(d.Amount)
-        }).ToList();
-
-        // Map addresses with country name lookup
-        var billingAddress = await MapAddressAsync(invoice.BillingAddress);
-        var shippingAddress = await MapAddressAsync(invoice.ShippingAddress);
-
-        return new OrderDetailDto
-        {
-            Id = invoice.Id,
-            CustomerId = invoice.CustomerId,
-            InvoiceNumber = invoice.InvoiceNumber,
-            DateCreated = invoice.DateCreated,
-            Channel = invoice.Channel,
-            PurchaseOrder = invoice.PurchaseOrder,
-            CurrencyCode = invoice.CurrencyCode,
-            CurrencySymbol = invoice.CurrencySymbol,
-            StoreCurrencyCode = invoice.StoreCurrencyCode,
-            StoreCurrencySymbol = _currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
-            PricingExchangeRate = invoice.PricingExchangeRate,
-            PricingExchangeRateSource = invoice.PricingExchangeRateSource,
-            PricingExchangeRateTimestampUtc = invoice.PricingExchangeRateTimestampUtc,
-            SubTotal = invoice.SubTotal,
-            DiscountTotal = discountTotal,
-            Discounts = discounts,
-            ShippingCost = shippingCost,
-            Tax = invoice.Tax,
-            Total = invoice.Total,
-            SubTotalInStoreCurrency = invoice.SubTotalInStoreCurrency,
-            DiscountTotalInStoreCurrency = invoice.DiscountInStoreCurrency,
-            ShippingCostInStoreCurrency = shippingCostInStoreCurrency,
-            TaxInStoreCurrency = invoice.TaxInStoreCurrency,
-            TotalInStoreCurrency = invoice.TotalInStoreCurrency,
-            AmountPaid = paymentDetails.NetPayment,
-            BalanceDue = paymentDetails.BalanceDue,
-            AmountPaidInStoreCurrency = paymentDetails.NetPaymentInStoreCurrency,
-            BalanceDueInStoreCurrency = paymentDetails.BalanceDueInStoreCurrency,
-            BalanceStatus = paymentDetails.BalanceDue switch
-            {
-                > 0 => "Underpaid",
-                < 0 => "Overpaid",
-                _ => "Balanced"
-            },
-            BalanceStatusCssClass = paymentDetails.BalanceDue switch
-            {
-                > 0 => "underpaid",
-                < 0 => "overpaid",
-                _ => "balanced"
-            },
-            BalanceStatusLabel = paymentDetails.BalanceDue switch
-            {
-                > 0 => "Balance Due",
-                < 0 => "Credit Due",
-                _ => ""
-            },
-            PaymentStatus = paymentDetails.Status,
-            PaymentStatusDisplay = paymentDetails.StatusDisplay,
-            PaymentStatusCssClass = paymentDetails.Status.GetPaymentStatusCssClass(),
-            MaxRiskScore = paymentDetails.MaxRiskScore,
-            MaxRiskScoreSource = paymentDetails.MaxRiskScoreSource,
-            FulfillmentStatus = GetFulfillmentStatus(orders),
-            FulfillmentStatusCssClass = GetFulfillmentStatusCssClass(orders),
-            IsCancelled = invoice.IsCancelled,
-            BillingAddress = billingAddress,
-            ShippingAddress = shippingAddress,
-            Orders = orders.Select(o => MapFulfillmentOrder(o, shippingOptionNames, productImages)).ToList(),
-            Notes = invoice.Notes?.Select(n => new InvoiceNoteDto
-            {
-                Date = n.DateCreated,
-                Text = n.Description ?? string.Empty,
-                AuthorId = n.AuthorId,
-                Author = n.Author,
-                IsVisibleToCustomer = n.VisibleToCustomer
-            }).ToList() ?? [],
-            ItemCount = GetItemCount(orders, li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon),
-            CanFulfill = !invoice.IsCancelled && GetFulfillmentStatus(orders) != "Fulfilled",
-            DueDate = invoice.DueDate,
-            IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
-            DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null,
-            Source = invoice.Source != null ? new InvoiceSourceDto
-            {
-                Type = invoice.Source.Type,
-                DisplayName = invoice.Source.DisplayName,
-                SourceId = invoice.Source.SourceId,
-                SourceName = invoice.Source.SourceName,
-                ProtocolVersion = invoice.Source.ProtocolVersion,
-                SessionId = invoice.Source.SessionId
-            } : null
-        };
-    }
-
-    private async Task<AddressDto?> MapAddressAsync(Core.Locality.Models.Address? address)
-    {
-        if (address == null) return null;
-
-        // Look up country name from code if not set
-        var countryName = address.Country;
-        if (string.IsNullOrEmpty(countryName) && !string.IsNullOrEmpty(address.CountryCode))
-        {
-            countryName = await _localityCatalog.TryGetCountryNameAsync(address.CountryCode);
-        }
-
-        return new AddressDto
-        {
-            Name = address.Name,
-            Company = address.Company,
-            AddressOne = address.AddressOne,
-            AddressTwo = address.AddressTwo,
-            TownCity = address.TownCity,
-            CountyState = address.CountyState?.Name,
-            PostalCode = address.PostalCode,
-            Country = countryName,
-            CountryCode = address.CountryCode,
-            Email = address.Email,
-            Phone = address.Phone
-        };
-    }
-
-    private static AddressDto? MapAddress(Core.Locality.Models.Address? address)
-    {
-        if (address == null) return null;
-
-        return new AddressDto
-        {
-            Name = address.Name,
-            Company = address.Company,
-            AddressOne = address.AddressOne,
-            AddressTwo = address.AddressTwo,
-            TownCity = address.TownCity,
-            CountyState = address.CountyState?.Name,
-            PostalCode = address.PostalCode,
-            Country = address.Country,
-            CountryCode = address.CountryCode,
-            Email = address.Email,
-            Phone = address.Phone
-        };
-    }
-
-    private static FulfillmentOrderDto MapFulfillmentOrder(Order order, Dictionary<Guid, string> shippingOptionNames, Dictionary<Guid, string?> productImages)
-    {
-        var deliveryMethod = shippingOptionNames.TryGetValue(order.ShippingOptionId, out var name)
-            ? name
-            : "Unknown";
-
-        return new FulfillmentOrderDto
-        {
-            Id = order.Id,
-            Status = order.Status,
-            StatusLabel = order.Status.ToLabel(),
-            StatusCssClass = order.Status.ToCssClass(),
-            DeliveryMethod = deliveryMethod,
-            ShippingCost = order.ShippingCost,
-            LineItems = order.LineItems?
-                .Where(li => li.LineItemType == LineItemType.Product
-                          || li.LineItemType == LineItemType.Custom
-                          || li.LineItemType == LineItemType.Addon)
-                .Select(li => new LineItemDto
-            {
-                Id = li.Id,
-                Sku = li.Sku,
-                Name = li.Name,
-                ProductRootName = li.GetProductRootName(),
-                SelectedOptions = li.GetSelectedOptions()
-                    .Select(o => new SelectedOptionDto
-                    {
-                        OptionName = o.OptionName,
-                        ValueName = o.ValueName
-                    }).ToList(),
-                Quantity = li.Quantity,
-                Amount = li.Amount,
-                OriginalAmount = li.OriginalAmount,
-                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
-                // Backend is single source of truth for calculated total
-                CalculatedTotal = li.Amount * li.Quantity
-            }).ToList() ?? [],
-            Shipments = order.Shipments?.Select(s => new ShipmentDto
-            {
-                Id = s.Id,
-                Status = s.Status,
-                StatusLabel = s.Status.ToLabel(),
-                StatusCssClass = s.Status.ToCssClass(),
-                TrackingNumber = s.TrackingNumber,
-                TrackingUrl = s.TrackingUrl,
-                Carrier = s.Carrier,
-                ShippedDate = s.ShippedDate,
-                ActualDeliveryDate = s.ActualDeliveryDate
-            }).ToList() ?? [],
-
-            // Fulfilment provider information
-            FulfilmentProviderKey = order.FulfilmentProviderConfiguration?.ProviderKey,
-            FulfilmentProviderName = order.FulfilmentProviderConfiguration?.DisplayName,
-            FulfilmentProviderReference = order.FulfilmentProviderReference,
-            FulfilmentSubmittedAt = order.FulfilmentSubmittedAt,
-            FulfilmentErrorMessage = order.FulfilmentErrorMessage,
-            FulfilmentRetryCount = order.FulfilmentRetryCount
-        };
-    }
-
-    private static int GetItemCount(List<Order> orders, Func<LineItem, bool> predicate) =>
-        orders.SelectMany(o => o.LineItems ?? []).Where(predicate).Sum(li => li.Quantity);
-
-    private static string GetFulfillmentStatus(List<Order> orders)
-    {
-        if (!orders.Any()) return "Unfulfilled";
-
-        var allShipped = orders.All(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed);
-        if (allShipped) return "Fulfilled";
-
-        var anyShipped = orders.Any(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.PartiallyShipped);
-        if (anyShipped) return "Partial";
-
-        return "Unfulfilled";
-    }
-
-    private static string GetFulfillmentStatusCssClass(List<Order> orders)
-    {
-        var status = GetFulfillmentStatus(orders);
-        return status.ToLowerInvariant();
-    }
-
-    private static string GetDeliveryStatus(List<Order> orders)
-    {
-        var hasTracking = orders.Any(o => o.Shipments?.Any(s => !string.IsNullOrEmpty(s.TrackingNumber)) == true);
-        return hasTracking ? "Tracking added" : "";
-    }
-
     // ============================================
     // Fulfillment Endpoints
     // ============================================
@@ -819,14 +442,7 @@ public class OrdersApiController(
             return BadRequest("At least one line item is required");
         }
 
-        var parameters = new CreateShipmentParameters
-        {
-            OrderId = orderId,
-            LineItems = request.LineItems,
-            Carrier = request.Carrier,
-            TrackingNumber = request.TrackingNumber,
-            TrackingUrl = request.TrackingUrl
-        };
+        var parameters = ordersRequestMapper.MapCreateShipmentParameters(orderId, request);
 
         var result = await shipmentService.CreateShipmentAsync(parameters, ct);
 
@@ -837,7 +453,7 @@ public class OrdersApiController(
         }
 
         var productImages = await GetProductImagesForShipment(result.ResultObject, ct);
-        return Ok(MapToShipmentDetail(result.ResultObject, productImages));
+        return Ok(ordersDtoMapper.MapToShipmentDetail(result.ResultObject, productImages));
     }
 
     /// <summary>
@@ -848,14 +464,7 @@ public class OrdersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateShipment(Guid shipmentId, [FromBody] UpdateShipmentDto request, CancellationToken ct)
     {
-        var parameters = new UpdateShipmentParameters
-        {
-            ShipmentId = shipmentId,
-            Carrier = request.Carrier,
-            TrackingNumber = request.TrackingNumber,
-            TrackingUrl = request.TrackingUrl,
-            ActualDeliveryDate = request.ActualDeliveryDate
-        };
+        var parameters = ordersRequestMapper.MapUpdateShipmentParameters(shipmentId, request);
 
         var result = await shipmentService.UpdateShipmentAsync(parameters, ct);
 
@@ -865,7 +474,7 @@ public class OrdersApiController(
         }
 
         var productImages = await GetProductImagesForShipment(result.ResultObject, ct);
-        return Ok(MapToShipmentDetail(result.ResultObject, productImages));
+        return Ok(ordersDtoMapper.MapToShipmentDetail(result.ResultObject, productImages));
     }
 
     /// <summary>
@@ -877,14 +486,7 @@ public class OrdersApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateShipmentStatus(Guid shipmentId, [FromBody] UpdateShipmentStatusDto request, CancellationToken ct)
     {
-        var parameters = new UpdateShipmentStatusParameters
-        {
-            ShipmentId = shipmentId,
-            NewStatus = request.NewStatus,
-            Carrier = request.Carrier,
-            TrackingNumber = request.TrackingNumber,
-            TrackingUrl = request.TrackingUrl
-        };
+        var parameters = ordersRequestMapper.MapUpdateShipmentStatusParameters(shipmentId, request);
 
         var result = await shipmentService.UpdateShipmentStatusAsync(parameters, ct);
 
@@ -899,7 +501,7 @@ public class OrdersApiController(
         }
 
         var productImages = await GetProductImagesForShipment(result.ResultObject!, ct);
-        return Ok(MapToShipmentDetail(result.ResultObject!, productImages));
+        return Ok(ordersDtoMapper.MapToShipmentDetail(result.ResultObject!, productImages));
     }
 
     /// <summary>
@@ -989,7 +591,7 @@ public class OrdersApiController(
         var invoices = await invoiceService.GetInvoicesByBillingEmailAsync(decodedEmail, ct);
 
         // Map to DTOs
-        var items = invoices.Select(MapToListItem).ToList();
+        var items = invoices.Select(ordersDtoMapper.MapToListItem).ToList();
 
         return Ok(items);
     }
@@ -1082,11 +684,11 @@ public class OrdersApiController(
             Address = result.Address != null ? new AddressLookupAddressDto
             {
                 Company = result.Address.Company,
-                Address1 = result.Address.Address1,
-                Address2 = result.Address.Address2,
-                City = result.Address.City,
-                State = result.Address.State,
-                StateCode = result.Address.StateCode,
+                AddressOne = result.Address.AddressOne,
+                AddressTwo = result.Address.AddressTwo,
+                TownCity = result.Address.TownCity,
+                CountyState = result.Address.CountyState,
+                RegionCode = result.Address.RegionCode,
                 PostalCode = result.Address.PostalCode,
                 Country = result.Address.Country,
                 CountryCode = result.Address.CountryCode
@@ -1153,43 +755,6 @@ public class OrdersApiController(
         return await productService.GetProductImagesAsync(productIds, ct);
     }
 
-    private static ShipmentDetailDto MapToShipmentDetail(Shipment shipment, Dictionary<Guid, string?> productImages)
-    {
-        return new ShipmentDetailDto
-        {
-            Id = shipment.Id,
-            OrderId = shipment.OrderId,
-            Status = shipment.Status,
-            StatusLabel = shipment.Status.ToLabel(),
-            StatusCssClass = shipment.Status.ToCssClass(),
-            Carrier = shipment.Carrier,
-            TrackingNumber = shipment.TrackingNumber,
-            TrackingUrl = shipment.TrackingUrl,
-            DateCreated = shipment.DateCreated,
-            ShippedDate = shipment.ShippedDate,
-            ActualDeliveryDate = shipment.ActualDeliveryDate,
-            CanMarkAsShipped = shipment.Status == ShipmentStatus.Preparing,
-            CanMarkAsDelivered = shipment.Status == ShipmentStatus.Shipped,
-            CanCancel = shipment.Status != ShipmentStatus.Delivered && shipment.Status != ShipmentStatus.Cancelled,
-            LineItems = shipment.LineItems?.Select(li => new ShipmentLineItemDto
-            {
-                Id = Guid.NewGuid(), // Generate new ID for the shipment line item reference
-                LineItemId = li.Id,
-                Sku = li.Sku,
-                Name = li.Name,
-                ProductRootName = li.GetProductRootName(),
-                SelectedOptions = li.GetSelectedOptions()
-                    .Select(o => new SelectedOptionDto
-                    {
-                        OptionName = o.OptionName,
-                        ValueName = o.ValueName
-                    }).ToList(),
-                Quantity = li.Quantity,
-                ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var imageUrl) ? imageUrl : null
-            }).ToList() ?? []
-        };
-    }
-
     /// <summary>
     /// Get paginated list of outstanding (unpaid) invoices across all account customers
     /// </summary>
@@ -1207,18 +772,16 @@ public class OrdersApiController(
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        var parameters = new OutstandingInvoicesQueryParameters
-        {
-            CustomerId = customerId,
-            AccountCustomersOnly = accountCustomersOnly,
-            OverdueOnly = overdueOnly,
-            DueWithinDays = dueWithinDays,
-            Search = search,
-            SortBy = sortBy,
-            SortDirection = sortDirection,
-            Page = page,
-            PageSize = pageSize
-        };
+        var parameters = ordersRequestMapper.MapOutstandingInvoicesQuery(
+            customerId,
+            accountCustomersOnly,
+            overdueOnly,
+            dueWithinDays,
+            search,
+            sortBy,
+            sortDirection,
+            page,
+            pageSize);
 
         var result = await statementService.GetOutstandingInvoicesPagedAsync(parameters, ct);
 
@@ -1250,13 +813,7 @@ public class OrdersApiController(
             return BadRequest("Payment method is required.");
         }
 
-        var parameters = new BatchMarkAsPaidParameters
-        {
-            InvoiceIds = dto.InvoiceIds,
-            PaymentMethod = dto.PaymentMethod,
-            Reference = dto.Reference,
-            DateReceived = dto.DateReceived
-        };
+        var parameters = ordersRequestMapper.MapBatchMarkAsPaidParameters(dto);
 
         var result = await paymentService.BatchMarkAsPaidAsync(parameters, ct);
 

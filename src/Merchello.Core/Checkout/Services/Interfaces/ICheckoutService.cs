@@ -122,22 +122,30 @@ public interface ICheckoutService
     /// <summary>
     /// Gets countries available for shipping (based on warehouse service regions).
     /// </summary>
-    Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CountryAvailability>> GetAvailableCountriesAsync(
+        GetAvailableShippingCountriesParameters parameters,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets regions available for shipping in a country (based on warehouse service regions).
     /// </summary>
-    Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(string countryCode, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<RegionAvailability>> GetAvailableRegionsAsync(
+        GetAvailableShippingRegionsParameters parameters,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all countries from the locality catalog (for billing address which has no restrictions).
     /// </summary>
-    Task<IReadOnlyCollection<CountryInfo>> GetAllCountriesAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CountryInfo>> GetAllCountriesAsync(
+        GetAvailableBillingCountriesParameters parameters,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets all regions for a country from the locality catalog (for billing address which has no restrictions).
     /// </summary>
-    Task<IReadOnlyCollection<SubdivisionInfo>> GetAllRegionsAsync(string countryCode, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<SubdivisionInfo>> GetAllRegionsAsync(
+        GetAvailableBillingRegionsParameters parameters,
+        CancellationToken cancellationToken = default);
 
     // Order grouping methods
 
@@ -145,13 +153,11 @@ public interface ICheckoutService
     /// Gets order groups for a basket, grouping items by warehouse and shipping options.
     /// Uses the configured IOrderGroupingStrategy to determine grouping logic.
     /// </summary>
-    /// <param name="basket">The basket to group.</param>
-    /// <param name="session">The checkout session with addresses and any existing selections.</param>
+    /// <param name="parameters">Grouping parameters.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Order grouping result with groups and any errors.</returns>
     Task<OrderGroupingResult> GetOrderGroupsAsync(
-        Basket basket,
-        CheckoutSession session,
+        GetOrderGroupsParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -169,9 +175,9 @@ public interface ICheckoutService
     /// Persists the basket to the database without recalculation.
     /// Use this for simple updates like email capture or partial address saves.
     /// </summary>
-    /// <param name="basket">The basket to save.</param>
+    /// <param name="parameters">Basket persistence parameters.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task SaveBasketAsync(Basket basket, CancellationToken cancellationToken = default);
+    Task SaveBasketAsync(SaveBasketParameters parameters, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Saves shipping selections to the checkout session, updates basket totals,
@@ -214,10 +220,12 @@ public interface ICheckoutService
     /// Checks if the basket contains any digital products.
     /// Used to enforce account creation for digital product purchases.
     /// </summary>
-    /// <param name="basket">The basket to check.</param>
+    /// <param name="parameters">Basket inspection parameters.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if basket contains digital products.</returns>
-    Task<bool> BasketHasDigitalProductsAsync(Basket basket, CancellationToken cancellationToken = default);
+    Task<bool> BasketHasDigitalProductsAsync(
+        BasketHasDigitalProductsParameters parameters,
+        CancellationToken cancellationToken = default);
 
     // Protocol integration methods
 
@@ -225,22 +233,22 @@ public interface ICheckoutService
     /// Gets the checkout session state in protocol-agnostic format.
     /// Used by protocol adapters (UCP, etc.) to expose checkout state to external agents.
     /// </summary>
-    /// <param name="basketId">The basket ID.</param>
+    /// <param name="parameters">Session lookup parameters.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Protocol-agnostic session state, or null if basket not found.</returns>
     Task<CheckoutSessionState?> GetSessionStateAsync(
-        Guid basketId,
+        GetSessionStateParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets a basket by its ID directly from the database.
     /// Used by protocol adapters (UCP, etc.) to load baskets for external agent sessions.
     /// </summary>
-    /// <param name="basketId">The basket ID.</param>
+    /// <param name="parameters">Basket lookup parameters.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The basket, or null if not found.</returns>
     Task<Basket?> GetBasketByIdAsync(
-        Guid basketId,
+        GetBasketByIdParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>

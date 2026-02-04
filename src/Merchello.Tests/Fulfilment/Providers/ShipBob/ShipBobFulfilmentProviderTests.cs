@@ -423,9 +423,9 @@ public class ShipBobFulfilmentProviderTests
             ShippingAddress = new FulfilmentAddress
             {
                 Name = "Test Customer",
-                Address1 = "123 Test Street",
-                City = "Test City",
-                StateOrProvince = "CA",
+                AddressOne = "123 Test Street",
+                TownCity = "Test City",
+                CountyState = "CA",
                 PostalCode = "90210",
                 CountryCode = "US"
             },

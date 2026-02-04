@@ -269,7 +269,7 @@ public class CommerceProtocolManagerTests
         var agent = new AgentIdentity
         {
             AgentId = Guid.NewGuid().ToString(),
-            Protocol = ProtocolConstants.Protocols.Ucp,
+            Protocol = ProtocolAliases.Ucp,
             ProfileUri = "https://agent.example.com",
             Capabilities = ["checkout"]
         };

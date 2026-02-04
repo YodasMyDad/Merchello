@@ -30,11 +30,11 @@ const STOREFRONT_URL = '/api/merchello/storefront';
  * @typedef {Object} AddressFields
  * @property {string} name
  * @property {string} [company]
- * @property {string} address1
- * @property {string} [address2]
- * @property {string} city
- * @property {string} [state]
- * @property {string} [stateCode]
+ * @property {string} addressOne
+ * @property {string} [addressTwo]
+ * @property {string} townCity
+ * @property {string} [countyState]
+ * @property {string} [regionCode]
  * @property {string} countryCode
  * @property {string} [country]
  * @property {string} postalCode
@@ -86,7 +86,7 @@ const STOREFRONT_URL = '/api/merchello/storefront';
 
 /**
  * @typedef {Object} Region
- * @property {string} code
+ * @property {string} regionCode
  * @property {string} name
  */
 
@@ -166,7 +166,7 @@ export const checkoutApi = {
      * Initialize checkout - calculate shipping and auto-select options
      * @param {Object} data
      * @param {string} data.countryCode
-     * @param {string} [data.stateCode]
+     * @param {string} [data.regionCode]
      * @param {boolean} [data.autoSelectShipping]
      * @param {string} [data.email]
      * @param {Object.<string, string>} [data.previousShippingSelections] - Previous shipping selections to restore (groupId -> optionId)

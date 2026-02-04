@@ -9,7 +9,7 @@ export interface AddCustomItemModalData {
   /** Shipping destination for filtering shipping options */
   shippingDestination?: {
     countryCode: string;
-    stateCode?: string;
+    regionCode?: string;
   } | null;
 }
 

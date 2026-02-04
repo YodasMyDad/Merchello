@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shipping.Dtos;
@@ -20,7 +21,8 @@ public class WarehousesApiController(
     IWarehouseService warehouseService,
     ISupplierService supplierService,
     ILocationsService locationsService,
-    IShippingService shippingService) : MerchelloApiControllerBase
+    IShippingService shippingService,
+    AddressFactory addressFactory) : MerchelloApiControllerBase
 {
     #region Warehouses
 
@@ -226,7 +228,9 @@ public class WarehousesApiController(
     [ProducesResponseType<List<DestinationDto>>(StatusCodes.Status200OK)]
     public async Task<List<DestinationDto>> GetAvailableDestinations(Guid warehouseId, CancellationToken ct)
     {
-        var countries = await locationsService.GetAvailableCountriesForWarehouseAsync(warehouseId, ct);
+        var countries = await locationsService.GetAvailableCountriesForWarehouseAsync(
+            new GetAvailableCountriesForWarehouseParameters { WarehouseId = warehouseId },
+            ct);
         return countries.Select(c => new DestinationDto { Code = c.Code, Name = c.Name }).ToList();
     }
 
@@ -237,7 +241,13 @@ public class WarehousesApiController(
     [ProducesResponseType<List<RegionDto>>(StatusCodes.Status200OK)]
     public async Task<List<RegionDto>> GetAvailableRegions(Guid warehouseId, string countryCode, CancellationToken ct)
     {
-        var regions = await locationsService.GetAvailableRegionsForWarehouseAsync(warehouseId, countryCode, ct);
+        var regions = await locationsService.GetAvailableRegionsForWarehouseAsync(
+            new GetAvailableRegionsForWarehouseParameters
+            {
+                WarehouseId = warehouseId,
+                CountryCode = countryCode
+            },
+            ct);
         return regions.Select(r => new RegionDto { RegionCode = r.RegionCode, Name = r.Name }).ToList();
     }
 
@@ -403,26 +413,22 @@ public class WarehousesApiController(
 
     #region Helpers
 
-    private static Address MapAddressFromDto(AddressDto dto)
+    private Address MapAddressFromDto(AddressDto dto)
     {
-        return new Address
-        {
-            Name = dto.Name,
-            Company = dto.Company,
-            AddressOne = dto.AddressOne,
-            AddressTwo = dto.AddressTwo,
-            TownCity = dto.TownCity,
-            CountyState = new CountyState
-            {
-                Name = dto.CountyState,
-                RegionCode = dto.RegionCode ?? dto.CountyState
-            },
-            PostalCode = dto.PostalCode,
-            Country = dto.Country,
-            CountryCode = dto.CountryCode,
-            Email = dto.Email,
-            Phone = dto.Phone
-        };
+        var address = addressFactory.CreateAddress(
+            dto.Name,
+            dto.AddressOne,
+            dto.AddressTwo,
+            dto.TownCity,
+            dto.PostalCode,
+            dto.CountryCode,
+            dto.CountyState,
+            dto.RegionCode,
+            dto.Company,
+            dto.Phone,
+            dto.Email);
+        address.Country = dto.Country;
+        return address;
     }
 
     private static string BuildRegionDisplay(string countryCode, string? stateOrProvinceCode)

@@ -671,12 +671,12 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         return new AgentIdentity
         {
             AgentId = TestAgentId,
-            Protocol = ProtocolConstants.Protocols.Ucp,
+            Protocol = ProtocolAliases.Ucp,
             ProfileUri = "https://test-agent.example.com/profile",
             Capabilities =
             [
-                ProtocolConstants.UcpCapabilities.Checkout,
-                ProtocolConstants.UcpCapabilities.Order
+                UcpCapabilityNames.Checkout,
+                UcpCapabilityNames.Order
             ]
         };
     }

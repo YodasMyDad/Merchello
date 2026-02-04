@@ -76,11 +76,11 @@ export interface AddressLookupResolveRequestDto {
 // Full address returned from resolve
 export interface AddressLookupAddressDto {
   company?: string;
-  address1?: string;
-  address2?: string;
-  city?: string;
-  state?: string;
-  stateCode?: string;
+  addressOne?: string;
+  addressTwo?: string;
+  townCity?: string;
+  countyState?: string;
+  regionCode?: string;
   postalCode?: string;
   country?: string;
   countryCode?: string;

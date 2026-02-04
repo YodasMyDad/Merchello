@@ -383,10 +383,10 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 PhoneNumber = request.CustomerPhone ?? request.ShippingAddress.Phone,
                 Address = new Models.ShipBobAddress
                 {
-                    Address1 = request.ShippingAddress.Address1,
-                    Address2 = request.ShippingAddress.Address2,
-                    City = request.ShippingAddress.City,
-                    State = request.ShippingAddress.StateOrProvince,
+                    Address1 = request.ShippingAddress.AddressOne,
+                    Address2 = request.ShippingAddress.AddressTwo,
+                    City = request.ShippingAddress.TownCity,
+                    State = request.ShippingAddress.CountyState,
                     ZipCode = request.ShippingAddress.PostalCode,
                     Country = request.ShippingAddress.CountryCode,
                     CompanyName = request.ShippingAddress.Company

@@ -203,9 +203,9 @@ public class BraintreePaymentProviderTests
                 FullName = "Test User",
                 ShippingAddress = new ExpressCheckoutAddress
                 {
-                    Line1 = "123 Test St",
-                    City = "Test City",
-                    Region = "TS",
+                    AddressOne = "123 Test St",
+                    TownCity = "Test City",
+                    CountyState = "TS",
                     PostalCode = "12345",
                     CountryCode = "US"
                 }

@@ -366,10 +366,14 @@ public class MerchelloCheckoutController(
         var session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
 
         // Load available countries for billing (all countries) and shipping (restricted by warehouse regions)
-        var billingCountriesResult = await checkoutService.GetAllCountriesAsync(ct);
+        var billingCountriesResult = await checkoutService.GetAllCountriesAsync(
+            new GetAvailableBillingCountriesParameters(),
+            ct);
         var billingCountries = billingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
-        var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(ct);
+        var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(
+            new GetAvailableShippingCountriesParameters(),
+            ct);
         var shippingCountries = shippingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
         // Determine default country - prioritize storefront cookie (user's current selection) over saved data
@@ -425,7 +429,9 @@ public class MerchelloCheckoutController(
         var isLoggedIn = currentMember != null;
 
         // Check if basket contains digital products (requires account creation)
-        var hasDigitalProducts = await checkoutService.BasketHasDigitalProductsAsync(basket, ct);
+        var hasDigitalProducts = await checkoutService.BasketHasDigitalProductsAsync(
+            new BasketHasDigitalProductsParameters { Basket = basket },
+            ct);
 
         // Calculate display amounts using centralized method (includes tax-inclusive calculations and GROSS reconciliation)
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);

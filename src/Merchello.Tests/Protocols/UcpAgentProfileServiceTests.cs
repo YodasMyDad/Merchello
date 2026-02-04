@@ -321,9 +321,9 @@ public class UcpAgentProfileServiceTests
         // Assert - verify cache was called with correct parameters
         // Note: Use UcpAgentProfile (not nullable) to match runtime type
         _cacheServiceMock.Verify(x => x.GetOrCreateAsync(
-            It.Is<string>(k => k.StartsWith(ProtocolConstants.CacheKeys.AgentProfilePrefix)),
+            It.Is<string>(k => k.StartsWith(ProtocolCacheKeys.AgentProfilePrefix)),
             It.IsAny<Func<CancellationToken, Task<UcpAgentProfile>>>(),
-            It.Is<TimeSpan?>(ttl => ttl == ProtocolConstants.CacheDurations.AgentProfileCache),
+            It.Is<TimeSpan?>(ttl => ttl == ProtocolCacheDurations.AgentProfileCache),
             It.Is<IEnumerable<string>?>(tags => tags != null && tags.Contains("protocols") && tags.Contains("agent-profiles")),
             It.IsAny<CancellationToken>()),
             Times.Once);

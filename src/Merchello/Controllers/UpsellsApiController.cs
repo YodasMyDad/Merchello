@@ -433,8 +433,6 @@ public class UpsellsApiController(
     // Event Summary Helper
     // =====================================================
 
-    private record EventSummary(int Impressions, int Clicks, int Conversions, decimal Revenue);
-
     private async Task<Dictionary<Guid, EventSummary>> GetEventSummariesForRulesAsync(
         List<Guid> ruleIds, CancellationToken ct)
     {

@@ -1672,16 +1672,6 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     private decimal ConvertFromStripeAmount(long amount, string? currency)
         => _currencyService.FromMinorUnits(amount, currency ?? "USD");
 
-    /// <summary>
-    /// Settlement and risk data returned from charge lookup.
-    /// </summary>
-    private record ChargeInfo(
-        string? SettlementCurrency,
-        decimal? SettlementExchangeRate,
-        decimal? SettlementAmount,
-        decimal? RiskScore,
-        string? RiskScoreSource);
-
     private async Task<ChargeInfo> TryGetChargeInfoAsync(
         string paymentIntentId,
         CancellationToken cancellationToken)

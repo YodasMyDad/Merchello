@@ -2651,21 +2651,6 @@ public class DbSeeder(
     }
 
     /// <summary>
-    /// Payment scenarios for seed data variety.
-    /// </summary>
-    private enum PaymentScenario
-    {
-        Unpaid,
-        StripeFull,
-        ManualFull,
-        PartialPayment,
-        SplitPayment,
-        Overpayment,
-        Refunded,
-        PurchaseOrder  // B2B Purchase Order payment
-    }
-
-    /// <summary>
     /// Creates a copy of an Address. Required because EF Core owned types cannot be shared.
     /// </summary>
     private static Address CloneAddress(Address source) => new()
