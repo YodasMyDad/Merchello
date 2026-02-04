@@ -756,7 +756,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(1000)
+                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("ItemCount")

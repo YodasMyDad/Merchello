@@ -31,6 +31,7 @@ public class EmailServiceTests
     private readonly Mock<IEmailConfigurationService> _configServiceMock;
     private readonly Mock<IEmailTokenResolver> _tokenResolverMock;
     private readonly Mock<IEmailAttachmentResolver> _attachmentResolverMock;
+    private readonly Mock<IEmailAttachmentStorageService> _attachmentStorageServiceMock;
     private readonly Mock<IEmailTemplateRenderer> _templateRendererMock;
     private readonly Mock<IEmailSender> _emailSenderMock;
     private readonly Mock<ISampleNotificationFactory> _sampleNotificationFactoryMock;
@@ -44,6 +45,7 @@ public class EmailServiceTests
         _configServiceMock = new Mock<IEmailConfigurationService>();
         _tokenResolverMock = new Mock<IEmailTokenResolver>();
         _attachmentResolverMock = new Mock<IEmailAttachmentResolver>();
+        _attachmentStorageServiceMock = new Mock<IEmailAttachmentStorageService>();
         _templateRendererMock = new Mock<IEmailTemplateRenderer>();
         _emailSenderMock = new Mock<IEmailSender>();
         _sampleNotificationFactoryMock = new Mock<ISampleNotificationFactory>();
@@ -76,6 +78,7 @@ public class EmailServiceTests
             _configServiceMock.Object,
             _tokenResolverMock.Object,
             _attachmentResolverMock.Object,
+            _attachmentStorageServiceMock.Object,
             _templateRendererMock.Object,
             _emailSenderMock.Object,
             _sampleNotificationFactoryMock.Object,

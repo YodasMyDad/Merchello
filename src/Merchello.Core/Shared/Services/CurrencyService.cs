@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using Merchello.Core.Shared.Helpers;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.Extensions.Options;
@@ -18,66 +19,6 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
     private static readonly HashSet<string> ThreeDecimalCurrencies = new(StringComparer.OrdinalIgnoreCase)
     {
         "BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND"
-    };
-
-    /// <summary>
-    /// Maps currency codes to their preferred "home" culture for consistent symbol display.
-    /// Without this, CultureInfo.GetCultures() returns cultures in non-deterministic order,
-    /// causing USD to sometimes show as "US$" instead of "$" depending on which culture matches first.
-    /// </summary>
-    private static readonly Dictionary<string, string> PreferredCultureByCurrency = new(StringComparer.OrdinalIgnoreCase)
-    {
-        // Major world currencies
-        ["USD"] = "en-US",
-        ["EUR"] = "de-DE",
-        ["GBP"] = "en-GB",
-        ["JPY"] = "ja-JP",
-        ["CNY"] = "zh-CN",
-        ["CHF"] = "de-CH",
-
-        // Other major currencies
-        ["CAD"] = "en-CA",
-        ["AUD"] = "en-AU",
-        ["NZD"] = "en-NZ",
-        ["HKD"] = "zh-HK",
-        ["SGD"] = "en-SG",
-        ["SEK"] = "sv-SE",
-        ["NOK"] = "nb-NO",
-        ["DKK"] = "da-DK",
-        ["MXN"] = "es-MX",
-        ["BRL"] = "pt-BR",
-        ["INR"] = "hi-IN",
-        ["KRW"] = "ko-KR",
-        ["RUB"] = "ru-RU",
-        ["ZAR"] = "en-ZA",
-        ["TRY"] = "tr-TR",
-        ["PLN"] = "pl-PL",
-        ["THB"] = "th-TH",
-        ["IDR"] = "id-ID",
-        ["MYR"] = "ms-MY",
-        ["PHP"] = "en-PH",
-        ["CZK"] = "cs-CZ",
-        ["ILS"] = "he-IL",
-        ["CLP"] = "es-CL",
-        ["AED"] = "ar-AE",
-        ["SAR"] = "ar-SA",
-        ["TWD"] = "zh-TW",
-        ["ARS"] = "es-AR",
-        ["COP"] = "es-CO",
-        ["PEN"] = "es-PE",
-        ["VND"] = "vi-VN",
-        ["EGP"] = "ar-EG",
-        ["PKR"] = "ur-PK",
-        ["BGN"] = "bg-BG",
-        ["RON"] = "ro-RO",
-        ["HUF"] = "hu-HU",
-        ["UAH"] = "uk-UA",
-        ["NGN"] = "en-NG",
-        ["KES"] = "sw-KE",
-        ["QAR"] = "ar-QA",
-        ["KWD"] = "ar-KW",
-        ["BHD"] = "ar-BH",
-        ["OMR"] = "ar-OM",
     };
 
     public CurrencyInfo GetCurrency(string currencyCode)
@@ -191,22 +132,9 @@ public class CurrencyService(IOptions<MerchelloSettings> settings) : ICurrencySe
         => CurrencyCultureCache.GetOrAdd(currencyCode, code =>
         {
             // Try preferred culture first for consistent symbol display
-            if (PreferredCultureByCurrency.TryGetValue(code, out var preferredCultureName))
-            {
-                try
-                {
-                    var preferredCulture = CultureInfo.GetCultureInfo(preferredCultureName);
-                    var region = new RegionInfo(preferredCulture.Name);
-                    if (region.ISOCurrencySymbol.Equals(code, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return preferredCulture;
-                    }
-                }
-                catch
-                {
-                    // Fall through to enumeration approach
-                }
-            }
+            var preferredCulture = CurrencySymbolHelper.GetPreferredCulture(code);
+            if (preferredCulture != null)
+                return preferredCulture;
 
             // Fallback: enumerate all cultures
             try

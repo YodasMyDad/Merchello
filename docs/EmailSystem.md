@@ -1099,8 +1099,8 @@ A pluggable attachment system that allows developers to create typed attachment 
 - **Typed attachment generators** - `IEmailAttachment<TNotification>` interface with compile-time type safety
 - **ExtensionManager discovery** - Attachments auto-discovered like shipping providers
 - **Backoffice selection** - Multi-select dropdown to choose attachments per EmailConfiguration
-- **Queue-time generation** - Attachments generated during `QueueDeliveryAsync()` and stored in delivery record
-- **No storage** - Attachments generated and sent, not persisted (database stays lean)
+- **Queue-time generation** - Attachments generated during `QueueDeliveryAsync()` and stored as temp files
+- **File-based storage** - Attachments saved to `App_Data/Email_Attachments/` (not base64 in database)
 
 ### Interface
 
@@ -1154,9 +1154,25 @@ public class EmailSettings
 
 ### Storage & Delivery
 
+Attachments are stored as temp files to avoid database size limits (not base64 in database).
+
+**Flow:**
 1. **Queue Phase** - `IEmailAttachmentResolver.GenerateAttachmentsAsync()` generates attachments
-2. **Storage** - Attachments serialized as base64 JSON in `OutboundDelivery.ExtendedData["attachments"]`
-3. **Delivery Phase** - Attachments deserialized and passed to Umbraco `IEmailSender`
+2. **File Storage** - `IEmailAttachmentStorageService.SaveAttachmentAsync()` saves to `App_Data/Email_Attachments/{deliveryId}/`
+3. **Reference Storage** - `StoredAttachmentReference` (file path, not content) serialized to `OutboundDelivery.ExtendedData["attachments"]`
+4. **Delivery Phase** - Files loaded from disk and attached to email
+5. **Cleanup** - Files deleted after successful delivery or by `EmailAttachmentCleanupJob` for orphaned files
+
+**Configuration** (in `EmailSettings`):
+```csharp
+AttachmentStoragePath = "App_Data/Email_Attachments"  // Relative to content root
+AttachmentRetentionHours = 72                          // Cleanup orphaned files after 72 hours
+```
+
+**Security:**
+- Path traversal prevention via `ValidatePathSecurity()`
+- Filename sanitization for invalid characters
+- Storage folder protected from web access (inside `App_Data/`)
 
 ### Error Handling
 

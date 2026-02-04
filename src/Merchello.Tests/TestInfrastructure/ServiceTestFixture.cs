@@ -505,6 +505,7 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<IEmailTopicRegistry, EmailTopicRegistry>();
         services.AddSingleton<IEmailTemplateDiscoveryService, EmailTemplateDiscoveryService>();
         services.AddSingleton<IEmailAttachmentResolver, EmailAttachmentResolver>();
+        services.AddSingleton<IEmailAttachmentStorageService, EmailAttachmentStorageService>();
         services.AddScoped<IEmailTokenResolver, EmailTokenResolver>();
         services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         services.AddSingleton<IEmailTemplateRenderer, StubEmailTemplateRenderer>();

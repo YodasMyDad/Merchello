@@ -13,6 +13,7 @@ using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Products.Extensions;
+using Merchello.Core.Shared.Helpers;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
@@ -2924,12 +2925,6 @@ public class DbSeeder(
     /// <summary>
     /// Gets currency symbol for display purposes.
     /// </summary>
-    private static string GetCurrencySymbol(string currencyCode) => currencyCode switch
-    {
-        "GBP" => "£",
-        "EUR" => "€",
-        "CAD" or "USD" or "AUD" => "$",
-        "JPY" => "¥",
-        _ => "$"
-    };
+    private static string GetCurrencySymbol(string currencyCode)
+        => CurrencySymbolHelper.GetSymbol(currencyCode);
 }

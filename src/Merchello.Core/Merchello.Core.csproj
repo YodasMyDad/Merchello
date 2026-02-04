@@ -45,7 +45,7 @@
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.0" />
-    <PackageReference Include="HtmlSanitizer" Version="9.0.889" />
+    <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="Humanizer" Version="3.0.1" />
 
@@ -61,9 +61,9 @@
     <!-- Provider dependencies -->
     <PackageReference Include="Avalara.AvaTax" Version="25.12.0" />
     <PackageReference Include="Amazon.Pay.API.SDK" Version="2.7.4" />
-    <PackageReference Include="Braintree" Version="5.38.0" />
+    <PackageReference Include="Braintree" Version="5.39.0" />
     <PackageReference Include="PayPalServerSDK" Version="2.2.0" />
-    <PackageReference Include="Stripe.net" Version="50.2.0" />
+    <PackageReference Include="Stripe.net" Version="50.3.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
   </ItemGroup>
 

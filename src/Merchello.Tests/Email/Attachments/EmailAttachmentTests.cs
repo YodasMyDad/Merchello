@@ -22,7 +22,7 @@ using Xunit;
 namespace Merchello.Tests.Email.Attachments;
 
 /// <summary>
-/// Tests for Email Attachment infrastructure including StoredAttachment, CsvAttachmentHelper,
+/// Tests for Email Attachment infrastructure including CsvAttachmentHelper
 /// and individual attachment generators.
 /// </summary>
 public class EmailAttachmentTests
@@ -33,116 +33,6 @@ public class EmailAttachmentTests
     private static readonly AddressFactory AddressFactory = new();
     private static readonly LineItemFactory LineItemFactory = new(CurrencyService);
     private static readonly OrderFactory OrderFactory = new();
-
-    #region StoredAttachment Tests
-
-    [Fact]
-    public void StoredAttachment_FromResult_ConvertsCorrectly()
-    {
-        // Arrange
-        var content = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // PDF magic bytes
-        var result = new EmailAttachmentResult
-        {
-            Content = content,
-            FileName = "Invoice-001.pdf",
-            ContentType = "application/pdf"
-        };
-
-        // Act
-        var stored = StoredAttachment.FromResult(result);
-
-        // Assert
-        stored.FileName.ShouldBe("Invoice-001.pdf");
-        stored.ContentType.ShouldBe("application/pdf");
-        stored.ContentBase64.ShouldNotBeNullOrWhiteSpace();
-    }
-
-    [Fact]
-    public void StoredAttachment_GetContent_ReturnsOriginalBytes()
-    {
-        // Arrange
-        var originalContent = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
-        var result = new EmailAttachmentResult
-        {
-            Content = originalContent,
-            FileName = "test.bin",
-            ContentType = "application/octet-stream"
-        };
-
-        // Act
-        var stored = StoredAttachment.FromResult(result);
-        var retrieved = stored.GetContent();
-
-        // Assert
-        retrieved.ShouldBe(originalContent);
-    }
-
-    [Fact]
-    public void StoredAttachment_RoundTrip_PreservesAllData()
-    {
-        // Arrange
-        var content = Encoding.UTF8.GetBytes("Test content for round-trip");
-        var original = new EmailAttachmentResult
-        {
-            Content = content,
-            FileName = "document.txt",
-            ContentType = "text/plain"
-        };
-
-        // Act
-        var stored = StoredAttachment.FromResult(original);
-        var retrievedContent = stored.GetContent();
-
-        // Assert
-        stored.FileName.ShouldBe(original.FileName);
-        stored.ContentType.ShouldBe(original.ContentType);
-        retrievedContent.ShouldBe(original.Content);
-    }
-
-    [Fact]
-    public void StoredAttachment_EmptyContent_HandlesCorrectly()
-    {
-        // Arrange
-        var result = new EmailAttachmentResult
-        {
-            Content = Array.Empty<byte>(),
-            FileName = "empty.txt",
-            ContentType = "text/plain"
-        };
-
-        // Act
-        var stored = StoredAttachment.FromResult(result);
-        var retrieved = stored.GetContent();
-
-        // Assert
-        retrieved.ShouldBeEmpty();
-        stored.ContentBase64.ShouldBe(string.Empty);
-    }
-
-    [Fact]
-    public void StoredAttachment_LargeContent_HandlesCorrectly()
-    {
-        // Arrange - 1MB file
-        var largeContent = new byte[1024 * 1024];
-        new Random(42).NextBytes(largeContent);
-
-        var result = new EmailAttachmentResult
-        {
-            Content = largeContent,
-            FileName = "large-file.bin",
-            ContentType = "application/octet-stream"
-        };
-
-        // Act
-        var stored = StoredAttachment.FromResult(result);
-        var retrieved = stored.GetContent();
-
-        // Assert
-        retrieved.Length.ShouldBe(largeContent.Length);
-        retrieved.ShouldBe(largeContent);
-    }
-
-    #endregion
 
     #region CsvAttachmentHelper Tests
 

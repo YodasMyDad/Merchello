@@ -26,6 +26,7 @@ public class EmailService(
     IEmailConfigurationService configurationService,
     IEmailTokenResolver tokenResolver,
     IEmailAttachmentResolver attachmentResolver,
+    IEmailAttachmentStorageService attachmentStorageService,
     IEmailTemplateRenderer templateRenderer,
     IEmailSender emailSender,
     ISampleNotificationFactory sampleNotificationFactory,
@@ -75,8 +76,11 @@ public class EmailService(
             templateError = $"Template render failed: {ex.Message}";
         }
 
-        // Generate attachments if configured
-        List<StoredAttachment>? storedAttachments = null;
+        // Generate delivery ID upfront so we can use it for attachment storage
+        var deliveryId = GuidExtensions.NewSequentialGuid;
+
+        // Generate attachments if configured - save to temp files
+        List<StoredAttachmentReference>? storedAttachments = null;
         if (config.AttachmentAliases.Count > 0 && templateError == null)
         {
             try
@@ -86,18 +90,25 @@ public class EmailService(
 
                 if (attachmentResults.Count > 0)
                 {
-                    storedAttachments = attachmentResults
-                        .Select(StoredAttachment.FromResult)
-                        .ToList();
+                    var attachmentRefs = new List<StoredAttachmentReference>();
+                    foreach (var result in attachmentResults)
+                    {
+                        var reference = await attachmentStorageService.SaveAttachmentAsync(
+                            deliveryId, result, ct);
+                        attachmentRefs.Add(reference);
+                    }
+                    storedAttachments = attachmentRefs;
 
                     logger.LogDebug(
-                        "Generated {Count} attachments for email configuration {ConfigurationId}",
+                        "Saved {Count} attachments to temp storage for email configuration {ConfigurationId}",
                         storedAttachments.Count, config.Id);
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to generate attachments for email configuration {ConfigurationId}", config.Id);
+                // Clean up any partially saved attachments
+                attachmentStorageService.DeleteDeliveryAttachments(deliveryId);
                 // Continue without attachments - don't fail the email
             }
         }
@@ -116,7 +127,7 @@ public class EmailService(
 
         var delivery = new OutboundDelivery
         {
-            Id = GuidExtensions.NewSequentialGuid,
+            Id = deliveryId,
             DeliveryType = OutboundDeliveryType.Email,
             ConfigurationId = config.Id,
             Topic = config.Topic,
@@ -259,21 +270,24 @@ public class EmailService(
             var ccAddress = delivery.ExtendedData.TryGetValue("cc", out var cc) ? cc?.ToString() : null;
             var bccAddress = delivery.ExtendedData.TryGetValue("bcc", out var bcc) ? bcc?.ToString() : null;
 
-            // Deserialize attachments if present
+            // Load attachments from temp file storage
             IEnumerable<EmailMessageAttachment>? emailAttachments = null;
-            if (delivery.ExtendedData.TryGetValue("attachments", out var attachmentsJson) &&
-                attachmentsJson is string attachmentsStr &&
-                !string.IsNullOrWhiteSpace(attachmentsStr))
+            var attachmentsStr = delivery.ExtendedData.TryGetValue("attachments", out var attachmentsJson)
+                ? attachmentsJson?.ToString()
+                : null;
+            if (!string.IsNullOrWhiteSpace(attachmentsStr))
             {
                 try
                 {
-                    var storedAttachments = JsonSerializer.Deserialize<List<StoredAttachment>>(attachmentsStr);
-                    if (storedAttachments != null && storedAttachments.Count > 0)
+                    var attachmentRefs = JsonSerializer.Deserialize<List<StoredAttachmentReference>>(attachmentsStr);
+                    if (attachmentRefs != null && attachmentRefs.Count > 0)
                     {
                         var loadedAttachments = new List<EmailMessageAttachment>();
-                        foreach (var attachment in storedAttachments)
+                        foreach (var attachment in attachmentRefs)
                         {
-                            if (attachment.TryGetContent(out var content))
+                            var content = await attachmentStorageService.LoadAttachmentAsync(
+                                attachment.StoragePath, ct);
+                            if (content != null)
                             {
                                 loadedAttachments.Add(new EmailMessageAttachment(
                                     new MemoryStream(content), attachment.FileName));
@@ -281,8 +295,8 @@ public class EmailService(
                             else
                             {
                                 logger.LogWarning(
-                                    "Failed to decode attachment {FileName} for delivery {DeliveryId} - invalid base64",
-                                    attachment.FileName, deliveryId);
+                                    "Attachment file not found: {StoragePath} for delivery {DeliveryId}",
+                                    attachment.StoragePath, deliveryId);
                             }
                         }
 
@@ -290,14 +304,14 @@ public class EmailService(
                         {
                             emailAttachments = loadedAttachments;
                             logger.LogDebug(
-                                "Loaded {Count} attachments for delivery {DeliveryId}",
+                                "Loaded {Count} attachments from temp storage for delivery {DeliveryId}",
                                 loadedAttachments.Count, deliveryId);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.LogWarning(ex, "Failed to deserialize attachments for delivery {DeliveryId}", deliveryId);
+                    logger.LogWarning(ex, "Failed to load attachments for delivery {DeliveryId}", deliveryId);
                     // Continue without attachments
                 }
             }
@@ -326,6 +340,9 @@ public class EmailService(
             delivery.DateCompleted = DateTime.UtcNow;
             delivery.ResponseStatusCode = 200; // Success indicator for emails
 
+            // Clean up temp attachment files after successful delivery
+            attachmentStorageService.DeleteDeliveryAttachments(deliveryId);
+
             // Update configuration stats
             await configurationService.IncrementSentCountAsync(delivery.ConfigurationId, ct);
 
@@ -353,6 +370,9 @@ public class EmailService(
             {
                 delivery.Status = OutboundDeliveryStatus.Failed;
                 delivery.DateCompleted = DateTime.UtcNow;
+
+                // Clean up temp attachment files on permanent failure
+                attachmentStorageService.DeleteDeliveryAttachments(deliveryId);
 
                 // Update configuration stats
                 await configurationService.IncrementFailedCountAsync(delivery.ConfigurationId, ct);
@@ -585,9 +605,9 @@ public class EmailService(
         var pendingDeliveries = await scope.ExecuteWithContextAsync(async db =>
             await db.OutboundDeliveries
                 .Where(x => x.DeliveryType == OutboundDeliveryType.Email &&
-                           x.Status == OutboundDeliveryStatus.Retrying &&
-                           x.NextRetryUtc <= DateTime.UtcNow)
-                .OrderBy(x => x.NextRetryUtc)
+                           (x.Status == OutboundDeliveryStatus.Pending ||
+                            (x.Status == OutboundDeliveryStatus.Retrying && x.NextRetryUtc <= DateTime.UtcNow)))
+                .OrderBy(x => x.DateCreated)
                 .Take(50) // Process in batches
                 .ToListAsync(ct));
         scope.Complete();
@@ -599,7 +619,7 @@ public class EmailService(
 
         if (pendingDeliveries.Count > 0)
         {
-            logger.LogInformation("Processed {Count} pending email retries", pendingDeliveries.Count);
+            logger.LogInformation("Processed {Count} pending email deliveries", pendingDeliveries.Count);
         }
     }
 

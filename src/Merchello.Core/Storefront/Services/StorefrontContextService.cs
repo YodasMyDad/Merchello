@@ -108,6 +108,7 @@ public class StorefrontContextService(
         // Invalidate per-request caches since location is changing
         httpContext.Items.Remove("merchello:ShippingLocation");
         httpContext.Items.Remove("merchello:DisplayContext");
+        httpContext.Session.Remove("Basket");
 
         var cookieOptions = new CookieOptions
         {

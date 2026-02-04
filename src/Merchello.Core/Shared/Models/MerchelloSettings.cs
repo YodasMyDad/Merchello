@@ -1,5 +1,5 @@
-using System.Globalization;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Shared.Helpers;
 
 namespace Merchello.Core.Shared.Models;
 
@@ -62,20 +62,7 @@ public class MerchelloSettings
     public string CurrencySymbol => GetCurrencySymbol(StoreCurrencyCode);
 
     private static string GetCurrencySymbol(string currencyCode)
-    {
-        try
-        {
-            var region = CultureInfo.GetCultures(CultureTypes.SpecificCultures)
-                .Select(c => new RegionInfo(c.Name))
-                .FirstOrDefault(r => r.ISOCurrencySymbol.Equals(currencyCode, StringComparison.OrdinalIgnoreCase));
-
-            return region?.CurrencySymbol ?? currencyCode;
-        }
-        catch
-        {
-            return currencyCode;
-        }
-    }
+        => CurrencySymbolHelper.GetSymbol(currencyCode);
 
     /// <summary>
     /// Default midpoint rounding strategy for monetary calculations.

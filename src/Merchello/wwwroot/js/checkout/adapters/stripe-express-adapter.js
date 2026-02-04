@@ -28,6 +28,7 @@
          * @param {Object} checkout - The checkout Alpine.js component instance
          */
         async render(container, method, config, checkout) {
+            console.log('[StripeExpress] render called for', method.methodAlias, 'config:', config, 'sdkConfig:', method.sdkConfig);
             try {
                 const sdkConfig = method.sdkConfig || {};
 
@@ -98,10 +99,13 @@
                 // Handle ready event to check availability
                 element.on('ready', function(event) {
                     const availablePaymentMethods = event.availablePaymentMethods;
+                    console.log('[StripeExpress]', method.methodAlias, 'ready event - available methods:', availablePaymentMethods);
                     if (!availablePaymentMethods || Object.keys(availablePaymentMethods).length === 0) {
                         // No payment methods available, hide the container
+                        console.log('[StripeExpress]', method.methodAlias, 'hiding - no methods available');
                         container.style.display = 'none';
                     } else {
+                        console.log('[StripeExpress]', method.methodAlias, 'showing');
                         container.style.display = '';
                     }
                 });

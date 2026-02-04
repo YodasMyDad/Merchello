@@ -97,6 +97,8 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
   #isConnected = false;
   #cardinalStyleElement?: HTMLStyleElement;
+  #lightDomContainer?: HTMLElement;
+  #expressLightDomContainers: Map<string, HTMLElement> = new Map();
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -105,6 +107,16 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     getStoreSettings();
     this._checkPaymentLinkSupport();
     this._checkVaultingSupport();
+    this._createLightDomContainer();
+  }
+
+  private _createLightDomContainer(): void {
+    // Create a container in the light DOM for payment forms
+    // This is necessary because Stripe.js Payment Elements don't work inside Shadow DOM
+    this.#lightDomContainer = document.createElement('div');
+    this.#lightDomContainer.id = `merchello-payment-container-${Date.now()}`;
+    this.#lightDomContainer.style.cssText = 'display: none;';
+    document.body.appendChild(this.#lightDomContainer);
   }
 
   private _checkPaymentLinkSupport(): void {
@@ -131,6 +143,20 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     this.#currentAdapter = undefined;
     // Clean up Cardinal z-index fix
     this._removeCardinalZIndexFix();
+    // Clean up light DOM containers
+    this._cleanupLightDomContainers();
+  }
+
+  private _cleanupLightDomContainers(): void {
+    if (this.#lightDomContainer) {
+      this.#lightDomContainer.remove();
+      this.#lightDomContainer = undefined;
+    }
+    // Clean up express checkout containers
+    for (const container of this.#expressLightDomContainers.values()) {
+      container.remove();
+    }
+    this.#expressLightDomContainers.clear();
   }
 
   private _restoreSavedValues(): void {
@@ -190,6 +216,21 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     this._activeTab = tab;
     this._saveFormValues();
 
+    // Hide light DOM containers when switching away from payment/express tabs
+    this._hideLightDomContainers();
+
+    // Re-show containers if switching to payment/express tabs with loaded content
+    // Need to wait for render to ensure shadow placeholders are available
+    await this.updateComplete;
+
+    if (tab === 'payment' && this._paymentFormLoaded) {
+      this._showPaymentFormContainer();
+    }
+
+    if (tab === 'express') {
+      this._showExpressButtonContainers();
+    }
+
     // Load data when switching to certain tabs
     if (tab === 'webhooks' && this._webhookTemplates.length === 0) {
       await this._loadWebhookTemplates();
@@ -239,6 +280,16 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     this._isLoadingPaymentForm = true;
     this._paymentFormError = undefined;
     this._paymentFormLoaded = false;
+
+    // Tear down existing adapter before re-loading
+    if (this.#currentAdapter?.teardown) {
+      try {
+        this.#currentAdapter.teardown();
+      } catch {
+        // Ignore teardown errors
+      }
+      this.#currentAdapter = undefined;
+    }
 
     const settingId = this.data?.setting.id;
     if (!settingId) {
@@ -351,10 +402,17 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     // Wait for next frame to ensure container is in DOM
     await new Promise(resolve => requestAnimationFrame(resolve));
 
-    const container = this.shadowRoot?.querySelector('#payment-form-container') as HTMLElement;
-    if (!container) {
+    // Get the Shadow DOM placeholder for positioning reference
+    const shadowPlaceholder = this.shadowRoot?.querySelector('#payment-form-container') as HTMLElement;
+    if (!shadowPlaceholder || !this.#lightDomContainer) {
       throw new Error("Payment form container not found.");
     }
+
+    // Use light DOM container for Stripe compatibility (Stripe.js doesn't work inside Shadow DOM)
+    // Position it over the Shadow DOM placeholder
+    this._positionLightDomContainer(shadowPlaceholder, this.#lightDomContainer);
+    this.#lightDomContainer.style.display = 'block';
+    this.#lightDomContainer.innerHTML = '';
 
     // Create a minimal checkout object for the adapter
     const mockCheckout = {
@@ -362,10 +420,56 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       hideError: () => { this._paymentFormError = undefined; },
     };
 
-    await adapter.render(container, session, mockCheckout);
+    await adapter.render(this.#lightDomContainer, session, mockCheckout);
 
     // Store adapter reference for later use
     this.#currentAdapter = adapter;
+  }
+
+  private _positionLightDomContainer(reference: HTMLElement, container: HTMLElement): void {
+    const rect = reference.getBoundingClientRect();
+    container.style.cssText = `
+      position: fixed;
+      top: ${rect.top}px;
+      left: ${rect.left}px;
+      width: ${rect.width}px;
+      min-height: ${rect.height}px;
+      z-index: 100000;
+      background: var(--uui-color-surface, white);
+      padding: 16px;
+      border-radius: 8px;
+      box-sizing: border-box;
+    `;
+  }
+
+  private _hideLightDomContainers(): void {
+    // Only hide containers - don't clear innerHTML to preserve mounted Stripe elements
+    if (this.#lightDomContainer) {
+      this.#lightDomContainer.style.display = 'none';
+    }
+    for (const container of this.#expressLightDomContainers.values()) {
+      container.style.display = 'none';
+    }
+  }
+
+  private _showPaymentFormContainer(): void {
+    if (!this.#lightDomContainer || !this._paymentFormLoaded) return;
+
+    const shadowPlaceholder = this.shadowRoot?.querySelector('#payment-form-container') as HTMLElement;
+    if (shadowPlaceholder) {
+      this._positionLightDomContainer(shadowPlaceholder, this.#lightDomContainer);
+      this.#lightDomContainer.style.display = 'block';
+    }
+  }
+
+  private _showExpressButtonContainers(): void {
+    for (const [methodAlias, container] of this.#expressLightDomContainers.entries()) {
+      const shadowPlaceholder = this.shadowRoot?.querySelector(`#express-button-${methodAlias}`) as HTMLElement;
+      if (shadowPlaceholder) {
+        this._positionLightDomContainer(shadowPlaceholder, container);
+        container.style.display = 'block';
+      }
+    }
   }
 
   private async _handleProcessTestPayment(): Promise<void> {
@@ -519,13 +623,27 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       // Wait for next frame to ensure container is in DOM
       await new Promise(resolve => requestAnimationFrame(resolve));
 
-      // Find the container for this method
-      const container = this.shadowRoot?.querySelector(`#express-button-${method.methodAlias}`) as HTMLElement;
-      if (!container) {
+      // Find the Shadow DOM placeholder for this method
+      const shadowPlaceholder = this.shadowRoot?.querySelector(`#express-button-${method.methodAlias}`) as HTMLElement;
+      if (!shadowPlaceholder) {
         this._expressError = `Container not found for ${method.methodAlias}`;
         this._loadingExpressMethod = undefined;
         return;
       }
+
+      // Create or get light DOM container for this express button (for Shadow DOM compatibility)
+      let lightDomContainer = this.#expressLightDomContainers.get(method.methodAlias);
+      if (!lightDomContainer) {
+        lightDomContainer = document.createElement('div');
+        lightDomContainer.id = `merchello-express-container-${method.methodAlias}-${Date.now()}`;
+        document.body.appendChild(lightDomContainer);
+        this.#expressLightDomContainers.set(method.methodAlias, lightDomContainer);
+      }
+
+      // Position and show the light DOM container
+      this._positionLightDomContainer(shadowPlaceholder, lightDomContainer);
+      lightDomContainer.style.display = 'block';
+      lightDomContainer.innerHTML = '';
 
       // Get the adapter from global registry
       const adapters = (window as unknown as { MerchelloExpressAdapters?: Record<string, unknown> }).MerchelloExpressAdapters;
@@ -582,7 +700,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
         currency: data.sdkConfig?.currency || 'USD',
       };
 
-      await adapter.render(container, methodConfig, checkoutConfig, mockCheckout);
+      await adapter.render(lightDomContainer, methodConfig, checkoutConfig, mockCheckout);
     } catch (err) {
       this._expressError = err instanceof Error ? err.message : "Failed to load express button";
     }
@@ -1040,7 +1158,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             <div class="form-row">
               <label>Event Type</label>
               <uui-select
-                .options=${this._webhookTemplates.map(t => ({ name: t.displayName, value: t.eventType }))}
+                .options=${this._webhookTemplates.map(t => ({ name: t.displayName, value: t.eventType, selected: this._selectedWebhookEvent === t.eventType }))}
                 .value=${this._selectedWebhookEvent || ''}
                 @change=${(e: Event) => this._selectedWebhookEvent = (e.target as HTMLSelectElement).value}
               ></uui-select>

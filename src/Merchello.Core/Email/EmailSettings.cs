@@ -65,4 +65,16 @@ public class EmailSettings
     /// Once this limit is reached, remaining attachments are logged and skipped.
     /// </summary>
     public long MaxTotalAttachmentSizeBytes { get; set; } = 25 * 1024 * 1024;
+
+    /// <summary>
+    /// Relative path from ContentRootPath for attachment temp file storage.
+    /// Default: "App_Data/Email_Attachments/"
+    /// </summary>
+    public string AttachmentStoragePath { get; set; } = "App_Data/Email_Attachments";
+
+    /// <summary>
+    /// Hours to retain orphaned attachment files before cleanup.
+    /// Default: 72 hours (3 days).
+    /// </summary>
+    public int AttachmentRetentionHours { get; set; } = 72;
 }

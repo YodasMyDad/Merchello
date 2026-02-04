@@ -20,7 +20,7 @@ public class AbandonedCheckoutDbMapping : IEntityTypeConfiguration<AbandonedChec
         builder.Property(x => x.CurrencySymbol).HasMaxLength(5);
         builder.Property(x => x.CustomerName).HasMaxLength(256);
         builder.Property(x => x.BasketTotal).HasPrecision(18, 4);
-        builder.Property(x => x.ExtendedData).ToJsonConversion(1000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(4000);
 
         // Indexes for common query patterns
         builder.HasIndex(x => x.BasketId);

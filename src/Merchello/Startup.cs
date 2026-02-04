@@ -371,6 +371,7 @@ public static class Startup
         builder.Services.AddSingleton<IEmailTemplateDiscoveryService, EmailTemplateDiscoveryService>();
         builder.Services.AddSingleton<IMjmlCompiler, MjmlCompiler>();
         builder.Services.AddSingleton<IEmailAttachmentResolver, EmailAttachmentResolver>();
+        builder.Services.AddSingleton<IEmailAttachmentStorageService, EmailAttachmentStorageService>();
         builder.Services.AddScoped<IEmailConfigurationService, EmailConfigurationService>();
         builder.Services.AddScoped<IEmailTemplateRenderer, EmailRazorViewRenderer>();
         builder.Services.AddSingleton<ISampleNotificationFactory, SampleNotificationFactory>();
@@ -428,6 +429,7 @@ public static class Startup
         builder.Services.AddHostedService<FulfilmentRetryJob>();              // Retries failed fulfilment submissions to 3PLs
         builder.Services.AddHostedService<FulfilmentPollingJob>();             // Polls 3PLs for order status updates
         builder.Services.AddHostedService<FulfilmentCleanupJob>();             // Cleans up old fulfilment sync/webhook logs
+        builder.Services.AddHostedService<EmailAttachmentCleanupJob>();        // Cleans up orphaned email attachment temp files
 
         // =====================================================
         // Notification Handlers
