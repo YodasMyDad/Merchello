@@ -37,6 +37,9 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   // Selection state (variant ID -> selection data)
   @state() private _selections: Map<string, ProductPickerSelection> = new Map();
 
+  // Root selection state (root ID -> root data) - used when selectRoots = true
+  @state() private _selectedRoots: Map<string, PickerProductRoot> = new Map();
+
   // View state for multi-step flow
   @state() private _viewState: PickerViewState = "product-selection";
   @state() private _pendingAddonSelection: PendingAddonSelection | null = null;
@@ -98,6 +101,10 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
   private get _maxItems(): number {
     return this._config?.maxItems ?? Infinity;
+  }
+
+  private get _selectRoots(): boolean {
+    return this._config?.selectRoots === true;
   }
 
   // ============================================
@@ -465,6 +472,26 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     );
   }
 
+  private _handleRootSelect(root: PickerProductRoot): void {
+    // Toggle root selection
+    if (this._selectedRoots.has(root.id)) {
+      this._selectedRoots.delete(root.id);
+    } else {
+      // Check if we've reached max items
+      if (this._selectedRoots.size >= this._maxItems) {
+        // At max - if single-select (max=1), replace selection
+        if (this._maxItems === 1) {
+          this._selectedRoots.clear();
+        } else {
+          // Already at max, can't add more
+          return;
+        }
+      }
+      this._selectedRoots.set(root.id, root);
+    }
+    this._selectedRoots = new Map(this._selectedRoots);
+  }
+
   private _handleVariantSelect(variant: PickerVariant): void {
     if (!variant.canSelect) return;
 
@@ -801,6 +828,22 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   }
 
   private _handleAdd(): void {
+    // In selectRoots mode, convert root selections to ProductPickerSelection format
+    if (this._selectRoots) {
+      const selections: ProductPickerSelection[] = Array.from(this._selectedRoots.values()).map((root) => ({
+        productId: root.id, // Use root ID as productId for compatibility
+        productRootId: root.id,
+        name: root.rootName,
+        sku: null, // Roots don't have SKUs
+        price: root.minPrice ?? 0,
+        imageUrl: root.imageUrl,
+      }));
+      this.value = { selections };
+      this.modalContext?.submit();
+      return;
+    }
+
+    // Normal mode: return variant selections
     this.value = {
       selections: Array.from(this._selections.values()),
     };
@@ -860,10 +903,13 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       <merchello-product-picker-list
         .productRoots=${this._productRoots}
         .selectedIds=${Array.from(this._selections.keys())}
+        .selectedRootIds=${Array.from(this._selectedRoots.keys())}
         .currencySymbol=${this._currencySymbol}
         .showImages=${this._showImages}
+        .selectRoots=${this._selectRoots}
         @toggle-expand=${(e: CustomEvent<{ rootId: string }>) => this._handleToggleExpand(e.detail.rootId)}
         @variant-select=${(e: CustomEvent<{ variant: PickerVariant }>) => this._handleVariantSelect(e.detail.variant)}
+        @root-select=${(e: CustomEvent<{ root: PickerProductRoot }>) => this._handleRootSelect(e.detail.root)}
       ></merchello-product-picker-list>
       ${this._renderPagination()}
     `;
@@ -894,7 +940,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   }
 
   private _renderSelectionSummary() {
-    const count = this._selections.size;
+    const count = this._selectRoots ? this._selectedRoots.size : this._selections.size;
     if (count === 0) {
       return html`<span class="selection-count">No products selected</span>`;
     }
@@ -1150,10 +1196,10 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
             label="Add Selected"
             look="primary"
             color="positive"
-            ?disabled=${this._selections.size === 0}
+            ?disabled=${this._selectRoots ? this._selectedRoots.size === 0 : this._selections.size === 0}
             @click=${this._handleAdd}
           >
-            Add Selected (${this._selections.size})
+            Add Selected (${this._selectRoots ? this._selectedRoots.size : this._selections.size})
           </uui-button>
         </div>
       </umb-body-layout>

@@ -47,7 +47,7 @@ public class ProductWarehouse
     /// Enable/disable stock tracking for this product at this warehouse.
     /// When false, stock levels are not enforced (useful for digital products, made-to-order, dropship, etc.)
     /// </summary>
-    public bool TrackStock { get; set; } = true;
+    public bool TrackStock { get; set; } = false;
 
     /// <summary>
     /// Stock quantity reserved by pending orders (only used when TrackStock = true)

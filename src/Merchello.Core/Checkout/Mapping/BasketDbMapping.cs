@@ -13,7 +13,7 @@ public class BasketDbMapping : IEntityTypeConfiguration<Basket>
 
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).IsRequired();
-        builder.Property(x => x.LineItems).ToJsonConversion(3000);
+        builder.Property(x => x.LineItems).ToJsonConversion(null);
         builder.Property(x => x.BillingAddress).ToJsonConversion(500);
         builder.Property(x => x.ShippingAddress).ToJsonConversion(500);
         builder.Property(x => x.Currency).HasMaxLength(10);

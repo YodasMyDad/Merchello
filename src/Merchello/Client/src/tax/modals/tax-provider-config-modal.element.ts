@@ -362,6 +362,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
                   </uui-table-cell>
                   <uui-table-cell>
                     <uui-input
+                      label="Tax code for ${group.name}"
                       .value=${this._mappings[group.id] ?? ""}
                       @input=${(e: Event) =>
                         this._handleMappingChange(group.id, (e.target as HTMLInputElement).value)}
@@ -477,6 +478,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
               : nothing}
             <uui-input
               id="${field.key}"
+              label="${field.label}"
               type="${field.fieldType === "Url" ? "url" : "text"}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -496,6 +498,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
               : nothing}
             <uui-input
               id="${field.key}"
+              label="${field.label}"
               type="password"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -518,6 +521,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
               : nothing}
             <uui-textarea
               id="${field.key}"
+              label="${field.label}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
               ?required=${field.isRequired}

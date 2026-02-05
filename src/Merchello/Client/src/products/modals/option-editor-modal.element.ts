@@ -4,9 +4,10 @@ import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } fro
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
+import { UMB_MEDIA_PICKER_MODAL } from "@umbraco-cms/backoffice/media";
+import "@umbraco-cms/backoffice/imaging";
 import type { OptionEditorModalData, OptionEditorModalValue } from "./option-editor-modal.token.js";
 import type { ProductOptionDto, ProductOptionValueDto } from "@products/types/product.types.js";
-import type { SelectOption } from "@shared/types/index.js";
 
 @customElement("merchello-option-editor-modal")
 export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
@@ -54,11 +55,11 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     this.#isConnected = false;
   }
 
-  private _getOptionTypeOptions(): SelectOption[] {
-    const aliases = this.data?.settings?.optionTypeAliases ?? [];
+  private _getOptionTypeOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+    const typeAliases = this.data?.settings?.optionTypeAliases ?? [];
     return [
       { name: "Select type...", value: "", selected: !this._formData.optionTypeAlias },
-      ...aliases.map((alias) => ({
+      ...typeAliases.map((alias) => ({
         name: alias.charAt(0).toUpperCase() + alias.slice(1),
         value: alias,
         selected: alias === this._formData.optionTypeAlias,
@@ -66,9 +67,9 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     ];
   }
 
-  private _getOptionUiOptions(): SelectOption[] {
-    const aliases = this.data?.settings?.optionUiAliases ?? [];
-    return aliases.map((alias) => ({
+  private _getOptionUiOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+    const uiAliases = this.data?.settings?.optionUiAliases ?? [];
+    return uiAliases.map((alias) => ({
       name: alias.charAt(0).toUpperCase() + alias.slice(1),
       value: alias,
       selected: alias === this._formData.optionUiAlias,
@@ -171,6 +172,34 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     this._formData = { ...this._formData, values };
   }
 
+  private async _openMediaPicker(index: number): Promise<void> {
+    const value = this._formData.values?.[index];
+    if (!value) return;
+
+    const modalContext = this.#modalManager?.open(this, UMB_MEDIA_PICKER_MODAL, {
+      data: {
+        multiple: false,
+      },
+      value: {
+        selection: value.mediaKey ? [value.mediaKey] : [],
+      },
+    });
+
+    try {
+      const result = await modalContext?.onSubmit();
+      if (!this.#isConnected) return; // Component disconnected while modal was open
+      if (result?.selection?.length) {
+        this._updateValue(index, "mediaKey", result.selection[0]);
+      }
+    } catch {
+      // User cancelled
+    }
+  }
+
+  private _clearMedia(index: number): void {
+    this._updateValue(index, "mediaKey", null);
+  }
+
   private _renderValueEditor(value: ProductOptionValueDto, index: number): unknown {
     const uiAlias = this._formData.optionUiAlias;
     const isAddon = !this._formData.isVariant;
@@ -195,6 +224,40 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                     .value=${value.hexValue || "#000000"}
                     @input=${(e: Event) => this._updateValue(index, "hexValue", (e.target as HTMLInputElement).value)}>
                   </uui-input>
+                `
+              : nothing}
+
+            ${uiAlias === "image"
+              ? html`
+                  <div class="image-picker">
+                    ${value.mediaKey
+                      ? html`
+                          <div class="image-preview" @click=${() => this._openMediaPicker(index)}>
+                            <umb-imaging-thumbnail
+                              .unique=${value.mediaKey}
+                              .width=${40}
+                              .height=${40}
+                              icon="icon-picture">
+                            </umb-imaging-thumbnail>
+                          </div>
+                          <uui-button
+                            compact
+                            look="secondary"
+                            label="Remove image"
+                            @click=${() => this._clearMedia(index)}>
+                            <uui-icon name="icon-delete"></uui-icon>
+                          </uui-button>
+                        `
+                      : html`
+                          <uui-button
+                            compact
+                            look="secondary"
+                            label="Select image"
+                            @click=${() => this._openMediaPicker(index)}>
+                            <uui-icon name="icon-picture"></uui-icon>
+                          </uui-button>
+                        `}
+                  </div>
                 `
               : nothing}
           </div>
@@ -348,9 +411,12 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               description="Categorize this option (e.g., colour, size, material)">
               <uui-select
                 slot="editor"
-                .value=${this._formData.optionTypeAlias || ""}
+                label="Option type"
                 .options=${this._getOptionTypeOptions()}
-                @change=${(e: Event) => (this._formData = { ...this._formData, optionTypeAlias: (e.target as HTMLSelectElement).value })}>
+                @change=${(e: Event) => {
+                  const value = (e.target as HTMLSelectElement).value;
+                  this._formData = { ...this._formData, optionTypeAlias: value };
+                }}>
               </uui-select>
             </umb-property-layout>
 
@@ -359,9 +425,12 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               description="How customers select this option on your storefront">
               <uui-select
                 slot="editor"
-                .value=${this._formData.optionUiAlias || "dropdown"}
+                label="Display type"
                 .options=${this._getOptionUiOptions()}
-                @change=${(e: Event) => (this._formData = { ...this._formData, optionUiAlias: (e.target as HTMLSelectElement).value })}>
+                @change=${(e: Event) => {
+                  const value = (e.target as HTMLSelectElement).value;
+                  this._formData = { ...this._formData, optionUiAlias: value };
+                }}>
               </uui-select>
             </umb-property-layout>
 
@@ -541,6 +610,31 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     .color-input {
       width: 48px;
       flex-shrink: 0;
+    }
+
+    .image-picker {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      flex-shrink: 0;
+    }
+
+    .image-preview {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--uui-border-radius);
+      overflow: hidden;
+      cursor: pointer;
+      border: 1px solid var(--uui-color-border);
+    }
+
+    .image-preview:hover {
+      border-color: var(--uui-color-selected);
+    }
+
+    .image-preview umb-imaging-thumbnail {
+      width: 100%;
+      height: 100%;
     }
 
     .addon-fields {

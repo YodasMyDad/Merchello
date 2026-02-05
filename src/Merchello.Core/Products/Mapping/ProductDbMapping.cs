@@ -28,7 +28,7 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
         builder.Property(x => x.AvailableForPurchase).IsRequired();
         builder.Property(x => x.CanPurchase).IsRequired();
 
-        builder.Property(x => x.Images).ToJsonConversion(1000);
+        builder.Property(x => x.Images).ToJsonConversion(null);
         builder.Property(x => x.Gtin).HasMaxLength(150);
         builder.Property(x => x.Sku).HasMaxLength(150);
         builder.Property(x => x.SupplierSku).HasMaxLength(150);

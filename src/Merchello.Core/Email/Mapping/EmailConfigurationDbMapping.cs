@@ -56,7 +56,7 @@ public class EmailConfigurationDbMapping : IEntityTypeConfiguration<EmailConfigu
                 v => v,
                 v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
 
-        builder.Property(x => x.ExtendedData).ToJsonConversion(4000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         builder.Property(x => x.AttachmentAliases).ToJsonConversion(2000);
 

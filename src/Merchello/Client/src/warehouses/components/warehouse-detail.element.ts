@@ -583,6 +583,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
           currencySymbol: "£", // TODO: Get from store settings
           propertyEditorMode: true,
           showAddons: false,
+          selectRoots: true, // Select product roots directly, not variants
           excludeProductIds: existingIds,
         },
       },
@@ -694,6 +695,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
               <label>Code</label>
               <uui-input
                 type="text"
+                maxlength="100"
                 .value=${this._formData.code || ""}
                 @input=${(e: Event) => this._handleInputChange("code", (e.target as HTMLInputElement).value)}
                 placeholder="MAIN-01"
@@ -1239,6 +1241,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
           <uui-input
             id="name-input"
             type="text"
+            maxlength="250"
             .value=${this._formData.name || ""}
             @input=${(e: Event) => this._handleInputChange("name", (e.target as HTMLInputElement).value)}
             placeholder="Warehouse name"

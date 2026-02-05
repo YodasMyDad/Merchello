@@ -120,6 +120,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
             <label for="supplier-name">Supplier Name <span class="required">*</span></label>
             <uui-input
               id="supplier-name"
+              maxlength="250"
               .value=${this._name}
               @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
               placeholder="e.g., Acme Distribution Co."
@@ -133,6 +134,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
             <label for="supplier-code">Reference Code</label>
             <uui-input
               id="supplier-code"
+              maxlength="100"
               .value=${this._code}
               @input=${(e: Event) => (this._code = (e.target as HTMLInputElement).value)}
               placeholder="e.g., SUP-001"
@@ -148,6 +150,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
               : html`
                   <uui-select
                     id="fulfilment-provider"
+                    label="Fulfilment provider"
                     .options=${[
                       { name: "None (manual fulfilment)", value: "", selected: !this._fulfilmentProviderConfigurationId },
                       ...this._fulfilmentProviderOptions

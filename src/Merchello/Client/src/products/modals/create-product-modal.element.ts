@@ -268,6 +268,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
           ?invalid=${!!this._errors.name}>
           <uui-input
             slot="editor"
+            label="Product name"
             .value=${this._formData.name}
             @input=${(e: Event) => this._handleInputChange("name", (e.target as HTMLInputElement).value)}
             placeholder="Enter product name"
@@ -283,6 +284,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
           ?invalid=${!!this._errors.sku}>
           <uui-input
             slot="editor"
+            label="SKU"
             .value=${this._formData.sku}
             @input=${(e: Event) => this._handleInputChange("sku", (e.target as HTMLInputElement).value)}
             placeholder="e.g., PROD-001"
@@ -298,6 +300,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
           ?invalid=${!!this._errors.price}>
           <uui-input
             slot="editor"
+            label="Price"
             type="number"
             min="0"
             step="0.01"
@@ -316,6 +319,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
           ?invalid=${!!this._errors.productTypeId}>
           <uui-select
             slot="editor"
+            label="Product type"
             .options=${this._getProductTypeOptions()}
             @change=${(e: Event) => this._handleInputChange("productTypeId", (e.target as HTMLSelectElement).value)}>
           </uui-select>
@@ -329,6 +333,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
           ?invalid=${!!this._errors.taxGroupId}>
           <uui-select
             slot="editor"
+            label="Tax group"
             .options=${this._getTaxGroupOptions()}
             @change=${(e: Event) => this._handleInputChange("taxGroupId", (e.target as HTMLSelectElement).value)}>
           </uui-select>

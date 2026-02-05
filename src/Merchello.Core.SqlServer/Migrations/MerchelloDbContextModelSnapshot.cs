@@ -86,8 +86,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
@@ -214,8 +213,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("InvoiceId")
                         .HasColumnType("uniqueidentifier");
@@ -307,8 +305,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FulfilmentErrorMessage")
                         .HasColumnType("nvarchar(max)");
@@ -763,8 +760,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ItemCount")
                         .HasColumnType("int");
@@ -856,8 +852,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("LineItems")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("Shipping")
                         .HasPrecision(18, 4)
@@ -1351,8 +1346,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FromExpression")
                         .HasMaxLength(500)
@@ -1531,8 +1525,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("InitialBalance")
                         .HasPrecision(18, 4)
@@ -1691,8 +1684,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("bit");
@@ -1771,8 +1763,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("Images")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1960,8 +1951,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("GoogleShoppingFeedCategory")
                         .HasMaxLength(1000)
@@ -1992,16 +1982,14 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ProductOptions")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("ProductTypeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("RootImages")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("RootName")
                         .HasColumnType("nvarchar(max)");
@@ -2102,7 +2090,7 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<bool>("TrackStock")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
-                        .HasDefaultValue(true);
+                        .HasDefaultValue(false);
 
                     b.HasKey("ProductId", "WarehouseId");
 
@@ -2224,8 +2212,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("GiftCardId")
                         .HasColumnType("uniqueidentifier");
@@ -2492,16 +2479,14 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool?>("IsDeliveryDateGuaranteed")
                         .HasColumnType("bit");
 
                     b.Property<string>("LineItems")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
@@ -2676,8 +2661,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
-                        .HasColumnType("nvarchar(3000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("HasTrial")
                         .HasColumnType("bit");
@@ -2821,8 +2805,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -3001,8 +2984,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid?>("FulfilmentProviderConfigurationId")
                         .HasColumnType("uniqueidentifier");
@@ -3090,8 +3072,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("NextRetryUtc")
                         .HasColumnType("datetime2");
@@ -3176,8 +3157,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("FailureCount")
                         .HasColumnType("int");

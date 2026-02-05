@@ -188,8 +188,9 @@ public static class ProductExtensions
         var orderedItems = productOptionValues.OrderBy(x => x.Id).ToList();
 
         // Select the Id's and concat comma-separated (GUIDs contain hyphens, so comma is safer)
+        // Use Name (not FullName) to generate clean variant names like "Slate - Small Single"
         return (string.Join(",", orderedItems.Select(x => x.Id)),
-            string.Join("-", orderedItems.Select(x => x.FullName)));
+            string.Join(" - ", orderedItems.Select(x => x.Name)));
     }
 
     /// <summary>

@@ -35,6 +35,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
               <umb-property-layout label="Feed Title" description="Title for shopping feed">
                 <uui-input
                   slot="editor"
+                  label="Feed title"
+                  maxlength="200"
                   .value=${this.formData.shoppingFeedTitle || ""}
                   @input=${(e: Event) => this._updateField("shoppingFeedTitle", (e.target as HTMLInputElement).value)}>
                 </uui-input>
@@ -43,6 +45,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
               <umb-property-layout label="Feed Description" description="Description for shopping feed">
                 <uui-textarea
                   slot="editor"
+                  label="Feed description"
+                  maxlength="100"
                   .value=${this.formData.shoppingFeedDescription || ""}
                   @input=${(e: Event) => this._updateField("shoppingFeedDescription", (e.target as HTMLTextAreaElement).value)}>
                 </uui-textarea>
@@ -51,6 +55,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
               <umb-property-layout label="Colour" description="Product colour for feed">
                 <uui-input
                   slot="editor"
+                  label="Colour"
+                  maxlength="100"
                   .value=${this.formData.shoppingFeedColour || ""}
                   @input=${(e: Event) => this._updateField("shoppingFeedColour", (e.target as HTMLInputElement).value)}>
                 </uui-input>
@@ -59,6 +65,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
               <umb-property-layout label="Material" description="Product material for feed">
                 <uui-input
                   slot="editor"
+                  label="Material"
+                  maxlength="100"
                   .value=${this.formData.shoppingFeedMaterial || ""}
                   @input=${(e: Event) => this._updateField("shoppingFeedMaterial", (e.target as HTMLInputElement).value)}>
                 </uui-input>
@@ -67,6 +75,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
               <umb-property-layout label="Size" description="Product size for feed">
                 <uui-input
                   slot="editor"
+                  label="Size"
+                  maxlength="100"
                   .value=${this.formData.shoppingFeedSize || ""}
                   @input=${(e: Event) => this._updateField("shoppingFeedSize", (e.target as HTMLInputElement).value)}>
                 </uui-input>
@@ -75,6 +85,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
               <umb-property-layout label="Width" description="Product width for feed (e.g. 10 cm)">
                 <uui-input
                   slot="editor"
+                  label="Width"
+                  maxlength="100"
                   .value=${this.formData.shoppingFeedWidth || ""}
                   @input=${(e: Event) => this._updateField("shoppingFeedWidth", (e.target as HTMLInputElement).value)}>
                 </uui-input>
@@ -83,6 +95,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
               <umb-property-layout label="Height" description="Product height for feed (e.g. 15 cm)">
                 <uui-input
                   slot="editor"
+                  label="Height"
+                  maxlength="100"
                   .value=${this.formData.shoppingFeedHeight || ""}
                   @input=${(e: Event) => this._updateField("shoppingFeedHeight", (e.target as HTMLInputElement).value)}>
                 </uui-input>

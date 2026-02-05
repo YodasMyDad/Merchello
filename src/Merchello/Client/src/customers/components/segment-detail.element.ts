@@ -240,6 +240,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
         <umb-property-layout label="Description" description="Optional description for this segment">
           <uui-textarea
             slot="editor"
+            label="Description"
             .value=${this._formData.description || ""}
             @input=${this._handleDescriptionChange}
             placeholder="Describe the purpose of this segment...">
@@ -252,6 +253,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
           ?mandatory=${this._isNew}>
           <uui-select
             slot="editor"
+            label="Segment type"
             .options=${[
               { name: "Manual", value: "Manual", selected: this._formData.segmentType === "Manual" },
               { name: "Automated", value: "Automated", selected: this._formData.segmentType === "Automated" },
@@ -273,6 +275,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
             description="How criteria rules are combined">
             <uui-select
               slot="editor"
+              label="Match mode"
               .options=${[
                 { name: "All conditions (AND)", value: "All", selected: this._formData.matchMode === "All" },
                 { name: "Any condition (OR)", value: "Any", selected: this._formData.matchMode === "Any" },
@@ -350,6 +353,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
           <umb-icon name="icon-filter"></umb-icon>
           <uui-input
             id="name-input"
+            label="Segment name"
             .value=${this._formData.name || ""}
             @input=${this._handleNameChange}
             placeholder="Enter segment name..."

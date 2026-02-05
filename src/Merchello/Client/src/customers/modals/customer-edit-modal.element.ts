@@ -164,6 +164,7 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
             <uui-input
               id="customer-email"
               type="email"
+              maxlength="254"
               .value=${this._email}
               @input=${(e: Event) => {
                 this._email = (e.target as HTMLInputElement).value;
@@ -184,6 +185,7 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
             <label for="customer-firstName">First Name</label>
             <uui-input
               id="customer-firstName"
+              maxlength="200"
               .value=${this._firstName}
               @input=${(e: Event) => (this._firstName = (e.target as HTMLInputElement).value)}
               placeholder="e.g., John"
@@ -195,6 +197,7 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
             <label for="customer-lastName">Last Name</label>
             <uui-input
               id="customer-lastName"
+              maxlength="200"
               .value=${this._lastName}
               @input=${(e: Event) => (this._lastName = (e.target as HTMLInputElement).value)}
               placeholder="e.g., Smith"

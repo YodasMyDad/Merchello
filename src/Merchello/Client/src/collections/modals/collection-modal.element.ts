@@ -101,6 +101,7 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
             <label for="collection-name">Collection Name <span class="required">*</span></label>
             <uui-input
               id="collection-name"
+              maxlength="500"
               .value=${this._name}
               @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
               placeholder="e.g., Summer Sale, New Arrivals"

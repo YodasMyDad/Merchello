@@ -32,7 +32,7 @@ public class SubscriptionDbMapping : IEntityTypeConfiguration<Subscription>
         builder.Property(x => x.CancellationReason).HasMaxLength(1000);
 
         // Extended data
-        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         // Relationships
         builder.HasOne(x => x.Customer)

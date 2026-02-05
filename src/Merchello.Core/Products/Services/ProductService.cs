@@ -1856,6 +1856,7 @@ public class ProductService(
     {
         var result = new CrudResult<List<ProductOption>>();
         List<ProductOption> savedOptions = [];
+        var variantStructureChanged = false;
         using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -1868,6 +1869,13 @@ public class ProductService(
                 result.AddErrorMessage("Product root not found");
                 return false;
             }
+
+            // Capture original variant structure BEFORE modifications
+            // This is used to determine if variants need to be regenerated
+            var originalVariantOptions = productRoot.ProductOptions
+                .Where(o => o.IsVariant)
+                .Select(o => new { o.Id, ValueIds = o.ProductOptionValues.Select(v => v.Id).ToHashSet() })
+                .ToDictionary(o => o.Id, o => o.ValueIds);
 
             // Get existing option IDs from request
             var requestOptionIds = options.Where(o => o.Id.HasValue).Select(o => o.Id!.Value).ToHashSet();
@@ -1950,6 +1958,60 @@ public class ProductService(
                 savedOptions.Add(option);
             }
 
+            // Explicitly mark ProductOptions as modified to ensure EF Core saves the JSON column
+            // In-place modifications to complex JSON properties may not always be detected automatically
+            db.Entry(productRoot).Property(p => p.ProductOptions).IsModified = true;
+
+            // Check if variant structure changed (determines if regeneration is needed)
+            // Regeneration is needed when:
+            // - Variant options are added or removed
+            // - Values are added or removed from variant options
+            // - The isVariant flag changed on any option
+            // Regeneration is NOT needed for metadata-only changes (name, mediaKey, hexValue, sortOrder, etc.)
+            var newVariantOptions = productRoot.ProductOptions
+                .Where(o => o.IsVariant)
+                .Select(o => new { o.Id, ValueIds = o.ProductOptionValues.Select(v => v.Id).ToHashSet() })
+                .ToDictionary(o => o.Id, o => o.ValueIds);
+
+            // Check if variant option count changed
+            if (originalVariantOptions.Count != newVariantOptions.Count)
+            {
+                variantStructureChanged = true;
+            }
+            else
+            {
+                // Check each variant option for structural changes
+                foreach (var (optionId, newValueIds) in newVariantOptions)
+                {
+                    if (!originalVariantOptions.TryGetValue(optionId, out var originalValueIds))
+                    {
+                        // New variant option (ID didn't exist before, or option became a variant)
+                        variantStructureChanged = true;
+                        break;
+                    }
+
+                    // Check if value IDs changed
+                    if (originalValueIds.Count != newValueIds.Count || !originalValueIds.SetEquals(newValueIds))
+                    {
+                        variantStructureChanged = true;
+                        break;
+                    }
+                }
+
+                // Check if any original variant option was removed or changed to non-variant
+                if (!variantStructureChanged)
+                {
+                    foreach (var originalOptionId in originalVariantOptions.Keys)
+                    {
+                        if (!newVariantOptions.ContainsKey(originalOptionId))
+                        {
+                            variantStructureChanged = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             return true;
         });
@@ -1957,23 +2019,24 @@ public class ProductService(
         scope.Complete();
         result.ResultObject = savedOptions;
 
-        // Auto-regenerate variants if the options save was successful
-        if (result.Successful)
+        // Regenerate variants only if the variant structure changed
+        // This prevents data loss from unnecessary regeneration on metadata-only changes
+        if (result.Successful && variantStructureChanged)
         {
-            // Check if there are any variant options (that generate variants)
-            var hasVariantOptions = options.Any(o => o.IsVariant);
+            logger.LogDebug("SaveProductOptions: Variant structure changed for product {ProductRootId}, regenerating variants",
+                productRootId);
 
-            logger.LogDebug("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}. HasVariantOptions: {HasVariantOptions}",
-                options.Count, productRootId, hasVariantOptions);
-
-            // Always regenerate to ensure variants match current options
-            // This handles: adding variant options, removing variant options, changing option values
             var regenerateResult = await RegenerateVariants(productRootId, cancellationToken: cancellationToken);
             if (!regenerateResult.Successful)
             {
                 result.AddWarningMessage("Options saved but variant regeneration had issues: " +
                     string.Join(", ", regenerateResult.Messages.Select(m => m.Message)));
             }
+        }
+        else if (result.Successful)
+        {
+            logger.LogDebug("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}, no variant regeneration needed",
+                options.Count, productRootId);
         }
 
         return result;

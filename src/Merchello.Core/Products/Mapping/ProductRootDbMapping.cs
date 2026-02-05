@@ -23,8 +23,8 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
             .HasForeignKey(x => x.TaxGroupId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.Property(x => x.ProductOptions).ToJsonConversion(3000);
-        builder.Property(x => x.RootImages).ToJsonConversion(3000);
+        builder.Property(x => x.ProductOptions).ToJsonConversion(null);
+        builder.Property(x => x.RootImages).ToJsonConversion(null);
         builder.Property(x => x.GoogleShoppingFeedCategory).HasMaxLength(1000);
         builder.Property(x => x.RootUrl).HasMaxLength(1000);
         builder.Property(x => x.DefaultPackageConfigurations).ToJsonConversion(4000);
@@ -43,7 +43,7 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         builder.Property(x => x.ViewAlias).HasMaxLength(200);
 
         // Extended data for digital products and plugin metadata
-        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         // Shipping restriction
         builder.Property(x => x.AllowExternalCarrierShipping).HasDefaultValue(true);

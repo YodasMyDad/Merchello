@@ -334,7 +334,6 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
                   <uui-label slot="label">Rule Type</uui-label>
                   <uui-select
                     .options=${getTargetTypeSelectOptions(rule.targetType)}
-                    .value=${rule.targetType}
                     @change=${(e: Event) =>
                       this._handleTargetTypeChange(index, (e.target as HTMLSelectElement).value as DiscountTargetType)}
                   ></uui-select>
@@ -344,7 +343,6 @@ export class MerchelloTargetRuleBuilderElement extends UmbElementMixin(LitElemen
                   <uui-label slot="label">Action</uui-label>
                   <uui-select
                     .options=${getActionSelectOptions(rule.isExclusion)}
-                    .value=${rule.isExclusion ? "exclude" : "include"}
                     @change=${(e: Event) =>
                       this._handleUpdateRule(index, { isExclusion: (e.target as HTMLSelectElement).value === "exclude" })}
                   ></uui-select>

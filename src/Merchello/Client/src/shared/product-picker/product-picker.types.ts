@@ -71,6 +71,15 @@ export interface ProductPickerConfig {
    * Default: Infinity (unlimited)
    */
   maxItems?: number;
+
+  /**
+   * When true, allows selecting product roots directly without expanding to variants.
+   * The picker will return productRootId in selections (productId will equal productRootId).
+   * Use this for contexts where you need the main product, not specific variants
+   * (e.g., adding products to warehouses).
+   * Default: false
+   */
+  selectRoots?: boolean;
 }
 
 /**

@@ -72,7 +72,7 @@ public class WebhookSubscriptionDbMapping : IEntityTypeConfiguration<WebhookSubs
                 v => v,
                 v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
 
-        builder.Property(x => x.ExtendedData).ToJsonConversion(4000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         // OutboundDelivery is shared by webhook + email deliveries. Do not enforce a FK on
         // ConfigurationId so email deliveries can point at EmailConfiguration IDs.

@@ -32,7 +32,7 @@ public class GiftCardDbMapping : IEntityTypeConfiguration<GiftCard>
         builder.Property(x => x.BatchNumber).HasMaxLength(50);
 
         // Extended data
-        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         // Customer relationships (both optional, both to Customer)
         // NoAction required: SQL Server disallows multiple cascade paths to the same table

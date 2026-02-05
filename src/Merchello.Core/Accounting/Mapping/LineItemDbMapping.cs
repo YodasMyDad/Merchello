@@ -21,7 +21,7 @@ public class LineItemDbMapping : IEntityTypeConfiguration<LineItem>
         builder.Property(x => x.OriginalAmount).HasPrecision(18, 4);
         builder.Property(x => x.OriginalAmountInStoreCurrency).HasPrecision(18, 4);
         builder.Property(x => x.TaxRate).HasPrecision(5, 2);
-        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
         builder.HasOne(d => d.Order)
             .WithMany(p => p.LineItems)
             .HasForeignKey(d => d.OrderId)

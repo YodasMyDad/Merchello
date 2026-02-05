@@ -35,7 +35,7 @@ public class ProductWarehouseDbMapping : IEntityTypeConfiguration<ProductWarehou
         builder
             .Property(pw => pw.TrackStock)
             .IsRequired()
-            .HasDefaultValue(true);
+            .HasDefaultValue(false);
 
         builder
             .Property(pw => pw.ReservedStock)

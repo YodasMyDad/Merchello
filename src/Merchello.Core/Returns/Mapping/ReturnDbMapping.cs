@@ -33,7 +33,7 @@ public class ReturnDbMapping : IEntityTypeConfiguration<Return>
         builder.Property(x => x.RefundAmountInStoreCurrency).HasPrecision(18, 4);
 
         // Extended data
-        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         // Relationships
         builder.HasOne(x => x.Invoice)

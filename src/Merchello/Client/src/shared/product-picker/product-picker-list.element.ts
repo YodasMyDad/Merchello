@@ -26,13 +26,43 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
   @property({ type: Boolean })
   showImages = true;
 
+  /**
+   * When true, allows selecting product roots directly without expanding to variants.
+   * Shows checkboxes on root rows instead of expand arrows.
+   */
+  @property({ type: Boolean })
+  selectRoots = false;
+
+  /**
+   * Array of selected product root IDs (used when selectRoots = true)
+   */
+  @property({ type: Array })
+  selectedRootIds: string[] = [];
+
   @state()
   private _failedImages: Set<string> = new Set();
 
   private _handleRootClick(root: PickerProductRoot): void {
+    // In selectRoots mode, clicking the row selects/deselects the root
+    if (this.selectRoots) {
+      this._handleRootSelect(root);
+      return;
+    }
+
+    // Normal mode: toggle expand/collapse
     this.dispatchEvent(
       new CustomEvent("toggle-expand", {
         detail: { rootId: root.id },
+        bubbles: true,
+        composed: true,
+      })
+    );
+  }
+
+  private _handleRootSelect(root: PickerProductRoot): void {
+    this.dispatchEvent(
+      new CustomEvent("root-select", {
+        detail: { root },
         bubbles: true,
         composed: true,
       })
@@ -91,16 +121,33 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
 
   private _renderProductRoot(root: PickerProductRoot) {
     const isSingleVariant = root.variantCount === 1;
+    const isRootSelected = this.selectRoots && this.selectedRootIds.includes(root.id);
+
+    // In selectRoots mode, show checkbox; otherwise show expand icon (for multi-variant products)
+    const renderLeadingElement = () => {
+      if (this.selectRoots) {
+        return html`<uui-checkbox
+          class="root-checkbox"
+          ?checked=${isRootSelected}
+          @click=${(e: Event) => e.stopPropagation()}
+          @change=${() => this._handleRootSelect(root)}
+        ></uui-checkbox>`;
+      }
+      if (!isSingleVariant) {
+        return this._renderExpandIcon(root.isExpanded);
+      }
+      return html`<div class="expand-spacer"></div>`;
+    };
 
     return html`
-      <div class="product-root ${root.isExpanded ? "expanded" : ""} ${this.showImages ? "" : "no-images"}">
+      <div class="product-root ${root.isExpanded ? "expanded" : ""} ${this.showImages ? "" : "no-images"} ${isRootSelected ? "selected" : ""}">
         <button
           type="button"
           class="product-root-header"
           @click=${() => this._handleRootClick(root)}
-          aria-expanded=${root.isExpanded}
+          aria-expanded=${this.selectRoots ? undefined : root.isExpanded}
         >
-          ${!isSingleVariant ? this._renderExpandIcon(root.isExpanded) : html`<div class="expand-spacer"></div>`}
+          ${renderLeadingElement()}
           ${this.showImages ? this._renderProductImage(root.imageUrl, root.rootName) : nothing}
           <div class="product-info">
             <div class="product-name">${root.rootName}</div>
@@ -112,7 +159,7 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
           </div>
         </button>
 
-        ${root.isExpanded && root.variantsLoaded
+        ${!this.selectRoots && root.isExpanded && root.variantsLoaded
           ? html`
               <div class="variants-container ${this.showImages ? "" : "no-images"}">
                 ${root.variants.map(
@@ -130,7 +177,7 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
             `
           : nothing}
 
-        ${root.isExpanded && !root.variantsLoaded
+        ${!this.selectRoots && root.isExpanded && !root.variantsLoaded
           ? html`
               <div class="variants-loading">
                 <uui-loader-bar></uui-loader-bar>
@@ -202,6 +249,14 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
     .expand-spacer {
       width: 0.75rem;
       flex-shrink: 0;
+    }
+
+    .root-checkbox {
+      flex-shrink: 0;
+    }
+
+    .product-root.selected .product-root-header {
+      background-color: var(--uui-color-selected);
     }
 
     .product-image {

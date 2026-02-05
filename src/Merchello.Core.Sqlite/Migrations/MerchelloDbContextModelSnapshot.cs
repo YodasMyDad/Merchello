@@ -81,7 +81,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("InvoiceNumber")
@@ -209,7 +208,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("InvoiceId")
@@ -302,7 +300,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("FulfilmentErrorMessage")
@@ -756,7 +753,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("ItemCount")
@@ -849,7 +845,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("LineItems")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Shipping")
@@ -1344,7 +1339,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("FromExpression")
@@ -1524,7 +1518,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("InitialBalance")
@@ -1684,7 +1677,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsDefault")
@@ -1764,7 +1756,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("Images")
                         .IsRequired()
-                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -1953,7 +1944,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("GoogleShoppingFeedCategory")
@@ -1985,7 +1975,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ProductOptions")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("ProductTypeId")
@@ -1993,7 +1982,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("RootImages")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RootName")
@@ -2095,7 +2083,7 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<bool>("TrackStock")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
-                        .HasDefaultValue(true);
+                        .HasDefaultValue(false);
 
                     b.HasKey("ProductId", "WarehouseId");
 
@@ -2217,7 +2205,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("GiftCardId")
@@ -2485,7 +2472,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<bool?>("IsDeliveryDateGuaranteed")
@@ -2493,7 +2479,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("LineItems")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid>("OrderId")
@@ -2669,7 +2654,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(3000)
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("HasTrial")
@@ -2814,7 +2798,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
@@ -2994,7 +2977,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<Guid?>("FulfilmentProviderConfigurationId")
@@ -3082,7 +3064,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("NextRetryUtc")
@@ -3168,7 +3149,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("ExtendedData")
                         .IsRequired()
-                        .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
                     b.Property<int>("FailureCount")

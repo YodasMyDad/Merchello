@@ -105,6 +105,6 @@ public class SavedPaymentMethodDbMapping : IEntityTypeConfiguration<SavedPayment
         // =====================================================
 
         builder.Property(x => x.ExtendedData)
-            .ToJsonConversion(3000);
+            .ToJsonConversion(null);
     }
 }

@@ -473,6 +473,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             ?invalid=${this._validationErrors.has("name")}>
             <uui-input
               slot="editor"
+              maxlength="300"
               .value=${this._discount?.name ?? ""}
               @input=${(e: Event) => this._handleInputChange("name", (e.target as HTMLInputElement).value)}
               placeholder="e.g., Summer Sale 20% Off"
@@ -485,6 +486,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             description="Internal description for this discount">
             <uui-textarea
               slot="editor"
+              maxlength="1000"
               .value=${this._discount?.description ?? ""}
               @input=${(e: Event) => this._handleInputChange("description", (e.target as HTMLTextAreaElement).value)}
               placeholder="Internal description for this discount"
@@ -498,8 +500,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
           <umb-property-layout label="Method">
             <uui-select
               slot="editor"
+              label="Method"
               .options=${this._getMethodOptions()}
-              .value=${this._discount?.method ?? DiscountMethod.Code}
               @change=${(e: Event) =>
                 this._handleInputChange("method", (e.target as HTMLSelectElement).value as DiscountMethod)}
             ></uui-select>
@@ -513,6 +515,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                   ?invalid=${this._validationErrors.has("code") || this._codeAvailable === false}>
                   <div slot="editor" class="code-input-row">
                     <uui-input
+                      maxlength="50"
                       .value=${this._discount?.code ?? ""}
                       @input=${this._handleCodeInput}
                       placeholder="e.g., SUMMER20"
@@ -544,8 +547,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
           <umb-property-layout label="Value Type">
             <uui-select
               slot="editor"
+              label="Value type"
               .options=${this._getValueTypeOptions()}
-              .value=${this._discount?.valueType ?? DiscountValueType.Percentage}
               @change=${(e: Event) =>
                 this._handleInputChange("valueType", (e.target as HTMLSelectElement).value as DiscountValueType)}
             ></uui-select>
@@ -615,8 +618,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
           <umb-property-layout label="Requirement Type">
             <uui-select
               slot="editor"
+              label="Requirement type"
               .options=${this._getRequirementTypeOptions()}
-              .value=${this._discount?.requirementType ?? DiscountRequirementType.None}
               @change=${(e: Event) =>
                 this._handleInputChange("requirementType", (e.target as HTMLSelectElement).value as DiscountRequirementType)}
             ></uui-select>

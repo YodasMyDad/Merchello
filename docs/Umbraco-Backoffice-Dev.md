@@ -578,6 +578,40 @@ html`<uui-select .options=${options} @change=${this.handleChange}></uui-select>`
 | `label` | `string` | Accessibility label |
 | `placeholder` | `string` | Placeholder text |
 
+> **IMPORTANT: Always include the `label` attribute**
+>
+> The `uui-select` component requires a `label` attribute for accessibility. Missing it logs a console warning.
+>
+> **Pattern for dynamic options** (reference: `service-region-modal.element.ts`):
+> ```typescript
+> // Simple getter method that computes options from state
+> private _getOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+>   return [
+>     { name: "Select...", value: "", selected: !this._selectedValue },
+>     ...this._items.map((item) => ({
+>       name: item.name,
+>       value: item.value,
+>       selected: item.value === this._selectedValue,
+>     })),
+>   ];
+> }
+>
+> // Change handler updates source state; getter recomputes on next render
+> private _handleChange(e: Event): void {
+>   this._selectedValue = (e.target as HTMLSelectElement).value;
+> }
+>
+> render() {
+>   return html`<uui-select
+>     label="Select option"
+>     .options=${this._getOptions()}
+>     @change=${this._handleChange}>
+>   </uui-select>`;
+> }
+> ```
+>
+> Do NOT use `.value` with `uui-select` — use only `.options` with `selected: true` on the appropriate option.
+
 ### CSS Variables
 - Spacing: `--uui-size-space-1` to `-6`, Layout: `--uui-size-layout-1` to `-5`
 - Colors: `--uui-color-text`, `--uui-color-background`

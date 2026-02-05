@@ -39,7 +39,7 @@ public class OrderDbMapping : IEntityTypeConfiguration<Order>
         builder.Property(x => x.CancelledDate).IsRequired(false);
         builder.Property(x => x.CancellationReason).HasMaxLength(1000);
         builder.Property(x => x.InternalNotes).HasMaxLength(2000);
-        builder.Property(x => x.ExtendedData).ToJsonConversion(3000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         // Fulfilment provider fields
         builder.Property(x => x.FulfilmentProviderConfigurationId).IsRequired(false);

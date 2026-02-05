@@ -1266,6 +1266,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             description="The title shown in browser tabs and search results">
             <uui-input
               slot="editor"
+              maxlength="100"
               .value=${this._formData.pageTitle || ""}
               @input=${(e: Event) => this._handleInputChange("pageTitle", (e.target as HTMLInputElement).value)}
               placeholder="e.g., Blue T-Shirt | Your Store Name">
@@ -1277,6 +1278,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             description="The description shown in search results (recommended: 150-160 characters)">
             <uui-textarea
               slot="editor"
+              maxlength="200"
               .value=${this._formData.metaDescription || ""}
               @input=${(e: Event) => this._handleInputChange("metaDescription", (e.target as HTMLTextAreaElement).value)}
               placeholder="A brief description for search engines...">
@@ -1288,6 +1290,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             description="Optional URL to indicate the preferred version of this page for SEO">
             <uui-input
               slot="editor"
+              maxlength="1000"
               .value=${this._formData.canonicalUrl || ""}
               @input=${(e: Event) => this._handleInputChange("canonicalUrl", (e.target as HTMLInputElement).value)}
               placeholder="https://example.com/products/blue-t-shirt">
@@ -1763,12 +1766,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       if (result.isDeleted) {
         await this._deleteOption(option.id);
       } else if (result.option) {
-        // Update option in form data
-        const options = this._formData.productOptions || [];
+        // Update option in form data - spread to create mutable copy (original may be frozen)
+        const options = [...(this._formData.productOptions || [])];
         const index = options.findIndex((o) => o.id === option.id);
         if (index !== -1) {
           options[index] = result.option;
-          this._formData = { ...this._formData, productOptions: [...options] };
+          this._formData = { ...this._formData, productOptions: options };
           await this._saveOptions();
         }
       }
@@ -1801,13 +1804,84 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   /**
+   * Checks if the variant structure has changed in a way that requires regeneration.
+   * Regeneration is needed when:
+   * - Variant options are added or removed
+   * - Values are added or removed from variant options
+   * - The isVariant flag changed on any option
+   *
+   * Regeneration is NOT needed for metadata-only changes (name, mediaKey, hexValue, etc.)
+   */
+  private _hasVariantStructureChanged(): boolean {
+    const originalOptions = this._product?.productOptions || [];
+    const newOptions = this._formData.productOptions || [];
+
+    // Get variant options from both
+    const originalVariantOptions = originalOptions.filter((o) => o.isVariant);
+    const newVariantOptions = newOptions.filter((o) => o.isVariant);
+
+    // Check if number of variant options changed
+    if (originalVariantOptions.length !== newVariantOptions.length) {
+      return true;
+    }
+
+    // Check each variant option for structural changes
+    for (const newOpt of newVariantOptions) {
+      const originalOpt = originalVariantOptions.find((o) => o.id === newOpt.id);
+
+      // New variant option was added (ID doesn't exist in original)
+      if (!originalOpt) {
+        return true;
+      }
+
+      // Check if isVariant flag changed (option converted to/from variant)
+      if (originalOpt.isVariant !== newOpt.isVariant) {
+        return true;
+      }
+
+      // Check if value count changed
+      if (originalOpt.values.length !== newOpt.values.length) {
+        return true;
+      }
+
+      // Check if value IDs changed (values added/removed, not just reordered)
+      const originalValueIds = new Set(originalOpt.values.map((v) => v.id));
+      const newValueIds = new Set(newOpt.values.map((v) => v.id));
+      if (originalValueIds.size !== newValueIds.size) {
+        return true;
+      }
+      for (const id of newValueIds) {
+        if (!originalValueIds.has(id)) {
+          return true;
+        }
+      }
+    }
+
+    // Check if any original variant option was removed
+    for (const originalOpt of originalVariantOptions) {
+      const stillExists = newVariantOptions.some((o) => o.id === originalOpt.id);
+      if (!stillExists) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Confirms with user before saving options that will regenerate variants.
    * Returns true if user confirms or no confirmation needed, false if cancelled.
    */
   private async _confirmVariantRegeneration(): Promise<boolean> {
+    const currentVariantCount = this._product?.variants.length ?? 0;
+
+    // If no structural changes, no confirmation needed
+    if (!this._hasVariantStructureChanged()) {
+      return true;
+    }
+
     const options = this._formData.productOptions || [];
     const variantOptions = options.filter((o) => o.isVariant);
-    const currentVariantCount = this._product?.variants.length ?? 0;
 
     // Calculate new variant count from cartesian product
     const newVariantCount = variantOptions.length > 0
@@ -1889,7 +1963,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         })),
       }));
 
-      this.#notificationContext?.peek("default", { data: { headline: "Saving options...", message: "Variants will be regenerated" } });
+      // Check if variant structure changed (for conditional notifications)
+      const willRegenerate = this._hasVariantStructureChanged();
+
+      this.#notificationContext?.peek("default", {
+        data: { headline: "Saving options...", message: willRegenerate ? "Variants will be regenerated" : "" },
+      });
 
       const { data, error } = await MerchelloApi.saveProductOptions(this._product.id, options);
 
@@ -1898,7 +1977,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       if (!error && data) {
         this._formData = { ...this._formData, productOptions: data };
-        this.#notificationContext?.peek("positive", { data: { headline: "Options saved", message: "Variants have been regenerated" } });
+        this.#notificationContext?.peek("positive", {
+          data: { headline: "Options saved", message: willRegenerate ? "Variants have been regenerated" : "" },
+        });
         this.#workspaceContext?.reload();
       } else if (error) {
         this._errorMessage = "Failed to save options: " + error.message;

@@ -136,12 +136,12 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
           <div class="filter-item">
             <label>Provider</label>
             <uui-select
-              .value=${this._filterProviderConfigId}
               .options=${[
-                { name: "All Providers", value: "" },
+                { name: "All Providers", value: "", selected: this._filterProviderConfigId === "" },
                 ...this._providers.map((p) => ({
                   name: p.displayName,
                   value: p.configurationId,
+                  selected: p.configurationId === this._filterProviderConfigId,
                 })),
               ]}
               @change=${(e: Event) => {
@@ -154,11 +154,10 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
           <div class="filter-item">
             <label>Sync Type</label>
             <uui-select
-              .value=${this._filterSyncType}
               .options=${[
-                { name: "All Types", value: "" },
-                { name: "Products Out", value: "0" },
-                { name: "Inventory In", value: "1" },
+                { name: "All Types", value: "", selected: this._filterSyncType === "" },
+                { name: "Products Out", value: "0", selected: this._filterSyncType === "0" },
+                { name: "Inventory In", value: "1", selected: this._filterSyncType === "1" },
               ]}
               @change=${(e: Event) => {
                 this._filterSyncType = (e.target as HTMLSelectElement).value;
@@ -170,13 +169,12 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
           <div class="filter-item">
             <label>Status</label>
             <uui-select
-              .value=${this._filterStatus}
               .options=${[
-                { name: "All Statuses", value: "" },
-                { name: "Pending", value: "0" },
-                { name: "Running", value: "1" },
-                { name: "Completed", value: "2" },
-                { name: "Failed", value: "3" },
+                { name: "All Statuses", value: "", selected: this._filterStatus === "" },
+                { name: "Pending", value: "0", selected: this._filterStatus === "0" },
+                { name: "Running", value: "1", selected: this._filterStatus === "1" },
+                { name: "Completed", value: "2", selected: this._filterStatus === "2" },
+                { name: "Failed", value: "3", selected: this._filterStatus === "3" },
               ]}
               @change=${(e: Event) => {
                 this._filterStatus = (e.target as HTMLSelectElement).value;

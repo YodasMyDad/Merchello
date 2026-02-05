@@ -20,7 +20,7 @@ public class SupplierDbMapping : IEntityTypeConfiguration<Supplier>
         builder.Property(x => x.ContactName).HasMaxLength(250);
         builder.Property(x => x.ContactEmail).HasMaxLength(250);
         builder.Property(x => x.ContactPhone).HasMaxLength(50);
-        builder.Property(x => x.ExtendedData).ToJsonConversion(1000);
+        builder.Property(x => x.ExtendedData).ToJsonConversion(null);
         builder.Property(x => x.DefaultFulfilmentProviderConfigurationId).IsRequired(false);
 
         // One-to-many relationship with Warehouses
