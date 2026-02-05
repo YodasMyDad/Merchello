@@ -583,49 +583,34 @@ public class DiscountService(
     /// <inheritdoc />
     public async Task<CrudResult<Discount>> ActivateAsync(Guid discountId, CancellationToken ct = default)
     {
-        var result = new CrudResult<Discount>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var discount = await scope.ExecuteWithContextAsync(async db =>
-            await db.Discounts.FirstOrDefaultAsync(d => d.Id == discountId, ct));
-
-        if (discount == null)
-        {
-            result.AddErrorMessage("Discount not found.");
-            scope.Complete();
-            return result;
-        }
-
-        var oldStatus = discount.Status;
-        var newStatus = DiscountStatus.Active;
-
-        // Publish "Before" notification - handlers can cancel
-        var statusChangingNotification = new DiscountStatusChangingNotification(discount, oldStatus, newStatus);
-        if (await notificationPublisher.PublishCancelableAsync(statusChangingNotification, ct))
-        {
-            result.AddErrorMessage(statusChangingNotification.CancelReason ?? "Discount activation cancelled.");
-            scope.Complete();
-            return result;
-        }
-
-        discount.Status = newStatus;
-        discount.DateUpdated = DateTime.UtcNow;
-
-        await scope.ExecuteWithContextAsync<bool>(async db => { await db.SaveChangesAsync(ct); return true; });
-        scope.Complete();
-
-        // Publish "After" notification
-        await notificationPublisher.PublishAsync(new DiscountStatusChangedNotification(discount, oldStatus, newStatus), ct);
-
-        result.ResultObject = discount;
-        result.AddSuccessMessage($"Discount '{discount.Name}' activated.");
-        logger.LogInformation("Activated discount {DiscountId}", discountId);
-
-        return result;
+        return await UpdateStatusAsync(
+            discountId,
+            DiscountStatus.Active,
+            "Discount activation cancelled.",
+            "Discount '{0}' activated.",
+            "Activated discount {DiscountId}",
+            ct);
     }
 
     /// <inheritdoc />
     public async Task<CrudResult<Discount>> DeactivateAsync(Guid discountId, CancellationToken ct = default)
+    {
+        return await UpdateStatusAsync(
+            discountId,
+            DiscountStatus.Disabled,
+            "Discount deactivation cancelled.",
+            "Discount '{0}' deactivated.",
+            "Deactivated discount {DiscountId}",
+            ct);
+    }
+
+    private async Task<CrudResult<Discount>> UpdateStatusAsync(
+        Guid discountId,
+        DiscountStatus newStatus,
+        string cancelledMessage,
+        string successMessageFormat,
+        string logMessageFormat,
+        CancellationToken ct)
     {
         var result = new CrudResult<Discount>();
 
@@ -641,13 +626,12 @@ public class DiscountService(
         }
 
         var oldStatus = discount.Status;
-        var newStatus = DiscountStatus.Disabled;
 
         // Publish "Before" notification - handlers can cancel
         var statusChangingNotification = new DiscountStatusChangingNotification(discount, oldStatus, newStatus);
         if (await notificationPublisher.PublishCancelableAsync(statusChangingNotification, ct))
         {
-            result.AddErrorMessage(statusChangingNotification.CancelReason ?? "Discount deactivation cancelled.");
+            result.AddErrorMessage(statusChangingNotification.CancelReason ?? cancelledMessage);
             scope.Complete();
             return result;
         }
@@ -662,8 +646,8 @@ public class DiscountService(
         await notificationPublisher.PublishAsync(new DiscountStatusChangedNotification(discount, oldStatus, newStatus), ct);
 
         result.ResultObject = discount;
-        result.AddSuccessMessage($"Discount '{discount.Name}' deactivated.");
-        logger.LogInformation("Deactivated discount {DiscountId}", discountId);
+        result.AddSuccessMessage(string.Format(successMessageFormat, discount.Name));
+        logger.LogInformation(logMessageFormat, discountId);
 
         return result;
     }

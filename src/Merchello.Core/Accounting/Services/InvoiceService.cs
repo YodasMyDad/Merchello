@@ -1682,113 +1682,59 @@ public class InvoiceService(
     }
 
     /// <inheritdoc />
-    public async Task<CrudResult<Address>> UpdateBillingAddressAsync(
+    public Task<CrudResult<Address>> UpdateBillingAddressAsync(
         Guid invoiceId,
         Address address,
         CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<Address>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
-            if (invoice == null)
+        return UpdateInvoiceFieldAsync(
+            invoiceId,
+            invoice =>
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Invoice not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return false;
-            }
-
-            invoice.BillingAddress = address;
-            invoice.DateUpdated = DateTime.UtcNow;
-
-            await db.SaveChangesAsync(cancellationToken);
-            result.ResultObject = address;
-            return true;
-        });
-        scope.Complete();
-
-        return result;
+                invoice.BillingAddress = address;
+                return address;
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<CrudResult<Address>> UpdateShippingAddressAsync(
+    public Task<CrudResult<Address>> UpdateShippingAddressAsync(
         Guid invoiceId,
         Address address,
         CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<Address>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
-            if (invoice == null)
+        return UpdateInvoiceFieldAsync(
+            invoiceId,
+            invoice =>
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Invoice not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return false;
-            }
-
-            invoice.ShippingAddress = address;
-            invoice.DateUpdated = DateTime.UtcNow;
-
-            await db.SaveChangesAsync(cancellationToken);
-            result.ResultObject = address;
-            return true;
-        });
-        scope.Complete();
-
-        return result;
+                invoice.ShippingAddress = address;
+                return address;
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />
-    public async Task<CrudResult<string?>> UpdatePurchaseOrderAsync(
+    public Task<CrudResult<string?>> UpdatePurchaseOrderAsync(
         Guid invoiceId,
         string? purchaseOrder,
         CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<string?>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
-            if (invoice == null)
+        return UpdateInvoiceFieldAsync(
+            invoiceId,
+            invoice =>
             {
-                result.Messages.Add(new ResultMessage
-                {
-                    Message = "Invoice not found",
-                    ResultMessageType = ResultMessageType.Error
-                });
-                return;
-            }
-
-            invoice.PurchaseOrder = purchaseOrder;
-            invoice.DateUpdated = DateTime.UtcNow;
-
-            await db.SaveChangesAsync(cancellationToken);
-            result.ResultObject = purchaseOrder;
-        });
-        scope.Complete();
-
-        return result;
+                invoice.PurchaseOrder = purchaseOrder;
+                return purchaseOrder;
+            },
+            cancellationToken);
     }
 
-    /// <inheritdoc />
-    public async Task<CrudResult<Invoice>> SetDueDateAsync(
+    private async Task<CrudResult<T>> UpdateInvoiceFieldAsync<T>(
         Guid invoiceId,
-        DateTime? dueDate,
-        CancellationToken cancellationToken = default)
+        Func<Invoice, T> applyUpdate,
+        CancellationToken cancellationToken)
     {
-        var result = new CrudResult<Invoice>();
+        var result = new CrudResult<T>();
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -1804,16 +1750,31 @@ public class InvoiceService(
                 return false;
             }
 
-            invoice.DueDate = dueDate;
+            result.ResultObject = applyUpdate(invoice);
             invoice.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
-            result.ResultObject = invoice;
             return true;
         });
         scope.Complete();
 
         return result;
+    }
+
+    /// <inheritdoc />
+    public Task<CrudResult<Invoice>> SetDueDateAsync(
+        Guid invoiceId,
+        DateTime? dueDate,
+        CancellationToken cancellationToken = default)
+    {
+        return UpdateInvoiceFieldAsync(
+            invoiceId,
+            invoice =>
+            {
+                invoice.DueDate = dueDate;
+                return invoice;
+            },
+            cancellationToken);
     }
 
     /// <inheritdoc />

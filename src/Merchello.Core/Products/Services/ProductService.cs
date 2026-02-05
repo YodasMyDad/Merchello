@@ -11,6 +11,7 @@ using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Products.Extensions;
+using Merchello.Core.Shipping.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Razor.Compilation;
@@ -279,22 +280,7 @@ public class ProductService(
                 .Where(so => excludedShippingOptionIds.Contains(so.Id))
                 .ToListAsync(cancellationToken);
 
-            // Update restriction mode
-            if (optionsToExclude.Any())
-            {
-                variant.ShippingRestrictionMode = ShippingRestrictionMode.ExcludeList;
-            }
-            else
-            {
-                variant.ShippingRestrictionMode = ShippingRestrictionMode.None;
-            }
-
-            // Replace excluded collection
-            variant.ExcludedShippingOptions.Clear();
-            foreach (var so in optionsToExclude)
-            {
-                variant.ExcludedShippingOptions.Add(so);
-            }
+            ApplyShippingExclusions([variant], optionsToExclude);
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = true;
@@ -389,18 +375,7 @@ public class ProductService(
                 .ToListAsync(cancellationToken);
 
             // Apply exclusions to ALL variants (bulk mode)
-            foreach (var variant in variants)
-            {
-                variant.ShippingRestrictionMode = optionsToExclude.Count > 0
-                    ? ShippingRestrictionMode.ExcludeList
-                    : ShippingRestrictionMode.None;
-
-                variant.ExcludedShippingOptions.Clear();
-                foreach (var option in optionsToExclude)
-                {
-                    variant.ExcludedShippingOptions.Add(option);
-                }
-            }
+            ApplyShippingExclusions(variants, optionsToExclude);
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             result.ResultObject = result.Successful;
@@ -409,6 +384,25 @@ public class ProductService(
 
         scope.Complete();
         return result;
+    }
+
+    private static void ApplyShippingExclusions(
+        IEnumerable<Product> variants,
+        IReadOnlyCollection<ShippingOption> optionsToExclude)
+    {
+        var restrictionMode = optionsToExclude.Count > 0
+            ? ShippingRestrictionMode.ExcludeList
+            : ShippingRestrictionMode.None;
+
+        foreach (var variant in variants)
+        {
+            variant.ShippingRestrictionMode = restrictionMode;
+            variant.ExcludedShippingOptions.Clear();
+            foreach (var option in optionsToExclude)
+            {
+                variant.ExcludedShippingOptions.Add(option);
+            }
+        }
     }
 
     /// <summary>

@@ -148,6 +148,56 @@ public class ShippingService(
         return new WarehouseStockResult(totalAvailableStock, hasAnyStock, hasAnyTrackingWarehouse, fulfillingWarehouse);
     }
 
+    private async Task<(Products.Models.Product? Product, WarehouseStockResult StockResult, StockStatus AggregateStockStatus)>
+        GetProductStockContextAsync(
+            Guid productId,
+            string? destinationCountryCode,
+            string? destinationStateCode,
+            CancellationToken cancellationToken)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        var product = await scope.ExecuteWithContextAsync(async db =>
+            await db.Products
+                .AsNoTracking()
+                .Include(p => p.ProductRoot)
+                    .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
+                        .ThenInclude(prw => prw.Warehouse)
+                .Include(p => p.ProductWarehouses)
+                    .ThenInclude(pw => pw.Warehouse)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken));
+
+        scope.Complete();
+
+        if (product == null)
+        {
+            return (null, new WarehouseStockResult(0, false, false, null), StockStatus.OutOfStock);
+        }
+
+        var stockResult = CalculateWarehouseStock(product, destinationCountryCode, destinationStateCode);
+
+        var aggregateStockStatus = CalculateAggregateStockStatus(
+            stockResult.TotalAvailableStock,
+            stockResult.HasAnyTrackingWarehouse,
+            settings.Value.LowStockThreshold);
+
+        return (product, stockResult, aggregateStockStatus);
+    }
+
+    private static ProductFulfillmentOptionsDto CreateMissingProductFulfillmentOptions()
+    {
+        var missingStatus = StockStatus.OutOfStock;
+        return new ProductFulfillmentOptionsDto
+        {
+            CanAddToOrder = false,
+            BlockedReason = "Product not found",
+            AggregateStockStatus = missingStatus,
+            AggregateStockStatusLabel = missingStatus.ToLabel(),
+            AggregateStockStatusCssClass = missingStatus.ToCssClass()
+        };
+    }
+
     /// <summary>
     /// Gets shipping options for a basket, grouping products by warehouse and shipping option availability.
     /// Delegates to the configured order grouping strategy for custom grouping logic.
@@ -756,80 +806,46 @@ public class ShippingService(
             };
         }
 
-        using var scope = efCoreScopeProvider.CreateScope();
+        var (product, stockResult, aggregateStockStatus) =
+            await GetProductStockContextAsync(productId, destinationCountryCode, destinationStateCode, cancellationToken);
 
-        var result = await scope.ExecuteWithContextAsync(async db =>
+        if (product == null)
         {
-            // Load the product with warehouse associations (ordered by priority)
-            var product = await db.Products
-                .AsNoTracking()
-                .Include(p => p.ProductRoot)
-                    .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
-                        .ThenInclude(prw => prw.Warehouse)
-                            
-                .Include(p => p.ProductWarehouses)
-                    .ThenInclude(pw => pw.Warehouse)
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+            return CreateMissingProductFulfillmentOptions();
+        }
 
-            if (product == null)
-            {
-                var missingStatus = StockStatus.OutOfStock;
-                return new ProductFulfillmentOptionsDto
-                {
-                    CanAddToOrder = false,
-                    BlockedReason = "Product not found",
-                    AggregateStockStatus = missingStatus,
-                    AggregateStockStatusLabel = missingStatus.ToLabel(),
-                    AggregateStockStatusCssClass = missingStatus.ToCssClass()
-                };
-            }
+        // Check product availability (backend-controlled flag)
+        var isAvailableForPurchase = product.AvailableForPurchase;
 
-            // Calculate warehouse stock using shared helper
-            var stockResult = CalculateWarehouseStock(product, destinationCountryCode, destinationStateCode);
+        // Determine blocked reason (priority order)
+        string? blockedReason = null;
+        if (!isAvailableForPurchase)
+        {
+            blockedReason = "Not available for purchase";
+        }
+        else if (!stockResult.HasAnyStock)
+        {
+            blockedReason = "Out of stock";
+        }
+        else if (stockResult.FulfillingWarehouse == null)
+        {
+            blockedReason = $"Cannot ship to {destinationCountryCode}";
+        }
 
-            // Check product availability (backend-controlled flag)
-            var isAvailableForPurchase = product.AvailableForPurchase;
+        // CanAddToOrder is the consolidated backend decision
+        var canAddToOrder = isAvailableForPurchase && stockResult.HasAnyStock && stockResult.FulfillingWarehouse != null;
 
-            // Determine blocked reason (priority order)
-            string? blockedReason = null;
-            if (!isAvailableForPurchase)
-            {
-                blockedReason = "Not available for purchase";
-            }
-            else if (!stockResult.HasAnyStock)
-            {
-                blockedReason = "Out of stock";
-            }
-            else if (stockResult.FulfillingWarehouse == null)
-            {
-                blockedReason = $"Cannot ship to {destinationCountryCode}";
-            }
-
-            // CanAddToOrder is the consolidated backend decision
-            var canAddToOrder = isAvailableForPurchase && stockResult.HasAnyStock && stockResult.FulfillingWarehouse != null;
-
-            // Calculate aggregate stock status using backend settings
-            var aggregateStockStatus = CalculateAggregateStockStatus(
-                stockResult.TotalAvailableStock,
-                stockResult.HasAnyTrackingWarehouse,
-                settings.Value.LowStockThreshold);
-
-            return new ProductFulfillmentOptionsDto
-            {
-                CanAddToOrder = canAddToOrder,
-                FulfillingWarehouse = stockResult.FulfillingWarehouse,
-                BlockedReason = blockedReason,
-                HasAvailableStock = stockResult.HasAnyStock,
-                AvailableStock = stockResult.TotalAvailableStock,
-                AggregateStockStatus = aggregateStockStatus,
-                AggregateStockStatusLabel = aggregateStockStatus.ToLabel(),
-                AggregateStockStatusCssClass = aggregateStockStatus.ToCssClass()
-            };
-        });
-
-        scope.Complete();
-        return result;
+        return new ProductFulfillmentOptionsDto
+        {
+            CanAddToOrder = canAddToOrder,
+            FulfillingWarehouse = stockResult.FulfillingWarehouse,
+            BlockedReason = blockedReason,
+            HasAvailableStock = stockResult.HasAnyStock,
+            AvailableStock = stockResult.TotalAvailableStock,
+            AggregateStockStatus = aggregateStockStatus,
+            AggregateStockStatusLabel = aggregateStockStatus.ToLabel(),
+            AggregateStockStatusCssClass = aggregateStockStatus.ToCssClass()
+        };
     }
 
     /// <inheritdoc />
@@ -837,97 +853,64 @@ public class ShippingService(
         Guid productId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
+        var (product, stockResult, aggregateStockStatus) =
+            await GetProductStockContextAsync(productId, null, null, cancellationToken);
 
-        var result = await scope.ExecuteWithContextAsync(async db =>
+        if (product == null)
         {
-            // Load the product with warehouse associations (ordered by priority)
-            var product = await db.Products
-                .AsNoTracking()
-                .Include(p => p.ProductRoot)
-                    .ThenInclude(pr => pr!.ProductRootWarehouses.OrderBy(prw => prw.PriorityOrder))
-                        .ThenInclude(prw => prw.Warehouse)
-                .Include(p => p.ProductWarehouses)
-                    .ThenInclude(pw => pw.Warehouse)
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
+            return CreateMissingProductFulfillmentOptions();
+        }
 
-            if (product == null)
+        // Determine fulfilling warehouse - use result or fallback to first warehouse for display
+        var fulfillingWarehouse = stockResult.FulfillingWarehouse;
+        if (fulfillingWarehouse == null)
+        {
+            var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
+                .OrderBy(prw => prw.PriorityOrder)
+                .Where(prw => prw.Warehouse != null)
+                .ToList() ?? [];
+
+            if (productRootWarehouses.Count > 0)
             {
-                var missingStatus = StockStatus.OutOfStock;
-                return new ProductFulfillmentOptionsDto
+                var firstWarehouse = productRootWarehouses[0].Warehouse!;
+                fulfillingWarehouse = new FulfillmentWarehouseDto
                 {
-                    CanAddToOrder = false,
-                    BlockedReason = "Product not found",
-                    AggregateStockStatus = missingStatus,
-                    AggregateStockStatusLabel = missingStatus.ToLabel(),
-                    AggregateStockStatusCssClass = missingStatus.ToCssClass()
+                    Id = firstWarehouse.Id,
+                    Name = firstWarehouse.Name ?? string.Empty,
+                    AvailableStock = 0
                 };
             }
+        }
 
-            // Calculate warehouse stock using shared helper (no destination check)
-            var stockResult = CalculateWarehouseStock(product);
+        // Check product availability (backend-controlled flag)
+        var isAvailableForPurchase = product.AvailableForPurchase;
 
-            // Determine fulfilling warehouse - use result or fallback to first warehouse for display
-            var fulfillingWarehouse = stockResult.FulfillingWarehouse;
-            if (fulfillingWarehouse == null)
-            {
-                var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses?
-                    .OrderBy(prw => prw.PriorityOrder)
-                    .Where(prw => prw.Warehouse != null)
-                    .ToList() ?? [];
+        // Determine blocked reason (no region check in this method - used when no destination)
+        string? blockedReason = null;
+        if (!isAvailableForPurchase)
+        {
+            blockedReason = "Not available for purchase";
+        }
+        else if (!stockResult.HasAnyStock)
+        {
+            blockedReason = "Out of stock";
+        }
 
-                if (productRootWarehouses.Count > 0)
-                {
-                    var firstWarehouse = productRootWarehouses[0].Warehouse!;
-                    fulfillingWarehouse = new FulfillmentWarehouseDto
-                    {
-                        Id = firstWarehouse.Id,
-                        Name = firstWarehouse.Name ?? string.Empty,
-                        AvailableStock = 0
-                    };
-                }
-            }
+        // CanAddToOrder: available for purchase AND has stock
+        // (no region check since this is used when destination is unknown)
+        var canAddToOrder = isAvailableForPurchase && stockResult.HasAnyStock;
 
-            // Check product availability (backend-controlled flag)
-            var isAvailableForPurchase = product.AvailableForPurchase;
-
-            // Determine blocked reason (no region check in this method - used when no destination)
-            string? blockedReason = null;
-            if (!isAvailableForPurchase)
-            {
-                blockedReason = "Not available for purchase";
-            }
-            else if (!stockResult.HasAnyStock)
-            {
-                blockedReason = "Out of stock";
-            }
-
-            // CanAddToOrder: available for purchase AND has stock
-            // (no region check since this is used when destination is unknown)
-            var canAddToOrder = isAvailableForPurchase && stockResult.HasAnyStock;
-
-            // Calculate aggregate stock status using backend settings
-            var aggregateStockStatus = CalculateAggregateStockStatus(
-                stockResult.TotalAvailableStock,
-                stockResult.HasAnyTrackingWarehouse,
-                settings.Value.LowStockThreshold);
-
-            return new ProductFulfillmentOptionsDto
-            {
-                CanAddToOrder = canAddToOrder,
-                FulfillingWarehouse = fulfillingWarehouse,
-                BlockedReason = blockedReason,
-                HasAvailableStock = stockResult.HasAnyStock,
-                AvailableStock = stockResult.TotalAvailableStock,
-                AggregateStockStatus = aggregateStockStatus,
-                AggregateStockStatusLabel = aggregateStockStatus.ToLabel(),
-                AggregateStockStatusCssClass = aggregateStockStatus.ToCssClass()
-            };
-        });
-
-        scope.Complete();
-        return result;
+        return new ProductFulfillmentOptionsDto
+        {
+            CanAddToOrder = canAddToOrder,
+            FulfillingWarehouse = fulfillingWarehouse,
+            BlockedReason = blockedReason,
+            HasAvailableStock = stockResult.HasAnyStock,
+            AvailableStock = stockResult.TotalAvailableStock,
+            AggregateStockStatus = aggregateStockStatus,
+            AggregateStockStatusLabel = aggregateStockStatus.ToLabel(),
+            AggregateStockStatusCssClass = aggregateStockStatus.ToCssClass()
+        };
     }
 }
 
