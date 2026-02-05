@@ -72,6 +72,45 @@ Add/Remove = collection ops; Create/Delete = entity lifecycle. Internal: `{Entit
 ## API/Performance
 RESTful, attribute routing, versioning; async/await, IMemoryCache, pagination; efficient LINQ, avoid N+1
 
+## SQLite Aggregation Functions (CRITICAL)
+
+**SQLite does NOT support EF Core's `Min()`/`Max()` aggregate functions in Select projections.** Using them causes `SQLite Error 1: 'no such function: ef_min'`.
+
+**BAD - Will fail on SQLite:**
+```csharp
+.Select(x => new Dto {
+    MinPrice = x.Products.Min(p => p.Price),  // FAILS!
+    MaxPrice = x.Products.Max(p => p.Price),  // FAILS!
+})
+```
+
+**GOOD - Calculate in memory:**
+```csharp
+// 1. Query with placeholders
+var items = await query.Select(x => new Dto {
+    ProductRootId = x.ProductRootId,
+    MinPrice = 0,  // Placeholder
+    MaxPrice = 0,  // Placeholder
+}).ToListAsync();
+
+// 2. Load only needed columns for aggregation
+var prices = await db.Products
+    .Where(p => productRootIds.Contains(p.ProductRootId))
+    .Select(p => new { p.ProductRootId, p.Price })
+    .ToListAsync();
+
+// 3. Aggregate in memory
+var priceDict = prices.GroupBy(p => p.ProductRootId)
+    .ToDictionary(g => g.Key, g => (Min: g.Min(p => p.Price), Max: g.Max(p => p.Price)));
+
+// 4. Update items
+foreach (var item in items)
+    if (priceDict.TryGetValue(item.ProductRootId, out var range))
+    { item.MinPrice = range.Min; item.MaxPrice = range.Max; }
+```
+
+Reference: `ProductService.QueryProductListAsync()` for full pattern.
+
 ## Conventions
 - DI throughout, custom mapping (no AutoMapper), IHostedService for background
 - Controllers never access DbContext - inject services; design reusable methods with flexible parameters

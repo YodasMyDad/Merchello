@@ -7,5 +7,9 @@ public enum ProductOrderBy
     ProductRoot,
     Popularity,
     DateCreated,
-    DateUpdated
+    DateUpdated,
+    /// <summary>
+    /// Order by warehouse priority. Only applies when WarehouseId filter is set.
+    /// </summary>
+    WarehousePriority
 }

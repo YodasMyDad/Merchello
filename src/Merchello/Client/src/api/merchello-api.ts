@@ -1225,6 +1225,25 @@ export const MerchelloApi = {
     apiDelete(`warehouses/${warehouseId}/service-regions/${regionId}`),
 
   // ============================================
+  // Warehouse Products API
+  // ============================================
+
+  /** Get paginated products assigned to a warehouse */
+  getWarehouseProducts: (warehouseId: string, page = 1, pageSize = 20, search?: string) => {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search) params.set('search', search);
+    return apiGet<ProductPageDto>(`warehouses/${warehouseId}/products?${params.toString()}`);
+  },
+
+  /** Add products to a warehouse */
+  addProductsToWarehouse: (warehouseId: string, productRootIds: string[]) =>
+    apiPost<number>(`warehouses/${warehouseId}/products`, { productRootIds }),
+
+  /** Remove products from a warehouse */
+  removeProductsFromWarehouse: (warehouseId: string, productRootIds: string[]) =>
+    apiPost<void>(`warehouses/${warehouseId}/products/remove`, { productRootIds }),
+
+  // ============================================
   // Warehouse Available Destinations API
   // ============================================
 

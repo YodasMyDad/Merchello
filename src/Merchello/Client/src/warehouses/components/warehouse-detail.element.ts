@@ -13,8 +13,10 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_SERVICE_REGION_MODAL } from "@warehouses/modals/service-region-modal.token.js";
 import { MERCHELLO_SUPPLIER_MODAL } from "@suppliers/modals/supplier-modal.token.js";
 import { MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL } from "@shipping/modals/shipping-option-detail-modal.token.js";
+import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 import type { ShippingOptionDto } from "@shipping/types/shipping.types.js";
 import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
+import type { ProductListItemDto, ProductSelectionChangeEventDetail } from "@products/types/product.types.js";
 import {
   navigateToWarehousesList,
   getWarehousesListHref,
@@ -23,8 +25,10 @@ import {
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import type { AddressDto, SelectOption } from "@shared/types/index.js";
+import "@products/components/product-table.element.js";
+import "@shared/components/pagination.element.js";
 
-type TabId = "general" | "regions" | "options";
+type TabId = "general" | "regions" | "options" | "products";
 
 function createEmptyAddress(): AddressDto {
   return {
@@ -63,6 +67,18 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   @state() private _isDeletingRegion: string | null = null;
   @state() private _isDeletingOption: string | null = null;
 
+  // Products tab state
+  @state() private _warehouseProducts: ProductListItemDto[] = [];
+  @state() private _productsPage = 1;
+  @state() private _productsTotalPages = 0;
+  @state() private _productsTotalItems = 0;
+  @state() private _productsSearch = "";
+  @state() private _selectedProductIds: string[] = [];
+  @state() private _isLoadingProducts = false;
+  @state() private _isRemovingProducts = false;
+  @state() private _productsLoaded = false;
+
+  #searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #workspaceContext?: MerchelloWarehousesWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
@@ -102,6 +118,11 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
+    // Clean up debounce timer to prevent memory leaks
+    if (this.#searchDebounceTimer) {
+      clearTimeout(this.#searchDebounceTimer);
+      this.#searchDebounceTimer = null;
+    }
   }
 
   // Tab routing
@@ -111,6 +132,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       { path: "tab/general", component: stubComponent },
       { path: "tab/regions", component: stubComponent },
       { path: "tab/options", component: stubComponent },
+      { path: "tab/products", component: stubComponent },
       { path: "", redirectTo: "tab/general" },
     ];
   }
@@ -118,6 +140,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
   private _getActiveTab(): TabId {
     if (this._activePath.includes("tab/regions")) return "regions";
     if (this._activePath.includes("tab/options")) return "options";
+    if (this._activePath.includes("tab/products")) return "products";
     return "general";
   }
 
@@ -130,6 +153,10 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     // Load shipping options when navigating to options tab
     if (this._getActiveTab() === "options" && this._shippingOptions.length === 0) {
       this._loadShippingOptions();
+    }
+    // Load products when navigating to products tab
+    if (this._getActiveTab() === "products" && !this._productsLoaded) {
+      this._loadWarehouseProducts();
     }
   }
 
@@ -486,6 +513,158 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     });
     this._loadShippingOptions();
     this.#workspaceContext?.reload();
+  }
+
+  // Products tab handlers
+  private async _loadWarehouseProducts(): Promise<void> {
+    if (!this._warehouse?.id) return;
+
+    this._isLoadingProducts = true;
+    const { data, error } = await MerchelloApi.getWarehouseProducts(
+      this._warehouse.id,
+      this._productsPage,
+      20,
+      this._productsSearch || undefined
+    );
+
+    if (!this.#isConnected) return;
+
+    this._isLoadingProducts = false;
+    this._productsLoaded = true;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to load products", message: error.message }
+      });
+      return;
+    }
+
+    if (data) {
+      this._warehouseProducts = data.items;
+      this._productsTotalPages = data.totalPages;
+      this._productsTotalItems = data.totalItems;
+    }
+  }
+
+  private _handleProductsSearchInput(e: Event): void {
+    const value = (e.target as HTMLInputElement).value;
+
+    // Clear existing debounce timer
+    if (this.#searchDebounceTimer) {
+      clearTimeout(this.#searchDebounceTimer);
+    }
+
+    // Debounce search
+    this.#searchDebounceTimer = setTimeout(() => {
+      this._productsSearch = value;
+      this._productsPage = 1;
+      this._loadWarehouseProducts();
+    }, 300);
+  }
+
+  private _handleProductsPageChange(e: CustomEvent<{ page: number }>): void {
+    this._productsPage = e.detail.page;
+    this._loadWarehouseProducts();
+  }
+
+  private _handleProductSelectionChange(e: CustomEvent<ProductSelectionChangeEventDetail>): void {
+    this._selectedProductIds = e.detail.selectedIds;
+  }
+
+  private async _handleAddProducts(): Promise<void> {
+    if (!this.#modalManager || !this._warehouse?.id) return;
+
+    // Get existing product IDs to exclude
+    const existingIds = this._warehouseProducts.map(p => p.productRootId);
+
+    const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
+      data: {
+        config: {
+          currencySymbol: "£", // TODO: Get from store settings
+          propertyEditorMode: true,
+          showAddons: false,
+          excludeProductIds: existingIds,
+        },
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (!this.#isConnected) return;
+
+    if (result?.selections?.length) {
+      // Get unique product root IDs from selections
+      const productRootIds = [...new Set(result.selections.map(s => s.productRootId))];
+
+      const { error } = await MerchelloApi.addProductsToWarehouse(this._warehouse.id, productRootIds);
+
+      if (!this.#isConnected) return;
+
+      if (error) {
+        this.#notificationContext?.peek("danger", {
+          data: { headline: "Failed to add products", message: error.message }
+        });
+        return;
+      }
+
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Products added", message: `${productRootIds.length} product(s) added to warehouse` }
+      });
+
+      // Reload products list
+      this._selectedProductIds = [];
+      this._loadWarehouseProducts();
+    }
+  }
+
+  private async _handleRemoveSelectedProducts(): Promise<void> {
+    if (!this._warehouse?.id || this._selectedProductIds.length === 0) return;
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Remove Products",
+        content: `Are you sure you want to remove ${this._selectedProductIds.length} product(s) from this warehouse? This will also remove any stock records for these products at this warehouse.`,
+        confirmLabel: "Remove",
+        color: "danger",
+      },
+    });
+
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
+    if (!this.#isConnected) return;
+
+    this._isRemovingProducts = true;
+
+    const { error } = await MerchelloApi.removeProductsFromWarehouse(
+      this._warehouse.id,
+      this._selectedProductIds
+    );
+
+    if (!this.#isConnected) return;
+
+    this._isRemovingProducts = false;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Failed to remove products", message: error.message }
+      });
+      return;
+    }
+
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Products removed", message: `${this._selectedProductIds.length} product(s) removed from warehouse` }
+    });
+
+    // Clear selection and reload
+    this._selectedProductIds = [];
+    this._loadWarehouseProducts();
+  }
+
+  private _mapToProductTableFormat(): ProductListItemDto[] {
+    // ProductListItemDto is now returned directly from API - no mapping needed
+    return this._warehouseProducts;
   }
 
   // Validation helpers
@@ -927,6 +1106,103 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     `;
   }
 
+  private _renderProductsTab(): unknown {
+    const isNew = this.#workspaceContext?.isNew ?? true;
+    const products = this._mapToProductTableFormat();
+    const hasSelection = this._selectedProductIds.length > 0;
+
+    return html`
+      <div class="tab-content">
+        ${isNew
+          ? html`
+              <div class="info-banner warning">
+                <uui-icon name="icon-alert"></uui-icon>
+                <span>Save the warehouse first before adding products.</span>
+              </div>
+            `
+          : nothing}
+
+        <div class="section-header">
+          <h3>Products (${this._productsTotalItems})</h3>
+          <div class="header-actions">
+            ${hasSelection
+              ? html`
+                  <uui-button
+                    look="primary"
+                    color="danger"
+                    label="Remove Selected"
+                    ?disabled=${isNew || this._isRemovingProducts}
+                    @click=${this._handleRemoveSelectedProducts}>
+                    ${this._isRemovingProducts ? "Removing..." : `Remove (${this._selectedProductIds.length})`}
+                  </uui-button>
+                `
+              : nothing}
+            <uui-button
+              look="primary"
+              color="positive"
+              label="Add Products"
+              ?disabled=${isNew}
+              @click=${this._handleAddProducts}>
+              Add Products
+            </uui-button>
+          </div>
+        </div>
+
+        ${!isNew
+          ? html`
+              <div class="search-bar">
+                <uui-input
+                  type="search"
+                  placeholder="Search products..."
+                  .value=${this._productsSearch}
+                  @input=${this._handleProductsSearchInput}
+                  label="Search products">
+                  <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                </uui-input>
+              </div>
+            `
+          : nothing}
+
+        ${this._isLoadingProducts
+          ? html`<div class="loading"><uui-loader></uui-loader></div>`
+          : products.length > 0
+            ? html`
+                <merchello-product-table
+                  .products=${products}
+                  .columns=${["rootName", "sku", "price", "variants"]}
+                  .selectable=${true}
+                  .selectedIds=${this._selectedProductIds}
+                  .clickable=${true}
+                  @selection-change=${this._handleProductSelectionChange}>
+                </merchello-product-table>
+
+                ${this._productsTotalPages > 1
+                  ? html`
+                      <merchello-pagination
+                        .currentPage=${this._productsPage}
+                        .totalPages=${this._productsTotalPages}
+                        @page-change=${this._handleProductsPageChange}>
+                      </merchello-pagination>
+                    `
+                  : nothing}
+              `
+            : !isNew
+              ? html`
+                  <div class="empty-state">
+                    <uui-icon name="icon-product"></uui-icon>
+                    <p>No products assigned to this warehouse</p>
+                    <uui-button
+                      look="primary"
+                      @click=${this._handleAddProducts}>
+                      Add Products
+                    </uui-button>
+                  </div>
+                `
+              : nothing}
+      </div>
+    `;
+  }
+
   private _renderTabContent(): unknown {
     const activeTab = this._getActiveTab();
     switch (activeTab) {
@@ -936,6 +1212,8 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         return this._renderRegionsTab();
       case "options":
         return this._renderOptionsTab();
+      case "products":
+        return this._renderProductsTab();
       default:
         return this._renderGeneralTab();
     }
@@ -1005,6 +1283,12 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
                 Shipping Options${(this._warehouse?.shippingOptionCount ?? 0) === 0 ? html`<uui-icon name="icon-alert" class="tab-warning"></uui-icon>` : nothing}
                 <span class="tab-count">(${this._warehouse?.shippingOptionCount ?? 0})</span>
               </span>
+            </uui-tab>
+            <uui-tab
+              label="Products"
+              href="${this._routerPath}/tab/products"
+              ?active=${this._getActiveTab() === "products"}>
+              Products
             </uui-tab>
           </uui-tab-group>
 
@@ -1286,6 +1570,20 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
       .section-header h3 {
         margin: 0;
+      }
+
+      .header-actions {
+        display: flex;
+        gap: var(--uui-size-space-2);
+        align-items: center;
+      }
+
+      .search-bar {
+        margin-bottom: var(--uui-size-space-4);
+      }
+
+      .search-bar uui-input {
+        width: 300px;
       }
 
       .table-container {

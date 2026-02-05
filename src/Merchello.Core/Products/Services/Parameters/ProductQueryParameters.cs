@@ -67,4 +67,10 @@ public class ProductQueryParameters
     /// Used when OrderBy is set to Popularity.
     /// </summary>
     public DateTime? PopularityToDate { get; set; }
+
+    /// <summary>
+    /// Filter products by warehouse assignment. When set, only products assigned to this warehouse
+    /// via ProductRootWarehouse are included.
+    /// </summary>
+    public Guid? WarehouseId { get; set; }
 }

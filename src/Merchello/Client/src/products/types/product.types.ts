@@ -106,6 +106,8 @@ export interface ProductListItemDto {
   hasWarehouse: boolean;
   hasShippingOptions: boolean;
   isDigitalProduct: boolean;
+  /** Priority order for warehouse-specific product lists. Only populated when querying by WarehouseId. */
+  priorityOrder: number | null;
 }
 
 // Full product root for editing

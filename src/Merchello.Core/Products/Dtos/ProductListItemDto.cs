@@ -51,4 +51,10 @@ public class ProductListItemDto
     /// Null when fetched without display context (e.g., admin API).
     /// </summary>
     public ProductDisplayPrice? DisplayPrice { get; set; }
+
+    /// <summary>
+    /// Priority order for warehouse-specific product lists.
+    /// Only populated when querying by WarehouseId.
+    /// </summary>
+    public int? PriorityOrder { get; set; }
 }

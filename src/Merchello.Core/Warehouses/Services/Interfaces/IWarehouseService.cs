@@ -30,6 +30,24 @@ public interface IWarehouseService
     Task<CrudResult<bool>> RemoveWarehouseFromProductRoot(Guid productRootId, Guid warehouseId, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateWarehousePriority(UpdateWarehousePriorityParameters parameters, CancellationToken cancellationToken = default);
 
+    // Warehouse Products Management
+    /// <summary>
+    /// Adds multiple products to a warehouse in bulk.
+    /// </summary>
+    Task<CrudResult<int>> AddProductsToWarehouseAsync(
+        Guid warehouseId,
+        List<Guid> productRootIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes multiple products from a warehouse in bulk.
+    /// Also removes variant-level stock records.
+    /// </summary>
+    Task<CrudResult<int>> RemoveProductsFromWarehouseAsync(
+        Guid warehouseId,
+        List<Guid> productRootIds,
+        CancellationToken cancellationToken = default);
+
     // Stock Management
     Task<CrudResult<bool>> SetProductStock(SetProductStockParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> AdjustStock(StockAdjustmentParameters parameters, CancellationToken cancellationToken = default);

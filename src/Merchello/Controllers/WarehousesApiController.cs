@@ -2,6 +2,10 @@ using Asp.Versioning;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Products.Dtos;
+using Merchello.Core.Products.Models;
+using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Suppliers.Services.Interfaces;
@@ -22,6 +26,7 @@ public class WarehousesApiController(
     ISupplierService supplierService,
     ILocationsService locationsService,
     IShippingService shippingService,
+    IProductService productService,
     AddressFactory addressFactory) : MerchelloApiControllerBase
 {
     #region Warehouses
@@ -213,6 +218,81 @@ public class WarehousesApiController(
             return NotFound();
         }
 
+        return NoContent();
+    }
+
+    #endregion
+
+    #region Warehouse Products
+
+    /// <summary>
+    /// Get paginated products assigned to a warehouse
+    /// </summary>
+    [HttpGet("warehouses/{warehouseId:guid}/products")]
+    [ProducesResponseType<ProductPageDto>(StatusCodes.Status200OK)]
+    public async Task<ProductPageDto> GetWarehouseProducts(
+        Guid warehouseId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        CancellationToken ct = default)
+    {
+        var result = await productService.QueryProductsSummary(
+            new ProductQueryParameters
+            {
+                WarehouseId = warehouseId,
+                CurrentPage = page,
+                AmountPerPage = pageSize,
+                Search = search,
+                OrderBy = ProductOrderBy.WarehousePriority
+            },
+            ct);
+
+        return new ProductPageDto
+        {
+            Items = result.Items.ToList(),
+            Page = result.PageIndex,
+            PageSize = pageSize,
+            TotalItems = result.TotalItems,
+            TotalPages = result.TotalPages
+        };
+    }
+
+    /// <summary>
+    /// Add products to a warehouse
+    /// </summary>
+    [HttpPost("warehouses/{warehouseId:guid}/products")]
+    [ProducesResponseType<int>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AddProductsToWarehouse(
+        Guid warehouseId,
+        [FromBody] AddProductsToWarehouseDto dto,
+        CancellationToken ct)
+    {
+        var result = await warehouseService.AddProductsToWarehouseAsync(warehouseId, dto.ProductRootIds, ct);
+        if (!result.Successful)
+        {
+            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add products to warehouse.");
+        }
+        return Ok(result.ResultObject);
+    }
+
+    /// <summary>
+    /// Remove products from a warehouse
+    /// </summary>
+    [HttpPost("warehouses/{warehouseId:guid}/products/remove")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RemoveProductsFromWarehouse(
+        Guid warehouseId,
+        [FromBody] RemoveProductsFromWarehouseDto dto,
+        CancellationToken ct)
+    {
+        var result = await warehouseService.RemoveProductsFromWarehouseAsync(warehouseId, dto.ProductRootIds, ct);
+        if (!result.Successful)
+        {
+            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to remove products from warehouse.");
+        }
         return NoContent();
     }
 

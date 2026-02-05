@@ -569,6 +569,8 @@ public class ProductService(
             ProductOrderBy.ProductRoot => query.OrderBy(p => p.ProductRoot.RootName),
             // Popularity is handled in QueryProducts, fallback to DateCreated for non-popularity paths
             ProductOrderBy.Popularity => query.OrderByDescending(p => p.DateCreated),
+            // WarehousePriority is handled in QueryProductsSummary, fallback to ProductRoot for other paths
+            ProductOrderBy.WarehousePriority => query.OrderBy(p => p.ProductRoot.RootName),
             _ => query.OrderBy(p => p.Name)
         };
     }
@@ -1002,6 +1004,12 @@ public class ProductService(
             baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
         }
 
+        if (parameters.WarehouseId.HasValue)
+        {
+            baseQuery = baseQuery.Where(x =>
+                x.ProductRoot.ProductRootWarehouses.Any(prw => prw.WarehouseId == parameters.WarehouseId.Value));
+        }
+
         return baseQuery;
     }
 
@@ -1193,8 +1201,23 @@ public class ProductService(
                 return new PaginatedList<ProductListItemDto>([], 0, parameters.CurrentPage, parameters.AmountPerPage);
             }
 
-            // Apply ordering
-            var orderedQuery = ApplyOrdering(resultQuery, parameters.OrderBy);
+            // Apply ordering - special handling for WarehousePriority
+            IQueryable<Product> orderedQuery;
+            if (parameters.OrderBy == ProductOrderBy.WarehousePriority && parameters.WarehouseId.HasValue)
+            {
+                // Order by warehouse priority then by name
+                var warehouseId = parameters.WarehouseId.Value;
+                orderedQuery = resultQuery
+                    .OrderBy(p => p.ProductRoot.ProductRootWarehouses
+                        .Where(prw => prw.WarehouseId == warehouseId)
+                        .Select(prw => prw.PriorityOrder)
+                        .FirstOrDefault())
+                    .ThenBy(p => p.ProductRoot.RootName);
+            }
+            else
+            {
+                orderedQuery = ApplyOrdering(resultQuery, parameters.OrderBy);
+            }
 
             // Project directly to DTO with database-level aggregations
             // Note: MinPrice/MaxPrice use placeholder - we calculate them in a separate query
@@ -1254,6 +1277,25 @@ public class ProductService(
                     {
                         item.MinPrice = range.Min;
                         item.MaxPrice = range.Max;
+                    }
+                }
+
+                // Load PriorityOrder when filtering by warehouse
+                if (parameters.WarehouseId.HasValue)
+                {
+                    var priorityDict = await db.ProductRootWarehouses
+                        .Where(prw => prw.WarehouseId == parameters.WarehouseId.Value &&
+                                      productRootIds.Contains(prw.ProductRootId))
+                        .Select(prw => new { prw.ProductRootId, prw.PriorityOrder })
+                        .AsNoTracking()
+                        .ToDictionaryAsync(x => x.ProductRootId, x => x.PriorityOrder, cancellationToken);
+
+                    foreach (var item in items)
+                    {
+                        if (priorityDict.TryGetValue(item.ProductRootId, out var priority))
+                        {
+                            item.PriorityOrder = priority;
+                        }
                     }
                 }
             }

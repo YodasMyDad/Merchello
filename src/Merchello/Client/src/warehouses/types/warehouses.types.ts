@@ -142,3 +142,14 @@ export interface FulfillmentWarehouseDto {
   /** Available stock at this warehouse */
   availableStock: number;
 }
+
+// Warehouse Products DTOs - now using centralized ProductListItemDto and ProductPageDto from @products/types
+// The ProductListItemDto has an optional priorityOrder field that's populated when querying by warehouse
+
+export interface AddProductsToWarehouseDto {
+  productRootIds: string[];
+}
+
+export interface RemoveProductsFromWarehouseDto {
+  productRootIds: string[];
+}

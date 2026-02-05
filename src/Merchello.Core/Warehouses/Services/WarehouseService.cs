@@ -697,6 +697,145 @@ public class WarehouseService(
 
     #endregion
 
+    #region Warehouse Products Management
+
+    /// <summary>
+    /// Adds multiple products to a warehouse in bulk.
+    /// </summary>
+    public async Task<CrudResult<int>> AddProductsToWarehouseAsync(
+        Guid warehouseId,
+        List<Guid> productRootIds,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<int>();
+        var addedCount = 0;
+
+        if (productRootIds.Count == 0)
+        {
+            result.ResultObject = 0;
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            // Validate warehouse exists
+            var warehouseExists = await db.Warehouses
+                .AnyAsync(w => w.Id == warehouseId, cancellationToken);
+
+            if (!warehouseExists)
+            {
+                result.AddErrorMessage("Warehouse not found");
+                return false;
+            }
+
+            // Get existing associations to avoid duplicates
+            var existingProductRootIds = await db.ProductRootWarehouses
+                .Where(prw => prw.WarehouseId == warehouseId && productRootIds.Contains(prw.ProductRootId))
+                .Select(prw => prw.ProductRootId)
+                .ToListAsync(cancellationToken);
+
+            // Get max priority order
+            var maxPriority = await db.ProductRootWarehouses
+                .Where(prw => prw.WarehouseId == warehouseId)
+                .MaxAsync(prw => (int?)prw.PriorityOrder, cancellationToken) ?? 0;
+
+            foreach (var productRootId in productRootIds)
+            {
+                if (existingProductRootIds.Contains(productRootId))
+                    continue;
+
+                db.ProductRootWarehouses.Add(new ProductRootWarehouse
+                {
+                    ProductRootId = productRootId,
+                    WarehouseId = warehouseId,
+                    PriorityOrder = ++maxPriority
+                });
+                addedCount++;
+            }
+
+            if (addedCount > 0)
+            {
+                await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+            }
+
+            return true;
+        });
+        scope.Complete();
+
+        result.ResultObject = addedCount;
+        return result;
+    }
+
+    /// <summary>
+    /// Removes multiple products from a warehouse in bulk.
+    /// Also removes variant-level stock records.
+    /// </summary>
+    public async Task<CrudResult<int>> RemoveProductsFromWarehouseAsync(
+        Guid warehouseId,
+        List<Guid> productRootIds,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<int>();
+
+        if (productRootIds.Count == 0)
+        {
+            result.ResultObject = 0;
+            return result;
+        }
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            // Get ProductRootWarehouse records to remove
+            var toRemove = await db.ProductRootWarehouses
+                .Where(prw => prw.WarehouseId == warehouseId && productRootIds.Contains(prw.ProductRootId))
+                .ToListAsync(cancellationToken);
+
+            if (toRemove.Count == 0)
+            {
+                result.ResultObject = 0;
+                return true;
+            }
+
+            // Get all variant product IDs for these product roots
+            var productIds = await db.Products
+                .Where(p => productRootIds.Contains(p.ProductRootId))
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+
+            // Remove variant-level stock records at this warehouse
+            if (productIds.Count > 0)
+            {
+                var stockRecords = await db.ProductWarehouses
+                    .Where(pw => pw.WarehouseId == warehouseId && productIds.Contains(pw.ProductId))
+                    .ToListAsync(cancellationToken);
+
+                if (stockRecords.Count > 0)
+                {
+                    db.ProductWarehouses.RemoveRange(stockRecords);
+                    logger.LogInformation(
+                        "Removing {ProductCount} products from warehouse {WarehouseId} - deleted {StockCount} stock records",
+                        toRemove.Count,
+                        warehouseId,
+                        stockRecords.Count);
+                }
+            }
+
+            // Remove ProductRootWarehouse records
+            db.ProductRootWarehouses.RemoveRange(toRemove);
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            result.ResultObject = toRemove.Count;
+            return true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    #endregion
+
     #region Stock Management
 
     /// <summary>

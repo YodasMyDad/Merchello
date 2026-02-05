@@ -344,11 +344,14 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       // Inject z-index fix for Cardinal 3DS modal (used by Braintree)
       this._injectCardinalZIndexFix();
 
+      // Set loaded=true BEFORE rendering so the placeholder is visible for measuring
+      this._paymentFormLoaded = true;
+      await this.updateComplete;
+
       // Try to render the payment form
       await this._renderPaymentAdapter(data);
-
-      this._paymentFormLoaded = true;
     } catch (err) {
+      this._paymentFormLoaded = false;
       this._paymentFormError = err instanceof Error ? err.message : "Failed to load payment form";
     }
 
@@ -1850,6 +1853,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
     /* Payment form container */
     #payment-form-container {
+      width: 100%;
       min-height: 200px;
       padding: var(--uui-size-space-4);
       border: 1px solid var(--uui-color-border);
