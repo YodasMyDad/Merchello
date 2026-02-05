@@ -56,22 +56,7 @@ public class CustomerService(
 
             var orderCount = await db.Invoices.CountAsync(i => i.CustomerId == customer.Id, ct);
 
-            return new CustomerListItemDto
-            {
-                Id = customer.Id,
-                Email = customer.Email,
-                FirstName = customer.FirstName,
-                LastName = customer.LastName,
-                MemberKey = customer.MemberKey,
-                DateCreated = customer.DateCreated,
-                OrderCount = orderCount,
-                Tags = customer.Tags,
-                IsFlagged = customer.IsFlagged,
-                AcceptsMarketing = customer.AcceptsMarketing,
-                HasAccountTerms = customer.HasAccountTerms,
-                PaymentTermsDays = customer.PaymentTermsDays,
-                CreditLimit = customer.CreditLimit
-            };
+            return MapToCustomerListItemDto(customer, orderCount);
         });
         scope.Complete();
         return result;
@@ -491,22 +476,9 @@ public class CustomerService(
                 .Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
 
-            var items = customers.Select(c => new CustomerListItemDto
-            {
-                Id = c.Id,
-                Email = c.Email,
-                FirstName = c.FirstName,
-                LastName = c.LastName,
-                MemberKey = c.MemberKey,
-                DateCreated = c.DateCreated,
-                OrderCount = orderCounts.GetValueOrDefault(c.Id, 0),
-                Tags = c.Tags,
-                IsFlagged = c.IsFlagged,
-                AcceptsMarketing = c.AcceptsMarketing,
-                HasAccountTerms = c.HasAccountTerms,
-                PaymentTermsDays = c.PaymentTermsDays,
-                CreditLimit = c.CreditLimit
-            }).ToList();
+            var items = customers
+                .Select(c => MapToCustomerListItemDto(c, orderCounts.GetValueOrDefault(c.Id, 0)))
+                .ToList();
 
             return new CustomerPageDto
             {
@@ -578,22 +550,9 @@ public class CustomerService(
                 .Select(g => new { g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
 
-            return customers.Select(c => new CustomerListItemDto
-            {
-                Id = c.Id,
-                Email = c.Email,
-                FirstName = c.FirstName,
-                LastName = c.LastName,
-                MemberKey = c.MemberKey,
-                DateCreated = c.DateCreated,
-                OrderCount = orderCounts.GetValueOrDefault(c.Id, 0),
-                Tags = c.Tags,
-                IsFlagged = c.IsFlagged,
-                AcceptsMarketing = c.AcceptsMarketing,
-                HasAccountTerms = c.HasAccountTerms,
-                PaymentTermsDays = c.PaymentTermsDays,
-                CreditLimit = c.CreditLimit
-            }).ToList();
+            return customers
+                .Select(c => MapToCustomerListItemDto(c, orderCounts.GetValueOrDefault(c.Id, 0)))
+                .ToList();
         });
         scope.Complete();
         return result;
@@ -810,6 +769,26 @@ public class CustomerService(
     {
         var key = $"{address.AddressOne?.Trim().ToLower()}|{address.TownCity?.Trim().ToLower()}|{address.PostalCode?.Trim().ToLower()}|{address.CountryCode?.Trim().ToLower()}";
         return key;
+    }
+
+    private static CustomerListItemDto MapToCustomerListItemDto(Customer customer, int orderCount)
+    {
+        return new CustomerListItemDto
+        {
+            Id = customer.Id,
+            Email = customer.Email,
+            FirstName = customer.FirstName,
+            LastName = customer.LastName,
+            MemberKey = customer.MemberKey,
+            DateCreated = customer.DateCreated,
+            OrderCount = orderCount,
+            Tags = customer.Tags,
+            IsFlagged = customer.IsFlagged,
+            AcceptsMarketing = customer.AcceptsMarketing,
+            HasAccountTerms = customer.HasAccountTerms,
+            PaymentTermsDays = customer.PaymentTermsDays,
+            CreditLimit = customer.CreditLimit
+        };
     }
 
     private static AddressDto MapAddressToDto(Address address)
