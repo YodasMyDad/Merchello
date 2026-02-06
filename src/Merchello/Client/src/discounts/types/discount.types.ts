@@ -94,9 +94,11 @@ export interface DiscountListItemDto {
   statusLabel: string;
   statusColor: string;
   category: DiscountCategory;
+  categoryLabel: string;
   method: DiscountMethod;
   valueType: DiscountValueType;
   value: number;
+  formattedValue: string;
   startsAt: string;
   endsAt?: string | null;
   currentUsageCount: number;
@@ -123,10 +125,12 @@ export interface DiscountDetailDto {
   statusLabel: string;
   statusColor: string;
   category: DiscountCategory;
+  categoryLabel: string;
   method: DiscountMethod;
   code?: string | null;
   valueType: DiscountValueType;
   value: number;
+  formattedValue: string;
   startsAt: string;
   endsAt?: string | null;
   timezone?: string | null;

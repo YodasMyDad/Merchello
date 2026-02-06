@@ -6,7 +6,9 @@ using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
 using Xunit;
@@ -21,16 +23,24 @@ public class DiscountsApiControllerTests
 {
     private readonly Mock<IDiscountService> _discountServiceMock;
     private readonly Mock<IDiscountRuleNameResolver> _ruleNameResolverMock;
+    private readonly Mock<ICurrencyService> _currencyServiceMock;
     private readonly DiscountsApiController _controller;
 
     public DiscountsApiControllerTests()
     {
         _discountServiceMock = new Mock<IDiscountService>();
         _ruleNameResolverMock = new Mock<IDiscountRuleNameResolver>();
+        _currencyServiceMock = new Mock<ICurrencyService>();
+        _currencyServiceMock.Setup(c => c.FormatAmount(It.IsAny<decimal>(), It.IsAny<string>()))
+            .Returns<decimal, string>((amount, _) => $"${amount:N2}");
+
+        var settings = Options.Create(new MerchelloSettings { StoreCurrencyCode = "USD" });
 
         _controller = new DiscountsApiController(
             _discountServiceMock.Object,
-            _ruleNameResolverMock.Object);
+            _ruleNameResolverMock.Object,
+            _currencyServiceMock.Object,
+            settings);
     }
 
     #region A. GetDiscounts Tests

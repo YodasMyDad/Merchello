@@ -1305,6 +1305,13 @@ public class ProductService(
                 }
             }
 
+            // Populate display labels from backend (source of truth)
+            foreach (var item in items)
+            {
+                item.PurchaseStatusLabel = item.Purchaseable ? "Available" : "Unavailable";
+                item.PurchaseStatusCssClass = item.Purchaseable ? "badge-positive" : "badge-danger";
+            }
+
             return new PaginatedList<ProductListItemDto>(items, totalCount, parameters.CurrentPage, parameters.AmountPerPage);
         });
         scope.Complete();

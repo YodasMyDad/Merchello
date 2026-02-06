@@ -106,6 +106,10 @@ export interface ProductListItemDto {
   minPrice: number | null;
   maxPrice: number | null;
   purchaseable: boolean;
+  /** Display label for purchase status (backend source of truth) */
+  purchaseStatusLabel: string;
+  /** CSS class for purchase status badge (backend source of truth) */
+  purchaseStatusCssClass: string;
   variantCount: number;
   productTypeName: string;
   collectionNames: string[];

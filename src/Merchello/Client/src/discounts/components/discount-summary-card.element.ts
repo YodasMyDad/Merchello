@@ -5,7 +5,6 @@ import type { DiscountDetailDto } from "@discounts/types/discount.types.js";
 import {
   DiscountCategory,
   DiscountMethod,
-  DiscountValueType,
   DiscountRequirementType,
   DISCOUNT_CATEGORIES,
 } from "@discounts/types/discount.types.js";
@@ -21,15 +20,7 @@ export class MerchelloDiscountSummaryCardElement extends UmbElementMixin(LitElem
 
   private _formatValue(): string {
     if (!this.discount) return "";
-
-    if (this.discount.valueType === DiscountValueType.Percentage) {
-      return `${this.discount.value}% off`;
-    } else if (this.discount.valueType === DiscountValueType.FixedAmount) {
-      return `${this.discount.value} off`;
-    } else if (this.discount.valueType === DiscountValueType.Free) {
-      return "Free";
-    }
-    return "";
+    return this.discount.formattedValue;
   }
 
   private _formatDate(isoString: string | null | undefined): string {

@@ -1,4 +1,6 @@
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Discounts.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 
 namespace Merchello.Core.Discounts.Extensions;
 
@@ -31,6 +33,35 @@ public static class DiscountExtensions
             DiscountStatus.Scheduled => "warning",
             DiscountStatus.Expired or DiscountStatus.Disabled => "danger",
             _ => "default"
+        };
+    }
+
+    /// <summary>
+    /// Gets the display label for a discount category.
+    /// </summary>
+    public static string GetCategoryLabel(this DiscountCategory category)
+    {
+        return category switch
+        {
+            DiscountCategory.AmountOffProducts => "Products",
+            DiscountCategory.AmountOffOrder => "Order",
+            DiscountCategory.BuyXGetY => "Buy X Get Y",
+            DiscountCategory.FreeShipping => "Free Shipping",
+            _ => "Unknown"
+        };
+    }
+
+    /// <summary>
+    /// Gets the formatted display value for a discount (e.g., "10%", "$5.00", "Free").
+    /// </summary>
+    public static string GetFormattedValue(this DiscountValueType valueType, decimal value, ICurrencyService currencyService, string storeCurrencyCode)
+    {
+        return valueType switch
+        {
+            DiscountValueType.Percentage => $"{value}%",
+            DiscountValueType.FixedAmount => currencyService.FormatAmount(value, storeCurrencyCode),
+            DiscountValueType.Free => "Free",
+            _ => value.ToString()
         };
     }
 }

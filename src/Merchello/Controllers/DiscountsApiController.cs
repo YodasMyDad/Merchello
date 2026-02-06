@@ -5,9 +5,12 @@ using Merchello.Core.Discounts.Extensions;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -15,8 +18,11 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class DiscountsApiController(
     IDiscountService discountService,
-    IDiscountRuleNameResolver ruleNameResolver) : MerchelloApiControllerBase
+    IDiscountRuleNameResolver ruleNameResolver,
+    ICurrencyService currencyService,
+    IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
+    private readonly string _storeCurrencyCode = merchelloSettings.Value.StoreCurrencyCode;
     #region Discount CRUD
 
     /// <summary>
@@ -343,7 +349,7 @@ public class DiscountsApiController(
         }
     }
 
-    private static DiscountListItemDto MapToListItemDto(Discount discount, int usageCount)
+    private DiscountListItemDto MapToListItemDto(Discount discount, int usageCount)
     {
         return new DiscountListItemDto
         {
@@ -356,9 +362,11 @@ public class DiscountsApiController(
             StatusLabel = discount.Status.GetStatusLabel(),
             StatusColor = discount.Status.GetStatusColor(),
             Category = discount.Category,
+            CategoryLabel = discount.Category.GetCategoryLabel(),
             Method = discount.Method,
             ValueType = discount.ValueType,
             Value = discount.Value,
+            FormattedValue = discount.ValueType.GetFormattedValue(discount.Value, currencyService, _storeCurrencyCode),
             StartsAt = discount.StartsAt,
             EndsAt = discount.EndsAt,
             CurrentUsageCount = usageCount,
@@ -371,7 +379,7 @@ public class DiscountsApiController(
         };
     }
 
-    private static DiscountDetailDto MapToDetailDto(Discount discount, int usageCount)
+    private DiscountDetailDto MapToDetailDto(Discount discount, int usageCount)
     {
         return new DiscountDetailDto
         {
@@ -384,10 +392,12 @@ public class DiscountsApiController(
             StatusLabel = discount.Status.GetStatusLabel(),
             StatusColor = discount.Status.GetStatusColor(),
             Category = discount.Category,
+            CategoryLabel = discount.Category.GetCategoryLabel(),
             Method = discount.Method,
             Code = discount.Code,
             ValueType = discount.ValueType,
             Value = discount.Value,
+            FormattedValue = discount.ValueType.GetFormattedValue(discount.Value, currencyService, _storeCurrencyCode),
             StartsAt = discount.StartsAt,
             EndsAt = discount.EndsAt,
             Timezone = discount.Timezone,

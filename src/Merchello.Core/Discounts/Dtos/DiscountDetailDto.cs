@@ -17,10 +17,12 @@ public class DiscountDetailDto
     public string StatusLabel { get; set; } = string.Empty;
     public string StatusColor { get; set; } = "default";
     public DiscountCategory Category { get; set; }
+    public string CategoryLabel { get; set; } = string.Empty;
     public DiscountMethod Method { get; set; }
     public string? Code { get; set; }
     public DiscountValueType ValueType { get; set; }
     public decimal Value { get; set; }
+    public string FormattedValue { get; set; } = string.Empty;
     public DateTime StartsAt { get; set; }
     public DateTime? EndsAt { get; set; }
     public string? Timezone { get; set; }

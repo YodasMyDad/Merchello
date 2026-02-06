@@ -23,6 +23,16 @@ public class ProductListItemDto
 
     public bool Purchaseable { get; set; }
 
+    /// <summary>
+    /// Display label for purchase status (backend source of truth).
+    /// </summary>
+    public string PurchaseStatusLabel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// CSS class for purchase status badge (backend source of truth).
+    /// </summary>
+    public string PurchaseStatusCssClass { get; set; } = string.Empty;
+
     public int VariantCount { get; set; }
 
     public string ProductTypeName { get; set; } = string.Empty;

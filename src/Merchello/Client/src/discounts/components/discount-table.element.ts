@@ -2,12 +2,8 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { DiscountListItemDto } from "@discounts/types/discount.types.js";
-import {
-  DiscountCategory,
-  DiscountMethod,
-  DiscountValueType,
-} from "@discounts/types/discount.types.js";
-import { formatRelativeDate, formatCurrency } from "@shared/utils/formatting.js";
+import { DiscountMethod } from "@discounts/types/discount.types.js";
+import { formatRelativeDate } from "@shared/utils/formatting.js";
 import { getDiscountDetailHref } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 
@@ -93,31 +89,8 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
     );
   }
 
-  private _getCategoryLabel(category: DiscountCategory): string {
-    const labels: Record<DiscountCategory, string> = {
-      [DiscountCategory.AmountOffProducts]: "Products",
-      [DiscountCategory.AmountOffOrder]: "Order",
-      [DiscountCategory.BuyXGetY]: "Buy X Get Y",
-      [DiscountCategory.FreeShipping]: "Free Shipping",
-    };
-    return labels[category] || "Unknown";
-  }
-
   private _getMethodIcon(method: DiscountMethod): string {
     return method === DiscountMethod.Automatic ? "icon-bolt" : "icon-receipt-dollar";
-  }
-
-  private _formatValue(discount: DiscountListItemDto): string {
-    switch (discount.valueType) {
-      case DiscountValueType.Percentage:
-        return `${discount.value}%`;
-      case DiscountValueType.FixedAmount:
-        return formatCurrency(discount.value);
-      case DiscountValueType.Free:
-        return "Free";
-      default:
-        return String(discount.value);
-    }
   }
 
   private _formatUsage(discount: DiscountListItemDto): string {
@@ -180,7 +153,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
               </uui-table-cell>
 
               <uui-table-cell>
-                ${this._getCategoryLabel(discount.category)}
+                ${discount.categoryLabel}
               </uui-table-cell>
 
               <uui-table-cell class="method-cell">
@@ -189,7 +162,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
               </uui-table-cell>
 
               <uui-table-cell class="value-cell">
-                ${this._formatValue(discount)}
+                ${discount.formattedValue}
               </uui-table-cell>
 
               <uui-table-cell>

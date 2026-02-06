@@ -93,7 +93,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
       case "price":
         return html`<uui-table-cell>${this._formatPriceRange(product)}</uui-table-cell>`;
       case "purchaseable":
-        return html`<uui-table-cell><span class="badge ${product.purchaseable ? "badge-positive" : "badge-danger"}">${product.purchaseable ? "Available" : "Unavailable"}</span></uui-table-cell>`;
+        return html`<uui-table-cell><span class="badge ${product.purchaseStatusCssClass}">${product.purchaseStatusLabel}</span></uui-table-cell>`;
       case "variants":
         return html`<uui-table-cell><span class="badge badge-default">${product.variantCount}</span></uui-table-cell>`;
       case "warnings":

@@ -2137,13 +2137,13 @@ public class CheckoutService(
                         Quantity = li.Quantity,
                         UnitPrice = li.Amount,
                         LineTotal = lineTotal,
-                        FormattedUnitPrice = FormatPrice(li.Amount, currencySymbol),
-                        FormattedLineTotal = FormatPrice(lineTotal, currencySymbol),
+                        FormattedUnitPrice = currencyService.FormatAmount(li.Amount, currencyCode),
+                        FormattedLineTotal = currencyService.FormatAmount(lineTotal, currencyCode),
                         // Display fields match store currency (no conversion in core service)
                         DisplayUnitPrice = li.Amount,
                         DisplayLineTotal = lineTotal,
-                        FormattedDisplayUnitPrice = FormatPrice(li.Amount, currencySymbol),
-                        FormattedDisplayLineTotal = FormatPrice(lineTotal, currencySymbol),
+                        FormattedDisplayUnitPrice = currencyService.FormatAmount(li.Amount, currencyCode),
+                        FormattedDisplayLineTotal = currencyService.FormatAmount(lineTotal, currencyCode),
                         // Tax info for tax-inclusive display
                         TaxRate = li.TaxRate,
                         IsTaxable = li.IsTaxable,
@@ -2179,7 +2179,7 @@ public class CheckoutService(
                 {
                     ShippingMethodName = methodName,
                     Cost = order.ShippingCost,
-                    FormattedCost = FormatPrice(order.ShippingCost, currencySymbol)
+                    FormattedCost = currencyService.FormatAmount(order.ShippingCost, currencyCode)
                 });
             }
         }
@@ -2207,15 +2207,15 @@ public class CheckoutService(
 
             // Store currency amounts
             SubTotal = invoice.SubTotal,
-            FormattedSubTotal = FormatPrice(invoice.SubTotal, currencySymbol),
+            FormattedSubTotal = currencyService.FormatAmount(invoice.SubTotal, currencyCode),
             Discount = invoice.Discount,
-            FormattedDiscount = FormatPrice(invoice.Discount, currencySymbol),
+            FormattedDiscount = currencyService.FormatAmount(invoice.Discount, currencyCode),
             Shipping = totalShipping,
-            FormattedShipping = FormatPrice(totalShipping, currencySymbol),
+            FormattedShipping = currencyService.FormatAmount(totalShipping, currencyCode),
             Tax = invoice.Tax,
-            FormattedTax = FormatPrice(invoice.Tax, currencySymbol),
+            FormattedTax = currencyService.FormatAmount(invoice.Tax, currencyCode),
             Total = invoice.Total,
-            FormattedTotal = FormatPrice(invoice.Total, currencySymbol),
+            FormattedTotal = currencyService.FormatAmount(invoice.Total, currencyCode),
             CurrencySymbol = currencySymbol,
 
             // Display currency matches store currency (no conversion in core service)
@@ -2224,15 +2224,15 @@ public class CheckoutService(
             DisplayCurrencySymbol = currencySymbol,
             ExchangeRate = 1m,
             DisplaySubTotal = invoice.SubTotal,
-            FormattedDisplaySubTotal = FormatPrice(invoice.SubTotal, currencySymbol),
+            FormattedDisplaySubTotal = currencyService.FormatAmount(invoice.SubTotal, currencyCode),
             DisplayDiscount = invoice.Discount,
-            FormattedDisplayDiscount = FormatPrice(invoice.Discount, currencySymbol),
+            FormattedDisplayDiscount = currencyService.FormatAmount(invoice.Discount, currencyCode),
             DisplayShipping = totalShipping,
-            FormattedDisplayShipping = FormatPrice(totalShipping, currencySymbol),
+            FormattedDisplayShipping = currencyService.FormatAmount(totalShipping, currencyCode),
             DisplayTax = invoice.Tax,
-            FormattedDisplayTax = FormatPrice(invoice.Tax, currencySymbol),
+            FormattedDisplayTax = currencyService.FormatAmount(invoice.Tax, currencyCode),
             DisplayTotal = invoice.Total,
-            FormattedDisplayTotal = FormatPrice(invoice.Total, currencySymbol),
+            FormattedDisplayTotal = currencyService.FormatAmount(invoice.Total, currencyCode),
 
             Shipments = shipments,
             PaymentMethod = paymentMethod,
@@ -2480,12 +2480,13 @@ public class CheckoutService(
                 }
 
                 // Update checkout session with shipping address
+                // Use basket's billing address (which preserves existing fields, only country was updated)
                 await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
                 {
                     BasketId = updatedBasket.Id,
-                    Billing = shippingAddress,
+                    Billing = updatedBasket.BillingAddress,
                     Shipping = shippingAddress,
-                    SameAsBilling = true
+                    SameAsBilling = false
                 }, cancellationToken);
 
                 if (abandonedCheckoutService != null && !string.IsNullOrWhiteSpace(parameters.Email))
@@ -2522,11 +2523,6 @@ public class CheckoutService(
         }
 
         return result;
-    }
-
-    private static string FormatPrice(decimal price, string currencySymbol)
-    {
-        return $"{currencySymbol}{price:N2}";
     }
 
     private async Task<AddressDto> MapAddressAsync(Locality.Models.Address address)
