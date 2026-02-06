@@ -419,6 +419,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
         font-size: 0.8125rem;
         padding: var(--uui-size-space-3);
         border-radius: var(--uui-border-radius);
+        margin-top: var(--uui-size-space-3);
       }
 
       .mode-hint.success {

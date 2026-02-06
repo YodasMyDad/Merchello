@@ -36,7 +36,8 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         builder.Property(x => x.OpenGraphImage).HasMaxLength(50);
         builder.Property(x => x.CanonicalUrl).HasMaxLength(1000);
 
-        // Element Type property data (stores JSON from configured Element Type)
+        // Element Type selection + property data (stores JSON from selected Element Type)
+        builder.Property(x => x.ElementTypeAlias).HasMaxLength(200);
         builder.Property(x => x.ElementPropertyData);
 
         // View selection for front-end rendering

@@ -82,6 +82,7 @@ export class MerchelloProductsWorkspaceContext
           this.#isNew = true;
           this.#productRootId = undefined;
           this.#variantId.setValue(undefined);
+          this._resetElementTypeState();
           this.#product.setValue(this._createEmptyProduct());
         },
       },
@@ -106,6 +107,7 @@ export class MerchelloProductsWorkspaceContext
           this.#product.setValue(undefined);
           this.#variantId.setValue(undefined);
           this.#isNew = false;
+          this._resetElementTypeState();
         },
       },
       // Default redirect
@@ -134,9 +136,12 @@ export class MerchelloProductsWorkspaceContext
     this.#productRootId = unique;
     const { data, error } = await MerchelloApi.getProductDetail(unique);
     if (error) {
+      this._resetElementTypeState();
       return;
     }
     this.#product.setValue(data);
+    this.#elementPropertyValues.setValue(data?.elementProperties ?? {});
+    await this.loadElementType(data?.elementTypeAlias ?? null);
   }
 
   async reload(): Promise<void> {
@@ -151,15 +156,19 @@ export class MerchelloProductsWorkspaceContext
       this.#productRootId = product.id;
       this.#isNew = false;
     }
-    if (product.elementProperties) {
-      this.#elementPropertyValues.setValue(product.elementProperties);
-    }
+    this.#elementPropertyValues.setValue(product.elementProperties ?? {});
+    this.loadElementType(product.elementTypeAlias ?? null).catch(() => undefined);
   }
 
   // Element Type Methods
 
-  async loadElementType(): Promise<void> {
-    const { data, error } = await MerchelloApi.getProductElementType();
+  async loadElementType(elementTypeAlias?: string | null): Promise<void> {
+    if (!elementTypeAlias) {
+      this.#elementType.setValue(null);
+      return;
+    }
+
+    const { data, error } = await MerchelloApi.getProductElementType(elementTypeAlias);
     if (error) {
       return;
     }
@@ -198,6 +207,11 @@ export class MerchelloProductsWorkspaceContext
     return this.#elementPropertyValues.getValue();
   }
 
+  private _resetElementTypeState(): void {
+    this.#elementType.setValue(null);
+    this.#elementPropertyValues.setValue({});
+  }
+
   private _createEmptyProduct(): ProductRootDetailDto {
     return {
       id: "",
@@ -206,6 +220,10 @@ export class MerchelloProductsWorkspaceContext
       rootUrl: null,
       googleShoppingFeedCategory: null,
       isDigitalProduct: false,
+      digitalDeliveryMethod: null,
+      digitalFileIds: null,
+      downloadLinkExpiryDays: null,
+      maxDownloadsPerLink: null,
       aggregateStockStatus: "InStock",
       aggregateStockStatusLabel: "",
       aggregateStockStatusCssClass: "",
@@ -216,6 +234,8 @@ export class MerchelloProductsWorkspaceContext
       noIndex: false,
       openGraphImage: null,
       canonicalUrl: null,
+      elementTypeAlias: null,
+      elementProperties: {},
       taxGroupId: "",
       taxGroupName: null,
       productTypeId: "",

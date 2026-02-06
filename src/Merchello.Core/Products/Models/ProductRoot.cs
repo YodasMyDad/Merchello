@@ -123,10 +123,16 @@ public class ProductRoot
     public string? CanonicalUrl { get; set; }
 
     /// <summary>
-    /// JSON-serialized property data from the configured Element Type.
+    /// JSON-serialized property data from the selected Element Type.
     /// Stores values as { "propertyAlias": rawValue, ... }
     /// </summary>
     public string? ElementPropertyData { get; set; }
+
+    /// <summary>
+    /// Alias of the selected Element Type for custom product properties.
+    /// When set, the Element Type's tabs and properties are rendered in the product workspace.
+    /// </summary>
+    public string? ElementTypeAlias { get; set; }
 
     /// <summary>
     /// The view alias used to render this product on the front-end.

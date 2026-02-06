@@ -111,6 +111,27 @@ foreach (var item in items)
 
 Reference: `ProductService.QueryProductListAsync()` for full pattern.
 
+## JsonElement Unwrapping (CRITICAL)
+
+**`Dictionary<string, object>` properties (like `ExtendedData`) deserialize via `System.Text.Json` as `JsonElement`, not CLR types.** Calling `Convert.ToDecimal()`, `Convert.ToBoolean()`, etc. directly on these values throws `InvalidCastException` because `JsonElement` does not implement `IConvertible`.
+
+**ALWAYS use `UnwrapJsonElement()`** (reference: `Merchello.Core/Shared/Extensions/JsonElementExtensions.cs`) before converting `object?` values from dictionaries.
+
+**BAD - Will throw at runtime:**
+```csharp
+var value = Convert.ToDecimal(extendedData["Price"]);      // InvalidCastException!
+var flag = Convert.ToBoolean(extendedData["IsEligible"]);   // InvalidCastException!
+```
+
+**GOOD - Unwrap first:**
+```csharp
+var value = Convert.ToDecimal(extendedData["Price"].UnwrapJsonElement());
+var flag = Convert.ToBoolean(extendedData["IsEligible"].UnwrapJsonElement());
+var str = extendedData["Name"].UnwrapJsonElement()?.ToString();
+```
+
+**Note:** This only applies to `object?` values from dictionaries/deserialization. `JsonElement` from `JsonDocument.Parse()` with `TryGetProperty()` is controlled and doesn't need unwrapping.
+
 ## Conventions
 - DI throughout, custom mapping (no AutoMapper), IHostedService for background
 - Controllers never access DbContext - inject services; design reusable methods with flexible parameters

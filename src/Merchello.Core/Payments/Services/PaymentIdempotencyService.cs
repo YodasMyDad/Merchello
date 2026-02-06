@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -36,11 +37,7 @@ public class PaymentIdempotencyService(
     /// </remarks>
     public async Task<PaymentResult?> GetCachedPaymentResultAsync(string idempotencyKey, CancellationToken ct = default)
     {
-        using var scope = scopeProvider.CreateScope();
-        var payment = await scope.ExecuteWithContextAsync(async db => await db.Payments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey && p.PaymentType == PaymentType.Payment, ct));
-        scope.Complete();
+        var payment = await GetPaymentByIdempotencyAsync(idempotencyKey, ct, PaymentType.Payment);
 
         if (payment == null)
         {
@@ -73,14 +70,7 @@ public class PaymentIdempotencyService(
     /// </remarks>
     public void CachePaymentResult(string idempotencyKey, PaymentResult result)
     {
-        // The Payment record is created by the caller (PaymentService).
-        // The IdempotencyKey on the Payment record serves as the permanent deduplication marker.
-        // Just clear the in-flight processing marker.
-        ClearProcessingMarker(idempotencyKey);
-
-        logger.LogDebug(
-            "Payment with idempotency key {Key} completed. Success: {Success}",
-            idempotencyKey, result.Success);
+        CacheResult(idempotencyKey, result.Success, "Payment");
     }
 
     /// <inheritdoc />
@@ -89,12 +79,11 @@ public class PaymentIdempotencyService(
     /// </remarks>
     public async Task<RefundResult?> GetCachedRefundResultAsync(string idempotencyKey, CancellationToken ct = default)
     {
-        using var scope = scopeProvider.CreateScope();
-        var payment = await scope.ExecuteWithContextAsync(async db => await db.Payments
-            .AsNoTracking()
-            .FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey &&
-                (p.PaymentType == PaymentType.Refund || p.PaymentType == PaymentType.PartialRefund), ct));
-        scope.Complete();
+        var payment = await GetPaymentByIdempotencyAsync(
+            idempotencyKey,
+            ct,
+            PaymentType.Refund,
+            PaymentType.PartialRefund);
 
         if (payment == null)
         {
@@ -121,14 +110,7 @@ public class PaymentIdempotencyService(
     /// </remarks>
     public void CacheRefundResult(string idempotencyKey, RefundResult result)
     {
-        // The Payment record is created by the caller (PaymentService).
-        // The IdempotencyKey on the Payment record serves as the permanent deduplication marker.
-        // Just clear the in-flight processing marker.
-        ClearProcessingMarker(idempotencyKey);
-
-        logger.LogDebug(
-            "Refund with idempotency key {Key} completed. Success: {Success}",
-            idempotencyKey, result.Success);
+        CacheResult(idempotencyKey, result.Success, "Refund");
     }
 
     /// <inheritdoc />
@@ -185,6 +167,32 @@ public class PaymentIdempotencyService(
     public void ClearProcessingMarker(string idempotencyKey)
     {
         _processingMarkers.TryRemove(idempotencyKey, out _);
+    }
+
+    private async Task<Payment?> GetPaymentByIdempotencyAsync(
+        string idempotencyKey,
+        CancellationToken ct,
+        params PaymentType[] paymentTypes)
+    {
+        using var scope = scopeProvider.CreateScope();
+        var payment = await scope.ExecuteWithContextAsync(async db => await db.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey && paymentTypes.Contains(p.PaymentType), ct));
+        scope.Complete();
+
+        return payment;
+    }
+
+    private void CacheResult(string idempotencyKey, bool success, string operation)
+    {
+        // The Payment record is created by the caller (PaymentService).
+        // The IdempotencyKey on the Payment record serves as the permanent deduplication marker.
+        // Just clear the in-flight processing marker.
+        ClearProcessingMarker(idempotencyKey);
+
+        logger.LogDebug(
+            "{Operation} with idempotency key {Key} completed. Success: {Success}",
+            operation, idempotencyKey, success);
     }
 
     /// <summary>

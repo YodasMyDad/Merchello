@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
+using Merchello.Core.Shared.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Logging;
 
@@ -93,12 +94,7 @@ public class WebhookSigner(
                 return false;
             }
 
-            var b64IsFalse = b64Value switch
-            {
-                false => true,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => true,
-                _ => false
-            };
+            var b64IsFalse = b64Value.UnwrapJsonElement() is false;
 
             if (!b64IsFalse)
             {

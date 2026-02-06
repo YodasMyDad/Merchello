@@ -43,25 +43,13 @@ public class UpsellAnalyticsService(
     /// <inheritdoc />
     public Task RecordImpressionAsync(RecordUpsellEventParameters parameters, CancellationToken ct = default)
     {
-        EnsureTimerStarted();
-        _eventBuffer.Enqueue(CreateEvent(parameters, UpsellEventType.Impression));
-
-        if (_eventBuffer.Count >= MaxBufferSize)
-            _ = FlushAsync(ct);
-
-        return Task.CompletedTask;
+        return RecordBufferedEventAsync(parameters, UpsellEventType.Impression, ct);
     }
 
     /// <inheritdoc />
     public Task RecordClickAsync(RecordUpsellEventParameters parameters, CancellationToken ct = default)
     {
-        EnsureTimerStarted();
-        _eventBuffer.Enqueue(CreateEvent(parameters, UpsellEventType.Click));
-
-        if (_eventBuffer.Count >= MaxBufferSize)
-            _ = FlushAsync(ct);
-
-        return Task.CompletedTask;
+        return RecordBufferedEventAsync(parameters, UpsellEventType.Click, ct);
     }
 
     /// <inheritdoc />
@@ -88,6 +76,20 @@ public class UpsellAnalyticsService(
             return true;
         });
         scope.Complete();
+    }
+
+    private Task RecordBufferedEventAsync(
+        RecordUpsellEventParameters parameters,
+        UpsellEventType eventType,
+        CancellationToken ct)
+    {
+        EnsureTimerStarted();
+        _eventBuffer.Enqueue(CreateEvent(parameters, eventType));
+
+        if (_eventBuffer.Count >= MaxBufferSize)
+            _ = FlushAsync(ct);
+
+        return Task.CompletedTask;
     }
 
     // =====================================================

@@ -19,6 +19,7 @@ using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.BasketNotifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.CheckoutNotifications;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
@@ -586,140 +587,120 @@ public class CheckoutService(
         }
 
         var basketId = existingBasket.Id;
-        const int maxRetries = 3;
+        LineItem? updatedLineItem = null;
+        var oldQuantity = 0;
+        var removalCancelled = false;
+        var updateCancelled = false;
+        var publishQuantityChanged = false;
+        var publishRemoved = false;
 
-        for (var attempt = 0; attempt < maxRetries; attempt++)
-        {
-            using var scope = efCoreScopeProvider.CreateScope();
-            Basket? basket = null;
-            LineItem? updatedLineItem = null;
-            var oldQuantity = 0;
-            var removalCancelled = false;
-            var updateCancelled = false;
-            var publishQuantityChanged = false;
-            var publishRemoved = false;
-
-            try
+        var basket = await ExecuteBasketMutationWithRetryAsync(
+            basketId,
+            nameof(UpdateLineItemQuantity),
+            async (db, currentBasket) =>
             {
-                await scope.ExecuteWithContextAsync<bool>(async db =>
+                updatedLineItem = currentBasket.LineItems.FirstOrDefault(li => li.Id == lineItemId);
+                if (updatedLineItem == null)
                 {
-                    basket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
-                    if (basket == null)
-                    {
-                        return false;
-                    }
-
-                    updatedLineItem = basket.LineItems.FirstOrDefault(li => li.Id == lineItemId);
-                    if (updatedLineItem == null)
-                    {
-                        return false;
-                    }
-
-                    if (quantity <= 0)
-                    {
-                        var removingNotification = new BasketItemRemovingNotification(basket, updatedLineItem);
-                        if (await notificationPublisher.PublishCancelableAsync(removingNotification, cancellationToken))
-                        {
-                            basket.Errors.Add(new()
-                            {
-                                Message = removingNotification.CancelReason ?? "Item removal was cancelled",
-                                RelatedLineItemId = lineItemId
-                            });
-                            removalCancelled = true;
-                        }
-                        else
-                        {
-                            basket.LineItems.Remove(updatedLineItem);
-                            await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
-                            publishRemoved = true;
-                        }
-
-                        basket.DateUpdated = DateTime.UtcNow;
-                        basket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                        await db.SaveChangesAsync(cancellationToken);
-                        return true;
-                    }
-
-                    oldQuantity = updatedLineItem.Quantity;
-
-                    // Publish cancelable notification before changing quantity
-                    var changingNotification = new BasketItemQuantityChangingNotification(basket, updatedLineItem, oldQuantity, quantity);
-                    if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
-                    {
-                        updateCancelled = true;
-                        return false;
-                    }
-
-                    // Note: Stock validation happens at order submission time via IInventoryService.
-                    // The basket accepts any quantity; final validation occurs when creating the order.
-                    updatedLineItem.Quantity = quantity;
-                    basket.DateUpdated = DateTime.UtcNow;
-                    await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
-
-                    basket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                    await db.SaveChangesAsync(cancellationToken);
-                    publishQuantityChanged = true;
-                    return true;
-                });
-                scope.Complete();
-
-                if (updateCancelled)
-                {
-                    return;
+                    return false;
                 }
-
-                if (basket == null || updatedLineItem == null)
-                {
-                    return;
-                }
-
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
 
                 if (quantity <= 0)
                 {
-                    if (abandonedCheckoutService != null)
+                    var removingNotification = new BasketItemRemovingNotification(currentBasket, updatedLineItem);
+                    if (await notificationPublisher.PublishCancelableAsync(removingNotification, cancellationToken))
                     {
-                        await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
+                        currentBasket.Errors.Add(new()
+                        {
+                            Message = removingNotification.CancelReason ?? "Item removal was cancelled",
+                            RelatedLineItemId = lineItemId
+                        });
+                        removalCancelled = true;
+                    }
+                    else
+                    {
+                        currentBasket.LineItems.Remove(updatedLineItem);
+                        await CalculateBasketAsync(
+                            new CalculateBasketParameters
+                            {
+                                Basket = currentBasket,
+                                CountryCode = countryCode
+                            },
+                            cancellationToken);
+                        publishRemoved = true;
                     }
 
-                    if (!removalCancelled && publishRemoved)
-                    {
-                        await notificationPublisher.PublishAsync(
-                            new BasketItemRemovedNotification(basket, updatedLineItem), cancellationToken);
-                    }
-
-                    return;
+                    currentBasket.DateUpdated = DateTime.UtcNow;
+                    currentBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                    await db.SaveChangesAsync(cancellationToken);
+                    return true;
                 }
 
-                if (publishQuantityChanged)
+                oldQuantity = updatedLineItem.Quantity;
+
+                // Publish cancelable notification before changing quantity
+                var changingNotification = new BasketItemQuantityChangingNotification(currentBasket, updatedLineItem, oldQuantity, quantity);
+                if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
                 {
-                    // Track checkout activity for abandoned cart recovery (if checkout started)
-                    if (abandonedCheckoutService != null)
-                    {
-                        await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
-                    }
-
-                    await notificationPublisher.PublishAsync(
-                        new BasketItemQuantityChangedNotification(basket, updatedLineItem, oldQuantity, quantity), cancellationToken);
+                    updateCancelled = true;
+                    return false;
                 }
 
-                return;
-            }
-            catch (DbUpdateConcurrencyException ex)
+                // Note: Stock validation happens at order submission time via IInventoryService.
+                // The basket accepts any quantity; final validation occurs when creating the order.
+                updatedLineItem.Quantity = quantity;
+                currentBasket.DateUpdated = DateTime.UtcNow;
+                await CalculateBasketAsync(
+                    new CalculateBasketParameters
+                    {
+                        Basket = currentBasket,
+                        CountryCode = countryCode
+                    },
+                    cancellationToken);
+
+                currentBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                await db.SaveChangesAsync(cancellationToken);
+                publishQuantityChanged = true;
+                return true;
+            },
+            cancellationToken);
+
+        if (updateCancelled)
+        {
+            return;
+        }
+
+        if (basket == null || updatedLineItem == null)
+        {
+            return;
+        }
+
+        if (quantity <= 0)
+        {
+            if (abandonedCheckoutService != null)
             {
-                if (attempt < maxRetries - 1)
-                {
-                    logger.LogWarning(ex,
-                        "Basket {BasketId} was modified concurrently during UpdateLineItemQuantity (attempt {Attempt}). Retrying.",
-                        basketId, attempt + 1);
-                    continue;
-                }
-
-                logger.LogError(ex,
-                    "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts in UpdateLineItemQuantity.",
-                    basketId, maxRetries);
-                throw;
+                await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
             }
+
+            if (!removalCancelled && publishRemoved)
+            {
+                await notificationPublisher.PublishAsync(
+                    new BasketItemRemovedNotification(basket, updatedLineItem), cancellationToken);
+            }
+
+            return;
+        }
+
+        if (publishQuantityChanged)
+        {
+            // Track checkout activity for abandoned cart recovery (if checkout started)
+            if (abandonedCheckoutService != null)
+            {
+                await abandonedCheckoutService.TrackCheckoutActivityAsync(basket.Id, cancellationToken);
+            }
+
+            await notificationPublisher.PublishAsync(
+                new BasketItemQuantityChangedNotification(basket, updatedLineItem, oldQuantity, quantity), cancellationToken);
         }
     }
 
@@ -735,6 +716,26 @@ public class CheckoutService(
         }
 
         var basketId = existingBasket.Id;
+        await ExecuteBasketMutationWithRetryAsync(
+            basketId,
+            nameof(RemoveLineItem),
+            async (db, basket) =>
+            {
+                await RemoveFromBasketAsync(basket, lineItemId, countryCode, cancellationToken);
+                basket.DateUpdated = DateTime.UtcNow;
+                basket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            },
+            cancellationToken);
+    }
+
+    private async Task<Basket?> ExecuteBasketMutationWithRetryAsync(
+        Guid basketId,
+        string operationName,
+        Func<MerchelloDbContext, Basket, Task<bool>> mutation,
+        CancellationToken cancellationToken)
+    {
         const int maxRetries = 3;
 
         for (var attempt = 0; attempt < maxRetries; attempt++)
@@ -744,7 +745,7 @@ public class CheckoutService(
 
             try
             {
-                await scope.ExecuteWithContextAsync<bool>(async db =>
+                var mutated = await scope.ExecuteWithContextAsync(async db =>
                 {
                     basket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
                     if (basket == null)
@@ -752,38 +753,42 @@ public class CheckoutService(
                         return false;
                     }
 
-                    await RemoveFromBasketAsync(basket, lineItemId, countryCode, cancellationToken);
-                    basket.DateUpdated = DateTime.UtcNow;
-                    basket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                    await db.SaveChangesAsync(cancellationToken);
-                    return true;
+                    return await mutation(db, basket);
                 });
                 scope.Complete();
 
-                if (basket == null)
+                if (!mutated || basket == null)
                 {
-                    return;
+                    return null;
                 }
 
                 httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
-                return;
+                return basket;
             }
             catch (DbUpdateConcurrencyException ex)
             {
                 if (attempt < maxRetries - 1)
                 {
-                    logger.LogWarning(ex,
-                        "Basket {BasketId} was modified concurrently during RemoveLineItem (attempt {Attempt}). Retrying.",
-                        basketId, attempt + 1);
+                    logger.LogWarning(
+                        ex,
+                        "Basket {BasketId} was modified concurrently during {OperationName} (attempt {Attempt}). Retrying.",
+                        basketId,
+                        operationName,
+                        attempt + 1);
                     continue;
                 }
 
-                logger.LogError(ex,
-                    "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts in RemoveLineItem.",
-                    basketId, maxRetries);
+                logger.LogError(
+                    ex,
+                    "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts in {OperationName}.",
+                    basketId,
+                    maxRetries,
+                    operationName);
                 throw;
             }
         }
+
+        return null;
     }
 
     /// <summary>
@@ -2235,12 +2240,7 @@ public class CheckoutService(
             // Tax-inclusive display support - read from ExtendedData
             EffectiveShippingTaxRate = invoice.ExtendedData.TryGetValue(
                 Constants.ExtendedDataKeys.EffectiveShippingTaxRate, out var rateValue)
-                ? rateValue switch
-                {
-                    JsonElement je => je.GetDecimal(),
-                    decimal d => d,
-                    _ => Convert.ToDecimal(rateValue)
-                }
+                ? Convert.ToDecimal(rateValue.UnwrapJsonElement())
                 : null,
 
             // Order status
@@ -2782,12 +2782,11 @@ public class CheckoutService(
             return false;
         }
 
-        return isDigital switch
+        var unwrapped = isDigital.UnwrapJsonElement();
+        return unwrapped switch
         {
             bool b => b,
             string s => bool.TryParse(s, out var parsed) && parsed,
-            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
-                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
             _ => false
         };
     }

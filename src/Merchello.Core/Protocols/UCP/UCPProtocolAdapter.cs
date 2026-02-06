@@ -26,6 +26,7 @@ using Merchello.Core.Protocols.UCP.Services;
 using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Models;
@@ -1367,18 +1368,8 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         return result.Count > 0 ? result : null;
     }
 
-    private static string? CoerceToString(object? value)
-    {
-        return value switch
-        {
-            null => null,
-            string s => s,
-            JsonElement element => element.ValueKind == JsonValueKind.String
-                ? element.GetString()
-                : element.ToString(),
-            _ => value.ToString()
-        };
-    }
+    private static string? CoerceToString(object? value) =>
+        value.UnwrapJsonElement()?.ToString();
 
     private async Task<bool> AutoSelectSingleOptionGroupsAsync(
         Basket basket,

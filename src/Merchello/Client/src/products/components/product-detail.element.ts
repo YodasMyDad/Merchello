@@ -21,6 +21,7 @@ import type {
   RichTextEditorValue,
   RichTextBlockValue,
   ShippingOptionExclusionDto,
+  ElementTypeListItemDto,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseDto } from "@shipping/types/shipping.types.js";
@@ -65,8 +66,11 @@ import {
 import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
 import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
 import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
+import type { UmbInputDocumentTypeElement } from "@umbraco-cms/backoffice/document-type";
 // Import TipTap component to register the custom element
 import "@umbraco-cms/backoffice/tiptap";
+// Import document type input for element type picker
+import "@umbraco-cms/backoffice/document-type";
 
 // ============================================
 // Component
@@ -125,6 +129,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   @state() private _warehouses: WarehouseDto[] = [];
   @state() private _productViews: ProductViewDto[] = [];
   @state() private _optionSettings: ProductOptionSettingsDto | null = null;
+  @state() private _elementTypes: ElementTypeListItemDto[] = [];
 
   // ============================================
   // State: Filters
@@ -234,13 +239,22 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       // Load filter groups from centralized context (shared with variant-detail)
       this.#workspaceContext?.loadFilterGroups();
 
-      const [taxGroups, productTypes, warehouses, optionSettings, descriptionEditorSettings, productViews] = await Promise.all([
+      const [
+        taxGroups,
+        productTypes,
+        warehouses,
+        optionSettings,
+        descriptionEditorSettings,
+        productViews,
+        elementTypes,
+      ] = await Promise.all([
         MerchelloApi.getTaxGroups(),
         MerchelloApi.getProductTypes(),
         MerchelloApi.getWarehouses(),
         MerchelloApi.getProductOptionSettings(),
         MerchelloApi.getDescriptionEditorSettings(),
         MerchelloApi.getProductViews(),
+        MerchelloApi.getElementTypes(),
       ]);
 
       // Prevent state updates if component was disconnected during async operation
@@ -251,6 +265,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       if (warehouses.data) this._warehouses = warehouses.data;
       if (optionSettings.data) this._optionSettings = optionSettings.data;
       if (productViews.data) this._productViews = productViews.data;
+      if (elementTypes.data) this._elementTypes = elementTypes.data;
       // Load DataType configuration using Umbraco's repository (handles auth automatically)
       if (descriptionEditorSettings.data?.dataTypeKey) {
         await this._loadDataTypeConfig(descriptionEditorSettings.data.dataTypeKey);
@@ -261,8 +276,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       // Load assigned filters for existing product
       await this._loadAssignedFilters();
 
-      // Load element type configuration (non-blocking)
-      await this.#workspaceContext?.loadElementType();
     } catch {
       // Component will still function but with limited options
     }
@@ -561,6 +574,38 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     this._formData = { ...this._formData, viewAlias: select.value };
   }
 
+  private _getElementTypeSelection(): string[] {
+    const alias = this._formData.elementTypeAlias;
+    if (!alias) return [];
+    const match = this._elementTypes.find((t) => t.alias.toLowerCase() === alias.toLowerCase());
+    return match ? [match.key] : [];
+  }
+
+  private async _handleElementTypeChange(e: Event): Promise<void> {
+    const picker = e.target as UmbInputDocumentTypeElement;
+    const selection = picker.selection ?? [];
+    const selectedKey = selection[0];
+    let selectedType = this._elementTypes.find((t) => t.key === selectedKey);
+
+    if (selectedKey && !selectedType) {
+      const { data } = await MerchelloApi.getElementTypes();
+      if (data) {
+        this._elementTypes = data;
+        selectedType = data.find((t) => t.key === selectedKey);
+      }
+    }
+
+    const alias = selectedType?.alias ?? null;
+    const currentAlias = this._formData.elementTypeAlias ?? null;
+
+    if (alias === currentAlias) return;
+
+    this._formData = { ...this._formData, elementTypeAlias: alias };
+    this._elementPropertyValues = {};
+    this.#workspaceContext?.setElementPropertyValues({});
+    await this.#workspaceContext?.loadElementType(alias);
+  }
+
   private async _handleSave(): Promise<void> {
     if (!this._validateForm()) {
       return;
@@ -593,6 +638,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       warehouseIds: this._formData.warehouseIds,
       rootImages: this._formData.rootImages,
       isDigitalProduct: this._formData.isDigitalProduct || false,
+      digitalDeliveryMethod: this._formData.digitalDeliveryMethod ?? undefined,
+      digitalFileIds: this._formData.digitalFileIds ?? undefined,
+      downloadLinkExpiryDays: this._formData.downloadLinkExpiryDays ?? undefined,
+      maxDownloadsPerLink: this._formData.maxDownloadsPerLink ?? undefined,
+      elementTypeAlias: this._formData.elementTypeAlias ?? undefined,
+      elementProperties: Object.keys(this._elementPropertyValues).length > 0
+        ? this._elementPropertyValues
+        : undefined,
       defaultVariant: {
         sku: this._variantFormData.sku ?? undefined,
         price: this._variantFormData.price ?? 0,
@@ -625,6 +678,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       rootUrl: this._formData.rootUrl ?? undefined,
       googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? undefined,
       isDigitalProduct: this._formData.isDigitalProduct,
+      digitalDeliveryMethod: this._formData.digitalDeliveryMethod ?? undefined,
+      digitalFileIds: this._formData.digitalFileIds ?? undefined,
+      downloadLinkExpiryDays: this._formData.downloadLinkExpiryDays ?? undefined,
+      maxDownloadsPerLink: this._formData.maxDownloadsPerLink ?? undefined,
       taxGroupId: this._formData.taxGroupId,
       productTypeId: this._formData.productTypeId,
       collectionIds: this._formData.collectionIds,
@@ -638,6 +695,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       defaultPackageConfigurations: this._formData.defaultPackageConfigurations,
       // View alias for front-end rendering
       viewAlias: this._formData.viewAlias,
+      // Element Type selection for custom properties
+      elementTypeAlias: this._formData.elementTypeAlias ?? "",
       // Element Type property values
       elementProperties: Object.keys(this._elementPropertyValues).length > 0
         ? this._elementPropertyValues
@@ -1037,6 +1096,18 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
                     No views found. Add .cshtml files to ~/Views/Products/
                   </div>
                 `}
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Element Type"
+            description="Optional: select an Element Type to add custom properties to this product">
+            <umb-input-document-type
+              slot="editor"
+              .selection=${this._getElementTypeSelection()}
+              .max=${1}
+              .elementTypesOnly=${true}
+              @change=${this._handleElementTypeChange}>
+            </umb-input-document-type>
           </umb-property-layout>
 
           <umb-property-layout

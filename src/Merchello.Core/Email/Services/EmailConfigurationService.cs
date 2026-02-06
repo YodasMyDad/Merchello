@@ -34,26 +34,12 @@ public class EmailConfigurationService(
 
     public async Task<IReadOnlyList<EmailConfiguration>> GetByTopicAsync(string topic, CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.EmailConfigurations
-                .Where(x => x.Topic == topic)
-                .OrderBy(x => x.Name)
-                .ToListAsync(ct));
-        scope.Complete();
-        return result;
+        return await GetByTopicInternalAsync(topic, null, ct);
     }
 
     public async Task<IReadOnlyList<EmailConfiguration>> GetEnabledByTopicAsync(string topic, CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-            await db.EmailConfigurations
-                .Where(x => x.Topic == topic && x.Enabled)
-                .OrderBy(x => x.Name)
-                .ToListAsync(ct));
-        scope.Complete();
-        return result;
+        return await GetByTopicInternalAsync(topic, true, ct);
     }
 
     public async Task<PaginatedList<EmailConfiguration>> QueryAsync(
@@ -394,22 +380,37 @@ public class EmailConfigurationService(
 
     public async Task IncrementSentCountAsync(Guid id, CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var configuration = await db.EmailConfigurations.FirstOrDefaultAsync(x => x.Id == id, ct);
-            if (configuration != null)
-            {
-                configuration.TotalSent++;
-                configuration.LastSentUtc = DateTime.UtcNow;
-                await db.SaveChangesAsync(ct);
-            }
-            return true;
-        });
-        scope.Complete();
+        await IncrementCountAsync(id, isSent: true, ct);
     }
 
     public async Task IncrementFailedCountAsync(Guid id, CancellationToken ct = default)
+    {
+        await IncrementCountAsync(id, isSent: false, ct);
+    }
+
+    private async Task<IReadOnlyList<EmailConfiguration>> GetByTopicInternalAsync(
+        string topic,
+        bool? enabled,
+        CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var query = db.EmailConfigurations.Where(x => x.Topic == topic);
+            if (enabled.HasValue)
+            {
+                query = query.Where(x => x.Enabled == enabled.Value);
+            }
+
+            return await query
+                .OrderBy(x => x.Name)
+                .ToListAsync(ct);
+        });
+        scope.Complete();
+        return result;
+    }
+
+    private async Task IncrementCountAsync(Guid id, bool isSent, CancellationToken ct)
     {
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -417,9 +418,19 @@ public class EmailConfigurationService(
             var configuration = await db.EmailConfigurations.FirstOrDefaultAsync(x => x.Id == id, ct);
             if (configuration != null)
             {
-                configuration.TotalFailed++;
+                if (isSent)
+                {
+                    configuration.TotalSent++;
+                    configuration.LastSentUtc = DateTime.UtcNow;
+                }
+                else
+                {
+                    configuration.TotalFailed++;
+                }
+
                 await db.SaveChangesAsync(ct);
             }
+
             return true;
         });
         scope.Complete();

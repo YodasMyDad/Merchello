@@ -127,7 +127,7 @@ export class MerchelloFilterPickerModalElement extends UmbModalBaseElement<
         class="filter-row ${isSelected ? "selected" : ""}"
         @click=${() => this._toggleFilterSelection(group, filter)}>
         <uui-checkbox
-          label="Select"
+          aria-label="Select ${filter.name}"
           .checked=${isSelected}
           @change=${(e: Event) => {
             e.stopPropagation();

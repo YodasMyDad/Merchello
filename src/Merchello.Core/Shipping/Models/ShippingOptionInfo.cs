@@ -66,10 +66,16 @@ public class ShippingOptionInfo
             ? SelectionKeyExtensions.ForDynamicProvider(ProviderKey, ServiceCode)
             : SelectionKeyExtensions.ForDynamicProvider(ProviderKey, Name);
 
-    public string DeliveryTimeDescription => IsNextDay
-        ? "Next Day Delivery"
-        : DaysFrom <= 0 && DaysTo <= 0
-            ? string.Empty
-            : $"{DaysFrom}-{DaysTo} days";
+    public string DeliveryTimeDescription => FormatDeliveryTime(DaysFrom, DaysTo, IsNextDay);
+
+    /// <summary>
+    /// Formats delivery time for display. Shared by checkout, product pages, and backoffice.
+    /// </summary>
+    public static string FormatDeliveryTime(int daysFrom, int daysTo, bool isNextDay)
+    {
+        if (isNextDay) return "Next Day Delivery";
+        if (daysFrom <= 0 && daysTo <= 0) return string.Empty;
+        return daysFrom == daysTo ? $"{daysFrom} days" : $"{daysFrom}-{daysTo} days";
+    }
 }
 

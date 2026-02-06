@@ -479,7 +479,6 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     return html`
       <div class="item-row ${isSelected ? "selected" : ""}">
         <uui-checkbox
-          label="Select item"
           ?checked=${isSelected}
           @change=${() => this._toggleItemSelection(orderId, item)}
           aria-label="Select ${item.name || 'item'}"

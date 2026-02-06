@@ -22,6 +22,7 @@ public class ProductsApiController(
     IProductTypeService productTypeService,
     IProductCollectionService productCollectionService,
     IShippingService shippingService,
+    IContentTypeService contentTypeService,
     IDataTypeService dataTypeService,
     IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
 {
@@ -583,14 +584,36 @@ public class ProductsApiController(
     #region Element Type Endpoints
 
     /// <summary>
-    /// Gets the configured Element Type structure for the product workspace.
-    /// Returns null if no Element Type is configured.
+    /// Gets available Element Types for selection.
+    /// </summary>
+    [HttpGet("products/element-types")]
+    [ProducesResponseType<List<ElementTypeListItemDto>>(StatusCodes.Status200OK)]
+    public IActionResult GetElementTypes()
+    {
+        var elementTypes = contentTypeService
+            .GetAll()
+            .Where(ct => ct.IsElement)
+            .OrderBy(ct => ct.Name ?? ct.Alias)
+            .Select(ct => new ElementTypeListItemDto
+            {
+                Key = ct.Key,
+                Alias = ct.Alias,
+                Name = ct.Name ?? ct.Alias
+            })
+            .ToList();
+
+        return Ok(elementTypes);
+    }
+
+    /// <summary>
+    /// Gets the Element Type structure for the provided alias.
+    /// Returns null if no Element Type is configured or found.
     /// </summary>
     [HttpGet("products/element-type")]
     [ProducesResponseType<ElementTypeDto>(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetProductElementType(CancellationToken ct)
+    public async Task<IActionResult> GetProductElementType([FromQuery] string? alias, CancellationToken ct)
     {
-        var contentType = await productService.GetProductElementTypeAsync(ct);
+        var contentType = await productService.GetProductElementTypeAsync(alias, ct);
         if (contentType is null)
             return Ok(null);
 

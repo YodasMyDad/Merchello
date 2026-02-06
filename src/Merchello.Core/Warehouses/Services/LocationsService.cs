@@ -55,33 +55,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
                 continue;
             }
 
-            foreach (var r in w.ServiceRegions)
-            {
-                // Wildcard rules: only treat as include-all for countries when no specific region code
-                if (string.Equals(r.CountryCode, "*", StringComparison.Ordinal))
-                {
-                    if (!r.IsExcluded && string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
-                    {
-                        hasWildcardInclude = true;
-                    }
-                    continue;
-                }
-
-                // State/province-specific rules should not affect country availability
-                if (!string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
-                {
-                    continue;
-                }
-
-                if (r.IsExcluded)
-                {
-                    excluded.Add(r.CountryCode);
-                }
-                else
-                {
-                    included.Add(r.CountryCode);
-                }
-            }
+            AccumulateCountryRules(w.ServiceRegions, included, excluded, ref hasWildcardInclude);
         }
 
         // If wildcard include is present, include all countries from catalog
@@ -148,72 +122,9 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
                 .ToListAsync(ct));
         scope.Complete();
 
-        // Collect rules applicable to this country (including wildcard '*')
-        var includeAll = false; // default allow-all
-        var excludeAll = false; // default deny-all
-        HashSet<string> include = new(StringComparer.OrdinalIgnoreCase);
-        HashSet<string> exclude = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var w in warehouses)
-        {
-            foreach (var r in w.ServiceRegions)
-            {
-                var appliesToCountry = string.Equals(r.CountryCode, code, StringComparison.OrdinalIgnoreCase) || r.CountryCode == "*";
-                if (!appliesToCountry)
-                    continue;
-
-                var hasRegion = !string.IsNullOrWhiteSpace(r.StateOrProvinceCode);
-                if (!hasRegion)
-                {
-                    // Country-level rule
-                    if (r.IsExcluded)
-                    {
-                        excludeAll = true; // default deny all unless re-included below
-                    }
-                    else
-                    {
-                        includeAll = true; // default include all unless excluded below
-                    }
-                }
-                else
-                {
-                    if (r.IsExcluded)
-                    {
-                        exclude.Add(r.StateOrProvinceCode!);
-                    }
-                    else
-                    {
-                        include.Add(r.StateOrProvinceCode!);
-                    }
-                }
-            }
-        }
-
-        // Compute allowed set
         var knownRegionCodes = new HashSet<string>(regionCatalog.Keys, StringComparer.OrdinalIgnoreCase);
-        HashSet<string> allowed;
-
-        if (includeAll)
-        {
-            allowed = new HashSet<string>(knownRegionCodes, StringComparer.OrdinalIgnoreCase);
-            allowed.ExceptWith(exclude);
-        }
-        else if (excludeAll)
-        {
-            // Only explicit includes survive
-            allowed = new HashSet<string>(include.Where(knownRegionCodes.Contains), StringComparer.OrdinalIgnoreCase);
-        }
-        else
-        {
-            // Default: everything known is allowed, minus explicit excludes, with explicit includes not strictly required
-            allowed = new HashSet<string>(knownRegionCodes, StringComparer.OrdinalIgnoreCase);
-            if (include.Count > 0)
-            {
-                // If explicit includes exist, use them as base instead (typical positive list)
-                allowed = new HashSet<string>(include.Where(knownRegionCodes.Contains), StringComparer.OrdinalIgnoreCase);
-            }
-            allowed.ExceptWith(exclude);
-        }
+        var allServiceRegions = warehouses.SelectMany(w => w.ServiceRegions);
+        var allowed = ResolveAllowedRegionsForCountry(code, allServiceRegions, knownRegionCodes);
 
         var result = allowed
             .OrderBy(rc => regionCatalog.TryGetValue(rc, out var nm) ? nm : rc, StringComparer.OrdinalIgnoreCase)
@@ -258,33 +169,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
         HashSet<string> excluded = new(StringComparer.OrdinalIgnoreCase);
         var hasWildcardInclude = false;
 
-        foreach (var r in warehouse.ServiceRegions)
-        {
-            // Wildcard rules
-            if (string.Equals(r.CountryCode, "*", StringComparison.Ordinal))
-            {
-                if (!r.IsExcluded && string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
-                {
-                    hasWildcardInclude = true;
-                }
-                continue;
-            }
-
-            // State/province-specific rules should not affect country availability
-            if (!string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
-            {
-                continue;
-            }
-
-            if (r.IsExcluded)
-            {
-                excluded.Add(r.CountryCode);
-            }
-            else
-            {
-                included.Add(r.CountryCode);
-            }
-        }
+        AccumulateCountryRules(warehouse.ServiceRegions, included, excluded, ref hasWildcardInclude);
 
         // If wildcard include, include all countries
         if (hasWildcardInclude)
@@ -349,17 +234,69 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
                 .ToList();
         }
 
-        // Collect rules applicable to this country (including wildcard '*')
-        var includeAll = false;
-        var excludeAll = false;
+        var knownRegionCodes = new HashSet<string>(regionCatalog.Keys, StringComparer.OrdinalIgnoreCase);
+        var allowed = ResolveAllowedRegionsForCountry(code, warehouse.ServiceRegions, knownRegionCodes);
+
+        var result = allowed
+            .OrderBy(rc => regionCatalog.TryGetValue(rc, out var nm) ? nm : rc, StringComparer.OrdinalIgnoreCase)
+            .Select(rc => new RegionAvailability(code, rc.ToUpperInvariant(), regionCatalog.TryGetValue(rc, out var name) ? name : rc.ToUpperInvariant()))
+            .ToList();
+
+        return result;
+    }
+
+    private static void AccumulateCountryRules(
+        IEnumerable<WarehouseServiceRegion> serviceRegions,
+        HashSet<string> included,
+        HashSet<string> excluded,
+        ref bool hasWildcardInclude)
+    {
+        foreach (var r in serviceRegions)
+        {
+            // Wildcard rules: only treat as include-all for countries when no specific region code
+            if (string.Equals(r.CountryCode, "*", StringComparison.Ordinal))
+            {
+                if (!r.IsExcluded && string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
+                {
+                    hasWildcardInclude = true;
+                }
+                continue;
+            }
+
+            // State/province-specific rules should not affect country availability
+            if (!string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
+            {
+                continue;
+            }
+
+            if (r.IsExcluded)
+            {
+                excluded.Add(r.CountryCode);
+            }
+            else
+            {
+                included.Add(r.CountryCode);
+            }
+        }
+    }
+
+    private static HashSet<string> ResolveAllowedRegionsForCountry(
+        string countryCode,
+        IEnumerable<WarehouseServiceRegion> serviceRegions,
+        HashSet<string> knownRegionCodes)
+    {
+        var includeAll = false; // default allow-all
+        var excludeAll = false; // default deny-all
         HashSet<string> include = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> exclude = new(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var r in warehouse.ServiceRegions)
+        foreach (var r in serviceRegions)
         {
-            var appliesToCountry = string.Equals(r.CountryCode, code, StringComparison.OrdinalIgnoreCase) || r.CountryCode == "*";
+            var appliesToCountry = string.Equals(r.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) || r.CountryCode == "*";
             if (!appliesToCountry)
+            {
                 continue;
+            }
 
             var hasRegion = !string.IsNullOrWhiteSpace(r.StateOrProvinceCode);
             if (!hasRegion)
@@ -367,11 +304,11 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
                 // Country-level rule
                 if (r.IsExcluded)
                 {
-                    excludeAll = true;
+                    excludeAll = true; // default deny all unless re-included below
                 }
                 else
                 {
-                    includeAll = true;
+                    includeAll = true; // default include all unless excluded below
                 }
             }
             else
@@ -387,38 +324,29 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
             }
         }
 
-        // Compute allowed set
-        var knownRegionCodes = new HashSet<string>(regionCatalog.Keys, StringComparer.OrdinalIgnoreCase);
-        HashSet<string> allowed;
-
         if (includeAll)
         {
-            allowed = new HashSet<string>(knownRegionCodes, StringComparer.OrdinalIgnoreCase);
+            var allowed = new HashSet<string>(knownRegionCodes, StringComparer.OrdinalIgnoreCase);
             allowed.ExceptWith(exclude);
+            return allowed;
         }
-        else if (excludeAll)
+
+        if (excludeAll)
         {
             // Only explicit includes survive
-            allowed = new HashSet<string>(include.Where(knownRegionCodes.Contains), StringComparer.OrdinalIgnoreCase);
+            return new HashSet<string>(include.Where(knownRegionCodes.Contains), StringComparer.OrdinalIgnoreCase);
         }
-        else
+
+        // Default: everything known is allowed, minus explicit excludes
+        var defaultAllowed = new HashSet<string>(knownRegionCodes, StringComparer.OrdinalIgnoreCase);
+        if (include.Count > 0)
         {
-            // Default: everything known is allowed, minus explicit excludes
-            allowed = new HashSet<string>(knownRegionCodes, StringComparer.OrdinalIgnoreCase);
-            if (include.Count > 0)
-            {
-                // If explicit includes exist, use them as base instead
-                allowed = new HashSet<string>(include.Where(knownRegionCodes.Contains), StringComparer.OrdinalIgnoreCase);
-            }
-            allowed.ExceptWith(exclude);
+            // If explicit includes exist, use them as base instead
+            defaultAllowed = new HashSet<string>(include.Where(knownRegionCodes.Contains), StringComparer.OrdinalIgnoreCase);
         }
 
-        var result = allowed
-            .OrderBy(rc => regionCatalog.TryGetValue(rc, out var nm) ? nm : rc, StringComparer.OrdinalIgnoreCase)
-            .Select(rc => new RegionAvailability(code, rc.ToUpperInvariant(), regionCatalog.TryGetValue(rc, out var name) ? name : rc.ToUpperInvariant()))
-            .ToList();
-
-        return result;
+        defaultAllowed.ExceptWith(exclude);
+        return defaultAllowed;
     }
 }
 

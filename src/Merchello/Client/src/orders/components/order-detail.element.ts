@@ -804,7 +804,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <!-- Payment Summary -->
             <div class="card payment-card">
               <div class="card-header">
-                <uui-checkbox label="Payment status" checked disabled aria-label="Payment status"></uui-checkbox>
+                <uui-checkbox checked disabled aria-label="Payment status"></uui-checkbox>
                 <span>${order.paymentStatusDisplay}</span>
               </div>
               <div class="payment-summary">

@@ -105,52 +105,28 @@ public class TaxService(
         TaxGroup taxGroup,
         CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<TaxGroup>();
+        // Validate rate
+        if (taxGroup.TaxPercentage < 0 || taxGroup.TaxPercentage > 100)
+        {
+            var invalidResult = new CrudResult<TaxGroup>();
+            invalidResult.AddErrorMessage("Tax rate must be between 0 and 100");
+            return invalidResult;
+        }
 
         // Publish saving notification (cancelable)
         var savingNotification = new TaxGroupSavingNotification(taxGroup);
         if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
         {
-            result.AddErrorMessage("Tax group update was cancelled by a notification handler");
-            return result;
+            var cancelledResult = new CrudResult<TaxGroup>();
+            cancelledResult.AddErrorMessage("Tax group update was cancelled by a notification handler");
+            return cancelledResult;
         }
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var existing = await db.TaxGroups
-                .FirstOrDefaultAsync(tg => tg.Id == taxGroup.Id, cancellationToken);
-
-            if (existing == null)
-            {
-                result.AddErrorMessage("Tax group not found");
-                return false;
-            }
-
-            // Validate rate
-            if (taxGroup.TaxPercentage < 0 || taxGroup.TaxPercentage > 100)
-            {
-                result.AddErrorMessage("Tax rate must be between 0 and 100");
-                return false;
-            }
-
-            existing.Name = taxGroup.Name;
-            existing.TaxPercentage = taxGroup.TaxPercentage;
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-
-            result.ResultObject = existing;
-            return true;
-        });
-        scope.Complete();
-
-        // Publish saved notification (informational)
-        if (result.Successful && result.ResultObject != null)
-        {
-            await notificationPublisher.PublishAsync(new TaxGroupSavedNotification(result.ResultObject), cancellationToken);
-        }
-
-        return result;
+        return await UpdateTaxGroupInternalAsync(
+            taxGroup.Id,
+            taxGroup.Name,
+            taxGroup.TaxPercentage,
+            publishSavingNotification: false,
+            cancellationToken);
     }
 
     /// <summary>
@@ -162,14 +138,29 @@ public class TaxService(
         decimal taxPercentage,
         CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<TaxGroup>();
-
         // Validate rate
         if (taxPercentage < 0 || taxPercentage > 100)
         {
-            result.AddErrorMessage("Tax rate must be between 0 and 100");
-            return result;
+            var invalidResult = new CrudResult<TaxGroup>();
+            invalidResult.AddErrorMessage("Tax rate must be between 0 and 100");
+            return invalidResult;
         }
+        return await UpdateTaxGroupInternalAsync(
+            taxGroupId,
+            name,
+            taxPercentage,
+            publishSavingNotification: true,
+            cancellationToken);
+    }
+
+    private async Task<CrudResult<TaxGroup>> UpdateTaxGroupInternalAsync(
+        Guid taxGroupId,
+        string? name,
+        decimal taxPercentage,
+        bool publishSavingNotification,
+        CancellationToken cancellationToken)
+    {
+        var result = new CrudResult<TaxGroup>();
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -183,12 +174,15 @@ public class TaxService(
                 return false;
             }
 
-            // Publish saving notification (cancelable)
-            var savingNotification = new TaxGroupSavingNotification(existing);
-            if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+            if (publishSavingNotification)
             {
-                result.AddErrorMessage("Tax group update was cancelled by a notification handler");
-                return false;
+                // Publish saving notification (cancelable)
+                var savingNotification = new TaxGroupSavingNotification(existing);
+                if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
+                {
+                    result.AddErrorMessage("Tax group update was cancelled by a notification handler");
+                    return false;
+                }
             }
 
             existing.Name = name;

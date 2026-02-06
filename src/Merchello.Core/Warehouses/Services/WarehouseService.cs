@@ -1246,35 +1246,7 @@ public class WarehouseService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-        {
-            IQueryable<ProductWarehouse> query = db.ProductWarehouses
-                .AsNoTracking()
-                .Where(pw => pw.WarehouseId == warehouseId);
-
-            if (lowStockOnly)
-            {
-                // For low stock filtering, check available stock (Stock - ReservedStock) for tracked items
-                query = query.Where(pw => pw.ReorderPoint.HasValue &&
-                    (pw.TrackStock
-                        ? (pw.Stock - pw.ReservedStock) <= pw.ReorderPoint.Value
-                        : pw.Stock <= pw.ReorderPoint.Value));
-            }
-
-            return await query
-                .Include(pw => pw.Product)
-                .Select(pw => new WarehouseInventoryItem
-                {
-                    ProductId = pw.ProductId,
-                    ProductName = pw.Product.Name,
-                    Sku = pw.Product.Sku,
-                    Stock = pw.Stock,
-                    ReservedStock = pw.ReservedStock,
-                    TrackStock = pw.TrackStock,
-                    ReorderPoint = pw.ReorderPoint,
-                    ReorderQuantity = pw.ReorderQuantity
-                })
-                .ToListAsync(cancellationToken);
-        });
+            await QueryWarehouseInventoryAsync(db, warehouseId, lowStockOnly, cancellationToken));
         scope.Complete();
         return result;
     }
@@ -1288,37 +1260,48 @@ public class WarehouseService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
-        {
-            // Check available stock (Stock - ReservedStock) for tracked items, total Stock for untracked
-            IQueryable<ProductWarehouse> query = db.ProductWarehouses
-                .AsNoTracking()
-                .Where(pw => pw.ReorderPoint.HasValue &&
-                    (pw.TrackStock
-                        ? (pw.Stock - pw.ReservedStock) <= pw.ReorderPoint.Value
-                        : pw.Stock <= pw.ReorderPoint.Value));
-
-            if (warehouseId.HasValue)
-            {
-                query = query.Where(pw => pw.WarehouseId == warehouseId.Value);
-            }
-
-            return await query
-                .Include(pw => pw.Product)
-                .Select(pw => new WarehouseInventoryItem
-                {
-                    ProductId = pw.ProductId,
-                    ProductName = pw.Product.Name,
-                    Sku = pw.Product.Sku,
-                    Stock = pw.Stock,
-                    ReservedStock = pw.ReservedStock,
-                    TrackStock = pw.TrackStock,
-                    ReorderPoint = pw.ReorderPoint,
-                    ReorderQuantity = pw.ReorderQuantity
-                })
-                .ToListAsync(cancellationToken);
-        });
+            await QueryWarehouseInventoryAsync(db, warehouseId, lowStockOnly: true, cancellationToken));
         scope.Complete();
         return result;
+    }
+
+    private static async Task<List<WarehouseInventoryItem>> QueryWarehouseInventoryAsync(
+        MerchelloDbContext db,
+        Guid? warehouseId,
+        bool lowStockOnly,
+        CancellationToken cancellationToken)
+    {
+        IQueryable<ProductWarehouse> query = db.ProductWarehouses
+            .AsNoTracking();
+
+        if (warehouseId.HasValue)
+        {
+            query = query.Where(pw => pw.WarehouseId == warehouseId.Value);
+        }
+
+        if (lowStockOnly)
+        {
+            // Check available stock (Stock - ReservedStock) for tracked items, total Stock for untracked
+            query = query.Where(pw => pw.ReorderPoint.HasValue &&
+                (pw.TrackStock
+                    ? (pw.Stock - pw.ReservedStock) <= pw.ReorderPoint.Value
+                    : pw.Stock <= pw.ReorderPoint.Value));
+        }
+
+        return await query
+            .Include(pw => pw.Product)
+            .Select(pw => new WarehouseInventoryItem
+            {
+                ProductId = pw.ProductId,
+                ProductName = pw.Product.Name,
+                Sku = pw.Product.Sku,
+                Stock = pw.Stock,
+                ReservedStock = pw.ReservedStock,
+                TrackStock = pw.TrackStock,
+                ReorderPoint = pw.ReorderPoint,
+                ReorderQuantity = pw.ReorderQuantity
+            })
+            .ToListAsync(cancellationToken);
     }
 
     #endregion

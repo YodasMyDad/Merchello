@@ -12,7 +12,7 @@ internal class CustomerWithMetrics
     public string? TagsJson { get; set; }
     public List<string> Tags { get; set; } = [];
     public int OrderCount { get; set; }
-    public decimal TotalSpend { get; set; }
+    public double TotalSpend { get; set; }
     public DateTime? FirstOrderDate { get; set; }
     public DateTime? LastOrderDate { get; set; }
     public string? Country { get; set; }

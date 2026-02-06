@@ -1942,6 +1942,10 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<string>("ElementPropertyData")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ElementTypeAlias")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ExtendedData")
                         .IsRequired()
                         .HasColumnType("TEXT");

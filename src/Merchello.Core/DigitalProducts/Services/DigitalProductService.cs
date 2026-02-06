@@ -333,43 +333,23 @@ public class DigitalProductService(
         GetCustomerDownloadsParameters parameters,
         CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var links = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var query = db.DownloadLinks
-                .Where(l => l.CustomerId == parameters.CustomerId);
-
-            if (!parameters.IncludeExpired)
-            {
-                var now = DateTime.UtcNow;
-                query = query.Where(l =>
-                    (!l.ExpiresUtc.HasValue || l.ExpiresUtc > now) &&
-                    (!l.MaxDownloads.HasValue || l.DownloadCount < l.MaxDownloads));
-            }
-
-            return await query
-                .OrderByDescending(l => l.DateCreated)
-                .ToListAsync(ct);
-        });
-        scope.Complete();
-
-        PopulateDownloadUrls(links);
-        return links;
+        return await GetDownloadLinksAsync(
+            customerId: parameters.CustomerId,
+            invoiceId: null,
+            includeExpired: parameters.IncludeExpired,
+            orderBy: q => q.OrderByDescending(l => l.DateCreated),
+            ct);
     }
 
     /// <inheritdoc />
     public async Task<List<DownloadLink>> GetInvoiceDownloadsAsync(Guid invoiceId, CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var links = await scope.ExecuteWithContextAsync(async db =>
-            await db.DownloadLinks
-                .Where(l => l.InvoiceId == invoiceId)
-                .OrderBy(l => l.FileName)
-                .ToListAsync(ct));
-        scope.Complete();
-
-        PopulateDownloadUrls(links);
-        return links;
+        return await GetDownloadLinksAsync(
+            customerId: null,
+            invoiceId: invoiceId,
+            includeExpired: true,
+            orderBy: q => q.OrderBy(l => l.FileName),
+            ct);
     }
 
     /// <inheritdoc />
@@ -467,6 +447,44 @@ public class DigitalProductService(
         });
 
         return result;
+    }
+
+    private async Task<List<DownloadLink>> GetDownloadLinksAsync(
+        Guid? customerId,
+        Guid? invoiceId,
+        bool includeExpired,
+        Func<IQueryable<DownloadLink>, IOrderedQueryable<DownloadLink>> orderBy,
+        CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var links = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var query = db.DownloadLinks.AsQueryable();
+
+            if (customerId.HasValue)
+            {
+                query = query.Where(l => l.CustomerId == customerId.Value);
+            }
+
+            if (invoiceId.HasValue)
+            {
+                query = query.Where(l => l.InvoiceId == invoiceId.Value);
+            }
+
+            if (!includeExpired)
+            {
+                var now = DateTime.UtcNow;
+                query = query.Where(l =>
+                    (!l.ExpiresUtc.HasValue || l.ExpiresUtc > now) &&
+                    (!l.MaxDownloads.HasValue || l.DownloadCount < l.MaxDownloads));
+            }
+
+            return await orderBy(query).ToListAsync(ct);
+        });
+        scope.Complete();
+
+        PopulateDownloadUrls(links);
+        return links;
     }
 
     /// <summary>

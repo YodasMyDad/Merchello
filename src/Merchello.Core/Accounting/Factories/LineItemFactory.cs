@@ -399,27 +399,9 @@ public class LineItemFactory(ICurrencyService currencyService)
     private static decimal GetDecimalFromExtendedData(Dictionary<string, object> extendedData, string key)
     {
         if (!extendedData.TryGetValue(key, out var value))
-        {
             return 0m;
-        }
-
-        // Handle JsonElement (from JSON deserialization)
-        if (value is System.Text.Json.JsonElement jsonElement)
-        {
-            return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Number
-                ? jsonElement.GetDecimal()
-                : 0m;
-        }
-
-        // Handle direct decimal or numeric types
-        try
-        {
-            return Convert.ToDecimal(value);
-        }
-        catch
-        {
-            return 0m;
-        }
+        try { return Convert.ToDecimal(value.UnwrapJsonElement()); }
+        catch { return 0m; }
     }
 }
 

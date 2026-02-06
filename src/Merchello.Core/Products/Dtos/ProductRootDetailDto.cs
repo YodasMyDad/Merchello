@@ -91,6 +91,11 @@ public class ProductRootDetailDto
     public Dictionary<string, object?>? ElementProperties { get; set; }
 
     /// <summary>
+    /// Alias of the selected Element Type for custom product properties.
+    /// </summary>
+    public string? ElementTypeAlias { get; set; }
+
+    /// <summary>
     /// The view alias used to render this product on the front-end.
     /// Example: "Gallery" -> ~/Views/Products/Gallery.cshtml
     /// </summary>

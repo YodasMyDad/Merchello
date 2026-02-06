@@ -183,6 +183,9 @@ public class ShippingOptionService(
     {
         var result = new CrudResult<ShippingOption>();
 
+        if (!ValidateDeliveryDays(dto, result))
+            return result;
+
         // Serialize provider settings to JSON
         string? providerSettingsJson = null;
         if (dto.ProviderSettings != null && dto.ProviderSettings.Count > 0)
@@ -240,6 +243,9 @@ public class ShippingOptionService(
     public async Task<CrudResult<ShippingOption>> UpdateAsync(Guid id, CreateShippingOptionDto dto, CancellationToken ct = default)
     {
         var result = new CrudResult<ShippingOption>();
+
+        if (!ValidateDeliveryDays(dto, result))
+            return result;
 
         // Serialize provider settings to JSON
         string? providerSettingsJson = null;
@@ -458,22 +464,8 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var options = await db.ShippingOptions.ToListAsync(ct);
-            ShippingOption? targetOption = null;
-            ShippingCost? targetCost = null;
-
-            foreach (var option in options)
-            {
-                var optionCosts = option.ShippingCosts;
-                var match = optionCosts.FirstOrDefault(c => c.Id == costId);
-                if (match == null) continue;
-
-                targetOption = option;
-                targetCost = match;
-                break;
-            }
-
-            if (targetOption == null || targetCost == null)
+            var found = await FindShippingCostAsync(db, costId, ct);
+            if (found == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -482,6 +474,8 @@ public class ShippingOptionService(
                 });
                 return false;
             }
+
+            var (targetOption, targetCost) = found.Value;
 
             targetCost.CountryCode = dto.CountryCode.ToUpperInvariant();
             targetCost.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
@@ -506,22 +500,8 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var options = await db.ShippingOptions.ToListAsync(ct);
-            ShippingOption? targetOption = null;
-            ShippingCost? targetCost = null;
-
-            foreach (var option in options)
-            {
-                var optionCosts = option.ShippingCosts;
-                var match = optionCosts.FirstOrDefault(c => c.Id == costId);
-                if (match == null) continue;
-
-                targetOption = option;
-                targetCost = match;
-                break;
-            }
-
-            if (targetOption == null || targetCost == null)
+            var found = await FindShippingCostAsync(db, costId, ct);
+            if (found == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -530,6 +510,8 @@ public class ShippingOptionService(
                 });
                 return false;
             }
+
+            var (targetOption, targetCost) = found.Value;
 
             var costs = targetOption.ShippingCosts;
             costs.RemoveAll(c => c.Id == costId);
@@ -616,22 +598,8 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var options = await db.ShippingOptions.ToListAsync(ct);
-            ShippingOption? targetOption = null;
-            ShippingWeightTier? targetTier = null;
-
-            foreach (var option in options)
-            {
-                var optionTiers = option.WeightTiers;
-                var match = optionTiers.FirstOrDefault(t => t.Id == tierId);
-                if (match == null) continue;
-
-                targetOption = option;
-                targetTier = match;
-                break;
-            }
-
-            if (targetOption == null || targetTier == null)
+            var found = await FindShippingWeightTierAsync(db, tierId, ct);
+            if (found == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -640,6 +608,8 @@ public class ShippingOptionService(
                 });
                 return false;
             }
+
+            var (targetOption, targetTier) = found.Value;
 
             targetTier.CountryCode = dto.CountryCode.ToUpperInvariant();
             targetTier.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
@@ -667,22 +637,8 @@ public class ShippingOptionService(
         using var scope = scopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var options = await db.ShippingOptions.ToListAsync(ct);
-            ShippingOption? targetOption = null;
-            ShippingWeightTier? targetTier = null;
-
-            foreach (var option in options)
-            {
-                var optionTiers = option.WeightTiers;
-                var match = optionTiers.FirstOrDefault(t => t.Id == tierId);
-                if (match == null) continue;
-
-                targetOption = option;
-                targetTier = match;
-                break;
-            }
-
-            if (targetOption == null || targetTier == null)
+            var found = await FindShippingWeightTierAsync(db, tierId, ct);
+            if (found == null)
             {
                 result.Messages.Add(new ResultMessage
                 {
@@ -691,6 +647,8 @@ public class ShippingOptionService(
                 });
                 return false;
             }
+
+            var (targetOption, targetTier) = found.Value;
 
             var tiers = targetOption.WeightTiers;
             tiers.RemoveAll(t => t.Id == tierId);
@@ -709,6 +667,42 @@ public class ShippingOptionService(
 
     #region Helpers
 
+    private static async Task<(ShippingOption Option, ShippingCost Cost)?> FindShippingCostAsync(
+        MerchelloDbContext db,
+        Guid costId,
+        CancellationToken ct)
+    {
+        var options = await db.ShippingOptions.ToListAsync(ct);
+        foreach (var option in options)
+        {
+            var match = option.ShippingCosts.FirstOrDefault(c => c.Id == costId);
+            if (match != null)
+            {
+                return (option, match);
+            }
+        }
+
+        return null;
+    }
+
+    private static async Task<(ShippingOption Option, ShippingWeightTier Tier)?> FindShippingWeightTierAsync(
+        MerchelloDbContext db,
+        Guid tierId,
+        CancellationToken ct)
+    {
+        var options = await db.ShippingOptions.ToListAsync(ct);
+        foreach (var option in options)
+        {
+            var match = option.WeightTiers.FirstOrDefault(t => t.Id == tierId);
+            if (match != null)
+            {
+                return (option, match);
+            }
+        }
+
+        return null;
+    }
+
     private static string FormatRegion(string countryCode, string? stateCode)
     {
         if (countryCode == "*") return "All Countries";
@@ -718,6 +712,53 @@ public class ShippingOptionService(
     private static string FormatWeightRange(decimal min, decimal? max)
     {
         return max.HasValue ? $"{min}-{max} kg" : $"{min}+ kg";
+    }
+
+    /// <summary>
+    /// Validates DaysFrom/DaysTo for flat-rate providers (not next-day).
+    /// Returns false if validation fails (error messages added to result).
+    /// </summary>
+    private static bool ValidateDeliveryDays(CreateShippingOptionDto dto, CrudResult<ShippingOption> result)
+    {
+        // Dynamic providers calculate transit time from carrier APIs - skip validation
+        if (dto.ProviderKey is not null and not "flat-rate")
+            return true;
+
+        // Next-day delivery uses the IsNextDay flag, not days range
+        if (dto.IsNextDay)
+            return true;
+
+        if (dto.DaysFrom < 1)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Minimum delivery days must be at least 1",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return false;
+        }
+
+        if (dto.DaysTo < 1)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Maximum delivery days must be at least 1",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return false;
+        }
+
+        if (dto.DaysTo < dto.DaysFrom)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Maximum delivery days must be greater than or equal to minimum days",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return false;
+        }
+
+        return true;
     }
 
     #endregion

@@ -838,12 +838,11 @@ public class InvoiceService(
             return false;
         }
 
-        return value switch
+        var unwrapped = value.UnwrapJsonElement();
+        return unwrapped switch
         {
             bool b => b,
             string s => bool.TryParse(s, out var parsed) && parsed,
-            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
-                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
             _ => false
         };
     }
@@ -947,12 +946,11 @@ public class InvoiceService(
             return null;
         }
 
-        return value switch
+        var unwrapped = value.UnwrapJsonElement();
+        return unwrapped switch
         {
             Guid guid => guid,
             string s when Guid.TryParse(s, out var parsed) => parsed,
-            System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
-                && Guid.TryParse(je.GetString(), out var parsed) => parsed,
             _ => null
         };
     }
@@ -1846,24 +1844,33 @@ public class InvoiceService(
             return 0;
         }
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        var count = await scope.ExecuteWithContextAsync(async db =>
-            await db.Invoices
-                .AsNoTracking()
-                .CountAsync(i => !i.IsDeleted && i.BillingAddress.Email == email, cancellationToken));
-        scope.Complete();
-
-        return count;
+        return await GetInvoiceCountInternalAsync(email, cancellationToken);
     }
 
     /// <inheritdoc />
     public async Task<int> GetInvoiceCountAsync(CancellationToken cancellationToken = default)
     {
+        return await GetInvoiceCountInternalAsync(null, cancellationToken);
+    }
+
+    private async Task<int> GetInvoiceCountInternalAsync(
+        string? billingEmail,
+        CancellationToken cancellationToken)
+    {
         using var scope = efCoreScopeProvider.CreateScope();
         var count = await scope.ExecuteWithContextAsync(async db =>
-            await db.Invoices
+        {
+            var query = db.Invoices
                 .AsNoTracking()
-                .CountAsync(i => !i.IsDeleted, cancellationToken));
+                .Where(i => !i.IsDeleted);
+
+            if (!string.IsNullOrWhiteSpace(billingEmail))
+            {
+                query = query.Where(i => i.BillingAddress.Email == billingEmail);
+            }
+
+            return await query.CountAsync(cancellationToken);
+        });
         scope.Complete();
 
         return count;

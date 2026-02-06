@@ -250,6 +250,7 @@ import type {
   ProductOptionDto,
   SaveProductOptionDto,
   ProductViewDto,
+  ElementTypeListItemDto,
   ShippingOptionExclusionDto,
   UpdateShippingExclusionsDto,
   VariantLookupDto,
@@ -1050,8 +1051,12 @@ export const MerchelloApi = {
   /** Get description editor settings (DataType key for TipTap rich text editor) */
   getDescriptionEditorSettings: () => apiGet<DescriptionEditorSettingsDto>('settings/description-editor'),
 
-  /** Get the configured Element Type structure for product content properties */
-  getProductElementType: () => apiGet<ElementTypeDto | null>('products/element-type'),
+  /** Get available Element Types for product content properties */
+  getElementTypes: () => apiGet<ElementTypeListItemDto[]>('products/element-types'),
+
+  /** Get the Element Type structure for product content properties by alias */
+  getProductElementType: (alias: string) =>
+    apiGet<ElementTypeDto | null>(`products/element-type?alias=${encodeURIComponent(alias)}`),
 
   /** Get available product views for the view selection dropdown */
   getProductViews: () => apiGet<ProductViewDto[]>('products/views'),

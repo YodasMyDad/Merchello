@@ -865,4 +865,290 @@ public class SegmentCriteriaEvaluatorTests
     }
 
     #endregion
+
+    #region SQL-Based Evaluation (CountMatchingCustomersAsync / QueryMatchingCustomersAsync)
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_TotalSpendGreaterThan_ReturnsCorrectCount()
+    {
+        // Arrange - create customers with different spend levels
+        _dataBuilder.CreateCustomerWithOrders("highspend@test.com", 3, 1500m);
+        _dataBuilder.CreateCustomerWithOrders("medspend@test.com", 2, 800m);
+        _dataBuilder.CreateCustomerWithOrders("lowspend@test.com", 1, 50m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "TotalSpend",
+                    Operator = SegmentCriteriaOperator.GreaterThan,
+                    Value = 500m
+                }
+            ]
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_OrderCountEquals_ReturnsCorrectCount()
+    {
+        // Arrange
+        _dataBuilder.CreateCustomerWithOrders("five1@test.com", 5, 500m);
+        _dataBuilder.CreateCustomerWithOrders("five2@test.com", 5, 300m);
+        _dataBuilder.CreateCustomerWithOrders("three@test.com", 3, 200m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "OrderCount",
+                    Operator = SegmentCriteriaOperator.Equals,
+                    Value = 5
+                }
+            ]
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_TotalSpendBetween_ReturnsCorrectCount()
+    {
+        // Arrange
+        _dataBuilder.CreateCustomerWithOrders("inrange@test.com", 2, 750m);
+        _dataBuilder.CreateCustomerWithOrders("belowrange@test.com", 1, 100m);
+        _dataBuilder.CreateCustomerWithOrders("aboverange@test.com", 5, 2000m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "TotalSpend",
+                    Operator = SegmentCriteriaOperator.Between,
+                    Value = 500m,
+                    Value2 = 1000m
+                }
+            ]
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_MultipleCriteriaAllMode_FiltersCorrectly()
+    {
+        // Arrange
+        _dataBuilder.CreateCustomerWithOrders("match@test.com", 5, 1500m);
+        _dataBuilder.CreateCustomerWithOrders("highcount@test.com", 5, 200m);
+        _dataBuilder.CreateCustomerWithOrders("highspend2@test.com", 2, 1500m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "OrderCount",
+                    Operator = SegmentCriteriaOperator.GreaterThanOrEqual,
+                    Value = 5
+                },
+                new SegmentCriteria
+                {
+                    Field = "TotalSpend",
+                    Operator = SegmentCriteriaOperator.GreaterThan,
+                    Value = 1000m
+                }
+            ]
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_MultipleCriteriaAnyMode_FiltersCorrectly()
+    {
+        // Arrange
+        _dataBuilder.CreateCustomerWithOrders("highcount2@test.com", 10, 200m);
+        _dataBuilder.CreateCustomerWithOrders("highspend3@test.com", 1, 2000m);
+        _dataBuilder.CreateCustomerWithOrders("neither@test.com", 2, 100m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.Any,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "OrderCount",
+                    Operator = SegmentCriteriaOperator.GreaterThanOrEqual,
+                    Value = 10
+                },
+                new SegmentCriteria
+                {
+                    Field = "TotalSpend",
+                    Operator = SegmentCriteriaOperator.GreaterThan,
+                    Value = 1000m
+                }
+            ]
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_EmailContains_FiltersCorrectly()
+    {
+        // Arrange
+        _dataBuilder.CreateCustomer("user@company.com");
+        _dataBuilder.CreateCustomer("admin@company.com");
+        _dataBuilder.CreateCustomer("user@gmail.com");
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "Email",
+                    Operator = SegmentCriteriaOperator.Contains,
+                    Value = "company"
+                }
+            ]
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_CustomersWithNoOrders_IncludedWithZeroSpend()
+    {
+        // Arrange - customer with no orders should have TotalSpend = 0
+        _dataBuilder.CreateCustomer("noorders2@test.com");
+        _dataBuilder.CreateCustomerWithOrders("hasorders@test.com", 1, 100m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "TotalSpend",
+                    Operator = SegmentCriteriaOperator.Equals,
+                    Value = 0m
+                }
+            ]
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task QueryMatchingCustomersAsync_TotalSpendGreaterThan_ReturnsMatchingIds()
+    {
+        // Arrange
+        var highSpender = _dataBuilder.CreateCustomerWithOrders("queryhigh@test.com", 3, 1500m);
+        _dataBuilder.CreateCustomerWithOrders("querylow@test.com", 1, 50m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria =
+            [
+                new SegmentCriteria
+                {
+                    Field = "TotalSpend",
+                    Operator = SegmentCriteriaOperator.GreaterThan,
+                    Value = 500m
+                }
+            ]
+        };
+
+        // Act
+        var result = await _evaluator.QueryMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.TotalItems.ShouldBe(1);
+        result.Items.ShouldContain(highSpender.Id);
+    }
+
+    [Fact]
+    public async Task CountMatchingCustomersAsync_EmptyCriteria_ReturnsZero()
+    {
+        // Arrange
+        _dataBuilder.CreateCustomer("empty2@test.com");
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var criteriaSet = new SegmentCriteriaSet
+        {
+            MatchMode = SegmentMatchMode.All,
+            Criteria = []
+        };
+
+        // Act
+        var count = await _evaluator.CountMatchingCustomersAsync(criteriaSet);
+
+        // Assert
+        count.ShouldBe(0);
+    }
+
+    #endregion
 }

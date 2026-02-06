@@ -194,7 +194,7 @@ public class ShippingOptionInfoTests
     }
 
     [Fact]
-    public void DeliveryTimeDescription_SameDay_ReturnsRange()
+    public void DeliveryTimeDescription_SameDay_ReturnsSingleDay()
     {
         var option = new ShippingOptionInfo
         {
@@ -203,7 +203,31 @@ public class ShippingOptionInfoTests
             DaysTo = 2
         };
 
-        option.DeliveryTimeDescription.ShouldBe("2-2 days");
+        option.DeliveryTimeDescription.ShouldBe("2 days");
+    }
+
+    [Fact]
+    public void FormatDeliveryTime_SameDay_ReturnsSingleDay()
+    {
+        ShippingOptionInfo.FormatDeliveryTime(5, 5, false).ShouldBe("5 days");
+    }
+
+    [Fact]
+    public void FormatDeliveryTime_Range_ReturnsRange()
+    {
+        ShippingOptionInfo.FormatDeliveryTime(3, 7, false).ShouldBe("3-7 days");
+    }
+
+    [Fact]
+    public void FormatDeliveryTime_NextDay_IgnoresDays()
+    {
+        ShippingOptionInfo.FormatDeliveryTime(0, 0, true).ShouldBe("Next Day Delivery");
+    }
+
+    [Fact]
+    public void FormatDeliveryTime_ZeroDays_ReturnsEmpty()
+    {
+        ShippingOptionInfo.FormatDeliveryTime(0, 0, false).ShouldBe(string.Empty);
     }
 
     [Fact]

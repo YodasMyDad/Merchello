@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.DigitalProducts.Extensions;
+using Merchello.Core.DigitalProducts.Models;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.Product;
 using Merchello.Core.Products.Dtos;
@@ -265,26 +267,18 @@ public class ProductService(
 
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            var variant = await db.Products
+            var variants = await db.Products
                 .Include(p => p.ExcludedShippingOptions)
-                .FirstOrDefaultAsync(p => p.Id == variantId, cancellationToken);
-
-            if (variant == null)
-            {
-                result.AddErrorMessage("Variant not found");
-                return false;
-            }
-
-            // Load shipping options to exclude
-            var optionsToExclude = await db.ShippingOptions
-                .Where(so => excludedShippingOptionIds.Contains(so.Id))
+                .Where(p => p.Id == variantId)
                 .ToListAsync(cancellationToken);
 
-            ApplyShippingExclusions([variant], optionsToExclude);
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-            return true;
+            return await UpdateShippingExclusionsAsync(
+                db,
+                variants,
+                excludedShippingOptionIds,
+                result,
+                "Variant not found",
+                cancellationToken);
         });
 
         scope.Complete();
@@ -363,27 +357,44 @@ public class ProductService(
                 .Where(p => p.ProductRootId == productRootId)
                 .ToListAsync(cancellationToken);
 
-            if (variants.Count == 0)
-            {
-                result.AddErrorMessage("Product not found");
-                return false;
-            }
-
-            // Load shipping options to exclude
-            var optionsToExclude = await db.ShippingOptions
-                .Where(so => excludedShippingOptionIds.Contains(so.Id))
-                .ToListAsync(cancellationToken);
-
-            // Apply exclusions to ALL variants (bulk mode)
-            ApplyShippingExclusions(variants, optionsToExclude);
-
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = result.Successful;
-            return true;
+            return await UpdateShippingExclusionsAsync(
+                db,
+                variants,
+                excludedShippingOptionIds,
+                result,
+                "Product not found",
+                cancellationToken);
         });
 
         scope.Complete();
         return result;
+    }
+
+    private async Task<bool> UpdateShippingExclusionsAsync(
+        MerchelloDbContext db,
+        IReadOnlyCollection<Product> variants,
+        IReadOnlyCollection<Guid> excludedShippingOptionIds,
+        CrudResult<bool> result,
+        string notFoundMessage,
+        CancellationToken cancellationToken)
+    {
+        if (variants.Count == 0)
+        {
+            result.AddErrorMessage(notFoundMessage);
+            return false;
+        }
+
+        // Load shipping options to exclude
+        var optionsToExclude = await db.ShippingOptions
+            .Where(so => excludedShippingOptionIds.Contains(so.Id))
+            .ToListAsync(cancellationToken);
+
+        // Apply exclusions to variants (single or bulk)
+        ApplyShippingExclusions(variants, optionsToExclude);
+
+        await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+        result.ResultObject = result.Successful;
+        return result.Successful;
     }
 
     private static void ApplyShippingExclusions(
@@ -1411,6 +1422,24 @@ public class ProductService(
                 return false;
             }
 
+            string? elementTypeAlias = null;
+            if (!string.IsNullOrWhiteSpace(request.ElementTypeAlias))
+            {
+                elementTypeAlias = request.ElementTypeAlias.Trim();
+                var elementType = await GetProductElementTypeAsync(elementTypeAlias, cancellationToken);
+                if (elementType == null)
+                {
+                    result.AddErrorMessage($"Element Type '{elementTypeAlias}' not found or is not an Element Type");
+                    return false;
+                }
+                elementTypeAlias = elementType.Alias;
+            }
+            else if (request.ElementProperties is { Count: > 0 })
+            {
+                result.AddErrorMessage("Element properties were provided without an Element Type selection");
+                return false;
+            }
+
             var collections = request.CollectionIds?.Any() == true
                 ? await db.ProductCollections.Where(c => request.CollectionIds.Contains(c.Id)).ToListAsync(cancellationToken)
                 : [];
@@ -1434,6 +1463,28 @@ public class ProductService(
                 collections: collections,
                 isDigitalProduct: request.IsDigitalProduct,
                 rootImages: request.RootImages?.Select(g => g.ToString()).ToList());
+
+            if (!string.IsNullOrWhiteSpace(elementTypeAlias))
+            {
+                productRoot.ElementTypeAlias = elementTypeAlias;
+            }
+
+            if (request.ElementProperties is { Count: > 0 })
+            {
+                productRoot.ElementPropertyData = SerializeElementProperties(request.ElementProperties);
+            }
+
+            if (!TryApplyDigitalProductSettings(
+                    productRoot,
+                    request.DigitalDeliveryMethod,
+                    request.DigitalFileIds,
+                    request.DownloadLinkExpiryDays,
+                    request.MaxDownloadsPerLink,
+                    applyDefaults: true,
+                    result))
+            {
+                return false;
+            }
 
             // Publish "Before" notification - handlers can modify or cancel
             var creatingNotification = new ProductCreatingNotification(productRoot);
@@ -1564,13 +1615,64 @@ public class ProductService(
             }
             if (request.IsDigitalProduct.HasValue) productRoot.IsDigitalProduct = request.IsDigitalProduct.Value;
             if (request.RootImages != null) productRoot.RootImages = request.RootImages.Select(g => g.ToString()).ToList();
+
+            if (!TryApplyDigitalProductSettings(
+                    productRoot,
+                    request.DigitalDeliveryMethod,
+                    request.DigitalFileIds,
+                    request.DownloadLinkExpiryDays,
+                    request.MaxDownloadsPerLink,
+                    applyDefaults: false,
+                    result))
+            {
+                return false;
+            }
+
             if (request.Description != null) productRoot.Description = request.Description;
             if (request.MetaDescription != null) productRoot.MetaDescription = request.MetaDescription;
             if (request.PageTitle != null) productRoot.PageTitle = request.PageTitle;
             if (request.NoIndex.HasValue) productRoot.NoIndex = request.NoIndex.Value;
             if (request.OpenGraphImage != null) productRoot.OpenGraphImage = request.OpenGraphImage;
             if (request.CanonicalUrl != null) productRoot.CanonicalUrl = request.CanonicalUrl;
-            if (request.ElementProperties != null) productRoot.ElementPropertyData = SerializeElementProperties(request.ElementProperties);
+
+            if (request.ElementTypeAlias != null)
+            {
+                var alias = request.ElementTypeAlias.Trim();
+                if (string.IsNullOrWhiteSpace(alias))
+                {
+                    productRoot.ElementTypeAlias = null;
+                    productRoot.ElementPropertyData = null;
+                }
+                else
+                {
+                    var isSameAlias = string.Equals(productRoot.ElementTypeAlias, alias, StringComparison.OrdinalIgnoreCase);
+                    if (!isSameAlias)
+                    {
+                        var elementType = await GetProductElementTypeAsync(alias, cancellationToken);
+                        if (elementType == null)
+                        {
+                            result.AddErrorMessage($"Element Type '{alias}' not found or is not an Element Type");
+                            return false;
+                        }
+
+                        alias = elementType.Alias;
+                        productRoot.ElementPropertyData = null;
+                    }
+
+                    productRoot.ElementTypeAlias = alias;
+                }
+            }
+
+            if (request.ElementProperties != null)
+            {
+                if (string.IsNullOrWhiteSpace(productRoot.ElementTypeAlias))
+                {
+                    result.AddErrorMessage("Element properties were provided without an Element Type selection");
+                    return false;
+                }
+
+                productRoot.ElementPropertyData = SerializeElementProperties(request.ElementProperties);
+            }
             if (request.ViewAlias != null) productRoot.ViewAlias = request.ViewAlias;
 
             // Update tax group
@@ -2167,6 +2269,10 @@ public class ProductService(
             RootUrl = productRoot.RootUrl,
             GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
             IsDigitalProduct = productRoot.IsDigitalProduct,
+            DigitalDeliveryMethod = productRoot.IsDigitalProduct ? productRoot.GetDigitalDeliveryMethod().ToString() : null,
+            DigitalFileIds = productRoot.IsDigitalProduct ? productRoot.GetDigitalFileIds() : null,
+            DownloadLinkExpiryDays = productRoot.IsDigitalProduct ? productRoot.GetDownloadLinkExpiryDays() : null,
+            MaxDownloadsPerLink = productRoot.IsDigitalProduct ? productRoot.GetMaxDownloadsPerLink() : null,
             AggregateStockStatus = aggregateStockStatus,
             AggregateStockStatusLabel = aggregateStockStatusLabel,
             AggregateStockStatusCssClass = aggregateStockStatusCssClass,
@@ -2193,8 +2299,94 @@ public class ProductService(
             Variants = variants,
             AvailableShippingOptions = MapToShippingOptionExclusionDtos(productRoot),
             ElementProperties = DeserializeElementProperties(productRoot.ElementPropertyData),
+            ElementTypeAlias = productRoot.ElementTypeAlias,
             ViewAlias = productRoot.ViewAlias
         };
+    }
+
+    /// <summary>
+    /// Applies digital product settings from request DTOs to product extended data.
+    /// </summary>
+    private bool TryApplyDigitalProductSettings(
+        ProductRoot productRoot,
+        string? digitalDeliveryMethod,
+        List<string>? digitalFileIds,
+        int? downloadLinkExpiryDays,
+        int? maxDownloadsPerLink,
+        bool applyDefaults,
+        CrudResult<ProductRoot> result)
+    {
+        if (!productRoot.IsDigitalProduct)
+        {
+            ClearDigitalProductSettings(productRoot);
+            return true;
+        }
+
+        var hasDeliveryMethod = !string.IsNullOrWhiteSpace(digitalDeliveryMethod);
+        if (hasDeliveryMethod || applyDefaults)
+        {
+            var deliveryMethodValue = hasDeliveryMethod ? digitalDeliveryMethod : DigitalDeliveryMethod.InstantDownload.ToString();
+            if (!Enum.TryParse<DigitalDeliveryMethod>(deliveryMethodValue, ignoreCase: true, out var parsedDeliveryMethod))
+            {
+                result.AddErrorMessage($"Invalid digital delivery method '{digitalDeliveryMethod}'");
+                return false;
+            }
+
+            productRoot.SetDigitalDeliveryMethod(parsedDeliveryMethod);
+        }
+
+        if (digitalFileIds != null)
+        {
+            var normalizedFileIds = digitalFileIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            productRoot.SetDigitalFileIds(normalizedFileIds);
+        }
+        else if (applyDefaults)
+        {
+            productRoot.SetDigitalFileIds([]);
+        }
+
+        if (downloadLinkExpiryDays.HasValue)
+        {
+            if (downloadLinkExpiryDays.Value < 0)
+            {
+                result.AddErrorMessage("Download link expiry days must be 0 or greater");
+                return false;
+            }
+
+            productRoot.SetDownloadLinkExpiryDays(downloadLinkExpiryDays.Value);
+        }
+        else if (applyDefaults)
+        {
+            productRoot.SetDownloadLinkExpiryDays(settings.Value.DefaultDownloadLinkExpiryDays);
+        }
+
+        if (maxDownloadsPerLink.HasValue)
+        {
+            if (maxDownloadsPerLink.Value < 0)
+            {
+                result.AddErrorMessage("Max downloads per link must be 0 or greater");
+                return false;
+            }
+
+            productRoot.SetMaxDownloadsPerLink(maxDownloadsPerLink.Value);
+        }
+        else if (applyDefaults)
+        {
+            productRoot.SetMaxDownloadsPerLink(settings.Value.DefaultMaxDownloadsPerLink);
+        }
+
+        return true;
+    }
+
+    private static void ClearDigitalProductSettings(ProductRoot productRoot)
+    {
+        productRoot.ExtendedData.Remove(Constants.ExtendedDataKeys.DigitalDeliveryMethod);
+        productRoot.ExtendedData.Remove(Constants.ExtendedDataKeys.DigitalFileIds);
+        productRoot.ExtendedData.Remove(Constants.ExtendedDataKeys.DownloadLinkExpiryDays);
+        productRoot.ExtendedData.Remove(Constants.ExtendedDataKeys.MaxDownloadsPerLink);
     }
 
     /// <summary>
@@ -2567,20 +2759,20 @@ public class ProductService(
     #region Element Type Support
 
     /// <summary>
-    /// Gets the configured Element Type for products, if any.
+    /// Gets an Element Type by alias, validating it is configured as an Element Type.
     /// </summary>
-    public Task<IContentType?> GetProductElementTypeAsync(CancellationToken cancellationToken = default)
+    public Task<IContentType?> GetProductElementTypeAsync(string? elementTypeAlias, CancellationToken cancellationToken = default)
     {
-        var alias = settings.Value.ProductElementTypeAlias;
-        if (string.IsNullOrEmpty(alias)) return Task.FromResult<IContentType?>(null);
+        if (string.IsNullOrWhiteSpace(elementTypeAlias))
+            return Task.FromResult<IContentType?>(null);
 
-        var contentType = contentTypeService.Get(alias);
+        var contentType = contentTypeService.Get(elementTypeAlias);
 
         // Must be an Element Type
         if (contentType is null || !contentType.IsElement)
         {
             logger.LogWarning(
-                "ProductElementTypeAlias '{Alias}' is not a valid Element Type", alias);
+                "Element Type '{Alias}' is not a valid Element Type", elementTypeAlias);
             return Task.FromResult<IContentType?>(null);
         }
 

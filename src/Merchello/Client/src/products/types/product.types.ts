@@ -59,6 +59,13 @@ export interface ProductViewDto {
   virtualPath: string;
 }
 
+/** Element type list item for pickers */
+export interface ElementTypeListItemDto {
+  key: string;
+  alias: string;
+  name: string;
+}
+
 export interface ProductDetailDto {
   id: string;
   productRootId: string;
@@ -125,6 +132,10 @@ export interface ProductRootDetailDto {
   rootUrl: string | null;
   googleShoppingFeedCategory: string | null;
   isDigitalProduct: boolean;
+  digitalDeliveryMethod: string | null;
+  digitalFileIds: string[] | null;
+  downloadLinkExpiryDays: number | null;
+  maxDownloadsPerLink: number | null;
   /** Aggregate stock status across all variants - calculated by backend (single source of truth) */
   aggregateStockStatus: StockStatus;
   /** Display label for aggregate stock status (backend source of truth) */
@@ -157,6 +168,9 @@ export interface ProductRootDetailDto {
 
   /** Element Type property values as { propertyAlias: value } */
   elementProperties?: Record<string, unknown>;
+
+  /** Alias of the selected Element Type for custom product properties */
+  elementTypeAlias?: string | null;
 
   /** The view alias used to render this product (e.g., "Gallery" -> ~/Views/Products/Gallery.cshtml) */
   viewAlias?: string | null;
@@ -307,6 +321,14 @@ export interface CreateProductRootDto {
   warehouseIds?: string[];
   rootImages?: string[];
   isDigitalProduct: boolean;
+  digitalDeliveryMethod?: string;
+  digitalFileIds?: string[];
+  downloadLinkExpiryDays?: number;
+  maxDownloadsPerLink?: number;
+  /** Alias of the selected Element Type for custom product properties */
+  elementTypeAlias?: string | null;
+  /** Element Type property values as { propertyAlias: value } */
+  elementProperties?: Record<string, unknown>;
   defaultVariant: CreateVariantDto;
 }
 
@@ -323,6 +345,10 @@ export interface UpdateProductRootDto {
   rootUrl?: string;
   googleShoppingFeedCategory?: string;
   isDigitalProduct?: boolean;
+  digitalDeliveryMethod?: string;
+  digitalFileIds?: string[];
+  downloadLinkExpiryDays?: number;
+  maxDownloadsPerLink?: number;
   taxGroupId?: string;
   productTypeId?: string;
   collectionIds?: string[];
@@ -336,6 +362,8 @@ export interface UpdateProductRootDto {
   defaultPackageConfigurations?: ProductPackageDto[];
   /** Element Type property values as { propertyAlias: value } */
   elementProperties?: Record<string, unknown>;
+  /** Alias of the selected Element Type for custom product properties */
+  elementTypeAlias?: string | null;
   /** The view alias used to render this product (e.g., "Gallery" -> ~/Views/Products/Gallery.cshtml) */
   viewAlias?: string | null;
 }

@@ -255,20 +255,9 @@ public class InvoiceEditService(
                         var discountTypeStr = existingDiscount.ExtendedData?.GetValueOrDefault(Constants.ExtendedDataKeys.DiscountValueType)?.ToString();
                         var discountValueRaw = existingDiscount.ExtendedData?.GetValueOrDefault(Constants.ExtendedDataKeys.DiscountValue);
 
-                        // Handle JsonElement conversion (EF Core stores Dictionary<string, object> as JSON)
-                        decimal discountValue;
-                        if (discountValueRaw is System.Text.Json.JsonElement jsonElement)
-                        {
-                            discountValue = jsonElement.GetDecimal();
-                        }
-                        else if (discountValueRaw != null)
-                        {
-                            discountValue = Convert.ToDecimal(discountValueRaw);
-                        }
-                        else
-                        {
-                            discountValue = Math.Abs(existingDiscount.Amount);
-                        }
+                        var discountValue = discountValueRaw != null
+                            ? Convert.ToDecimal(discountValueRaw.UnwrapJsonElement())
+                            : Math.Abs(existingDiscount.Amount);
 
                         effectiveDiscount = new LineItemDiscountDto
                         {
@@ -1269,13 +1258,7 @@ public class InvoiceEditService(
 
                 if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj) == true)
                 {
-                    var typeStr = typeObj switch
-                    {
-                        string s => s,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
-                        _ => null
-                    };
-
+                    var typeStr = typeObj.UnwrapJsonElement()?.ToString();
                     if (typeStr != null && Enum.TryParse<DiscountValueType>(typeStr, out var parsedType))
                     {
                         discountValueType = parsedType;
@@ -1284,31 +1267,14 @@ public class InvoiceEditService(
 
                 if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj) == true)
                 {
-                    discountValue = valueObj switch
-                    {
-                        decimal dec => dec,
-                        double dbl => (decimal)dbl,
-                        int i => i,
-                        long l => l,
-                        float f => (decimal)f,
-                        string s when decimal.TryParse(s, out var parsed) => parsed,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
-                            je.TryGetDecimal(out var d2) ? d2 : discountValue,
-                        _ => discountValue
-                    };
+                    try { discountValue = Convert.ToDecimal(valueObj.UnwrapJsonElement()); }
+                    catch { /* keep default */ }
                 }
 
-                // Read VisibleToCustomer, handling JsonElement
                 var visibleToCustomer = false;
                 if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.VisibleToCustomer, out var visibleObj) == true)
                 {
-                    visibleToCustomer = visibleObj switch
-                    {
-                        bool b => b,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => true,
-                        System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => false,
-                        _ => false
-                    };
+                    visibleToCustomer = visibleObj.UnwrapJsonElement() is true;
                 }
 
                 return new DiscountLineItemDto
@@ -1393,13 +1359,7 @@ public class InvoiceEditService(
 
         if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj) == true)
         {
-            var typeStr = typeObj switch
-            {
-                string s => s,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String => je.GetString(),
-                _ => null
-            };
-
+            var typeStr = typeObj.UnwrapJsonElement()?.ToString();
             if (typeStr != null && Enum.TryParse<DiscountValueType>(typeStr, out var parsedType))
             {
                 discountValueType = parsedType;
@@ -1408,30 +1368,14 @@ public class InvoiceEditService(
 
         if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj) == true)
         {
-            discountValue = valueObj switch
-            {
-                decimal dec => dec,
-                double dbl => (decimal)dbl,
-                int i => i,
-                long l => l,
-                float f => (decimal)f,
-                string s when decimal.TryParse(s, out var parsed) => parsed,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number =>
-                    je.TryGetDecimal(out var d2) ? d2 : discountValue,
-                _ => discountValue
-            };
+            try { discountValue = Convert.ToDecimal(valueObj.UnwrapJsonElement()); }
+            catch { /* keep default */ }
         }
 
         var visibleToCustomer = false;
         if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.VisibleToCustomer, out var visibleObj) == true)
         {
-            visibleToCustomer = visibleObj switch
-            {
-                bool b => b,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => true,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => false,
-                _ => false
-            };
+            visibleToCustomer = visibleObj.UnwrapJsonElement() is true;
         }
 
         return new DiscountLineItemDto
