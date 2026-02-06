@@ -3,6 +3,7 @@ using System.Text.Json;
 using Merchello.Core.Customers.Models;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -156,7 +157,9 @@ public class SegmentCriteriaEvaluator(
         {
             var customer = await db.Customers
                 .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Id == customerId, ct);
+                .Where(c => c.Id == customerId)
+                .OrderBy(c => c.Id)
+                .FirstOrDefaultAsync(ct);
 
             if (customer == null)
                 return null;
@@ -559,7 +562,9 @@ public class SegmentCriteriaEvaluator(
     private static IQueryable<CustomerWithMetrics> BuildCustomerWithMetricsQuery(MerchelloDbContext db, DateTime utcNow)
     {
         // Subquery for invoice aggregates per customer
-        // Cast decimal to double for SQLite compatibility (avoids ef_sum error)
+        // Keep TotalSpend as double throughout for SQLite compatibility
+        // (SQLite stores decimal as TEXT and uses ef_compare which doesn't exist;
+        //  double maps to REAL which SQLite handles natively)
         var invoiceAggregates = db.Invoices
             .Where(i => !i.IsDeleted && !i.IsCancelled)
             .Select(i => new { i.CustomerId, Amount = (double)(i.TotalInStoreCurrency ?? i.Total), i.DateCreated })
@@ -568,7 +573,7 @@ public class SegmentCriteriaEvaluator(
             {
                 CustomerId = g.Key,
                 OrderCount = g.Count(),
-                TotalSpend = (decimal)g.Sum(x => x.Amount),
+                TotalSpend = g.Sum(x => x.Amount),
                 FirstOrderDate = (DateTime?)g.Min(x => x.DateCreated),
                 LastOrderDate = (DateTime?)g.Max(x => x.DateCreated)
             });
@@ -588,6 +593,8 @@ public class SegmentCriteriaEvaluator(
             });
 
         // Main query with LEFT JOINs
+        // Use null-coalescing (??) instead of ternary (agg != null ? ... : ...) so EF Core
+        // translates to COALESCE in SQL — this composes correctly with subsequent .Where() clauses.
         var query = from c in db.Customers
                     join agg in invoiceAggregates on c.Id equals agg.CustomerId into aggJoin
                     from agg in aggJoin.DefaultIfEmpty()
@@ -599,11 +606,11 @@ public class SegmentCriteriaEvaluator(
                         Email = c.Email,
                         DateCreated = c.DateCreated,
                         TagsJson = c.TagsJson,
-                        OrderCount = agg != null ? agg.OrderCount : 0,
-                        TotalSpend = agg != null ? agg.TotalSpend : 0m,
-                        FirstOrderDate = agg != null ? agg.FirstOrderDate : null,
-                        LastOrderDate = agg != null ? agg.LastOrderDate : null,
-                        Country = ctry != null ? ctry.Country : null
+                        OrderCount = (int?)agg.OrderCount ?? 0,
+                        TotalSpend = (double?)agg.TotalSpend ?? 0.0,
+                        FirstOrderDate = agg.FirstOrderDate,
+                        LastOrderDate = agg.LastOrderDate,
+                        Country = ctry.Country
                     };
 
         return query;
@@ -803,8 +810,8 @@ public class SegmentCriteriaEvaluator(
         Expression<Func<CustomerWithMetrics, int>> selector,
         SegmentCriteria criterion)
     {
-        var value = Convert.ToInt32(criterion.Value);
-        var value2 = criterion.Value2 != null ? Convert.ToInt32(criterion.Value2) : 0;
+        var value = Convert.ToInt32(criterion.Value.UnwrapJsonElement());
+        var value2 = criterion.Value2 != null ? Convert.ToInt32(criterion.Value2.UnwrapJsonElement()) : 0;
 
         // Build expression tree directly (not using Compile) for SQL translation
         var param = selector.Parameters[0];
@@ -830,11 +837,11 @@ public class SegmentCriteriaEvaluator(
     }
 
     private static Expression<Func<CustomerWithMetrics, bool>> BuildDecimalPredicate(
-        Expression<Func<CustomerWithMetrics, decimal>> selector,
+        Expression<Func<CustomerWithMetrics, double>> selector,
         SegmentCriteria criterion)
     {
-        var value = Convert.ToDecimal(criterion.Value);
-        var value2 = criterion.Value2 != null ? Convert.ToDecimal(criterion.Value2) : 0m;
+        var value = Convert.ToDouble(criterion.Value.UnwrapJsonElement());
+        var value2 = criterion.Value2 != null ? Convert.ToDouble(criterion.Value2.UnwrapJsonElement()) : 0.0;
 
         var param = selector.Parameters[0];
         var property = selector.Body;
@@ -860,8 +867,8 @@ public class SegmentCriteriaEvaluator(
 
     private static Expression<Func<CustomerWithMetrics, bool>> BuildAverageOrderValuePredicate(SegmentCriteria criterion)
     {
-        var value = Convert.ToDecimal(criterion.Value);
-        var value2 = criterion.Value2 != null ? Convert.ToDecimal(criterion.Value2) : 0m;
+        var value = Convert.ToDouble(criterion.Value.UnwrapJsonElement());
+        var value2 = criterion.Value2 != null ? Convert.ToDouble(criterion.Value2.UnwrapJsonElement()) : 0.0;
 
         // AverageOrderValue = TotalSpend / OrderCount (handle division by zero)
         return criterion.Operator switch
@@ -881,8 +888,8 @@ public class SegmentCriteriaEvaluator(
         Expression<Func<CustomerWithMetrics, DateTime?>> selector,
         SegmentCriteria criterion)
     {
-        var value = Convert.ToDateTime(criterion.Value).Date;
-        var value2 = criterion.Value2 != null ? Convert.ToDateTime(criterion.Value2).Date : DateTime.MinValue;
+        var value = Convert.ToDateTime(criterion.Value.UnwrapJsonElement()).Date;
+        var value2 = criterion.Value2 != null ? Convert.ToDateTime(criterion.Value2.UnwrapJsonElement()).Date : DateTime.MinValue;
 
         var param = selector.Parameters[0];
         var property = selector.Body;
@@ -920,8 +927,8 @@ public class SegmentCriteriaEvaluator(
         Expression<Func<CustomerWithMetrics, DateTime>> selector,
         SegmentCriteria criterion)
     {
-        var value = Convert.ToDateTime(criterion.Value).Date;
-        var value2 = criterion.Value2 != null ? Convert.ToDateTime(criterion.Value2).Date : DateTime.MinValue;
+        var value = Convert.ToDateTime(criterion.Value.UnwrapJsonElement()).Date;
+        var value2 = criterion.Value2 != null ? Convert.ToDateTime(criterion.Value2.UnwrapJsonElement()).Date : DateTime.MinValue;
 
         var param = selector.Parameters[0];
         var property = selector.Body;
@@ -954,8 +961,8 @@ public class SegmentCriteriaEvaluator(
         SegmentCriteria criterion,
         DateTime utcNow)
     {
-        var days = Convert.ToInt32(criterion.Value);
-        var days2 = criterion.Value2 != null ? Convert.ToInt32(criterion.Value2) : 0;
+        var days = Convert.ToInt32(criterion.Value.UnwrapJsonElement());
+        var days2 = criterion.Value2 != null ? Convert.ToInt32(criterion.Value2.UnwrapJsonElement()) : 0;
 
         // DaysSinceLastOrder > X means LastOrderDate < (utcNow - X days)
         // DaysSinceLastOrder < X means LastOrderDate > (utcNow - X days)

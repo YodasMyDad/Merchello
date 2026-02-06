@@ -128,7 +128,7 @@ Products are rendered at root-level URLs without requiring Umbraco content nodes
 - Config: `MerchelloSettings.ProductViewLocations` (default: `["~/Views/Products/"]`)
 
 **Element Type Properties (Optional):**
-- Configure `MerchelloSettings.ProductElementTypeAlias` to link an Element Type
+- Select an Element Type per product in the product editor (stored on `ProductRoot.ElementTypeAlias`)
 - Element Type tabs/properties render in product workspace after Merchello tabs
 - Properties stored as JSON in `ProductRoot.ElementPropertyData`
 - Access in Razor via `Model.Content.Value<T>("alias")`

@@ -21,7 +21,6 @@ Walk through creating a first product, setting up a warehouse, configuring shipp
 Document all MerchelloSettings options including:
 - `StoreCurrencyCode` - Base store currency
 - `DisplayPricesIncTax` - Tax-inclusive price display
-- `ProductElementTypeAlias` - Umbraco Element Type for product properties
 - `ProductViewLocations` - View discovery paths (default: `["~/Views/Products/"]`)
 - `Webhooks` - Webhook delivery settings
 - `Email` - Email delivery settings
@@ -193,9 +192,9 @@ Explain how `ViewAlias` on ProductRoot maps to `~/Views/Products/{ViewAlias}.csh
 - Config: `MerchelloSettings.ProductViewLocations` (default: `["~/Views/Products/"]`)
 
 ### 5.3 Custom Product Properties (Element Types)
-Document ProductElementTypeAlias configuration:
-- Configure `MerchelloSettings.ProductElementTypeAlias` to link an Element Type
-- Element Type tabs/properties render in product workspace after Merchello tabs
+Document per-product Element Type selection:
+- Select an Element Type on the product edit/create UI (stored on `ProductRoot.ElementTypeAlias`)
+- Element Type tabs/properties render in the product workspace after Merchello tabs
 - Properties stored as JSON in `ProductRoot.ElementPropertyData`
 - Access in Razor via `Model.Content.Value<T>("alias")`
 

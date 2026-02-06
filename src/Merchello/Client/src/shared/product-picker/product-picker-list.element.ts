@@ -128,6 +128,7 @@ export class MerchelloProductPickerListElement extends UmbElementMixin(LitElemen
       if (this.selectRoots) {
         return html`<uui-checkbox
           class="root-checkbox"
+          aria-label="Select ${root.rootName}"
           ?checked=${isRootSelected}
           @click=${(e: Event) => e.stopPropagation()}
           @change=${() => this._handleRootSelect(root)}

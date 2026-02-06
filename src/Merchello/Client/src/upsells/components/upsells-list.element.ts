@@ -304,7 +304,7 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
         <uui-table-head>
           <uui-table-head-cell style="width: 40px;">
             <uui-checkbox
-              label="Select all"
+              aria-label="Select all"
               .checked=${allSelected}
               @change=${(e: Event) => this._handleSelectAll((e.target as HTMLInputElement).checked)}
             ></uui-checkbox>
@@ -327,7 +327,7 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
             >
               <uui-table-cell @click=${(e: Event) => e.stopPropagation()}>
                 <uui-checkbox
-                  label="Select"
+                  aria-label="Select ${upsell.name}"
                   .checked=${this._selectedUpsells.has(upsell.id)}
                   @change=${(e: Event) =>
                     this._handleCheckboxChange(upsell.id, (e.target as HTMLInputElement).checked)}

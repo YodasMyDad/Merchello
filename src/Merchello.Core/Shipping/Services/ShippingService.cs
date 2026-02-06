@@ -427,9 +427,7 @@ public class ShippingService(
                 summary = new ShipmentSummary
                 {
                     ShippingMethodName = shippingOption.Name ?? string.Empty,
-                    DeliveryTimeDescription = shippingOption.IsNextDay
-                        ? "Next Day Delivery"
-                        : $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} days",
+                    DeliveryTimeDescription = ShippingOptionInfo.FormatDeliveryTime(shippingOption.DaysFrom, shippingOption.DaysTo, shippingOption.IsNextDay),
                     ShippingCost = shippingOption.FixedCost ?? 0,
                     LineItems = warehouseGroup.LineItems.Select(li => new ShipmentLineItemSummary
                     {
@@ -599,11 +597,7 @@ public class ShippingService(
                     if (cost == null && shippingOption.FixedCost == null)
                         continue; // No rate available for this destination
 
-                    var deliveryTime = shippingOption.IsNextDay
-                        ? "Next Day Delivery"
-                        : shippingOption.DaysFrom > 0 && shippingOption.DaysTo > 0
-                            ? $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} business days"
-                            : null;
+                    var deliveryTime = ShippingOptionInfo.FormatDeliveryTime(shippingOption.DaysFrom, shippingOption.DaysTo, shippingOption.IsNextDay);
 
                     methods.Add(new ProductShippingMethodDto
                     {
@@ -757,11 +751,7 @@ public class ShippingService(
                     continue;
                 }
 
-                var deliveryTime = shippingOption.IsNextDay
-                    ? "Next Day Delivery"
-                    : shippingOption.DaysFrom > 0 && shippingOption.DaysTo > 0
-                        ? $"{shippingOption.DaysFrom}-{shippingOption.DaysTo} business days"
-                        : "Standard Delivery";
+                var deliveryTime = ShippingOptionInfo.FormatDeliveryTime(shippingOption.DaysFrom, shippingOption.DaysTo, shippingOption.IsNextDay);
 
                 availableOptions.Add(new WarehouseShippingOptionDto
                 {

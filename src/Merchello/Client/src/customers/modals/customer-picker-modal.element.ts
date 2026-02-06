@@ -131,7 +131,7 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
         @click=${() => this._toggleSelection(customer.id)}>
         <uui-table-cell style="width: 40px;">
           <uui-checkbox
-            label="Select"
+            aria-label="Select customer"
             .checked=${isSelected}
             @change=${(e: Event) => {
               e.stopPropagation();

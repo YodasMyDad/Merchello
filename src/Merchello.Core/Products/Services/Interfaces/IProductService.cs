@@ -89,9 +89,9 @@ public interface IProductService
     Task<Dictionary<Guid, string>> GetProductNamesByIdsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the configured Element Type for products, if any.
+    /// Gets an Element Type by alias, validating it is configured as an Element Type.
     /// </summary>
-    Task<IContentType?> GetProductElementTypeAsync(CancellationToken cancellationToken = default);
+    Task<IContentType?> GetProductElementTypeAsync(string? elementTypeAlias, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Serializes element property values to JSON for storage.

@@ -1,11 +1,9 @@
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
-using Merchello.Core.Shared.Models;
 using Merchello.Factories;
 using Merchello.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Routing;
 
@@ -17,7 +15,6 @@ namespace Merchello.Routing;
 /// </summary>
 public class ProductContentFinder(
     IServiceScopeFactory scopeFactory,
-    IOptions<MerchelloSettings> settings,
     ILogger<ProductContentFinder> logger) : IContentFinder
 {
     /// <summary>
@@ -72,7 +69,7 @@ public class ProductContentFinder(
 
         // Create element from stored data if configured (optional feature)
         IPublishedElement? element = null;
-        var elementTypeAlias = settings.Value.ProductElementTypeAlias;
+        var elementTypeAlias = productRoot.ElementTypeAlias;
 
         if (!string.IsNullOrEmpty(elementTypeAlias))
         {

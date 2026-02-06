@@ -796,16 +796,11 @@ public class PaymentService(
         Guid invoiceId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var payments = await scope.ExecuteWithContextAsync(async db =>
-            await db.Payments
-                .AsNoTracking()
+        return await QueryPaymentsAsync(
+            query => query
                 .Where(p => p.InvoiceId == invoiceId)
-                .Include(p => p.Refunds)
-                .OrderBy(p => p.DateCreated)
-                .ToListAsync(cancellationToken));
-        scope.Complete();
-        return payments;
+                .OrderBy(p => p.DateCreated),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -813,14 +808,9 @@ public class PaymentService(
         Guid paymentId,
         CancellationToken cancellationToken = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var payment = await scope.ExecuteWithContextAsync(async db =>
-            await db.Payments
-                .AsNoTracking()
-                .Include(p => p.Refunds)
-                .FirstOrDefaultAsync(p => p.Id == paymentId, cancellationToken));
-        scope.Complete();
-        return payment;
+        return await QuerySinglePaymentAsync(
+            query => query.Where(p => p.Id == paymentId),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -833,14 +823,9 @@ public class PaymentService(
             return null;
         }
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        var payment = await scope.ExecuteWithContextAsync(async db =>
-            await db.Payments
-                .AsNoTracking()
-                .Include(p => p.Refunds)
-                .FirstOrDefaultAsync(p => p.TransactionId == transactionId, cancellationToken));
-        scope.Complete();
-        return payment;
+        return await QuerySinglePaymentAsync(
+            query => query.Where(p => p.TransactionId == transactionId),
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -1147,6 +1132,36 @@ public class PaymentService(
         {
             idempotencyService.ClearProcessingMarker(idempotencyKey);
         }
+    }
+
+    private async Task<List<Payment>> QueryPaymentsAsync(
+        Func<IQueryable<Payment>, IOrderedQueryable<Payment>> queryBuilder,
+        CancellationToken cancellationToken)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var payments = await scope.ExecuteWithContextAsync(async db =>
+            await queryBuilder(
+                    db.Payments
+                        .AsNoTracking()
+                        .Include(p => p.Refunds))
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+        return payments;
+    }
+
+    private async Task<Payment?> QuerySinglePaymentAsync(
+        Func<IQueryable<Payment>, IQueryable<Payment>> queryBuilder,
+        CancellationToken cancellationToken)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var payment = await scope.ExecuteWithContextAsync(async db =>
+            await queryBuilder(
+                    db.Payments
+                        .AsNoTracking()
+                        .Include(p => p.Refunds))
+                .FirstOrDefaultAsync(cancellationToken));
+        scope.Complete();
+        return payment;
     }
 
     /// <summary>

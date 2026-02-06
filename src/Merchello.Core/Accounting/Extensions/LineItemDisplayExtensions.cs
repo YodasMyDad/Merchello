@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Shared.Extensions;
 
 namespace Merchello.Core.Accounting.Extensions;
 
@@ -39,13 +40,7 @@ public static class LineItemDisplayExtensions
 
         try
         {
-            // Handle both string JSON and JsonElement (from deserialization)
-            string? json = value switch
-            {
-                string s => s,
-                JsonElement je => je.GetString(),
-                _ => value?.ToString()
-            };
+            var json = value.UnwrapJsonElement()?.ToString();
 
             if (string.IsNullOrWhiteSpace(json))
             {

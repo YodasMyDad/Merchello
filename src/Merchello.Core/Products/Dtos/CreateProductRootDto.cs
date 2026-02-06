@@ -36,6 +36,16 @@ public class CreateProductRootDto
     public int? MaxDownloadsPerLink { get; set; }
 
     /// <summary>
+    /// Alias of the selected Element Type for custom product properties.
+    /// </summary>
+    public string? ElementTypeAlias { get; set; }
+
+    /// <summary>
+    /// Element Type property values as { "propertyAlias": rawValue, ... }
+    /// </summary>
+    public Dictionary<string, object?>? ElementProperties { get; set; }
+
+    /// <summary>
     /// Initial default variant configuration
     /// </summary>
     public CreateVariantDto DefaultVariant { get; set; } = new();

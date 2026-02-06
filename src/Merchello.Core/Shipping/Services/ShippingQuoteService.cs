@@ -12,6 +12,7 @@ using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -690,27 +691,9 @@ public class ShippingQuoteService(
     private static decimal GetDecimalFromExtendedData(Dictionary<string, object> extendedData, string key)
     {
         if (!extendedData.TryGetValue(key, out var value))
-        {
             return 0m;
-        }
-
-        // Handle JsonElement (from JSON deserialization)
-        if (value is System.Text.Json.JsonElement jsonElement)
-        {
-            return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Number
-                ? jsonElement.GetDecimal()
-                : 0m;
-        }
-
-        // Handle direct decimal or numeric types
-        try
-        {
-            return Convert.ToDecimal(value);
-        }
-        catch
-        {
-            return 0m;
-        }
+        try { return Convert.ToDecimal(value.UnwrapJsonElement()); }
+        catch { return 0m; }
     }
 
     private static bool IsDigitalLineItem(LineItem lineItem)
@@ -720,12 +703,11 @@ public class ShippingQuoteService(
             return false;
         }
 
-        return value switch
+        var unwrapped = value.UnwrapJsonElement();
+        return unwrapped switch
         {
             bool b => b,
             string s => bool.TryParse(s, out var parsed) && parsed,
-            System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True ||
-                                               (je.ValueKind == System.Text.Json.JsonValueKind.False && je.GetBoolean()),
             _ => false
         };
     }

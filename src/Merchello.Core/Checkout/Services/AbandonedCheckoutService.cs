@@ -8,6 +8,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -846,20 +847,6 @@ public class AbandonedCheckoutService(
     {
         if (!extendedData.TryGetValue(key, out var value) || value == null)
             return null;
-
-        // Handle direct string value (when stored in-memory)
-        if (value is string str)
-            return str;
-
-        // Handle JsonElement (when deserialized from database JSON column)
-        if (value is JsonElement jsonElement)
-        {
-            return jsonElement.ValueKind == JsonValueKind.String
-                ? jsonElement.GetString()
-                : jsonElement.GetRawText();
-        }
-
-        // Fallback - try ToString
-        return value.ToString();
+        return value.UnwrapJsonElement()?.ToString();
     }
 }

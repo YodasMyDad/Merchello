@@ -125,7 +125,7 @@ export class MerchelloProductPickerVariantRowElement extends UmbElementMixin(Lit
           .checked=${this.selected}
           ?disabled=${isBlocked}
           @change=${this._handleCheckboxChange}
-          label="Select variant"
+          aria-label="Select variant"
         ></uui-checkbox>
 
         ${this.showImage ? this._renderImage() : nothing}

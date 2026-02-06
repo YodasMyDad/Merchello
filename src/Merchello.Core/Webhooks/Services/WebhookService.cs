@@ -26,6 +26,11 @@ public class WebhookService(
     ILogger<WebhookService> logger) : IWebhookService
 {
     private readonly WebhookSettings _settings = options.Value;
+    private static readonly JsonSerializerOptions WebhookJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
 
     #region Subscriptions
 
@@ -55,8 +60,7 @@ public class WebhookService(
         }
 
         // Validate URL format
-        if (!Uri.TryCreate(parameters.TargetUrl, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!IsValidHttpUrl(parameters.TargetUrl))
         {
             result.Messages.Add(new ResultMessage { ResultMessageType = ResultMessageType.Error, Message = "Target URL must be a valid HTTP or HTTPS URL." });
             return result;
@@ -122,8 +126,7 @@ public class WebhookService(
         // Validate URL if provided
         if (!string.IsNullOrWhiteSpace(parameters.TargetUrl))
         {
-            if (!Uri.TryCreate(parameters.TargetUrl, UriKind.Absolute, out var uri) ||
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            if (!IsValidHttpUrl(parameters.TargetUrl))
             {
                 result.Messages.Add(new ResultMessage { ResultMessageType = ResultMessageType.Error, Message = "Target URL must be a valid HTTP or HTTPS URL." });
                 return result;
@@ -302,26 +305,14 @@ public class WebhookService(
                 data = payload
             };
 
-            var requestBody = JsonSerializer.Serialize(envelope, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false
-            });
-
-            var delivery = new OutboundDelivery
-            {
-                Id = GuidExtensions.NewSequentialGuid,
-                DeliveryType = OutboundDeliveryType.Webhook,
-                ConfigurationId = subscription.Id,
-                Topic = topic,
-                EntityId = entityId,
-                EntityType = entityType,
-                TargetUrl = subscription.TargetUrl,
-                RequestBody = requestBody,
-                RequestHeaders = "{}",
-                Status = OutboundDeliveryStatus.Pending,
-                DateCreated = DateTime.UtcNow
-            };
+            var requestBody = JsonSerializer.Serialize(envelope, WebhookJsonOptions);
+            var delivery = CreatePendingWebhookDelivery(
+                subscription.Id,
+                topic,
+                subscription.TargetUrl,
+                requestBody,
+                entityId,
+                entityType);
 
             using var scope = efCoreScopeProvider.CreateScope();
             await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -549,21 +540,11 @@ public class WebhookService(
             }
         };
 
-        var delivery = new OutboundDelivery
-        {
-            Id = GuidExtensions.NewSequentialGuid,
-            DeliveryType = OutboundDeliveryType.Webhook,
-            ConfigurationId = subscription.Id,
-            Topic = Constants.WebhookTopics.TestPing,
-            TargetUrl = subscription.TargetUrl,
-            RequestBody = JsonSerializer.Serialize(testPayload, new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-            }),
-            RequestHeaders = "{}",
-            Status = OutboundDeliveryStatus.Pending,
-            DateCreated = DateTime.UtcNow
-        };
+        var delivery = CreatePendingWebhookDelivery(
+            subscription.Id,
+            Constants.WebhookTopics.TestPing,
+            subscription.TargetUrl,
+            JsonSerializer.Serialize(testPayload, WebhookJsonOptions));
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -579,8 +560,7 @@ public class WebhookService(
 
     public async Task<OutboundDeliveryResult> PingAsync(string url, CancellationToken ct = default)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!IsValidHttpUrl(url))
         {
             return new OutboundDeliveryResult
             {
@@ -708,6 +688,40 @@ public class WebhookService(
     #endregion
 
     #region Utilities
+
+    private static bool IsValidHttpUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return false;
+        }
+
+        return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+    }
+
+    private static OutboundDelivery CreatePendingWebhookDelivery(
+        Guid configurationId,
+        string topic,
+        string targetUrl,
+        string requestBody,
+        Guid? entityId = null,
+        string? entityType = null)
+    {
+        return new OutboundDelivery
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            DeliveryType = OutboundDeliveryType.Webhook,
+            ConfigurationId = configurationId,
+            Topic = topic,
+            EntityId = entityId,
+            EntityType = entityType,
+            TargetUrl = targetUrl,
+            RequestBody = requestBody,
+            RequestHeaders = "{}",
+            Status = OutboundDeliveryStatus.Pending,
+            DateCreated = DateTime.UtcNow
+        };
+    }
 
     public string GenerateSecret()
     {

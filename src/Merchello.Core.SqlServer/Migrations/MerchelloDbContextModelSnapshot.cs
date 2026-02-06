@@ -1949,6 +1949,10 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("ElementPropertyData")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ElementTypeAlias")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("ExtendedData")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

@@ -131,57 +131,30 @@ public class ReportingService(
         DateTime endDate,
         CancellationToken cancellationToken = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-        return await scope.ExecuteWithContextAsync(async db =>
-        {
-            var start = startDate.Date;
-            var end = endDate.Date.AddDays(1).AddTicks(-1);
-            var periodLength = (endDate - startDate).Days + 1;
-
-            var comparisonStart = start.AddDays(-periodLength);
-            var comparisonEnd = start.AddTicks(-1);
-
-            // Fetch raw data first (SQLite doesn't support GroupBy + Sum in SQL)
-            var currentInvoices = await db.Invoices
-                .Where(i => !i.IsDeleted && i.DateCreated >= start && i.DateCreated <= end)
-                .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
-                .ToListAsync(cancellationToken);
-
-            var comparisonInvoices = await db.Invoices
-                .Where(i => !i.IsDeleted && i.DateCreated >= comparisonStart && i.DateCreated <= comparisonEnd)
-                .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
-                .ToListAsync(cancellationToken);
-
-            // Group and aggregate in memory
-            var currentData = currentInvoices
-                .GroupBy(i => i.DateCreated.Date)
-                .ToDictionary(g => g.Key, g => g.Sum(i => i.Total));
-
-            var comparisonData = comparisonInvoices
-                .GroupBy(i => i.DateCreated.Date)
-                .ToDictionary(g => g.Key, g => g.Sum(i => i.Total));
-
-            List<TimeSeriesDataPointDto> result = [];
-            var dayIndex = 0;
-
-            for (var date = start; date <= end; date = date.AddDays(1))
-            {
-                var currentValue = currentData.GetValueOrDefault(date, 0);
-                var comparisonDate = comparisonStart.AddDays(dayIndex);
-                decimal? comparisonValue = comparisonData.TryGetValue(comparisonDate, out var val) ? val : null;
-
-                result.Add(new TimeSeriesDataPointDto(date, currentValue, comparisonValue));
-                dayIndex++;
-            }
-
-            return result;
-        });
+        return await GetInvoiceTimeSeriesAsync(
+            startDate,
+            endDate,
+            totals => totals.Sum(),
+            cancellationToken);
     }
 
     public async Task<List<TimeSeriesDataPointDto>> GetAverageOrderValueTimeSeriesAsync(
         DateTime startDate,
         DateTime endDate,
         CancellationToken cancellationToken = default)
+    {
+        return await GetInvoiceTimeSeriesAsync(
+            startDate,
+            endDate,
+            totals => totals.Count == 0 ? 0 : totals.Average(),
+            cancellationToken);
+    }
+
+    private async Task<List<TimeSeriesDataPointDto>> GetInvoiceTimeSeriesAsync(
+        DateTime startDate,
+        DateTime endDate,
+        Func<IReadOnlyList<decimal>, decimal> aggregate,
+        CancellationToken cancellationToken)
     {
         using var scope = efCoreScopeProvider.CreateScope();
         return await scope.ExecuteWithContextAsync(async db =>
@@ -193,7 +166,7 @@ public class ReportingService(
             var comparisonStart = start.AddDays(-periodLength);
             var comparisonEnd = start.AddTicks(-1);
 
-            // Fetch raw data first (SQLite doesn't support GroupBy + Average in SQL)
+            // Fetch raw data first (SQLite doesn't support GroupBy + aggregate in SQL)
             var currentInvoices = await db.Invoices
                 .Where(i => !i.IsDeleted && i.DateCreated >= start && i.DateCreated <= end)
                 .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
@@ -204,30 +177,22 @@ public class ReportingService(
                 .Select(i => new { i.DateCreated, Total = i.TotalInStoreCurrency ?? i.Total })
                 .ToListAsync(cancellationToken);
 
-            // Group and calculate average in memory
             var currentData = currentInvoices
                 .GroupBy(i => i.DateCreated.Date)
-                .ToDictionary(
-                    g => g.Key,
-                    g => new { Avg = g.Average(i => i.Total), Count = g.Count() });
+                .ToDictionary(g => g.Key, g => aggregate(g.Select(i => i.Total).ToList()));
 
             var comparisonData = comparisonInvoices
                 .GroupBy(i => i.DateCreated.Date)
-                .ToDictionary(
-                    g => g.Key,
-                    g => new { Avg = g.Average(i => i.Total), Count = g.Count() });
+                .ToDictionary(g => g.Key, g => aggregate(g.Select(i => i.Total).ToList()));
 
             List<TimeSeriesDataPointDto> result = [];
             var dayIndex = 0;
 
             for (var date = start; date <= end; date = date.AddDays(1))
             {
-                var currentValue = currentData.TryGetValue(date, out var curr) && curr.Count > 0 ? curr.Avg : 0;
-
+                var currentValue = currentData.GetValueOrDefault(date, 0);
                 var comparisonDate = comparisonStart.AddDays(dayIndex);
-                decimal? comparisonValue = comparisonData.TryGetValue(comparisonDate, out var comp) && comp.Count > 0
-                    ? comp.Avg
-                    : null;
+                decimal? comparisonValue = comparisonData.TryGetValue(comparisonDate, out var val) ? val : null;
 
                 result.Add(new TimeSeriesDataPointDto(date, currentValue, comparisonValue));
                 dayIndex++;

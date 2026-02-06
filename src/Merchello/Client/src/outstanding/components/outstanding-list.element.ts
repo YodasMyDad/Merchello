@@ -260,7 +260,7 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
               <uui-checkbox
                 .checked=${allSelected}
                 @change=${this._handleSelectAll}
-                label="Select all outstanding invoices">
+                aria-label="Select all outstanding invoices">
               </uui-checkbox>
             </uui-table-head-cell>
             <uui-table-head-cell>Invoice</uui-table-head-cell>
@@ -287,7 +287,7 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
           <uui-checkbox
             .checked=${isSelected}
             @change=${() => this._handleSelectInvoice(invoice.id)}
-            label="Select ${invoice.invoiceNumber}">
+            aria-label="Select ${invoice.invoiceNumber}">
           </uui-checkbox>
         </uui-table-cell>
         <uui-table-cell>

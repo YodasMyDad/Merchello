@@ -15,6 +15,7 @@ using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -86,7 +87,7 @@ public class PostPurchaseUpsellService(
         if (TryGetPostPurchaseWindowEnd(invoice, out var existingWindowEnd) &&
             existingWindowEnd > DateTime.UtcNow &&
             invoice.ExtendedData.TryGetValue(PostPurchaseEligibleKey, out var eligibleFlag) &&
-            Convert.ToBoolean(eligibleFlag))
+            Convert.ToBoolean(eligibleFlag.UnwrapJsonElement()))
         {
             return OperationResult<bool>.Success(true);
         }
@@ -196,7 +197,7 @@ public class PostPurchaseUpsellService(
 
         // Check window eligibility
         if (!invoice.ExtendedData.TryGetValue(PostPurchaseEligibleKey, out var eligible) ||
-            !Convert.ToBoolean(eligible))
+            !Convert.ToBoolean(eligible.UnwrapJsonElement()))
         {
             return null;
         }
@@ -533,7 +534,7 @@ public class PostPurchaseUpsellService(
             return false;
 
         if (!invoice.ExtendedData.TryGetValue(PostPurchaseEligibleKey, out var eligible) ||
-            !Convert.ToBoolean(eligible))
+            !Convert.ToBoolean(eligible.UnwrapJsonElement()))
         {
             return false;
         }
@@ -1087,16 +1088,10 @@ public class PostPurchaseUpsellService(
             return true;
         }
 
-        if (endsAtValue is string endsAtString && DateTime.TryParse(endsAtString, out var parsed))
+        var unwrapped = endsAtValue.UnwrapJsonElement();
+        if (unwrapped is string endsAtString && DateTime.TryParse(endsAtString, out var parsed))
         {
             endsAt = parsed;
-            return true;
-        }
-
-        if (endsAtValue is JsonElement element && element.ValueKind == JsonValueKind.String &&
-            DateTime.TryParse(element.GetString(), out var parsedElement))
-        {
-            endsAt = parsedElement;
             return true;
         }
 
@@ -1123,14 +1118,7 @@ public class PostPurchaseUpsellService(
             return new Dictionary<Guid, OrderStatus>();
         }
 
-        var json = value switch
-        {
-            string str => str,
-            JsonElement element => element.ValueKind == JsonValueKind.String
-                ? element.GetString()
-                : element.GetRawText(),
-            _ => null
-        };
+        var json = value.UnwrapJsonElement()?.ToString();
 
         if (string.IsNullOrWhiteSpace(json))
         {

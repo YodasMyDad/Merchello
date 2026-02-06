@@ -283,99 +283,25 @@ public class UpsellService(
     /// <inheritdoc />
     public async Task<CrudResult<UpsellRule>> ActivateAsync(Guid upsellRuleId, CancellationToken ct = default)
     {
-        var result = new CrudResult<UpsellRule>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var rule = await scope.ExecuteWithContextAsync(async db =>
-            await db.UpsellRules.FirstOrDefaultAsync(r => r.Id == upsellRuleId, ct));
-
-        if (rule == null)
-        {
-            result.AddErrorMessage("Upsell rule not found.");
-            scope.Complete();
-            return result;
-        }
-
-        var now = DateTime.UtcNow;
-        var newStatus = rule.StartsAt > now ? UpsellStatus.Scheduled : UpsellStatus.Active;
-
-        var statusChangingNotification = new UpsellRuleStatusChangingNotification(rule, rule.Status, newStatus);
-        if (await notificationPublisher.PublishCancelableAsync(statusChangingNotification, ct))
-        {
-            result.AddErrorMessage(statusChangingNotification.CancelReason ?? "Status change cancelled.");
-            scope.Complete();
-            return result;
-        }
-
-        var previousStatus = rule.Status;
-        rule.Status = newStatus;
-        rule.DateUpdated = now;
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            await db.SaveChangesAsync(ct);
-            return true;
-        });
-        scope.Complete();
-
-        InvalidateCache();
-
-        await notificationPublisher.PublishAsync(
-            new UpsellRuleStatusChangedNotification(rule, previousStatus, newStatus), ct);
-
-        result.ResultObject = rule;
-        result.AddSuccessMessage($"Upsell rule '{rule.Name}' activated.");
-        logger.LogInformation("Activated upsell rule {UpsellRuleId} from {OldStatus} to {NewStatus}",
-            rule.Id, previousStatus, newStatus);
-
-        return result;
+        return await UpdateStatusAsync(
+            upsellRuleId,
+            (rule, now) => rule.StartsAt > now ? UpsellStatus.Scheduled : UpsellStatus.Active,
+            rule => $"Upsell rule '{rule.Name}' activated.",
+            (rule, previousStatus, newStatus) =>
+                logger.LogInformation("Activated upsell rule {UpsellRuleId} from {OldStatus} to {NewStatus}",
+                    rule.Id, previousStatus, newStatus),
+            ct);
     }
 
     /// <inheritdoc />
     public async Task<CrudResult<UpsellRule>> DeactivateAsync(Guid upsellRuleId, CancellationToken ct = default)
     {
-        var result = new CrudResult<UpsellRule>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var rule = await scope.ExecuteWithContextAsync(async db =>
-            await db.UpsellRules.FirstOrDefaultAsync(r => r.Id == upsellRuleId, ct));
-
-        if (rule == null)
-        {
-            result.AddErrorMessage("Upsell rule not found.");
-            scope.Complete();
-            return result;
-        }
-
-        var statusChangingNotification = new UpsellRuleStatusChangingNotification(rule, rule.Status, UpsellStatus.Disabled);
-        if (await notificationPublisher.PublishCancelableAsync(statusChangingNotification, ct))
-        {
-            result.AddErrorMessage(statusChangingNotification.CancelReason ?? "Status change cancelled.");
-            scope.Complete();
-            return result;
-        }
-
-        var previousStatus = rule.Status;
-        rule.Status = UpsellStatus.Disabled;
-        rule.DateUpdated = DateTime.UtcNow;
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            await db.SaveChangesAsync(ct);
-            return true;
-        });
-        scope.Complete();
-
-        InvalidateCache();
-
-        await notificationPublisher.PublishAsync(
-            new UpsellRuleStatusChangedNotification(rule, previousStatus, UpsellStatus.Disabled), ct);
-
-        result.ResultObject = rule;
-        result.AddSuccessMessage($"Upsell rule '{rule.Name}' deactivated.");
-        logger.LogInformation("Deactivated upsell rule {UpsellRuleId}", rule.Id);
-
-        return result;
+        return await UpdateStatusAsync(
+            upsellRuleId,
+            (_, _) => UpsellStatus.Disabled,
+            rule => $"Upsell rule '{rule.Name}' deactivated.",
+            (rule, _, _) => logger.LogInformation("Deactivated upsell rule {UpsellRuleId}", rule.Id),
+            ct);
     }
 
     /// <inheritdoc />
@@ -455,6 +381,60 @@ public class UpsellService(
         return activeRules
             .Where(r => (r.DisplayLocation & location) != 0)
             .ToList();
+    }
+
+    private async Task<CrudResult<UpsellRule>> UpdateStatusAsync(
+        Guid upsellRuleId,
+        Func<UpsellRule, DateTime, UpsellStatus> resolveStatus,
+        Func<UpsellRule, string> successMessageFactory,
+        Action<UpsellRule, UpsellStatus, UpsellStatus> logAction,
+        CancellationToken ct)
+    {
+        var result = new CrudResult<UpsellRule>();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var rule = await scope.ExecuteWithContextAsync(async db =>
+            await db.UpsellRules.FirstOrDefaultAsync(r => r.Id == upsellRuleId, ct));
+
+        if (rule == null)
+        {
+            result.AddErrorMessage("Upsell rule not found.");
+            scope.Complete();
+            return result;
+        }
+
+        var now = DateTime.UtcNow;
+        var newStatus = resolveStatus(rule, now);
+
+        var statusChangingNotification = new UpsellRuleStatusChangingNotification(rule, rule.Status, newStatus);
+        if (await notificationPublisher.PublishCancelableAsync(statusChangingNotification, ct))
+        {
+            result.AddErrorMessage(statusChangingNotification.CancelReason ?? "Status change cancelled.");
+            scope.Complete();
+            return result;
+        }
+
+        var previousStatus = rule.Status;
+        rule.Status = newStatus;
+        rule.DateUpdated = now;
+
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            await db.SaveChangesAsync(ct);
+            return true;
+        });
+        scope.Complete();
+
+        InvalidateCache();
+
+        await notificationPublisher.PublishAsync(
+            new UpsellRuleStatusChangedNotification(rule, previousStatus, newStatus), ct);
+
+        result.ResultObject = rule;
+        result.AddSuccessMessage(successMessageFactory(rule));
+        logAction(rule, previousStatus, newStatus);
+
+        return result;
     }
 
     #endregion

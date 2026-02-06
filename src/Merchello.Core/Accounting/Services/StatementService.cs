@@ -514,35 +514,7 @@ public class StatementService(
 
                 if (paymentStatus.BalanceDue <= 0) continue;
 
-                var isOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < now && paymentStatus.BalanceDue > 0;
-                var daysUntilDue = CalculateDaysUntilDue(invoice.DueDate, now);
-
-                outstandingInvoices.Add(new OrderListItemDto
-                {
-                    Id = invoice.Id,
-                    InvoiceNumber = invoice.InvoiceNumber,
-                    DateCreated = invoice.DateCreated,
-                    CustomerName = invoice.BillingAddress.Name ?? invoice.BillingAddress.Email ?? "",
-                    Channel = invoice.Channel,
-                    SourceType = invoice.Source?.Type,
-                    SourceName = invoice.Source?.SourceName ?? invoice.Source?.DisplayName,
-                    CurrencyCode = invoice.CurrencyCode,
-                    CurrencySymbol = invoice.CurrencySymbol,
-                    StoreCurrencyCode = invoice.StoreCurrencyCode,
-                    StoreCurrencySymbol = currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
-                    Total = invoice.Total,
-                    TotalInStoreCurrency = invoice.TotalInStoreCurrency,
-                    IsMultiCurrency = invoice.CurrencyCode != invoice.StoreCurrencyCode,
-                    PaymentStatus = paymentStatus.Status,
-                    PaymentStatusDisplay = paymentStatus.StatusDisplay,
-                    PaymentStatusCssClass = paymentStatus.Status.GetPaymentStatusCssClass(),
-                    FulfillmentStatus = (invoice.Orders ?? []).GetFulfillmentStatus(),
-                    IsCancelled = invoice.IsCancelled,
-                    ItemCount = invoice.Orders?.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity) ?? 0,
-                    DueDate = invoice.DueDate,
-                    IsOverdue = isOverdue,
-                    DaysUntilDue = daysUntilDue
-                });
+                outstandingInvoices.Add(MapOutstandingInvoice(invoice, paymentStatus, now));
             }
 
             return outstandingInvoices;
@@ -686,7 +658,7 @@ public class StatementService(
             var invoices = await query.ToListAsync(cancellationToken);
 
             // Filter for actually unpaid invoices and compute status
-            var outstandingInvoices = new List<(Invoice Invoice, PaymentStatusDetails Status, bool IsOverdue, int? DaysUntilDue)>();
+            var outstandingInvoices = new List<(Invoice Invoice, PaymentStatusDetails Status)>();
 
             foreach (var invoice in invoices)
             {
@@ -699,14 +671,13 @@ public class StatementService(
 
                 if (paymentStatus.BalanceDue <= 0) continue;
 
-                var isOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < now;
-                var daysUntilDue = CalculateDaysUntilDue(invoice.DueDate, now);
+                var isOverdue = IsOverdue(invoice, paymentStatus, now);
 
                 // Filter by overdue only if specified
                 if (parameters.OverdueOnly == true && !isOverdue) continue;
                 if (parameters.OverdueOnly == false && isOverdue) continue;
 
-                outstandingInvoices.Add((invoice, paymentStatus, isOverdue, daysUntilDue));
+                outstandingInvoices.Add((invoice, paymentStatus));
             }
 
             // Sort
@@ -736,32 +707,7 @@ public class StatementService(
             var paged = sorted
                 .Skip((parameters.Page - 1) * parameters.PageSize)
                 .Take(parameters.PageSize)
-                .Select(x => new OrderListItemDto
-                {
-                    Id = x.Invoice.Id,
-                    InvoiceNumber = x.Invoice.InvoiceNumber,
-                    DateCreated = x.Invoice.DateCreated,
-                    CustomerName = x.Invoice.BillingAddress.Name ?? x.Invoice.BillingAddress.Email ?? "",
-                    Channel = x.Invoice.Channel,
-                    SourceType = x.Invoice.Source != null ? x.Invoice.Source.Type : null,
-                    SourceName = x.Invoice.Source != null ? (x.Invoice.Source.SourceName ?? x.Invoice.Source.DisplayName) : null,
-                    CurrencyCode = x.Invoice.CurrencyCode,
-                    CurrencySymbol = x.Invoice.CurrencySymbol,
-                    StoreCurrencyCode = x.Invoice.StoreCurrencyCode,
-                    StoreCurrencySymbol = currencyService.GetCurrency(x.Invoice.StoreCurrencyCode).Symbol,
-                    Total = x.Invoice.Total,
-                    TotalInStoreCurrency = x.Invoice.TotalInStoreCurrency,
-                    IsMultiCurrency = x.Invoice.CurrencyCode != x.Invoice.StoreCurrencyCode,
-                    PaymentStatus = x.Status.Status,
-                    PaymentStatusDisplay = x.Status.StatusDisplay,
-                    PaymentStatusCssClass = x.Status.Status.GetPaymentStatusCssClass(),
-                    FulfillmentStatus = (x.Invoice.Orders ?? []).GetFulfillmentStatus(),
-                    IsCancelled = x.Invoice.IsCancelled,
-                    ItemCount = x.Invoice.Orders?.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity) ?? 0,
-                    DueDate = x.Invoice.DueDate,
-                    IsOverdue = x.IsOverdue,
-                    DaysUntilDue = x.DaysUntilDue
-                })
+                .Select(x => MapOutstandingInvoice(x.Invoice, x.Status, now))
                 .ToList();
 
             return new PaginatedList<OrderListItemDto>(paged, totalCount, parameters.Page, parameters.PageSize);
@@ -776,6 +722,42 @@ public class StatementService(
     /// </summary>
     private static int? CalculateDaysUntilDue(DateTime? dueDate, DateTime now)
         => dueDate.HasValue ? (int)(dueDate.Value.Date - now.Date).TotalDays : null;
+
+    private static bool IsOverdue(Invoice invoice, PaymentStatusDetails paymentStatus, DateTime now)
+        => invoice.DueDate.HasValue && invoice.DueDate.Value < now && paymentStatus.BalanceDue > 0;
+
+    private OrderListItemDto MapOutstandingInvoice(Invoice invoice, PaymentStatusDetails paymentStatus, DateTime now)
+    {
+        var isOverdue = IsOverdue(invoice, paymentStatus, now);
+        var daysUntilDue = CalculateDaysUntilDue(invoice.DueDate, now);
+
+        return new OrderListItemDto
+        {
+            Id = invoice.Id,
+            InvoiceNumber = invoice.InvoiceNumber,
+            DateCreated = invoice.DateCreated,
+            CustomerName = invoice.BillingAddress.Name ?? invoice.BillingAddress.Email ?? "",
+            Channel = invoice.Channel,
+            SourceType = invoice.Source?.Type,
+            SourceName = invoice.Source?.SourceName ?? invoice.Source?.DisplayName,
+            CurrencyCode = invoice.CurrencyCode,
+            CurrencySymbol = invoice.CurrencySymbol,
+            StoreCurrencyCode = invoice.StoreCurrencyCode,
+            StoreCurrencySymbol = currencyService.GetCurrency(invoice.StoreCurrencyCode).Symbol,
+            Total = invoice.Total,
+            TotalInStoreCurrency = invoice.TotalInStoreCurrency,
+            IsMultiCurrency = invoice.CurrencyCode != invoice.StoreCurrencyCode,
+            PaymentStatus = paymentStatus.Status,
+            PaymentStatusDisplay = paymentStatus.StatusDisplay,
+            PaymentStatusCssClass = paymentStatus.Status.GetPaymentStatusCssClass(),
+            FulfillmentStatus = (invoice.Orders ?? []).GetFulfillmentStatus(),
+            IsCancelled = invoice.IsCancelled,
+            ItemCount = invoice.Orders?.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity) ?? 0,
+            DueDate = invoice.DueDate,
+            IsOverdue = isOverdue,
+            DaysUntilDue = daysUntilDue
+        };
+    }
 
     #endregion
 }

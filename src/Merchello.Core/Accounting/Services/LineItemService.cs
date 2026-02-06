@@ -3,6 +3,7 @@ using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Core.Tax.Services.Models;
@@ -491,20 +492,16 @@ public class LineItemService(
     /// </summary>
     private static bool IsAfterTaxDiscount(LineItem discount)
     {
-        if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ApplyAfterTax, out var applyAfterTaxObj))
+        if (!discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ApplyAfterTax, out var applyAfterTaxObj))
+            return false;
+
+        var unwrapped = applyAfterTaxObj.UnwrapJsonElement();
+        return unwrapped switch
         {
-            return applyAfterTaxObj switch
-            {
-                bool b => b,
-                string s when bool.TryParse(s, out var parsed) => parsed,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.True => true,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.False => false,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
-                    && bool.TryParse(je.GetString(), out var parsedFromString) => parsedFromString,
-                _ => false
-            };
-        }
-        return false;
+            bool b => b,
+            string s when bool.TryParse(s, out var parsed) => parsed,
+            _ => false
+        };
     }
 
     /// <summary>
@@ -568,29 +565,12 @@ public class LineItemService(
         decimal value = 0m;
 
         if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var typeObj))
-        {
-            typeStr = typeObj switch
-            {
-                string s => s,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.String
-                    => je.GetString(),
-                _ => null
-            };
-        }
+            typeStr = typeObj.UnwrapJsonElement()?.ToString();
 
         if (discount.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValue, out var valueObj))
         {
-            value = valueObj switch
-            {
-                decimal dec => dec,
-                double dbl => (decimal)dbl,
-                int i => i,
-                long l => l,
-                string s when decimal.TryParse(s, out var parsed) => parsed,
-                System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Number
-                    => je.TryGetDecimal(out var d) ? d : 0,
-                _ => 0m
-            };
+            try { value = Convert.ToDecimal(valueObj.UnwrapJsonElement()); }
+            catch { value = 0m; }
         }
 
         return (typeStr, value);
