@@ -386,7 +386,7 @@ public class EmailAttachmentTests
             city: "Test City",
             postalCode: "12345",
             countryCode: "US",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "test@example.com");
 
@@ -398,7 +398,7 @@ public class EmailAttachmentTests
             city: "Test City",
             postalCode: "12345",
             countryCode: "US",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "test@example.com");
 
@@ -454,7 +454,7 @@ public class EmailAttachmentTests
             city: "Billing City",
             postalCode: "BL1 2NG",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "billing@test.com");
 
@@ -466,7 +466,7 @@ public class EmailAttachmentTests
             city: "Shipping City",
             postalCode: "SH1 3PP",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: null);
 

@@ -6,6 +6,6 @@ namespace Merchello.Core.Warehouses.Dtos;
 public class CreateServiceRegionDto
 {
     public required string CountryCode { get; set; }
-    public string? StateOrProvinceCode { get; set; }
+    public string? RegionCode { get; set; }
     public bool IsExcluded { get; set; }
 }

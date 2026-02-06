@@ -16,7 +16,8 @@ public class ShippingTaxOverrideDbMapping : IEntityTypeConfiguration<ShippingTax
             .IsRequired()
             .HasMaxLength(10);
 
-        builder.Property(x => x.StateOrProvinceCode)
+        builder.Property(x => x.RegionCode)
+            .HasColumnName("StateOrProvinceCode")
             .HasMaxLength(50);
 
         builder.HasOne(x => x.ShippingTaxGroup)
@@ -24,8 +25,8 @@ public class ShippingTaxOverrideDbMapping : IEntityTypeConfiguration<ShippingTax
             .HasForeignKey(x => x.ShippingTaxGroupId)
             .OnDelete(DeleteBehavior.SetNull);
 
-        // Unique constraint: one override per country+state combination
-        builder.HasIndex(x => new { x.CountryCode, x.StateOrProvinceCode })
+        // Unique constraint: one override per country+region combination
+        builder.HasIndex(x => new { x.CountryCode, x.RegionCode })
             .IsUnique();
     }
 }

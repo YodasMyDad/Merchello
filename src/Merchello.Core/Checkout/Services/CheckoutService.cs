@@ -2284,6 +2284,21 @@ public class CheckoutService(
             return result;
         }
 
+        // Validate digital products require a customer account (reject early instead of at payment)
+        var hasDigitalProducts = await BasketHasDigitalProductsAsync(
+            new BasketHasDigitalProductsParameters { Basket = parameters.Basket },
+            cancellationToken);
+
+        if (hasDigitalProducts && !parameters.Basket.CustomerId.HasValue)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Digital products require a customer account. Please sign in or create an account.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
         // Create minimal shipping address with country/state for calculation
         var shippingAddress = new Locality.Models.Address
         {
@@ -2621,14 +2636,22 @@ public class CheckoutService(
         CancellationToken cancellationToken = default)
     {
         var basket = parameters.Basket;
+        var productIds = basket.LineItems
+            .Where(li => li.ProductId.HasValue)
+            .Select(li => li.ProductId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (productIds.Count == 0) return false;
+
+        var products = await productService.GetProductRootsByIds(productIds, cancellationToken);
+        if (products is null || products.Count == 0) return false;
+        var productLookup = products.ToDictionary(p => p.Id);
+
         var hasDigital = false;
         foreach (var lineItem in basket.LineItems.Where(li => li.ProductId.HasValue))
         {
-            var product = await productService.GetProductRoot(lineItem.ProductId!.Value, cancellationToken: cancellationToken);
-            if (product == null)
-            {
-                continue;
-            }
+            if (!productLookup.TryGetValue(lineItem.ProductId!.Value, out var product)) continue;
 
             var isDigital = product.IsDigitalProduct;
             lineItem.ExtendedData["IsDigital"] = isDigital;

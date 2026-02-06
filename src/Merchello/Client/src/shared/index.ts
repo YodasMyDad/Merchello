@@ -1,4 +1,4 @@
-export * from "./utils/index.js";
-export * from "./types/index.js";
-export * from "./components/index.js";
+export * from "@shared/utils/index.js";
+export * from "@shared/types/index.js";
+export * from "@shared/components/index.js";
 

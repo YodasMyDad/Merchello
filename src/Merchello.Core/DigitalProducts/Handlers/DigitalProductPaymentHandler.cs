@@ -60,7 +60,7 @@ public class DigitalProductPaymentHandler(
                 new CreateDownloadLinksParameters { InvoiceId = invoiceId },
                 ct);
 
-            if (!result.Successful)
+            if (!result.Success)
             {
                 logger.LogWarning(
                     "Failed to create download links for invoice {InvoiceId}: {Message}",

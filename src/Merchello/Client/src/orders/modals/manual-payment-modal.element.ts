@@ -6,7 +6,7 @@ import { formatCurrency } from "@shared/utils/formatting.js";
 import type {
   ManualPaymentModalData,
   ManualPaymentModalValue,
-} from "./manual-payment-modal.token.js";
+} from "@orders/modals/manual-payment-modal.token.js";
 
 interface UuiSelectOption {
   name: string;

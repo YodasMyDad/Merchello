@@ -5,7 +5,7 @@ export const manifests: ManifestPropertyEditorUi[] = [
     type: "propertyEditorUi",
     alias: "Merchello.PropertyEditorUi.CollectionPicker",
     name: "Merchello Collection Picker",
-    element: () => import("./property-editor-ui-collection-picker.element.js"),
+    element: () => import("@property-editors/collection-picker/property-editor-ui-collection-picker.element.js"),
     meta: {
       label: "Collection Picker",
       icon: "icon-folder",

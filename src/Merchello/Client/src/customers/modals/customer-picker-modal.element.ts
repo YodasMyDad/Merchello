@@ -1,7 +1,7 @@
 import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { CustomerPickerModalData, CustomerPickerModalValue } from "./customer-picker-modal.token.js";
+import type { CustomerPickerModalData, CustomerPickerModalValue } from "@customers/modals/customer-picker-modal.token.js";
 import type { CustomerListItemDto } from "@customers/types/customer.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 

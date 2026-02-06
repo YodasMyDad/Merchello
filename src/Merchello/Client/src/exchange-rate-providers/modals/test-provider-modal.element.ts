@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type {
   TestExchangeRateProviderModalData,
   TestExchangeRateProviderModalValue,
-} from "./test-provider-modal.token.js";
+} from "@exchange-rate-providers/modals/test-provider-modal.token.js";
 import type { TestExchangeRateProviderResultDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatNumber } from "@shared/utils/formatting.js";

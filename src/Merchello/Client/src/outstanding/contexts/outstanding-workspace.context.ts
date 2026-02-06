@@ -34,7 +34,7 @@ export class MerchelloOutstandingWorkspaceContext
       // Outstanding list route
       {
         path: "edit/outstanding",
-        component: () => import("../components/outstanding-workspace-editor.element.js"),
+        component: () => import("@outstanding/components/outstanding-workspace-editor.element.js"),
         setup: () => {
           // No specific setup needed for list view
         },

@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { MarkAsPaidModalData, MarkAsPaidModalValue } from "./mark-as-paid-modal.token.js";
+import type { MarkAsPaidModalData, MarkAsPaidModalValue } from "@outstanding/modals/mark-as-paid-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import { getCurrencyCode } from "@api/store-settings.js";

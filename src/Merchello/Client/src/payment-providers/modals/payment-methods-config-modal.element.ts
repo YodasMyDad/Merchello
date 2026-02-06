@@ -11,9 +11,9 @@ import type { PaymentMethodSettingDto, PaymentMethodRegionDto } from '@payment-p
 import type {
   PaymentMethodsConfigModalData,
   PaymentMethodsConfigModalValue,
-} from "./payment-methods-config-modal.token.js";
-import { MERCHELLO_PAYMENT_METHOD_EDIT_MODAL } from "./payment-method-edit-modal.token.js";
-import { getBrandIconSvg } from "../utils/brand-icons.js";
+} from "@payment-providers/modals/payment-methods-config-modal.token.js";
+import { MERCHELLO_PAYMENT_METHOD_EDIT_MODAL } from "@payment-providers/modals/payment-method-edit-modal.token.js";
+import { getBrandIconSvg } from "@payment-providers/utils/brand-icons.js";
 
 /** Map of country/region codes to flag emojis */
 const REGION_FLAGS: Record<string, string> = {

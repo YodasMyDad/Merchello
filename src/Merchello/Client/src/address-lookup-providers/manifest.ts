@@ -4,7 +4,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.AddressLookupProviders.View",
     name: "Address Lookup Providers View",
-    js: () => import("./components/address-lookup-providers-list.element.js"),
+    js: () => import("@address-lookup-providers/components/address-lookup-providers-list.element.js"),
     weight: 85,
     meta: {
       label: "Address Lookup",
@@ -24,7 +24,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.AddressLookupProvider.Config.Modal",
     name: "Address Lookup Provider Configuration Modal",
-    js: () => import("./modals/address-lookup-provider-config-modal.element.js"),
+    js: () => import("@address-lookup-providers/modals/address-lookup-provider-config-modal.element.js"),
   },
 
   // Modal for testing an address lookup provider
@@ -32,6 +32,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.AddressLookupProvider.Test.Modal",
     name: "Address Lookup Provider Test Modal",
-    js: () => import("./modals/test-provider-modal.element.js"),
+    js: () => import("@address-lookup-providers/modals/test-provider-modal.element.js"),
   },
 ];

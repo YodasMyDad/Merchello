@@ -48,6 +48,11 @@ public interface IProductService
 
     Task<ProductRoot?> GetProductRoot(Guid productRootId, bool includeProducts = false, bool includeWarehouses = false, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Gets multiple product roots by their IDs in a single batch query.
+    /// </summary>
+    Task<List<ProductRoot>> GetProductRootsByIds(IEnumerable<Guid> productRootIds, CancellationToken cancellationToken = default);
+
     // Product detail view methods
     Task<ProductRootDetailDto?> GetProductRootWithDetails(Guid productRootId, CancellationToken cancellationToken = default);
     Task<CrudResult<ProductRoot>> CreateProductRoot(CreateProductRootDto request, CancellationToken cancellationToken = default);

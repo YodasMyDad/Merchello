@@ -106,7 +106,7 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert - Invoice should be in GBP
@@ -203,7 +203,7 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -273,7 +273,7 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert - No conversion should occur
@@ -342,7 +342,7 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -425,7 +425,7 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -494,7 +494,7 @@ public class MultiCurrencyInvoiceTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert

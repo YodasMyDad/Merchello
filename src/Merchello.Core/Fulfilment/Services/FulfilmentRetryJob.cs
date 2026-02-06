@@ -112,7 +112,7 @@ public class FulfilmentRetryJob(
 
                 var result = await fulfilmentService.SubmitOrderAsync(order.Id, stoppingToken);
 
-                if (result.Successful && !string.IsNullOrEmpty(result.ResultObject?.FulfilmentProviderReference))
+                if (result.Success && !string.IsNullOrEmpty(result.ResultObject?.FulfilmentProviderReference))
                 {
                     logger.LogInformation("Fulfilment retry successful for order {OrderId}. Reference: {Reference}",
                         order.Id, result.ResultObject.FulfilmentProviderReference);

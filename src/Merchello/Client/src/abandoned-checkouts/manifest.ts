@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.AbandonedCheckouts.Workspace",
     name: "Merchello Abandoned Checkouts Workspace",
-    api: () => import("./contexts/abandoned-checkouts-workspace.context.js"),
+    api: () => import("@abandoned-checkouts/contexts/abandoned-checkouts-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.AbandonedCheckouts.ListView",
     name: "Abandoned Checkouts List View",
-    js: () => import("./components/abandoned-checkouts-list.element.js"),
+    js: () => import("@abandoned-checkouts/components/abandoned-checkouts-list.element.js"),
     weight: 100,
     meta: {
       label: "Abandoned Checkouts",

@@ -437,7 +437,7 @@ public class UcpOrderWebhookHandlerTests
             city: "Test City",
             postalCode: "10001",
             countryCode: "US",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "test@example.com");
 
@@ -449,7 +449,7 @@ public class UcpOrderWebhookHandlerTests
             city: "Test City",
             postalCode: "10001",
             countryCode: "US",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "test@example.com");
 
@@ -481,7 +481,7 @@ public class UcpOrderWebhookHandlerTests
             city: "Test City",
             postalCode: "10001",
             countryCode: "US",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "test@example.com");
 

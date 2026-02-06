@@ -21,9 +21,9 @@ import type {
 } from "@orders/types/order.types.js";
 import type { SelectedAddon } from "@shared/product-picker/product-picker.types.js";
 import { DiscountValueType } from "@orders/types/order.types.js";
-import type { EditOrderModalData, EditOrderModalValue } from "./edit-order-modal.token.js";
-import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "./add-custom-item-modal.token.js";
-import { MERCHELLO_ADD_DISCOUNT_MODAL } from "./add-discount-modal.token.js";
+import type { EditOrderModalData, EditOrderModalValue } from "@orders/modals/edit-order-modal.token.js";
+import { MERCHELLO_ADD_CUSTOM_ITEM_MODAL } from "@orders/modals/add-custom-item-modal.token.js";
+import { MERCHELLO_ADD_DISCOUNT_MODAL } from "@orders/modals/add-discount-modal.token.js";
 import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-picker-modal.token.js";
 
 // Import shared components

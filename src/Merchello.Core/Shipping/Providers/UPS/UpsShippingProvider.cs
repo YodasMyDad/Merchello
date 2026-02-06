@@ -688,7 +688,7 @@ public class UpsShippingProvider(
             return new UpsAddress
             {
                 City = request.City,
-                StateProvinceCode = request.StateOrProvinceCode,
+                StateProvinceCode = request.RegionCode,
                 PostalCode = request.PostalCode,
                 CountryCode = request.CountryCode
             };

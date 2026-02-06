@@ -6,7 +6,7 @@ import type { PaymentProviderFieldDto } from '@payment-providers/types/payment-p
 import type {
   PaymentProviderConfigModalData,
   PaymentProviderConfigModalValue,
-} from "./payment-provider-config-modal.token.js";
+} from "@payment-providers/modals/payment-provider-config-modal.token.js";
 
 @customElement("merchello-payment-provider-config-modal")
 export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElement<

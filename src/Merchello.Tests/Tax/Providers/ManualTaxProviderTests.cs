@@ -343,7 +343,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "CA",
+                RegionCode = "CA",
                 ShippingTaxGroupId = shippingTaxGroupId
             });
 
@@ -394,7 +394,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "AL",
+                RegionCode = "AL",
                 ShippingTaxGroupId = null // Explicitly no shipping tax in Alabama
             });
 
@@ -640,7 +640,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "CA",
+                RegionCode = "CA",
                 ShippingTaxGroupId = overrideShippingTaxGroupId
             });
 
@@ -735,7 +735,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "AL",
+                RegionCode = "AL",
                 ShippingTaxGroupId = null // Explicitly no shipping tax
             });
 
@@ -762,7 +762,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "GB",
-                StateOrProvinceCode = null,
+                RegionCode = null,
                 ShippingTaxGroupId = shippingTaxGroupId
             });
 
@@ -798,7 +798,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "CA",
+                RegionCode = "CA",
                 ShippingTaxGroupId = null // No shipping tax in California
             });
 
@@ -824,7 +824,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "CA",
+                RegionCode = "CA",
                 ShippingTaxGroupId = null
             });
 
@@ -833,7 +833,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "TX",
+                RegionCode = "TX",
                 ShippingTaxGroupId = texasShippingTaxGroupId
             });
 
@@ -940,7 +940,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "AL",
+                RegionCode = "AL",
                 ShippingTaxGroupId = null // Explicitly no shipping tax
             });
 
@@ -962,7 +962,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "GB",
-                StateOrProvinceCode = null,
+                RegionCode = null,
                 ShippingTaxGroupId = shippingTaxGroupId
             });
 
@@ -1020,7 +1020,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "TX",
+                RegionCode = "TX",
                 ShippingTaxGroupId = usShippingTaxGroupId
             });
 
@@ -1029,7 +1029,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "AL",
+                RegionCode = "AL",
                 ShippingTaxGroupId = null // No shipping tax in Alabama
             });
 
@@ -1072,7 +1072,7 @@ public class ManualTaxProviderTests
             .ReturnsAsync(new ShippingTaxOverride
             {
                 CountryCode = "US",
-                StateOrProvinceCode = "CA",
+                RegionCode = "CA",
                 ShippingTaxGroupId = overrideShippingTaxGroupId
             });
 
@@ -1160,7 +1160,7 @@ public class ManualTaxProviderTests
             city: "Test City",
             postalCode: "10001",
             countryCode: countryCode,
-            stateOrProvinceCode: regionCode,
+            regionCode: regionCode,
             phone: null,
             email: "test@example.com");
         if (regionCode != null)

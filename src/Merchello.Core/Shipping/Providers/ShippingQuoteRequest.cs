@@ -20,7 +20,7 @@ public class ShippingQuoteRequest
     /// <summary>
     /// Destination state/province code.
     /// </summary>
-    public string? StateOrProvinceCode { get; init; }
+    public string? RegionCode { get; init; }
 
     /// <summary>
     /// Destination postal/zip code.

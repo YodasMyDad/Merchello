@@ -57,7 +57,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
         invoice.Orders.ShouldNotBeEmpty();
         invoice.Total.ShouldBeGreaterThan(0);
@@ -74,7 +74,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         // Arrange
         var (basket, checkoutSession) = await SetupSingleProductCheckout();
         var invoiceResult = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        invoiceResult.Successful.ShouldBeTrue();
+        invoiceResult.Success.ShouldBeTrue();
         var invoice = invoiceResult.ResultObject!;
 
         _fixture.DbContext.ChangeTracker.Clear();
@@ -89,7 +89,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         });
 
         // Assert
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
         var status = await _paymentService.GetInvoicePaymentStatusAsync(invoice.Id);
@@ -148,7 +148,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
 
         // Act - create order + pay
         var invoiceResult = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        invoiceResult.Successful.ShouldBeTrue();
+        invoiceResult.Success.ShouldBeTrue();
         var invoice = invoiceResult.ResultObject!;
         var order = invoice.Orders!.Single();
 
@@ -159,7 +159,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = invoice.Total
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
 
         var processingResult = await _invoiceService.UpdateOrderStatusAsync(new UpdateOrderStatusParameters
         {
@@ -167,7 +167,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
             NewStatus = OrderStatus.Processing,
             Reason = "Payment received - begin fulfillment"
         });
-        processingResult.Successful.ShouldBeTrue();
+        processingResult.Success.ShouldBeTrue();
 
         // Create shipment
         var shipments = await _shipmentService.CreateShipmentsFromOrderAsync(new CreateShipmentsParameters
@@ -184,7 +184,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
             ShipmentId = shipments[0].Id,
             NewStatus = ShipmentStatus.Shipped
         });
-        shippedResult.Successful.ShouldBeTrue();
+        shippedResult.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
         var shippedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
@@ -195,7 +195,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
             ShipmentId = shipments[0].Id,
             NewStatus = ShipmentStatus.Delivered
         });
-        deliveredResult.Successful.ShouldBeTrue();
+        deliveredResult.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
         var completedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
@@ -270,7 +270,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
         invoice.Orders!.Count.ShouldBe(2);
 
@@ -291,7 +291,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Invoice should include product + shipping costs
@@ -349,7 +349,7 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
         var order = invoice.Orders!.First();
         order.LineItems!.ShouldContain(li => li.Sku == product.Sku && li.Quantity == 3);

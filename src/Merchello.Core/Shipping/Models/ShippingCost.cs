@@ -9,8 +9,9 @@ public class ShippingCost
     // The country for this shipping cost (e.g., "US")
     public string CountryCode { get; set; } = null!;
 
-    // The state or province (optional, e.g., "CA" for California)
-    public string? StateOrProvinceCode { get; set; }
+    // The region code (optional, e.g., "CA" for California)
+    [System.Text.Json.Serialization.JsonPropertyName("StateOrProvinceCode")]
+    public string? RegionCode { get; set; }
 
     // The cost for shipping to this region
     public decimal Cost { get; set; }

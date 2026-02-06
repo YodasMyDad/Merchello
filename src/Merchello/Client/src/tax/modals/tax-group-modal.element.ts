@@ -6,10 +6,10 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
-import type { TaxGroupModalData, TaxGroupModalValue } from "./tax-group-modal.token.js";
-import { MERCHELLO_TAX_RATE_MODAL } from "./tax-rate-modal.token.js";
+import type { TaxGroupModalData, TaxGroupModalValue } from "@tax/modals/tax-group-modal.token.js";
+import { MERCHELLO_TAX_RATE_MODAL } from "@tax/modals/tax-rate-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { TaxGroupRateDto } from "../types/tax.types.js";
+import type { TaxGroupRateDto } from "@tax/types/tax.types.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 
 @customElement("merchello-tax-group-modal")
@@ -255,7 +255,7 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
                           ${rate.countryName ?? rate.countryCode}
                         </uui-table-cell>
                         <uui-table-cell>
-                          ${rate.regionName ?? rate.stateOrProvinceCode ?? "All regions"}
+                          ${rate.regionName ?? rate.regionCode ?? "All regions"}
                         </uui-table-cell>
                         <uui-table-cell style="text-align: right">
                           ${formatNumber(rate.taxPercentage, 2)}%

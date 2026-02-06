@@ -47,7 +47,7 @@ export class MerchelloCustomersWorkspaceContext
       // Create segment route
       {
         path: "edit/customers/segment/create",
-        component: () => import("../components/segment-detail.element.js"),
+        component: () => import("@customers/components/segment-detail.element.js"),
         setup: () => {
           this.#isNew = true;
           this.#segmentId = undefined;
@@ -57,7 +57,7 @@ export class MerchelloCustomersWorkspaceContext
       // Segment detail route
       {
         path: "edit/customers/segment/:id",
-        component: () => import("../components/segment-detail.element.js"),
+        component: () => import("@customers/components/segment-detail.element.js"),
         setup: (_component, info) => {
           this.#isNew = false;
           const id = info.match.params.id;
@@ -67,7 +67,7 @@ export class MerchelloCustomersWorkspaceContext
       // Customers list route
       {
         path: "edit/customers",
-        component: () => import("../components/customers-workspace-editor.element.js"),
+        component: () => import("@customers/components/customers-workspace-editor.element.js"),
         setup: () => {
           // Reset segment state when viewing list
           this.#segmentId = undefined;

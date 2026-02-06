@@ -120,7 +120,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 
         // Act - Step 3: Create invoice from basket (the critical test)
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -214,7 +214,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -309,7 +309,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         // GetShippingOptionsForBasket again, which now returns POST-SELECTION groups
         // with DIFFERENT GroupIds (based on just the selected option)
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert - The fix ensures this works even though GroupIds changed
@@ -377,7 +377,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
 
         // Act & Assert - Should fail because no shipping option was selected
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
     }
 
     private async Task<Basket> CreateBasketAsync(

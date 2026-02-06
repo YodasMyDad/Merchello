@@ -14,7 +14,7 @@ public class CreateTaxGroupRateDto
     /// Optional ISO 3166-2 state/province code (e.g., "CA" for California).
     /// When null or empty, the rate applies to the entire country.
     /// </summary>
-    public string? StateOrProvinceCode { get; set; }
+    public string? RegionCode { get; set; }
 
     /// <summary>
     /// Tax percentage rate (0-100)

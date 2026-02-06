@@ -89,7 +89,7 @@ public class PostPurchaseUpsellService(
             invoice.ExtendedData.TryGetValue(PostPurchaseEligibleKey, out var eligibleFlag) &&
             Convert.ToBoolean(eligibleFlag.UnwrapJsonElement()))
         {
-            return OperationResult<bool>.Success(true);
+            return OperationResult<bool>.Ok(true);
         }
 
         if (TryGetPostPurchaseWindowEnd(invoice, out var expiredWindowEnd) &&
@@ -128,7 +128,7 @@ public class PostPurchaseUpsellService(
         // Check for active PostPurchase upsell rules (confirmation location)
         var context = await BuildUpsellContextAsync(invoice, UpsellDisplayLocation.Confirmation, ct);
         if (context == null)
-            return OperationResult<bool>.Success(false);
+            return OperationResult<bool>.Ok(false);
 
         var suggestions = await upsellEngine.GetSuggestionsForLocationAsync(
             context,
@@ -139,7 +139,7 @@ public class PostPurchaseUpsellService(
             .ToList();
 
         if (postPurchaseSuggestions.Count == 0)
-            return OperationResult<bool>.Success(false);
+            return OperationResult<bool>.Ok(false);
 
         // Set all orders to OnHold
         if (invoice.Orders != null)
@@ -177,7 +177,7 @@ public class PostPurchaseUpsellService(
             }
         }, ct);
 
-        return OperationResult<bool>.Success(true);
+        return OperationResult<bool>.Ok(true);
     }
 
     public async Task<PostPurchaseUpsellsDto?> GetAvailableUpsellsAsync(
@@ -438,7 +438,7 @@ public class PostPurchaseUpsellService(
             IdempotencyKey = parameters.IdempotencyKey,
         }, ct);
 
-        if (!chargeResult.Successful || chargeResult.ResultObject == null)
+        if (!chargeResult.Success || chargeResult.ResultObject == null)
         {
             var errorMsg = chargeResult.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -477,7 +477,7 @@ public class PostPurchaseUpsellService(
             FormattedAmountCharged = currencyService.FormatAmount(chargeAmount, invoice.CurrencyCode),
         };
 
-        if (!editResult.IsSuccess)
+        if (!editResult.Success)
         {
             logger.LogCritical(
                 "Invoice edit failed after successful payment charge. InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}. Manual review required.",
@@ -498,7 +498,7 @@ public class PostPurchaseUpsellService(
             DisplayLocation = UpsellDisplayLocation.Confirmation,
         }, ct);
 
-        return OperationResult<PostPurchaseResultDto>.Success(response);
+        return OperationResult<PostPurchaseResultDto>.Ok(response);
     }
 
     public async Task<OperationResult<bool>> SkipUpsellsAsync(
@@ -522,7 +522,7 @@ public class PostPurchaseUpsellService(
             data.Remove(PostPurchaseOriginalOrderStatusKey);
         }, ct);
 
-        return OperationResult<bool>.Success(true);
+        return OperationResult<bool>.Ok(true);
     }
 
     public async Task<bool> IsPostPurchaseWindowValidAsync(

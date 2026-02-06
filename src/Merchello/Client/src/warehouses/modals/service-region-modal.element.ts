@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { ServiceRegionModalData, ServiceRegionModalValue } from "./service-region-modal.token.js";
+import type { ServiceRegionModalData, ServiceRegionModalValue } from "@warehouses/modals/service-region-modal.token.js";
 import type { CountryInfo, SubdivisionInfo } from "@warehouses/types/warehouses.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
@@ -13,7 +13,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
   ServiceRegionModalValue
 > {
   @state() private _countryCode: string = "";
-  @state() private _stateOrProvinceCode: string = "";
+  @state() private _regionCode: string = "";
   @state() private _isExcluded: boolean = false;
   @state() private _countries: CountryInfo[] = [];
   @state() private _regions: SubdivisionInfo[] = [];
@@ -28,7 +28,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
     // Load existing data if editing
     if (this.data?.region) {
       this._countryCode = this.data.region.countryCode;
-      this._stateOrProvinceCode = this.data.region.stateOrProvinceCode || "";
+      this._regionCode = this.data.region.regionCode || "";
       this._isExcluded = this.data.region.isExcluded;
       if (this._countryCode) {
         this._loadRegions(this._countryCode);
@@ -69,7 +69,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
 
   private _getRegionOptions(): SelectOption[] {
     const options: SelectOption[] = [
-      { name: "All regions (entire country)", value: "", selected: !this._stateOrProvinceCode },
+      { name: "All regions (entire country)", value: "", selected: !this._regionCode },
     ];
 
     if (this._isLoadingRegions) {
@@ -81,7 +81,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
       ...this._regions.map((r) => ({
         name: r.name,
         value: r.regionCode,
-        selected: r.regionCode === this._stateOrProvinceCode,
+        selected: r.regionCode === this._regionCode,
       })),
     ];
   }
@@ -89,7 +89,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
   private _handleCountryChange(e: Event): void {
     const value = (e.target as HTMLSelectElement).value;
     this._countryCode = value;
-    this._stateOrProvinceCode = "";
+    this._regionCode = "";
     if (value) {
       this._loadRegions(value);
     } else {
@@ -98,7 +98,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
   }
 
   private _handleStateChange(e: Event): void {
-    this._stateOrProvinceCode = (e.target as HTMLSelectElement).value;
+    this._regionCode = (e.target as HTMLSelectElement).value;
   }
 
   private _validate(): boolean {
@@ -113,7 +113,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
     const isDuplicate = existingRegions.some(
       (r) =>
         r.countryCode === this._countryCode &&
-        (r.stateOrProvinceCode || "") === (this._stateOrProvinceCode || "") &&
+        (r.regionCode || "") === (this._regionCode || "") &&
         r.id !== this.data?.region?.id
     );
 
@@ -139,7 +139,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
 
     const regionData = {
       countryCode: this._countryCode,
-      stateOrProvinceCode: this._stateOrProvinceCode || undefined,
+      regionCode: this._regionCode || undefined,
       isExcluded: this._isExcluded,
     };
 

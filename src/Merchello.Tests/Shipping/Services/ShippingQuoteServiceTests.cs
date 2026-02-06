@@ -934,7 +934,7 @@ public class ShippingQuoteServiceTests
         capturedRequest.OriginWarehouseId.ShouldBe(warehouseId);
         capturedRequest.OriginAddress.ShouldBe(warehouseAddress);
         capturedRequest.CountryCode.ShouldBe("GB");
-        capturedRequest.StateOrProvinceCode.ShouldBe("ENG");
+        capturedRequest.RegionCode.ShouldBe("ENG");
         capturedRequest.PostalCode.ShouldBe("SW1A 1AA");
         capturedRequest.CurrencyCode.ShouldBe("GBP");
         capturedRequest.Packages.Count.ShouldBe(2);
@@ -1034,7 +1034,7 @@ public class ShippingQuoteServiceTests
             city: city ?? "Test City",
             postalCode: postalCode,
             countryCode: countryCode,
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "warehouse@example.com");
     }

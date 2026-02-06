@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { AddCustomItemModalData, AddCustomItemModalValue } from "./add-custom-item-modal.token.js";
+import type { AddCustomItemModalData, AddCustomItemModalValue } from "@orders/modals/add-custom-item-modal.token.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { WarehouseListDto, WarehouseShippingOptionDto } from "@warehouses/types/warehouses.types.js";

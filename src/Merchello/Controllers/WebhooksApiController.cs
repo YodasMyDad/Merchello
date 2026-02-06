@@ -93,7 +93,7 @@ public class WebhooksApiController(
             Headers = dto.Headers ?? []
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create webhook subscription.");
         }
@@ -128,7 +128,7 @@ public class WebhooksApiController(
             Headers = dto.Headers
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update webhook subscription.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)

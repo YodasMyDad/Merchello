@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.ProductFeed.Workspace",
     name: "Merchello Product Feed Workspace",
-    api: () => import("./contexts/product-feed-workspace.context.js"),
+    api: () => import("@product-feed/contexts/product-feed-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_PRODUCT_FEED_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.ProductFeed.Workspace.View",
     name: "Merchello Product Feed View",
-    js: () => import("./components/product-feed-workspace.element.js"),
+    js: () => import("@product-feed/components/product-feed-workspace.element.js"),
     weight: 100,
     meta: {
       label: "Product Feed",

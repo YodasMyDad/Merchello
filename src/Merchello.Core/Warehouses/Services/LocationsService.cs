@@ -256,7 +256,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
             // Wildcard rules: only treat as include-all for countries when no specific region code
             if (string.Equals(r.CountryCode, "*", StringComparison.Ordinal))
             {
-                if (!r.IsExcluded && string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
+                if (!r.IsExcluded && string.IsNullOrWhiteSpace(r.RegionCode))
                 {
                     hasWildcardInclude = true;
                 }
@@ -264,7 +264,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
             }
 
             // State/province-specific rules should not affect country availability
-            if (!string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
+            if (!string.IsNullOrWhiteSpace(r.RegionCode))
             {
                 continue;
             }
@@ -298,7 +298,7 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
                 continue;
             }
 
-            var hasRegion = !string.IsNullOrWhiteSpace(r.StateOrProvinceCode);
+            var hasRegion = !string.IsNullOrWhiteSpace(r.RegionCode);
             if (!hasRegion)
             {
                 // Country-level rule
@@ -315,11 +315,11 @@ public class LocationsService(IEFCoreScopeProvider<MerchelloDbContext> efCoreSco
             {
                 if (r.IsExcluded)
                 {
-                    exclude.Add(r.StateOrProvinceCode!);
+                    exclude.Add(r.RegionCode!);
                 }
                 else
                 {
-                    include.Add(r.StateOrProvinceCode!);
+                    include.Add(r.RegionCode!);
                 }
             }
         }

@@ -449,7 +449,7 @@ public class StatementServiceTests : IDisposable
             city: "London",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "john@test.com");
 
@@ -461,7 +461,7 @@ public class StatementServiceTests : IDisposable
             city: "London",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "john@test.com");
 

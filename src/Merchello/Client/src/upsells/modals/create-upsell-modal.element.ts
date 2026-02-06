@@ -6,7 +6,7 @@ import type { UmbModalContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { CreateUpsellModalData, CreateUpsellModalValue } from "./create-upsell-modal.token.js";
+import type { CreateUpsellModalData, CreateUpsellModalValue } from "@upsells/modals/create-upsell-modal.token.js";
 
 @customElement("merchello-create-upsell-modal")
 export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElement) {

@@ -75,7 +75,7 @@ public class CustomerSegmentsApiController(
         };
 
         var result = await segmentService.CreateAsync(parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -109,7 +109,7 @@ public class CustomerSegmentsApiController(
         };
 
         var result = await segmentService.UpdateAsync(id, parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -138,7 +138,7 @@ public class CustomerSegmentsApiController(
     public async Task<IActionResult> DeleteSegment(Guid id, CancellationToken ct)
     {
         var result = await segmentService.DeleteAsync(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -231,7 +231,7 @@ public class CustomerSegmentsApiController(
             CustomerIds = dto.CustomerIds,
             Notes = dto.Notes
         }, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -261,7 +261,7 @@ public class CustomerSegmentsApiController(
         CancellationToken ct)
     {
         var result = await segmentService.RemoveMembersAsync(id, dto.CustomerIds, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)

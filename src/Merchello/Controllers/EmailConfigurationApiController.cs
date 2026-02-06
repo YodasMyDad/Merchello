@@ -93,7 +93,7 @@ public class EmailConfigurationApiController(
             AttachmentAliases = dto.AttachmentAliases
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create email configuration.");
         }
@@ -130,7 +130,7 @@ public class EmailConfigurationApiController(
             AttachmentAliases = dto.AttachmentAliases
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update email configuration.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -167,7 +167,7 @@ public class EmailConfigurationApiController(
     public async Task<IActionResult> ToggleEnabled(Guid id, CancellationToken ct)
     {
         var result = await configurationService.ToggleEnabledAsync(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound(result.Messages.FirstOrDefault()?.Message ?? "Email configuration not found.");
         }

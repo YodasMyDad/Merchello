@@ -5,7 +5,7 @@ namespace Merchello.Core.Notifications.ShippingTaxOverride;
 /// <summary>
 /// Notification published after a ShippingTaxOverride has been deleted.
 /// </summary>
-public class ShippingTaxOverrideDeletedNotification(Guid shippingTaxOverrideId, string countryCode, string? stateOrProvinceCode) : MerchelloNotification
+public class ShippingTaxOverrideDeletedNotification(Guid shippingTaxOverrideId, string countryCode, string? regionCode) : MerchelloNotification
 {
     /// <summary>
     /// The ID of the shipping tax override that was deleted.
@@ -20,5 +20,5 @@ public class ShippingTaxOverrideDeletedNotification(Guid shippingTaxOverrideId, 
     /// <summary>
     /// The state/province code of the deleted override (for logging/audit purposes).
     /// </summary>
-    public string? StateOrProvinceCode { get; } = stateOrProvinceCode;
+    public string? RegionCode { get; } = regionCode;
 }

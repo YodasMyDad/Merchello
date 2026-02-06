@@ -31,7 +31,7 @@ export class MerchelloCollectionsWorkspaceContext
       {
         path: "edit/:unique",
         component: () =>
-          import("../components/collections-workspace-editor.element.js"),
+          import("@collections/components/collections-workspace-editor.element.js"),
         setup: (_component, _info) => {
           // Static workspace - no dynamic loading needed
         },

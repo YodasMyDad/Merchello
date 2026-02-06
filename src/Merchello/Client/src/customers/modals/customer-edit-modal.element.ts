@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { CustomerEditModalData, CustomerEditModalValue } from "./customer-edit-modal.token.js";
+import type { CustomerEditModalData, CustomerEditModalValue } from "@customers/modals/customer-edit-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "@umbraco-cms/backoffice/member";
 import "@shared/components/tag-input.element.js";

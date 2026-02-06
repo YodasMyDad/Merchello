@@ -37,6 +37,7 @@ public class ProductAddonSelectorViewComponent(
             Name = option.Name ?? "Add-on",
             UiType = uiType,
             UseSwiper = option.ProductOptionValues.Count > 6,
+            IsMultiSelect = option.IsMultiSelect,
             CurrencySymbol = displayContext.CurrencySymbol,
             DecimalPlaces = displayContext.DecimalPlaces,
             IncludesTax = displayContext.DisplayPricesIncTax && taxRate > 0,
@@ -54,7 +55,7 @@ public class ProductAddonSelectorViewComponent(
                         currencyService),
                     HexValue = v.HexValue,
                     MediaUrl = v.MediaKey.HasValue
-                        ? mediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
+                        ? mediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 800)
                         : null
                 })
                 .ToList()

@@ -54,7 +54,7 @@ public class ProductsApiController(
     public async Task<IActionResult> CreateProduct([FromBody] CreateProductRootDto request, CancellationToken ct)
     {
         var result = await productService.CreateProductRoot(request, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(new { errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message) });
         }
@@ -73,7 +73,7 @@ public class ProductsApiController(
     public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductRootDto request, CancellationToken ct)
     {
         var result = await productService.UpdateProductRoot(id, request, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
             if (errors.Any(e => e?.Contains("not found") == true))
@@ -96,7 +96,7 @@ public class ProductsApiController(
     public async Task<IActionResult> DeleteProduct(Guid id, CancellationToken ct)
     {
         var result = await productService.DeleteProductRoot(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound();
         }
@@ -134,7 +134,7 @@ public class ProductsApiController(
     public async Task<IActionResult> UpdateVariant(Guid productRootId, Guid variantId, [FromBody] UpdateVariantDto request, CancellationToken ct)
     {
         var result = await productService.UpdateVariant(productRootId, variantId, request, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
             if (errors.Any(e => e?.Contains("not found") == true))
@@ -156,7 +156,7 @@ public class ProductsApiController(
     public async Task<IActionResult> SetDefaultVariant(Guid productRootId, Guid variantId, CancellationToken ct)
     {
         var result = await productService.SetDefaultVariant(variantId, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound();
         }
@@ -246,7 +246,7 @@ public class ProductsApiController(
             request.ExcludedShippingOptionIds,
             ct);
 
-        if (!result.Successful) return NotFound();
+        if (!result.Success) return NotFound();
         return NoContent();
     }
 
@@ -267,7 +267,7 @@ public class ProductsApiController(
             request.ExcludedShippingOptionIds,
             ct);
 
-        if (!result.Successful) return NotFound();
+        if (!result.Success) return NotFound();
         return NoContent();
     }
 
@@ -339,7 +339,7 @@ public class ProductsApiController(
     public async Task<IActionResult> SaveOptions(Guid productRootId, [FromBody] List<SaveProductOptionDto> options, CancellationToken ct)
     {
         var result = await productService.SaveProductOptions(productRootId, options, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
             if (errors.Any(e => e?.Contains("not found") == true))
@@ -431,7 +431,7 @@ public class ProductsApiController(
     public async Task<IActionResult> CreateProductType([FromBody] CreateProductTypeDto request, CancellationToken ct)
     {
         var result = await productTypeService.CreateProductType(request.Name, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
             return BadRequest(new ProblemDetails { Title = "Failed to create product type", Detail = errorMessage });
@@ -448,7 +448,7 @@ public class ProductsApiController(
     public async Task<IActionResult> UpdateProductType(Guid id, [FromBody] UpdateProductTypeDto request, CancellationToken ct)
     {
         var result = await productTypeService.UpdateProductType(id, request.Name, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -469,7 +469,7 @@ public class ProductsApiController(
     public async Task<IActionResult> DeleteProductType(Guid id, CancellationToken ct)
     {
         var result = await productTypeService.DeleteProductType(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -503,7 +503,7 @@ public class ProductsApiController(
 
         var result = await productCollectionService.CreateProductCollection(dto.Name.Trim(), ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to create collection";
             return BadRequest(message);
@@ -533,7 +533,7 @@ public class ProductsApiController(
 
         var result = await productCollectionService.UpdateProductCollection(id, dto.Name.Trim(), ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update collection";
             if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
@@ -564,7 +564,7 @@ public class ProductsApiController(
     {
         var result = await productCollectionService.DeleteProductCollection(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to delete collection";
             if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
@@ -778,6 +778,7 @@ public class ProductsApiController(
             OptionTypeAlias = option.OptionTypeAlias,
             OptionUiAlias = option.OptionUiAlias,
             IsVariant = option.IsVariant,
+            IsMultiSelect = option.IsMultiSelect,
             Values = option.ProductOptionValues.OrderBy(v => v.SortOrder).Select(MapToOptionValueDto).ToList()
         };
     }
@@ -794,7 +795,8 @@ public class ProductsApiController(
             MediaKey = value.MediaKey,
             PriceAdjustment = value.PriceAdjustment,
             CostAdjustment = value.CostAdjustment,
-            SkuSuffix = value.SkuSuffix
+            SkuSuffix = value.SkuSuffix,
+            WeightKg = value.WeightKg
         };
     }
 

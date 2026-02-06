@@ -338,7 +338,7 @@ public class ShippingProvidersApiController(
         var quoteRequest = new ShippingQuoteRequest
         {
             CountryCode = request.CountryCode,
-            StateOrProvinceCode = request.StateOrProvinceCode,
+            RegionCode = request.RegionCode,
             PostalCode = request.PostalCode,
             City = request.City,
             OriginWarehouseId = warehouse.Id,

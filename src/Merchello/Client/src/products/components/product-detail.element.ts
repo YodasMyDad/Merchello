@@ -28,9 +28,10 @@ import type { WarehouseDto } from "@shipping/types/shipping.types.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import type { ElementTypeDto, ElementTypeContainerDto } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import "./product-element-properties.element.js";
-import type { ElementPropertiesChangeDetail } from "./product-element-properties.element.js";
+import "@products/components/product-element-properties.element.js";
+import type { ElementPropertiesChangeDetail } from "@products/components/product-element-properties.element.js";
 import { MERCHELLO_OPTION_EDITOR_MODAL } from "@products/modals/option-editor-modal.token.js";
+import { MERCHELLO_VARIANT_BATCH_UPDATE_MODAL } from "@products/modals/variant-batch-update-modal.token.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
@@ -71,6 +72,7 @@ import type { UmbInputDocumentTypeElement } from "@umbraco-cms/backoffice/docume
 import "@umbraco-cms/backoffice/tiptap";
 // Import document type input for element type picker
 import "@umbraco-cms/backoffice/document-type";
+import "@property-editors/collection-picker/property-editor-ui-collection-picker.element.js";
 
 // ============================================
 // Component
@@ -119,6 +121,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /** Variant form data (for single-variant products) */
   @state() private _variantFormData: Partial<ProductVariantDto> = {};
   @state() private _variantFieldErrors: Record<string, string> = {};
+  @state() private _selectedVariantIds: string[] = [];
 
   // ============================================
   // State: Reference Data (dropdowns)
@@ -156,6 +159,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   /** Configuration from Umbraco DataType for TipTap editor */
   @state() private _descriptionEditorConfig: UmbPropertyEditorConfigCollectionType | undefined = undefined;
 
+  /** Collection picker configuration: 0 means unlimited selections */
+  private readonly _collectionPickerConfig = new UmbPropertyEditorConfigCollection([
+    { alias: "maxItems", value: 0 },
+  ]);
+
   /** Block data for the description rich text editor (maintained separately from markup) */
   @state() private _descriptionBlocks: RichTextBlockValue | null = null;
 
@@ -184,6 +192,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             this._descriptionBlocks = null;
             // Initialize shipping options from product data
             this._shippingOptions = product.availableShippingOptions ?? [];
+            // Reset batch-selection state when product reloads
+            this._selectedVariantIds = [];
             // For single-variant products, populate variant form data and load filters
             if (product.variants.length === 1) {
               this._variantFormData = { ...product.variants[0] };
@@ -559,6 +569,21 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private _handleProductTypeChange(e: Event): void {
     const select = e.target as HTMLSelectElement;
     this._formData = { ...this._formData, productTypeId: select.value };
+  }
+
+  private _getCollectionPickerValue(): string | undefined {
+    const collectionIds = this._formData.collectionIds ?? [];
+    return collectionIds.length > 0 ? collectionIds.join(",") : undefined;
+  }
+
+  private _handleCollectionIdsChange(e: Event): void {
+    const picker = e.target as HTMLElement & { value?: string };
+    const value = picker.value ?? "";
+    const collectionIds = value
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    this._formData = { ...this._formData, collectionIds };
   }
 
   private _getViewOptions(): SelectOption[] {
@@ -1069,6 +1094,17 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </umb-property-layout>
 
           <umb-property-layout
+            label="Collections"
+            description="Assign this product to one or more collections for storefront organization">
+            <merchello-property-editor-ui-collection-picker
+              slot="editor"
+              .config=${this._collectionPickerConfig}
+              .value=${this._getCollectionPickerValue()}
+              @change=${this._handleCollectionIdsChange}>
+            </merchello-property-editor-ui-collection-picker>
+          </umb-property-layout>
+
+          <umb-property-layout
             label="Tax Group"
             description="Tax rate applied to this product"
             ?mandatory=${true}
@@ -1503,19 +1539,40 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
   private _renderVariantsTab(): unknown {
     const variants = this._product?.variants ?? [];
+    const selectedCount = this._selectedVariantIds.length;
+    const allSelected = variants.length > 0 && selectedCount === variants.length;
+    const partiallySelected = selectedCount > 0 && selectedCount < variants.length;
 
     return html`
       <div class="tab-content">
         <div class="section-header">
-          <h3>Product Variants</h3>
-          <p class="section-description">
-            Click a row to edit variant details. Select a variant as the default using the radio button.
-          </p>
+          <div>
+            <h3>Product Variants</h3>
+            <p class="section-description">
+              Click a row to edit variant details. Select variants, choose fields, and batch update in one save.
+            </p>
+          </div>
+          <uui-button
+            look="primary"
+            color="positive"
+            label="Batch Update"
+            @click=${this._openBatchUpdateModal}
+            ?disabled=${selectedCount === 0}>
+            Batch Update (${selectedCount})
+          </uui-button>
         </div>
 
         <div class="table-container">
           <uui-table class="data-table">
             <uui-table-head>
+              <uui-table-head-cell style="width: 56px;">
+                <uui-checkbox
+                  label="Select all variants"
+                  ?checked=${allSelected}
+                  .indeterminate=${partiallySelected}
+                  @change=${(e: Event) => this._handleSelectAllVariants((e.target as HTMLInputElement).checked)}>
+                </uui-checkbox>
+              </uui-table-head-cell>
               <uui-table-head-cell style="width: 60px;">Default</uui-table-head-cell>
               <uui-table-head-cell>Variant</uui-table-head-cell>
               <uui-table-head-cell>SKU</uui-table-head-cell>
@@ -1523,14 +1580,69 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               <uui-table-head-cell>Stock</uui-table-head-cell>
               <uui-table-head-cell>Status</uui-table-head-cell>
             </uui-table-head>
-            ${variants.map((variant) => this._renderVariantRow(variant))}
+            ${variants.map((variant) =>
+              this._renderVariantRow(variant, this._selectedVariantIds.includes(variant.id)),
+            )}
           </uui-table>
         </div>
       </div>
     `;
   }
 
-  private _renderVariantRow(variant: ProductVariantDto): unknown {
+  private _handleVariantSelection(variantId: string, checked: boolean): void {
+    if (checked) {
+      if (!this._selectedVariantIds.includes(variantId)) {
+        this._selectedVariantIds = [...this._selectedVariantIds, variantId];
+      }
+      return;
+    }
+
+    this._selectedVariantIds = this._selectedVariantIds.filter((id) => id !== variantId);
+  }
+
+  private _handleSelectAllVariants(checked: boolean): void {
+    if (!checked) {
+      this._selectedVariantIds = [];
+      return;
+    }
+
+    this._selectedVariantIds = (this._product?.variants ?? []).map((variant) => variant.id);
+  }
+
+  private _getSelectedVariants(): ProductVariantDto[] {
+    if (!this._product) return [];
+    const selected = new Set(this._selectedVariantIds);
+    return this._product.variants.filter((variant) => selected.has(variant.id));
+  }
+
+  private async _openBatchUpdateModal(): Promise<void> {
+    if (!this._product || !this.#modalManager) return;
+
+    const selectedVariants = this._getSelectedVariants();
+    if (selectedVariants.length === 0) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_VARIANT_BATCH_UPDATE_MODAL, {
+      data: {
+        productRootId: this._product.id,
+        variants: selectedVariants.map((variant) => ({ ...variant })),
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (!this.#isConnected || !result?.isSaved) return;
+
+    this.#notificationContext?.peek("positive", {
+      data: {
+        headline: "Batch update complete",
+        message: `${result.updatedCount} variant${result.updatedCount === 1 ? "" : "s"} updated successfully.`,
+      },
+    });
+
+    this._selectedVariantIds = [];
+    await this.#workspaceContext?.reload();
+  }
+
+  private _renderVariantRow(variant: ProductVariantDto, isSelected: boolean): unknown {
     const variantHref = this._product ? getVariantDetailHref(this._product.id, variant.id) : "";
     const optionDescription = this._getVariantOptionDescription(variant);
     // Use backend-calculated canBeDefault (single source of truth for eligibility)
@@ -1538,6 +1650,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const disabledTitle = !canBeDefault ? "Cannot set as default: variant is unavailable or out of stock" : "";
     return html`
       <uui-table-row>
+        <uui-table-cell>
+          <uui-checkbox
+            label="Select variant"
+            ?checked=${isSelected}
+            @change=${(e: Event) => this._handleVariantSelection(variant.id, (e.target as HTMLInputElement).checked)}
+            @click=${(e: Event) => e.stopPropagation()}>
+          </uui-checkbox>
+        </uui-table-cell>
         <uui-table-cell>
           <uui-radio
             name="default-variant-${variant.productRootId}"
@@ -1750,6 +1870,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             <span class="badge ${option.isVariant ? "badge-positive" : "badge-default"}">
               ${option.isVariant ? "Generates Variants" : "Add-on"}
             </span>
+            ${!option.isVariant
+              ? html` <span class="badge badge-default">${option.isMultiSelect ? "Multi-select" : "Single-select"}</span> `
+              : nothing}
             ${option.optionUiAlias
               ? html` <span class="badge badge-default">${option.optionUiAlias}</span> `
               : nothing}
@@ -2022,6 +2145,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         optionTypeAlias: opt.optionTypeAlias ?? undefined,
         optionUiAlias: opt.optionUiAlias ?? undefined,
         isVariant: opt.isVariant,
+        isMultiSelect: opt.isVariant ? false : (opt.isMultiSelect ?? true),
         values: opt.values.map((val, valIndex) => ({
           id: val.id,
           name: val.name,
@@ -2031,6 +2155,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           priceAdjustment: val.priceAdjustment,
           costAdjustment: val.costAdjustment,
           skuSuffix: val.skuSuffix ?? undefined,
+          weightKg: val.weightKg ?? undefined,
         })),
       }));
 
@@ -2461,7 +2586,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       .section-header {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: var(--uui-size-space-3);
         margin-bottom: var(--uui-size-space-3);
       }
 
@@ -2489,6 +2615,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       .data-table {
         width: 100%;
+      }
+
+      .data-table uui-table-cell:first-child,
+      .data-table uui-table-head-cell:first-child {
+        width: 56px;
       }
 
       .variant-name-cell {

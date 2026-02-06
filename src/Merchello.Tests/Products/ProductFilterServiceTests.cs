@@ -37,7 +37,7 @@ public class ProductFilterServiceTests
     public async Task CreateFilterGroupAndFilters_AssignsIncrementingSortOrder()
     {
         var groupResult = await _service.CreateFilterGroup("Color");
-        groupResult.Successful.ShouldBeTrue();
+        groupResult.Success.ShouldBeTrue();
         groupResult.ResultObject.ShouldNotBeNull();
 
         var redResult = await _service.CreateFilter(new CreateFilterParameters
@@ -54,8 +54,8 @@ public class ProductFilterServiceTests
             HexColour = "#0000FF"
         });
 
-        redResult.Successful.ShouldBeTrue();
-        blueResult.Successful.ShouldBeTrue();
+        redResult.Success.ShouldBeTrue();
+        blueResult.Success.ShouldBeTrue();
         redResult.ResultObject!.SortOrder.ShouldBe(0);
         blueResult.ResultObject!.SortOrder.ShouldBe(1);
     }
@@ -86,7 +86,7 @@ public class ProductFilterServiceTests
         var firstAssignment = await _service.AssignFiltersToProduct(
             product.Id,
             [modern.ResultObject!.Id, classic.ResultObject!.Id]);
-        firstAssignment.Successful.ShouldBeTrue();
+        firstAssignment.Success.ShouldBeTrue();
 
         var filtersAfterFirstAssignment = await _service.GetFiltersForProduct(product.Id);
         filtersAfterFirstAssignment.Count.ShouldBe(2);
@@ -94,7 +94,7 @@ public class ProductFilterServiceTests
         var secondAssignment = await _service.AssignFiltersToProduct(
             product.Id,
             [minimal.ResultObject!.Id]);
-        secondAssignment.Successful.ShouldBeTrue();
+        secondAssignment.Success.ShouldBeTrue();
 
         var filtersAfterSecondAssignment = await _service.GetFiltersForProduct(product.Id);
         filtersAfterSecondAssignment.Count.ShouldBe(1);
@@ -157,7 +157,7 @@ public class ProductFilterServiceTests
         var groupTwo = await _service.CreateFilterGroup("Group Two");
 
         var reorderGroupsResult = await _service.ReorderFilterGroups([groupTwo.ResultObject!.Id, groupOne.ResultObject!.Id]);
-        reorderGroupsResult.Successful.ShouldBeTrue();
+        reorderGroupsResult.Success.ShouldBeTrue();
 
         var groups = await _service.GetFilterGroups();
         groups.Single(g => g.Id == groupTwo.ResultObject.Id).SortOrder.ShouldBe(0);
@@ -177,7 +177,7 @@ public class ProductFilterServiceTests
         var reorderFiltersResult = await _service.ReorderFilters(
             groupOne.ResultObject.Id,
             [secondFilter.ResultObject!.Id, firstFilter.ResultObject!.Id]);
-        reorderFiltersResult.Successful.ShouldBeTrue();
+        reorderFiltersResult.Success.ShouldBeTrue();
 
         var updatedGroup = await _service.GetFilterGroup(groupOne.ResultObject.Id);
         updatedGroup.ShouldNotBeNull();
@@ -197,7 +197,7 @@ public class ProductFilterServiceTests
 
         var result = await _service.DeleteFilterGroup(group.ResultObject.Id);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
         var groupExists = await _fixture.DbContext.ProductFilterGroups.AnyAsync(g => g.Id == group.ResultObject.Id);

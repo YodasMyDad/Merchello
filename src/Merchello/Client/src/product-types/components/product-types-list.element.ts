@@ -7,7 +7,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { ProductTypeDto } from '@product-types/types/product-types.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
-import { MERCHELLO_PRODUCT_TYPE_MODAL } from "../modals/product-type-modal.token.js";
+import { MERCHELLO_PRODUCT_TYPE_MODAL } from "@product-types/modals/product-type-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";
 
 @customElement("merchello-product-types-list")

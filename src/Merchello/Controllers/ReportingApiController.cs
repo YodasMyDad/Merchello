@@ -34,6 +34,10 @@ public class ReportingApiController(
         [FromQuery] DateTime endDate,
         CancellationToken cancellationToken = default)
     {
+        // Enforce maximum date range of 2 years to prevent unbounded queries
+        if ((endDate - startDate).TotalDays > 730)
+            endDate = startDate.AddDays(730);
+
         return await reportingService.GetSalesTimeSeriesAsync(startDate, endDate, cancellationToken);
     }
 
@@ -47,6 +51,10 @@ public class ReportingApiController(
         [FromQuery] DateTime endDate,
         CancellationToken cancellationToken = default)
     {
+        // Enforce maximum date range of 2 years to prevent unbounded queries
+        if ((endDate - startDate).TotalDays > 730)
+            endDate = startDate.AddDays(730);
+
         return await reportingService.GetAverageOrderValueTimeSeriesAsync(startDate, endDate, cancellationToken);
     }
 

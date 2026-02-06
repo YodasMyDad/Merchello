@@ -51,7 +51,7 @@ public class FulfilmentServiceTests
         var result = await service.SubmitOrderAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ErrorMessages().Select(m => m.Message!).ShouldContain(m => m.Contains("not found"));
     }
 
@@ -91,7 +91,7 @@ public class FulfilmentServiceTests
         var result = await service.SubmitOrderAsync(order.Id);
 
         // Assert - No error, manual fulfilment is assumed
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class FulfilmentServiceTests
         var result = await service.SubmitOrderAsync(order.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
         updatedOrder!.FulfilmentProviderReference.ShouldBe("PROVIDER-REF-123");
@@ -145,7 +145,7 @@ public class FulfilmentServiceTests
         var result = await service.SubmitOrderAsync(order.Id);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ErrorMessages().Select(m => m.Message!).ShouldContain(m => m.Contains("Connection timeout"));
 
         var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
@@ -204,7 +204,7 @@ public class FulfilmentServiceTests
         var result = await service.SubmitOrderAsync(order.Id);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ErrorMessages().Select(m => m.Message!).ShouldContain(m => m.Contains("Network failure"));
 
         var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
@@ -234,7 +234,7 @@ public class FulfilmentServiceTests
         var result = await service.RetrySubmissionAsync(order.Id);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ErrorMessages().Select(m => m.Message!).ShouldContain(m => m.Contains("not in a retryable state"));
     }
 
@@ -283,7 +283,7 @@ public class FulfilmentServiceTests
         var result = await service.RetrySubmissionAsync(order.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
         updatedOrder!.FulfilmentProviderReference.ShouldBe("RETRY-SUCCESS-REF");
@@ -311,7 +311,7 @@ public class FulfilmentServiceTests
         var result = await service.CancelOrderAsync(order.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         _testProvider.CancelledReferences.ShouldBeEmpty();
     }
 
@@ -331,7 +331,7 @@ public class FulfilmentServiceTests
         var result = await service.CancelOrderAsync(order.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         _testProvider.CancelledReferences.ShouldContain("CANCEL-ME-123");
     }
 
@@ -361,7 +361,7 @@ public class FulfilmentServiceTests
         var result = await service.ProcessStatusUpdateAsync(statusUpdate);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
         updatedOrder!.Status.ShouldBe(OrderStatus.Shipped);
@@ -386,7 +386,7 @@ public class FulfilmentServiceTests
         var result = await service.ProcessStatusUpdateAsync(statusUpdate);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ErrorMessages().Select(m => m.Message!).ShouldContain(m => m.Contains("not found"));
     }
 
@@ -424,7 +424,7 @@ public class FulfilmentServiceTests
         var result = await service.ProcessShipmentUpdateAsync(shipmentUpdate);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject!.TrackingNumber.ShouldBe("TRACK-123456");
         result.ResultObject.Carrier.ShouldBe("Test Carrier");

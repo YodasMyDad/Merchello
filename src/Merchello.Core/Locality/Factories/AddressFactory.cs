@@ -53,7 +53,7 @@ public class AddressFactory
         string city,
         string postalCode,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         string? phone = null,
         string? email = null)
     {
@@ -65,7 +65,7 @@ public class AddressFactory
             TownCity = city,
             PostalCode = postalCode,
             CountryCode = countryCode,
-            CountyState = new CountyState { RegionCode = stateOrProvinceCode },
+            CountyState = new CountyState { RegionCode = regionCode },
             Phone = phone,
             Email = email
         };

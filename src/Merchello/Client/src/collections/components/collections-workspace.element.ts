@@ -7,7 +7,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { ProductCollectionDto } from '@products/types/product.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
-import { MERCHELLO_COLLECTION_MODAL } from "../modals/collection-modal.token.js";
+import { MERCHELLO_COLLECTION_MODAL } from "@collections/modals/collection-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";
 
 @customElement("merchello-collections-workspace")

@@ -2,7 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { CancelInvoiceModalData, CancelInvoiceModalValue } from "./cancel-invoice-modal.token.js";
+import type { CancelInvoiceModalData, CancelInvoiceModalValue } from "@orders/modals/cancel-invoice-modal.token.js";
 
 @customElement("merchello-cancel-invoice-modal")
 export class MerchelloCancelInvoiceModalElement extends UmbModalBaseElement<

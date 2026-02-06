@@ -45,7 +45,7 @@ export class MerchelloWebhooksWorkspaceContext
       // Webhook detail route (view deliveries)
       {
         path: "edit/webhooks/:id",
-        component: () => import("../components/webhook-detail.element.js"),
+        component: () => import("@webhooks/components/webhook-detail.element.js"),
         setup: (_component, info) => {
           const id = info.match.params.id;
           this.loadSubscription(id);
@@ -54,7 +54,7 @@ export class MerchelloWebhooksWorkspaceContext
       // Webhooks list route
       {
         path: "edit/webhooks",
-        component: () => import("../components/webhooks-workspace-editor.element.js"),
+        component: () => import("@webhooks/components/webhooks-workspace-editor.element.js"),
         setup: () => {
           // Reset subscription state when viewing list
           this.#subscriptionId = undefined;

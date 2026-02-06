@@ -362,7 +362,7 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
             city: "New City",
             postalCode: "12345",
             countryCode: "US",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "newemail@example.com");
 
@@ -396,7 +396,7 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
             city: "Ship City",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: null);
 

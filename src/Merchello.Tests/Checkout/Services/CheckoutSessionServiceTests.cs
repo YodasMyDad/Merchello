@@ -48,7 +48,7 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
             city: townCity,
             postalCode: postalCode,
             countryCode: countryCode,
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: phone,
             email: email);
     }

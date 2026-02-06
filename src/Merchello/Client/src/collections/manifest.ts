@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Collections.Workspace",
     name: "Merchello Collections Workspace",
-    api: () => import("./contexts/collections-workspace.context.js"),
+    api: () => import("@collections/contexts/collections-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_COLLECTIONS_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Collections.Workspace.View",
     name: "Merchello Collections View",
-    js: () => import("./components/collections-workspace.element.js"),
+    js: () => import("@collections/components/collections-workspace.element.js"),
     weight: 100,
     meta: {
       label: "Collections",
@@ -38,7 +38,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.CollectionPicker.Modal",
     name: "Collection Picker Modal",
-    js: () => import("./modals/collection-picker-modal.element.js"),
+    js: () => import("@collections/modals/collection-picker-modal.element.js"),
   },
 
   // Collection create/edit modal
@@ -46,7 +46,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.Collection.Modal",
     name: "Collection Modal",
-    js: () => import("./modals/collection-modal.element.js"),
+    js: () => import("@collections/modals/collection-modal.element.js"),
   },
 ];
 

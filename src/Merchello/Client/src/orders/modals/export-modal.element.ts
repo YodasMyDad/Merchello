@@ -5,7 +5,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { generateCsv, downloadCsv, formatDateForCsv, type CsvColumn } from "@shared/utils/index.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 import type { OrderExportItemDto } from "@orders/types/order.types.js";
-import type { ExportModalData, ExportModalValue } from "./export-modal.token.js";
+import type { ExportModalData, ExportModalValue } from "@orders/modals/export-modal.token.js";
 
 @customElement("merchello-export-modal")
 export class MerchelloExportModalElement extends UmbModalBaseElement<

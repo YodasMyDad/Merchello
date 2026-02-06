@@ -56,13 +56,13 @@ public interface IShippingService
     /// </summary>
     /// <param name="productId">The product ID</param>
     /// <param name="countryCode">The destination country code</param>
-    /// <param name="stateOrProvinceCode">Optional state/province code for more accurate estimates</param>
+    /// <param name="regionCode">Optional state/province code for more accurate estimates</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Available shipping methods with estimated costs</returns>
     Task<ProductShippingOptionsResultDto> GetShippingOptionsForProductAsync(
         Guid productId,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -177,7 +177,7 @@ public class FulfilmentPollingJob(
             {
                 var result = await fulfilmentService.ProcessStatusUpdateAsync(update, stoppingToken);
 
-                if (result.Successful)
+                if (result.Success)
                 {
                     logger.LogDebug("Processed status update for order reference {Reference}: {Status}",
                         update.ProviderReference, update.MappedStatus);

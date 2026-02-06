@@ -266,12 +266,12 @@ public class WarehouseService(
         List<WarehouseServiceRegion> serviceRegions = [];
         if (parameters.ServiceRegions != null)
         {
-            foreach (var (countryCode, stateOrProvinceCode, isExcluded) in parameters.ServiceRegions)
+            foreach (var (countryCode, regionCode, isExcluded) in parameters.ServiceRegions)
             {
                 serviceRegions.Add(new WarehouseServiceRegion
                 {
                     CountryCode = countryCode,
-                    StateOrProvinceCode = stateOrProvinceCode,
+                    RegionCode = regionCode,
                     IsExcluded = isExcluded
                 });
             }
@@ -328,7 +328,7 @@ public class WarehouseService(
         scope.Complete();
 
         // Publish created notification
-        if (result.Successful)
+        if (result.Success)
         {
             await notificationPublisher.PublishAsync(new WarehouseCreatedNotification(warehouse), cancellationToken);
         }
@@ -401,7 +401,7 @@ public class WarehouseService(
         scope.Complete();
 
         // Publish saved notification
-        if (result.Successful && warehouse != null)
+        if (result.Success && warehouse != null)
         {
             await notificationPublisher.PublishAsync(new WarehouseSavedNotification(warehouse), cancellationToken);
         }
@@ -508,7 +508,7 @@ public class WarehouseService(
         scope.Complete();
 
         // Publish deleted notification
-        if (result.Successful)
+        if (result.Success)
         {
             await notificationPublisher.PublishAsync(new WarehouseDeletedNotification(warehouseId, warehouseName), cancellationToken);
         }
@@ -1368,14 +1368,14 @@ public class WarehouseService(
                 Address = MapAddress(warehouse.Address),
                 ServiceRegions = warehouse.ServiceRegions
                     .OrderBy(r => r.CountryCode)
-                    .ThenBy(r => r.StateOrProvinceCode)
+                    .ThenBy(r => r.RegionCode)
                     .Select(r => new ServiceRegionDto
                     {
                         Id = r.Id,
                         CountryCode = r.CountryCode,
-                        StateOrProvinceCode = r.StateOrProvinceCode,
+                        RegionCode = r.RegionCode,
                         IsExcluded = r.IsExcluded,
-                        RegionDisplay = BuildRegionDisplay(r.CountryCode, r.StateOrProvinceCode)
+                        RegionDisplay = BuildRegionDisplay(r.CountryCode, r.RegionCode)
                     })
                     .ToList(),
                 ShippingOptionCount = warehouse.ShippingOptions.Count,
@@ -1441,12 +1441,12 @@ public class WarehouseService(
         };
     }
 
-    private static string BuildRegionDisplay(string countryCode, string? stateOrProvinceCode)
+    private static string BuildRegionDisplay(string countryCode, string? regionCode)
     {
         // Returns ISO 3166-2 format (e.g., "US-CA", "GB-ENG")
-        if (string.IsNullOrWhiteSpace(stateOrProvinceCode))
+        if (string.IsNullOrWhiteSpace(regionCode))
             return countryCode;
-        return $"{countryCode}-{stateOrProvinceCode}";
+        return $"{countryCode}-{regionCode}";
     }
 
     #endregion
@@ -1482,12 +1482,12 @@ public class WarehouseService(
 
             // Check for duplicate
             var normalizedCountry = dto.CountryCode.ToUpperInvariant();
-            var normalizedState = dto.StateOrProvinceCode?.ToUpperInvariant();
+            var normalizedState = dto.RegionCode?.ToUpperInvariant();
 
             var regions = warehouse.ServiceRegions;
             var exists = regions.Any(r =>
                 string.Equals(r.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
+                string.Equals(r.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase));
 
             if (exists)
             {
@@ -1502,7 +1502,7 @@ public class WarehouseService(
             var region = new WarehouseServiceRegion
             {
                 CountryCode = normalizedCountry,
-                StateOrProvinceCode = normalizedState,
+                RegionCode = normalizedState,
                 IsExcluded = dto.IsExcluded
             };
 
@@ -1560,13 +1560,13 @@ public class WarehouseService(
             }
 
             var normalizedCountry = dto.CountryCode.ToUpperInvariant();
-            var normalizedState = dto.StateOrProvinceCode?.ToUpperInvariant();
+            var normalizedState = dto.RegionCode?.ToUpperInvariant();
 
             // Check for duplicate (excluding current region)
             var duplicate = regions.Any(r =>
                 r.Id != regionId &&
                 string.Equals(r.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
+                string.Equals(r.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase));
 
             if (duplicate)
             {
@@ -1579,7 +1579,7 @@ public class WarehouseService(
             }
 
             region.CountryCode = normalizedCountry;
-            region.StateOrProvinceCode = normalizedState;
+            region.RegionCode = normalizedState;
             region.IsExcluded = dto.IsExcluded;
 
             warehouse.SetServiceRegions(regions);

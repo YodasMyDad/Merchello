@@ -5,7 +5,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CreateShippingWeightTierDto } from "@shipping/types/shipping.types.js";
-import type { ShippingWeightTierModalData, ShippingWeightTierModalValue } from "./shipping-weight-tier-modal.token.js";
+import type { ShippingWeightTierModalData, ShippingWeightTierModalValue } from "@shipping/modals/shipping-weight-tier-modal.token.js";
 
 interface CountryOption {
   code: string;
@@ -26,7 +26,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
   @state() private _isLoadingCountries = true;
   @state() private _isLoadingRegions = false;
   @state() private _countryCode = "";
-  @state() private _stateOrProvinceCode = "";
+  @state() private _regionCode = "";
   @state() private _minWeightKg = 0;
   @state() private _maxWeightKg: number | null = null;
   @state() private _surcharge = 0;
@@ -48,7 +48,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
 
     if (this.data?.tier) {
       this._countryCode = this.data.tier.countryCode;
-      this._stateOrProvinceCode = this.data.tier.stateOrProvinceCode ?? "";
+      this._regionCode = this.data.tier.regionCode ?? "";
       this._minWeightKg = this.data.tier.minWeightKg;
       this._maxWeightKg = this.data.tier.maxWeightKg ?? null;
       this._surcharge = this.data.tier.surcharge;
@@ -104,7 +104,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
   private _handleCountryChange(e: Event): void {
     const value = (e.target as HTMLSelectElement).value;
     this._countryCode = value;
-    this._stateOrProvinceCode = "";
+    this._regionCode = "";
     this._regions = [];
 
     if (value && value !== "*") {
@@ -133,14 +133,14 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
   /** Options for region dropdown */
   private get _regionOptions(): Array<{ name: string; value: string; selected?: boolean }> {
     const options: Array<{ name: string; value: string; selected?: boolean }> = [
-      { name: "Entire country (all regions)", value: "", selected: !this._stateOrProvinceCode }
+      { name: "Entire country (all regions)", value: "", selected: !this._regionCode }
     ];
 
     this._regions.forEach(r => {
       options.push({
         name: r.name,
         value: r.regionCode,
-        selected: r.regionCode === this._stateOrProvinceCode
+        selected: r.regionCode === this._regionCode
       });
     });
 
@@ -180,7 +180,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
 
     const dto: CreateShippingWeightTierDto = {
       countryCode: this._countryCode.toUpperCase(),
-      stateOrProvinceCode: this._stateOrProvinceCode.toUpperCase() || undefined,
+      regionCode: this._regionCode.toUpperCase() || undefined,
       minWeightKg: this._minWeightKg,
       maxWeightKg: this._maxWeightKg ?? undefined,
       surcharge: this._surcharge,
@@ -258,14 +258,14 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
                           <uui-select
                             id="stateCode"
                             .options=${this._regionOptions}
-                            @change=${(e: Event) => (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+                            @change=${(e: Event) => (this._regionCode = (e.target as HTMLSelectElement).value)}
                           ></uui-select>
                         `
                       : html`
                           <uui-input
                             id="stateCode"
-                            .value=${this._stateOrProvinceCode}
-                            @input=${(e: InputEvent) => (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
+                            .value=${this._regionCode}
+                            @input=${(e: InputEvent) => (this._regionCode = (e.target as HTMLInputElement).value)}
                             placeholder="Optional: CA, NY, etc."
                           ></uui-input>
                         `}

@@ -61,7 +61,7 @@ public class DigitalProductPaymentHandlerIntegrationTests : IClassFixture<Servic
         });
 
         // Assert
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
 
         var links = await _digitalProductService.GetInvoiceDownloadsAsync(invoice.Id);
         links.Count.ShouldBe(1);
@@ -132,7 +132,7 @@ public class DigitalProductPaymentHandlerIntegrationTests : IClassFixture<Servic
             SubjectExpression = "Your downloads are ready",
             Enabled = true
         });
-        emailResult.Successful.ShouldBeTrue();
+        emailResult.Success.ShouldBeTrue();
 
         var webhookResult = await _webhookService.CreateSubscriptionAsync(new CreateWebhookSubscriptionParameters
         {

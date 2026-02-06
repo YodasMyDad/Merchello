@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { TaxRateModalData, TaxRateModalValue } from "./tax-rate-modal.token.js";
+import type { TaxRateModalData, TaxRateModalValue } from "@tax/modals/tax-rate-modal.token.js";
 
 interface CountryOption {
   code: string;
@@ -25,7 +25,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
   @state() private _isLoadingCountries = true;
   @state() private _isLoadingRegions = false;
   @state() private _countryCode = "";
-  @state() private _stateOrProvinceCode = "";
+  @state() private _regionCode = "";
   @state() private _taxPercentage = 0;
   @state() private _countries: CountryOption[] = [];
   @state() private _regions: RegionOption[] = [];
@@ -45,7 +45,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
 
     if (this.data?.rate) {
       this._countryCode = this.data.rate.countryCode;
-      this._stateOrProvinceCode = this.data.rate.stateOrProvinceCode ?? "";
+      this._regionCode = this.data.rate.regionCode ?? "";
       this._taxPercentage = this.data.rate.taxPercentage;
 
       // Load regions if editing and country is set
@@ -82,7 +82,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
   private _handleCountryChange(e: Event): void {
     const value = (e.target as HTMLSelectElement).value;
     this._countryCode = value;
-    this._stateOrProvinceCode = "";
+    this._regionCode = "";
     this._regions = [];
 
     if (value) {
@@ -110,14 +110,14 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
   /** Options for region dropdown */
   private get _regionOptions(): Array<{ name: string; value: string; selected?: boolean }> {
     const options: Array<{ name: string; value: string; selected?: boolean }> = [
-      { name: "Entire country (all regions)", value: "", selected: !this._stateOrProvinceCode },
+      { name: "Entire country (all regions)", value: "", selected: !this._regionCode },
     ];
 
     this._regions.forEach((r) => {
       options.push({
         name: r.name,
         value: r.regionCode,
-        selected: r.regionCode === this._stateOrProvinceCode,
+        selected: r.regionCode === this._regionCode,
       });
     });
 
@@ -163,7 +163,7 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
         // Create new rate
         const result = await MerchelloApi.createTaxGroupRate(this.data!.taxGroupId, {
           countryCode: this._countryCode.toUpperCase(),
-          stateOrProvinceCode: this._stateOrProvinceCode.toUpperCase() || undefined,
+          regionCode: this._regionCode.toUpperCase() || undefined,
           taxPercentage: this._taxPercentage,
         });
 
@@ -247,17 +247,17 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
                             .options=${this._regionOptions}
                             ?disabled=${isEditing}
                             @change=${(e: Event) =>
-                              (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+                              (this._regionCode = (e.target as HTMLSelectElement).value)}
                           ></uui-select>
                         `
                       : html`
                           <uui-input
                             id="stateCode"
                             label="Region/State"
-                            .value=${this._stateOrProvinceCode}
+                            .value=${this._regionCode}
                             ?disabled=${isEditing}
                             @input=${(e: InputEvent) =>
-                              (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
+                              (this._regionCode = (e.target as HTMLInputElement).value)}
                             placeholder="Optional: CA, NY, etc."
                           ></uui-input>
                         `}

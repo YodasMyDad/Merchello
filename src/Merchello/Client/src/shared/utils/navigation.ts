@@ -93,6 +93,10 @@ export function getProductDetailHref(productId: string): string {
   return getMerchelloWorkspaceHref(PRODUCTS_ENTITY_TYPE, `edit/products/${productId}`);
 }
 
+export function getProductVariantsTabHref(productId: string): string {
+  return getMerchelloWorkspaceHref(PRODUCTS_ENTITY_TYPE, `edit/products/${productId}/tab/variants`);
+}
+
 /**
  * Navigate programmatically to a product detail page using SPA routing.
  */

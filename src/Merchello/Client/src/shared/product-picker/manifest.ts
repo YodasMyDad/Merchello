@@ -5,6 +5,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ProductPicker.Modal",
     name: "Merchello Product Picker Modal",
-    js: () => import("./product-picker-modal.element.js"),
+    js: () => import("@shared/product-picker/product-picker-modal.element.js"),
   },
 ];

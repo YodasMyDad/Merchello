@@ -8,8 +8,8 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
 import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types/filters.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { MERCHELLO_FILTER_GROUP_MODAL } from "../modals/filter-group-modal.token.js";
-import { MERCHELLO_FILTER_MODAL } from "../modals/filter-modal.token.js";
+import { MERCHELLO_FILTER_GROUP_MODAL } from "@filters/modals/filter-group-modal.token.js";
+import { MERCHELLO_FILTER_MODAL } from "@filters/modals/filter-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";
 
 @customElement("merchello-filters-list")

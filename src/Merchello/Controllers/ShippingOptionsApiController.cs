@@ -44,7 +44,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> Create([FromBody] CreateShippingOptionDto dto, CancellationToken ct)
     {
         var result = await service.CreateAsync(dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create shipping option.");
         }
@@ -63,7 +63,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateShippingOptionDto dto, CancellationToken ct)
     {
         var result = await service.UpdateAsync(id, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -87,7 +87,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var result = await service.DeleteAsync(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -113,7 +113,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> AddCost(Guid optionId, [FromBody] CreateShippingCostDto dto, CancellationToken ct)
     {
         var result = await service.AddCostAsync(optionId, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add shipping cost.");
         }
@@ -123,7 +123,7 @@ public class ShippingOptionsApiController(
         {
             Id = cost.Id,
             CountryCode = cost.CountryCode,
-            StateOrProvinceCode = cost.StateOrProvinceCode,
+            RegionCode = cost.RegionCode,
             Cost = cost.Cost
         });
     }
@@ -138,7 +138,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> UpdateCost(Guid costId, [FromBody] CreateShippingCostDto dto, CancellationToken ct)
     {
         var result = await service.UpdateCostAsync(costId, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -153,7 +153,7 @@ public class ShippingOptionsApiController(
         {
             Id = cost.Id,
             CountryCode = cost.CountryCode,
-            StateOrProvinceCode = cost.StateOrProvinceCode,
+            RegionCode = cost.RegionCode,
             Cost = cost.Cost
         });
     }
@@ -167,7 +167,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> DeleteCost(Guid costId, CancellationToken ct)
     {
         var result = await service.DeleteCostAsync(costId, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound();
         }
@@ -188,7 +188,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> AddWeightTier(Guid optionId, [FromBody] CreateShippingWeightTierDto dto, CancellationToken ct)
     {
         var result = await service.AddWeightTierAsync(optionId, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add weight tier.");
         }
@@ -198,7 +198,7 @@ public class ShippingOptionsApiController(
         {
             Id = tier.Id,
             CountryCode = tier.CountryCode,
-            StateOrProvinceCode = tier.StateOrProvinceCode,
+            RegionCode = tier.RegionCode,
             MinWeightKg = tier.MinWeightKg,
             MaxWeightKg = tier.MaxWeightKg,
             Surcharge = tier.Surcharge
@@ -215,7 +215,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> UpdateWeightTier(Guid tierId, [FromBody] CreateShippingWeightTierDto dto, CancellationToken ct)
     {
         var result = await service.UpdateWeightTierAsync(tierId, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -230,7 +230,7 @@ public class ShippingOptionsApiController(
         {
             Id = tier.Id,
             CountryCode = tier.CountryCode,
-            StateOrProvinceCode = tier.StateOrProvinceCode,
+            RegionCode = tier.RegionCode,
             MinWeightKg = tier.MinWeightKg,
             MaxWeightKg = tier.MaxWeightKg,
             Surcharge = tier.Surcharge
@@ -246,7 +246,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> DeleteWeightTier(Guid tierId, CancellationToken ct)
     {
         var result = await service.DeleteWeightTierAsync(tierId, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound();
         }

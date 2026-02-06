@@ -6,7 +6,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Upsells.Workspace",
     name: "Merchello Upsells Workspace",
-    api: () => import("./contexts/upsells-workspace.context.js"),
+    api: () => import("@upsells/contexts/upsells-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_UPSELLS_ENTITY_TYPE,
     },
@@ -15,7 +15,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Upsells.Workspace.View",
     name: "Merchello Upsells View",
-    js: () => import("./components/upsells-list.element.js"),
+    js: () => import("@upsells/components/upsells-list.element.js"),
     weight: 100,
     meta: {
       label: "Upsells",
@@ -33,6 +33,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.CreateUpsell.Modal",
     name: "Create Upsell Modal",
-    js: () => import("./modals/create-upsell-modal.element.js"),
+    js: () => import("@upsells/modals/create-upsell-modal.element.js"),
   },
 ];

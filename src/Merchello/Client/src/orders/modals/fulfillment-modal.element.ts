@@ -11,7 +11,7 @@ import type {
   CreateShipmentDto,
   ShipmentDetailDto,
 } from "@orders/types/order.types.js";
-import type { FulfillmentModalData, FulfillmentModalValue } from "./fulfillment-modal.token.js";
+import type { FulfillmentModalData, FulfillmentModalValue } from "@orders/modals/fulfillment-modal.token.js";
 
 // Import shared components
 import "@shared/components/line-item-identity.element.js";

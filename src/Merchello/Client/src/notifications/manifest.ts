@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Notifications.Workspace",
     name: "Merchello Notifications Workspace",
-    api: () => import("./contexts/notifications-workspace.context.js"),
+    api: () => import("@notifications/contexts/notifications-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_NOTIFICATIONS_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Notifications.ListView",
     name: "Notifications List View",
-    js: () => import("./components/notifications-list.element.js"),
+    js: () => import("@notifications/components/notifications-list.element.js"),
     weight: 100,
     meta: {
       label: "Notifications",

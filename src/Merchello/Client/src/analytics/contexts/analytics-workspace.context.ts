@@ -31,7 +31,7 @@ export class MerchelloAnalyticsWorkspaceContext
       {
         path: "edit/:unique",
         component: () =>
-          import("../components/analytics-workspace-editor.element.js"),
+          import("@analytics/components/analytics-workspace-editor.element.js"),
         setup: (_component, _info) => {
           // Static workspace - no dynamic loading needed
         },

@@ -5,7 +5,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.ExchangeRateProviders.View",
     name: "Exchange Rate Providers View",
-    js: () => import("./components/exchange-rate-providers-list.element.js"),
+    js: () => import("@exchange-rate-providers/components/exchange-rate-providers-list.element.js"),
     weight: 80, // After Payments (100) and Shipping (90)
     meta: {
       label: "Exchange Rates",
@@ -25,7 +25,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ExchangeRateProvider.Config.Modal",
     name: "Exchange Rate Provider Configuration Modal",
-    js: () => import("./modals/exchange-rate-provider-config-modal.element.js"),
+    js: () => import("@exchange-rate-providers/modals/exchange-rate-provider-config-modal.element.js"),
   },
 
   // Modal for testing an exchange rate provider
@@ -33,6 +33,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ExchangeRateProvider.Test.Modal",
     name: "Exchange Rate Provider Test Modal",
-    js: () => import("./modals/test-provider-modal.element.js"),
+    js: () => import("@exchange-rate-providers/modals/test-provider-modal.element.js"),
   },
 ];

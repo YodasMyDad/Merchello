@@ -15,5 +15,6 @@ public class SaveProductOptionDto
     public string? OptionTypeAlias { get; set; }
     public string? OptionUiAlias { get; set; }
     public bool IsVariant { get; set; }
+    public bool IsMultiSelect { get; set; } = true;
     public List<SaveOptionValueDto> Values { get; set; } = [];
 }

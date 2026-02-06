@@ -104,7 +104,7 @@ public class TaxApiController(
     public async Task<IActionResult> CreateTaxGroup([FromBody] CreateTaxGroupDto dto, CancellationToken ct)
     {
         var result = await taxService.CreateTaxGroup(dto.Name, dto.TaxPercentage, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create tax group.");
         }
@@ -131,7 +131,7 @@ public class TaxApiController(
     {
         var result = await taxService.UpdateTaxGroup(id, dto.Name, dto.TaxPercentage, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update tax group.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -158,7 +158,7 @@ public class TaxApiController(
     public async Task<IActionResult> DeleteTaxGroup(Guid id, CancellationToken ct)
     {
         var result = await taxService.DeleteTaxGroup(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
@@ -187,9 +187,9 @@ public class TaxApiController(
         {
             var countryName = await localityCatalog.TryGetCountryNameAsync(rate.CountryCode);
             string? regionName = null;
-            if (!string.IsNullOrEmpty(rate.StateOrProvinceCode))
+            if (!string.IsNullOrEmpty(rate.RegionCode))
             {
-                regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.StateOrProvinceCode);
+                regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.RegionCode);
             }
 
             result.Add(new TaxGroupRateDto
@@ -197,7 +197,7 @@ public class TaxApiController(
                 Id = rate.Id,
                 TaxGroupId = rate.TaxGroupId,
                 CountryCode = rate.CountryCode,
-                StateOrProvinceCode = rate.StateOrProvinceCode,
+                RegionCode = rate.RegionCode,
                 TaxPercentage = rate.TaxPercentage,
                 CountryName = countryName,
                 RegionName = regionName
@@ -222,11 +222,11 @@ public class TaxApiController(
         var result = await taxService.CreateTaxGroupRate(
             taxGroupId,
             dto.CountryCode,
-            dto.StateOrProvinceCode,
+            dto.RegionCode,
             dto.TaxPercentage,
             ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to create tax rate.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -237,9 +237,9 @@ public class TaxApiController(
         var rate = result.ResultObject!;
         var countryName = await localityCatalog.TryGetCountryNameAsync(rate.CountryCode);
         string? regionName = null;
-        if (!string.IsNullOrEmpty(rate.StateOrProvinceCode))
+        if (!string.IsNullOrEmpty(rate.RegionCode))
         {
-            regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.StateOrProvinceCode);
+            regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.RegionCode);
         }
 
         var rateDto = new TaxGroupRateDto
@@ -247,7 +247,7 @@ public class TaxApiController(
             Id = rate.Id,
             TaxGroupId = rate.TaxGroupId,
             CountryCode = rate.CountryCode,
-            StateOrProvinceCode = rate.StateOrProvinceCode,
+            RegionCode = rate.RegionCode,
             TaxPercentage = rate.TaxPercentage,
             CountryName = countryName,
             RegionName = regionName
@@ -270,7 +270,7 @@ public class TaxApiController(
     {
         var result = await taxService.UpdateTaxGroupRate(rateId, dto.TaxPercentage, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update tax rate.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -281,9 +281,9 @@ public class TaxApiController(
         var rate = result.ResultObject!;
         var countryName = await localityCatalog.TryGetCountryNameAsync(rate.CountryCode);
         string? regionName = null;
-        if (!string.IsNullOrEmpty(rate.StateOrProvinceCode))
+        if (!string.IsNullOrEmpty(rate.RegionCode))
         {
-            regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.StateOrProvinceCode);
+            regionName = await localityCatalog.TryGetRegionNameAsync(rate.CountryCode, rate.RegionCode);
         }
 
         return Ok(new TaxGroupRateDto
@@ -291,7 +291,7 @@ public class TaxApiController(
             Id = rate.Id,
             TaxGroupId = rate.TaxGroupId,
             CountryCode = rate.CountryCode,
-            StateOrProvinceCode = rate.StateOrProvinceCode,
+            RegionCode = rate.RegionCode,
             TaxPercentage = rate.TaxPercentage,
             CountryName = countryName,
             RegionName = regionName
@@ -308,7 +308,7 @@ public class TaxApiController(
     {
         var result = await taxService.DeleteTaxGroupRate(rateId, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to delete tax rate.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)

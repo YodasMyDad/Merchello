@@ -10,10 +10,10 @@ import type {
   FulfilmentProviderDto,
   FulfilmentProviderListItemDto,
 } from "@fulfilment-providers/types/fulfilment-providers.types.js";
-import { MERCHELLO_FULFILMENT_PROVIDER_CONFIG_MODAL } from "../modals/fulfilment-provider-config-modal.token.js";
-import { MERCHELLO_TEST_FULFILMENT_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
-import { getFulfilmentProviderIconSvg } from "../utils/brand-icons.js";
-import "./sync-logs-list.element.js";
+import { MERCHELLO_FULFILMENT_PROVIDER_CONFIG_MODAL } from "@fulfilment-providers/modals/fulfilment-provider-config-modal.token.js";
+import { MERCHELLO_TEST_FULFILMENT_PROVIDER_MODAL } from "@fulfilment-providers/modals/test-provider-modal.token.js";
+import { getFulfilmentProviderIconSvg } from "@fulfilment-providers/utils/brand-icons.js";
+import "@fulfilment-providers/components/sync-logs-list.element.js";
 
 @customElement("merchello-fulfilment-providers-list")
 export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(LitElement) {

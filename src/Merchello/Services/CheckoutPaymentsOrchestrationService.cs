@@ -394,7 +394,7 @@ public class CheckoutPaymentsOrchestrationService(
                 },
                 cancellationToken);
 
-            if (processResult.Successful && processResult.ResultObject != null)
+            if (processResult.Success && processResult.ResultObject != null)
             {
                 SetConfirmationToken(invoice.Id);
                 ClearBasketCookieAndSession();
@@ -645,7 +645,7 @@ public class CheckoutPaymentsOrchestrationService(
             else
             {
                 var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
-                if (!createResult.Successful || createResult.ResultObject == null)
+                if (!createResult.Success || createResult.ResultObject == null)
                 {
                     var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
                     logger.LogError("Invoice creation failed for basket {BasketId}: {Error}", basket.Id, errorMsg);
@@ -872,7 +872,7 @@ public class CheckoutPaymentsOrchestrationService(
         // Process the payment
         var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
 
-        if (!result.Successful || result.ResultObject == null)
+        if (!result.Success || result.ResultObject == null)
         {
             var errorMessage = result.Messages
                 .Where(m => m.ResultMessageType == Merchello.Core.Shared.Models.Enums.ResultMessageType.Error)
@@ -929,7 +929,7 @@ public class CheckoutPaymentsOrchestrationService(
                 },
                 cancellationToken);
 
-            if (saveResult.Successful)
+            if (saveResult.Success)
             {
                 paymentMethodSaved = true;
                 savedPaymentMethodId = saveResult.ResultObject?.Id;
@@ -1076,7 +1076,7 @@ public class CheckoutPaymentsOrchestrationService(
             }
 
             var createResult = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, source: null, cancellationToken);
-            if (!createResult.Successful || createResult.ResultObject == null)
+            if (!createResult.Success || createResult.ResultObject == null)
             {
                 var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
                 logger.LogError("Invoice creation failed for basket {BasketId}: {Error}", currentBasket.Id, errorMsg);
@@ -1159,7 +1159,7 @@ public class CheckoutPaymentsOrchestrationService(
         // Process the payment
         var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages
                 .Where(m => m.ResultMessageType == Merchello.Core.Shared.Models.Enums.ResultMessageType.Error)
@@ -1507,7 +1507,7 @@ public class CheckoutPaymentsOrchestrationService(
             else
             {
                 var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
-                if (!createResult.Successful || createResult.ResultObject == null)
+                if (!createResult.Success || createResult.ResultObject == null)
                 {
                     var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
                     logger.LogError("Express checkout invoice creation failed for basket {BasketId}: {Error}", basket.Id, errorMsg);
@@ -1589,7 +1589,7 @@ public class CheckoutPaymentsOrchestrationService(
                 },
                 cancellationToken);
 
-            if (!paymentResult.Successful || paymentResult.ResultObject == null)
+            if (!paymentResult.Success || paymentResult.ResultObject == null)
             {
                 logger.LogError(
                     "Failed to record payment for invoice {InvoiceId}: {Error}",
@@ -2142,7 +2142,7 @@ public class CheckoutPaymentsOrchestrationService(
             else
             {
                 var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
-                if (!createResult.Successful || createResult.ResultObject == null)
+                if (!createResult.Success || createResult.ResultObject == null)
                 {
                     var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
                     logger.LogError("Widget create-order ({Provider}) invoice creation failed for basket {BasketId}: {Error}", providerAlias, basket.Id, errorMsg);
@@ -2365,7 +2365,7 @@ public class CheckoutPaymentsOrchestrationService(
 
             var result = await paymentService.ProcessPaymentAsync(processRequest, cancellationToken);
 
-            if (!result.Successful || result.ResultObject == null)
+            if (!result.Success || result.ResultObject == null)
             {
                 var errorMessage = result.Messages
                     .Where(m => m.ResultMessageType == Core.Shared.Models.Enums.ResultMessageType.Error)
@@ -2423,7 +2423,7 @@ public class CheckoutPaymentsOrchestrationService(
                     },
                     cancellationToken);
 
-                if (saveResult.Successful)
+                if (saveResult.Success)
                 {
                     paymentMethodSaved = true;
                     savedPaymentMethodId = saveResult.ResultObject?.Id;
@@ -2814,7 +2814,7 @@ public class CheckoutPaymentsOrchestrationService(
             },
             cancellationToken);
 
-        if (!chargeResult.Successful || chargeResult.ResultObject == null)
+        if (!chargeResult.Success || chargeResult.ResultObject == null)
         {
             var errorMessage = chargeResult.Messages
                 .Where(m => m.ResultMessageType == Core.Shared.Models.Enums.ResultMessageType.Error)
@@ -2906,7 +2906,7 @@ public class CheckoutPaymentsOrchestrationService(
                 },
                 cancellationToken);
 
-            if (initResult.IsSuccess && initResult.Data)
+            if (initResult.Success && initResult.Data)
             {
                 return $"/checkout/post-purchase/{invoiceId}";
             }

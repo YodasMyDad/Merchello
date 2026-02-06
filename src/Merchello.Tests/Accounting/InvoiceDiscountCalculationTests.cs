@@ -639,7 +639,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         });
 
         // Assert
-        editResult.IsSuccess.ShouldBeTrue();
+        editResult.Success.ShouldBeTrue();
         editResult.Data.ShouldNotBeNull();
         editResult.Data.IsSuccessful.ShouldBeTrue();
 
@@ -1454,7 +1454,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         });
 
         // Assert
-        editResult.IsSuccess.ShouldBeTrue();
+        editResult.Success.ShouldBeTrue();
         editResult.Data.ShouldNotBeNull();
         editResult.Data.IsSuccessful.ShouldBeTrue();
 
@@ -1506,7 +1506,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         });
 
         // Assert
-        editResult.IsSuccess.ShouldBeTrue();
+        editResult.Success.ShouldBeTrue();
 
         // Verify: 25% of £80 = £20 discount
         var updatedResult = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);

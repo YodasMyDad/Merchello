@@ -19,9 +19,10 @@ public class ShippingWeightTier
     public string CountryCode { get; set; } = null!;
 
     /// <summary>
-    /// Optional state/province code for more specific targeting
+    /// Optional region code for more specific targeting
     /// </summary>
-    public string? StateOrProvinceCode { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("StateOrProvinceCode")]
+    public string? RegionCode { get; set; }
 
     /// <summary>
     /// Minimum weight in kg (inclusive) for this tier

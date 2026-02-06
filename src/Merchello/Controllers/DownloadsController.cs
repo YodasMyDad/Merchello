@@ -46,7 +46,7 @@ public class DownloadsController(
                 CustomerId = customerId
             }, ct);
 
-        if (!validationResult.Successful || validationResult.ResultObject == null)
+        if (!validationResult.Success || validationResult.ResultObject == null)
         {
             var errorMessage = validationResult.Messages.FirstOrDefault()?.Message ?? "Invalid download token";
             return BadRequest(new { error = errorMessage });

@@ -41,7 +41,7 @@ public class FlatRateShippingProviderTests
         return new ShippingQuoteRequest
         {
             CountryCode = countryCode,
-            StateOrProvinceCode = stateCode,
+            RegionCode = stateCode,
             CurrencyCode = "GBP",
             Items =
             [
@@ -88,7 +88,7 @@ public class FlatRateShippingProviderTests
         return new ShippingCostSnapshot
         {
             CountryCode = countryCode,
-            StateOrProvinceCode = stateCode,
+            RegionCode = stateCode,
             Cost = cost
         };
     }
@@ -103,7 +103,7 @@ public class FlatRateShippingProviderTests
         return new ShippingWeightTierSnapshot
         {
             CountryCode = countryCode,
-            StateOrProvinceCode = stateCode,
+            RegionCode = stateCode,
             MinWeightKg = minKg,
             MaxWeightKg = maxKg,
             Surcharge = surcharge

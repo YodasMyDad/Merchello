@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type {
   TestTaxProviderModalData,
   TestTaxProviderModalValue,
-} from "./test-tax-provider-modal.token.js";
+} from "@tax/modals/test-tax-provider-modal.token.js";
 import type { TestTaxProviderResultDto } from "@tax/types/tax.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 

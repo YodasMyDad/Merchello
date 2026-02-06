@@ -26,10 +26,10 @@ import {
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
 import { navigateToDiscountsList, getDiscountsListHref, replaceToDiscountDetail } from "@shared/utils/navigation.js";
-import "./discount-summary-card.element.js";
-import "./discount-performance.element.js";
-import "./eligibility-rule-builder.element.js";
-import "./target-rule-builder.element.js";
+import "@discounts/components/discount-summary-card.element.js";
+import "@discounts/components/discount-performance.element.js";
+import "@discounts/components/eligibility-rule-builder.element.js";
+import "@discounts/components/target-rule-builder.element.js";
 
 @customElement("merchello-discount-detail")
 export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) {

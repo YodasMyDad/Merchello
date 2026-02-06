@@ -316,7 +316,7 @@ public class StorefrontApiController(
             new ConvertBasketCurrencyParameters { NewCurrencyCode = currency.CurrencyCode },
             ct);
 
-        if (!conversionResult.Successful)
+        if (!conversionResult.Success)
         {
             return BadRequest(new { message = conversionResult.Messages.FirstOrDefault()?.Message ?? "Currency change failed" });
         }
@@ -357,7 +357,7 @@ public class StorefrontApiController(
             new ConvertBasketCurrencyParameters { NewCurrencyCode = request.CurrencyCode },
             ct);
 
-        if (!conversionResult.Successful)
+        if (!conversionResult.Success)
         {
             return BadRequest(new { message = conversionResult.Messages.FirstOrDefault()?.Message ?? "Currency change failed" });
         }

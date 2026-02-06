@@ -72,7 +72,7 @@ public class FulfilmentOrderSubmissionHandler(
             // Submit to fulfilment provider
             var result = await fulfilmentService.SubmitOrderAsync(order.Id, ct);
 
-            if (result.Successful && !string.IsNullOrEmpty(result.ResultObject?.FulfilmentProviderReference))
+            if (result.Success && !string.IsNullOrEmpty(result.ResultObject?.FulfilmentProviderReference))
             {
                 // Publish "submitted" notification
                 await notificationPublisher.PublishAsync(

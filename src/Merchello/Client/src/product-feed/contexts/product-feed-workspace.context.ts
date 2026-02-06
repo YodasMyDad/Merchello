@@ -31,7 +31,7 @@ export class MerchelloProductFeedWorkspaceContext
       {
         path: "edit/:unique",
         component: () =>
-          import("../components/product-feed-workspace-editor.element.js"),
+          import("@product-feed/components/product-feed-workspace-editor.element.js"),
         setup: (_component, _info) => {
           // Static workspace - no dynamic loading needed
         },

@@ -6,7 +6,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.MarkAsPaid.Modal",
     name: "Merchello Mark as Paid Modal",
-    js: () => import("./modals/mark-as-paid-modal.element.js"),
+    js: () => import("@outstanding/modals/mark-as-paid-modal.element.js"),
   },
 
   // Workspace for outstanding list (when clicking "Outstanding" in tree)
@@ -15,7 +15,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Outstanding.Workspace",
     name: "Merchello Outstanding Workspace",
-    api: () => import("./contexts/outstanding-workspace.context.js"),
+    api: () => import("@outstanding/contexts/outstanding-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_OUTSTANDING_ENTITY_TYPE,
     },
@@ -26,7 +26,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Outstanding.ListView",
     name: "Outstanding List View",
-    js: () => import("./components/outstanding-list.element.js"),
+    js: () => import("@outstanding/components/outstanding-list.element.js"),
     weight: 100,
     meta: {
       label: "Outstanding",

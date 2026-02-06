@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Customers.Workspace",
     name: "Merchello Customers Workspace",
-    api: () => import("./contexts/customers-workspace.context.js"),
+    api: () => import("@customers/contexts/customers-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_CUSTOMERS_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Customers.ListView",
     name: "Customers List View",
-    js: () => import("./components/customers-list.element.js"),
+    js: () => import("@customers/components/customers-list.element.js"),
     weight: 100,
     meta: {
       label: "Customers",
@@ -38,7 +38,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Customers.SegmentsView",
     name: "Customer Segments View",
-    js: () => import("./components/segments-list.element.js"),
+    js: () => import("@customers/components/segments-list.element.js"),
     weight: 90,
     meta: {
       label: "Segments",
@@ -58,7 +58,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.Customer.Edit.Modal",
     name: "Customer Edit Modal",
-    js: () => import("./modals/customer-edit-modal.element.js"),
+    js: () => import("@customers/modals/customer-edit-modal.element.js"),
   },
 
   // Customer picker modal (for adding members to segments)
@@ -66,7 +66,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.CustomerPicker.Modal",
     name: "Customer Picker Modal",
-    js: () => import("./modals/customer-picker-modal.element.js"),
+    js: () => import("@customers/modals/customer-picker-modal.element.js"),
   },
 
   // Segment picker modal (for discount eligibility)
@@ -74,6 +74,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.SegmentPicker.Modal",
     name: "Segment Picker Modal",
-    js: () => import("./modals/segment-picker-modal.element.js"),
+    js: () => import("@customers/modals/segment-picker-modal.element.js"),
   },
 ];

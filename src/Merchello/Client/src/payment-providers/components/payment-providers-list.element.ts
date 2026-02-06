@@ -8,13 +8,13 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaymentProviderDto, PaymentProviderSettingDto } from '@payment-providers/types/payment-providers.types.js';
-import { MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL } from "../modals/payment-provider-config-modal.token.js";
-import { MERCHELLO_PAYMENT_METHODS_CONFIG_MODAL } from "../modals/payment-methods-config-modal.token.js";
-import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "../modals/setup-instructions-modal.token.js";
-import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
-import type { MerchelloCheckoutPaymentPreviewElement } from "./checkout-payment-preview.element.js";
-import "./checkout-payment-preview.element.js";
-import { getProviderIconSvg } from "../utils/brand-icons.js";
+import { MERCHELLO_PAYMENT_PROVIDER_CONFIG_MODAL } from "@payment-providers/modals/payment-provider-config-modal.token.js";
+import { MERCHELLO_PAYMENT_METHODS_CONFIG_MODAL } from "@payment-providers/modals/payment-methods-config-modal.token.js";
+import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "@payment-providers/modals/setup-instructions-modal.token.js";
+import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "@payment-providers/modals/test-provider-modal.token.js";
+import type { MerchelloCheckoutPaymentPreviewElement } from "@payment-providers/components/checkout-payment-preview.element.js";
+import "@payment-providers/components/checkout-payment-preview.element.js";
+import { getProviderIconSvg } from "@payment-providers/utils/brand-icons.js";
 
 @customElement("merchello-payment-providers-list")
 export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitElement) {

@@ -145,7 +145,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -196,7 +196,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -265,7 +265,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert
@@ -316,7 +316,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
         // This validates that the InvoiceService has proper validation at the service level.
         // The controller's ValidateCheckoutSession method catches this earlier with better error messages.
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
     }
 
     #endregion
@@ -361,7 +361,7 @@ public class CheckoutAddressValidationTests : IClassFixture<ServiceTestFixture>
 
         // Act
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
 
         // Assert - Session addresses are used (not basket addresses)

@@ -7,7 +7,7 @@ import type {
   CheckoutMethodPreviewDto,
   PaymentMethodRegionDto,
 } from "@payment-providers/types/payment-providers.types.js";
-import { getBrandIconSvg } from "../utils/brand-icons.js";
+import { getBrandIconSvg } from "@payment-providers/utils/brand-icons.js";
 
 /** Map of country/region codes to flag emojis */
 const REGION_FLAGS: Record<string, string> = {

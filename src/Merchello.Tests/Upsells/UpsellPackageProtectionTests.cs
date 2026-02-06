@@ -70,7 +70,7 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
             DefaultChecked = true,
         });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.DefaultChecked.ShouldBeTrue();
         result.ResultObject.CheckoutMode.ShouldBe(CheckoutUpsellMode.OrderBump);
     }
@@ -84,7 +84,7 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
             Heading = "You might like",
         });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.DefaultChecked.ShouldBeFalse();
     }
 
@@ -177,7 +177,7 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
             AutoAddToBasket = true,
         });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.AutoAddToBasket.ShouldBeTrue();
     }
 
@@ -190,7 +190,7 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
             Heading = "You might like",
         });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.AutoAddToBasket.ShouldBeFalse();
     }
 
@@ -225,7 +225,7 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
             AutoAddToBasket = true,
         });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.DefaultChecked.ShouldBeTrue();
         result.ResultObject.AutoAddToBasket.ShouldBeTrue();
     }

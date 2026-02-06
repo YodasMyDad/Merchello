@@ -38,7 +38,7 @@ public class ProductTypeServiceTests
     {
         var result = await _service.CreateProductType("Home Decor");
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("Home Decor");
         result.ResultObject.Alias.ShouldBe("home-decor");
@@ -51,7 +51,7 @@ public class ProductTypeServiceTests
 
         var result = await _service.CreateProductType("Men's Wear");
 
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("already exists"));
     }
 
@@ -63,7 +63,7 @@ public class ProductTypeServiceTests
 
         var result = await _service.UpdateProductType(created.ResultObject.Id, "Indoor Furniture");
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("Indoor Furniture");
         result.ResultObject.Alias.ShouldBe("indoor-furniture");
@@ -79,7 +79,7 @@ public class ProductTypeServiceTests
 
         var result = await _service.UpdateProductType(second.ResultObject.Id, "Furniture");
 
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("already exists"));
     }
 
@@ -92,7 +92,7 @@ public class ProductTypeServiceTests
 
         var result = await _service.DeleteProductType(productType.Id);
 
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Cannot delete product type"));
     }
 
@@ -104,7 +104,7 @@ public class ProductTypeServiceTests
 
         var result = await _service.DeleteProductType(created.ResultObject.Id);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
         var exists = await _fixture.DbContext.ProductTypes.AnyAsync(x => x.Id == created.ResultObject.Id);

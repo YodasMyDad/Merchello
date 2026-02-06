@@ -89,7 +89,7 @@ public class TaxService(
         scope.Complete();
 
         // Publish created notification (informational)
-        if (result.Successful)
+        if (result.Success)
         {
             await notificationPublisher.PublishAsync(new TaxGroupCreatedNotification(taxGroup), cancellationToken);
         }
@@ -196,7 +196,7 @@ public class TaxService(
         scope.Complete();
 
         // Publish saved notification (informational)
-        if (result.Successful && result.ResultObject != null)
+        if (result.Success && result.ResultObject != null)
         {
             await notificationPublisher.PublishAsync(new TaxGroupSavedNotification(result.ResultObject), cancellationToken);
         }
@@ -256,7 +256,7 @@ public class TaxService(
         scope.Complete();
 
         // Publish deleted notification (informational)
-        if (result.Successful)
+        if (result.Success)
         {
             await notificationPublisher.PublishAsync(new TaxGroupDeletedNotification(taxGroupId, taxGroupName), cancellationToken);
         }
@@ -273,13 +273,13 @@ public class TaxService(
     public async Task<decimal> GetApplicableRateAsync(
         Guid taxGroupId,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(countryCode))
             return 0m;
 
-        var cacheKey = $"tax-rate:{taxGroupId}:{countryCode}:{stateOrProvinceCode ?? "_"}";
+        var cacheKey = $"tax-rate:{taxGroupId}:{countryCode}:{regionCode ?? "_"}";
         return await cacheService.GetOrCreateAsync(
             cacheKey,
             async ct =>
@@ -288,14 +288,14 @@ public class TaxService(
                 var rate = await scope.ExecuteWithContextAsync(async db =>
                 {
                     // Priority 1: State-specific rate
-                    if (!string.IsNullOrWhiteSpace(stateOrProvinceCode))
+                    if (!string.IsNullOrWhiteSpace(regionCode))
                     {
                         var stateRate = await db.TaxGroupRates
                             .AsNoTracking()
                             .FirstOrDefaultAsync(r =>
                                 r.TaxGroupId == taxGroupId &&
                                 r.CountryCode == countryCode &&
-                                r.StateOrProvinceCode == stateOrProvinceCode,
+                                r.RegionCode == regionCode,
                                 ct);
 
                         if (stateRate != null)
@@ -308,7 +308,7 @@ public class TaxService(
                         .FirstOrDefaultAsync(r =>
                             r.TaxGroupId == taxGroupId &&
                             r.CountryCode == countryCode &&
-                            r.StateOrProvinceCode == null,
+                            r.RegionCode == null,
                             ct);
 
                     if (countryRate != null)
@@ -343,7 +343,7 @@ public class TaxService(
                 .AsNoTracking()
                 .Where(r => r.TaxGroupId == taxGroupId)
                 .OrderBy(r => r.CountryCode)
-                .ThenBy(r => r.StateOrProvinceCode)
+                .ThenBy(r => r.RegionCode)
                 .ToListAsync(cancellationToken));
         scope.Complete();
         return result;
@@ -371,7 +371,7 @@ public class TaxService(
     public async Task<CrudResult<TaxGroupRate>> CreateTaxGroupRate(
         Guid taxGroupId,
         string countryCode,
-        string? stateOrProvinceCode,
+        string? regionCode,
         decimal taxPercentage,
         CancellationToken cancellationToken = default)
     {
@@ -391,7 +391,7 @@ public class TaxService(
         }
 
         // Normalize empty string to null for state/province
-        var normalizedState = string.IsNullOrWhiteSpace(stateOrProvinceCode) ? null : stateOrProvinceCode.Trim();
+        var normalizedState = string.IsNullOrWhiteSpace(regionCode) ? null : regionCode.Trim();
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -411,7 +411,7 @@ public class TaxService(
                 .AnyAsync(r =>
                     r.TaxGroupId == taxGroupId &&
                     r.CountryCode == countryCode.Trim() &&
-                    r.StateOrProvinceCode == normalizedState,
+                    r.RegionCode == normalizedState,
                     cancellationToken);
 
             if (duplicateExists)
@@ -424,7 +424,7 @@ public class TaxService(
             {
                 TaxGroupId = taxGroupId,
                 CountryCode = countryCode.Trim(),
-                StateOrProvinceCode = normalizedState,
+                RegionCode = normalizedState,
                 TaxPercentage = taxPercentage
             };
 
@@ -523,7 +523,7 @@ public class TaxService(
     /// </summary>
     public async Task<ShippingTaxOverride?> GetShippingTaxOverrideAsync(
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(countryCode))
@@ -533,14 +533,14 @@ public class TaxService(
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             // Priority 1: State-specific override
-            if (!string.IsNullOrWhiteSpace(stateOrProvinceCode))
+            if (!string.IsNullOrWhiteSpace(regionCode))
             {
                 var stateOverride = await db.ShippingTaxOverrides
                     .AsNoTracking()
                     .Include(o => o.ShippingTaxGroup)
                     .FirstOrDefaultAsync(o =>
                         o.CountryCode == countryCode &&
-                        o.StateOrProvinceCode == stateOrProvinceCode,
+                        o.RegionCode == regionCode,
                         cancellationToken);
 
                 if (stateOverride != null)
@@ -553,7 +553,7 @@ public class TaxService(
                 .Include(o => o.ShippingTaxGroup)
                 .FirstOrDefaultAsync(o =>
                     o.CountryCode == countryCode &&
-                    o.StateOrProvinceCode == null,
+                    o.RegionCode == null,
                     cancellationToken);
 
             return countryOverride;
@@ -592,7 +592,7 @@ public class TaxService(
                 .AsNoTracking()
                 .Include(o => o.ShippingTaxGroup)
                 .OrderBy(o => o.CountryCode)
-                .ThenBy(o => o.StateOrProvinceCode)
+                .ThenBy(o => o.RegionCode)
                 .ToListAsync(cancellationToken));
         scope.Complete();
         return result;
@@ -614,14 +614,14 @@ public class TaxService(
         }
 
         // Normalize empty string to null for state/province
-        var normalizedState = string.IsNullOrWhiteSpace(dto.StateOrProvinceCode)
+        var normalizedState = string.IsNullOrWhiteSpace(dto.RegionCode)
             ? null
-            : dto.StateOrProvinceCode.Trim();
+            : dto.RegionCode.Trim();
 
         var entity = new ShippingTaxOverride
         {
             CountryCode = dto.CountryCode.Trim(),
-            StateOrProvinceCode = normalizedState,
+            RegionCode = normalizedState,
             ShippingTaxGroupId = dto.ShippingTaxGroupId
         };
 
@@ -640,7 +640,7 @@ public class TaxService(
             var duplicateExists = await db.ShippingTaxOverrides
                 .AnyAsync(o =>
                     o.CountryCode == entity.CountryCode &&
-                    o.StateOrProvinceCode == normalizedState,
+                    o.RegionCode == normalizedState,
                     cancellationToken);
 
             if (duplicateExists)
@@ -671,7 +671,7 @@ public class TaxService(
         scope.Complete();
 
         // Publish created notification (informational)
-        if (result.Successful)
+        if (result.Success)
         {
             await notificationPublisher.PublishAsync(
                 new ShippingTaxOverrideCreatedNotification(entity), cancellationToken);
@@ -734,7 +734,7 @@ public class TaxService(
         scope.Complete();
 
         // Publish saved notification (informational)
-        if (result.Successful && result.ResultObject != null)
+        if (result.Success && result.ResultObject != null)
         {
             await notificationPublisher.PublishAsync(
                 new ShippingTaxOverrideSavedNotification(result.ResultObject), cancellationToken);
@@ -752,7 +752,7 @@ public class TaxService(
     {
         var result = new CrudResult<bool>();
         string countryCode = string.Empty;
-        string? stateOrProvinceCode = null;
+        string? regionCode = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -776,7 +776,7 @@ public class TaxService(
 
             // Capture details for deleted notification
             countryCode = entity.CountryCode;
-            stateOrProvinceCode = entity.StateOrProvinceCode;
+            regionCode = entity.RegionCode;
 
             db.ShippingTaxOverrides.Remove(entity);
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
@@ -787,10 +787,10 @@ public class TaxService(
         scope.Complete();
 
         // Publish deleted notification (informational)
-        if (result.Successful)
+        if (result.Success)
         {
             await notificationPublisher.PublishAsync(
-                new ShippingTaxOverrideDeletedNotification(id, countryCode, stateOrProvinceCode),
+                new ShippingTaxOverrideDeletedNotification(id, countryCode, regionCode),
                 cancellationToken);
         }
 

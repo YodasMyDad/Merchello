@@ -2,7 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { FilterModalData, FilterModalValue } from "./filter-modal.token.js";
+import type { FilterModalData, FilterModalValue } from "@filters/modals/filter-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 // Import Umbraco packages for the components

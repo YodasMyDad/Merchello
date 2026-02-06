@@ -154,7 +154,7 @@ export interface ShippingOptionDetailDto extends ShippingOptionDto {
 export interface ShippingCostDto {
   id: string;
   countryCode: string;
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   cost: number;
   regionDisplay?: string;
 }
@@ -163,7 +163,7 @@ export interface ShippingCostDto {
 export interface ShippingWeightTierDto {
   id: string;
   countryCode: string;
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   minWeightKg: number;
   maxWeightKg?: number;
   surcharge: number;
@@ -198,14 +198,14 @@ export interface CreateShippingOptionDto {
 /** DTO for creating/updating a shipping cost */
 export interface CreateShippingCostDto {
   countryCode: string;
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   cost: number;
 }
 
 /** DTO for creating/updating a weight tier */
 export interface CreateShippingWeightTierDto {
   countryCode: string;
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   minWeightKg: number;
   maxWeightKg?: number;
   surcharge: number;
@@ -222,7 +222,7 @@ export interface TestShippingProviderDto {
   /** Destination country code (ISO 3166-1 alpha-2) */
   countryCode: string;
   /** Destination state/province code (optional) */
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   /** Destination postal code (optional but recommended for accurate rates) */
   postalCode?: string;
   /** Destination city (optional) */

@@ -13,14 +13,14 @@ import type {
   TimeSeriesResultDto,
   SalesBreakdownDto,
   DateRange,
-} from "../types/analytics.types.js";
-import type { DateRangeChangeDetail } from "./analytics-header.element.js";
+} from "@analytics/types/analytics.types.js";
+import type { DateRangeChangeDetail } from "@analytics/components/analytics-header.element.js";
 
 // Import child components
-import "./analytics-header.element.js";
-import "./analytics-kpi-card.element.js";
-import "./analytics-line-chart.element.js";
-import "./analytics-breakdown.element.js";
+import "@analytics/components/analytics-header.element.js";
+import "@analytics/components/analytics-kpi-card.element.js";
+import "@analytics/components/analytics-line-chart.element.js";
+import "@analytics/components/analytics-breakdown.element.js";
 
 @customElement("merchello-analytics-workspace")
 export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitElement) {

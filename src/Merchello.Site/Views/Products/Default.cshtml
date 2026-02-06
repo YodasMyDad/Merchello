@@ -25,7 +25,7 @@
     var subtitle = viewModel.Content.Value<string>("subtitle");
     var tagline = viewModel.Content.Value<string>("tagline");
     var description = viewModel.Content.Value<IHtmlEncodedString>("productDescription");
-    var features = viewModel.Content.Value<Umbraco.Cms.Core.Models.Blocks.BlockListModel>("features");
+    var features = viewModel.Content.Value<string[]>("usPs");
 
     // Resolve Merchello images from GUIDs
     var resolvedImages = viewModel.Images.ToMedia(MediaCache).ToList();
@@ -72,21 +72,22 @@
     var ssrInStock = ssrCanShipToLocation && (selectedAvailability?.HasStock ?? false);
 
     // Build selected options from current variant's VariantOptionsKey
-    // The key contains value GUIDs joined by hyphens (sorted alphabetically)
-    // Note: Can't split by '-' because GUIDs themselves contain hyphens
+    // The key contains comma-separated value GUIDs
     var selectedOptions = new Dictionary<string, string>();
     if (!string.IsNullOrEmpty(viewModel.SelectedVariant.VariantOptionsKey))
     {
-        var variantKey = viewModel.SelectedVariant.VariantOptionsKey;
+        var selectedValueIds = viewModel.SelectedVariant.VariantOptionsKey
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         foreach (var option in viewModel.VariantOptions)
         {
-            // Find which value's ID appears in the variant key
+            // Find which value ID is present in the selected variant key
             var matchingValue = option.ProductOptionValues
-                .FirstOrDefault(v => variantKey.Contains(v.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(v => selectedValueIds.Contains(v.Id.ToString()));
             if (matchingValue != null)
             {
-                selectedOptions[option.Alias ?? ""] = matchingValue.Id.ToString();
+                selectedOptions[option.Alias ?? option.Id.ToString()] = matchingValue.Id.ToString();
             }
         }
     }
@@ -144,11 +145,13 @@
                         .ToList()
             };
         }).ToList(),
-        variantOptions = viewModel.VariantOptions.Select(o => new
+        variantOptions = viewModel.VariantOptions
+            .OrderBy(o => o.SortOrder)
+            .Select(o => new
         {
             id = o.Id.ToString(),
             name = o.Name,
-            alias = o.Alias,
+            alias = o.Alias ?? o.Id.ToString(),
             sortOrder = o.SortOrder,
             uiType = o.OptionUiAlias ?? "dropdown",
             values = o.ProductOptionValues.Select(v => new
@@ -157,16 +160,19 @@
                 name = v.Name,
                 hexValue = v.HexValue,
                 mediaUrl = v.MediaKey.HasValue
-                    ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
+                    ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 800)
                     : null
             }).ToList()
         }).ToList(),
-        addonOptions = viewModel.AddOnOptions.Select(o => new
+        addonOptions = viewModel.AddOnOptions
+            .OrderBy(o => o.SortOrder)
+            .Select(o => new
         {
             id = o.Id.ToString(),
             name = o.Name,
             alias = o.Alias,
             uiType = o.OptionUiAlias ?? "checkbox",
+            isMultiSelect = o.IsMultiSelect,
             values = o.ProductOptionValues.Select(v =>
             {
                 var addonDisplayPrice = CalculateDisplayPrice(v.PriceAdjustment);
@@ -182,7 +188,7 @@
                         : $"-{displayContext.CurrencySymbol}{Math.Abs(addonDisplayPrice).ToString($"N{displayContext.DecimalPlaces}")}",
                     hexValue = v.HexValue,
                     mediaUrl = v.MediaKey.HasValue
-                        ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
+                        ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 800)
                         : null
                 };
             }).ToList()
@@ -551,7 +557,10 @@
     {
         <section class="product-features mt-5 pt-4 border-top">
             <h2 class="h4 mb-3">Features</h2>
-            @await Html.GetBlockListHtmlAsync(features)
+            @foreach (var feature in features)
+            {
+                @Html.Raw(feature)
+            }
         </section>
     }
 

@@ -8,7 +8,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.TaxProviders.View",
     name: "Tax Providers View",
-    js: () => import("./components/tax-providers-list.element.js"),
+    js: () => import("@tax/components/tax-providers-list.element.js"),
     weight: 85,
     meta: {
       label: "Tax",
@@ -32,7 +32,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TaxGroup.Modal",
     name: "Merchello Tax Group Modal",
-    js: () => import("./modals/tax-group-modal.element.js"),
+    js: () => import("@tax/modals/tax-group-modal.element.js"),
   },
 
   // Tax rate modal (handles both create and edit for geographic rates)
@@ -40,7 +40,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TaxRate.Modal",
     name: "Merchello Tax Rate Modal",
-    js: () => import("./modals/tax-rate-modal.element.js"),
+    js: () => import("@tax/modals/tax-rate-modal.element.js"),
   },
 
   // Tax provider config modal
@@ -48,7 +48,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TaxProviderConfig.Modal",
     name: "Merchello Tax Provider Config Modal",
-    js: () => import("./modals/tax-provider-config-modal.element.js"),
+    js: () => import("@tax/modals/tax-provider-config-modal.element.js"),
   },
 
   // Test tax provider modal
@@ -56,7 +56,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TestTaxProvider.Modal",
     name: "Merchello Test Tax Provider Modal",
-    js: () => import("./modals/test-tax-provider-modal.element.js"),
+    js: () => import("@tax/modals/test-tax-provider-modal.element.js"),
   },
 
   // Shipping tax override modal
@@ -64,6 +64,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ShippingTaxOverride.Modal",
     name: "Merchello Shipping Tax Override Modal",
-    js: () => import("./modals/shipping-tax-override-modal.element.js"),
+    js: () => import("@tax/modals/shipping-tax-override-modal.element.js"),
   },
 ];

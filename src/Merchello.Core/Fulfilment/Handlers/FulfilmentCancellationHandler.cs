@@ -55,7 +55,7 @@ public class FulfilmentCancellationHandler(
 
             var result = await fulfilmentService.CancelOrderAsync(order.Id, ct);
 
-            if (result.Successful)
+            if (result.Success)
             {
                 logger.LogInformation("Order {OrderId} cancellation at 3PL completed.", order.Id);
             }

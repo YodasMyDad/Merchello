@@ -1,7 +1,7 @@
 import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { SupplierPickerModalData, SupplierPickerModalValue } from "./supplier-picker-modal.token.js";
+import type { SupplierPickerModalData, SupplierPickerModalValue } from "@suppliers/modals/supplier-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { SupplierListItemDto } from "@suppliers/types/suppliers.types.js";
 

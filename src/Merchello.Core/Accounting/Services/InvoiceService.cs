@@ -807,11 +807,11 @@ public class InvoiceService(
             return 0;
         }
 
-        var stateOrProvinceCode = shippingAddress.CountyState?.RegionCode;
+        var regionCode = shippingAddress.CountyState?.RegionCode;
         var cost = shippingCostResolver.ResolveBaseCost(
             shippingOption.ShippingCosts,
             countryCode,
-            stateOrProvinceCode,
+            regionCode,
             shippingOption.FixedCost);
 
         if (cost.HasValue)
@@ -820,7 +820,7 @@ public class InvoiceService(
         }
 
         logger.LogWarning("No shipping cost configured for option {OptionId} to {Country}/{State}",
-            shippingOption.Id, countryCode, stateOrProvinceCode);
+            shippingOption.Id, countryCode, regionCode);
 
         return 0;
     }
@@ -2358,7 +2358,7 @@ public class InvoiceService(
                 }
             }
 
-            return OperationResult<CreateManualOrderResultDto>.Success(new CreateManualOrderResultDto
+            return OperationResult<CreateManualOrderResultDto>.Ok(new CreateManualOrderResultDto
             {
                 IsSuccessful = true,
                 InvoiceId = invoice.Id,

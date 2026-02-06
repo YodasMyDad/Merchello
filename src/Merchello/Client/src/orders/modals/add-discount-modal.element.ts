@@ -2,7 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { DiscountValueType } from "@orders/types/order.types.js";
-import type { AddDiscountModalData, AddDiscountModalValue } from "./add-discount-modal.token.js";
+import type { AddDiscountModalData, AddDiscountModalValue } from "@orders/modals/add-discount-modal.token.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 

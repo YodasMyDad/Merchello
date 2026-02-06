@@ -156,7 +156,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
                 city: "Test City",
                 postalCode: "SW1A 1AA",
                 countryCode: "GB",
-                stateOrProvinceCode: null,
+                regionCode: null,
                 phone: null,
                 email: "customer@example.com"),
             shippingAddress: _addressFactory.CreateFromFormData(
@@ -167,7 +167,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
                 city: "Test City",
                 postalCode: "SW1A 1AA",
                 countryCode: "GB",
-                stateOrProvinceCode: null,
+                regionCode: null,
                 phone: null,
                 email: null),
             currencyCode: "GBP",
@@ -481,7 +481,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
             city: billingCity ?? "Test City",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: billingEmail ?? "customer@example.com");
 
@@ -493,7 +493,7 @@ public class EmailTokenResolverTests : IClassFixture<ServiceTestFixture>
             city: "Test City",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: null);
 

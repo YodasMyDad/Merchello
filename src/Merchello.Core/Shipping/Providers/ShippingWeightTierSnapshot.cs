@@ -6,7 +6,7 @@ namespace Merchello.Core.Shipping.Providers;
 public class ShippingWeightTierSnapshot
 {
     public string CountryCode { get; init; } = null!;
-    public string? StateOrProvinceCode { get; init; }
+    public string? RegionCode { get; init; }
     public decimal MinWeightKg { get; init; }
     public decimal? MaxWeightKg { get; init; }
     public decimal Surcharge { get; init; }

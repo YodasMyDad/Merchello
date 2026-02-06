@@ -13,7 +13,7 @@ public class ShippingCostResolver : IShippingCostResolver
     public decimal? ResolveBaseCost(
         IReadOnlyCollection<ShippingCost> costs,
         string countryCode,
-        string? stateOrProvinceCode,
+        string? regionCode,
         decimal? fixedCostFallback = null)
     {
         if (costs.Count == 0)
@@ -22,14 +22,14 @@ public class ShippingCostResolver : IShippingCostResolver
         }
 
         var normalizedCountry = countryCode.ToUpperInvariant();
-        var normalizedState = stateOrProvinceCode?.ToUpperInvariant();
+        var normalizedState = regionCode?.ToUpperInvariant();
 
         // Priority 1: Exact state match (country + state)
         if (!string.IsNullOrWhiteSpace(normalizedState))
         {
             var stateMatch = costs.FirstOrDefault(c =>
                 string.Equals(c.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(c.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
+                string.Equals(c.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase));
 
             if (stateMatch != null)
             {
@@ -40,7 +40,7 @@ public class ShippingCostResolver : IShippingCostResolver
         // Priority 2: Country-level cost (country with no state)
         var countryMatch = costs.FirstOrDefault(c =>
             string.Equals(c.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-            string.IsNullOrEmpty(c.StateOrProvinceCode));
+            string.IsNullOrEmpty(c.RegionCode));
 
         if (countryMatch != null)
         {
@@ -50,7 +50,7 @@ public class ShippingCostResolver : IShippingCostResolver
         // Priority 3: Universal fallback (*)
         var universalMatch = costs.FirstOrDefault(c =>
             c.CountryCode == "*" &&
-            string.IsNullOrEmpty(c.StateOrProvinceCode));
+            string.IsNullOrEmpty(c.RegionCode));
 
         if (universalMatch != null)
         {
@@ -66,7 +66,7 @@ public class ShippingCostResolver : IShippingCostResolver
         IReadOnlyCollection<ShippingWeightTier> tiers,
         decimal weightKg,
         string countryCode,
-        string? stateOrProvinceCode)
+        string? regionCode)
     {
         if (tiers.Count == 0 || weightKg <= 0)
         {
@@ -74,7 +74,7 @@ public class ShippingCostResolver : IShippingCostResolver
         }
 
         var normalizedCountry = countryCode.ToUpperInvariant();
-        var normalizedState = stateOrProvinceCode?.ToUpperInvariant();
+        var normalizedState = regionCode?.ToUpperInvariant();
 
         ShippingWeightTier? matchingTier = null;
         var matchPriority = 0;
@@ -95,7 +95,7 @@ public class ShippingCostResolver : IShippingCostResolver
             // Determine match priority
             var priority = GetLocationMatchPriority(
                 tier.CountryCode,
-                tier.StateOrProvinceCode,
+                tier.RegionCode,
                 normalizedCountry,
                 normalizedState);
 
@@ -113,14 +113,14 @@ public class ShippingCostResolver : IShippingCostResolver
     public decimal? GetTotalShippingCost(
         ShippingOption shippingOption,
         string countryCode,
-        string? stateOrProvinceCode,
+        string? regionCode,
         decimal? weightKg = null)
     {
         var costs = shippingOption.ShippingCosts.ToList();
         var baseCost = ResolveBaseCost(
             costs,
             countryCode,
-            stateOrProvinceCode,
+            regionCode,
             shippingOption.FixedCost);
 
         if (baseCost == null)
@@ -132,7 +132,7 @@ public class ShippingCostResolver : IShippingCostResolver
         if (weightKg.HasValue && weightKg.Value > 0)
         {
             var tiers = shippingOption.WeightTiers.ToList();
-            var surcharge = ResolveWeightTierSurcharge(tiers, weightKg.Value, countryCode, stateOrProvinceCode);
+            var surcharge = ResolveWeightTierSurcharge(tiers, weightKg.Value, countryCode, regionCode);
             return baseCost.Value + surcharge;
         }
 

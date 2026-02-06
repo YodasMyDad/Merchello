@@ -68,7 +68,7 @@ public class SavedPaymentMethodsApiController(
     {
         var result = await savedPaymentMethodService.DeleteAsync(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -92,7 +92,7 @@ public class SavedPaymentMethodsApiController(
     {
         var result = await savedPaymentMethodService.SetDefaultAsync(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)

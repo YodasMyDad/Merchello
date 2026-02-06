@@ -46,7 +46,7 @@ export class MerchelloOrdersWorkspaceContext
       // Order detail route (GUID parameter)
       {
         path: "edit/orders/:id",
-        component: () => import("../components/order-detail.element.js"),
+        component: () => import("@orders/components/order-detail.element.js"),
         setup: (_component, info) => {
           const id = info.match.params.id;
           this.load(id);
@@ -55,7 +55,7 @@ export class MerchelloOrdersWorkspaceContext
       // Orders list route
       {
         path: "edit/orders",
-        component: () => import("../components/orders-workspace-editor.element.js"),
+        component: () => import("@orders/components/orders-workspace-editor.element.js"),
         setup: () => {
           // Reset detail state when viewing list
           this.#orderId = undefined;

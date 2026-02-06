@@ -31,7 +31,7 @@ export class MerchelloProductTypesWorkspaceContext
       {
         path: "edit/:unique",
         component: () =>
-          import("../components/product-types-workspace-editor.element.js"),
+          import("@product-types/components/product-types-workspace-editor.element.js"),
         setup: (_component, _info) => {
           // Static workspace - no dynamic loading needed
         },

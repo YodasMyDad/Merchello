@@ -48,13 +48,13 @@ public interface ITaxService
     /// </summary>
     /// <param name="taxGroupId">The tax group ID</param>
     /// <param name="countryCode">ISO 3166-1 country code</param>
-    /// <param name="stateOrProvinceCode">Optional ISO 3166-2 state/province code</param>
+    /// <param name="regionCode">Optional ISO 3166-2 state/province code</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The applicable tax percentage (0-100)</returns>
     Task<decimal> GetApplicableRateAsync(
         Guid taxGroupId,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -73,7 +73,7 @@ public interface ITaxService
     Task<CrudResult<TaxGroupRate>> CreateTaxGroupRate(
         Guid taxGroupId,
         string countryCode,
-        string? stateOrProvinceCode,
+        string? regionCode,
         decimal taxPercentage,
         CancellationToken cancellationToken = default);
 
@@ -99,12 +99,12 @@ public interface ITaxService
     /// Lookup priority: State-specific -> Country-level -> null (no override)
     /// </summary>
     /// <param name="countryCode">ISO 3166-1 country code</param>
-    /// <param name="stateOrProvinceCode">Optional ISO 3166-2 state/province code</param>
+    /// <param name="regionCode">Optional ISO 3166-2 state/province code</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The shipping tax override, or null if none exists</returns>
     Task<ShippingTaxOverride?> GetShippingTaxOverrideAsync(
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

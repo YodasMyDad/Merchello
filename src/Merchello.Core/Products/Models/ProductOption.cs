@@ -45,6 +45,12 @@ public class ProductOption
     public bool IsVariant { get; set; } = true;
 
     /// <summary>
+    /// Determines whether multiple values can be selected for this option when used as an add-on.
+    /// Ignored for variant-generating options.
+    /// </summary>
+    public bool IsMultiSelect { get; set; } = true;
+
+    /// <summary>
     /// Represents the collection of possible values for a product option.
     /// These values define specific variations of a product option, such as different colors or sizes.
     /// </summary>

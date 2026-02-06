@@ -37,7 +37,7 @@ public class ProductOptionSelectorViewComponent(IPublishedMediaCache mediaCache)
                     Name = v.Name ?? "",
                     HexValue = v.HexValue,
                     MediaUrl = v.MediaKey.HasValue
-                        ? mediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 80)
+                        ? mediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 800)
                         : null
                 })
                 .ToList()

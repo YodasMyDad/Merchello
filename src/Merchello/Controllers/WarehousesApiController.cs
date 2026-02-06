@@ -36,9 +36,10 @@ public class WarehousesApiController(
     /// </summary>
     [HttpGet("warehouses")]
     [ProducesResponseType<List<WarehouseListDto>>(StatusCodes.Status200OK)]
-    public async Task<List<WarehouseListDto>> GetWarehouses(CancellationToken ct)
+    public async Task<List<WarehouseListDto>> GetWarehouses([FromQuery] int maxResults = 1000, CancellationToken ct = default)
     {
-        return await warehouseService.GetWarehouseListAsync(ct);
+        var warehouses = await warehouseService.GetWarehouseListAsync(ct);
+        return warehouses.Take(maxResults).ToList();
     }
 
     /// <summary>
@@ -70,7 +71,7 @@ public class WarehousesApiController(
         };
 
         var result = await warehouseService.CreateWarehouse(parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create warehouse.");
         }
@@ -99,7 +100,7 @@ public class WarehousesApiController(
         };
 
         var result = await warehouseService.UpdateWarehouse(parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -123,7 +124,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> DeleteWarehouse(Guid id, [FromQuery] bool force = false, CancellationToken ct = default)
     {
         var result = await warehouseService.DeleteWarehouse(id, force, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -150,7 +151,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> AddServiceRegion(Guid warehouseId, [FromBody] CreateServiceRegionDto dto, CancellationToken ct)
     {
         var result = await warehouseService.AddServiceRegionAsync(warehouseId, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -165,9 +166,9 @@ public class WarehousesApiController(
         {
             Id = region.Id,
             CountryCode = region.CountryCode,
-            StateOrProvinceCode = region.StateOrProvinceCode,
+            RegionCode = region.RegionCode,
             IsExcluded = region.IsExcluded,
-            RegionDisplay = BuildRegionDisplay(region.CountryCode, region.StateOrProvinceCode)
+            RegionDisplay = BuildRegionDisplay(region.CountryCode, region.RegionCode)
         };
 
         return Created($"/api/v1/warehouses/{warehouseId}/service-regions/{region.Id}", regionDto);
@@ -183,7 +184,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> UpdateServiceRegion(Guid warehouseId, Guid regionId, [FromBody] CreateServiceRegionDto dto, CancellationToken ct)
     {
         var result = await warehouseService.UpdateServiceRegionAsync(warehouseId, regionId, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -198,9 +199,9 @@ public class WarehousesApiController(
         {
             Id = region.Id,
             CountryCode = region.CountryCode,
-            StateOrProvinceCode = region.StateOrProvinceCode,
+            RegionCode = region.RegionCode,
             IsExcluded = region.IsExcluded,
-            RegionDisplay = BuildRegionDisplay(region.CountryCode, region.StateOrProvinceCode)
+            RegionDisplay = BuildRegionDisplay(region.CountryCode, region.RegionCode)
         });
     }
 
@@ -213,7 +214,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> DeleteServiceRegion(Guid warehouseId, Guid regionId, CancellationToken ct)
     {
         var result = await warehouseService.DeleteServiceRegionAsync(warehouseId, regionId, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound();
         }
@@ -270,7 +271,7 @@ public class WarehousesApiController(
         CancellationToken ct)
     {
         var result = await warehouseService.AddProductsToWarehouseAsync(warehouseId, dto.ProductRootIds, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add products to warehouse.");
         }
@@ -289,7 +290,7 @@ public class WarehousesApiController(
         CancellationToken ct)
     {
         var result = await warehouseService.RemoveProductsFromWarehouseAsync(warehouseId, dto.ProductRootIds, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to remove products from warehouse.");
         }
@@ -359,11 +360,12 @@ public class WarehousesApiController(
     /// </summary>
     [HttpGet("suppliers")]
     [ProducesResponseType<List<SupplierListDto>>(StatusCodes.Status200OK)]
-    public async Task<List<SupplierListDto>> GetSuppliers(CancellationToken ct)
+    public async Task<List<SupplierListDto>> GetSuppliers([FromQuery] int maxResults = 1000, CancellationToken ct = default)
     {
         var suppliers = await supplierService.GetSuppliersAsync(ct);
         return suppliers
             .OrderBy(s => s.Name)
+            .Take(maxResults)
             .Select(s => new SupplierListDto
             {
                 Id = s.Id,
@@ -412,7 +414,7 @@ public class WarehousesApiController(
         };
 
         var result = await supplierService.CreateSupplierAsync(parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create supplier.");
         }
@@ -446,7 +448,7 @@ public class WarehousesApiController(
         };
 
         var result = await supplierService.UpdateSupplierAsync(parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -476,7 +478,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> DeleteSupplier(Guid id, [FromQuery] bool force = false, CancellationToken ct = default)
     {
         var result = await supplierService.DeleteSupplierAsync(id, force, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -511,12 +513,12 @@ public class WarehousesApiController(
         return address;
     }
 
-    private static string BuildRegionDisplay(string countryCode, string? stateOrProvinceCode)
+    private static string BuildRegionDisplay(string countryCode, string? regionCode)
     {
         // Returns ISO 3166-2 format (e.g., "US-CA", "GB-ENG")
-        if (string.IsNullOrWhiteSpace(stateOrProvinceCode))
+        if (string.IsNullOrWhiteSpace(regionCode))
             return countryCode;
-        return $"{countryCode}-{stateOrProvinceCode}";
+        return $"{countryCode}-{regionCode}";
     }
 
     #endregion

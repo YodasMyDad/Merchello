@@ -11,8 +11,8 @@ import type {
 import type {
   PaymentMethodEditModalData,
   PaymentMethodEditModalValue,
-} from "./payment-method-edit-modal.token.js";
-import { getBrandIconSvg } from "../utils/brand-icons.js";
+} from "@payment-providers/modals/payment-method-edit-modal.token.js";
+import { getBrandIconSvg } from "@payment-providers/utils/brand-icons.js";
 
 @customElement("merchello-payment-method-edit-modal")
 export class MerchelloPaymentMethodEditModalElement extends UmbModalBaseElement<

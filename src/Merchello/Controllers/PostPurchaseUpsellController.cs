@@ -70,7 +70,7 @@ public class PostPurchaseUpsellController(
                 Addons = request.Addons,
             }, ct);
 
-        return result.IsSuccess ? Ok(result.Data) : BadRequest(result.ErrorMessage);
+        return result.Success ? Ok(result.Data) : BadRequest(result.ErrorMessage);
     }
 
     /// <summary>
@@ -80,7 +80,7 @@ public class PostPurchaseUpsellController(
     public async Task<ActionResult> Skip(Guid invoiceId, CancellationToken ct)
     {
         var result = await postPurchaseService.SkipUpsellsAsync(invoiceId, ct);
-        return result.IsSuccess ? NoContent() : BadRequest(result.ErrorMessage);
+        return result.Success ? NoContent() : BadRequest(result.ErrorMessage);
     }
 
     private void ResolveProductImageUrls(List<UpsellSuggestionDto> suggestions)

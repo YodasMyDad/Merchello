@@ -35,12 +35,12 @@ public class ProductCollectionServiceTests
     public async Task CreateAndUpdateProductCollection_PersistsChanges()
     {
         var created = await _service.CreateProductCollection("Seasonal");
-        created.Successful.ShouldBeTrue();
+        created.Success.ShouldBeTrue();
         created.ResultObject.ShouldNotBeNull();
 
         var updated = await _service.UpdateProductCollection(created.ResultObject.Id, "Seasonal 2026");
 
-        updated.Successful.ShouldBeTrue();
+        updated.Success.ShouldBeTrue();
         updated.ResultObject.ShouldNotBeNull();
         updated.ResultObject.Name.ShouldBe("Seasonal 2026");
     }
@@ -93,7 +93,7 @@ public class ProductCollectionServiceTests
 
         var result = await _service.DeleteProductCollection(created.ResultObject.Id);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
         var collectionExists = await _fixture.DbContext.ProductCollections

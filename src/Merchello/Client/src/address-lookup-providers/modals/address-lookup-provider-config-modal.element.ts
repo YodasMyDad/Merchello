@@ -6,7 +6,7 @@ import type { AddressLookupProviderFieldDto } from '@address-lookup-providers/ty
 import type {
   AddressLookupProviderConfigModalData,
   AddressLookupProviderConfigModalValue,
-} from "./address-lookup-provider-config-modal.token.js";
+} from "@address-lookup-providers/modals/address-lookup-provider-config-modal.token.js";
 
 @customElement("merchello-address-lookup-provider-config-modal")
 export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBaseElement<

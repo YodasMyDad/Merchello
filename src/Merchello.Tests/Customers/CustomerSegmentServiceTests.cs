@@ -45,7 +45,7 @@ public class CustomerSegmentServiceTests
         var result = await _segmentService.CreateAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("VIP Customers");
         result.ResultObject.Description.ShouldBe("Manually curated VIP list");
@@ -81,7 +81,7 @@ public class CustomerSegmentServiceTests
         var result = await _segmentService.CreateAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.SegmentType.ShouldBe(CustomerSegmentType.Automated);
         result.ResultObject.CriteriaJson.ShouldNotBeNullOrEmpty();
@@ -103,7 +103,7 @@ public class CustomerSegmentServiceTests
         var result = await _segmentService.CreateAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ErrorMessages().ShouldNotBeEmpty();
     }
 
@@ -125,7 +125,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         var errorMessage = result.Messages.ErrorMessages().First().Message;
         errorMessage.ShouldNotBeNull();
         errorMessage.ShouldContain("already exists");
@@ -146,7 +146,7 @@ public class CustomerSegmentServiceTests
         var result = await _segmentService.CreateAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.IsSystemSegment.ShouldBeTrue();
     }
 
@@ -231,7 +231,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        updateResult.Successful.ShouldBeTrue();
+        updateResult.Success.ShouldBeTrue();
         updateResult.ResultObject!.Name.ShouldBe("Updated Name");
         updateResult.ResultObject.Description.ShouldBe("Updated Description");
     }
@@ -255,7 +255,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        updateResult.Successful.ShouldBeTrue();
+        updateResult.Success.ShouldBeTrue();
         updateResult.ResultObject!.Name.ShouldBe("Keep Name");
         updateResult.ResultObject.Description.ShouldBe("Keep Description");
         updateResult.ResultObject.IsActive.ShouldBeFalse();
@@ -271,7 +271,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
     }
 
     [Fact]
@@ -302,7 +302,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        updateResult.Successful.ShouldBeTrue();
+        updateResult.Success.ShouldBeTrue();
         updateResult.ResultObject!.MatchMode.ShouldBe(SegmentMatchMode.Any);
         updateResult.ResultObject.CriteriaJson.ShouldNotBeNull();
         updateResult.ResultObject.CriteriaJson.ShouldContain("TotalSpend");
@@ -327,7 +327,7 @@ public class CustomerSegmentServiceTests
         var deleteResult = await _segmentService.DeleteAsync(segmentId);
 
         // Assert
-        deleteResult.Successful.ShouldBeTrue();
+        deleteResult.Success.ShouldBeTrue();
 
         var deletedSegment = await _segmentService.GetByIdAsync(segmentId);
         deletedSegment.ShouldBeNull();
@@ -349,7 +349,7 @@ public class CustomerSegmentServiceTests
         var deleteResult = await _segmentService.DeleteAsync(segmentId);
 
         // Assert
-        deleteResult.Successful.ShouldBeFalse();
+        deleteResult.Success.ShouldBeFalse();
         var deleteErrorMessage = deleteResult.Messages.ErrorMessages().First().Message;
         deleteErrorMessage.ShouldNotBeNull();
         deleteErrorMessage.ShouldContain("system segment");
@@ -362,7 +362,7 @@ public class CustomerSegmentServiceTests
         var result = await _segmentService.DeleteAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
     }
 
     #endregion
@@ -388,7 +388,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var members = await _segmentService.GetMemberIdsAsync(segment.Id);
         members.Count.ShouldBe(2);
@@ -420,7 +420,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var members = await _segmentService.GetMemberIdsAsync(segment.Id);
         members.Count.ShouldBe(1); // Still only 1 member
@@ -451,7 +451,7 @@ public class CustomerSegmentServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         var addMemberErrorMessage = result.Messages.ErrorMessages().First().Message;
         addMemberErrorMessage.ShouldNotBeNull();
         addMemberErrorMessage.ShouldContain("automated");
@@ -475,7 +475,7 @@ public class CustomerSegmentServiceTests
         var result = await _segmentService.RemoveMembersAsync(segment.Id, [customer.Id]);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var membersAfter = await _segmentService.GetMemberIdsAsync(segment.Id);
         membersAfter.Count.ShouldBe(0);

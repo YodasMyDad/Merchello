@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { TestShippingProviderModalData, TestShippingProviderModalValue } from "./test-provider-modal.token.js";
+import type { TestShippingProviderModalData, TestShippingProviderModalValue } from "@shipping/modals/test-provider-modal.token.js";
 import type { WarehouseListDto, CountryInfo, SubdivisionInfo } from "@warehouses/types/warehouses.types.js";
 import type { TestShippingProviderDto, TestShippingProviderResultDto } from "@shipping/types/shipping.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -14,7 +14,7 @@ const STORAGE_KEY = "merchello-test-provider-form";
 interface SavedFormValues {
   warehouseId?: string;
   countryCode?: string;
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   postalCode?: string;
   city?: string;
   weightKg?: number;
@@ -32,7 +32,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
   // Form state
   @state() private _warehouseId: string = "";
   @state() private _countryCode: string = "";
-  @state() private _stateOrProvinceCode: string = "";
+  @state() private _regionCode: string = "";
   @state() private _postalCode: string = "";
   @state() private _city: string = "";
   @state() private _weightKg: number = 1.0;
@@ -115,7 +115,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
         const values: SavedFormValues = JSON.parse(saved);
         if (values.warehouseId) this._warehouseId = values.warehouseId;
         if (values.countryCode) this._countryCode = values.countryCode;
-        if (values.stateOrProvinceCode) this._stateOrProvinceCode = values.stateOrProvinceCode;
+        if (values.regionCode) this._regionCode = values.regionCode;
         if (values.postalCode) this._postalCode = values.postalCode;
         if (values.city) this._city = values.city;
         if (values.weightKg !== undefined) this._weightKg = values.weightKg;
@@ -134,7 +134,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
       const values: SavedFormValues = {
         warehouseId: this._warehouseId,
         countryCode: this._countryCode,
-        stateOrProvinceCode: this._stateOrProvinceCode,
+        regionCode: this._regionCode,
         postalCode: this._postalCode,
         city: this._city,
         weightKg: this._weightKg,
@@ -166,7 +166,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
   private _handleCountryChange(e: Event): void {
     const value = (e.target as HTMLSelectElement).value;
     this._countryCode = value;
-    this._stateOrProvinceCode = "";
+    this._regionCode = "";
     if (value) {
       this._loadRegions(value);
     } else {
@@ -195,7 +195,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
     const request: TestShippingProviderDto = {
       warehouseId: this._warehouseId,
       countryCode: this._countryCode,
-      stateOrProvinceCode: this._stateOrProvinceCode || undefined,
+      regionCode: this._regionCode || undefined,
       postalCode: this._postalCode || undefined,
       city: this._city || undefined,
       weightKg: this._weightKg,
@@ -252,11 +252,11 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
     }
 
     return [
-      { name: "All regions", value: "", selected: !this._stateOrProvinceCode },
+      { name: "All regions", value: "", selected: !this._regionCode },
       ...this._regions.map((r) => ({
         name: r.name,
         value: r.regionCode,
-        selected: r.regionCode === this._stateOrProvinceCode,
+        selected: r.regionCode === this._regionCode,
       })),
     ];
   }
@@ -294,7 +294,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
             .options=${this._getRegionOptions()}
             ?disabled=${!this._countryCode || this._isLoadingRegions}
             @change=${(e: Event) =>
-              (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+              (this._regionCode = (e.target as HTMLSelectElement).value)}
           ></uui-select>
         </umb-property-layout>
 

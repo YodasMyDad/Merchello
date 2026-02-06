@@ -96,7 +96,7 @@ public static class ProductExtensions
         var productWarehouse = product.ProductWarehouses?
             .FirstOrDefault(pw => pw.WarehouseId == warehouseId);
 
-        return productWarehouse?.TrackStock ?? true;
+        return productWarehouse?.TrackStock ?? false;
     }
 
     /// <summary>
@@ -104,22 +104,22 @@ public static class ProductExtensions
     /// </summary>
     /// <param name="product"></param>
     /// <param name="countryCode"></param>
-    /// <param name="stateOrProvinceCode">Optional state or province code.</param>
+    /// <param name="regionCode">Optional state or province code.</param>
     /// <returns></returns>
-    public static decimal? GetShippingAmountForCountry(this Product product, string countryCode, string? stateOrProvinceCode, IShippingCostResolver costResolver)
+    public static decimal? GetShippingAmountForCountry(this Product product, string countryCode, string? regionCode, IShippingCostResolver costResolver)
     {
         // Get all allowed shipping options (includes warehouse options as fallback)
         var baseOptions = product.GetAllowedShippingOptions();
 
         // Filter to eligible options (warehouse can serve region)
         var eligibleOptions = baseOptions
-            .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode))
+            .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, regionCode))
             .ToList();
 
         // Find the first shipping option that has a resolvable cost for this destination
         foreach (var option in eligibleOptions)
         {
-            var cost = costResolver.GetTotalShippingCost(option, countryCode, stateOrProvinceCode);
+            var cost = costResolver.GetTotalShippingCost(option, countryCode, regionCode);
             if (cost.HasValue)
             {
                 return cost.Value;
@@ -134,9 +134,9 @@ public static class ProductExtensions
     /// </summary>
     /// <param name="product"></param>
     /// <param name="countryCode"></param>
-    /// <param name="stateOrProvinceCode">Optional state or province code.</param>
+    /// <param name="regionCode">Optional state or province code.</param>
     /// <returns></returns>
-    public static IEnumerable<ShippingOption> GetValidShippingOptionsForCountry(this Product product, string countryCode, string? stateOrProvinceCode = null)
+    public static IEnumerable<ShippingOption> GetValidShippingOptionsForCountry(this Product product, string countryCode, string? regionCode = null)
     {
         // Get all allowed shipping options (includes warehouse options as fallback)
         var baseOptions = product.GetAllowedShippingOptions();
@@ -144,10 +144,10 @@ public static class ProductExtensions
         // Select all shipping options that are valid for the given country and optionally state/province.
         // CountryCode can be "*" for universal/wildcard shipping costs that apply to all countries.
         var validShippingOptions = baseOptions
-            .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, stateOrProvinceCode))
+            .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, regionCode))
             .Where(so => so.ShippingCosts.Count == 0 || so.ShippingCosts.Any(sc =>
                 (sc.CountryCode == countryCode || sc.CountryCode == "*") &&
-                (stateOrProvinceCode == null || sc.StateOrProvinceCode == stateOrProvinceCode || sc.StateOrProvinceCode == null)))
+                (regionCode == null || sc.RegionCode == regionCode || sc.RegionCode == null)))
             .ToList();
 
         return validShippingOptions;
@@ -185,12 +185,11 @@ public static class ProductExtensions
     /// <returns></returns>
     public static (string Key, string Name) GenerateVariantKeyName(this List<ProductOptionValue> productOptionValues)
     {
-        var orderedItems = productOptionValues.OrderBy(x => x.Id).ToList();
-
-        // Select the Id's and concat comma-separated (GUIDs contain hyphens, so comma is safer)
-        // Use Name (not FullName) to generate clean variant names like "Slate - Small Single"
-        return (string.Join(",", orderedItems.Select(x => x.Id)),
-            string.Join(" - ", orderedItems.Select(x => x.Name)));
+        // Preserve incoming order so variant names follow the option sort order
+        // from Cartesian generation (e.g. Size - Colour, consistently).
+        // IDs are comma-separated because GUIDs contain hyphens.
+        return (string.Join(",", productOptionValues.Select(x => x.Id)),
+            string.Join(" - ", productOptionValues.Select(x => x.Name)));
     }
 
     /// <summary>

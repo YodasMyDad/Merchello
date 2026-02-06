@@ -18,7 +18,7 @@ public class TestShippingProviderDto
     /// <summary>
     /// Destination state/province code (optional)
     /// </summary>
-    public string? StateOrProvinceCode { get; set; }
+    public string? RegionCode { get; set; }
 
     /// <summary>
     /// Destination postal code (optional but recommended for accurate rates)

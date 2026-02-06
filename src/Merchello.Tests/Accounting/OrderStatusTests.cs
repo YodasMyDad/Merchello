@@ -381,7 +381,7 @@ public class OrderStatusTests
             city: "London",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "test@example.com");
         var shipping = _addressFactory.CreateFromFormData(
@@ -392,7 +392,7 @@ public class OrderStatusTests
             city: "London",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "test@example.com");
 
@@ -416,7 +416,7 @@ public class OrderStatusTests
                 city: "London",
                 postalCode: "SW1A 1AA",
                 countryCode: "GB",
-                stateOrProvinceCode: null,
+                regionCode: null,
                 phone: null,
                 email: null));
         warehouse.Id = Guid.NewGuid();

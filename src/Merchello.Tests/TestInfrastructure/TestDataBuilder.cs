@@ -292,13 +292,13 @@ public class TestDataBuilder
     public WarehouseServiceRegion AddServiceRegion(
         Warehouse warehouse,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         bool isExcluded = false)
     {
         var region = new WarehouseServiceRegion
         {
             CountryCode = countryCode,
-            StateOrProvinceCode = stateOrProvinceCode,
+            RegionCode = regionCode,
             IsExcluded = isExcluded
         };
 
