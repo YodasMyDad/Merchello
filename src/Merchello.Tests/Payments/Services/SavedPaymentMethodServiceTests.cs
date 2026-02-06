@@ -172,7 +172,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.CreateSetupSessionAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Customer not found"));
     }
 
@@ -195,7 +195,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.CreateSetupSessionAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("not found or not enabled"));
     }
 
@@ -242,7 +242,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.CreateSetupSessionAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("does not support vaulted payments"));
     }
 
@@ -257,7 +257,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.SetDefaultAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("not found"));
     }
 
@@ -276,7 +276,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.SetDefaultAsync(method2.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.IsDefault.ShouldBeTrue();
 
         // Verify previous default is cleared
@@ -298,7 +298,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.DeleteAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("not found"));
     }
 
@@ -316,7 +316,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.DeleteAsync(method.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldBeTrue();
 
         // Verify deleted
@@ -342,7 +342,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.ChargeAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Saved payment method not found"));
     }
 
@@ -366,7 +366,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.ChargeAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Invoice not found"));
     }
 
@@ -402,7 +402,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.SaveFromCheckoutAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var method = result.ResultObject;
         method.ShouldNotBeNull();
         method.CustomerId.ShouldBe(customer.Id);
@@ -437,7 +437,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _service.SaveFromCheckoutAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.IsDefault.ShouldBeTrue();
 
         // Verify previous default is cleared

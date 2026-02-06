@@ -414,7 +414,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     e.stopPropagation();
     if (!this._warehouse?.id) return;
 
-    const regionDisplay = region.regionDisplay || `${region.stateOrProvinceCode || ""} ${region.countryCode}`.trim();
+    const regionDisplay = region.regionDisplay || `${region.regionCode || ""} ${region.countryCode}`.trim();
 
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
@@ -934,7 +934,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
 
     return html`
       <uui-table-row class="${region.isExcluded ? "excluded-row" : ""}">
-        <uui-table-cell>${region.regionDisplay || `${region.stateOrProvinceCode || ""} ${region.countryCode}`}</uui-table-cell>
+        <uui-table-cell>${region.regionDisplay || `${region.regionCode || ""} ${region.countryCode}`}</uui-table-cell>
         <uui-table-cell>
           <span class="badge ${region.isExcluded ? "badge-danger" : "badge-positive"}">
             ${region.isExcluded ? "Exclude" : "Include"}

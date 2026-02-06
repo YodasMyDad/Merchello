@@ -34,7 +34,7 @@ public class DigitalProductServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _digitalProductService.CreateDownloadLinksAsync(
             new CreateDownloadLinksParameters { InvoiceId = invoice.Id });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Count.ShouldBe(2);
 
@@ -54,7 +54,7 @@ public class DigitalProductServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _digitalProductService.ValidateDownloadTokenAsync(
             new ValidateDownloadTokenParameters { Token = link.Token });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Id.ShouldBe(link.Id);
         result.ResultObject.DownloadUrl.ShouldNotBeNullOrWhiteSpace();
@@ -70,7 +70,7 @@ public class DigitalProductServiceTests : IClassFixture<ServiceTestFixture>
 
         var recordResult = await _digitalProductService.RecordDownloadAsync(link.Id);
 
-        recordResult.Successful.ShouldBeTrue();
+        recordResult.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
         var persisted = await _fixture.DbContext.DownloadLinks.FirstAsync(l => l.Id == link.Id);

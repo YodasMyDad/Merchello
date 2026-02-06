@@ -729,7 +729,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
             city: townCity,
             postalCode: postalCode,
             countryCode: countryCode,
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: email);
     }

@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Providers.Workspace",
     name: "Merchello Providers Workspace",
-    api: () => import("./contexts/providers-workspace.context.js"),
+    api: () => import("@providers/contexts/providers-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_PROVIDERS_ENTITY_TYPE,
     },

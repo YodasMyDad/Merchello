@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Analytics.Workspace",
     name: "Merchello Analytics Workspace",
-    api: () => import("./contexts/analytics-workspace.context.js"),
+    api: () => import("@analytics/contexts/analytics-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_ANALYTICS_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Analytics.Workspace.View",
     name: "Merchello Analytics View",
-    js: () => import("./components/analytics-workspace.element.js"),
+    js: () => import("@analytics/components/analytics-workspace.element.js"),
     weight: 100,
     meta: {
       label: "Analytics",

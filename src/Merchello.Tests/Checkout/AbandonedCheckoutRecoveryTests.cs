@@ -195,7 +195,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
         var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("test-recovery-token");
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Currency.ShouldBe("GBP");
         result.ResultObject.CurrencySymbol.ShouldBe(_currencyService.GetCurrency("GBP").Symbol);
@@ -237,7 +237,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
         var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("test-recovery-token-2");
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
 
         // Billing address should be restored
@@ -280,7 +280,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
         var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("expired-token");
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.Select(m => m.Message).ShouldContain(m => m != null && m.Contains("expired"));
     }
 
@@ -291,7 +291,7 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
         var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("invalid-token");
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.Select(m => m.Message).ShouldContain(m => m != null && m.Contains("Invalid"));
     }
 }

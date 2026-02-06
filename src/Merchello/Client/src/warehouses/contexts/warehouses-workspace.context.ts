@@ -47,7 +47,7 @@ export class MerchelloWarehousesWorkspaceContext
       // Create warehouse route (before :id to avoid matching "create" as an id)
       {
         path: "edit/warehouses/create",
-        component: () => import("../components/warehouse-detail.element.js"),
+        component: () => import("@warehouses/components/warehouse-detail.element.js"),
         setup: () => {
           this.#isNew = true;
           this.#warehouseId = undefined;
@@ -57,7 +57,7 @@ export class MerchelloWarehousesWorkspaceContext
       // Warehouse detail route (GUID parameter)
       {
         path: "edit/warehouses/:id",
-        component: () => import("../components/warehouse-detail.element.js"),
+        component: () => import("@warehouses/components/warehouse-detail.element.js"),
         setup: (_component, info) => {
           this.#isNew = false;
           const id = info.match.params.id;
@@ -67,7 +67,7 @@ export class MerchelloWarehousesWorkspaceContext
       // Warehouses list route
       {
         path: "edit/warehouses",
-        component: () => import("../components/warehouses-workspace-editor.element.js"),
+        component: () => import("@warehouses/components/warehouses-workspace-editor.element.js"),
         setup: () => {
           // Reset detail state when viewing list
           this.#warehouseId = undefined;

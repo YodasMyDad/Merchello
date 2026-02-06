@@ -78,7 +78,7 @@ public class DbSeeder(
 
         // 1. Create Tax Group (UK VAT 20%) via service
         var taxGroupResult = await taxService.CreateTaxGroup("UK VAT 20%", 20m, cancellationToken);
-        if (!taxGroupResult.Successful || taxGroupResult.ResultObject == null)
+        if (!taxGroupResult.Success || taxGroupResult.ResultObject == null)
         {
             taxGroupResult.LogBadMessages(logger);
             logger.LogWarning("Failed to create tax group, seeding cannot continue");
@@ -322,13 +322,13 @@ public class DbSeeder(
             }
         }, cancellationToken);
 
-        if (!ukResult.Successful || ukResult.ResultObject == null)
+        if (!ukResult.Success || ukResult.ResultObject == null)
         {
             ukResult.LogBadMessages(logger);
             throw new InvalidOperationException("Failed to create UK supplier - seeding cannot continue");
         }
 
-        if (!usResult.Successful || usResult.ResultObject == null)
+        if (!usResult.Success || usResult.ResultObject == null)
         {
             usResult.LogBadMessages(logger);
             throw new InvalidOperationException("Failed to create US supplier - seeding cannot continue");
@@ -403,7 +403,7 @@ public class DbSeeder(
         }, cancellationToken);
 
         // Capture UK-only shipping option ID for country-restricted products
-        if (!ukWarehouseResult.Successful || ukWarehouseResult.ResultObject == null)
+        if (!ukWarehouseResult.Success || ukWarehouseResult.ResultObject == null)
         {
             ukWarehouseResult.LogBadMessages(logger);
             throw new InvalidOperationException("Failed to create UK warehouse - seeding cannot continue");
@@ -585,17 +585,17 @@ public class DbSeeder(
             ]
         }, cancellationToken);
 
-        if (!euWarehouseResult.Successful || euWarehouseResult.ResultObject == null)
+        if (!euWarehouseResult.Success || euWarehouseResult.ResultObject == null)
         {
             euWarehouseResult.LogBadMessages(logger);
             throw new InvalidOperationException("Failed to create EU warehouse - seeding cannot continue");
         }
-        if (!usEastWarehouseResult.Successful || usEastWarehouseResult.ResultObject == null)
+        if (!usEastWarehouseResult.Success || usEastWarehouseResult.ResultObject == null)
         {
             usEastWarehouseResult.LogBadMessages(logger);
             throw new InvalidOperationException("Failed to create US East warehouse - seeding cannot continue");
         }
-        if (!usWestWarehouseResult.Successful || usWestWarehouseResult.ResultObject == null)
+        if (!usWestWarehouseResult.Success || usWestWarehouseResult.ResultObject == null)
         {
             usWestWarehouseResult.LogBadMessages(logger);
             throw new InvalidOperationException("Failed to create US West warehouse - seeding cannot continue");
@@ -800,7 +800,7 @@ public class DbSeeder(
                 CreditLimit = limit
             }, cancellationToken);
 
-            if (result.Successful && result.ResultObject != null)
+            if (result.Success && result.ResultObject != null)
             {
                 accountCustomers.Add(result.ResultObject);
                 logger.LogDebug("Enabled account terms for {Email}: Net {Terms}, Limit {Limit}",
@@ -1431,7 +1431,7 @@ public class DbSeeder(
             colorFilters: colorFilters,
             sizeFilters: sizeFilters);
 
-        if (!result.Successful || result.ResultObject == null)
+        if (!result.Success || result.ResultObject == null)
         {
             result.LogBadMessages(logger);
             logger.LogWarning("Failed to create product: {Name}", name);
@@ -1464,7 +1464,7 @@ public class DbSeeder(
                 warehouses: [(warehouse, 1)],
                 warehouseStockRanges: [(0, 0, 0, false)]);
 
-            if (!result.Successful || result.ResultObject == null)
+            if (!result.Success || result.ResultObject == null)
             {
                 result.LogBadMessages(logger);
                 logger.LogWarning("Failed to create amount variant product: {Name}", variantName);
@@ -1691,7 +1691,7 @@ public class DbSeeder(
         // 7. Create invoice/orders via InvoiceService
         var invoiceResult = await invoiceService.CreateOrderFromBasketAsync(
             basket, checkoutSession, source: null, cancellationToken);
-        if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+        if (!invoiceResult.Success || invoiceResult.ResultObject == null)
         {
             logger.LogError("Failed to create seeded invoice: {Error}", invoiceResult.Messages.FirstOrDefault()?.Message);
             return;
@@ -1831,7 +1831,7 @@ public class DbSeeder(
             {
                 var invoiceResult = await invoiceService.CreateOrderFromBasketAsync(
                     basket, checkoutSession, source: null, cancellationToken);
-                if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+                if (!invoiceResult.Success || invoiceResult.ResultObject == null)
                 {
                     logger.LogWarning("Failed to create seeded invoice for basket: {Error}", invoiceResult.Messages.FirstOrDefault()?.Message);
                     continue;
@@ -1942,7 +1942,7 @@ public class DbSeeder(
                         Amount = invoiceTotal,
                         Description = "Stripe payment (seeded)"
                     }, cancellationToken);
-                if (!stripeResult.Successful)
+                if (!stripeResult.Success)
                 {
                     logger.LogWarning("Seed payment failed for invoice {InvoiceId} (StripeFull): {Error}",
                         invoice.Id, stripeResult.Messages.FirstOrDefault()?.Message);
@@ -1959,7 +1959,7 @@ public class DbSeeder(
                         PaymentMethod = manualPaymentMethods[random.Next(manualPaymentMethods.Length)],
                         Description = "Manual payment (seeded)"
                     }, cancellationToken);
-                if (!manualResult.Successful)
+                if (!manualResult.Success)
                 {
                     logger.LogWarning("Seed payment failed for invoice {InvoiceId} (ManualFull): {Error}",
                         invoice.Id, manualResult.Messages.FirstOrDefault()?.Message);
@@ -1976,7 +1976,7 @@ public class DbSeeder(
                         PaymentMethod = "Bank Transfer",
                         Description = "Partial payment - deposit (seeded)"
                     }, cancellationToken);
-                if (!partialResult.Successful)
+                if (!partialResult.Success)
                 {
                     logger.LogWarning("Seed payment failed for invoice {InvoiceId} (PartialPayment): {Error}",
                         invoice.Id, partialResult.Messages.FirstOrDefault()?.Message);
@@ -1994,7 +1994,7 @@ public class DbSeeder(
                         Amount = Math.Round(invoiceTotal * 0.8m, 2),
                         Description = "Stripe payment - split (seeded)"
                     }, cancellationToken);
-                if (!splitStripeResult.Successful)
+                if (!splitStripeResult.Success)
                 {
                     logger.LogWarning("Seed payment failed for invoice {InvoiceId} (SplitPayment-Stripe): {Error}",
                         invoice.Id, splitStripeResult.Messages.FirstOrDefault()?.Message);
@@ -2008,7 +2008,7 @@ public class DbSeeder(
                         PaymentMethod = "Cash",
                         Description = "Cash top-up - split (seeded)"
                     }, cancellationToken);
-                if (!splitManualResult.Successful)
+                if (!splitManualResult.Success)
                 {
                     logger.LogWarning("Seed payment failed for invoice {InvoiceId} (SplitPayment-Manual): {Error}",
                         invoice.Id, splitManualResult.Messages.FirstOrDefault()?.Message);
@@ -2025,7 +2025,7 @@ public class DbSeeder(
                         PaymentMethod = "Bank Transfer",
                         Description = "Overpayment - store credit created (seeded)"
                     }, cancellationToken);
-                if (!overpayResult.Successful)
+                if (!overpayResult.Success)
                 {
                     logger.LogWarning("Seed payment failed for invoice {InvoiceId} (Overpayment): {Error}",
                         invoice.Id, overpayResult.Messages.FirstOrDefault()?.Message);
@@ -2052,7 +2052,7 @@ public class DbSeeder(
                             Amount = invoiceTotal,
                             Description = $"Payment received for PO: {poNumber}"
                         }, cancellationToken);
-                    if (!poPaymentResult.Successful)
+                    if (!poPaymentResult.Success)
                     {
                         logger.LogWarning("Seed payment failed for invoice {InvoiceId} (PurchaseOrder): {Error}",
                             invoice.Id, poPaymentResult.Messages.FirstOrDefault()?.Message);
@@ -2081,7 +2081,7 @@ public class DbSeeder(
                         Amount = invoiceTotal,
                         Description = "Stripe payment - to be refunded (seeded)"
                     }, cancellationToken);
-                if (!refundableResult.Successful)
+                if (!refundableResult.Success)
                 {
                     logger.LogWarning("Seed payment failed for invoice {InvoiceId} (Refunded): {Error}",
                         invoice.Id, refundableResult.Messages.FirstOrDefault()?.Message);
@@ -2133,7 +2133,7 @@ public class DbSeeder(
             // Update shipment status via service (simulating warehouse worker actions)
             // Completed orders: all shipments must be Delivered (otherwise handlers regress order to Shipped)
             // Other orders: Distribution: 20% Preparing (default), 40% Shipped, 40% Delivered
-            if (result.Successful && result.ResultObject != null)
+            if (result.Success && result.ResultObject != null)
             {
                 if (status == OrderStatus.Completed)
                 {
@@ -2161,7 +2161,7 @@ public class DbSeeder(
                 }
             }
 
-            return result.Successful;
+            return result.Success;
         }
         catch (Exception ex)
         {
@@ -2296,7 +2296,7 @@ public class DbSeeder(
                 Reason = isPartial ? "Partial refund - item returned" : "Full refund - order cancelled"
             }, cancellationToken);
 
-            if (result.Successful)
+            if (result.Success)
             {
                 await invoiceService.AddNoteAsync(new AddInvoiceNoteParameters
                 {
@@ -2307,7 +2307,7 @@ public class DbSeeder(
                 }, cancellationToken);
             }
 
-            return result.Successful;
+            return result.Success;
         }
         catch (Exception ex)
         {
@@ -2424,7 +2424,7 @@ public class DbSeeder(
                     // Create invoice (DueDate is set automatically from customer's PaymentTermsDays)
                     var invoiceResult = await invoiceService.CreateOrderFromBasketAsync(
                         basket, checkoutSession, source: null, cancellationToken);
-                    if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+                    if (!invoiceResult.Success || invoiceResult.ResultObject == null)
                     {
                         logger.LogWarning("Failed to create outstanding balance invoice: {Error}", invoiceResult.Messages.FirstOrDefault()?.Message);
                         continue;
@@ -2641,7 +2641,7 @@ public class DbSeeder(
                 OrderId = orderId,
                 NewStatus = status
             }, cancellationToken);
-            if (!result.Successful)
+            if (!result.Success)
             {
                 // Log but don't fail - seeding should be resilient
                 logger.LogWarning("Could not transition order {OrderId} to {Status}: {Message}",

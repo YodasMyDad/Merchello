@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 
-import "./product-image.element.js";
+import "@shared/components/product-image.element.js";
 
 type ImageSize = "small" | "medium" | "large";
 

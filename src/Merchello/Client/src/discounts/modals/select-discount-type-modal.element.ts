@@ -8,7 +8,7 @@ import {
 import type {
   SelectDiscountTypeModalData,
   SelectDiscountTypeModalValue,
-} from "./select-discount-type-modal.token.js";
+} from "@discounts/modals/select-discount-type-modal.token.js";
 
 @customElement("merchello-select-discount-type-modal")
 export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement<

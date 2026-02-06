@@ -81,7 +81,7 @@ public class UpsellsApiController(
         var parameters = MapToCreateParameters(dto);
         var result = await upsellService.CreateAsync(parameters, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -104,7 +104,7 @@ public class UpsellsApiController(
         var parameters = MapToUpdateParameters(dto);
         var result = await upsellService.UpdateAsync(id, parameters, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -125,7 +125,7 @@ public class UpsellsApiController(
     {
         var result = await upsellService.DeleteAsync(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -148,7 +148,7 @@ public class UpsellsApiController(
     {
         var result = await upsellService.ActivateAsync(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -169,7 +169,7 @@ public class UpsellsApiController(
     {
         var result = await upsellService.DeactivateAsync(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)

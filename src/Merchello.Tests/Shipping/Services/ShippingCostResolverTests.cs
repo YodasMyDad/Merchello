@@ -440,7 +440,7 @@ public class ShippingCostResolverTests
     private static ShippingCost CreateCost(string countryCode, decimal cost, string? stateCode = null) => new()
     {
         CountryCode = countryCode,
-        StateOrProvinceCode = stateCode,
+        RegionCode = stateCode,
         Cost = cost
     };
 
@@ -449,7 +449,7 @@ public class ShippingCostResolverTests
         decimal minKg, decimal? maxKg, decimal surcharge) => new()
     {
         CountryCode = countryCode,
-        StateOrProvinceCode = stateCode,
+        RegionCode = stateCode,
         MinWeightKg = minKg,
         MaxWeightKg = maxKg,
         Surcharge = surcharge

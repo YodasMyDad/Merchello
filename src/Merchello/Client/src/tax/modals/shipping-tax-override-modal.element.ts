@@ -8,7 +8,7 @@ import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type {
   ShippingTaxOverrideModalData,
   ShippingTaxOverrideModalValue,
-} from "./shipping-tax-override-modal.token.js";
+} from "@tax/modals/shipping-tax-override-modal.token.js";
 
 interface CountryOption {
   code: string;
@@ -30,7 +30,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
   @state() private _isLoadingRegions = false;
   @state() private _isLoadingTaxGroups = true;
   @state() private _countryCode = "";
-  @state() private _stateOrProvinceCode = "";
+  @state() private _regionCode = "";
   @state() private _shippingTaxGroupId: string | null = null;
   @state() private _countries: CountryOption[] = [];
   @state() private _regions: RegionOption[] = [];
@@ -52,7 +52,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
 
     if (this.data?.override) {
       this._countryCode = this.data.override.countryCode;
-      this._stateOrProvinceCode = this.data.override.stateOrProvinceCode ?? "";
+      this._regionCode = this.data.override.regionCode ?? "";
       this._shippingTaxGroupId = this.data.override.shippingTaxGroupId ?? null;
 
       // Load regions if editing and country is set
@@ -99,7 +99,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
   private _handleCountryChange(e: Event): void {
     const value = (e.target as HTMLSelectElement).value;
     this._countryCode = value;
-    this._stateOrProvinceCode = "";
+    this._regionCode = "";
     this._regions = [];
 
     if (value) {
@@ -127,14 +127,14 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
   /** Options for region dropdown */
   private get _regionOptions(): Array<{ name: string; value: string; selected?: boolean }> {
     const options: Array<{ name: string; value: string; selected?: boolean }> = [
-      { name: "Entire country (all regions)", value: "", selected: !this._stateOrProvinceCode },
+      { name: "Entire country (all regions)", value: "", selected: !this._regionCode },
     ];
 
     this._regions.forEach((r) => {
       options.push({
         name: r.name,
         value: r.regionCode,
-        selected: r.regionCode === this._stateOrProvinceCode,
+        selected: r.regionCode === this._regionCode,
       });
     });
 
@@ -194,7 +194,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
         // Create new override
         const result = await MerchelloApi.createShippingTaxOverride({
           countryCode: this._countryCode.toUpperCase(),
-          stateOrProvinceCode: this._stateOrProvinceCode.toUpperCase() || undefined,
+          regionCode: this._regionCode.toUpperCase() || undefined,
           shippingTaxGroupId: this._shippingTaxGroupId || undefined,
         });
 
@@ -277,16 +277,16 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
                             .options=${this._regionOptions}
                             ?disabled=${isEditing}
                             @change=${(e: Event) =>
-                              (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+                              (this._regionCode = (e.target as HTMLSelectElement).value)}
                           ></uui-select>
                         `
                       : html`
                           <uui-input
                             id="stateCode"
-                            .value=${this._stateOrProvinceCode}
+                            .value=${this._regionCode}
                             ?disabled=${isEditing}
                             @input=${(e: InputEvent) =>
-                              (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
+                              (this._regionCode = (e.target as HTMLInputElement).value)}
                             placeholder="Optional: CA, NY, etc."
                           ></uui-input>
                         `}

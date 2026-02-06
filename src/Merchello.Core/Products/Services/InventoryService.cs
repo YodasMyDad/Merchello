@@ -485,7 +485,7 @@ public class InventoryService(
             var productWarehouse = await db.ProductWarehouses
                 .FirstOrDefaultAsync(pw => pw.ProductId == productId && pw.WarehouseId == warehouseId, cancellationToken);
 
-            return productWarehouse?.TrackStock ?? true;
+            return productWarehouse?.TrackStock ?? false;
         });
         scope.Complete();
         return result;

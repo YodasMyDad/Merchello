@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
 import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
-import type { RefundModalData, RefundModalValue } from "./refund-modal.token.js";
+import type { RefundModalData, RefundModalValue } from "@orders/modals/refund-modal.token.js";
 
 @customElement("merchello-refund-modal")
 export class MerchelloRefundModalElement extends UmbModalBaseElement<

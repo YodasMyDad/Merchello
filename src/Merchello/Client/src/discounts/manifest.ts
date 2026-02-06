@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Discounts.Workspace",
     name: "Merchello Discounts Workspace",
-    api: () => import("./contexts/discounts-workspace.context.js"),
+    api: () => import("@discounts/contexts/discounts-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_DISCOUNTS_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Discounts.Workspace.View",
     name: "Merchello Discounts View",
-    js: () => import("./components/discounts-list.element.js"),
+    js: () => import("@discounts/components/discounts-list.element.js"),
     weight: 100,
     meta: {
       label: "Discounts",
@@ -38,6 +38,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.SelectDiscountType.Modal",
     name: "Select Discount Type Modal",
-    js: () => import("./modals/select-discount-type-modal.element.js"),
+    js: () => import("@discounts/modals/select-discount-type-modal.element.js"),
   },
 ];

@@ -33,7 +33,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var dto = new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "CA",
+            RegionCode = "CA",
             ShippingTaxGroupId = null // No shipping tax in California
         };
 
@@ -41,10 +41,10 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _taxService.CreateShippingTaxOverrideAsync(dto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.CountryCode.ShouldBe("US");
-        result.ResultObject.StateOrProvinceCode.ShouldBe("CA");
+        result.ResultObject.RegionCode.ShouldBe("CA");
         result.ResultObject.ShippingTaxGroupId.ShouldBeNull();
         result.ResultObject.Id.ShouldNotBe(Guid.Empty);
     }
@@ -54,13 +54,13 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
     {
         // Arrange - Create a tax group first
         var taxGroupResult = await _taxService.CreateTaxGroup("Shipping Tax", 8.25m);
-        taxGroupResult.Successful.ShouldBeTrue();
+        taxGroupResult.Success.ShouldBeTrue();
         var taxGroupId = taxGroupResult.ResultObject!.Id;
 
         var dto = new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "TX",
+            RegionCode = "TX",
             ShippingTaxGroupId = taxGroupId
         };
 
@@ -68,7 +68,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _taxService.CreateShippingTaxOverrideAsync(dto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.ShippingTaxGroupId.ShouldBe(taxGroupId);
     }
@@ -80,7 +80,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var dto = new CreateShippingTaxOverrideDto
         {
             CountryCode = "GB",
-            StateOrProvinceCode = null, // Country-wide override
+            RegionCode = null, // Country-wide override
             ShippingTaxGroupId = null
         };
 
@@ -88,10 +88,10 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _taxService.CreateShippingTaxOverrideAsync(dto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.CountryCode.ShouldBe("GB");
-        result.ResultObject.StateOrProvinceCode.ShouldBeNull();
+        result.ResultObject.RegionCode.ShouldBeNull();
     }
 
     [Fact]
@@ -101,17 +101,17 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var dto1 = new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "NY",
+            RegionCode = "NY",
             ShippingTaxGroupId = null
         };
         var result1 = await _taxService.CreateShippingTaxOverrideAsync(dto1);
-        result1.Successful.ShouldBeTrue();
+        result1.Success.ShouldBeTrue();
 
         // Try to create duplicate
         var dto2 = new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "NY",
+            RegionCode = "NY",
             ShippingTaxGroupId = null
         };
 
@@ -119,7 +119,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var result2 = await _taxService.CreateShippingTaxOverrideAsync(dto2);
 
         // Assert
-        result2.Successful.ShouldBeFalse();
+        result2.Success.ShouldBeFalse();
         result2.Messages.ShouldContain(m => m.Message!.Contains("already exists", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -130,7 +130,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var dto = new CreateShippingTaxOverrideDto
         {
             CountryCode = "",
-            StateOrProvinceCode = "CA",
+            RegionCode = "CA",
             ShippingTaxGroupId = null
         };
 
@@ -138,7 +138,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _taxService.CreateShippingTaxOverrideAsync(dto);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Country", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -149,7 +149,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var dto = new CreateShippingTaxOverrideDto
         {
             CountryCode = "DE",
-            StateOrProvinceCode = "   ", // Whitespace should be normalized to null
+            RegionCode = "   ", // Whitespace should be normalized to null
             ShippingTaxGroupId = null
         };
 
@@ -157,8 +157,8 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _taxService.CreateShippingTaxOverrideAsync(dto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
-        result.ResultObject!.StateOrProvinceCode.ShouldBeNull();
+        result.Success.ShouldBeTrue();
+        result.ResultObject!.RegionCode.ShouldBeNull();
     }
 
     #endregion
@@ -172,10 +172,10 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var createResult = await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "FR",
-            StateOrProvinceCode = null,
+            RegionCode = null,
             ShippingTaxGroupId = null
         });
-        createResult.Successful.ShouldBeTrue();
+        createResult.Success.ShouldBeTrue();
         var id = createResult.ResultObject!.Id;
 
         // Act
@@ -204,17 +204,17 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "WA"
+            RegionCode = "WA"
         });
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "AL"
+            RegionCode = "AL"
         });
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "CA",
-            StateOrProvinceCode = "ON"
+            RegionCode = "ON"
         });
 
         // Act
@@ -225,9 +225,9 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         // Should be ordered by country, then state
         result[0].CountryCode.ShouldBe("CA");
         result[1].CountryCode.ShouldBe("US");
-        result[1].StateOrProvinceCode.ShouldBe("AL");
+        result[1].RegionCode.ShouldBe("AL");
         result[2].CountryCode.ShouldBe("US");
-        result[2].StateOrProvinceCode.ShouldBe("WA");
+        result[2].RegionCode.ShouldBe("WA");
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "CA",
+            RegionCode = "CA",
             ShippingTaxGroupId = null
         });
 
@@ -262,7 +262,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         // Assert
         result.ShouldNotBeNull();
         result.CountryCode.ShouldBe("US");
-        result.StateOrProvinceCode.ShouldBe("CA");
+        result.RegionCode.ShouldBe("CA");
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "GB",
-            StateOrProvinceCode = null, // Country-wide
+            RegionCode = null, // Country-wide
             ShippingTaxGroupId = null
         });
 
@@ -282,7 +282,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         // Assert - Should fall back to country-level override
         result.ShouldNotBeNull();
         result.CountryCode.ShouldBe("GB");
-        result.StateOrProvinceCode.ShouldBeNull();
+        result.RegionCode.ShouldBeNull();
     }
 
     [Fact]
@@ -295,13 +295,13 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = null, // Country-wide
+            RegionCode = null, // Country-wide
             ShippingTaxGroupId = countryTaxGroup.ResultObject!.Id
         });
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "TX",
+            RegionCode = "TX",
             ShippingTaxGroupId = stateTaxGroup.ResultObject!.Id
         });
 
@@ -310,7 +310,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
 
         // Assert - State override should take precedence
         result.ShouldNotBeNull();
-        result.StateOrProvinceCode.ShouldBe("TX");
+        result.RegionCode.ShouldBe("TX");
         result.ShippingTaxGroupId.ShouldBe(stateTaxGroup.ResultObject!.Id);
     }
 
@@ -331,7 +331,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "DE",
-            StateOrProvinceCode = null,
+            RegionCode = null,
             ShippingTaxGroupId = null
         });
 
@@ -364,10 +364,10 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var createResult = await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "FL",
+            RegionCode = "FL",
             ShippingTaxGroupId = null
         });
-        createResult.Successful.ShouldBeTrue();
+        createResult.Success.ShouldBeTrue();
         var id = createResult.ResultObject!.Id;
 
         var taxGroupResult = await _taxService.CreateTaxGroup("Florida Shipping Tax", 6m);
@@ -380,7 +380,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         });
 
         // Assert
-        updateResult.Successful.ShouldBeTrue();
+        updateResult.Success.ShouldBeTrue();
         updateResult.ResultObject!.ShippingTaxGroupId.ShouldBe(newTaxGroupId);
 
         // Verify persisted
@@ -396,10 +396,10 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var createResult = await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "GA",
+            RegionCode = "GA",
             ShippingTaxGroupId = taxGroupResult.ResultObject!.Id
         });
-        createResult.Successful.ShouldBeTrue();
+        createResult.Success.ShouldBeTrue();
         var id = createResult.ResultObject!.Id;
 
         // Act - Set to null (no shipping tax)
@@ -409,7 +409,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         });
 
         // Assert
-        updateResult.Successful.ShouldBeTrue();
+        updateResult.Success.ShouldBeTrue();
         updateResult.ResultObject!.ShippingTaxGroupId.ShouldBeNull();
     }
 
@@ -423,7 +423,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("not found", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -434,7 +434,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var createResult = await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "NC"
+            RegionCode = "NC"
         });
         var originalDateUpdated = createResult.ResultObject!.DateUpdated;
         var id = createResult.ResultObject!.Id;
@@ -463,7 +463,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var createResult = await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "SC"
+            RegionCode = "SC"
         });
         var id = createResult.ResultObject!.Id;
 
@@ -471,7 +471,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var deleteResult = await _taxService.DeleteShippingTaxOverrideAsync(id);
 
         // Assert
-        deleteResult.Successful.ShouldBeTrue();
+        deleteResult.Success.ShouldBeTrue();
 
         // Verify deleted
         var fetched = await _taxService.GetShippingTaxOverrideByIdAsync(id);
@@ -485,7 +485,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         var result = await _taxService.DeleteShippingTaxOverrideAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("not found", StringComparison.OrdinalIgnoreCase));
     }
 
@@ -503,7 +503,7 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "PA",
+            RegionCode = "PA",
             ShippingTaxGroupId = taxGroupId
         });
 
@@ -525,13 +525,13 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "OH",
+            RegionCode = "OH",
             ShippingTaxGroupId = taxGroupResult.ResultObject!.Id
         });
         await _taxService.CreateShippingTaxOverrideAsync(new CreateShippingTaxOverrideDto
         {
             CountryCode = "US",
-            StateOrProvinceCode = "MI",
+            RegionCode = "MI",
             ShippingTaxGroupId = null // No tax group
         });
 
@@ -540,8 +540,8 @@ public class ShippingTaxOverrideServiceTests : IClassFixture<ServiceTestFixture>
 
         // Assert
         result.Count.ShouldBe(2);
-        var withTaxGroup = result.First(r => r.StateOrProvinceCode == "OH");
-        var withoutTaxGroup = result.First(r => r.StateOrProvinceCode == "MI");
+        var withTaxGroup = result.First(r => r.RegionCode == "OH");
+        var withoutTaxGroup = result.First(r => r.RegionCode == "MI");
 
         withTaxGroup.ShippingTaxGroup.ShouldNotBeNull();
         withoutTaxGroup.ShippingTaxGroup.ShouldBeNull();

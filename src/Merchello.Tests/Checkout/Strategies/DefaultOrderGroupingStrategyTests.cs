@@ -494,7 +494,7 @@ public class DefaultOrderGroupingStrategyTests
                 city: "London",
                 postalCode: "SW1A 1AA",
                 countryCode: countryCode,
-                stateOrProvinceCode: null,
+                regionCode: null,
                 phone: null,
                 email: "test@example.com"),
             ShippingAddress = addressFactory.CreateFromFormData(
@@ -505,7 +505,7 @@ public class DefaultOrderGroupingStrategyTests
                 city: "London",
                 postalCode: "SW1A 1AA",
                 countryCode: countryCode,
-                stateOrProvinceCode: null,
+                regionCode: null,
                 phone: null,
                 email: "test@example.com"),
             Products = products ?? new Dictionary<Guid, Product>(),
@@ -544,7 +544,7 @@ public class DefaultOrderGroupingStrategyTests
             city: "London",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: null);
 

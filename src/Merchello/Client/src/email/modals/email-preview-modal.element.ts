@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { EmailPreviewDto } from "@email/types/email.types.js";
-import type { EmailPreviewModalData, EmailPreviewModalValue } from "./email-preview-modal.token.js";
+import type { EmailPreviewModalData, EmailPreviewModalValue } from "@email/modals/email-preview-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 @customElement("merchello-email-preview-modal")

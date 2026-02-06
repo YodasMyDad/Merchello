@@ -1,7 +1,7 @@
 import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { FilterGroupPickerModalData, FilterGroupPickerModalValue } from "./filter-group-picker-modal.token.js";
+import type { FilterGroupPickerModalData, FilterGroupPickerModalValue } from "@filters/modals/filter-group-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 

@@ -1,8 +1,8 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { PickerVariant } from "./product-picker.types.js";
-import { formatPrice } from "./product-picker.types.js";
+import type { PickerVariant } from "@shared/product-picker/product-picker.types.js";
+import { formatPrice } from "@shared/product-picker/product-picker.types.js";
 
 /**
  * Variant row component for the product picker.

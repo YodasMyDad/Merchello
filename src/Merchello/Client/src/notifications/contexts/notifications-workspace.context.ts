@@ -47,7 +47,7 @@ export class MerchelloNotificationsWorkspaceContext
     this.routes.setRoutes([
       {
         path: "edit/notifications",
-        component: () => import("../components/notifications-workspace-editor.element.js"),
+        component: () => import("@notifications/components/notifications-workspace-editor.element.js"),
         setup: () => {
           this.loadData();
         },

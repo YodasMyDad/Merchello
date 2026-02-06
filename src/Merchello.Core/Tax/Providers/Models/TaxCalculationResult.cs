@@ -1,9 +1,11 @@
+using Merchello.Core.Shared.Models;
+
 namespace Merchello.Core.Tax.Providers.Models;
 
 /// <summary>
 /// Result from a tax calculation request.
 /// </summary>
-public class TaxCalculationResult
+public class TaxCalculationResult : IResult
 {
     /// <summary>
     /// Whether the calculation succeeded.

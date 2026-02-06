@@ -5,7 +5,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.PaymentProviders.View",
     name: "Payment Providers View",
-    js: () => import("./components/payment-providers-list.element.js"),
+    js: () => import("@payment-providers/components/payment-providers-list.element.js"),
     weight: 100,
     meta: {
       label: "Payments",
@@ -25,7 +25,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.PaymentProvider.Config.Modal",
     name: "Payment Provider Configuration Modal",
-    js: () => import("./modals/payment-provider-config-modal.element.js"),
+    js: () => import("@payment-providers/modals/payment-provider-config-modal.element.js"),
   },
 
   // Modal for configuring payment methods within a provider
@@ -33,7 +33,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.PaymentMethods.Config.Modal",
     name: "Payment Methods Configuration Modal",
-    js: () => import("./modals/payment-methods-config-modal.element.js"),
+    js: () => import("@payment-providers/modals/payment-methods-config-modal.element.js"),
   },
 
   // Modal for editing a single payment method's display settings
@@ -41,7 +41,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.PaymentMethod.Edit.Modal",
     name: "Payment Method Edit Modal",
-    js: () => import("./modals/payment-method-edit-modal.element.js"),
+    js: () => import("@payment-providers/modals/payment-method-edit-modal.element.js"),
   },
 
   // Modal for displaying setup instructions
@@ -49,7 +49,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.SetupInstructions.Modal",
     name: "Setup Instructions Modal",
-    js: () => import("./modals/setup-instructions-modal.element.js"),
+    js: () => import("@payment-providers/modals/setup-instructions-modal.element.js"),
   },
 
   // Modal for testing a payment provider
@@ -57,7 +57,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TestPaymentProvider.Modal",
     name: "Test Payment Provider Modal",
-    js: () => import("./modals/test-provider-modal.element.js"),
+    js: () => import("@payment-providers/modals/test-provider-modal.element.js"),
   },
 ];
 

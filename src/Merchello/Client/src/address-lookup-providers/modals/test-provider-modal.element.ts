@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type {
   TestAddressLookupProviderModalData,
   TestAddressLookupProviderModalValue,
-} from "./test-provider-modal.token.js";
+} from "@address-lookup-providers/modals/test-provider-modal.token.js";
 import type { TestAddressLookupProviderResultDto, AddressLookupProviderDto } from '@address-lookup-providers/types/address-lookup-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 

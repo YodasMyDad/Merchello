@@ -7,7 +7,7 @@ import {
   formatShortDate,
   formatDate,
   formatDateTime,
-} from "./formatting.js";
+} from "@shared/utils/formatting.js";
 
 describe("formatting utilities", () => {
   describe("formatCurrency", () => {

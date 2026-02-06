@@ -1,7 +1,9 @@
 @model Merchello.Site.Shared.Components.ProductOptionSelector.ProductOptionSelectorViewModel
 
 <div class="option-group mb-3">
-    <label class="form-label fw-semibold">@Model.Name</label>
+    <label class="form-label fw-semibold"
+           data-option-name="@Model.Name"
+           x-text="typeof getOptionLabel === 'function' ? getOptionLabel('@Model.OptionAlias', $el.dataset.optionName) : $el.dataset.optionName">@Model.Name</label>
 
     @if (Model.UiType == "dropdown")
     {

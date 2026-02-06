@@ -10,7 +10,7 @@ import {
 import type {
   TestFulfilmentProviderModalData,
   TestFulfilmentProviderModalValue,
-} from "./test-provider-modal.token.js";
+} from "@fulfilment-providers/modals/test-provider-modal.token.js";
 
 type TabId = "connection" | "product-sync" | "inventory-sync";
 

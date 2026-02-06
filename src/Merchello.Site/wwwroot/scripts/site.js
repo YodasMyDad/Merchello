@@ -235,7 +235,13 @@ document.addEventListener('alpine:init', () => {
         },
 
         get images() {
-            return this.currentVariant?.images || [];
+            const variantImages = this.currentVariant?.images || [];
+            const selectedSwatchImage = this.getSelectedSwatchImage();
+            if (!selectedSwatchImage) {
+                return variantImages;
+            }
+
+            return [selectedSwatchImage, ...variantImages.filter(image => image !== selectedSwatchImage)];
         },
 
         get sku() {
@@ -271,12 +277,45 @@ document.addEventListener('alpine:init', () => {
 
         // Methods
         init() {
+            this.syncSelectedOptionsFromVariant(this.currentVariant);
+
             // Initialize Swiper instances after DOM is ready
             this.$nextTick(() => {
                 this.initGallerySwipers();
                 this.initOptionSwipers();
                 this.loadProductUpsells();
             });
+        },
+
+        getSelectedOptionValue(optionAlias) {
+            const option = this.variantOptions.find(opt => opt.alias === optionAlias);
+            const selectedValueId = this.selectedOptions[optionAlias];
+            return option?.values?.find(value => value.id === selectedValueId) || null;
+        },
+
+        getOptionLabel(optionAlias, optionName) {
+            const selectedValue = this.getSelectedOptionValue(optionAlias);
+            if (!selectedValue?.name) {
+                return optionName;
+            }
+
+            return `${optionName}: ${selectedValue.name}`;
+        },
+
+        getSelectedSwatchImage() {
+            for (const option of this.variantOptions) {
+                if (option.uiType !== 'image') continue;
+
+                const selectedValueId = this.selectedOptions[option.alias];
+                if (!selectedValueId) continue;
+
+                const selectedValue = option.values?.find(value => value.id === selectedValueId);
+                if (selectedValue?.mediaUrl) {
+                    return selectedValue.mediaUrl;
+                }
+            }
+
+            return null;
         },
 
         destroyGallerySwipers() {
@@ -339,11 +378,26 @@ document.addEventListener('alpine:init', () => {
         },
 
         selectOption(optionAlias, valueId) {
-            this.selectedOptions[optionAlias] = valueId;
+            this.selectedOptions = {
+                ...this.selectedOptions,
+                [optionAlias]: valueId
+            };
             this.updateVariant();
         },
 
-        toggleAddon(optionId, valueId, price, displayPrice, isChecked) {
+        toggleAddon(optionId, valueId, price, displayPrice, isChecked, isMultiSelect = true) {
+            if (!isMultiSelect) {
+                if (isChecked) {
+                    this.selectedAddons = this.selectedAddons.filter(a => a.optionId !== optionId);
+                    this.selectedAddons.push({ optionId, valueId, price, displayPrice });
+                } else {
+                    this.selectedAddons = this.selectedAddons.filter(
+                        a => !(a.optionId === optionId && a.valueId === valueId)
+                    );
+                }
+                return;
+            }
+
             if (isChecked) {
                 // Add addon
                 if (!this.selectedAddons.find(a => a.optionId === optionId && a.valueId === valueId)) {
@@ -372,19 +426,23 @@ document.addEventListener('alpine:init', () => {
 
         updateVariant() {
             // Build the variant options key from selected option value IDs
-            // The key is built by joining value IDs sorted alphabetically (matching C# OrderBy(x => x.Id))
+            // The key is built by joining value IDs in option order (comma-separated, matching backend generation)
             const selectedValueIds = this.variantOptions
                 .map(opt => this.selectedOptions[opt.alias])
                 .filter(id => id);
 
-            // Sort IDs alphabetically to match C# GUID ordering
-            const variantKey = selectedValueIds.sort().join('-');
+            if (selectedValueIds.length !== this.variantOptions.length) {
+                return;
+            }
+
+            const variantKey = selectedValueIds.map(id => id.toLowerCase()).join(',');
 
             // Find matching variant
             const variant = this.variants.find(v => v.variantOptionsKey === variantKey);
 
             if (variant) {
                 this.selectedVariantId = variant.id;
+                this.syncSelectedOptionsFromVariant(variant);
 
                 // Update URL
                 const newUrl = variant.url || this.productUrl;
@@ -400,6 +458,27 @@ document.addEventListener('alpine:init', () => {
                     }, 50);
                 });
             }
+        },
+
+        syncSelectedOptionsFromVariant(variant) {
+            if (!variant?.variantOptionsKey) return;
+
+            const variantValueIds = new Set(
+                variant.variantOptionsKey
+                    .split(',')
+                    .map(id => id.trim().toLowerCase())
+                    .filter(id => id.length > 0)
+            );
+
+            const nextSelectedOptions = { ...this.selectedOptions };
+            this.variantOptions.forEach(option => {
+                const matchingValue = option.values?.find(value => variantValueIds.has(value.id.toLowerCase()));
+                if (matchingValue) {
+                    nextSelectedOptions[option.alias] = matchingValue.id;
+                }
+            });
+
+            this.selectedOptions = nextSelectedOptions;
         },
 
         async addToCart() {

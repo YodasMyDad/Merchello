@@ -10,8 +10,8 @@ public class FedExAddress
     [JsonPropertyName("city")]
     public string? City { get; set; }
 
-    [JsonPropertyName("stateOrProvinceCode")]
-    public string? StateOrProvinceCode { get; set; }
+    [JsonPropertyName("regionCode")]
+    public string? RegionCode { get; set; }
 
     [JsonPropertyName("postalCode")]
     public string PostalCode { get; set; } = null!;

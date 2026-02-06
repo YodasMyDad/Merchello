@@ -5,7 +5,7 @@ export const manifests: ManifestPropertyEditorUi[] = [
     type: "propertyEditorUi",
     alias: "Merchello.PropertyEditorUi.FilterGroupPicker",
     name: "Merchello Filter Group Picker",
-    element: () => import("./property-editor-ui-filter-group-picker.element.js"),
+    element: () => import("@property-editors/filter-group-picker/property-editor-ui-filter-group-picker.element.js"),
     meta: {
       label: "Filter Group Picker",
       icon: "icon-filter",

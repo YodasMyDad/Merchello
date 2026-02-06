@@ -402,7 +402,7 @@ public class MerchelloCheckoutController(
                     Email = session?.BillingAddress.Email
                 }, ct);
 
-            if (initResult.Successful && initResult.ResultObject != null)
+            if (initResult.Success && initResult.ResultObject != null)
             {
                 // Update basket with calculated totals
                 basket = initResult.ResultObject.Basket;

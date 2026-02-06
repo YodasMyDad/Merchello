@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { CollectionModalData, CollectionModalValue } from "./collection-modal.token.js";
+import type { CollectionModalData, CollectionModalValue } from "@collections/modals/collection-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 @customElement("merchello-collection-modal")

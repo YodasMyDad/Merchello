@@ -69,7 +69,7 @@ public static class ProductServiceDbSeedExtensions
         };
 
         var createResult = await productService.CreateProductRoot(createRequest, cancellationToken);
-        if (!createResult.Successful || createResult.ResultObject == null)
+        if (!createResult.Success || createResult.ResultObject == null)
         {
             CopyErrorMessages(createResult, result);
             return result;
@@ -88,7 +88,7 @@ public static class ProductServiceDbSeedExtensions
         };
 
         var updateResult = await productService.UpdateProductRoot(productRootId, updateRequest, cancellationToken);
-        if (!updateResult.Successful)
+        if (!updateResult.Success)
         {
             CopyErrorMessages(updateResult, result);
             return result;
@@ -140,7 +140,7 @@ public static class ProductServiceDbSeedExtensions
             }
 
             var optionsResult = await productService.SaveProductOptions(productRootId, options, cancellationToken);
-            if (!optionsResult.Successful)
+            if (!optionsResult.Success)
             {
                 CopyErrorMessages(optionsResult, result);
                 return result;

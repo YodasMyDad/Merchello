@@ -6,6 +6,7 @@ using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -18,10 +19,14 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class SettingsApiController(
     IOptions<MerchelloSettings> settings,
+    IConfiguration configuration,
     ILocalityCatalog localityCatalog,
     MerchelloDataTypeInitializer dataTypeInitializer,
     ILogger<SettingsApiController> logger) : MerchelloApiControllerBase
 {
+    private static readonly string[] DefaultOptionTypeAliases = ["colour", "size", "material", "pattern"];
+    private static readonly string[] DefaultOptionUiAliases = ["dropdown", "colour", "image", "checkbox", "radiobutton"];
+
     /// <summary>
     /// Get store settings for the admin UI
     /// </summary>
@@ -80,13 +85,43 @@ public class SettingsApiController(
     [ProducesResponseType<ProductOptionSettingsDto>(StatusCodes.Status200OK)]
     public IActionResult GetProductOptionSettings()
     {
+        var optionTypeAliases = ResolveAliases(
+            configuration.GetSection("Merchello:OptionTypeAliases").Get<string[]>(),
+            settings.Value.OptionTypeAliases,
+            DefaultOptionTypeAliases);
+        var optionUiAliases = ResolveAliases(
+            configuration.GetSection("Merchello:OptionUiAliases").Get<string[]>(),
+            settings.Value.OptionUiAliases,
+            DefaultOptionUiAliases);
+
         return Ok(new ProductOptionSettingsDto
         {
-            OptionTypeAliases = settings.Value.OptionTypeAliases,
-            OptionUiAliases = settings.Value.OptionUiAliases,
+            OptionTypeAliases = optionTypeAliases,
+            OptionUiAliases = optionUiAliases,
             MaxProductOptions = settings.Value.MaxProductOptions,
             MaxOptionValuesPerOption = settings.Value.MaxOptionValuesPerOption
         });
+    }
+
+    private static string[] ResolveAliases(string[]? configuredAliases, string[]? boundAliases, string[] defaults)
+    {
+        if (configuredAliases is { Length: > 0 })
+        {
+            return NormalizeAliases(configuredAliases, defaults);
+        }
+
+        return NormalizeAliases(boundAliases, defaults);
+    }
+
+    private static string[] NormalizeAliases(IEnumerable<string>? aliases, string[] defaults)
+    {
+        var normalized = aliases?
+            .Where(alias => !string.IsNullOrWhiteSpace(alias))
+            .Select(alias => alias.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
+
+        return normalized.Length > 0 ? normalized : defaults;
     }
 
     /// <summary>

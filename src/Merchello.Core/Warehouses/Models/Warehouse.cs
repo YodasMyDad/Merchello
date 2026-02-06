@@ -116,7 +116,7 @@ public class Warehouse
     public void SetProviderConfigs(List<WarehouseProviderConfig>? configs) =>
         ProviderConfigsJson = configs is { Count: > 0 } ? JsonSerializer.Serialize(configs) : null;
 
-    public bool CanServeRegion(string countryCode, string? stateOrProvinceCode = null)
+    public bool CanServeRegion(string countryCode, string? regionCode = null)
     {
         if (string.IsNullOrWhiteSpace(countryCode))
         {
@@ -129,19 +129,19 @@ public class Warehouse
         }
 
         var normalizedCountry = countryCode.ToUpperInvariant();
-        var normalizedState = stateOrProvinceCode?.ToUpperInvariant();
+        var normalizedState = regionCode?.ToUpperInvariant();
 
         bool RegionMatches(WarehouseServiceRegion region)
         {
             if (region.CountryCode == "*")
             {
-                if (string.IsNullOrWhiteSpace(region.StateOrProvinceCode))
+                if (string.IsNullOrWhiteSpace(region.RegionCode))
                 {
                     return true;
                 }
 
                 return normalizedState != null &&
-                       string.Equals(region.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase);
+                       string.Equals(region.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase);
             }
 
             if (!string.Equals(region.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase))
@@ -149,13 +149,13 @@ public class Warehouse
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(region.StateOrProvinceCode))
+            if (string.IsNullOrWhiteSpace(region.RegionCode))
             {
                 return true;
             }
 
             return normalizedState != null &&
-                   string.Equals(region.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase);
+                   string.Equals(region.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase);
         }
 
         var relevantRegions = ServiceRegions
@@ -171,8 +171,8 @@ public class Warehouse
         if (!string.IsNullOrWhiteSpace(normalizedState))
         {
             var stateSpecificRegions = relevantRegions
-                .Where(r => !string.IsNullOrWhiteSpace(r.StateOrProvinceCode) &&
-                           string.Equals(r.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase))
+                .Where(r => !string.IsNullOrWhiteSpace(r.RegionCode) &&
+                           string.Equals(r.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (stateSpecificRegions.Any())
@@ -184,7 +184,7 @@ public class Warehouse
 
         // Check country-level rules (only those without specific state/province)
         var countryLevelRegions = relevantRegions
-            .Where(r => string.IsNullOrWhiteSpace(r.StateOrProvinceCode))
+            .Where(r => string.IsNullOrWhiteSpace(r.RegionCode))
             .ToList();
 
         if (countryLevelRegions.Any())

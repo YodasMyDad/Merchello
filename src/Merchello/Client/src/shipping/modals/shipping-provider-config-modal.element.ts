@@ -6,7 +6,7 @@ import type { ShippingProviderFieldDto } from "@shipping/types/shipping.types.js
 import type {
   ShippingProviderConfigModalData,
   ShippingProviderConfigModalValue,
-} from "./shipping-provider-config-modal.token.js";
+} from "@shipping/modals/shipping-provider-config-modal.token.js";
 
 @customElement("merchello-shipping-provider-config-modal")
 export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseElement<

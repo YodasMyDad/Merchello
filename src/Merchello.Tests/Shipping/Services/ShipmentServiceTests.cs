@@ -57,7 +57,7 @@ public class ShipmentServiceTests
         var result = await _shipmentService.CreateShipmentAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.OrderId.ShouldBe(order.Id);
         result.ResultObject.Carrier.ShouldBe("UPS");
@@ -86,7 +86,7 @@ public class ShipmentServiceTests
         var result = await _shipmentService.CreateShipmentAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.ResultObject.ShouldBeNull();
         result.Messages.ShouldContain(m => m.Message == "Order not found");
         result.Messages.ShouldContain(m => m.ResultMessageType == ResultMessageType.Error);
@@ -151,7 +151,7 @@ public class ShipmentServiceTests
         var result = await _shipmentService.UpdateShipmentStatusAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Status.ShouldBe(ShipmentStatus.Shipped);
         result.ResultObject.Carrier.ShouldBe("FedEx");
@@ -190,7 +190,7 @@ public class ShipmentServiceTests
         var result = await _shipmentService.UpdateShipmentStatusAsync(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Status.ShouldBe(ShipmentStatus.Delivered);
         result.ResultObject.ActualDeliveryDate.ShouldNotBeNull();
@@ -324,7 +324,7 @@ public class ShipmentServiceTests
             TrackingNumber = "TRACK-123"
         });
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         return result.ResultObject!;
     }
 

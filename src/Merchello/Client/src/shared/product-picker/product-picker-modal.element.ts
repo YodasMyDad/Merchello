@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { ProductPickerModalData, ProductPickerModalValue } from "./product-picker-modal.token.js";
+import type { ProductPickerModalData, ProductPickerModalValue } from "@shared/product-picker/product-picker-modal.token.js";
 import type {
   ProductPickerSelection,
   PickerProductRoot,
@@ -12,11 +12,11 @@ import type {
   ShippingOptionForPicker,
   SelectedAddon,
   PickerAddonOption,
-} from "./product-picker.types.js";
+} from "@shared/product-picker/product-picker.types.js";
 import type { ProductListItemDto, ProductListParams, ProductRootDetailDto } from "@products/types/product.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { getVariantImageUrl, buildOptionValuesDisplay, formatPrice } from "./product-picker.types.js";
-import "./product-picker-list.element.js";
+import { getVariantImageUrl, buildOptionValuesDisplay, formatPrice } from "@shared/product-picker/product-picker.types.js";
+import "@shared/product-picker/product-picker-list.element.js";
 
 @customElement("merchello-product-picker-modal")
 export class MerchelloProductPickerModalElement extends UmbModalBaseElement<

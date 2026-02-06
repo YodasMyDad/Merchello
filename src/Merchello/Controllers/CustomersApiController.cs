@@ -84,7 +84,7 @@ public class CustomersApiController(
         };
 
         var result = await customerService.UpdateAsync(parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -134,9 +134,10 @@ public class CustomersApiController(
     /// </summary>
     [HttpGet("customers/tags")]
     [ProducesResponseType<List<string>>(StatusCodes.Status200OK)]
-    public async Task<List<string>> GetAllTags(CancellationToken ct)
+    public async Task<List<string>> GetAllTags([FromQuery] int maxResults = 1000, CancellationToken ct = default)
     {
-        return await customerService.GetAllUniqueTagsAsync(ct);
+        var tags = await customerService.GetAllUniqueTagsAsync(ct);
+        return tags.Take(maxResults).ToList();
     }
 
     /// <summary>

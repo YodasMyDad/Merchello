@@ -86,12 +86,12 @@ public class EnsureShippingTaxOverridesHandler(
                     new CreateShippingTaxOverrideDto
                     {
                         CountryCode = "US",
-                        StateOrProvinceCode = stateCode,
+                        RegionCode = stateCode,
                         ShippingTaxGroupId = null // No shipping tax in this state
                     },
                     cancellationToken);
 
-                if (result.Successful)
+                if (result.Success)
                 {
                     seededCount++;
                 }

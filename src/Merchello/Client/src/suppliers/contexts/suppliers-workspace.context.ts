@@ -31,7 +31,7 @@ export class MerchelloSuppliersWorkspaceContext
       {
         path: "edit/:unique",
         component: () =>
-          import("../components/suppliers-workspace-editor.element.js"),
+          import("@suppliers/components/suppliers-workspace-editor.element.js"),
         setup: (_component, _info) => {
           // Static workspace - no dynamic loading needed
         },

@@ -15,7 +15,7 @@ import { getStoreSettings } from "@api/store-settings.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
-import "./discount-table.element.js";
+import "@discounts/components/discount-table.element.js";
 import { MERCHELLO_SELECT_DISCOUNT_TYPE_MODAL } from "@discounts/modals/select-discount-type-modal.token.js";
 import { navigateToDiscountDetail, navigateToDiscountCreate } from "@shared/utils/navigation.js";
 

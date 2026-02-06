@@ -30,9 +30,9 @@ import {
   getUpsellsListHref,
   replaceToUpsellDetail,
 } from "@shared/utils/navigation.js";
-import "./trigger-rule-builder.element.js";
-import "./recommendation-rule-builder.element.js";
-import "./eligibility-rule-builder.element.js";
+import "@upsells/components/trigger-rule-builder.element.js";
+import "@upsells/components/recommendation-rule-builder.element.js";
+import "@upsells/components/eligibility-rule-builder.element.js";
 
 @customElement("merchello-upsell-detail")
 export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {

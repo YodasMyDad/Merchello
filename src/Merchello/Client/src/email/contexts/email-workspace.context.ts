@@ -46,7 +46,7 @@ export class MerchelloEmailsWorkspaceContext
       // Create email route
       {
         path: "edit/emails/create",
-        component: () => import("../components/email-editor.element.js"),
+        component: () => import("@email/components/email-editor.element.js"),
         setup: () => {
           this.#isNew = true;
           this.#emailId = undefined;
@@ -56,7 +56,7 @@ export class MerchelloEmailsWorkspaceContext
       // Email detail/edit route
       {
         path: "edit/emails/:id",
-        component: () => import("../components/email-editor.element.js"),
+        component: () => import("@email/components/email-editor.element.js"),
         setup: (_component, info) => {
           this.#isNew = false;
           const id = info.match.params.id;
@@ -66,7 +66,7 @@ export class MerchelloEmailsWorkspaceContext
       // Emails list route
       {
         path: "edit/emails",
-        component: () => import("../components/email-workspace-editor.element.js"),
+        component: () => import("@email/components/email-workspace-editor.element.js"),
         setup: () => {
           // Reset email state when viewing list
           this.#emailId = undefined;

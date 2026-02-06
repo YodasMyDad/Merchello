@@ -155,7 +155,7 @@ public class FlatRateShippingProvider(
                 option,
                 totalWeightKg,
                 request.CountryCode,
-                request.StateOrProvinceCode);
+                request.RegionCode);
 
             errors.AddRange(itemErrors);
 
@@ -241,12 +241,12 @@ public class FlatRateShippingProvider(
         ShippingOptionSnapshot option,
         decimal totalWeightKg,
         string countryCode,
-        string? stateOrProvinceCode)
+        string? regionCode)
     {
         List<string> errors = [];
 
         // 1. Get base cost from ShippingCost table
-        var baseCost = ResolveBaseCost(option.Costs, countryCode, stateOrProvinceCode);
+        var baseCost = ResolveBaseCost(option.Costs, countryCode, regionCode);
 
         if (!baseCost.HasValue)
         {
@@ -259,7 +259,7 @@ public class FlatRateShippingProvider(
             option.WeightTiers,
             totalWeightKg,
             countryCode,
-            stateOrProvinceCode);
+            regionCode);
 
         // 3. Total = base + weight surcharge
         var totalCost = baseCost.Value + weightSurcharge;
@@ -273,17 +273,17 @@ public class FlatRateShippingProvider(
     private static decimal? ResolveBaseCost(
         IReadOnlyCollection<ShippingCostSnapshot> costs,
         string countryCode,
-        string? stateOrProvinceCode)
+        string? regionCode)
     {
         var normalizedCountry = countryCode.ToUpperInvariant();
-        var normalizedState = stateOrProvinceCode?.ToUpperInvariant();
+        var normalizedState = regionCode?.ToUpperInvariant();
 
         // Priority 1: Exact state match
         if (!string.IsNullOrWhiteSpace(normalizedState))
         {
             var stateMatch = costs.FirstOrDefault(c =>
                 string.Equals(c.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(c.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase));
+                string.Equals(c.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase));
             if (stateMatch != null)
                 return stateMatch.Cost;
         }
@@ -291,13 +291,13 @@ public class FlatRateShippingProvider(
         // Priority 2: Country-level cost
         var countryMatch = costs.FirstOrDefault(c =>
             string.Equals(c.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-            c.StateOrProvinceCode == null);
+            c.RegionCode == null);
         if (countryMatch != null)
             return countryMatch.Cost;
 
         // Priority 3: Universal fallback
         var universalMatch = costs.FirstOrDefault(c =>
-            c.CountryCode == "*" && c.StateOrProvinceCode == null);
+            c.CountryCode == "*" && c.RegionCode == null);
         return universalMatch?.Cost;
     }
 
@@ -309,13 +309,13 @@ public class FlatRateShippingProvider(
         IReadOnlyCollection<ShippingWeightTierSnapshot> tiers,
         decimal weightKg,
         string countryCode,
-        string? stateOrProvinceCode)
+        string? regionCode)
     {
         if (tiers.Count == 0 || weightKg <= 0)
             return 0;
 
         var normalizedCountry = countryCode.ToUpperInvariant();
-        var normalizedState = stateOrProvinceCode?.ToUpperInvariant();
+        var normalizedState = regionCode?.ToUpperInvariant();
 
         // Find applicable tier with priority: state > country > universal
         ShippingWeightTierSnapshot? matchingTier = null;
@@ -338,11 +338,11 @@ public class FlatRateShippingProvider(
             }
             else if (string.Equals(tier.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase))
             {
-                if (tier.StateOrProvinceCode == null)
+                if (tier.RegionCode == null)
                 {
                     priority = 2; // Country match
                 }
-                else if (string.Equals(tier.StateOrProvinceCode, normalizedState, StringComparison.OrdinalIgnoreCase))
+                else if (string.Equals(tier.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase))
                 {
                     priority = 3; // State match (highest priority)
                 }

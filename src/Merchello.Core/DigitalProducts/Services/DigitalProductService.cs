@@ -415,7 +415,7 @@ public class DigitalProductService(
             new CreateDownloadLinksParameters { InvoiceId = parameters.InvoiceId },
             ct);
 
-        if (!createResult.Successful)
+        if (!createResult.Success)
         {
             result.Messages = createResult.Messages;
             return result;

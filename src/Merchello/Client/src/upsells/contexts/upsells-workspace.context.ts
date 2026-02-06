@@ -51,7 +51,7 @@ export class MerchelloUpsellsWorkspaceContext
     this.routes.setRoutes([
       {
         path: "edit/upsells/create",
-        component: () => import("../components/upsell-detail.element.js"),
+        component: () => import("@upsells/components/upsell-detail.element.js"),
         setup: () => {
           this.#isNew = true;
           this.#upsellId = undefined;
@@ -60,7 +60,7 @@ export class MerchelloUpsellsWorkspaceContext
       },
       {
         path: "edit/upsells/:id",
-        component: () => import("../components/upsell-detail.element.js"),
+        component: () => import("@upsells/components/upsell-detail.element.js"),
         setup: (_component, info) => {
           this.#isNew = false;
           const id = info.match.params.id;
@@ -69,7 +69,7 @@ export class MerchelloUpsellsWorkspaceContext
       },
       {
         path: "edit/upsells",
-        component: () => import("../components/upsells-workspace-editor.element.js"),
+        component: () => import("@upsells/components/upsells-workspace-editor.element.js"),
         setup: () => {
           this.#upsellId = undefined;
           this.#upsell.setValue(undefined);

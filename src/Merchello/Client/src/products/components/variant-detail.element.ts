@@ -10,7 +10,7 @@ import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, Update
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
-import { getProductDetailHref } from "@shared/utils/navigation.js";
+import { getProductVariantsTabHref } from "@shared/utils/navigation.js";
 
 // Shared components
 import "@products/components/variant-basic-info.element.js";
@@ -560,7 +560,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       <umb-footer-layout slot="footer">
         <!-- Breadcrumb in default slot -->
         <uui-breadcrumbs>
-          <uui-breadcrumb-item href=${getProductDetailHref(this._product?.id || "")}>
+          <uui-breadcrumb-item href=${getProductVariantsTabHref(this._product?.id || "")}>
             ${this._product?.rootName || "Product"}
           </uui-breadcrumb-item>
           <uui-breadcrumb-item>
@@ -608,7 +608,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     }
 
     const activeTab = this._getActiveTab();
-    const backHref = this._product?.id ? getProductDetailHref(this._product.id) : "";
+    const backHref = this._product?.id ? getProductVariantsTabHref(this._product.id) : "";
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>

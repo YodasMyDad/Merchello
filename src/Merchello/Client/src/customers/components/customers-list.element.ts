@@ -9,7 +9,7 @@ import type { CustomerListItemDto, CustomerListParams } from "@customers/types/c
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
-import { MERCHELLO_CUSTOMER_EDIT_MODAL } from "../modals/customer-edit-modal.token.js";
+import { MERCHELLO_CUSTOMER_EDIT_MODAL } from "@customers/modals/customer-edit-modal.token.js";
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";

@@ -30,17 +30,17 @@ public class ShippingTaxApiController(
         {
             var countryName = await localityCatalog.TryGetCountryNameAsync(item.CountryCode);
             string? regionName = null;
-            if (!string.IsNullOrEmpty(item.StateOrProvinceCode))
+            if (!string.IsNullOrEmpty(item.RegionCode))
             {
                 regionName = await localityCatalog.TryGetRegionNameAsync(
-                    item.CountryCode, item.StateOrProvinceCode);
+                    item.CountryCode, item.RegionCode);
             }
 
             result.Add(new ShippingTaxOverrideDto
             {
                 Id = item.Id,
                 CountryCode = item.CountryCode,
-                StateOrProvinceCode = item.StateOrProvinceCode,
+                RegionCode = item.RegionCode,
                 ShippingTaxGroupId = item.ShippingTaxGroupId,
                 ShippingTaxGroupName = item.ShippingTaxGroup?.Name,
                 ShippingTaxGroupPercentage = item.ShippingTaxGroup?.TaxPercentage,
@@ -70,17 +70,17 @@ public class ShippingTaxApiController(
 
         var countryName = await localityCatalog.TryGetCountryNameAsync(item.CountryCode);
         string? regionName = null;
-        if (!string.IsNullOrEmpty(item.StateOrProvinceCode))
+        if (!string.IsNullOrEmpty(item.RegionCode))
         {
             regionName = await localityCatalog.TryGetRegionNameAsync(
-                item.CountryCode, item.StateOrProvinceCode);
+                item.CountryCode, item.RegionCode);
         }
 
         return Ok(new ShippingTaxOverrideDto
         {
             Id = item.Id,
             CountryCode = item.CountryCode,
-            StateOrProvinceCode = item.StateOrProvinceCode,
+            RegionCode = item.RegionCode,
             ShippingTaxGroupId = item.ShippingTaxGroupId,
             ShippingTaxGroupName = item.ShippingTaxGroup?.Name,
             ShippingTaxGroupPercentage = item.ShippingTaxGroup?.TaxPercentage,
@@ -102,7 +102,7 @@ public class ShippingTaxApiController(
         CancellationToken ct)
     {
         var result = await taxService.CreateShippingTaxOverrideAsync(dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create shipping tax override.");
         }
@@ -110,10 +110,10 @@ public class ShippingTaxApiController(
         var item = result.ResultObject!;
         var countryName = await localityCatalog.TryGetCountryNameAsync(item.CountryCode);
         string? regionName = null;
-        if (!string.IsNullOrEmpty(item.StateOrProvinceCode))
+        if (!string.IsNullOrEmpty(item.RegionCode))
         {
             regionName = await localityCatalog.TryGetRegionNameAsync(
-                item.CountryCode, item.StateOrProvinceCode);
+                item.CountryCode, item.RegionCode);
         }
 
         // Fetch tax group if assigned
@@ -130,7 +130,7 @@ public class ShippingTaxApiController(
         {
             Id = item.Id,
             CountryCode = item.CountryCode,
-            StateOrProvinceCode = item.StateOrProvinceCode,
+            RegionCode = item.RegionCode,
             ShippingTaxGroupId = item.ShippingTaxGroupId,
             ShippingTaxGroupName = taxGroupName,
             ShippingTaxGroupPercentage = taxGroupPercentage,
@@ -156,7 +156,7 @@ public class ShippingTaxApiController(
         CancellationToken ct)
     {
         var result = await taxService.UpdateShippingTaxOverrideAsync(id, dto, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update shipping tax override.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -167,10 +167,10 @@ public class ShippingTaxApiController(
         var item = result.ResultObject!;
         var countryName = await localityCatalog.TryGetCountryNameAsync(item.CountryCode);
         string? regionName = null;
-        if (!string.IsNullOrEmpty(item.StateOrProvinceCode))
+        if (!string.IsNullOrEmpty(item.RegionCode))
         {
             regionName = await localityCatalog.TryGetRegionNameAsync(
-                item.CountryCode, item.StateOrProvinceCode);
+                item.CountryCode, item.RegionCode);
         }
 
         // Fetch tax group if assigned
@@ -187,7 +187,7 @@ public class ShippingTaxApiController(
         {
             Id = item.Id,
             CountryCode = item.CountryCode,
-            StateOrProvinceCode = item.StateOrProvinceCode,
+            RegionCode = item.RegionCode,
             ShippingTaxGroupId = item.ShippingTaxGroupId,
             ShippingTaxGroupName = taxGroupName,
             ShippingTaxGroupPercentage = taxGroupPercentage,
@@ -208,7 +208,7 @@ public class ShippingTaxApiController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var result = await taxService.DeleteShippingTaxOverrideAsync(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to delete shipping tax override.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)

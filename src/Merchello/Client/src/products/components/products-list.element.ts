@@ -18,8 +18,8 @@ import { MERCHELLO_CREATE_PRODUCT_MODAL } from "@products/modals/create-product-
 import { navigateToProductDetail } from "@shared/utils/navigation.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
-import "./product-table.element.js";
-import type { ProductSelectionChangeEventDetail } from "./product-table.element.js";
+import "@products/components/product-table.element.js";
+import type { ProductSelectionChangeEventDetail } from "@products/components/product-table.element.js";
 
 @customElement("merchello-products-list")
 export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {

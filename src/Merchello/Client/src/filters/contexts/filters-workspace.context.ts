@@ -31,7 +31,7 @@ export class MerchelloFiltersWorkspaceContext
       {
         path: "edit/:unique",
         component: () =>
-          import("../components/filters-workspace-editor.element.js"),
+          import("@filters/components/filters-workspace-editor.element.js"),
         setup: (_component, _info) => {
           // Static workspace - no dynamic loading needed
         },

@@ -70,7 +70,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = invoice.Total
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -95,7 +95,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = partialAmount
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -118,7 +118,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = invoice.Total
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
         var payment = paymentResult.ResultObject!;
 
         _fixture.DbContext.ChangeTracker.Clear();
@@ -130,7 +130,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
             Amount = invoice.Total,
             Reason = "Customer request"
         });
-        refundResult.Successful.ShouldBeTrue();
+        refundResult.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -155,7 +155,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
             TransactionId = transactionId,
             Amount = invoice.Total
         });
-        firstResult.Successful.ShouldBeTrue();
+        firstResult.Success.ShouldBeTrue();
         var firstPayment = firstResult.ResultObject!;
 
         _fixture.DbContext.ChangeTracker.Clear();
@@ -170,7 +170,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
         });
 
         // Assert - Should return the existing payment rather than creating a duplicate
-        secondResult.Successful.ShouldBeTrue();
+        secondResult.Success.ShouldBeTrue();
         var secondPayment = secondResult.ResultObject!;
         secondPayment.Id.ShouldBe(firstPayment.Id);
     }
@@ -249,7 +249,7 @@ public class PaymentLifecycleIntegrationTests : IClassFixture<ServiceTestFixture
         };
 
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
 

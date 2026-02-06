@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { SupplierModalData, SupplierModalValue } from "./supplier-modal.token.js";
+import type { SupplierModalData, SupplierModalValue } from "@suppliers/modals/supplier-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
 

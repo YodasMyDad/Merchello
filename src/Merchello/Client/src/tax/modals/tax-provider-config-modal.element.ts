@@ -10,9 +10,9 @@ import type { TaxProviderFieldDto, TaxGroupDto, ShippingTaxOverrideDto } from "@
 import type {
   TaxProviderConfigModalData,
   TaxProviderConfigModalValue,
-} from "./tax-provider-config-modal.token.js";
-import { MERCHELLO_TAX_GROUP_MODAL } from "./tax-group-modal.token.js";
-import { MERCHELLO_SHIPPING_TAX_OVERRIDE_MODAL } from "./shipping-tax-override-modal.token.js";
+} from "@tax/modals/tax-provider-config-modal.token.js";
+import { MERCHELLO_TAX_GROUP_MODAL } from "@tax/modals/tax-group-modal.token.js";
+import { MERCHELLO_SHIPPING_TAX_OVERRIDE_MODAL } from "@tax/modals/shipping-tax-override-modal.token.js";
 
 type TabType = "product" | "shipping";
 
@@ -452,8 +452,8 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     if (override.countryName) {
       return override.countryName;
     }
-    if (override.stateOrProvinceCode) {
-      return `${override.countryCode}-${override.stateOrProvinceCode}`;
+    if (override.regionCode) {
+      return `${override.countryCode}-${override.regionCode}`;
     }
     return override.countryCode;
   }
@@ -831,7 +831,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
         <uui-table-cell>
           <div class="region-cell">
             <span class="name-cell">${this._formatRegion(override)}</span>
-            ${!override.stateOrProvinceCode
+            ${!override.regionCode
               ? html`<span class="country-badge">Country-wide</span>`
               : nothing}
           </div>

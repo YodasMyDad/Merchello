@@ -1,9 +1,11 @@
+using Merchello.Core.Shared.Models;
+
 namespace Merchello.Core.Checkout.Strategies.Models;
 
 /// <summary>
 /// Result of an order grouping strategy execution.
 /// </summary>
-public class OrderGroupingResult
+public class OrderGroupingResult : IResult
 {
     /// <summary>
     /// The order groups created by the strategy.

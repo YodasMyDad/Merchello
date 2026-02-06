@@ -1173,7 +1173,7 @@ public class InvoiceEditService(
 
                 logger.LogInformation("Invoice {InvoiceId} edited: {Changes}", invoiceId, string.Join("; ", changes));
 
-                return OperationResult<EditInvoiceResultDto>.Success(new EditInvoiceResultDto
+                return OperationResult<EditInvoiceResultDto>.Ok(new EditInvoiceResultDto
                 {
                     IsSuccessful = true,
                     Warnings = warnings

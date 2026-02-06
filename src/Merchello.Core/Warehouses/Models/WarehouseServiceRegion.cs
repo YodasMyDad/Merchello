@@ -14,9 +14,10 @@ public class WarehouseServiceRegion
     public string CountryCode { get; set; } = null!;
 
     /// <summary>
-    /// Optional state/province code (ISO 3166-2 where available or custom code)
+    /// Optional region code (ISO 3166-2 where available or custom code)
     /// </summary>
-    public string? StateOrProvinceCode { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("StateOrProvinceCode")]
+    public string? RegionCode { get; set; }
 
     /// <summary>
     /// If set, this region is treated as an explicit exclusion

@@ -45,7 +45,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
 
         var result = await _upsellService.CreateAsync(parameters);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var rule = result.ResultObject;
         rule.ShouldNotBeNull();
         rule.Id.ShouldNotBe(Guid.Empty);
@@ -90,7 +90,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
 
         var result = await _upsellService.CreateAsync(parameters);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var rule = result.ResultObject!;
         rule.TriggerRules.Count.ShouldBe(1);
         rule.TriggerRules[0].TriggerType.ShouldBe(UpsellTriggerType.ProductTypes);
@@ -112,7 +112,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
 
         var result = await _upsellService.CreateAsync(parameters);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.Status.ShouldBe(UpsellStatus.Scheduled);
     }
 
@@ -128,7 +128,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
 
         var result = await _upsellService.CreateAsync(parameters);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         // Should be either Active or Draft depending on implementation
         result.ResultObject!.Status.ShouldBeOneOf(UpsellStatus.Active, UpsellStatus.Draft);
     }
@@ -155,7 +155,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
 
         var result = await _upsellService.UpdateAsync(created.Id, updateParams);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var updated = result.ResultObject!;
         updated.Name.ShouldBe("Updated Name");
         updated.Heading.ShouldBe("Updated Heading");
@@ -170,7 +170,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
     public async Task UpdateAsync_WithNonExistentId_ReturnsFailure()
     {
         var result = await _upsellService.UpdateAsync(Guid.NewGuid(), new UpdateUpsellParameters { Name = "X" });
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
     }
 
     // =====================================================
@@ -183,7 +183,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
         var created = await CreateTestUpsellAsync("ToDelete");
 
         var result = await _upsellService.DeleteAsync(created.Id);
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var fetched = await _upsellService.GetByIdAsync(created.Id);
         fetched.ShouldBeNull();
@@ -193,7 +193,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
     public async Task DeleteAsync_WithNonExistentId_ReturnsFailure()
     {
         var result = await _upsellService.DeleteAsync(Guid.NewGuid());
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
     }
 
     // =====================================================
@@ -305,7 +305,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
 
         var result = await _upsellService.ActivateAsync(created.Id);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.Status.ShouldBe(UpsellStatus.Active);
     }
 
@@ -317,7 +317,7 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
 
         var result = await _upsellService.DeactivateAsync(created.Id);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.Status.ShouldBe(UpsellStatus.Disabled);
     }
 

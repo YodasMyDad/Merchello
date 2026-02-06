@@ -5,7 +5,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.ShippingProviders.View",
     name: "Shipping Providers View",
-    js: () => import("./components/shipping-providers-list.element.js"),
+    js: () => import("@shipping/components/shipping-providers-list.element.js"),
     weight: 90,
     meta: {
       label: "Shipping",
@@ -28,7 +28,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ShippingProvider.Config.Modal",
     name: "Shipping Provider Config Modal",
-    js: () => import("./modals/shipping-provider-config-modal.element.js"),
+    js: () => import("@shipping/modals/shipping-provider-config-modal.element.js"),
   },
 
   // Test shipping provider modal
@@ -36,7 +36,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TestProvider.Modal",
     name: "Test Shipping Provider Modal",
-    js: () => import("./modals/test-provider-modal.element.js"),
+    js: () => import("@shipping/modals/test-provider-modal.element.js"),
   },
 
   // Shipping option detail modal
@@ -44,7 +44,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ShippingOption.Detail.Modal",
     name: "Shipping Option Detail Modal",
-    js: () => import("./modals/shipping-option-detail-modal.element.js"),
+    js: () => import("@shipping/modals/shipping-option-detail-modal.element.js"),
   },
 
   // Shipping cost modal
@@ -52,7 +52,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ShippingCost.Modal",
     name: "Shipping Cost Modal",
-    js: () => import("./modals/shipping-cost-modal.element.js"),
+    js: () => import("@shipping/modals/shipping-cost-modal.element.js"),
   },
 
   // Shipping weight tier modal
@@ -60,7 +60,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ShippingWeightTier.Modal",
     name: "Shipping Weight Tier Modal",
-    js: () => import("./modals/shipping-weight-tier-modal.element.js"),
+    js: () => import("@shipping/modals/shipping-weight-tier-modal.element.js"),
   },
 ];
 

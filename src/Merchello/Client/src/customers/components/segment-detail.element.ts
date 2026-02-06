@@ -13,12 +13,12 @@ import type {
   CreateCustomerSegmentDto,
   UpdateCustomerSegmentDto,
 } from "@customers/types/segment.types.js";
-import type { MerchelloCustomersWorkspaceContext } from "../contexts/customers-workspace.context.js";
+import type { MerchelloCustomersWorkspaceContext } from "@customers/contexts/customers-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getSegmentsListHref, navigateToSegmentDetail } from "@shared/utils/navigation.js";
-import "./segment-members-table.element.js";
-import "./segment-criteria-builder.element.js";
-import "./segment-preview.element.js";
+import "@customers/components/segment-members-table.element.js";
+import "@customers/components/segment-criteria-builder.element.js";
+import "@customers/components/segment-preview.element.js";
 
 // Stub component for router (actual content is rendered in tab methods)
 function stubComponent(): HTMLElement {

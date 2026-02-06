@@ -44,7 +44,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.CreateWarehouse(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("Test Warehouse");
         result.ResultObject.Code.ShouldBe("TW-01");
@@ -72,7 +72,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.UpdateWarehouse(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject!.Name.ShouldBe("Updated Name");
         result.ResultObject.Code.ShouldBe("NEW-CODE");
     }
@@ -91,7 +91,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.UpdateWarehouse(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("not found"));
     }
 
@@ -106,7 +106,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.DeleteWarehouse(warehouse.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         // Clear change tracker to get fresh data from database
         _fixture.DbContext.ChangeTracker.Clear();
         var deletedWarehouse = await _fixture.DbContext.Warehouses.FindAsync(warehouse.Id);
@@ -126,7 +126,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.DeleteWarehouse(warehouse.Id, force: false);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("stock record"));
     }
 
@@ -143,7 +143,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.DeleteWarehouse(warehouse.Id, force: true);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         // Clear change tracker to get fresh data from database
         _fixture.DbContext.ChangeTracker.Clear();
@@ -176,7 +176,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var association = await _fixture.DbContext.ProductRootWarehouses
             .FirstOrDefaultAsync(prw =>
@@ -205,7 +205,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("already assigned"));
     }
 
@@ -228,7 +228,7 @@ public class WarehouseServiceTests
             productRoot.Id, warehouse.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         // Association should be deleted
         var deletedAssociation = await _fixture.DbContext.ProductRootWarehouses
@@ -262,7 +262,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         // Clear change tracker to get fresh data from database
         _fixture.DbContext.ChangeTracker.Clear();
@@ -298,7 +298,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var stockRecord = await _fixture.DbContext.ProductWarehouses
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
@@ -328,7 +328,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         // Clear change tracker to get fresh data from database
         _fixture.DbContext.ChangeTracker.Clear();
@@ -357,7 +357,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("cannot be negative"));
     }
 
@@ -382,7 +382,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.AdjustStock(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         // Clear change tracker to get fresh data from database
         _fixture.DbContext.ChangeTracker.Clear();
@@ -413,7 +413,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.AdjustStock(parameters);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         // Clear change tracker to get fresh data from database
         _fixture.DbContext.ChangeTracker.Clear();
@@ -443,7 +443,7 @@ public class WarehouseServiceTests
         var result = await _warehouseService.AdjustStock(parameters);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("negative stock"));
     }
 
@@ -468,7 +468,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         // Clear change tracker to get fresh data from database
         _fixture.DbContext.ChangeTracker.Clear();
@@ -502,7 +502,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
 
         var stock2 = await _fixture.DbContext.ProductWarehouses
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse2.Id);
@@ -531,7 +531,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Insufficient"));
     }
 
@@ -554,7 +554,7 @@ public class WarehouseServiceTests
         });
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("same warehouse"));
     }
 

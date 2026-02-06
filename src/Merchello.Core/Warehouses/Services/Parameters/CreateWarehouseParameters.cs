@@ -15,10 +15,10 @@ public class CreateWarehouseParameters
     /// <summary>
     /// Service regions to add to the warehouse. Each tuple contains:
     /// - CountryCode: ISO 2-letter country code
-    /// - StateOrProvinceCode: State/province code (null for country-wide)
+    /// - RegionCode: State/province code (null for country-wide)
     /// - IsExcluded: Whether this region is excluded from service
     /// </summary>
-    public List<(string CountryCode, string? StateOrProvinceCode, bool IsExcluded)>? ServiceRegions { get; set; }
+    public List<(string CountryCode, string? RegionCode, bool IsExcluded)>? ServiceRegions { get; set; }
 
     /// <summary>
     /// Shipping options to add to the warehouse

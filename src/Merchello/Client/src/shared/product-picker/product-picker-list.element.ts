@@ -1,9 +1,9 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { PickerProductRoot, PickerVariant } from "./product-picker.types.js";
-import { formatPriceRange } from "./product-picker.types.js";
-import "./product-picker-variant-row.element.js";
+import type { PickerProductRoot, PickerVariant } from "@shared/product-picker/product-picker.types.js";
+import { formatPriceRange } from "@shared/product-picker/product-picker.types.js";
+import "@shared/product-picker/product-picker-variant-row.element.js";
 
 /**
  * Product picker list component that displays expandable product roots with variants.

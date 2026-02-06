@@ -7,8 +7,8 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { AddressLookupProviderDto } from '@address-lookup-providers/types/address-lookup-providers.types.js';
-import { MERCHELLO_ADDRESS_LOOKUP_PROVIDER_CONFIG_MODAL } from "../modals/address-lookup-provider-config-modal.token.js";
-import { MERCHELLO_TEST_ADDRESS_LOOKUP_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
+import { MERCHELLO_ADDRESS_LOOKUP_PROVIDER_CONFIG_MODAL } from "@address-lookup-providers/modals/address-lookup-provider-config-modal.token.js";
+import { MERCHELLO_TEST_ADDRESS_LOOKUP_PROVIDER_MODAL } from "@address-lookup-providers/modals/test-provider-modal.token.js";
 
 @customElement("merchello-address-lookup-providers-list")
 export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(LitElement) {

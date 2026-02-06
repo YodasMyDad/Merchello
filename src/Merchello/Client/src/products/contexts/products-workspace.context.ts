@@ -65,7 +65,7 @@ export class MerchelloProductsWorkspaceContext
       // Variant detail route
       {
         path: "edit/products/:id/variant/:variantId",
-        component: () => import("../components/variant-detail.element.js"),
+        component: () => import("@products/components/variant-detail.element.js"),
         setup: (_component, info) => {
           this.#isNew = false;
           const productId = info.match.params.id;
@@ -77,7 +77,7 @@ export class MerchelloProductsWorkspaceContext
       // Create product route (before :id to avoid matching "create" as an id)
       {
         path: "edit/products/create",
-        component: () => import("../components/product-detail.element.js"),
+        component: () => import("@products/components/product-detail.element.js"),
         setup: () => {
           this.#isNew = true;
           this.#productRootId = undefined;
@@ -89,7 +89,7 @@ export class MerchelloProductsWorkspaceContext
       // Product detail route (GUID parameter)
       {
         path: "edit/products/:id",
-        component: () => import("../components/product-detail.element.js"),
+        component: () => import("@products/components/product-detail.element.js"),
         setup: (_component, info) => {
           this.#isNew = false;
           this.#variantId.setValue(undefined);
@@ -100,7 +100,7 @@ export class MerchelloProductsWorkspaceContext
       // Products list route
       {
         path: "edit/products",
-        component: () => import("../components/products-workspace-editor.element.js"),
+        component: () => import("@products/components/products-workspace-editor.element.js"),
         setup: () => {
           // Reset detail state when viewing list
           this.#productRootId = undefined;

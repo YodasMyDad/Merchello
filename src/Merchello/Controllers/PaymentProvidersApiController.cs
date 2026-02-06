@@ -140,7 +140,7 @@ public class PaymentProvidersApiController(
         };
 
         var result = await providerManager.SaveProviderSettingAsync(setting, cancellationToken);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create provider setting.");
         }
@@ -194,7 +194,7 @@ public class PaymentProvidersApiController(
         setting.DateUpdated = DateTime.UtcNow;
 
         var result = await providerManager.SaveProviderSettingAsync(setting, cancellationToken);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to update provider setting.");
         }
@@ -212,7 +212,7 @@ public class PaymentProvidersApiController(
     public async Task<IActionResult> DeleteProviderSetting(Guid id, CancellationToken cancellationToken = default)
     {
         var result = await providerManager.DeleteProviderSettingAsync(id, cancellationToken);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound();
         }
@@ -232,7 +232,7 @@ public class PaymentProvidersApiController(
         CancellationToken cancellationToken = default)
     {
         var result = await providerManager.SetProviderEnabledAsync(id, request.IsEnabled, cancellationToken);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return NotFound();
         }
@@ -258,7 +258,7 @@ public class PaymentProvidersApiController(
         }
 
         var result = await providerManager.UpdateProviderSortOrderAsync(request.OrderedIds, cancellationToken);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder providers.");
         }
@@ -1002,7 +1002,7 @@ public class PaymentProvidersApiController(
         CancellationToken cancellationToken = default)
     {
         var result = await providerManager.UpdateMethodSettingAsync(id, alias, request, cancellationToken);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to update method.");
         }
@@ -1028,7 +1028,7 @@ public class PaymentProvidersApiController(
         }
 
         var result = await providerManager.UpdateMethodSortOrderAsync(id, orderedMethodAliases, cancellationToken);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder methods.");
         }

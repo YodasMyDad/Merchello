@@ -399,7 +399,7 @@ public class InventoryServiceTests
     }
 
     [Fact]
-    public async Task IsStockTracked_ProductNotInWarehouse_ReturnsTrue()
+    public async Task IsStockTracked_ProductNotInWarehouse_ReturnsFalse()
     {
         // Arrange - Default behavior when not found
         var dataBuilder = _fixture.CreateDataBuilder();
@@ -411,7 +411,7 @@ public class InventoryServiceTests
         var isTracked = await _inventoryService.IsStockTrackedAsync(product.Id, warehouse.Id);
 
         // Assert
-        isTracked.ShouldBeTrue(); // Default is true (conservative approach)
+        isTracked.ShouldBeFalse(); // Default is false (no warehouse record = not tracked)
     }
 
     #endregion

@@ -39,10 +39,10 @@ public class ShippingQuoteService(
     public async Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesAsync(
         Basket basket,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default)
     {
-        (ShippingQuoteRequest request, List<BasketError> requestErrors) = await BuildRequestAsync(basket, countryCode, stateOrProvinceCode, cancellationToken);
+        (ShippingQuoteRequest request, List<BasketError> requestErrors) = await BuildRequestAsync(basket, countryCode, regionCode, cancellationToken);
 
         foreach (var error in requestErrors)
         {
@@ -55,7 +55,7 @@ public class ShippingQuoteService(
         }
 
         // Build cache key from basket contents and destination
-        var cacheKey = BuildCacheKey(basket, countryCode, stateOrProvinceCode);
+        var cacheKey = BuildCacheKey(basket, countryCode, regionCode);
 
         var quotes = await cacheService.GetOrCreateAsync(
             cacheKey,
@@ -109,7 +109,7 @@ public class ShippingQuoteService(
             OriginWarehouseId = warehouseId,
             OriginAddress = warehouseAddress,
             CountryCode = destinationCountry,
-            StateOrProvinceCode = destinationState,
+            RegionCode = destinationState,
             PostalCode = destinationPostal,
             CurrencyCode = currency,
             Packages = packages.ToList(),
@@ -215,7 +215,7 @@ public class ShippingQuoteService(
         return $"{Constants.CacheKeys.ShippingQuotePrefix}wh:{warehouseId}:{destination}:{currency}:{packagesHash}";
     }
 
-    private string BuildCacheKey(Basket basket, string countryCode, string? stateOrProvinceCode)
+    private string BuildCacheKey(Basket basket, string countryCode, string? regionCode)
     {
         // Create a deterministic key based on basket contents and destination
         var productIds = string.Join("-", basket.LineItems
@@ -229,9 +229,9 @@ public class ShippingQuoteService(
             .OrderBy(li => li.Sku)
             .Select(li => $"{li.Sku}:{li.Quantity}"));
 
-        var destination = string.IsNullOrEmpty(stateOrProvinceCode)
+        var destination = string.IsNullOrEmpty(regionCode)
             ? countryCode
-            : $"{countryCode}-{stateOrProvinceCode}";
+            : $"{countryCode}-{regionCode}";
 
         var currency = _settings.StoreCurrencyCode;
 
@@ -420,7 +420,7 @@ public class ShippingQuoteService(
     private async Task<(ShippingQuoteRequest Request, List<BasketError> Errors)> BuildRequestAsync(
         Basket basket,
         string countryCode,
-        string? stateOrProvinceCode,
+        string? regionCode,
         CancellationToken cancellationToken)
     {
         List<BasketError> errors = [];
@@ -452,7 +452,7 @@ public class ShippingQuoteService(
             return (new ShippingQuoteRequest
             {
                 CountryCode = countryCode,
-                StateOrProvinceCode = stateOrProvinceCode,
+                RegionCode = regionCode,
                 CurrencyCode = _settings.StoreCurrencyCode,
                 Items = Array.Empty<ShippingQuoteItem>(),
                 Packages = Array.Empty<ShipmentPackage>()
@@ -505,7 +505,7 @@ public class ShippingQuoteService(
                 continue;
             }
 
-            var snapshot = BuildProductSnapshot(product, countryCode, stateOrProvinceCode, shippingCostResolver, usesLiveRatesLookup, enabledProviderKeys);
+            var snapshot = BuildProductSnapshot(product, countryCode, regionCode, shippingCostResolver, usesLiveRatesLookup, enabledProviderKeys);
 
             // Get effective packages (variant override or root default)
             var productPackages = GetEffectivePackages(product);
@@ -518,7 +518,7 @@ public class ShippingQuoteService(
                 Quantity = lineItem.Quantity,
                 IsShippable = true,
                 TotalWeightKg = totalWeightForItem,
-                DestinationCost = product.GetShippingAmountForCountry(countryCode, stateOrProvinceCode, shippingCostResolver),
+                DestinationCost = product.GetShippingAmountForCountry(countryCode, regionCode, shippingCostResolver),
                 ProductSnapshot = snapshot
             });
 
@@ -569,7 +569,7 @@ public class ShippingQuoteService(
         {
             BasketId = basket.Id,
             CountryCode = countryCode,
-            StateOrProvinceCode = stateOrProvinceCode,
+            RegionCode = regionCode,
             CurrencyCode = _settings.StoreCurrencyCode,
             ItemsSubtotal = subtotal,
             Items = items,
@@ -582,7 +582,7 @@ public class ShippingQuoteService(
     private static ShippingProductSnapshot BuildProductSnapshot(
         Product product,
         string countryCode,
-        string? stateOrProvinceCode,
+        string? regionCode,
         IShippingCostResolver costResolver,
         Dictionary<string, bool> usesLiveRatesLookup,
         HashSet<string> enabledProviderKeys)
@@ -601,14 +601,14 @@ public class ShippingQuoteService(
         var options = allowedOptions
             .Select(option =>
             {
-                var destinationCost = costResolver.ResolveBaseCost(option.ShippingCosts.ToList(), countryCode, stateOrProvinceCode, option.FixedCost);
+                var destinationCost = costResolver.ResolveBaseCost(option.ShippingCosts.ToList(), countryCode, regionCode, option.FixedCost);
 
                 // Use warehouse with ServiceRegions loaded - option.Warehouse might not have ServiceRegions populated
                 // when loaded via ProductRootWarehouses.Warehouse.ShippingOptions path (no cyclic includes allowed)
                 var warehouse = option.Warehouse.ServiceRegions.Count > 0
                     ? option.Warehouse
                     : warehouseLookup.GetValueOrDefault(option.WarehouseId) ?? option.Warehouse;
-                var canShip = warehouse.CanServeRegion(countryCode, stateOrProvinceCode);
+                var canShip = warehouse.CanServeRegion(countryCode, regionCode);
 
                 // Check if provider uses live rates (external API) vs configured costs
                 var usesLiveRates = usesLiveRatesLookup.GetValueOrDefault(option.ProviderKey, false);
@@ -643,7 +643,7 @@ public class ShippingQuoteService(
                         .Select(cost => new ShippingCostSnapshot
                         {
                             CountryCode = cost.CountryCode,
-                            StateOrProvinceCode = cost.StateOrProvinceCode,
+                            RegionCode = cost.RegionCode,
                             Cost = cost.Cost
                         })
                         .ToList(),
@@ -651,7 +651,7 @@ public class ShippingQuoteService(
                         .Select(tier => new ShippingWeightTierSnapshot
                         {
                             CountryCode = tier.CountryCode,
-                            StateOrProvinceCode = tier.StateOrProvinceCode,
+                            RegionCode = tier.RegionCode,
                             MinWeightKg = tier.MinWeightKg,
                             MaxWeightKg = tier.MaxWeightKg,
                             Surcharge = tier.Surcharge

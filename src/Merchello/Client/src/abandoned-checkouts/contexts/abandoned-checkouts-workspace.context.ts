@@ -34,7 +34,7 @@ export class MerchelloAbandonedCheckoutsWorkspaceContext
       // Abandoned checkouts list route
       {
         path: "edit/abandoned-checkouts",
-        component: () => import("../components/abandoned-checkouts-workspace-editor.element.js"),
+        component: () => import("@abandoned-checkouts/components/abandoned-checkouts-workspace-editor.element.js"),
         setup: () => {
           // No specific setup needed for list view
         },

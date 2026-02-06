@@ -5,7 +5,7 @@ export const manifests: ManifestPropertyEditorUi[] = [
     type: "propertyEditorUi",
     alias: "Merchello.PropertyEditorUi.ProductTypePicker",
     name: "Merchello Product Type Picker",
-    element: () => import("./property-editor-ui-product-type-picker.element.js"),
+    element: () => import("@property-editors/product-type-picker/property-editor-ui-product-type-picker.element.js"),
     meta: {
       label: "Product Type Picker",
       icon: "icon-tags",

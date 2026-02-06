@@ -1,7 +1,7 @@
 import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { WarehousePickerModalData, WarehousePickerModalValue } from "./warehouse-picker-modal.token.js";
+import type { WarehousePickerModalData, WarehousePickerModalValue } from "@warehouses/modals/warehouse-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { WarehouseListDto } from "@warehouses/types/warehouses.types.js";
 

@@ -327,7 +327,7 @@ public class AvalaraTaxProviderTests
             city: "Los Angeles",
             postalCode: "90001",
             countryCode: countryCode,
-            stateOrProvinceCode: regionCode,
+            regionCode: regionCode,
             phone: null,
             email: "test@example.com");
 

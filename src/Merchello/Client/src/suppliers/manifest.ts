@@ -11,7 +11,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Suppliers.Workspace",
     name: "Merchello Suppliers Workspace",
-    api: () => import("./contexts/suppliers-workspace.context.js"),
+    api: () => import("@suppliers/contexts/suppliers-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_SUPPLIERS_ENTITY_TYPE,
     },
@@ -22,7 +22,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Suppliers.ListView",
     name: "Merchello Suppliers List View",
-    js: () => import("./components/suppliers-list.element.js"),
+    js: () => import("@suppliers/components/suppliers-list.element.js"),
     weight: 100,
     meta: {
       label: "Suppliers",
@@ -46,7 +46,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.Supplier.Modal",
     name: "Merchello Supplier Modal",
-    js: () => import("./modals/supplier-modal.element.js"),
+    js: () => import("@suppliers/modals/supplier-modal.element.js"),
   },
 
   // Supplier picker modal (for discount targeting)
@@ -54,6 +54,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.SupplierPicker.Modal",
     name: "Supplier Picker Modal",
-    js: () => import("./modals/supplier-picker-modal.element.js"),
+    js: () => import("@suppliers/modals/supplier-picker-modal.element.js"),
   },
 ];

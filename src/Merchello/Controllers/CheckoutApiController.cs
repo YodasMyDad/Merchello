@@ -195,7 +195,7 @@ public class CheckoutApiController(
             Password = request.Password
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
@@ -395,7 +395,7 @@ public class CheckoutApiController(
             basket.ShippingAddress?.CountryCode,
             ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
@@ -475,7 +475,7 @@ public class CheckoutApiController(
             PreviousShippingSelections = request.PreviousShippingSelections
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
@@ -658,7 +658,7 @@ public class CheckoutApiController(
             DeliveryDates = request.DeliveryDates
         }, ct);
 
-        if (!saveResult.Successful)
+        if (!saveResult.Success)
         {
             var errorMessage = saveResult.Messages
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
@@ -722,7 +722,7 @@ public class CheckoutApiController(
             basket.ShippingAddress?.CountryCode,
             ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages
                 .FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message
@@ -1052,7 +1052,7 @@ public class CheckoutApiController(
                 IsPartial = true
             }, ct);
 
-            if (!result.Successful)
+            if (!result.Success)
             {
                 var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to capture address.";
                 return BadRequest(new { success = false, message });

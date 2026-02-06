@@ -556,7 +556,7 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
             city: "London",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: "customer@test.com");
         basket.ShippingAddress = _addressFactory.CreateFromFormData(
@@ -567,7 +567,7 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
             city: "London",
             postalCode: "SW1A 1AA",
             countryCode: "GB",
-            stateOrProvinceCode: null,
+            regionCode: null,
             phone: null,
             email: null);
         return basket;

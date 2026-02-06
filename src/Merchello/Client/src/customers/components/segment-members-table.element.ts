@@ -8,7 +8,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import type { SegmentMemberDto } from "@customers/types/segment.types.js";
 import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { MERCHELLO_CUSTOMER_PICKER_MODAL } from "../modals/customer-picker-modal.token.js";
+import { MERCHELLO_CUSTOMER_PICKER_MODAL } from "@customers/modals/customer-picker-modal.token.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
 

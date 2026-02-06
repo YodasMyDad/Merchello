@@ -3,7 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatShortDate } from "@shared/utils/formatting.js";
-import type { ShipmentEditModalData, ShipmentEditModalValue } from "./shipment-edit-modal.token.js";
+import type { ShipmentEditModalData, ShipmentEditModalValue } from "@orders/modals/shipment-edit-modal.token.js";
 import type { UpdateShipmentDto } from "@orders/types/order.types.js";
 
 // Import shared components

@@ -19,10 +19,10 @@ public class ShippingTaxOverride
     public string CountryCode { get; set; } = null!;
 
     /// <summary>
-    /// Optional ISO 3166-2 state/province code (e.g., "CA" for California, "ON" for Ontario).
+    /// Optional ISO 3166-2 region code (e.g., "CA" for California, "ON" for Ontario).
     /// When null, this override applies to the entire country.
     /// </summary>
-    public string? StateOrProvinceCode { get; set; }
+    public string? RegionCode { get; set; }
 
     /// <summary>
     /// Tax group to use for shipping in this region.

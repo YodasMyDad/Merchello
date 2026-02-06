@@ -14,7 +14,7 @@ public class CreateShippingTaxOverrideDto
     /// Optional ISO 3166-2 state/province code (e.g., "CA" for California).
     /// When null or empty, the override applies to the entire country.
     /// </summary>
-    public string? StateOrProvinceCode { get; set; }
+    public string? RegionCode { get; set; }
 
     /// <summary>
     /// Tax group ID for shipping. Null means shipping is never taxed in this region.

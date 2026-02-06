@@ -8,8 +8,8 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
 import type { ExchangeRateProviderDto, ExchangeRateSnapshotDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
-import { MERCHELLO_EXCHANGE_RATE_PROVIDER_CONFIG_MODAL } from "../modals/exchange-rate-provider-config-modal.token.js";
-import { MERCHELLO_TEST_EXCHANGE_RATE_PROVIDER_MODAL } from "../modals/test-provider-modal.token.js";
+import { MERCHELLO_EXCHANGE_RATE_PROVIDER_CONFIG_MODAL } from "@exchange-rate-providers/modals/exchange-rate-provider-config-modal.token.js";
+import { MERCHELLO_TEST_EXCHANGE_RATE_PROVIDER_MODAL } from "@exchange-rate-providers/modals/test-provider-modal.token.js";
 
 @customElement("merchello-exchange-rate-providers-list")
 export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(LitElement) {

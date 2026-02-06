@@ -383,6 +383,21 @@
     border-bottom: 1px solid #e9ecef;
 }
 
+.addon-item.form-check {
+    margin-bottom: 0;
+    padding: 0.65rem 0 0.65rem 1.75rem;
+}
+
+.addon-item .form-check-input {
+    margin-top: 0.2rem;
+}
+
+.addon-item .form-check-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
 .addon-item:last-child {
     border-bottom: none;
 }

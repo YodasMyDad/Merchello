@@ -1,4 +1,4 @@
-import { MerchelloApi, type StoreSettingsDto } from './merchello-api.js';
+import { MerchelloApi, type StoreSettingsDto } from '@api/merchello-api.js';
 
 // Cached settings - loaded once on first access
 let cachedSettings: StoreSettingsDto | null = null;

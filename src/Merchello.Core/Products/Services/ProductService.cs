@@ -156,7 +156,11 @@ public class ProductService(
         // Create the different versions of the product from the product options
         var variantOptions = productRoot.ProductOptions
             .Where(o => o.IsVariant)
-            .Select(option => option.ProductOptionValues)
+            .OrderBy(o => o.SortOrder)
+            .ThenBy(o => o.Id)
+            .Select(option => option.ProductOptionValues
+                .OrderBy(v => v.SortOrder)
+                .ThenBy(v => v.Id))
             .CartesianObjects()
             .ToList();
 
@@ -249,6 +253,27 @@ public class ProductService(
 
             return await query.FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
         });
+        scope.Complete();
+        return result;
+    }
+
+    /// <summary>
+    /// Gets multiple product roots by their IDs in a single batch query.
+    /// </summary>
+    public async Task<List<ProductRoot>> GetProductRootsByIds(IEnumerable<Guid> productRootIds, CancellationToken cancellationToken = default)
+    {
+        var ids = productRootIds.ToList();
+        if (ids.Count == 0) return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.RootProducts
+                .AsNoTracking()
+                .Include(pr => pr.Collections)
+                .Include(pr => pr.ProductType)
+                .Include(pr => pr.TaxGroup)
+                .Where(pr => ids.Contains(pr.Id))
+                .ToListAsync(cancellationToken));
         scope.Complete();
         return result;
     }
@@ -393,8 +418,8 @@ public class ProductService(
         ApplyShippingExclusions(variants, optionsToExclude);
 
         await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-        result.ResultObject = result.Successful;
-        return result.Successful;
+        result.ResultObject = result.Success;
+        return result.Success;
     }
 
     private static void ApplyShippingExclusions(
@@ -1979,6 +2004,12 @@ public class ProductService(
                 return false;
             }
 
+            if (productRoot.IsDigitalProduct && options.Any(o => o.IsVariant))
+            {
+                result.AddErrorMessage("Digital products cannot have variant options. Use add-on options (IsVariant = false) instead.");
+                return false;
+            }
+
             // Capture original variant structure BEFORE modifications
             // This is used to determine if variants need to be regenerated
             var originalVariantOptions = productRoot.ProductOptions
@@ -2025,6 +2056,7 @@ public class ProductService(
                 option.OptionTypeAlias = optionRequest.OptionTypeAlias;
                 option.OptionUiAlias = optionRequest.OptionUiAlias;
                 option.IsVariant = optionRequest.IsVariant;
+                option.IsMultiSelect = optionRequest.IsVariant ? false : optionRequest.IsMultiSelect;
 
                 // Handle values
                 var requestValueIds = optionRequest.Values.Where(v => v.Id.HasValue).Select(v => v.Id!.Value).ToHashSet();
@@ -2130,19 +2162,19 @@ public class ProductService(
 
         // Regenerate variants only if the variant structure changed
         // This prevents data loss from unnecessary regeneration on metadata-only changes
-        if (result.Successful && variantStructureChanged)
+        if (result.Success && variantStructureChanged)
         {
             logger.LogDebug("SaveProductOptions: Variant structure changed for product {ProductRootId}, regenerating variants",
                 productRootId);
 
             var regenerateResult = await RegenerateVariants(productRootId, cancellationToken: cancellationToken);
-            if (!regenerateResult.Successful)
+            if (!regenerateResult.Success)
             {
                 result.AddWarningMessage("Options saved but variant regeneration had issues: " +
                     string.Join(", ", regenerateResult.Messages.Select(m => m.Message)));
             }
         }
-        else if (result.Successful)
+        else if (result.Success)
         {
             logger.LogDebug("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}, no variant regeneration needed",
                 options.Count, productRootId);
@@ -2172,6 +2204,7 @@ public class ProductService(
         {
             var productRoot = await db.RootProducts
                 .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ProductWarehouses)
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
 
             if (productRoot == null)
@@ -2221,6 +2254,9 @@ public class ProductService(
                 var defaultPrice = priceOverride ?? template?.Price ?? 0;
                 var defaultCostOfGoods = costOverride ?? template?.CostOfGoods ?? 0;
 
+                // Capture warehouse stock settings before deleting old products
+                var templateStockSettings = template?.ProductWarehouses?.ToList() ?? [];
+
                 // Remove all existing products
                 foreach (var product in productRoot.Products.ToList())
                 {
@@ -2240,6 +2276,26 @@ public class ProductService(
                 generatedVariants = await db.Products
                     .Where(p => p.ProductRootId == productRootId)
                     .ToListAsync(cancellationToken);
+
+                // Inherit warehouse stock settings from the template variant
+                if (templateStockSettings.Count > 0 && generatedVariants.Count > 0)
+                {
+                    foreach (var variant in generatedVariants)
+                    {
+                        foreach (var templateStock in templateStockSettings)
+                        {
+                            db.ProductWarehouses.Add(new ProductWarehouse
+                            {
+                                ProductId = variant.Id,
+                                WarehouseId = templateStock.WarehouseId,
+                                Stock = 0,
+                                ReorderPoint = templateStock.ReorderPoint,
+                                ReorderQuantity = templateStock.ReorderQuantity,
+                                TrackStock = templateStock.TrackStock
+                            });
+                        }
+                    }
+                }
             }
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
@@ -2445,6 +2501,7 @@ public class ProductService(
             OptionTypeAlias = option.OptionTypeAlias,
             OptionUiAlias = option.OptionUiAlias,
             IsVariant = option.IsVariant,
+            IsMultiSelect = option.IsMultiSelect,
             Values = option.ProductOptionValues.OrderBy(v => v.SortOrder).Select(MapToProductOptionValueDto).ToList()
         };
     }
@@ -2537,7 +2594,7 @@ public class ProductService(
             var stock = existingStock?.Stock ?? 0;
             var reservedStock = existingStock?.ReservedStock ?? 0;
             var availableStock = Math.Max(0, stock - reservedStock);
-            var trackStock = existingStock?.TrackStock ?? true;
+            var trackStock = existingStock?.TrackStock ?? false;
             var stockStatus = CalculateStockStatus(availableStock, trackStock, lowStockThreshold);
             return new VariantWarehouseStockDto
             {

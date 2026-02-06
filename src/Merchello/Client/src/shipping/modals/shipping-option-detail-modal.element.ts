@@ -13,9 +13,9 @@ import type {
   CreateShippingOptionDto,
   WarehouseDto,
 } from "@shipping/types/shipping.types.js";
-import type { ShippingOptionDetailModalData, ShippingOptionDetailModalValue } from "./shipping-option-detail-modal.token.js";
-import { MERCHELLO_SHIPPING_COST_MODAL } from "./shipping-cost-modal.token.js";
-import { MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL } from "./shipping-weight-tier-modal.token.js";
+import type { ShippingOptionDetailModalData, ShippingOptionDetailModalValue } from "@shipping/modals/shipping-option-detail-modal.token.js";
+import { MERCHELLO_SHIPPING_COST_MODAL } from "@shipping/modals/shipping-cost-modal.token.js";
+import { MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL } from "@shipping/modals/shipping-weight-tier-modal.token.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 
 @customElement("merchello-shipping-option-detail-modal")

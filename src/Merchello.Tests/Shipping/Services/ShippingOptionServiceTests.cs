@@ -108,7 +108,7 @@ public class ShippingOptionServiceTests
         var result = await _service.CreateAsync(dto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("Standard Delivery");
         result.ResultObject.WarehouseId.ShouldBe(_warehouseId);
@@ -166,7 +166,7 @@ public class ShippingOptionServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         var persisted = await _fixture.DbContext.ShippingOptions.FindAsync(result.ResultObject!.Id);
         persisted.ShouldNotBeNull();
         persisted.ProviderSettings.ShouldNotBeNullOrEmpty();
@@ -294,7 +294,7 @@ public class ShippingOptionServiceTests
         var result = await _service.UpdateAsync(created.ResultObject!.Id, updateDto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("Updated Name");
         result.ResultObject.DaysFrom.ShouldBe(1);
@@ -317,7 +317,7 @@ public class ShippingOptionServiceTests
         var result = await _service.UpdateAsync(Guid.NewGuid(), updateDto);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "Shipping option not found");
     }
 
@@ -341,7 +341,7 @@ public class ShippingOptionServiceTests
         var result = await _service.DeleteAsync(created.ResultObject!.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
@@ -356,7 +356,7 @@ public class ShippingOptionServiceTests
         var result = await _service.DeleteAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "Shipping option not found");
     }
 
@@ -372,7 +372,7 @@ public class ShippingOptionServiceTests
         var costDto = new CreateShippingCostDto
         {
             CountryCode = "us",
-            StateOrProvinceCode = "ca",
+            RegionCode = "ca",
             Cost = 9.99m
         };
 
@@ -380,10 +380,10 @@ public class ShippingOptionServiceTests
         var result = await _service.AddCostAsync(option.Id, costDto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.CountryCode.ShouldBe("US");
-        result.ResultObject.StateOrProvinceCode.ShouldBe("CA");
+        result.ResultObject.RegionCode.ShouldBe("CA");
         result.ResultObject.Cost.ShouldBe(9.99m);
         result.ResultObject.ShippingOptionId.ShouldBe(option.Id);
     }
@@ -405,7 +405,7 @@ public class ShippingOptionServiceTests
         var result = await _service.AddCostAsync(option.Id, costDto);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "A cost for this country/state already exists");
     }
 
@@ -429,7 +429,7 @@ public class ShippingOptionServiceTests
         var result = await _service.DeleteCostAsync(addResult.ResultObject!.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
@@ -445,7 +445,7 @@ public class ShippingOptionServiceTests
         var result = await _service.DeleteCostAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "Shipping cost not found");
     }
 
@@ -470,7 +470,7 @@ public class ShippingOptionServiceTests
         var result = await _service.AddWeightTierAsync(option.Id, tierDto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.CountryCode.ShouldBe("GB");
         result.ResultObject.MinWeightKg.ShouldBe(0m);
@@ -496,7 +496,7 @@ public class ShippingOptionServiceTests
         var result = await _service.AddWeightTierAsync(option.Id, tierDto);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "Max weight must be greater than min weight");
     }
 
@@ -517,7 +517,7 @@ public class ShippingOptionServiceTests
         var result = await _service.AddWeightTierAsync(option.Id, tierDto);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.MaxWeightKg.ShouldBeNull();
         result.ResultObject.MinWeightKg.ShouldBe(20m);
@@ -545,7 +545,7 @@ public class ShippingOptionServiceTests
         var result = await _service.DeleteWeightTierAsync(addResult.ResultObject!.Id);
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldBeTrue();
 
         _fixture.DbContext.ChangeTracker.Clear();
@@ -561,7 +561,7 @@ public class ShippingOptionServiceTests
         var result = await _service.DeleteWeightTierAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "Weight tier not found");
     }
 

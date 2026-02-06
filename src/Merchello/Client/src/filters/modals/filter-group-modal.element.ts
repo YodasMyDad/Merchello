@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { FilterGroupModalData, FilterGroupModalValue } from "./filter-group-modal.token.js";
+import type { FilterGroupModalData, FilterGroupModalValue } from "@filters/modals/filter-group-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 @customElement("merchello-filter-group-modal")

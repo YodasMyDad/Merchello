@@ -395,7 +395,7 @@ public class OrdersApiController(
             AuthorName = authorName
         }, ct);
 
-        if (!result.IsSuccess)
+        if (!result.Success)
         {
             var errorMessage = result.ErrorMessage ?? "Failed to edit invoice";
             return errorMessage.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -490,7 +490,7 @@ public class OrdersApiController(
 
         var result = await shipmentService.UpdateShipmentStatusAsync(parameters, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             if (result.ResultObject == null)
             {
@@ -551,7 +551,7 @@ public class OrdersApiController(
             authorName,
             ct);
 
-        if (!result.IsSuccess)
+        if (!result.Success)
         {
             return BadRequest(result.ErrorMessage ?? "Failed to create manual order");
         }
@@ -824,7 +824,7 @@ public class OrdersApiController(
             PaymentIds = result.ResultObject?.Select(p => p.Id).ToList() ?? []
         };
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(response);
         }

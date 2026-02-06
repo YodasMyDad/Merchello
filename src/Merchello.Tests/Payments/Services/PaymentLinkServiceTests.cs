@@ -90,7 +90,7 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.CreatePaymentLinkAsync(Guid.NewGuid(), "nonexistent", "admin");
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("not found or not enabled"));
     }
 
@@ -119,7 +119,7 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.CreatePaymentLinkAsync(Guid.NewGuid(), "manual", "admin");
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("does not support payment links"));
     }
 
@@ -134,7 +134,7 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.CreatePaymentLinkAsync(Guid.NewGuid(), "stripe", "admin");
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Invoice not found"));
     }
 
@@ -163,7 +163,7 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.CreatePaymentLinkAsync(invoice.Id, "stripe", "admin");
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("already paid"));
     }
 
@@ -206,7 +206,7 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.CreatePaymentLinkAsync(invoice.Id, "stripe", "admin_user");
 
         // Assert
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject!.PaymentUrl.ShouldBe("https://pay.stripe.com/link_abc123");
         result.ResultObject.ProviderLinkId.ShouldBe("link_abc123");
@@ -238,7 +238,7 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.DeactivatePaymentLinkAsync(Guid.NewGuid());
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Invoice not found"));
     }
 
@@ -257,7 +257,7 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
         var result = await service.DeactivatePaymentLinkAsync(invoice.Id);
 
         // Assert
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("No active payment link"));
     }
 

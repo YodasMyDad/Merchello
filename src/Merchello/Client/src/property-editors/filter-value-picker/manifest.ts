@@ -5,7 +5,7 @@ export const manifests: ManifestPropertyEditorUi[] = [
     type: "propertyEditorUi",
     alias: "Merchello.PropertyEditorUi.FilterValuePicker",
     name: "Merchello Filter Value Picker",
-    element: () => import("./property-editor-ui-filter-value-picker.element.js"),
+    element: () => import("@property-editors/filter-value-picker/property-editor-ui-filter-value-picker.element.js"),
     meta: {
       label: "Filter Value Picker",
       icon: "icon-tags",

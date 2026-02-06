@@ -12,7 +12,7 @@ public interface IShippingQuoteService
     Task<IReadOnlyCollection<ShippingRateQuote>> GetQuotesAsync(
         Basket basket,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

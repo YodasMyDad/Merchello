@@ -7,7 +7,7 @@ public class ShippingCostDto
 {
     public Guid Id { get; set; }
     public string CountryCode { get; set; } = null!;
-    public string? StateOrProvinceCode { get; set; }
+    public string? RegionCode { get; set; }
     public decimal Cost { get; set; }
 
     /// <summary>

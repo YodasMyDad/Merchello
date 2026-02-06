@@ -1,7 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { TestPaymentProviderModalData, TestPaymentProviderModalValue } from "./test-provider-modal.token.js";
+import type { TestPaymentProviderModalData, TestPaymentProviderModalValue } from "@payment-providers/modals/test-provider-modal.token.js";
 import type {
   TestPaymentProviderDto,
   TestPaymentProviderResultDto,

@@ -19,11 +19,12 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     /// </summary>
     [HttpGet("filter-groups")]
     [ProducesResponseType<List<ProductFilterGroupDto>>(StatusCodes.Status200OK)]
-    public async Task<List<ProductFilterGroupDto>> GetFilterGroups(CancellationToken ct)
+    public async Task<List<ProductFilterGroupDto>> GetFilterGroups([FromQuery] int maxResults = 1000, CancellationToken ct = default)
     {
         var groups = await productFilterService.GetFilterGroups(ct);
         return groups
             .OrderBy(g => g.SortOrder)
+            .Take(maxResults)
             .Select(MapGroupToDto)
             .ToList();
     }
@@ -54,7 +55,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     public async Task<IActionResult> CreateFilterGroup([FromBody] CreateFilterGroupDto dto, CancellationToken ct)
     {
         var result = await productFilterService.CreateFilterGroup(dto.Name, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create filter group.");
         }
@@ -76,7 +77,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     {
         var result = await productFilterService.UpdateFilterGroup(id, dto.Name, dto.SortOrder, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update filter group.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -97,7 +98,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     public async Task<IActionResult> DeleteFilterGroup(Guid id, CancellationToken ct)
     {
         var result = await productFilterService.DeleteFilterGroup(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
@@ -119,7 +120,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     public async Task<IActionResult> ReorderFilterGroups([FromBody] List<Guid> orderedIds, CancellationToken ct)
     {
         var result = await productFilterService.ReorderFilterGroups(orderedIds, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder filter groups.");
         }
@@ -143,7 +144,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
             HexColour = dto.HexColour,
             Image = dto.Image
         }, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to create filter.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -192,7 +193,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
             SortOrder = dto.SortOrder
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update filter.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)
@@ -213,7 +214,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     public async Task<IActionResult> DeleteFilter(Guid id, CancellationToken ct)
     {
         var result = await productFilterService.DeleteFilter(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true)
@@ -235,7 +236,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     public async Task<IActionResult> ReorderFilters(Guid groupId, [FromBody] List<Guid> orderedIds, CancellationToken ct)
     {
         var result = await productFilterService.ReorderFilters(groupId, orderedIds, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder filters.");
         }
@@ -254,7 +255,7 @@ public class FiltersApiController(IProductFilterService productFilterService) : 
     {
         var result = await productFilterService.AssignFiltersToProduct(productId, dto.FilterIds, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to assign filters.";
             return message.Contains("not found", StringComparison.OrdinalIgnoreCase)

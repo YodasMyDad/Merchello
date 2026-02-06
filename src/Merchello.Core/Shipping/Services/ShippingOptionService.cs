@@ -150,30 +150,30 @@ public class ShippingOptionService(
             UpdateDate = option.UpdateDate,
             Costs = option.ShippingCosts
                 .OrderBy(c => c.CountryCode)
-                .ThenBy(c => c.StateOrProvinceCode)
+                .ThenBy(c => c.RegionCode)
                 .Select(c => new ShippingCostDto
                 {
                     Id = c.Id,
                     CountryCode = c.CountryCode,
-                    StateOrProvinceCode = c.StateOrProvinceCode,
+                    RegionCode = c.RegionCode,
                     Cost = c.Cost,
-                    RegionDisplay = FormatRegion(c.CountryCode, c.StateOrProvinceCode)
+                    RegionDisplay = FormatRegion(c.CountryCode, c.RegionCode)
                 })
                 .ToList(),
             WeightTiers = option.WeightTiers
                 .OrderBy(t => t.CountryCode)
-                .ThenBy(t => t.StateOrProvinceCode)
+                .ThenBy(t => t.RegionCode)
                 .ThenBy(t => t.MinWeightKg)
                 .Select(t => new ShippingWeightTierDto
                 {
                     Id = t.Id,
                     CountryCode = t.CountryCode,
-                    StateOrProvinceCode = t.StateOrProvinceCode,
+                    RegionCode = t.RegionCode,
                     MinWeightKg = t.MinWeightKg,
                     MaxWeightKg = t.MaxWeightKg,
                     Surcharge = t.Surcharge,
                     WeightRangeDisplay = FormatWeightRange(t.MinWeightKg, t.MaxWeightKg),
-                    RegionDisplay = FormatRegion(t.CountryCode, t.StateOrProvinceCode)
+                    RegionDisplay = FormatRegion(t.CountryCode, t.RegionCode)
                 })
                 .ToList()
         };
@@ -315,7 +315,7 @@ public class ShippingOptionService(
         });
         scope.Complete();
 
-        if (result.Successful && result.ResultObject != null)
+        if (result.Success && result.ResultObject != null)
         {
             // Publish "After" notification
             await notificationPublisher.PublishAsync(new ShippingOptionSavedNotification(result.ResultObject), ct);
@@ -421,11 +421,11 @@ public class ShippingOptionService(
 
             var costs = option.ShippingCosts;
             var countryCode = dto.CountryCode.ToUpperInvariant();
-            var stateCode = dto.StateOrProvinceCode?.ToUpperInvariant();
+            var stateCode = dto.RegionCode?.ToUpperInvariant();
 
             var exists = costs.Any(c =>
                 c.CountryCode == countryCode &&
-                c.StateOrProvinceCode == stateCode);
+                c.RegionCode == stateCode);
 
             if (exists)
             {
@@ -441,7 +441,7 @@ public class ShippingOptionService(
             {
                 ShippingOptionId = optionId,
                 CountryCode = countryCode,
-                StateOrProvinceCode = stateCode,
+                RegionCode = stateCode,
                 Cost = dto.Cost
             };
 
@@ -478,7 +478,7 @@ public class ShippingOptionService(
             var (targetOption, targetCost) = found.Value;
 
             targetCost.CountryCode = dto.CountryCode.ToUpperInvariant();
-            targetCost.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
+            targetCost.RegionCode = dto.RegionCode?.ToUpperInvariant();
             targetCost.Cost = dto.Cost;
             targetCost.ShippingOptionId = targetOption.Id;
 
@@ -562,7 +562,7 @@ public class ShippingOptionService(
             {
                 ShippingOptionId = optionId,
                 CountryCode = dto.CountryCode.ToUpperInvariant(),
-                StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant(),
+                RegionCode = dto.RegionCode?.ToUpperInvariant(),
                 MinWeightKg = dto.MinWeightKg,
                 MaxWeightKg = dto.MaxWeightKg,
                 Surcharge = dto.Surcharge
@@ -612,7 +612,7 @@ public class ShippingOptionService(
             var (targetOption, targetTier) = found.Value;
 
             targetTier.CountryCode = dto.CountryCode.ToUpperInvariant();
-            targetTier.StateOrProvinceCode = dto.StateOrProvinceCode?.ToUpperInvariant();
+            targetTier.RegionCode = dto.RegionCode?.ToUpperInvariant();
             targetTier.MinWeightKg = dto.MinWeightKg;
             targetTier.MaxWeightKg = dto.MaxWeightKg;
             targetTier.Surcharge = dto.Surcharge;

@@ -48,7 +48,7 @@ export interface TaxGroupRateDto {
   /** ISO 3166-1 alpha-2 country code (e.g., "US", "GB") */
   countryCode: string;
   /** Optional ISO 3166-2 state/province code (e.g., "CA" for California) */
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   /** Tax percentage rate (0-100) */
   taxPercentage: number;
   /** Country display name (for UI) */
@@ -62,7 +62,7 @@ export interface CreateTaxGroupRateDto {
   /** ISO 3166-1 alpha-2 country code (e.g., "US", "GB") */
   countryCode: string;
   /** Optional ISO 3166-2 state/province code. When empty, rate applies to entire country. */
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   /** Tax percentage rate (0-100) */
   taxPercentage: number;
 }
@@ -158,7 +158,7 @@ export interface ShippingTaxOverrideDto {
   /** ISO 3166-1 alpha-2 country code (e.g., "US", "GB") */
   countryCode: string;
   /** Optional ISO 3166-2 state/province code (e.g., "CA" for California) */
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   /** Tax group ID for shipping. Null means shipping is never taxed in this region. */
   shippingTaxGroupId?: string;
   /** Tax group name (for UI display) */
@@ -180,7 +180,7 @@ export interface CreateShippingTaxOverrideDto {
   /** ISO 3166-1 alpha-2 country code (e.g., "US", "GB") */
   countryCode: string;
   /** Optional ISO 3166-2 state/province code. When empty, applies to entire country. */
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   /** Tax group ID for shipping. Null means shipping is never taxed in this region. */
   shippingTaxGroupId?: string;
 }

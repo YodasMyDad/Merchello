@@ -6,7 +6,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UMB_MEDIA_PICKER_MODAL } from "@umbraco-cms/backoffice/media";
 import "@umbraco-cms/backoffice/imaging";
-import type { OptionEditorModalData, OptionEditorModalValue } from "./option-editor-modal.token.js";
+import type { OptionEditorModalData, OptionEditorModalValue } from "@products/modals/option-editor-modal.token.js";
 import type { ProductOptionDto, ProductOptionValueDto } from "@products/types/product.types.js";
 
 @customElement("merchello-option-editor-modal")
@@ -21,6 +21,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     optionTypeAlias: "",
     optionUiAlias: "dropdown",
     isVariant: false,
+    isMultiSelect: true,
     values: [],
   };
   @state() private _isSaving = false;
@@ -45,7 +46,10 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     super.connectedCallback();
     this.#isConnected = true;
     if (this.data?.option) {
-      this._formData = { ...this.data.option };
+      this._formData = {
+        ...this.data.option,
+        isMultiSelect: this.data.option.isMultiSelect ?? !this.data.option.isVariant,
+      };
       this._originalIsVariant = this.data.option.isVariant;
     }
   }
@@ -114,6 +118,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
         optionTypeAlias: this._formData.optionTypeAlias || null,
         optionUiAlias: this._formData.optionUiAlias || null,
         isVariant: this._formData.isVariant || false,
+        isMultiSelect: this._formData.isVariant ? false : this._formData.isMultiSelect ?? true,
         values: this._formData.values || [],
       },
     };
@@ -441,9 +446,30 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                 slot="editor"
                 label="Generates Variants"
                 .checked=${this._formData.isVariant ?? false}
-                @change=${(e: Event) => (this._formData = { ...this._formData, isVariant: (e.target as HTMLInputElement).checked })}>
+                @change=${(e: Event) => {
+                  const isVariant = (e.target as HTMLInputElement).checked;
+                  this._formData = {
+                    ...this._formData,
+                    isVariant,
+                    isMultiSelect: isVariant ? false : this._formData.isMultiSelect ?? true,
+                  };
+                }}>
               </uui-toggle>
             </umb-property-layout>
+            ${!this._formData.isVariant
+              ? html`
+                  <umb-property-layout
+                    label="Add-on Selection Mode"
+                    description="Single-select allows one value. Multi-select allows multiple values for this add-on option.">
+                    <uui-toggle
+                      slot="editor"
+                      label="Allow Multiple Selections"
+                      .checked=${this._formData.isMultiSelect ?? true}
+                      @change=${(e: Event) => (this._formData = { ...this._formData, isMultiSelect: (e.target as HTMLInputElement).checked })}>
+                    </uui-toggle>
+                  </umb-property-layout>
+                `
+              : nothing}
           </uui-box>
 
           <uui-box>

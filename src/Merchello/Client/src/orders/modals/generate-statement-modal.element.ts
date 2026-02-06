@@ -4,7 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type {
   GenerateStatementModalData,
   GenerateStatementModalValue,
-} from "./generate-statement-modal.token.js";
+} from "@orders/modals/generate-statement-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 type PeriodOption = "last30" | "last60" | "last90" | "thisMonth" | "custom";

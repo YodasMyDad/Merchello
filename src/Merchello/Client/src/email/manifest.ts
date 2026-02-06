@@ -7,7 +7,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Emails.Workspace",
     name: "Merchello Emails Workspace",
-    api: () => import("./contexts/email-workspace.context.js"),
+    api: () => import("@email/contexts/email-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_EMAILS_ENTITY_TYPE,
     },
@@ -18,7 +18,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Emails.ListView",
     name: "Emails List View",
-    js: () => import("./components/email-list.element.js"),
+    js: () => import("@email/components/email-list.element.js"),
     weight: 100,
     meta: {
       label: "Emails",
@@ -38,6 +38,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.Email.Preview.Modal",
     name: "Email Preview Modal",
-    js: () => import("./modals/email-preview-modal.element.js"),
+    js: () => import("@email/modals/email-preview-modal.element.js"),
   },
 ];

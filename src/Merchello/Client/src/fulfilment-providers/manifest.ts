@@ -4,7 +4,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Providers.FulfilmentProviders.View",
     name: "Fulfilment Providers View",
-    js: () => import("./components/fulfilment-providers-list.element.js"),
+    js: () => import("@fulfilment-providers/components/fulfilment-providers-list.element.js"),
     weight: 75,
     meta: {
       label: "Fulfilment",
@@ -24,7 +24,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.FulfilmentProvider.Config.Modal",
     name: "Fulfilment Provider Configuration Modal",
-    js: () => import("./modals/fulfilment-provider-config-modal.element.js"),
+    js: () => import("@fulfilment-providers/modals/fulfilment-provider-config-modal.element.js"),
   },
 
   // Test modal
@@ -32,6 +32,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.TestFulfilmentProvider.Modal",
     name: "Test Fulfilment Provider Modal",
-    js: () => import("./modals/test-provider-modal.element.js"),
+    js: () => import("@fulfilment-providers/modals/test-provider-modal.element.js"),
   },
 ];

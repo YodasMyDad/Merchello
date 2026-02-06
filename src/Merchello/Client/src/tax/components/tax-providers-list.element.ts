@@ -7,9 +7,9 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { TaxProviderDto } from "@tax/types/tax.types.js";
-import { MERCHELLO_TAX_PROVIDER_CONFIG_MODAL } from "../modals/tax-provider-config-modal.token.js";
-import { MERCHELLO_TEST_TAX_PROVIDER_MODAL } from "../modals/test-tax-provider-modal.token.js";
-import { getTaxProviderIconSvg } from "../utils/brand-icons.js";
+import { MERCHELLO_TAX_PROVIDER_CONFIG_MODAL } from "@tax/modals/tax-provider-config-modal.token.js";
+import { MERCHELLO_TEST_TAX_PROVIDER_MODAL } from "@tax/modals/test-tax-provider-modal.token.js";
+import { getTaxProviderIconSvg } from "@tax/utils/brand-icons.js";
 
 @customElement("merchello-tax-providers-list")
 export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement) {

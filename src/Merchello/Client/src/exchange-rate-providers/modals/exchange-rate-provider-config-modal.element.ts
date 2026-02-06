@@ -6,7 +6,7 @@ import type { ExchangeRateProviderFieldDto } from '@exchange-rate-providers/type
 import type {
   ExchangeRateProviderConfigModalData,
   ExchangeRateProviderConfigModalValue,
-} from "./exchange-rate-provider-config-modal.token.js";
+} from "@exchange-rate-providers/modals/exchange-rate-provider-config-modal.token.js";
 
 @customElement("merchello-exchange-rate-provider-config-modal")
 export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBaseElement<

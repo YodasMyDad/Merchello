@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateCsv, formatDateForCsv, type CsvColumn } from "./csv.js";
+import { generateCsv, formatDateForCsv, type CsvColumn } from "@shared/utils/csv.js";
 
 describe("csv utilities", () => {
   describe("generateCsv", () => {

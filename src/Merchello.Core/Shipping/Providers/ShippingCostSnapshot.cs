@@ -6,6 +6,6 @@ namespace Merchello.Core.Shipping.Providers;
 public class ShippingCostSnapshot
 {
     public string CountryCode { get; init; } = null!;
-    public string? StateOrProvinceCode { get; init; }
+    public string? RegionCode { get; init; }
     public decimal Cost { get; init; }
 }

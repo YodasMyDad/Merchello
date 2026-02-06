@@ -65,7 +65,7 @@ export class MerchelloDiscountsWorkspaceContext
       // Create discount route (before :id to avoid matching "create" as an id)
       {
         path: "edit/discounts/create",
-        component: () => import("../components/discount-detail.element.js"),
+        component: () => import("@discounts/components/discount-detail.element.js"),
         setup: () => {
           this.#isNew = true;
           this.#discountId = undefined;
@@ -79,7 +79,7 @@ export class MerchelloDiscountsWorkspaceContext
       // Discount detail route (GUID parameter)
       {
         path: "edit/discounts/:id",
-        component: () => import("../components/discount-detail.element.js"),
+        component: () => import("@discounts/components/discount-detail.element.js"),
         setup: (_component, info) => {
           this.#isNew = false;
           const id = info.match.params.id;
@@ -89,7 +89,7 @@ export class MerchelloDiscountsWorkspaceContext
       // Discounts list route
       {
         path: "edit/discounts",
-        component: () => import("../components/discounts-workspace-editor.element.js"),
+        component: () => import("@discounts/components/discounts-workspace-editor.element.js"),
         setup: () => {
           // Reset detail state when viewing list
           this.#discountId = undefined;

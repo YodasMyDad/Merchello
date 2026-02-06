@@ -5,7 +5,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CreateShippingCostDto } from "@shipping/types/shipping.types.js";
-import type { ShippingCostModalData, ShippingCostModalValue } from "./shipping-cost-modal.token.js";
+import type { ShippingCostModalData, ShippingCostModalValue } from "@shipping/modals/shipping-cost-modal.token.js";
 
 interface CountryOption {
   code: string;
@@ -26,7 +26,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
   @state() private _isLoadingCountries = true;
   @state() private _isLoadingRegions = false;
   @state() private _countryCode = "";
-  @state() private _stateOrProvinceCode = "";
+  @state() private _regionCode = "";
   @state() private _cost = 0;
   @state() private _countries: CountryOption[] = [];
   @state() private _regions: RegionOption[] = [];
@@ -46,7 +46,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
     
     if (this.data?.cost) {
       this._countryCode = this.data.cost.countryCode;
-      this._stateOrProvinceCode = this.data.cost.stateOrProvinceCode ?? "";
+      this._regionCode = this.data.cost.regionCode ?? "";
       this._cost = this.data.cost.cost;
       
       // Load regions if editing and country is set
@@ -100,7 +100,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
   private _handleCountryChange(e: Event): void {
     const value = (e.target as HTMLSelectElement).value;
     this._countryCode = value;
-    this._stateOrProvinceCode = "";
+    this._regionCode = "";
     this._regions = [];
 
     if (value && value !== "*") {
@@ -129,14 +129,14 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
   /** Options for region dropdown */
   private get _regionOptions(): Array<{ name: string; value: string; selected?: boolean }> {
     const options: Array<{ name: string; value: string; selected?: boolean }> = [
-      { name: "Entire country (all regions)", value: "", selected: !this._stateOrProvinceCode }
+      { name: "Entire country (all regions)", value: "", selected: !this._regionCode }
     ];
 
     this._regions.forEach(r => {
       options.push({
         name: r.name,
         value: r.regionCode,
-        selected: r.regionCode === this._stateOrProvinceCode
+        selected: r.regionCode === this._regionCode
       });
     });
 
@@ -162,7 +162,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
 
     const dto: CreateShippingCostDto = {
       countryCode: this._countryCode.toUpperCase(),
-      stateOrProvinceCode: this._stateOrProvinceCode.toUpperCase() || undefined,
+      regionCode: this._regionCode.toUpperCase() || undefined,
       cost: this._cost,
     };
 
@@ -238,14 +238,14 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
                           <uui-select
                             id="stateCode"
                             .options=${this._regionOptions}
-                            @change=${(e: Event) => (this._stateOrProvinceCode = (e.target as HTMLSelectElement).value)}
+                            @change=${(e: Event) => (this._regionCode = (e.target as HTMLSelectElement).value)}
                           ></uui-select>
                         `
                       : html`
                           <uui-input
                             id="stateCode"
-                            .value=${this._stateOrProvinceCode}
-                            @input=${(e: InputEvent) => (this._stateOrProvinceCode = (e.target as HTMLInputElement).value)}
+                            .value=${this._regionCode}
+                            @input=${(e: InputEvent) => (this._regionCode = (e.target as HTMLInputElement).value)}
                             placeholder="Optional: CA, NY, etc."
                           ></uui-input>
                         `}

@@ -232,7 +232,7 @@ public class PaymentsApiController(
             },
             cancellationToken);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -294,7 +294,7 @@ public class PaymentsApiController(
             }, cancellationToken);
         }
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -327,7 +327,7 @@ public class PaymentsApiController(
             Percentage = request?.Percentage
         }, cancellationToken);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)

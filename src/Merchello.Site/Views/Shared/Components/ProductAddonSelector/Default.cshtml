@@ -2,6 +2,7 @@
 
 @{
     var priceFormat = $"N{Model.DecimalPlaces}";
+    var isMultiSelectJs = Model.IsMultiSelect ? "true" : "false";
 }
 
 <div class="addon-group mb-3">
@@ -16,7 +17,7 @@
                        class="form-check-input"
                        id="addon-@value.Id"
                        :checked="isAddonSelected('@Model.OptionId', '@value.Id')"
-                       @@change="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, $event.target.checked)" />
+                       @@change="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, $event.target.checked, @Html.Raw(isMultiSelectJs))" />
                 <label class="form-check-label" for="addon-@value.Id">
                     @value.Name
                     @if (value.DisplayPriceAdjustment != 0)
@@ -44,7 +45,7 @@
                                     :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                                     style="background-color: @(value.HexValue ?? "#ccc");"
                                     title="@value.Name@priceLabel"
-                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'), @Html.Raw(isMultiSelectJs))">
                             </button>
                         </div>
                     }
@@ -64,7 +65,7 @@
                             :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                             style="background-color: @(value.HexValue ?? "#ccc");"
                             title="@value.Name@priceLabel"
-                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'), @Html.Raw(isMultiSelectJs))">
                     </button>
                 }
             </div>
@@ -84,7 +85,7 @@
                                     class="image-swatch"
                                     :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                                     title="@value.Name@priceLabel"
-                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                                    @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'), @Html.Raw(isMultiSelectJs))">
                                 @if (!string.IsNullOrEmpty(value.MediaUrl))
                                 {
                                     <img src="@value.MediaUrl" alt="@value.Name" />
@@ -111,7 +112,7 @@
                             class="image-swatch"
                             :class="{ 'selected': isAddonSelected('@Model.OptionId', '@value.Id') }"
                             title="@value.Name@priceLabel"
-                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'))">
+                            @@click="toggleAddon('@Model.OptionId', '@value.Id', @value.PriceAdjustment, @value.DisplayPriceAdjustment, !isAddonSelected('@Model.OptionId', '@value.Id'), @Html.Raw(isMultiSelectJs))">
                         @if (!string.IsNullOrEmpty(value.MediaUrl))
                         {
                             <img src="@value.MediaUrl" alt="@value.Name" />

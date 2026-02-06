@@ -23,13 +23,13 @@ import { MerchelloApi, type CountryDto } from "@api/merchello-api.js";
 import { getOrdersListHref } from "@shared/utils/navigation.js";
 
 // Import the shipments view component
-import "./shipments-view.element.js";
+import "@orders/components/shipments-view.element.js";
 
 // Import the payment panel component
-import "./payment-panel.element.js";
+import "@orders/components/payment-panel.element.js";
 
 // Import the payment link panel component
-import "./payment-link-panel.element.js";
+import "@orders/components/payment-link-panel.element.js";
 
 // Import shared components
 import "@shared/components/line-item-identity.element.js";

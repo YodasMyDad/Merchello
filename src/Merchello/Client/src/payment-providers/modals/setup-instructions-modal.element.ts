@@ -6,7 +6,7 @@ import DOMPurify from "dompurify";
 import type {
   SetupInstructionsModalData,
   SetupInstructionsModalValue,
-} from "./setup-instructions-modal.token.js";
+} from "@payment-providers/modals/setup-instructions-modal.token.js";
 
 @customElement("merchello-setup-instructions-modal")
 export class MerchelloSetupInstructionsModalElement extends UmbModalBaseElement<

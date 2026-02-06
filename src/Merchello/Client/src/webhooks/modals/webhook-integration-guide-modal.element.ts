@@ -6,7 +6,7 @@ import DOMPurify from "dompurify";
 import type {
   WebhookIntegrationGuideModalData,
   WebhookIntegrationGuideModalValue,
-} from "./webhook-integration-guide-modal.token.js";
+} from "@webhooks/modals/webhook-integration-guide-modal.token.js";
 
 const INTEGRATION_GUIDE_CONTENT = `
 ## Headers

@@ -311,7 +311,7 @@ import type {
   TimeSeriesDataPointDto,
   TimeSeriesResultDto,
   SalesBreakdownDto,
-} from '../analytics/types/analytics.types.js';
+} from '@analytics/types/analytics.types.js';
 
 // Import tax types
 import type {

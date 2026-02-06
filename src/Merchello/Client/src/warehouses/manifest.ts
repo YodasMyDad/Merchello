@@ -11,7 +11,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     kind: "routable",
     alias: "Merchello.Warehouses.Workspace",
     name: "Merchello Warehouses Workspace",
-    api: () => import("./contexts/warehouses-workspace.context.js"),
+    api: () => import("@warehouses/contexts/warehouses-workspace.context.js"),
     meta: {
       entityType: MERCHELLO_WAREHOUSES_ENTITY_TYPE,
     },
@@ -22,7 +22,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.Warehouses.ListView",
     name: "Merchello Warehouses List View",
-    js: () => import("./components/warehouses-list.element.js"),
+    js: () => import("@warehouses/components/warehouses-list.element.js"),
     weight: 100,
     meta: {
       label: "Warehouses",
@@ -46,7 +46,7 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.ServiceRegion.Modal",
     name: "Merchello Service Region Modal",
-    js: () => import("./modals/service-region-modal.element.js"),
+    js: () => import("@warehouses/modals/service-region-modal.element.js"),
   },
 
   // Warehouse picker modal (for discount targeting)
@@ -54,6 +54,6 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "modal",
     alias: "Merchello.WarehousePicker.Modal",
     name: "Warehouse Picker Modal",
-    js: () => import("./modals/warehouse-picker-modal.element.js"),
+    js: () => import("@warehouses/modals/warehouse-picker-modal.element.js"),
   },
 ];

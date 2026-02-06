@@ -50,7 +50,7 @@ public class SupplierServiceTests
 
         var result = await _service.CreateSupplierAsync(createParameters);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("Acme Supply Co");
         result.ResultObject.Code.ShouldBe("ACME");
@@ -77,7 +77,7 @@ public class SupplierServiceTests
 
         var result = await _service.UpdateSupplierAsync(updateParameters);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Name.ShouldBe("Updated Supplier");
         result.ResultObject.Code.ShouldBe("UPD");
@@ -96,7 +96,7 @@ public class SupplierServiceTests
 
         var result = await _service.DeleteSupplierAsync(supplier.Id, force: false);
 
-        result.Successful.ShouldBeFalse();
+        result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("force=true"));
 
         _fixture.DbContext.ChangeTracker.Clear();
@@ -113,7 +113,7 @@ public class SupplierServiceTests
 
         var result = await _service.DeleteSupplierAsync(supplier.Id, force: true);
 
-        result.Successful.ShouldBeTrue();
+        result.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
         var supplierExists = await _fixture.DbContext.Suppliers.AnyAsync(s => s.Id == supplier.Id);

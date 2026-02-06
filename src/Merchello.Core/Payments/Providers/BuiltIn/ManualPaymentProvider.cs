@@ -189,7 +189,7 @@ public class ManualPaymentProvider(IInvoiceService invoiceService) : PaymentProv
             poNumber,
             cancellationToken);
 
-        if (!updateResult.Successful)
+        if (!updateResult.Success)
         {
             return new PaymentResult
             {

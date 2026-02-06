@@ -108,7 +108,7 @@ public class DiscountsApiController(
         var parameters = MapToCreateParameters(dto);
 
         var result = await discountService.CreateAsync(parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -138,7 +138,7 @@ public class DiscountsApiController(
         var parameters = MapToUpdateParameters(dto);
 
         var result = await discountService.UpdateAsync(id, parameters, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -172,7 +172,7 @@ public class DiscountsApiController(
     public async Task<IActionResult> DeleteDiscount(Guid id, CancellationToken ct)
     {
         var result = await discountService.DeleteAsync(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -202,7 +202,7 @@ public class DiscountsApiController(
     public async Task<IActionResult> ActivateDiscount(Guid id, CancellationToken ct)
     {
         var result = await discountService.ActivateAsync(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -236,7 +236,7 @@ public class DiscountsApiController(
     public async Task<IActionResult> DeactivateDiscount(Guid id, CancellationToken ct)
     {
         var result = await discountService.DeactivateAsync(id, ct);
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages
                 .Where(m => m.ResultMessageType == ResultMessageType.Error)

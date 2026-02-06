@@ -35,7 +35,7 @@ export interface WarehouseDetailDto {
 export interface ServiceRegionDto {
   id: string;
   countryCode: string;
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   isExcluded: boolean;
   regionDisplay?: string;
 }
@@ -64,7 +64,7 @@ export interface UpdateWarehouseDto {
 
 export interface CreateServiceRegionDto {
   countryCode: string;
-  stateOrProvinceCode?: string;
+  regionCode?: string;
   isExcluded: boolean;
 }
 

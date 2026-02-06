@@ -16,11 +16,11 @@ import type {
   UpdateEmailConfigurationDto,
   EmailAttachmentDto,
 } from "@email/types/email.types.js";
-import type { MerchelloEmailsWorkspaceContext } from "../contexts/email-workspace.context.js";
+import type { MerchelloEmailsWorkspaceContext } from "@email/contexts/email-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { navigateToEmailDetail, getEmailsListHref } from "@shared/utils/navigation.js";
-import { MERCHELLO_EMAIL_PREVIEW_MODAL } from "../modals/email-preview-modal.token.js";
-import "./token-autocomplete.element.js";
+import { MERCHELLO_EMAIL_PREVIEW_MODAL } from "@email/modals/email-preview-modal.token.js";
+import "@email/components/token-autocomplete.element.js";
 
 function stubComponent(): HTMLElement {
   return document.createElement("div");

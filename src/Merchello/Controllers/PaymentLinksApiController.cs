@@ -48,7 +48,7 @@ public class PaymentLinksApiController(IPaymentLinkService paymentLinkService) :
             createdBy,
             cancellationToken);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)
@@ -103,7 +103,7 @@ public class PaymentLinksApiController(IPaymentLinkService paymentLinkService) :
     {
         var result = await paymentLinkService.DeactivatePaymentLinkAsync(invoiceId, cancellationToken);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message;
             if (errorMessage?.Contains("not found") == true)

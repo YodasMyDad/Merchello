@@ -2,11 +2,13 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
-import type { CreateProductModalData, CreateProductModalValue } from "./create-product-modal.token.js";
-import { MerchelloApi } from "../../api/merchello-api.js";
-import type { CreateProductRootDto, ProductTypeDto } from "../types/product.types.js";
-import type { TaxGroupDto } from "../../orders/types/order.types.js";
-import type { WarehouseListDto } from "../../warehouses/types/warehouses.types.js";
+import type { CreateProductModalData, CreateProductModalValue } from "@products/modals/create-product-modal.token.js";
+import { MerchelloApi } from "@api/merchello-api.js";
+import type { UmbInputDocumentTypeElement } from "@umbraco-cms/backoffice/document-type";
+import "@umbraco-cms/backoffice/document-type";
+import type { CreateProductRootDto, ElementTypeListItemDto, ProductTypeDto } from "@products/types/product.types.js";
+import type { TaxGroupDto } from "@orders/types/order.types.js";
+import type { WarehouseListDto } from "@warehouses/types/warehouses.types.js";
 
 interface FormData {
   name: string;
@@ -15,6 +17,7 @@ interface FormData {
   productTypeId: string;
   taxGroupId: string;
   warehouseIds: string[];
+  elementTypeAlias: string | null;
 }
 
 interface FormErrors {
@@ -38,6 +41,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
   @state() private _productTypes: ProductTypeDto[] = [];
   @state() private _taxGroups: TaxGroupDto[] = [];
   @state() private _warehouses: WarehouseListDto[] = [];
+  @state() private _elementTypes: ElementTypeListItemDto[] = [];
   @state() private _formData: FormData = {
     name: "",
     sku: "",
@@ -45,6 +49,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     productTypeId: "",
     taxGroupId: "",
     warehouseIds: [],
+    elementTypeAlias: null,
   };
   @state() private _errors: FormErrors = {};
 
@@ -63,10 +68,11 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
   private async _loadLookupData(): Promise<void> {
     this._isLoading = true;
 
-    const [productTypesResult, taxGroupsResult, warehousesResult] = await Promise.all([
+    const [productTypesResult, taxGroupsResult, warehousesResult, elementTypesResult] = await Promise.all([
       MerchelloApi.getProductTypes(),
       MerchelloApi.getTaxGroups(),
       MerchelloApi.getWarehousesList(),
+      MerchelloApi.getElementTypes(),
     ]);
 
     // Check for errors
@@ -89,6 +95,9 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     }
     if (warehousesResult.data) {
       this._warehouses = warehousesResult.data;
+    }
+    if (elementTypesResult.data) {
+      this._elementTypes = elementTypesResult.data;
     }
 
     // Set default values if only one option exists
@@ -149,6 +158,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       taxGroupId: this._formData.taxGroupId,
       warehouseIds: this._formData.warehouseIds,
       isDigitalProduct: false,
+      elementTypeAlias: this._formData.elementTypeAlias,
       defaultVariant: {
         sku: this._formData.sku,
         price: this._formData.price,
@@ -226,6 +236,30 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
         selected: tg.id === this._formData.taxGroupId,
       }))
     );
+  }
+
+  private _getElementTypeSelection(): string[] {
+    const alias = this._formData.elementTypeAlias;
+    if (!alias) return [];
+    const match = this._elementTypes.find((t) => t.alias.toLowerCase() === alias.toLowerCase());
+    return match ? [match.key] : [];
+  }
+
+  private async _handleElementTypeChange(e: Event): Promise<void> {
+    const picker = e.target as UmbInputDocumentTypeElement;
+    const selection = picker.selection ?? [];
+    const selectedKey = selection[0];
+    let selectedType = this._elementTypes.find((t) => t.key === selectedKey);
+
+    if (selectedKey && !selectedType) {
+      const { data } = await MerchelloApi.getElementTypes();
+      if (data) {
+        this._elementTypes = data;
+        selectedType = data.find((t) => t.key === selectedKey);
+      }
+    }
+
+    this._formData = { ...this._formData, elementTypeAlias: selectedType?.alias ?? null };
   }
 
   override render() {
@@ -338,6 +372,18 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
             @change=${(e: Event) => this._handleInputChange("taxGroupId", (e.target as HTMLSelectElement).value)}>
           </uui-select>
           ${this._errors.taxGroupId ? html`<span class="error-message">${this._errors.taxGroupId}</span>` : nothing}
+        </umb-property-layout>
+
+        <umb-property-layout
+          label="Element Type"
+          description="Optional: select an Element Type to add custom properties to this product">
+          <umb-input-document-type
+            slot="editor"
+            .selection=${this._getElementTypeSelection()}
+            .max=${1}
+            .elementTypesOnly=${true}
+            @change=${this._handleElementTypeChange}>
+          </umb-input-document-type>
         </umb-property-layout>
 
         <umb-property-layout

@@ -73,7 +73,7 @@ public class StorefrontSavedPaymentMethodsController(
             },
             ct);
 
-        if (!result.Successful || result.ResultObject == null)
+        if (!result.Success || result.ResultObject == null)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message ?? "Failed to create setup session.";
             return BadRequest(new VaultSetupResponseDto
@@ -125,7 +125,7 @@ public class StorefrontSavedPaymentMethodsController(
             },
             ct);
 
-        if (!result.Successful || result.ResultObject == null)
+        if (!result.Success || result.ResultObject == null)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message ?? "Failed to save payment method.";
             return BadRequest(new { success = false, error = errorMessage });
@@ -158,7 +158,7 @@ public class StorefrontSavedPaymentMethodsController(
 
         var result = await savedPaymentMethodService.SetDefaultAsync(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message ?? "Failed to set default payment method.";
             return BadRequest(new { success = false, error = errorMessage });
@@ -188,7 +188,7 @@ public class StorefrontSavedPaymentMethodsController(
 
         var result = await savedPaymentMethodService.DeleteAsync(id, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errorMessage = result.Messages.FirstOrDefault()?.Message ?? "Failed to delete payment method.";
             return BadRequest(new { success = false, error = errorMessage });

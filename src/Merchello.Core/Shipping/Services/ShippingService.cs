@@ -99,7 +99,7 @@ public class ShippingService(
 
             // Get stock info for this warehouse
             var stockInfo = warehouseStock.GetValueOrDefault(warehouse.Id);
-            var trackStock = stockInfo?.TrackStock ?? true;
+            var trackStock = stockInfo?.TrackStock ?? false;
             var availableStock = stockInfo?.AvailableStock ?? 0;
 
             // Accumulate total available stock
@@ -509,7 +509,7 @@ public class ShippingService(
     public async Task<ProductShippingOptionsResultDto> GetShippingOptionsForProductAsync(
         Guid productId,
         string countryCode,
-        string? stateOrProvinceCode = null,
+        string? regionCode = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(countryCode))
@@ -555,7 +555,7 @@ public class ShippingService(
             var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses ?? [];
             var serviceableWarehouses = productRootWarehouses
                 .Where(prw => prw.Warehouse != null &&
-                              CanWarehouseServiceLocation(prw.Warehouse, countryCode, stateOrProvinceCode))
+                              CanWarehouseServiceLocation(prw.Warehouse, countryCode, regionCode))
                 .Select(prw => prw.Warehouse!)
                 .ToList();
 
@@ -592,7 +592,7 @@ public class ShippingService(
                     var cost = shippingCostResolver.ResolveBaseCost(
                         shippingOption.ShippingCosts,
                         countryCode,
-                        stateOrProvinceCode,
+                        regionCode,
                         shippingOption.FixedCost);
                     if (cost == null && shippingOption.FixedCost == null)
                         continue; // No rate available for this destination
@@ -634,7 +634,7 @@ public class ShippingService(
     private static bool CanWarehouseServiceLocation(
         Warehouses.Models.Warehouse warehouse,
         string countryCode,
-        string? stateOrProvinceCode)
+        string? regionCode)
     {
         var serviceRegions = warehouse.ServiceRegions;
         if (serviceRegions == null || serviceRegions.Count == 0)
@@ -646,8 +646,8 @@ public class ShippingService(
         // Check if any service region matches
         return serviceRegions.Any(sr =>
             string.Equals(sr.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
-            (string.IsNullOrEmpty(sr.StateOrProvinceCode) ||
-             string.Equals(sr.StateOrProvinceCode, stateOrProvinceCode, StringComparison.OrdinalIgnoreCase)));
+            (string.IsNullOrEmpty(sr.RegionCode) ||
+             string.Equals(sr.RegionCode, regionCode, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>

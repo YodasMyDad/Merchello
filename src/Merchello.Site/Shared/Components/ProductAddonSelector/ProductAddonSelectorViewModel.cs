@@ -26,6 +26,11 @@ public class ProductAddonSelectorViewModel
     public bool UseSwiper { get; set; }
 
     /// <summary>
+    /// Whether this add-on option allows selecting multiple values.
+    /// </summary>
+    public bool IsMultiSelect { get; set; } = true;
+
+    /// <summary>
     /// The currency symbol for price display.
     /// </summary>
     public string CurrencySymbol { get; set; } = "£";

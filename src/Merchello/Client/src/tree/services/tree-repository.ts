@@ -3,7 +3,7 @@ import type { UmbApi } from "@umbraco-cms/backoffice/extension-api";
 import { UmbTreeRepositoryBase, type UmbTreeRepository } from "@umbraco-cms/backoffice/tree";
 import type { MerchelloTreeItemModel, MerchelloTreeRootModel } from '@tree/types/tree.types.js';
 import { MERCHELLO_ROOT_ENTITY_TYPE } from '@tree/types/tree.types.js';
-import { MerchelloTreeDataSource } from "./tree-data-source.js";
+import { MerchelloTreeDataSource } from "@tree/services/tree-data-source.js";
 
 export class MerchelloTreeRepository
   extends UmbTreeRepositoryBase<MerchelloTreeItemModel, MerchelloTreeRootModel>

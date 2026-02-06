@@ -16,7 +16,8 @@ public class TaxGroupRateDbMapping : IEntityTypeConfiguration<TaxGroupRate>
             .IsRequired()
             .HasMaxLength(10);
 
-        builder.Property(x => x.StateOrProvinceCode)
+        builder.Property(x => x.RegionCode)
+            .HasColumnName("StateOrProvinceCode")
             .HasMaxLength(50);
 
         builder.Property(x => x.TaxPercentage)
@@ -27,8 +28,8 @@ public class TaxGroupRateDbMapping : IEntityTypeConfiguration<TaxGroupRate>
             .HasForeignKey(x => x.TaxGroupId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Unique constraint: one rate per country+state per tax group
-        builder.HasIndex(x => new { x.TaxGroupId, x.CountryCode, x.StateOrProvinceCode })
+        // Unique constraint: one rate per country+region per tax group
+        builder.HasIndex(x => new { x.TaxGroupId, x.CountryCode, x.RegionCode })
             .IsUnique();
     }
 }

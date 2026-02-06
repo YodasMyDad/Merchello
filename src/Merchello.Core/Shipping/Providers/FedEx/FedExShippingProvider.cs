@@ -307,7 +307,7 @@ public class FedExShippingProvider(
                     ? [request.OriginAddress.AddressOne, request.OriginAddress.AddressTwo ?? ""]
                     : null,
                 City = request.OriginAddress?.TownCity,
-                StateOrProvinceCode = request.OriginAddress?.CountyState?.RegionCode,
+                RegionCode = request.OriginAddress?.CountyState?.RegionCode,
                 PostalCode = request.OriginAddress?.PostalCode ?? "",
                 CountryCode = request.OriginAddress?.CountryCode ?? "US"
             };
@@ -319,7 +319,7 @@ public class FedExShippingProvider(
                     ? [request.DestinationAddress.AddressOne, request.DestinationAddress.AddressTwo ?? ""]
                     : null,
                 City = request.DestinationAddress?.TownCity ?? request.City,
-                StateOrProvinceCode = request.DestinationAddress?.CountyState?.RegionCode ?? request.StateOrProvinceCode,
+                RegionCode = request.DestinationAddress?.CountyState?.RegionCode ?? request.RegionCode,
                 PostalCode = request.DestinationAddress?.PostalCode ?? request.PostalCode ?? "",
                 CountryCode = request.DestinationAddress?.CountryCode ?? request.CountryCode
             };

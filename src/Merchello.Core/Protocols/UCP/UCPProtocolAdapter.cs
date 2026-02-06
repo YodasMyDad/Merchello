@@ -492,7 +492,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
                 // Create invoice from basket with source tracking
                 var invoiceResult = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession, source, ct);
-                if (!invoiceResult.Successful || invoiceResult.ResultObject == null)
+                if (!invoiceResult.Success || invoiceResult.ResultObject == null)
                 {
                     var errorMsg = invoiceResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
                     return ProtocolResponse.BadRequest($"Invoice creation failed: {errorMsg}");
@@ -560,7 +560,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             // Process payment
             var paymentResult = await _paymentService.ProcessPaymentAsync(processRequest, ct);
 
-            if (!paymentResult.Successful)
+            if (!paymentResult.Success)
             {
                 var errorMessages = paymentResult.Messages
                     .Where(m => m.ResultMessageType == ResultMessageType.Error)
@@ -1086,7 +1086,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             ShippingSameAsBilling = shippingSameAsBilling
         }, ct);
 
-        if (!result.Successful)
+        if (!result.Success)
         {
             var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error);
             var errorMessages = string.Join(", ", errors.Select(m => m.Message));
@@ -1434,7 +1434,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             Selections = selections
         }, ct);
 
-        if (!saveResult.Successful)
+        if (!saveResult.Success)
         {
             _logger.LogWarning("Auto-selecting shipping options failed for session {SessionId}", sessionState.SessionId);
             return false;

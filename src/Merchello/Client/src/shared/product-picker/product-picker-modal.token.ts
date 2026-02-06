@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { ProductPickerConfig, ProductPickerSelection } from "./product-picker.types.js";
+import type { ProductPickerConfig, ProductPickerSelection } from "@shared/product-picker/product-picker.types.js";
 
 /**
  * Data passed into the product picker modal

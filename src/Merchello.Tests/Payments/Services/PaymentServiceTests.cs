@@ -67,7 +67,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = 100m
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
         var payment = paymentResult.ResultObject!;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -78,7 +78,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             Amount = 50m,
             Reason = "Partial refund"
         });
-        refundResult.Successful.ShouldBeTrue();
+        refundResult.Success.ShouldBeTrue();
         var refundPayment = refundResult.ResultObject!;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -112,7 +112,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = 100m
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
         var payment = paymentResult.ResultObject!;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -123,7 +123,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             Amount = 30m,
             Reason = "First refund"
         });
-        firstRefund.Successful.ShouldBeTrue();
+        firstRefund.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act - try to refund 80 when only 70 is refundable (100 - 30)
@@ -254,7 +254,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = 100m
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
         var payment = paymentResult.ResultObject!;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -264,7 +264,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             Amount = 100m,
             Reason = "Full refund"
         });
-        refundResult.Successful.ShouldBeTrue();
+        refundResult.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act
@@ -290,7 +290,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             TransactionId = $"txn-{Guid.NewGuid()}",
             Amount = 100m
         });
-        paymentResult.Successful.ShouldBeTrue();
+        paymentResult.Success.ShouldBeTrue();
         var payment = paymentResult.ResultObject!;
         _fixture.DbContext.ChangeTracker.Clear();
 
@@ -300,7 +300,7 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             Amount = 30m,
             Reason = "Partial refund"
         });
-        refundResult.Successful.ShouldBeTrue();
+        refundResult.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
 
         // Act

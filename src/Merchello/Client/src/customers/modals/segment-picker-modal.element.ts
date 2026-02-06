@@ -1,7 +1,7 @@
 import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import type { SegmentPickerModalData, SegmentPickerModalValue } from "./segment-picker-modal.token.js";
+import type { SegmentPickerModalData, SegmentPickerModalValue } from "@customers/modals/segment-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CustomerSegmentListItemDto } from "@customers/types/segment.types.js";
 

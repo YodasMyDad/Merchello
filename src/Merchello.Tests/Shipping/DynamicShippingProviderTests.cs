@@ -587,7 +587,7 @@ public class DynamicShippingProviderTests
             city: city,
             postalCode: postalCode,
             countryCode: countryCode,
-            stateOrProvinceCode: regionCode,
+            regionCode: regionCode,
             phone: null,
             email: email);
 

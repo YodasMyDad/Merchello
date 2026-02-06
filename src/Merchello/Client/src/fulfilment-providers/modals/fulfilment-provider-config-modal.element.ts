@@ -7,7 +7,7 @@ import type { ShippingOptionDto } from "@shipping/types/shipping.types.js";
 import type {
   FulfilmentProviderConfigModalData,
   FulfilmentProviderConfigModalValue,
-} from "./fulfilment-provider-config-modal.token.js";
+} from "@fulfilment-providers/modals/fulfilment-provider-config-modal.token.js";
 
 interface ServiceMapping {
   shippingOptionId: string;

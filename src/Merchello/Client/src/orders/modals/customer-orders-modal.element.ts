@@ -15,8 +15,8 @@ import type { CustomerSegmentBadgeDto } from "@customers/types/segment.types.js"
 import type {
   CustomerOrdersModalData,
   CustomerOrdersModalValue,
-} from "./customer-orders-modal.token.js";
-import { MERCHELLO_GENERATE_STATEMENT_MODAL } from "./generate-statement-modal.token.js";
+} from "@orders/modals/customer-orders-modal.token.js";
+import { MERCHELLO_GENERATE_STATEMENT_MODAL } from "@orders/modals/generate-statement-modal.token.js";
 
 interface OutstandingBalance {
   totalOutstanding: number;
