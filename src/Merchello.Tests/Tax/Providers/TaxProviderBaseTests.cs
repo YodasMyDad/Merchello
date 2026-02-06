@@ -127,32 +127,4 @@ public class TaxProviderBaseTests
     }
 
     #endregion
-
-    /// <summary>
-    /// Test subclass that exposes protected methods for testing.
-    /// </summary>
-    private class TestTaxProvider : TaxProviderBase
-    {
-        public override TaxProviderMetadata Metadata => new(
-            Alias: "test",
-            DisplayName: "Test Provider",
-            Icon: null,
-            Description: "Test tax provider for unit testing",
-            SupportsRealTimeCalculation: false,
-            RequiresApiCredentials: false);
-
-        public override Task<TaxCalculationResult> CalculateOrderTaxAsync(
-            TaxCalculationRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(TaxCalculationResult.ZeroTax(request.LineItems));
-        }
-
-        // Expose protected methods for testing
-        public string? TestGetTaxCodeForTaxGroup(Guid? taxGroupId)
-            => GetTaxCodeForTaxGroup(taxGroupId);
-
-        public string? TestGetShippingTaxCode()
-            => GetShippingTaxCode();
-    }
 }

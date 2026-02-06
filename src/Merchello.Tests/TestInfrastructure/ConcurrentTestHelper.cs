@@ -198,18 +198,3 @@ public static class ConcurrentTestHelper
     }
 }
 
-/// <summary>
-/// Result of a concurrent test execution
-/// </summary>
-public record ConcurrentTestResult(int SuccessCount, int FailureCount, List<Exception> Exceptions)
-{
-    public int TotalCount => SuccessCount + FailureCount;
-}
-
-/// <summary>
-/// Result of a concurrent test execution with typed results
-/// </summary>
-public record ConcurrentTestResult<TResult>(int SuccessCount, int FailureCount, List<TResult> Results)
-{
-    public int TotalCount => SuccessCount + FailureCount;
-}

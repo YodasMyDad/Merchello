@@ -166,18 +166,16 @@ public class SegmentCriteriaEvaluator(
 
             // Query order metrics (exclude deleted and cancelled invoices)
             // Cast decimal to double for SQLite compatibility (avoids ef_sum error)
-            var orderStats = await db.Invoices
+            // Compute Min/Max in memory because SQLite does not support EF's aggregate projection translation.
+            var invoiceStats = await db.Invoices
                 .Where(i => i.CustomerId == customerId && !i.IsDeleted && !i.IsCancelled)
                 .Select(i => new { Amount = (double)(i.TotalInStoreCurrency ?? i.Total), i.DateCreated })
-                .GroupBy(_ => 1)
-                .Select(g => new
-                {
-                    OrderCount = g.Count(),
-                    TotalSpend = (decimal)g.Sum(x => x.Amount),
-                    FirstOrderDate = g.Min(x => x.DateCreated),
-                    LastOrderDate = g.Max(x => x.DateCreated)
-                })
-                .SingleOrDefaultAsync(ct);
+                .ToListAsync(ct);
+
+            var orderCount = invoiceStats.Count;
+            var totalSpend = (decimal)invoiceStats.Sum(x => x.Amount);
+            var firstOrderDate = invoiceStats.Count > 0 ? invoiceStats.Min(x => x.DateCreated) : (DateTime?)null;
+            var lastOrderDate = invoiceStats.Count > 0 ? invoiceStats.Max(x => x.DateCreated) : (DateTime?)null;
 
             // Get country from most recent invoice
             var recentInvoice = await db.Invoices
@@ -187,12 +185,12 @@ public class SegmentCriteriaEvaluator(
 
             return new CustomerMetrics
             {
-                OrderCount = orderStats?.OrderCount ?? 0,
-                TotalSpend = orderStats?.TotalSpend ?? 0,
-                FirstOrderDate = orderStats?.FirstOrderDate,
-                LastOrderDate = orderStats?.LastOrderDate,
-                DaysSinceLastOrder = orderStats?.LastOrderDate != null
-                    ? (int)(DateTime.UtcNow - orderStats.LastOrderDate).TotalDays
+                OrderCount = orderCount,
+                TotalSpend = totalSpend,
+                FirstOrderDate = firstOrderDate,
+                LastOrderDate = lastOrderDate,
+                DaysSinceLastOrder = lastOrderDate != null
+                    ? (int)(DateTime.UtcNow - lastOrderDate.Value).TotalDays
                     : null,
                 DateCreated = customer.DateCreated,
                 Email = customer.Email,
@@ -561,32 +559,41 @@ public class SegmentCriteriaEvaluator(
     /// </summary>
     private static IQueryable<CustomerWithMetrics> BuildCustomerWithMetricsQuery(MerchelloDbContext db, DateTime utcNow)
     {
+        var activeInvoices = db.Invoices.Where(i => !i.IsDeleted && !i.IsCancelled);
+
         // Subquery for invoice aggregates per customer
         // Keep TotalSpend as double throughout for SQLite compatibility
         // (SQLite stores decimal as TEXT and uses ef_compare which doesn't exist;
         //  double maps to REAL which SQLite handles natively)
-        var invoiceAggregates = db.Invoices
-            .Where(i => !i.IsDeleted && !i.IsCancelled)
+        var invoiceAggregates = activeInvoices
             .Select(i => new { i.CustomerId, Amount = (double)(i.TotalInStoreCurrency ?? i.Total), i.DateCreated })
             .GroupBy(i => i.CustomerId)
             .Select(g => new
             {
                 CustomerId = g.Key,
                 OrderCount = g.Count(),
-                TotalSpend = g.Sum(x => x.Amount),
-                FirstOrderDate = (DateTime?)g.Min(x => x.DateCreated),
-                LastOrderDate = (DateTime?)g.Max(x => x.DateCreated)
+                TotalSpend = g.Sum(x => x.Amount)
             });
 
-        // Subquery for most recent invoice's billing country
-        var latestInvoiceCountry = db.Invoices
-            .Where(i => !i.IsDeleted && !i.IsCancelled)
+        // SQLite does not support EF's Min/Max aggregate projection translation,
+        // so use correlated subqueries for first/last order dates and latest country.
+        var latestInvoiceData = activeInvoices
             .GroupBy(i => i.CustomerId)
             .Select(g => new
             {
                 CustomerId = g.Key,
-                Country = db.Invoices
-                    .Where(i => i.CustomerId == g.Key && !i.IsDeleted && !i.IsCancelled)
+                FirstOrderDate = activeInvoices
+                    .Where(i => i.CustomerId == g.Key)
+                    .OrderBy(i => i.DateCreated)
+                    .Select(i => (DateTime?)i.DateCreated)
+                    .FirstOrDefault(),
+                LastOrderDate = activeInvoices
+                    .Where(i => i.CustomerId == g.Key)
+                    .OrderByDescending(i => i.DateCreated)
+                    .Select(i => (DateTime?)i.DateCreated)
+                    .FirstOrDefault(),
+                Country = activeInvoices
+                    .Where(i => i.CustomerId == g.Key)
                     .OrderByDescending(i => i.DateCreated)
                     .Select(i => i.BillingAddress.Country)
                     .FirstOrDefault()
@@ -598,8 +605,8 @@ public class SegmentCriteriaEvaluator(
         var query = from c in db.Customers
                     join agg in invoiceAggregates on c.Id equals agg.CustomerId into aggJoin
                     from agg in aggJoin.DefaultIfEmpty()
-                    join ctry in latestInvoiceCountry on c.Id equals ctry.CustomerId into ctryJoin
-                    from ctry in ctryJoin.DefaultIfEmpty()
+                    join recent in latestInvoiceData on c.Id equals recent.CustomerId into recentJoin
+                    from recent in recentJoin.DefaultIfEmpty()
                     select new CustomerWithMetrics
                     {
                         Id = c.Id,
@@ -608,9 +615,9 @@ public class SegmentCriteriaEvaluator(
                         TagsJson = c.TagsJson,
                         OrderCount = (int?)agg.OrderCount ?? 0,
                         TotalSpend = (double?)agg.TotalSpend ?? 0.0,
-                        FirstOrderDate = agg.FirstOrderDate,
-                        LastOrderDate = agg.LastOrderDate,
-                        Country = ctry.Country
+                        FirstOrderDate = recent.FirstOrderDate,
+                        LastOrderDate = recent.LastOrderDate,
+                        Country = recent.Country
                     };
 
         return query;

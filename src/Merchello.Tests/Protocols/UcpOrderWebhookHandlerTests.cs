@@ -21,6 +21,7 @@ using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Factories;
 using Merchello.Core.Locality.Factories;
+using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -509,42 +510,6 @@ public class UcpOrderWebhookHandlerTests
         lineItem.LineItemType = LineItemType.Product;
         lineItem.ProductId = Guid.NewGuid();
         return lineItem;
-    }
-
-    /// <summary>
-    /// Mock HTTP message handler for testing webhook delivery.
-    /// Captures request content before disposal for later inspection.
-    /// </summary>
-    private class MockHttpMessageHandler : HttpMessageHandler
-    {
-        public HttpStatusCode ResponseStatusCode { get; set; } = HttpStatusCode.OK;
-        public string ResponseContent { get; set; } = "{}";
-        public Exception? ExceptionToThrow { get; set; }
-        public List<HttpRequestMessage> ReceivedRequests { get; } = [];
-        public List<string> CapturedRequestBodies { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            ReceivedRequests.Add(request);
-
-            // Capture request body before it gets disposed
-            if (request.Content != null)
-            {
-                var body = await request.Content.ReadAsStringAsync(cancellationToken);
-                CapturedRequestBodies.Add(body);
-            }
-
-            if (ExceptionToThrow != null)
-            {
-                throw ExceptionToThrow;
-            }
-
-            var response = new HttpResponseMessage(ResponseStatusCode)
-            {
-                Content = new StringContent(ResponseContent)
-            };
-            return response;
-        }
     }
 
     #endregion

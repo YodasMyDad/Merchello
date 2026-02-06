@@ -1,6 +1,5 @@
 using System.IO;
 using System.Linq;
-using System.Net;
 using System.Net.Http;
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Factories;
@@ -74,6 +73,7 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
+using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Tax.Services;
 using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Core.Tax.Providers;
@@ -104,7 +104,6 @@ using Merchello.Core.Warehouses.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Handlers;
 using Merchello.Core.Webhooks.Services;
@@ -132,102 +131,6 @@ using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Tests.TestInfrastructure;
-
-/// <summary>
-/// Mock HTTP message handler for testing webhook delivery.
-/// Allows tests to configure expected responses.
-/// </summary>
-public class MockHttpMessageHandler : HttpMessageHandler
-{
-    public HttpStatusCode ResponseStatusCode { get; set; } = HttpStatusCode.OK;
-    public string ResponseContent { get; set; } = "{}";
-    public Exception? ExceptionToThrow { get; set; }
-    public List<HttpRequestMessage> ReceivedRequests { get; } = [];
-
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        ReceivedRequests.Add(request);
-
-        if (ExceptionToThrow != null)
-        {
-            throw ExceptionToThrow;
-        }
-
-        var response = new HttpResponseMessage(ResponseStatusCode)
-        {
-            Content = new StringContent(ResponseContent)
-        };
-        return Task.FromResult(response);
-    }
-
-    public void Reset()
-    {
-        ResponseStatusCode = HttpStatusCode.OK;
-        ResponseContent = "{}";
-        ExceptionToThrow = null;
-        ReceivedRequests.Clear();
-    }
-}
-
-/// <summary>
-/// Mock HTTP context accessor for testing checkout flows that require session storage.
-/// Provides an in-memory session implementation for test isolation.
-/// </summary>
-public class MockHttpContextAccessor : IHttpContextAccessor
-{
-    private readonly DefaultHttpContext _httpContext;
-    private readonly MockSession _session;
-
-    public MockHttpContextAccessor()
-    {
-        _session = new MockSession();
-        _httpContext = new DefaultHttpContext();
-        _httpContext.Features.Set<ISessionFeature>(new MockSessionFeature(_session));
-    }
-
-    public HttpContext? HttpContext
-    {
-        get => _httpContext;
-        set { }
-    }
-
-    /// <summary>
-    /// Clears all session data. Call this in test setup for isolation.
-    /// </summary>
-    public void ClearSession() => _session.Clear();
-
-    /// <summary>
-    /// Gets the mock session for direct access in tests.
-    /// </summary>
-    public ISession Session => _session;
-
-    private class MockSessionFeature : ISessionFeature
-    {
-        public MockSessionFeature(ISession session) => Session = session;
-        public ISession Session { get; set; }
-    }
-
-    private class MockSession : ISession
-    {
-        private readonly Dictionary<string, byte[]> _store = new(StringComparer.OrdinalIgnoreCase);
-
-        public bool IsAvailable => true;
-        public string Id { get; } = Guid.NewGuid().ToString();
-        public IEnumerable<string> Keys => _store.Keys;
-
-        public void Clear() => _store.Clear();
-
-        public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task LoadAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public void Remove(string key) => _store.Remove(key);
-
-        public void Set(string key, byte[] value) => _store[key] = value;
-
-        public bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out byte[]? value) => _store.TryGetValue(key, out value);
-    }
-}
 
 /// <summary>
 /// Shared test fixture providing DI container and in-memory database for integration tests.
@@ -936,8 +839,32 @@ public class ServiceTestFixture : IDisposable
                     .Returns((Func<MerchelloDbContext, Task<List<ProductCollection>>> func) => func(dbContext));
 
                 scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductCollectionDto>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<ProductCollectionDto>>> func) => func(dbContext));
+
+                scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductFilterGroup>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<ProductFilterGroup>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductFilterGroup?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ProductFilterGroup?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductFilter?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ProductFilter?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductFilter>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<ProductFilter>>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Supplier?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Supplier?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Supplier>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Supplier>>> func) => func(dbContext));
 
                 // Paginated list types for query methods
                 scopeMock

@@ -703,11 +703,5 @@ public class UcpCheckoutFlowIntegrationTests : IClassFixture<ServiceTestFixture>
         return dataProperty?.GetValue(responseData) ?? responseData;
     }
 
-    private sealed class SessionSnapshot
-    {
-        public string? Status { get; init; }
-        public object? Totals { get; init; }
-    }
-
     #endregion
 }

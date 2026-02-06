@@ -10,12 +10,3 @@ namespace Merchello.Tests.TestInfrastructure;
 public class IntegrationTestCollection : ICollectionFixture<ServiceTestFixture>
 {
 }
-
-/// <summary>
-/// Collection definition for service tests that share the ServiceTestFixture.
-/// Used by Protocol tests (SigningKeyStore, WebhookSigner, etc.) that need database access.
-/// </summary>
-[CollectionDefinition("ServiceTests", DisableParallelization = true)]
-public class ServiceTestCollection : ICollectionFixture<ServiceTestFixture>
-{
-}

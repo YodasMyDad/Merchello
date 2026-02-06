@@ -3,6 +3,7 @@ using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.UCP.Models;
 using Merchello.Core.Protocols.UCP.Services;
+using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;
@@ -329,27 +330,4 @@ public class UcpAgentProfileServiceTests
             Times.Once);
     }
 
-    /// <summary>
-    /// Mock HTTP message handler for testing.
-    /// </summary>
-    private class MockHttpMessageHandler : HttpMessageHandler
-    {
-        public HttpStatusCode ResponseStatusCode { get; set; } = HttpStatusCode.OK;
-        public string ResponseContent { get; set; } = "{}";
-        public Exception? ExceptionToThrow { get; set; }
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            if (ExceptionToThrow != null)
-            {
-                throw ExceptionToThrow;
-            }
-
-            var response = new HttpResponseMessage(ResponseStatusCode)
-            {
-                Content = new StringContent(ResponseContent)
-            };
-            return Task.FromResult(response);
-        }
-    }
 }

@@ -4,7 +4,6 @@ using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services;
 using Merchello.Core.Email.Services.Interfaces;
-using Merchello.Core.Notifications.Base;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Tests.TestInfrastructure;
@@ -395,12 +394,6 @@ public class EmailServiceTests
             IsActive = true
         });
         _fixture.DbContext.SaveChanges();
-    }
-
-    private class TestOrderNotification : MerchelloNotification
-    {
-        public string OrderNumber { get; set; } = "";
-        public string CustomerEmail { get; set; } = "customer@test.com";
     }
 
     #endregion
