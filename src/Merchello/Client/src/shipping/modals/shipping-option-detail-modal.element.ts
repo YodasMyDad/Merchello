@@ -10,13 +10,17 @@ import type {
   ShippingOptionDetailDto,
   ShippingCostDto,
   ShippingWeightTierDto,
+  ShippingDestinationExclusionDto,
   CreateShippingOptionDto,
   WarehouseDto,
 } from "@shipping/types/shipping.types.js";
 import type { ShippingOptionDetailModalData, ShippingOptionDetailModalValue } from "@shipping/modals/shipping-option-detail-modal.token.js";
 import { MERCHELLO_SHIPPING_COST_MODAL } from "@shipping/modals/shipping-cost-modal.token.js";
 import { MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL } from "@shipping/modals/shipping-weight-tier-modal.token.js";
+import { MERCHELLO_SHIPPING_DESTINATION_EXCLUSION_MODAL } from "@shipping/modals/shipping-destination-exclusion-modal.token.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
+
+type ShippingOptionModalTab = "overview" | "delivery" | "destinations" | "pricing";
 
 @customElement("merchello-shipping-option-detail-modal")
 export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseElement<
@@ -28,6 +32,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
   @state() private _errorMessage: string | null = null;
   @state() private _detail: ShippingOptionDetailDto | null = null;
   @state() private _warehouses: WarehouseDto[] = [];
+  @state() private _excludedRegions: ShippingDestinationExclusionDto[] = [];
 
   // Form fields
   @state() private _name = "";
@@ -43,6 +48,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
   @state() private _allowedDaysOfWeek = "";
   @state() private _isDeliveryDateGuaranteed = false;
   @state() private _isEnabled = true;
+  @state() private _activeTab: ShippingOptionModalTab = "overview";
 
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
@@ -145,6 +151,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         this._allowedDaysOfWeek = data.allowedDaysOfWeek ?? "";
         this._isDeliveryDateGuaranteed = data.isDeliveryDateGuaranteed;
         this._isEnabled = data.isEnabled ?? true;
+        this._excludedRegions = data.excludedRegions ?? [];
       }
     } catch (err) {
       this._errorMessage = err instanceof Error ? err.message : "Failed to load shipping option";
@@ -193,10 +200,15 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       allowedDaysOfWeek: this._allowedDaysOfWeek || undefined,
       isDeliveryDateGuaranteed: this._isDeliveryDateGuaranteed,
       isEnabled: this._isEnabled,
+      excludedRegions: this._excludedRegions.map((x) => ({
+        countryCode: x.countryCode,
+        regionCode: x.regionCode,
+      })),
     };
 
     try {
       const existingId = this.data?.option?.id || this.data?.optionId || this._detail?.id;
+      const isCreating = !existingId;
       const result = existingId
         ? await MerchelloApi.updateShippingOption(existingId, dto)
         : await MerchelloApi.createShippingOption(dto);
@@ -209,10 +221,28 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         return;
       }
 
+      if (isCreating && result.data) {
+        this._detail = result.data;
+        this._warehouseId = result.data.warehouseId;
+        this._excludedRegions = result.data.excludedRegions ?? this._excludedRegions;
+        this._activeTab = "pricing";
+
+        this.#notificationContext?.peek("positive", {
+          data: {
+            headline: "Shipping option created",
+            message: "Now configure destination rates and weight surcharges, then save.",
+          },
+        });
+
+        this.modalContext?.setValue({ isSaved: true });
+        this._isSaving = false;
+        return;
+      }
+
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Success",
-          message: existingId ? "Shipping option updated" : "Shipping option created",
+          message: "Shipping option updated",
         },
       });
 
@@ -323,6 +353,75 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     await this._loadDetail();
   }
 
+  private _buildExclusionRegionDisplay(countryCode: string, regionCode?: string): string {
+    if (!regionCode) return countryCode;
+    return `${regionCode}, ${countryCode}`;
+  }
+
+  private async _openExclusionModal(exclusion?: ShippingDestinationExclusionDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_SHIPPING_DESTINATION_EXCLUSION_MODAL, {
+      data: {
+        exclusion,
+        warehouseId: this._warehouseId || this._detail?.warehouseId,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (!result?.isSaved || !result.exclusion) {
+      return;
+    }
+
+    const countryCode = result.exclusion.countryCode.toUpperCase();
+    const regionCode = result.exclusion.regionCode?.toUpperCase();
+    const duplicate = this._excludedRegions.find((x) =>
+      x !== exclusion &&
+      x.countryCode.toUpperCase() === countryCode &&
+      (x.regionCode ?? "").toUpperCase() === (regionCode ?? ""));
+
+    if (duplicate) {
+      this.#notificationContext?.peek("warning", {
+        data: { headline: "Duplicate", message: "This destination is already excluded." },
+      });
+      return;
+    }
+
+    const updatedExclusion: ShippingDestinationExclusionDto = {
+      id: exclusion?.id ?? crypto.randomUUID(),
+      countryCode,
+      regionCode,
+      regionDisplay: this._buildExclusionRegionDisplay(countryCode, regionCode),
+    };
+
+    if (exclusion) {
+      this._excludedRegions = this._excludedRegions.map((x) => x.id === exclusion.id ? updatedExclusion : x);
+    } else {
+      this._excludedRegions = [...this._excludedRegions, updatedExclusion];
+    }
+  }
+
+  private async _deleteExclusion(exclusion: ShippingDestinationExclusionDto): Promise<void> {
+    const displayName = exclusion.regionDisplay ?? this._buildExclusionRegionDisplay(exclusion.countryCode, exclusion.regionCode);
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Destination Exclusion",
+        content: `Remove exclusion for ${displayName}?`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return;
+    }
+
+    this._excludedRegions = this._excludedRegions.filter((x) => x.id !== exclusion.id);
+  }
+
   private _close(): void {
     this.modalContext?.setValue({ isSaved: this._detail !== null });
     this.modalContext?.submit();
@@ -378,6 +477,275 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         </button>
       `
     );
+  }
+
+  private _setActiveTab(tab: ShippingOptionModalTab): void {
+    this._activeTab = tab;
+  }
+
+  private _renderTabs(): unknown {
+    return html`
+      <uui-tab-group class="modal-tabs">
+        <uui-tab
+          label="Overview"
+          ?active=${this._activeTab === "overview"}
+          @click=${() => this._setActiveTab("overview")}
+        >
+          Overview
+        </uui-tab>
+        <uui-tab
+          label="Delivery"
+          ?active=${this._activeTab === "delivery"}
+          @click=${() => this._setActiveTab("delivery")}
+        >
+          Delivery
+        </uui-tab>
+        <uui-tab
+          label="Destinations"
+          ?active=${this._activeTab === "destinations"}
+          @click=${() => this._setActiveTab("destinations")}
+        >
+          Destinations
+        </uui-tab>
+        <uui-tab
+          label="Pricing"
+          ?active=${this._activeTab === "pricing"}
+          @click=${() => this._setActiveTab("pricing")}
+        >
+          Pricing
+        </uui-tab>
+      </uui-tab-group>
+    `;
+  }
+
+  private _renderOverviewTab(): unknown {
+    return html`
+      <uui-box headline="Basic Settings">
+        <div class="form-grid">
+          <uui-form-layout-item class="full-width">
+            <uui-label slot="label" for="name" required>Name</uui-label>
+            <uui-input
+              id="name"
+              .value=${this._name}
+              @input=${(e: InputEvent) => (this._name = (e.target as HTMLInputElement).value)}
+              placeholder="e.g., Standard Shipping, Express Delivery"
+            ></uui-input>
+            <span slot="description">Display name shown to customers at checkout</span>
+          </uui-form-layout-item>
+
+          ${!this._hasFixedWarehouse
+            ? html`
+                <uui-form-layout-item class="full-width">
+                  <uui-label slot="label" for="warehouse" required>Warehouse</uui-label>
+                  <uui-select
+                    id="warehouse"
+                    .options=${this._warehouseOptions}
+                    @change=${(e: Event) => (this._warehouseId = (e.target as HTMLSelectElement).value)}
+                  ></uui-select>
+                </uui-form-layout-item>
+              `
+            : nothing}
+
+          <uui-form-layout-item>
+            <uui-label slot="label" for="fixedCost">Fixed Cost</uui-label>
+            <uui-input
+              id="fixedCost"
+              type="number"
+              step="0.01"
+              min="0"
+              .value=${this._fixedCost?.toString() ?? ""}
+              @input=${(e: InputEvent) => {
+                const val = (e.target as HTMLInputElement).value;
+                this._fixedCost = val ? parseFloat(val) : null;
+              }}
+              placeholder="0.00"
+            ></uui-input>
+            <span slot="description">Single price for all destinations, or leave empty to use destination rates</span>
+          </uui-form-layout-item>
+
+          <div class="toggle-with-description">
+            <uui-toggle
+              .checked=${this._isEnabled}
+              @change=${(e: Event) => (this._isEnabled = (e.target as HTMLInputElement).checked)}
+              label="Available at checkout"
+            ></uui-toggle>
+            <span class="toggle-description">When disabled, customers won't see this option</span>
+          </div>
+        </div>
+      </uui-box>
+    `;
+  }
+
+  private _renderDeliveryTab(): unknown {
+    return html`
+      <uui-box headline="Delivery Time">
+        <p class="section-hint">Estimated delivery window shown to customers (e.g., "5-10 business days").</p>
+        <div class="form-grid">
+          <uui-form-layout-item>
+            <uui-label slot="label" for="daysFrom" required>Minimum Days</uui-label>
+            <uui-input
+              id="daysFrom"
+              type="number"
+              min="1"
+              required
+              .value=${this._daysFrom.toString()}
+              @input=${(e: InputEvent) => (this._daysFrom = parseInt((e.target as HTMLInputElement).value) || 1)}
+            ></uui-input>
+          </uui-form-layout-item>
+
+          <uui-form-layout-item>
+            <uui-label slot="label" for="daysTo" required>Maximum Days</uui-label>
+            <uui-input
+              id="daysTo"
+              type="number"
+              min="1"
+              required
+              .value=${this._daysTo.toString()}
+              @input=${(e: InputEvent) => (this._daysTo = parseInt((e.target as HTMLInputElement).value) || 1)}
+            ></uui-input>
+          </uui-form-layout-item>
+
+          <uui-form-layout-item class="toggle-item">
+            <uui-toggle
+              .checked=${this._isNextDay}
+              @change=${(e: Event) => (this._isNextDay = (e.target as HTMLInputElement).checked)}
+              label="Next Day Delivery"
+            ></uui-toggle>
+          </uui-form-layout-item>
+
+          ${this._isNextDay
+            ? html`
+                <uui-form-layout-item>
+                  <uui-label slot="label" for="cutoff">Order Cut-off Time</uui-label>
+                  <uui-input
+                    id="cutoff"
+                    type="time"
+                    .value=${this._nextDayCutOffTime}
+                    @input=${(e: InputEvent) => (this._nextDayCutOffTime = (e.target as HTMLInputElement).value)}
+                  ></uui-input>
+                  <span slot="description">Orders placed after this time ship next business day</span>
+                </uui-form-layout-item>
+              `
+            : nothing}
+        </div>
+      </uui-box>
+
+      <uui-box headline="Delivery Date Selection" class="optional-section">
+        <p class="section-hint">
+          Let customers choose a specific delivery date during checkout. Useful for gift deliveries or scheduled appointments.
+        </p>
+        <uui-form-layout-item class="toggle-item">
+          <uui-toggle
+            .checked=${this._allowsDeliveryDateSelection}
+            @change=${(e: Event) => (this._allowsDeliveryDateSelection = (e.target as HTMLInputElement).checked)}
+            label="Allow customers to select delivery date"
+          ></uui-toggle>
+        </uui-form-layout-item>
+
+        ${this._allowsDeliveryDateSelection
+          ? html`
+              <div class="date-options">
+                <div class="form-grid">
+                  <uui-form-layout-item>
+                    <uui-label slot="label" for="minDays">Earliest Booking</uui-label>
+                    <uui-input
+                      id="minDays"
+                      type="number"
+                      min="0"
+                      .value=${this._minDeliveryDays?.toString() ?? ""}
+                      @input=${(e: InputEvent) => {
+                        const val = (e.target as HTMLInputElement).value;
+                        this._minDeliveryDays = val ? parseInt(val) : null;
+                      }}
+                      placeholder="1"
+                    ></uui-input>
+                    <span slot="description">Minimum days from today customers can select</span>
+                  </uui-form-layout-item>
+
+                  <uui-form-layout-item>
+                    <uui-label slot="label" for="maxDays">Latest Booking</uui-label>
+                    <uui-input
+                      id="maxDays"
+                      type="number"
+                      min="0"
+                      .value=${this._maxDeliveryDays?.toString() ?? ""}
+                      @input=${(e: InputEvent) => {
+                        const val = (e.target as HTMLInputElement).value;
+                        this._maxDeliveryDays = val ? parseInt(val) : null;
+                      }}
+                      placeholder="30"
+                    ></uui-input>
+                    <span slot="description">Maximum days into the future</span>
+                  </uui-form-layout-item>
+                </div>
+
+                <div class="day-picker-section">
+                  <label class="day-picker-label">Available Days</label>
+                  <div class="day-picker">${this._renderDayCheckboxes()}</div>
+                  <span class="day-picker-hint">Select which days deliveries are available. Leave all unchecked for any day.</span>
+                </div>
+
+                <div class="toggle-with-description">
+                  <uui-toggle
+                    .checked=${this._isDeliveryDateGuaranteed}
+                    @change=${(e: Event) => (this._isDeliveryDateGuaranteed = (e.target as HTMLInputElement).checked)}
+                    label="Guarantee delivery date"
+                  ></uui-toggle>
+                  <span class="toggle-description">Promise delivery on the selected date (not just estimated)</span>
+                </div>
+              </div>
+            `
+          : nothing}
+      </uui-box>
+    `;
+  }
+
+  private _renderPricingRequiresSave(): unknown {
+    return html`
+      <uui-box headline="Shipping Rates">
+        <p class="section-hint">
+          Destination-specific rates are available after the shipping option has been created.
+        </p>
+        <div class="table-header">
+          <uui-button look="outline" label="Add Rate" disabled>
+            + Add Rate
+          </uui-button>
+        </div>
+        <p class="no-items">Create this shipping option first, then reopen it to configure destination rates.</p>
+      </uui-box>
+
+      <uui-box headline="Weight Surcharges">
+        <p class="section-hint">
+          Destination-specific weight surcharges are available after the shipping option has been created.
+        </p>
+        <div class="table-header">
+          <uui-button look="outline" label="Add Surcharge" disabled>
+            + Add Surcharge
+          </uui-button>
+        </div>
+        <p class="no-items">Create this shipping option first, then reopen it to configure weight surcharges.</p>
+      </uui-box>
+    `;
+  }
+
+  private _renderActiveTabContent(): unknown {
+    switch (this._activeTab) {
+      case "overview":
+        return this._renderOverviewTab();
+      case "delivery":
+        return this._renderDeliveryTab();
+      case "destinations":
+        return this._renderExcludedRegionsTable();
+      case "pricing":
+        return this._detail
+          ? html`
+              ${this._renderCostsTable()}
+              ${this._renderWeightTiersTable()}
+            `
+          : this._renderPricingRequiresSave();
+      default:
+        return this._renderOverviewTab();
+    }
   }
 
   private _renderCostsTable(): unknown {
@@ -485,8 +853,57 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     `;
   }
 
+  private _renderExcludedRegionsTable(): unknown {
+    return html`
+      <uui-box headline="Destination Exclusions">
+        <p class="section-hint">
+          Excluded destinations will not see this shipping option during estimate or checkout.
+        </p>
+        <div class="table-header">
+          <uui-button look="outline" color="danger" label="Add Exclusion" @click=${() => this._openExclusionModal()}>
+            + Add Exclusion
+          </uui-button>
+        </div>
+        ${this._excludedRegions.length === 0
+          ? html`<p class="no-items">No destinations excluded.</p>`
+          : html`
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Destination</th>
+                    <th class="actions-col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${this._excludedRegions
+                    .slice()
+                    .sort((a, b) => {
+                      const aValue = `${a.countryCode}:${a.regionCode ?? ""}`;
+                      const bValue = `${b.countryCode}:${b.regionCode ?? ""}`;
+                      return aValue.localeCompare(bValue);
+                    })
+                    .map((exclusion) => html`
+                      <tr>
+                        <td>${exclusion.regionDisplay ?? this._buildExclusionRegionDisplay(exclusion.countryCode, exclusion.regionCode)}</td>
+                        <td class="actions-col">
+                          <uui-button compact look="secondary" label="Edit" @click=${() => this._openExclusionModal(exclusion)}>
+                            <uui-icon name="icon-edit"></uui-icon>
+                          </uui-button>
+                          <uui-button compact look="secondary" color="danger" label="Delete" @click=${() => this._deleteExclusion(exclusion)}>
+                            <uui-icon name="icon-trash"></uui-icon>
+                          </uui-button>
+                        </td>
+                      </tr>
+                    `)}
+                </tbody>
+              </table>
+            `}
+      </uui-box>
+    `;
+  }
+
   override render() {
-    const isEditing = !!(this.data?.option || this.data?.optionId);
+    const isEditing = !!(this.data?.option || this.data?.optionId || this._detail?.id);
 
     if (this._isLoading) {
       return html`
@@ -510,195 +927,20 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
               `
             : nothing}
 
-          <!-- Intro guidance -->
           <div class="intro-banner">
             <div class="intro-icon">
               <uui-icon name="icon-truck"></uui-icon>
             </div>
             <div class="intro-content">
               <strong>Shipping Option</strong>
-              <p>A shipping option is a delivery method you offer to customers (e.g., "Standard Shipping", "Express Delivery"). Set the pricing, delivery time, and which destinations it's available for.</p>
+              <p>
+                Configure delivery method behavior in focused sections: basic setup, delivery timing, destination exclusions, and pricing rules.
+              </p>
             </div>
           </div>
 
-          <uui-box headline="Basic Settings">
-            <div class="form-grid">
-              <uui-form-layout-item class="full-width">
-                <uui-label slot="label" for="name" required>Name</uui-label>
-                <uui-input
-                  id="name"
-                  .value=${this._name}
-                  @input=${(e: InputEvent) => (this._name = (e.target as HTMLInputElement).value)}
-                  placeholder="e.g., Standard Shipping, Express Delivery"
-                ></uui-input>
-                <span slot="description">Display name shown to customers at checkout</span>
-              </uui-form-layout-item>
-
-              ${!this._hasFixedWarehouse
-                ? html`
-                    <uui-form-layout-item class="full-width">
-                      <uui-label slot="label" for="warehouse" required>Warehouse</uui-label>
-                      <uui-select
-                        id="warehouse"
-                        .options=${this._warehouseOptions}
-                        @change=${(e: Event) => (this._warehouseId = (e.target as HTMLSelectElement).value)}
-                      ></uui-select>
-                    </uui-form-layout-item>
-                  `
-                : nothing}
-
-              <uui-form-layout-item>
-                <uui-label slot="label" for="fixedCost">Fixed Cost</uui-label>
-                <uui-input
-                  id="fixedCost"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  .value=${this._fixedCost?.toString() ?? ""}
-                  @input=${(e: InputEvent) => {
-                    const val = (e.target as HTMLInputElement).value;
-                    this._fixedCost = val ? parseFloat(val) : null;
-                  }}
-                  placeholder="0.00"
-                ></uui-input>
-                <span slot="description">Single price for all destinations, or leave empty to use rates below</span>
-              </uui-form-layout-item>
-
-              <div class="toggle-with-description">
-                <uui-toggle
-                  .checked=${this._isEnabled}
-                  @change=${(e: Event) => (this._isEnabled = (e.target as HTMLInputElement).checked)}
-                  label="Available at checkout"
-                ></uui-toggle>
-                <span class="toggle-description">When disabled, customers won't see this option</span>
-              </div>
-            </div>
-          </uui-box>
-
-          <uui-box headline="Delivery Time">
-            <p class="section-hint">Estimated delivery time shown to customers (e.g., "5-10 business days")</p>
-            <div class="form-grid">
-              <uui-form-layout-item>
-                <uui-label slot="label" for="daysFrom" required>Minimum Days</uui-label>
-                <uui-input
-                  id="daysFrom"
-                  type="number"
-                  min="1"
-                  required
-                  .value=${this._daysFrom.toString()}
-                  @input=${(e: InputEvent) => (this._daysFrom = parseInt((e.target as HTMLInputElement).value) || 1)}
-                ></uui-input>
-              </uui-form-layout-item>
-
-              <uui-form-layout-item>
-                <uui-label slot="label" for="daysTo" required>Maximum Days</uui-label>
-                <uui-input
-                  id="daysTo"
-                  type="number"
-                  min="1"
-                  required
-                  .value=${this._daysTo.toString()}
-                  @input=${(e: InputEvent) => (this._daysTo = parseInt((e.target as HTMLInputElement).value) || 1)}
-                ></uui-input>
-              </uui-form-layout-item>
-
-              <uui-form-layout-item class="toggle-item">
-                <uui-toggle
-                  .checked=${this._isNextDay}
-                  @change=${(e: Event) => (this._isNextDay = (e.target as HTMLInputElement).checked)}
-                  label="Next Day Delivery"
-                ></uui-toggle>
-              </uui-form-layout-item>
-
-              ${this._isNextDay
-                ? html`
-                    <uui-form-layout-item>
-                      <uui-label slot="label" for="cutoff">Order Cut-off Time</uui-label>
-                      <uui-input
-                        id="cutoff"
-                        type="time"
-                        .value=${this._nextDayCutOffTime}
-                        @input=${(e: InputEvent) => (this._nextDayCutOffTime = (e.target as HTMLInputElement).value)}
-                      ></uui-input>
-                      <span slot="description">Orders placed after this time ship next business day</span>
-                    </uui-form-layout-item>
-                  `
-                : nothing}
-            </div>
-          </uui-box>
-
-          <uui-box headline="Delivery Date Selection" class="optional-section">
-            <p class="section-hint">
-              Let customers choose a specific delivery date during checkout. Useful for gift deliveries or scheduled appointments.
-            </p>
-            <uui-form-layout-item class="toggle-item">
-              <uui-toggle
-                .checked=${this._allowsDeliveryDateSelection}
-                @change=${(e: Event) => (this._allowsDeliveryDateSelection = (e.target as HTMLInputElement).checked)}
-                label="Allow customers to select delivery date"
-              ></uui-toggle>
-            </uui-form-layout-item>
-
-            ${this._allowsDeliveryDateSelection
-              ? html`
-                  <div class="date-options">
-                    <div class="form-grid">
-                      <uui-form-layout-item>
-                        <uui-label slot="label" for="minDays">Earliest Booking</uui-label>
-                        <uui-input
-                          id="minDays"
-                          type="number"
-                          min="0"
-                          .value=${this._minDeliveryDays?.toString() ?? ""}
-                          @input=${(e: InputEvent) => {
-                            const val = (e.target as HTMLInputElement).value;
-                            this._minDeliveryDays = val ? parseInt(val) : null;
-                          }}
-                          placeholder="1"
-                        ></uui-input>
-                        <span slot="description">Minimum days from today customers can select</span>
-                      </uui-form-layout-item>
-
-                      <uui-form-layout-item>
-                        <uui-label slot="label" for="maxDays">Latest Booking</uui-label>
-                        <uui-input
-                          id="maxDays"
-                          type="number"
-                          min="0"
-                          .value=${this._maxDeliveryDays?.toString() ?? ""}
-                          @input=${(e: InputEvent) => {
-                            const val = (e.target as HTMLInputElement).value;
-                            this._maxDeliveryDays = val ? parseInt(val) : null;
-                          }}
-                          placeholder="30"
-                        ></uui-input>
-                        <span slot="description">Maximum days into the future</span>
-                      </uui-form-layout-item>
-                    </div>
-
-                    <div class="day-picker-section">
-                      <label class="day-picker-label">Available Days</label>
-                      <div class="day-picker">
-                        ${this._renderDayCheckboxes()}
-                      </div>
-                      <span class="day-picker-hint">Select which days deliveries are available. Leave all unchecked for any day.</span>
-                    </div>
-
-                    <div class="toggle-with-description">
-                      <uui-toggle
-                        .checked=${this._isDeliveryDateGuaranteed}
-                        @change=${(e: Event) => (this._isDeliveryDateGuaranteed = (e.target as HTMLInputElement).checked)}
-                        label="Guarantee delivery date"
-                      ></uui-toggle>
-                      <span class="toggle-description">Promise delivery on the selected date (not just estimated)</span>
-                    </div>
-                  </div>
-                `
-              : nothing}
-          </uui-box>
-
-          ${this._detail ? this._renderCostsTable() : nothing}
-          ${this._detail ? this._renderWeightTiersTable() : nothing}
+          ${this._renderTabs()}
+          <div class="tab-content">${this._renderActiveTabContent()}</div>
         </div>
 
         <div slot="actions">
@@ -723,6 +965,17 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     }
 
     .form-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-5);
+    }
+
+    .modal-tabs {
+      width: 100%;
+      --uui-tab-divider: var(--uui-color-border);
+    }
+
+    .tab-content {
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-5);

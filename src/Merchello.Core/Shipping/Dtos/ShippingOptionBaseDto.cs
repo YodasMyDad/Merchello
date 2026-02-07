@@ -13,7 +13,7 @@ public class ShippingOptionBaseDto
     /// <summary>
     /// Display name of the shipping option.
     /// </summary>
-    public string Name { get; set; } = string.Empty;
+    public string? Name { get; set; }
 
     /// <summary>
     /// Provider key (e.g., "flat-rate", "fedex", "ups").

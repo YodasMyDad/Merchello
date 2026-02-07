@@ -529,18 +529,19 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<DateTime>("DateUpdated")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("ShippingTaxGroupId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StateOrProvinceCode")
+                    b.Property<string>("RegionCode")
                         .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasColumnName("StateOrProvinceCode");
+
+                    b.Property<Guid?>("ShippingTaxGroupId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ShippingTaxGroupId");
 
-                    b.HasIndex("CountryCode", "StateOrProvinceCode")
+                    b.HasIndex("CountryCode", "RegionCode")
                         .IsUnique();
 
                     b.ToTable("merchelloShippingTaxOverrides", (string)null);
@@ -588,9 +589,10 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<DateTime>("DateUpdated")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("StateOrProvinceCode")
+                    b.Property<string>("RegionCode")
                         .HasMaxLength(50)
-                        .HasColumnType("TEXT");
+                        .HasColumnType("TEXT")
+                        .HasColumnName("StateOrProvinceCode");
 
                     b.Property<Guid>("TaxGroupId")
                         .HasColumnType("TEXT");
@@ -601,7 +603,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TaxGroupId", "CountryCode", "StateOrProvinceCode")
+                    b.HasIndex("TaxGroupId", "CountryCode", "RegionCode")
                         .IsUnique();
 
                     b.ToTable("merchelloTaxGroupRates", (string)null);
@@ -2543,6 +2545,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("DeliveryDatePricingMethod")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExcludedRegionsJson")
                         .HasColumnType("TEXT");
 
                     b.Property<decimal?>("FixedCost")

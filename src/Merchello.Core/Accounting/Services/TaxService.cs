@@ -99,37 +99,6 @@ public class TaxService(
     }
 
     /// <summary>
-    /// Updates an existing tax group
-    /// </summary>
-    public async Task<CrudResult<TaxGroup>> UpdateTaxGroup(
-        TaxGroup taxGroup,
-        CancellationToken cancellationToken = default)
-    {
-        // Validate rate
-        if (taxGroup.TaxPercentage < 0 || taxGroup.TaxPercentage > 100)
-        {
-            var invalidResult = new CrudResult<TaxGroup>();
-            invalidResult.AddErrorMessage("Tax rate must be between 0 and 100");
-            return invalidResult;
-        }
-
-        // Publish saving notification (cancelable)
-        var savingNotification = new TaxGroupSavingNotification(taxGroup);
-        if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
-        {
-            var cancelledResult = new CrudResult<TaxGroup>();
-            cancelledResult.AddErrorMessage("Tax group update was cancelled by a notification handler");
-            return cancelledResult;
-        }
-        return await UpdateTaxGroupInternalAsync(
-            taxGroup.Id,
-            taxGroup.Name,
-            taxGroup.TaxPercentage,
-            publishSavingNotification: false,
-            cancellationToken);
-    }
-
-    /// <summary>
     /// Updates an existing tax group by ID
     /// </summary>
     public async Task<CrudResult<TaxGroup>> UpdateTaxGroup(
@@ -149,7 +118,6 @@ public class TaxService(
             taxGroupId,
             name,
             taxPercentage,
-            publishSavingNotification: true,
             cancellationToken);
     }
 
@@ -157,7 +125,6 @@ public class TaxService(
         Guid taxGroupId,
         string? name,
         decimal taxPercentage,
-        bool publishSavingNotification,
         CancellationToken cancellationToken)
     {
         var result = new CrudResult<TaxGroup>();
@@ -174,15 +141,12 @@ public class TaxService(
                 return false;
             }
 
-            if (publishSavingNotification)
+            // Publish saving notification (cancelable)
+            var savingNotification = new TaxGroupSavingNotification(existing);
+            if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
             {
-                // Publish saving notification (cancelable)
-                var savingNotification = new TaxGroupSavingNotification(existing);
-                if (await notificationPublisher.PublishCancelableAsync(savingNotification, cancellationToken))
-                {
-                    result.AddErrorMessage("Tax group update was cancelled by a notification handler");
-                    return false;
-                }
+                result.AddErrorMessage("Tax group update was cancelled by a notification handler");
+                return false;
             }
 
             existing.Name = name;

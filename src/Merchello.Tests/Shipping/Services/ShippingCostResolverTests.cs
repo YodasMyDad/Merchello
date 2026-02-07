@@ -407,6 +407,57 @@ public class ShippingCostResolverTests
     }
 
     [Fact]
+    public void GetTotalShippingCost_ReturnsNull_WhenCountryIsExcluded()
+    {
+        // Arrange
+        var option = CreateShippingOption(fixedCost: 5.99m);
+        option.SetExcludedRegions(
+        [
+            CreateExcludedRegion("GB")
+        ]);
+
+        // Act
+        var result = _resolver.GetTotalShippingCost(option, "GB", null);
+
+        // Assert
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public void GetTotalShippingCost_ReturnsNull_WhenRegionIsExcluded()
+    {
+        // Arrange
+        var option = CreateShippingOption(fixedCost: 5.99m);
+        option.SetExcludedRegions(
+        [
+            CreateExcludedRegion("US", "CA")
+        ]);
+
+        // Act
+        var result = _resolver.GetTotalShippingCost(option, "US", "CA");
+
+        // Assert
+        result.ShouldBeNull();
+    }
+
+    [Fact]
+    public void GetTotalShippingCost_DoesNotExcludeDifferentRegion()
+    {
+        // Arrange
+        var option = CreateShippingOption(fixedCost: 5.99m);
+        option.SetExcludedRegions(
+        [
+            CreateExcludedRegion("US", "CA")
+        ]);
+
+        // Act
+        var result = _resolver.GetTotalShippingCost(option, "US", "NY");
+
+        // Assert
+        result.ShouldBe(5.99m);
+    }
+
+    [Fact]
     public void GetTotalShippingCost_FallsBackToFixedCost_WhenNoDestinationMatch()
     {
         // Arrange - this is the path exercised after our seed data fix
@@ -459,6 +510,12 @@ public class ShippingCostResolverTests
     {
         Name = "Test Option",
         FixedCost = fixedCost
+    };
+
+    private static ShippingOptionExcludedRegion CreateExcludedRegion(string countryCode, string? regionCode = null) => new()
+    {
+        CountryCode = countryCode,
+        RegionCode = regionCode
     };
 
     #endregion

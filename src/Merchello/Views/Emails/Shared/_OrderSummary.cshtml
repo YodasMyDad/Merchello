@@ -1,9 +1,16 @@
 @model Invoice
 @{
-    var currencySymbol = Model.CurrencySymbol ?? "£";
+    var currencySymbol = Model.CurrencySymbol ?? "\u00A3";
     var allLineItems = Model.Orders?
         .SelectMany(o => o.LineItems ?? Enumerable.Empty<LineItem>())
+        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product
+                  || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Custom
+                  || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon)
         .ToList() ?? new List<LineItem>();
+    var parentLineItems = allLineItems
+        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product
+                  || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Custom)
+        .ToList();
     var shippingTotal = Model.Orders?.Sum(o => o.ShippingCost) ?? 0;
 }
 <mj-section padding="10px 20px">
@@ -12,7 +19,7 @@
   </mj-column>
 </mj-section>
 
-@if (allLineItems.Count > 0)
+@if (parentLineItems.Count > 0)
 {
 <mj-section padding="0 20px">
   <mj-column>
@@ -22,10 +29,19 @@
         <th style="padding: 10px 0; text-align: center;">Qty</th>
         <th style="padding: 10px 0; text-align: right;">Price</th>
       </tr>
-      @foreach (var item in allLineItems)
+      @foreach (var item in parentLineItems)
       {
+        var itemAddons = allLineItems
+            .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+            .ToList();
         var itemTotal = item.Amount * item.Quantity;
+        var addonTotal = itemAddons.Sum(addon => addon.Amount * addon.Quantity);
+        var displayLineTotal = itemTotal + addonTotal;
         var rootName = item.GetProductRootName();
+        if (string.IsNullOrWhiteSpace(rootName))
+        {
+          rootName = item.Name ?? item.Sku;
+        }
         var options = item.GetSelectedOptions();
         <tr style="border-bottom: 1px solid #ecedee;">
           <td style="padding: 10px 0;">
@@ -37,9 +53,20 @@
               </div>
             }
             <div style="font-size: 12px; color: #888;">SKU: @item.Sku</div>
+            @if (itemAddons.Count > 0)
+            {
+              @foreach (var addon in itemAddons)
+              {
+                var addonAmountPrefix = addon.Amount >= 0 ? "+" : "-";
+                var addonAmount = Math.Abs(addon.Amount);
+                <div style="font-size: 12px; color: #666; margin-top: 3px; padding-left: 10px; border-left: 2px solid #ddd;">
+                  Add-on: @(string.IsNullOrWhiteSpace(addon.Name) ? addon.Sku : addon.Name) (@addonAmountPrefix@currencySymbol@addonAmount.ToString("N2"))
+                </div>
+              }
+            }
           </td>
           <td style="padding: 10px 0; text-align: center;">@item.Quantity</td>
-          <td style="padding: 10px 0; text-align: right;">@currencySymbol@itemTotal.ToString("N2")</td>
+          <td style="padding: 10px 0; text-align: right;">@currencySymbol@displayLineTotal.ToString("N2")</td>
         </tr>
       }
     </mj-table>

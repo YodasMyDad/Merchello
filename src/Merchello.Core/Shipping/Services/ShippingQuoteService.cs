@@ -8,6 +8,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -601,6 +602,7 @@ public class ShippingQuoteService(
         var options = allowedOptions
             .Select(option =>
             {
+                var isExcludedForDestination = option.IsDestinationExcluded(countryCode, regionCode);
                 var destinationCost = costResolver.ResolveBaseCost(option.ShippingCosts.ToList(), countryCode, regionCode, option.FixedCost);
 
                 // Use warehouse with ServiceRegions loaded - option.Warehouse might not have ServiceRegions populated
@@ -615,9 +617,9 @@ public class ShippingQuoteService(
 
                 // For live-rate providers, they're available if the warehouse can ship to the region
                 // For local-rate providers, they need a destination cost configured
-                var canShipToDestination = usesLiveRates
+                var canShipToDestination = !isExcludedForDestination && (usesLiveRates
                     ? canShip  // Live-rate providers calculate costs at runtime
-                    : canShip && destinationCost.HasValue;  // Local-rate providers need cost configured
+                    : canShip && destinationCost.HasValue);  // Local-rate providers need cost configured
 
                 return new ShippingOptionSnapshot
                 {
@@ -630,7 +632,7 @@ public class ShippingQuoteService(
                     FixedCost = option.FixedCost,
                     NextDayCutOffTime = option.NextDayCutOffTime,
                     CanShipToDestination = canShipToDestination,
-                    DestinationCost = destinationCost,
+                    DestinationCost = isExcludedForDestination ? null : destinationCost,
                     AllowsDeliveryDateSelection = option.AllowsDeliveryDateSelection,
                     MinDeliveryDays = option.MinDeliveryDays,
                     MaxDeliveryDays = option.MaxDeliveryDays,

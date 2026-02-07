@@ -636,7 +636,7 @@ document.addEventListener('alpine:init', () => {
 
         getAddonsForProduct(productSku) {
             return this.items.filter(item =>
-                item.lineItemType === 'Custom' && item.dependantLineItemSku === productSku
+                item.lineItemType === 'Addon' && item.dependantLineItemSku === productSku
             );
         },
 
@@ -664,6 +664,11 @@ document.addEventListener('alpine:init', () => {
         init() {
             // Update global basket store with initial data
             Alpine.store('basket').update(this.itemCount, this.total, this.formattedTotal);
+
+            // Refresh basket data when restored from bfcache (browser back/forward)
+            window.addEventListener('pageshow', (event) => {
+                if (event.persisted) this.refreshBasket();
+            });
 
             // Fetch regions, estimated shipping, and upsells for the user's country
             this.$nextTick(async () => {
@@ -926,5 +931,18 @@ document.addEventListener('alpine:init', () => {
             }]);
         }
     }));
+
+    // ==========================================================================
+    // bfcache Support
+    // ==========================================================================
+
+    /**
+     * Refresh global basket store when page is restored from bfcache.
+     * Fixes stale header badge count on all pages after browser back/forward.
+     */
+    window.addEventListener('pageshow', (event) => {
+        if (!event.persisted) return;
+        Alpine.store('basket').fetchCount();
+    });
 
 });

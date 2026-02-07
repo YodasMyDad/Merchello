@@ -51,6 +51,7 @@ public class ShippingOptionService(
                     AllowsDeliveryDateSelection = o.AllowsDeliveryDateSelection,
                     CostCount = o.ShippingCosts.Count,
                     WeightTierCount = o.WeightTiers.Count,
+                    ExclusionCount = o.ExcludedRegions.Count,
                     UpdateDate = o.UpdateDate
                 })
                 .ToListAsync(ct));
@@ -147,6 +148,7 @@ public class ShippingOptionService(
             IsDeliveryDateGuaranteed = option.IsDeliveryDateGuaranteed,
             CostCount = option.ShippingCosts.Count,
             WeightTierCount = option.WeightTiers.Count,
+            ExclusionCount = option.ExcludedRegions.Count,
             UpdateDate = option.UpdateDate,
             Costs = option.ShippingCosts
                 .OrderBy(c => c.CountryCode)
@@ -174,6 +176,17 @@ public class ShippingOptionService(
                     Surcharge = t.Surcharge,
                     WeightRangeDisplay = FormatWeightRange(t.MinWeightKg, t.MaxWeightKg),
                     RegionDisplay = FormatRegion(t.CountryCode, t.RegionCode)
+                })
+                .ToList(),
+            ExcludedRegions = option.ExcludedRegions
+                .OrderBy(x => x.CountryCode)
+                .ThenBy(x => x.RegionCode)
+                .Select(x => new ShippingDestinationExclusionDto
+                {
+                    Id = x.Id,
+                    CountryCode = x.CountryCode,
+                    RegionCode = x.RegionCode,
+                    RegionDisplay = FormatRegion(x.CountryCode, x.RegionCode)
                 })
                 .ToList()
         };
@@ -210,6 +223,7 @@ public class ShippingOptionService(
             dto.MaxDeliveryDays,
             dto.AllowedDaysOfWeek,
             dto.IsDeliveryDateGuaranteed);
+        option.SetExcludedRegions(NormalizeExcludedRegions(dto.ExcludedRegions));
 
         // Publish "Before" notification - handlers can modify or cancel
         var creatingNotification = new ShippingOptionCreatingNotification(option);
@@ -307,6 +321,10 @@ public class ShippingOptionService(
             option.MaxDeliveryDays = dto.MaxDeliveryDays;
             option.AllowedDaysOfWeek = dto.AllowedDaysOfWeek;
             option.IsDeliveryDateGuaranteed = dto.IsDeliveryDateGuaranteed;
+            if (dto.ExcludedRegions != null)
+            {
+                option.SetExcludedRegions(NormalizeExcludedRegions(dto.ExcludedRegions));
+            }
             option.UpdateDate = DateTime.UtcNow;
 
             await db.SaveChangesAsync(ct);
@@ -707,6 +725,28 @@ public class ShippingOptionService(
     {
         if (countryCode == "*") return "All Countries";
         return string.IsNullOrEmpty(stateCode) ? countryCode : $"{stateCode}, {countryCode}";
+    }
+
+    private static List<ShippingOptionExcludedRegion> NormalizeExcludedRegions(
+        IReadOnlyCollection<CreateShippingDestinationExclusionDto>? exclusions)
+    {
+        if (exclusions is not { Count: > 0 })
+        {
+            return [];
+        }
+
+        return exclusions
+            .Where(x => !string.IsNullOrWhiteSpace(x.CountryCode))
+            .Select(x => new ShippingOptionExcludedRegion
+            {
+                CountryCode = x.CountryCode.Trim().ToUpperInvariant(),
+                RegionCode = string.IsNullOrWhiteSpace(x.RegionCode)
+                    ? null
+                    : x.RegionCode.Trim().ToUpperInvariant()
+            })
+            .GroupBy(x => $"{x.CountryCode}:{x.RegionCode ?? string.Empty}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
     }
 
     private static string FormatWeightRange(decimal min, decimal? max)

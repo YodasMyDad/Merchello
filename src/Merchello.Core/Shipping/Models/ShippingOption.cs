@@ -100,6 +100,11 @@ public class ShippingOption
     public string? ShippingWeightTiersJson { get; set; }
 
     /// <summary>
+    /// Explicit destination exclusions for this shipping option.
+    /// </summary>
+    public string? ExcludedRegionsJson { get; set; }
+
+    /// <summary>
     /// Whether this shipping option allows customers to select a specific delivery date
     /// </summary>
     public bool AllowsDeliveryDateSelection { get; set; }
@@ -156,6 +161,11 @@ public class ShippingOption
         string.IsNullOrEmpty(ShippingWeightTiersJson) ? [] :
         JsonSerializer.Deserialize<List<ShippingWeightTier>>(ShippingWeightTiersJson) ?? [];
 
+    [NotMapped]
+    public List<ShippingOptionExcludedRegion> ExcludedRegions =>
+        string.IsNullOrEmpty(ExcludedRegionsJson) ? [] :
+        JsonSerializer.Deserialize<List<ShippingOptionExcludedRegion>>(ExcludedRegionsJson) ?? [];
+
     // =====================================================
     // Setter Helpers
     // =====================================================
@@ -165,4 +175,7 @@ public class ShippingOption
 
     public void SetShippingWeightTiers(List<ShippingWeightTier>? tiers) =>
         ShippingWeightTiersJson = tiers is { Count: > 0 } ? JsonSerializer.Serialize(tiers) : null;
+
+    public void SetExcludedRegions(List<ShippingOptionExcludedRegion>? excludedRegions) =>
+        ExcludedRegionsJson = excludedRegions is { Count: > 0 } ? JsonSerializer.Serialize(excludedRegions) : null;
 }

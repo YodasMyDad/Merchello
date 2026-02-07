@@ -1,4 +1,5 @@
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
 
 namespace Merchello.Core.Shipping.Services;
@@ -116,6 +117,11 @@ public class ShippingCostResolver : IShippingCostResolver
         string? regionCode,
         decimal? weightKg = null)
     {
+        if (shippingOption.IsDestinationExcluded(countryCode, regionCode))
+        {
+            return null;
+        }
+
         var costs = shippingOption.ShippingCosts.ToList();
         var baseCost = ResolveBaseCost(
             costs,

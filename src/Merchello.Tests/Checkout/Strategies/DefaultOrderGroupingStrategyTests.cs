@@ -299,6 +299,49 @@ public class DefaultOrderGroupingStrategyTests
     }
 
     [Fact]
+    public async Task GroupItemsAsync_ExcludesShippingOption_WhenDestinationIsExcluded()
+    {
+        // Arrange
+        var warehouseId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var shippingOptionId = Guid.NewGuid();
+
+        var warehouse = CreateWarehouse(warehouseId, "Main Warehouse", shippingOptionId);
+        var option = warehouse.ShippingOptions.First();
+        option.SetExcludedRegions(
+        [
+            new ShippingOptionExcludedRegion
+            {
+                CountryCode = "GB"
+            }
+        ]);
+
+        var product = CreateProduct(productId, warehouse);
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product> { [productId] = product },
+            warehouses: new Dictionary<Guid, Warehouse> { [warehouseId] = warehouse },
+            lineItems: [CreateLineItem(productId)],
+            countryCode: "GB");
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.IsAny<SelectWarehouseForProductParameters>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult
+            {
+                Warehouse = warehouse
+            });
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Groups.Count.ShouldBe(1);
+        result.Groups[0].AvailableShippingOptions.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task GroupItemsAsync_DynamicProvider_AppliesDaysOverride_FromWarehouseConfig()
     {
         // Arrange
@@ -599,4 +642,3 @@ public class DefaultOrderGroupingStrategyTests
         return product;
     }
 }
-

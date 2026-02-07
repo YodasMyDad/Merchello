@@ -534,18 +534,19 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<DateTime>("DateUpdated")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("RegionCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("StateOrProvinceCode");
+
                     b.Property<Guid?>("ShippingTaxGroupId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("StateOrProvinceCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("ShippingTaxGroupId");
 
-                    b.HasIndex("CountryCode", "StateOrProvinceCode")
+                    b.HasIndex("CountryCode", "RegionCode")
                         .IsUnique()
                         .HasFilter("[StateOrProvinceCode] IS NOT NULL");
 
@@ -594,9 +595,10 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<DateTime>("DateUpdated")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("StateOrProvinceCode")
+                    b.Property<string>("RegionCode")
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("StateOrProvinceCode");
 
                     b.Property<Guid>("TaxGroupId")
                         .HasColumnType("uniqueidentifier");
@@ -607,7 +609,7 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TaxGroupId", "CountryCode", "StateOrProvinceCode")
+                    b.HasIndex("TaxGroupId", "CountryCode", "RegionCode")
                         .IsUnique()
                         .HasFilter("[StateOrProvinceCode] IS NOT NULL");
 
@@ -2550,6 +2552,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("DeliveryDatePricingMethod")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ExcludedRegionsJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("FixedCost")

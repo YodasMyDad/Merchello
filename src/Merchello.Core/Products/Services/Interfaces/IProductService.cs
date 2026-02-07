@@ -18,8 +18,6 @@ public interface IProductService
     /// </summary>
     Task<PaginatedList<ProductListItemDto>> QueryProductsSummary(ProductQueryParameters parameters, CancellationToken cancellationToken = default);
 
-    Task<PaginatedList<ProductRoot>> QueryProductRoots(ProductRootQueryParameters parameters, CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Gets the min and max price for products in a collection using SQL aggregation.
     /// More efficient than loading all products into memory.
@@ -97,11 +95,6 @@ public interface IProductService
     /// Gets an Element Type by alias, validating it is configured as an Element Type.
     /// </summary>
     Task<IContentType?> GetProductElementTypeAsync(string? elementTypeAlias, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Serializes element property values to JSON for storage.
-    /// </summary>
-    string SerializeElementProperties(Dictionary<string, object?> properties);
 
     /// <summary>
     /// Deserializes element property values from JSON storage.

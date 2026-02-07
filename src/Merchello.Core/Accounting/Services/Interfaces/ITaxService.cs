@@ -22,11 +22,6 @@ public interface ITaxService
     Task<CrudResult<TaxGroup>> CreateTaxGroup(string name, decimal rate, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Updates an existing tax group
-    /// </summary>
-    Task<CrudResult<TaxGroup>> UpdateTaxGroup(TaxGroup taxGroup, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Updates an existing tax group by ID
     /// </summary>
     /// <param name="taxGroupId">The ID of the tax group to update</param>

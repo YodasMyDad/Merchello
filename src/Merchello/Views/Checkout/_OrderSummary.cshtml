@@ -1,5 +1,6 @@
 @using Merchello.Core.Accounting.Models
 @using Merchello.Core.Checkout.Dtos
+@using System.Linq
 @inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @{
     var model = ViewData.Model as CheckoutViewModel;
@@ -93,8 +94,12 @@
         <div class="space-y-4 pb-6">
             @if (isReadonly && confirmation?.LineItems != null)
             {
-                @foreach (var item in confirmation.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom || li.LineItemType == LineItemType.Addon))
+                @foreach (var item in confirmation.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom))
                 {
+                    var itemAddons = confirmation.LineItems
+                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                        .ToList();
+
                     <div class="flex gap-4 items-start">
                         <!-- Product Image with Quantity Badge -->
                         <div class="relative flex-shrink-0">
@@ -127,6 +132,22 @@
                                     <p class="text-xs text-gray-500 mt-0.5">@opt.OptionName: @opt.ValueName</p>
                                 }
                             }
+                            @if (itemAddons.Count > 0)
+                            {
+                                @foreach (var addon in itemAddons)
+                                {
+                                    var addonDisplayUnitAmount = addon.DisplayUnitPrice;
+                                    if (displayPricesIncTax && addon.IsTaxable && addon.TaxRate > 0)
+                                    {
+                                        addonDisplayUnitAmount = addon.DisplayUnitPrice * (1 + (addon.TaxRate / 100m));
+                                    }
+                                    var addonName = string.IsNullOrWhiteSpace(addon.Name) ? addon.ProductRootName : addon.Name;
+                                    <p class="text-xs text-gray-500 mt-1 pl-3 border-l-2 border-gray-200">
+                                        <span class="font-medium">Add-on:</span> @addonName
+                                        <span class="ml-1">(+@displayCurrencySymbol@addonDisplayUnitAmount.ToString(numberFormat))</span>
+                                    </p>
+                                }
+                            }
                         </div>
                         <!-- Price: apply tax-inclusive when enabled -->
                         <div class="text-sm font-medium text-gray-900">
@@ -144,8 +165,12 @@
             }
             else if (basket?.LineItems != null)
             {
-                @foreach (var item in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom || li.LineItemType == LineItemType.Addon))
+                @foreach (var item in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom))
                 {
+                    var itemAddons = basket.LineItems
+                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                        .ToList();
+
                     <div class="flex gap-4 items-start">
                         <!-- Product Image with Quantity Badge -->
                         <div class="relative flex-shrink-0">
@@ -179,6 +204,22 @@
                                 @foreach (var opt in options)
                                 {
                                     <p class="text-xs text-gray-500 mt-0.5">@opt.OptionName: @opt.ValueName</p>
+                                }
+                            }
+                            @if (itemAddons.Count > 0)
+                            {
+                                @foreach (var addon in itemAddons)
+                                {
+                                    var addonLineAmount = addon.Amount;
+                                    if (displayPricesIncTax && addon.IsTaxable && addon.TaxRate > 0)
+                                    {
+                                        addonLineAmount *= (1 + (addon.TaxRate / 100m));
+                                    }
+                                    var addonDisplayUnitAmount = CurrencyService.Round(addonLineAmount * exchangeRate, displayCurrencyCode);
+                                    <p class="text-xs text-gray-500 mt-1 pl-3 border-l-2 border-gray-200">
+                                        <span class="font-medium">Add-on:</span> @addon.Name
+                                        <span class="ml-1">(+@displayCurrencySymbol@addonDisplayUnitAmount.ToString(numberFormat))</span>
+                                    </p>
                                 }
                             }
                         </div>

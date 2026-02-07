@@ -13,4 +13,5 @@ public class ShippingOptionDetailDto : ShippingOptionListItemDto
     public bool IsDeliveryDateGuaranteed { get; set; }
     public List<ShippingCostDto> Costs { get; set; } = [];
     public List<ShippingWeightTierDto> WeightTiers { get; set; } = [];
+    public List<ShippingDestinationExclusionDto> ExcludedRegions { get; set; } = [];
 }

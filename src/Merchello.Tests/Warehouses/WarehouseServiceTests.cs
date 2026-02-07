@@ -1,4 +1,5 @@
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Warehouses.Models;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
 using Merchello.Tests.TestInfrastructure;
@@ -52,6 +53,51 @@ public class WarehouseServiceTests
         var savedWarehouse = await _fixture.DbContext.Warehouses
             .FirstOrDefaultAsync(w => w.Code == "TW-01");
         savedWarehouse.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task CreateWarehouse_WithShippingOptionExclusions_PersistsNormalizedExcludedRegions()
+    {
+        // Arrange
+        var parameters = new CreateWarehouseParameters
+        {
+            Name = "Warehouse With Exclusions",
+            Code = "TW-EXC-01",
+            Address = _dataBuilder.CreateTestAddress(countryCode: "GB"),
+            ServiceRegions =
+            [
+                ("GB", null, false),
+                ("US", null, false)
+            ],
+            ShippingOptions =
+            [
+                new ShippingOptionConfig
+                {
+                    Name = "Domestic Shipping",
+                    DaysFrom = 2,
+                    DaysTo = 4,
+                    Cost = 4.99m,
+                    ExcludedRegions =
+                    [
+                        ("us", null),
+                        ("GB", "nir"),
+                        ("US", null)
+                    ]
+                }
+            ]
+        };
+
+        // Act
+        var result = await _warehouseService.CreateWarehouse(parameters);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var shippingOption = await _fixture.DbContext.ShippingOptions
+            .SingleAsync(x => x.WarehouseId == result.ResultObject!.Id && x.Name == "Domestic Shipping");
+
+        shippingOption.ExcludedRegions.Count.ShouldBe(2);
+        shippingOption.ExcludedRegions.ShouldContain(x => x.CountryCode == "US" && x.RegionCode == null);
+        shippingOption.ExcludedRegions.ShouldContain(x => x.CountryCode == "GB" && x.RegionCode == "NIR");
     }
 
     [Fact]

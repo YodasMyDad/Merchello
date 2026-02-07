@@ -27,4 +27,5 @@ public class CreateShippingOptionDto
     public int? MaxDeliveryDays { get; set; }
     public string? AllowedDaysOfWeek { get; set; }
     public bool IsDeliveryDateGuaranteed { get; set; }
+    public List<CreateShippingDestinationExclusionDto>? ExcludedRegions { get; set; }
 }

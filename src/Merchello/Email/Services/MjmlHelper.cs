@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Encodings.Web;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Locality.Models;
@@ -177,9 +178,15 @@ public class MjmlHelper : IMjmlHelper
         // Line items table - gather all line items from all orders
         var allLineItems = invoice.Orders?
             .SelectMany(o => o.LineItems ?? Enumerable.Empty<LineItem>())
+            .Where(li => li.LineItemType == LineItemType.Product
+                      || li.LineItemType == LineItemType.Custom
+                      || li.LineItemType == LineItemType.Addon)
             .ToList() ?? [];
+        var parentLineItems = allLineItems
+            .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom)
+            .ToList();
 
-        if (allLineItems.Count > 0)
+        if (parentLineItems.Count > 0)
         {
             sb.AppendLine("<mj-section padding=\"0 20px\">");
             sb.AppendLine("  <mj-column>");
@@ -190,13 +197,35 @@ public class MjmlHelper : IMjmlHelper
             sb.AppendLine("        <th style=\"padding: 10px 0; text-align: right;\">Price</th>");
             sb.AppendLine("      </tr>");
 
-            foreach (var item in allLineItems)
+            foreach (var item in parentLineItems)
             {
+                var itemAddons = allLineItems
+                    .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                    .ToList();
+
                 var itemTotal = item.Amount * item.Quantity;
+                var addonTotal = itemAddons.Sum(addon => addon.Amount * addon.Quantity);
+                var displayLineTotal = itemTotal + addonTotal;
+                var displayName = item.GetProductRootName();
+                if (string.IsNullOrWhiteSpace(displayName))
+                {
+                    displayName = item.Name ?? item.Sku;
+                }
+
                 sb.AppendLine("      <tr style=\"border-bottom: 1px solid #ecedee;\">");
-                sb.AppendLine($"        <td style=\"padding: 10px 0;\">{HtmlEncode(item.Name ?? item.Sku)}</td>");
+                sb.AppendLine("        <td style=\"padding: 10px 0;\">");
+                sb.AppendLine($"          <div style=\"font-weight: 500;\">{HtmlEncode(displayName)}</div>");
+                foreach (var addon in itemAddons)
+                {
+                    var addonName = string.IsNullOrWhiteSpace(addon.Name) ? addon.Sku : addon.Name;
+                    var addonAmountPrefix = addon.Amount >= 0 ? "+" : "-";
+                    var addonAmount = Math.Abs(addon.Amount);
+                    sb.AppendLine(
+                        $"          <div style=\"font-size: 12px; color: #666; margin-top: 3px; padding-left: 10px; border-left: 2px solid #ddd;\">Add-on: {HtmlEncode(addonName)} ({addonAmountPrefix}{currencySymbol}{addonAmount:N2})</div>");
+                }
+                sb.AppendLine("        </td>");
                 sb.AppendLine($"        <td style=\"padding: 10px 0; text-align: center;\">{item.Quantity}</td>");
-                sb.AppendLine($"        <td style=\"padding: 10px 0; text-align: right;\">{currencySymbol}{itemTotal:N2}</td>");
+                sb.AppendLine($"        <td style=\"padding: 10px 0; text-align: right;\">{currencySymbol}{displayLineTotal:N2}</td>");
                 sb.AppendLine("      </tr>");
             }
 
@@ -298,6 +327,14 @@ public class MjmlHelper : IMjmlHelper
     {
         var symbol = currencySymbol ?? "£";
         var sb = new StringBuilder();
+        var allLineItems = items
+            .Where(li => li.LineItemType == LineItemType.Product
+                      || li.LineItemType == LineItemType.Custom
+                      || li.LineItemType == LineItemType.Addon)
+            .ToList();
+        var parentLineItems = allLineItems
+            .Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom)
+            .ToList();
 
         sb.AppendLine("<mj-table>");
         sb.AppendLine("  <tr style=\"border-bottom: 1px solid #ecedee;\">");
@@ -306,13 +343,35 @@ public class MjmlHelper : IMjmlHelper
         sb.AppendLine("    <th style=\"padding: 10px 0; text-align: right;\">Price</th>");
         sb.AppendLine("  </tr>");
 
-        foreach (var item in items)
+        foreach (var item in parentLineItems)
         {
+            var itemAddons = allLineItems
+                .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                .ToList();
+
             var itemTotal = item.Amount * item.Quantity;
+            var addonTotal = itemAddons.Sum(addon => addon.Amount * addon.Quantity);
+            var displayLineTotal = itemTotal + addonTotal;
+            var displayName = item.GetProductRootName();
+            if (string.IsNullOrWhiteSpace(displayName))
+            {
+                displayName = item.Name ?? item.Sku;
+            }
+
             sb.AppendLine("  <tr style=\"border-bottom: 1px solid #ecedee;\">");
-            sb.AppendLine($"    <td style=\"padding: 10px 0;\">{HtmlEncode(item.Name ?? item.Sku)}</td>");
+            sb.AppendLine("    <td style=\"padding: 10px 0;\">");
+            sb.AppendLine($"      <div style=\"font-weight: 500;\">{HtmlEncode(displayName)}</div>");
+            foreach (var addon in itemAddons)
+            {
+                var addonName = string.IsNullOrWhiteSpace(addon.Name) ? addon.Sku : addon.Name;
+                var addonAmountPrefix = addon.Amount >= 0 ? "+" : "-";
+                var addonAmount = Math.Abs(addon.Amount);
+                sb.AppendLine(
+                    $"      <div style=\"font-size: 12px; color: #666; margin-top: 3px; padding-left: 10px; border-left: 2px solid #ddd;\">Add-on: {HtmlEncode(addonName)} ({addonAmountPrefix}{symbol}{addonAmount:N2})</div>");
+            }
+            sb.AppendLine("    </td>");
             sb.AppendLine($"    <td style=\"padding: 10px 0; text-align: center;\">{item.Quantity}</td>");
-            sb.AppendLine($"    <td style=\"padding: 10px 0; text-align: right;\">{symbol}{itemTotal:N2}</td>");
+            sb.AppendLine($"    <td style=\"padding: 10px 0; text-align: right;\">{symbol}{displayLineTotal:N2}</td>");
             sb.AppendLine("  </tr>");
         }
 
@@ -383,3 +442,4 @@ public class MjmlHelper : IMjmlHelper
         return HtmlEncoder.Default.Encode(value ?? string.Empty);
     }
 }
+

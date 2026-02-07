@@ -524,21 +524,7 @@ public class ServiceTestFixture : IDisposable
             .ReturnsAsync(Array.Empty<ShippingRateQuote>());
         services.AddSingleton(shippingQuoteServiceMock.Object);
 
-        // Mock shipping cost resolver (synchronous methods)
-        var shippingCostResolverMock = new Mock<IShippingCostResolver>();
-        shippingCostResolverMock.Setup(x => x.ResolveBaseCost(
-                It.IsAny<IReadOnlyCollection<ShippingCost>>(), It.IsAny<string>(),
-                It.IsAny<string?>(), It.IsAny<decimal?>()))
-            .Returns(5m);
-        shippingCostResolverMock.Setup(x => x.ResolveWeightTierSurcharge(
-                It.IsAny<IReadOnlyCollection<ShippingWeightTier>>(), It.IsAny<decimal>(),
-                It.IsAny<string>(), It.IsAny<string?>()))
-            .Returns(0m);
-        shippingCostResolverMock.Setup(x => x.GetTotalShippingCost(
-                It.IsAny<ShippingOption>(), It.IsAny<string>(),
-                It.IsAny<string?>(), It.IsAny<decimal?>()))
-            .Returns(5m);
-        services.AddSingleton(shippingCostResolverMock.Object);
+        // Use the real shipping cost resolver for integration realism.
 
         // Mock locations service
         var locationsServiceMock = new Mock<ILocationsService>();
