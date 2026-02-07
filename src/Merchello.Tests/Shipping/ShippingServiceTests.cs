@@ -4,6 +4,7 @@ using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Tests.TestInfrastructure;
@@ -210,6 +211,40 @@ public class ShippingServiceTests
         nextDayMethod.DeliveryTimeDescription.ShouldBe("Next Day Delivery");
     }
 
+    [Fact]
+    public async Task GetShippingOptionsForProductAsync_RegionExclusion_BlocksSpecificStateOnly()
+    {
+        // Arrange
+        var warehouse = _dataBuilder.CreateWarehouse("US Warehouse", "US");
+        _dataBuilder.AddServiceRegion(warehouse, "US");
+        var shippingOption = _dataBuilder.CreateShippingOption("US Ground", warehouse, fixedCost: 12m);
+        shippingOption.SetExcludedRegions(
+        [
+            new ShippingOptionExcludedRegion
+            {
+                CountryCode = "US",
+                RegionCode = "CA"
+            }
+        ]);
+
+        var product = _dataBuilder.CreateProduct();
+        _dataBuilder.AddWarehouseToProductRoot(product.ProductRoot!, warehouse);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var californiaResult = await _shippingService.GetShippingOptionsForProductAsync(product.Id, "US", "CA");
+        var texasResult = await _shippingService.GetShippingOptionsForProductAsync(product.Id, "US", "TX");
+
+        // Assert
+        californiaResult.CanShipToLocation.ShouldBeFalse();
+        californiaResult.AvailableMethods.ShouldBeEmpty();
+        californiaResult.Message!.ShouldContain("No shipping options available");
+
+        texasResult.CanShipToLocation.ShouldBeTrue();
+        texasResult.AvailableMethods.ShouldContain(m => m.Name == "US Ground" && m.EstimatedCost == 12m);
+    }
+
     #endregion
 
     #region GetShippingOptionsForBasket Tests
@@ -312,6 +347,83 @@ public class ShippingServiceTests
         result.WarehouseGroups.First().LineItems.Count.ShouldBe(2);
     }
 
+    [Fact]
+    public async Task GetShippingOptionsForBasket_StateExclusion_RemovesExcludedOptionFromGroup()
+    {
+        // Arrange
+        var warehouse = _dataBuilder.CreateWarehouse("US Warehouse", "US");
+        _dataBuilder.AddServiceRegion(warehouse, "US");
+
+        var standard = _dataBuilder.CreateShippingOption("US Standard", warehouse, fixedCost: 10m);
+        var californiaOnlyBlocked = _dataBuilder.CreateShippingOption("US Economy", warehouse, fixedCost: 5m);
+        californiaOnlyBlocked.SetExcludedRegions(
+        [
+            new ShippingOptionExcludedRegion
+            {
+                CountryCode = "US",
+                RegionCode = "CA"
+            }
+        ]);
+
+        var product = _dataBuilder.CreateProduct("Test Product", price: 29.99m);
+        _dataBuilder.AddWarehouseToProductRoot(product.ProductRoot!, warehouse);
+        _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var basket = await CreateBasketAsync("US", (product, 1));
+        var shippingAddress = CreateAddress("US", "CA");
+
+        // Act
+        var result = await _shippingService.GetShippingOptionsForBasket(
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
+
+        // Assert
+        result.WarehouseGroups.ShouldNotBeEmpty();
+        var options = result.WarehouseGroups.First().AvailableShippingOptions;
+        options.ShouldContain(o => o.Name == standard.Name);
+        options.ShouldNotContain(o => o.Name == californiaOnlyBlocked.Name);
+    }
+
+    #endregion
+
+    #region GetShippingOptionsForWarehouseAsync Tests
+
+    [Fact]
+    public async Task GetShippingOptionsForWarehouseAsync_RegionExclusion_BlocksSpecificStateOnly()
+    {
+        // Arrange
+        var warehouse = _dataBuilder.CreateWarehouse("US Warehouse", "US");
+        _dataBuilder.AddServiceRegion(warehouse, "US");
+        var shippingOption = _dataBuilder.CreateShippingOption("US Ground", warehouse, fixedCost: 9m);
+        shippingOption.SetExcludedRegions(
+        [
+            new ShippingOptionExcludedRegion
+            {
+                CountryCode = "US",
+                RegionCode = "CA"
+            }
+        ]);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var californiaResult = await _shippingService.GetShippingOptionsForWarehouseAsync(warehouse.Id, "US", "CA");
+        var texasResult = await _shippingService.GetShippingOptionsForWarehouseAsync(warehouse.Id, "US", "TX");
+
+        // Assert
+        californiaResult.CanShipToDestination.ShouldBeFalse();
+        californiaResult.AvailableOptions.ShouldBeEmpty();
+        californiaResult.Message!.ShouldContain("No shipping options available");
+
+        texasResult.CanShipToDestination.ShouldBeTrue();
+        texasResult.AvailableOptions.ShouldContain(o => o.Name == "US Ground" && o.EstimatedCost == 9m);
+    }
+
     #endregion
 
     #region GetRequiredWarehouses Tests
@@ -385,9 +497,15 @@ public class ShippingServiceTests
         return basket;
     }
 
-    private Address CreateAddress(string countryCode)
+    private Address CreateAddress(string countryCode, string? regionCode = null)
     {
-        return _dataBuilder.CreateTestAddress(countryCode: countryCode);
+        var address = _dataBuilder.CreateTestAddress(countryCode: countryCode);
+        if (!string.IsNullOrWhiteSpace(regionCode))
+        {
+            address.CountyState.RegionCode = regionCode;
+        }
+
+        return address;
     }
 
     #endregion

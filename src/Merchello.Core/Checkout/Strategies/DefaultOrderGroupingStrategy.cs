@@ -27,7 +27,7 @@ namespace Merchello.Core.Checkout.Strategies;
 /// </summary>
 public class DefaultOrderGroupingStrategy(
     IWarehouseService warehouseService,
-    IShippingCostResolver shippingCostResolver,
+    IShippingOptionEligibilityService shippingOptionEligibilityService,
     IShippingQuoteService shippingQuoteService,
     IShippingProviderManager shippingProviderManager,
     IWarehouseProviderConfigService warehouseProviderConfigService,
@@ -610,12 +610,13 @@ public class DefaultOrderGroupingStrategy(
         var countryCode = context.ShippingAddress.CountryCode!;
         var regionCode = context.ShippingAddress.CountyState?.RegionCode;
 
-        return shippingOptions
-            .Where(so => !so.IsDestinationExcluded(countryCode, regionCode))
-            // Filter out options whose provider is not enabled (flat-rate is always available)
-            .Where(so => string.Equals(so.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase) ||
-                         enabledProviderKeys.Contains(so.ProviderKey))
-            .Select(so => (Option: so, Cost: shippingCostResolver.GetTotalShippingCost(so, countryCode, regionCode)))
+        var eligibleOptions = shippingOptionEligibilityService.GetEligibleOptions(
+            shippingOptions,
+            countryCode,
+            regionCode,
+            enabledProviderKeys);
+
+        return eligibleOptions
             .Where(x => x.Cost.HasValue)
             .Select(x => new ShippingOptionInfo
             {

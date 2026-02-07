@@ -347,6 +347,7 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton<IHostEnvironment>(sp => sp.GetRequiredService<IWebHostEnvironment>());
 
         services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
+        services.AddScoped<IShippingOptionEligibilityService, ShippingOptionEligibilityService>();
         services.AddScoped<IShippingService, ShippingService>();
         services.AddScoped<IShipmentService, ShipmentService>();
 
@@ -877,6 +878,10 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductShippingOptionsResultDto>>>()))
                     .Returns((Func<MerchelloDbContext, Task<ProductShippingOptionsResultDto>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<WarehouseShippingOptionsResultDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<WarehouseShippingOptionsResultDto>> func) => func(dbContext));
 
                 // ShippingOption service return types (for ShippingOptionServiceTests)
                 scopeMock
