@@ -11,7 +11,6 @@ using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;
-using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -28,11 +27,13 @@ public class ShippingService(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     IOrderGroupingStrategyResolver strategyResolver,
     IMerchelloNotificationPublisher notificationPublisher,
-    IShippingCostResolver shippingCostResolver,
+    IShippingOptionEligibilityService shippingOptionEligibilityService,
     IShippingProviderManager providerManager,
     IOptions<MerchelloSettings> settings,
     ILogger<ShippingService> logger) : IShippingService
 {
+    private readonly MerchelloSettings _settings = settings.Value;
+
     /// <summary>
     /// Calculates the aggregate stock status based on available stock, track stock setting, and threshold.
     /// </summary>
@@ -132,7 +133,7 @@ public class ShippingService(
             }
 
             // Check if warehouse can serve the destination region (only if destination provided)
-            if (checkDestination && !CanWarehouseServiceLocation(warehouse, destinationCountryCode!, destinationStateCode))
+            if (checkDestination && !warehouse.CanServeRegion(destinationCountryCode!, destinationStateCode))
             {
                 continue;
             }
@@ -181,7 +182,7 @@ public class ShippingService(
         var aggregateStockStatus = CalculateAggregateStockStatus(
             stockResult.TotalAvailableStock,
             stockResult.HasAnyTrackingWarehouse,
-            settings.Value.LowStockThreshold);
+            _settings.LowStockThreshold);
 
         return (product, stockResult, aggregateStockStatus);
     }
@@ -522,6 +523,16 @@ public class ShippingService(
             };
         }
 
+        // Build enabled provider and live-rate capability lookups.
+        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken) ?? [];
+        var enabledProviderKeys = providers
+            .Select(p => p.Provider.Metadata.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var usesLiveRatesLookup = providers.ToDictionary(
+            p => p.Provider.Metadata.Key,
+            p => p.Provider.Metadata.ConfigCapabilities?.UsesLiveRates == true,
+            StringComparer.OrdinalIgnoreCase);
+
         using var scope = efCoreScopeProvider.CreateScope();
 
         var result = await scope.ExecuteWithContextAsync(async db =>
@@ -533,12 +544,13 @@ public class ShippingService(
                     .ThenInclude(pr => pr!.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
                             .ThenInclude(w => w!.ShippingOptions)
-                                
-                .Include(p => p.ProductRoot)
-                    .ThenInclude(pr => pr!.ProductRootWarehouses)
-                        .ThenInclude(prw => prw.Warehouse)
-                            
+                .Include(p => p.ProductWarehouses)
+                    .ThenInclude(pw => pw.Warehouse)
+                        .ThenInclude(w => w!.ShippingOptions)
+                .Include(p => p.ShippingOptions)
+                    .ThenInclude(so => so.Warehouse)
                 .Include(p => p.AllowedShippingOptions)
+                    .ThenInclude(so => so.Warehouse)
                 .Include(p => p.ExcludedShippingOptions)
                 .AsSplitQuery()
                 .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
@@ -552,15 +564,20 @@ public class ShippingService(
                 };
             }
 
-            // Get warehouses that can service this location
-            var productRootWarehouses = product.ProductRoot?.ProductRootWarehouses ?? [];
-            var serviceableWarehouses = productRootWarehouses
-                .Where(prw => prw.Warehouse != null &&
-                              CanWarehouseServiceLocation(prw.Warehouse, countryCode, regionCode))
-                .Select(prw => prw.Warehouse!)
+            // Get all associated warehouses (variant + root) and check destination serviceability.
+            var associatedWarehouses = product.ProductWarehouses
+                .Where(pw => pw.Warehouse != null)
+                .Select(pw => pw.Warehouse!)
+                .Concat(
+                    product.ProductRoot?.ProductRootWarehouses?
+                        .Where(prw => prw.Warehouse != null)
+                        .Select(prw => prw.Warehouse!)
+                    ?? [])
+                .DistinctBy(w => w.Id)
                 .ToList();
 
-            if (serviceableWarehouses.Count == 0)
+            if (associatedWarehouses.Count > 0 &&
+                associatedWarehouses.All(w => !w.CanServeRegion(countryCode, regionCode)))
             {
                 return new ProductShippingOptionsResultDto
                 {
@@ -569,52 +586,34 @@ public class ShippingService(
                 };
             }
 
-            // Get allowed shipping option IDs for this product
-            var allowedOptionIds = product.AllowedShippingOptions?.Select(so => so.Id).ToHashSet();
-            var excludedOptionIds = product.ExcludedShippingOptions?.Select(so => so.Id).ToHashSet() ?? [];
+            // Resolve allowed options (respecting product allow/exclude configuration).
+            var allowedOptions = product.GetAllowedShippingOptions()
+                .Where(so => so.IsEnabled)
+                .ToList();
 
-            // Collect all available shipping options from serviceable warehouses
-            List<ProductShippingMethodDto> methods = [];
-            var sortOrder = 0;
+            var eligibleOptions = shippingOptionEligibilityService.GetEligibleOptions(
+                allowedOptions,
+                countryCode,
+                regionCode,
+                enabledProviderKeys,
+                usesLiveRatesLookup);
 
-            foreach (var warehouse in serviceableWarehouses)
-            {
-                foreach (var shippingOption in warehouse.ShippingOptions ?? [])
+            var methods = eligibleOptions
+                .Select((eligible, index) =>
                 {
-                    // Skip if excluded
-                    if (excludedOptionIds.Contains(shippingOption.Id))
-                        continue;
-
-                    // Skip if not in allowed list (when allowlist is specified)
-                    if (allowedOptionIds != null && allowedOptionIds.Count > 0 && !allowedOptionIds.Contains(shippingOption.Id))
-                        continue;
-
-                    // Skip if shipping option explicitly excludes this destination
-                    if (shippingOption.IsDestinationExcluded(countryCode, regionCode))
-                        continue;
-
-                    // Check if this option can ship to the destination
-                    var cost = shippingCostResolver.ResolveBaseCost(
-                        shippingOption.ShippingCosts,
-                        countryCode,
-                        regionCode,
-                        shippingOption.FixedCost);
-                    if (cost == null && shippingOption.FixedCost == null)
-                        continue; // No rate available for this destination
-
-                    var deliveryTime = ShippingOptionInfo.FormatDeliveryTime(shippingOption.DaysFrom, shippingOption.DaysTo, shippingOption.IsNextDay);
-
-                    methods.Add(new ProductShippingMethodDto
+                    var option = eligible.Option;
+                    var deliveryTime = ShippingOptionInfo.FormatDeliveryTime(option.DaysFrom, option.DaysTo, option.IsNextDay);
+                    return new ProductShippingMethodDto
                     {
-                        Name = shippingOption.Name ?? "Standard Shipping",
+                        Name = option.Name ?? "Standard Shipping",
                         DeliveryTimeDescription = deliveryTime,
-                        EstimatedCost = cost ?? shippingOption.FixedCost,
-                        IsEstimate = true, // Flat rate estimates - actual cost calculated at checkout
-                        ServiceLevel = shippingOption.IsNextDay ? "express" : "standard",
-                        SortOrder = sortOrder++
-                    });
-                }
-            }
+                        EstimatedCost = eligible.UsesLiveRates ? null : eligible.Cost,
+                        IsEstimate = true,
+                        ServiceLevel = option.IsNextDay ? "express" : "standard",
+                        SortOrder = index
+                    };
+                })
+                .ToList();
 
             // Remove duplicates (same name) keeping lowest cost
             var uniqueMethods = methods
@@ -627,32 +626,13 @@ public class ShippingService(
             {
                 CanShipToLocation = uniqueMethods.Count > 0,
                 AvailableMethods = uniqueMethods,
-                RequiresCheckoutForRates = false, // Flat rate provider doesn't need checkout
+                RequiresCheckoutForRates = eligibleOptions.Any(o => o.UsesLiveRates),
                 Message = uniqueMethods.Count == 0 ? "No shipping options available for your location" : null
             };
         });
 
         scope.Complete();
         return result;
-    }
-
-    private static bool CanWarehouseServiceLocation(
-        Warehouses.Models.Warehouse warehouse,
-        string countryCode,
-        string? regionCode)
-    {
-        var serviceRegions = warehouse.ServiceRegions;
-        if (serviceRegions == null || serviceRegions.Count == 0)
-        {
-            // No service regions defined means warehouse services everywhere
-            return true;
-        }
-
-        // Check if any service region matches
-        return serviceRegions.Any(sr =>
-            string.Equals(sr.CountryCode, countryCode, StringComparison.OrdinalIgnoreCase) &&
-            (string.IsNullOrEmpty(sr.RegionCode) ||
-             string.Equals(sr.RegionCode, regionCode, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -688,13 +668,13 @@ public class ShippingService(
         }
 
         // Build set of enabled provider keys and lookup for live rates capability
-        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken);
+        var providers = await providerManager.GetEnabledProvidersAsync(cancellationToken) ?? [];
         var enabledProviderKeys = providers
             .Select(p => p.Provider.Metadata.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var usesLiveRatesLookup = providers.ToDictionary(
             p => p.Provider.Metadata.Key,
-            p => p.Provider.Metadata.ConfigCapabilities.UsesLiveRates,
+            p => p.Provider.Metadata.ConfigCapabilities?.UsesLiveRates == true,
             StringComparer.OrdinalIgnoreCase);
 
         using var scope = efCoreScopeProvider.CreateScope();
@@ -719,7 +699,7 @@ public class ShippingService(
             }
 
             // Check if warehouse can serve this region
-            if (!CanWarehouseServiceLocation(warehouse, destinationCountryCode, destinationStateCode))
+            if (!warehouse.CanServeRegion(destinationCountryCode, destinationStateCode))
             {
                 return new WarehouseShippingOptionsResultDto
                 {
@@ -728,56 +708,34 @@ public class ShippingService(
                 };
             }
 
-            // Filter enabled shipping options that can ship to the destination
-            List<WarehouseShippingOptionDto> availableOptions = [];
+            var eligibleOptions = shippingOptionEligibilityService.GetEligibleOptions(
+                warehouse.ShippingOptions,
+                destinationCountryCode,
+                destinationStateCode,
+                enabledProviderKeys,
+                usesLiveRatesLookup);
 
-            foreach (var shippingOption in warehouse.ShippingOptions)
-            {
-                // Skip options whose provider is not enabled (unless it's flat-rate which is always available)
-                var isBuiltInProvider = string.Equals(shippingOption.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase);
-                if (!isBuiltInProvider && !enabledProviderKeys.Contains(shippingOption.ProviderKey))
+            var availableOptions = eligibleOptions
+                .Select(eligible =>
                 {
-                    continue;
-                }
+                    var option = eligible.Option;
+                    var deliveryTime = ShippingOptionInfo.FormatDeliveryTime(option.DaysFrom, option.DaysTo, option.IsNextDay);
 
-                // Skip options that explicitly exclude the destination.
-                if (shippingOption.IsDestinationExcluded(destinationCountryCode, destinationStateCode))
-                {
-                    continue;
-                }
-
-                var cost = shippingCostResolver.ResolveBaseCost(
-                    shippingOption.ShippingCosts,
-                    destinationCountryCode,
-                    destinationStateCode,
-                    shippingOption.FixedCost);
-
-                // Check if provider uses live rates (external API) vs configured costs
-                var usesLiveRates = usesLiveRatesLookup.GetValueOrDefault(shippingOption.ProviderKey, false);
-
-                // For local-rate providers, skip if no cost configured for destination
-                // For live-rate providers, they're available if warehouse can serve the region
-                if (!usesLiveRates && cost == null && shippingOption.FixedCost == null)
-                {
-                    continue;
-                }
-
-                var deliveryTime = ShippingOptionInfo.FormatDeliveryTime(shippingOption.DaysFrom, shippingOption.DaysTo, shippingOption.IsNextDay);
-
-                availableOptions.Add(new WarehouseShippingOptionDto
-                {
-                    Id = shippingOption.Id,
-                    Name = shippingOption.Name ?? "Standard Shipping",
-                    ProviderKey = shippingOption.ProviderKey,
-                    ServiceType = shippingOption.ServiceType,
-                    DaysFrom = shippingOption.DaysFrom,
-                    DaysTo = shippingOption.DaysTo,
-                    IsNextDay = shippingOption.IsNextDay,
-                    EstimatedCost = usesLiveRates ? null : cost ?? shippingOption.FixedCost,
-                    IsEstimate = usesLiveRates,
-                    DeliveryTimeDescription = deliveryTime
-                });
-            }
+                    return new WarehouseShippingOptionDto
+                    {
+                        Id = option.Id,
+                        Name = option.Name ?? "Standard Shipping",
+                        ProviderKey = option.ProviderKey,
+                        ServiceType = option.ServiceType,
+                        DaysFrom = option.DaysFrom,
+                        DaysTo = option.DaysTo,
+                        IsNextDay = option.IsNextDay,
+                        EstimatedCost = eligible.UsesLiveRates ? null : eligible.Cost,
+                        IsEstimate = eligible.UsesLiveRates,
+                        DeliveryTimeDescription = deliveryTime
+                    };
+                })
+                .ToList();
 
             return new WarehouseShippingOptionsResultDto
             {

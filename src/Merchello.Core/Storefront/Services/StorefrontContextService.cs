@@ -8,6 +8,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services.Parameters;
 using Merchello.Core.Storefront.Services.Interfaces;
@@ -29,7 +30,8 @@ public class StorefrontContextService(
     IExchangeRateCache exchangeRateCache,
     ICheckoutService checkoutService,
     IProductService productService,
-    ITaxProviderManager taxProviderManager) : IStorefrontContextService
+    ITaxProviderManager taxProviderManager,
+    IShippingOptionEligibilityService shippingOptionEligibilityService) : IStorefrontContextService
 {
     private const int CookieExpiryDays = 30;
 
@@ -333,17 +335,17 @@ public class StorefrontContextService(
             return false;
         }
 
-        // Second check: Are shipping options with costs configured for this destination?
-        // GetValidShippingOptionsForCountry checks both warehouse service regions AND shipping costs
-        var validShippingOptions = product.GetValidShippingOptionsForCountry(countryCode, regionCode);
+        // Second check: Are shipping options eligible for this destination?
+        var allowedOptions = product.GetAllowedShippingOptions().ToList();
+        var eligibleOptions = shippingOptionEligibilityService.GetEligibleOptions(
+            allowedOptions,
+            countryCode,
+            regionCode);
 
-        if (validShippingOptions.Any())
+        if (eligibleOptions.Count > 0)
         {
             return true;
         }
-
-        // Check if shipping options are loaded but none can ship to this destination
-        var allowedOptions = product.GetAllowedShippingOptions();
 
         if (allowedOptions.Any())
         {

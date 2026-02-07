@@ -324,6 +324,7 @@ public static class Startup
         builder.Services.AddScoped<IShippingQuoteService, ShippingQuoteService>();
         builder.Services.AddScoped<IShippingService, ShippingService>();
         builder.Services.AddScoped<IShippingOptionService, ShippingOptionService>();
+        builder.Services.AddScoped<IShippingOptionEligibilityService, ShippingOptionEligibilityService>();
         builder.Services.AddScoped<IShipmentService, ShipmentService>();
         builder.Services.AddScoped<IWarehouseProviderConfigService, WarehouseProviderConfigService>();
         builder.Services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
