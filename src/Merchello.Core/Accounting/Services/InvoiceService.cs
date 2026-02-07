@@ -808,11 +808,10 @@ public class InvoiceService(
         }
 
         var regionCode = shippingAddress.CountyState?.RegionCode;
-        var cost = shippingCostResolver.ResolveBaseCost(
-            shippingOption.ShippingCosts,
+        var cost = shippingCostResolver.GetTotalShippingCost(
+            shippingOption,
             countryCode,
-            regionCode,
-            shippingOption.FixedCost);
+            regionCode);
 
         if (cost.HasValue)
         {

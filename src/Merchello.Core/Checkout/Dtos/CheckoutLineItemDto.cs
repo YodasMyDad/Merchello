@@ -43,5 +43,6 @@ public class CheckoutLineItemDto
     public bool IsTaxable { get; set; }
 
     public LineItemType LineItemType { get; set; }
+    public string? DependantLineItemSku { get; set; }
     public string? ImageUrl { get; set; }
 }

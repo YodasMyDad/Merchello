@@ -11,6 +11,7 @@ using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -588,6 +589,10 @@ public class ShippingService(
                     if (allowedOptionIds != null && allowedOptionIds.Count > 0 && !allowedOptionIds.Contains(shippingOption.Id))
                         continue;
 
+                    // Skip if shipping option explicitly excludes this destination
+                    if (shippingOption.IsDestinationExcluded(countryCode, regionCode))
+                        continue;
+
                     // Check if this option can ship to the destination
                     var cost = shippingCostResolver.ResolveBaseCost(
                         shippingOption.ShippingCosts,
@@ -731,6 +736,12 @@ public class ShippingService(
                 // Skip options whose provider is not enabled (unless it's flat-rate which is always available)
                 var isBuiltInProvider = string.Equals(shippingOption.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase);
                 if (!isBuiltInProvider && !enabledProviderKeys.Contains(shippingOption.ProviderKey))
+                {
+                    continue;
+                }
+
+                // Skip options that explicitly exclude the destination.
+                if (shippingOption.IsDestinationExcluded(destinationCountryCode, destinationStateCode))
                 {
                     continue;
                 }

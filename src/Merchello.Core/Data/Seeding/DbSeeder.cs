@@ -339,6 +339,53 @@ public class DbSeeder(
 
     private async Task<Warehouse[]> CreateWarehousesAsync(Supplier ukSupplier, Supplier usSupplier, CancellationToken cancellationToken)
     {
+        var ukServiceCountries = new[]
+        {
+            "GB", "IE", "FR", "DE", "ES", "IT", "NL", "BE", "AT", "PT", "SE", "DK", "NO", "CH"
+        };
+
+        var euServiceCountries = new[]
+        {
+            "DE", "FR", "NL", "BE", "AT", "ES", "IT", "PT", "CH", "NO", "SE", "DK", "PL", "FI", "CZ", "GR"
+        };
+
+        var usEastServiceCountries = new[] { "US", "CA", "GB" };
+        var usWestServiceCountries = new[] { "US", "CA", "MX", "GB" };
+
+        static List<(string CountryCode, string? RegionCode)> ExcludeCountries(IEnumerable<string> countryCodes)
+            => countryCodes
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Trim().ToUpperInvariant())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(code => (code, (string?)null))
+                .ToList();
+
+        static List<(string CountryCode, string? RegionCode)> ExcludeAllExcept(
+            IEnumerable<string> allowedCountries,
+            IEnumerable<string> serviceCountries)
+        {
+            var allowed = allowedCountries
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code => code.Trim().ToUpperInvariant())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            return ExcludeCountries(serviceCountries.Where(code => !allowed.Contains(code)));
+        }
+
+        var ukDomesticExclusions = ExcludeAllExcept(["GB"], ukServiceCountries);
+        var ukInternationalExclusions = ExcludeAllExcept(
+            ukServiceCountries.Where(code => !string.Equals(code, "GB", StringComparison.OrdinalIgnoreCase)),
+            ukServiceCountries);
+
+        var euNextDayExclusions = ExcludeAllExcept(["DE", "FR", "NL", "BE", "AT", "SE", "DK"], euServiceCountries);
+        var euDpdPredictExclusions = ExcludeCountries(["CH", "NO", "GR"]);
+
+        var usEastDomesticExclusions = ExcludeAllExcept(["US"], usEastServiceCountries);
+        var usEastInternationalExclusions = ExcludeAllExcept(["CA", "GB"], usEastServiceCountries);
+
+        var usWestDomesticExclusions = ExcludeAllExcept(["US"], usWestServiceCountries);
+        var usWestInternationalExclusions = ExcludeAllExcept(["CA", "MX", "GB"], usWestServiceCountries);
+
         // UK Fulfillment Center - serves UK, Ireland, and major EU countries
         var ukWarehouseResult = await warehouseService.CreateWarehouse(new CreateWarehouseParameters
         {
@@ -377,27 +424,74 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                // FREE UK shipping (threshold-based - UI handles eligibility, cost=0 signals free)
-                new ShippingOptionConfig { Name = "Free UK Standard (Orders £50+)", DaysFrom = 5, DaysTo = 7, Cost = 0m },
-
-                // Royal Mail branded options
-                new ShippingOptionConfig { Name = "Royal Mail 2nd Class", DaysFrom = 3, DaysTo = 5, Cost = 3.49m },
-                new ShippingOptionConfig { Name = "Royal Mail 1st Class", DaysFrom = 1, DaysTo = 2, Cost = 4.99m },
-                new ShippingOptionConfig { Name = "Royal Mail Signed For", DaysFrom = 1, DaysTo = 2, Cost = 5.99m },
-                new ShippingOptionConfig { Name = "Royal Mail Special Delivery", DaysFrom = 1, DaysTo = 1, Cost = 9.99m, IsNextDay = true },
-
-                // UK-ONLY option (for country-restricted products)
-                new ShippingOptionConfig { Name = "UK Domestic Only", DaysFrom = 2, DaysTo = 4, Cost = 4.49m },
-
-                // International from UK warehouse (no FixedCost — only resolves for listed countries)
+                // Domestic UK options
                 new ShippingOptionConfig
                 {
-                    Name = "Royal Mail International Tracked", DaysFrom = 7, DaysTo = 14,
+                    Name = "Free UK Standard (Orders £50+)",
+                    DaysFrom = 5,
+                    DaysTo = 7,
+                    Cost = 0m,
+                    ExcludedRegions = ukDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "Royal Mail 2nd Class",
+                    DaysFrom = 3,
+                    DaysTo = 5,
+                    Cost = 3.49m,
+                    ExcludedRegions = ukDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "Royal Mail 1st Class",
+                    DaysFrom = 1,
+                    DaysTo = 2,
+                    Cost = 4.99m,
+                    ExcludedRegions = ukDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "Royal Mail Signed For",
+                    DaysFrom = 1,
+                    DaysTo = 2,
+                    Cost = 5.99m,
+                    ExcludedRegions = ukDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "Royal Mail Special Delivery",
+                    DaysFrom = 1,
+                    DaysTo = 1,
+                    Cost = 9.99m,
+                    IsNextDay = true,
+                    ExcludedRegions = ukDomesticExclusions
+                },
+
+                // UK-only option used by country-restricted products
+                new ShippingOptionConfig
+                {
+                    Name = "UK Domestic Only",
+                    DaysFrom = 2,
+                    DaysTo = 4,
+                    Cost = 4.49m,
+                    ExcludedRegions = ukDomesticExclusions
+                },
+
+                // International option for non-GB destinations served by this warehouse
+                new ShippingOptionConfig
+                {
+                    Name = "Royal Mail International Tracked",
+                    DaysFrom = 7,
+                    DaysTo = 14,
                     CountrySpecificCosts = new Dictionary<string, decimal>
                     {
-                        { "US", 14.99m }, { "CA", 14.99m }, { "AU", 16.99m },
-                        { "DE", 9.99m }, { "FR", 9.99m }, { "JP", 18.99m }
-                    }
+                        { "IE", 7.99m },
+                        { "FR", 9.99m }, { "DE", 9.99m }, { "NL", 9.99m }, { "BE", 9.99m },
+                        { "ES", 11.99m }, { "IT", 11.99m }, { "PT", 11.99m },
+                        { "AT", 12.99m }, { "SE", 12.99m }, { "DK", 12.99m },
+                        { "NO", 13.99m }, { "CH", 13.99m }
+                    },
+                    ExcludedRegions = ukInternationalExclusions
                 }
             ]
         }, cancellationToken);
@@ -449,16 +543,26 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                // DHL branded options for EU
                 new ShippingOptionConfig { Name = "DHL Standard EU", DaysFrom = 3, DaysTo = 5, Cost = 5.99m },
                 new ShippingOptionConfig { Name = "DHL Express EU", DaysFrom = 1, DaysTo = 2, Cost = 12.99m },
-                new ShippingOptionConfig { Name = "DHL Express Next Day EU", DaysFrom = 1, DaysTo = 1, Cost = 18.99m, IsNextDay = true },
-
-                // DPD options
+                new ShippingOptionConfig
+                {
+                    Name = "DHL Express Next Day EU",
+                    DaysFrom = 1,
+                    DaysTo = 1,
+                    Cost = 18.99m,
+                    IsNextDay = true,
+                    ExcludedRegions = euNextDayExclusions
+                },
                 new ShippingOptionConfig { Name = "DPD Classic", DaysFrom = 4, DaysTo = 6, Cost = 4.99m },
-                new ShippingOptionConfig { Name = "DPD Predict", DaysFrom = 2, DaysTo = 3, Cost = 7.99m },
-
-                // Economy option
+                new ShippingOptionConfig
+                {
+                    Name = "DPD Predict",
+                    DaysFrom = 2,
+                    DaysTo = 3,
+                    Cost = 7.99m,
+                    ExcludedRegions = euDpdPredictExclusions
+                },
                 new ShippingOptionConfig { Name = "PostNL Economy", DaysFrom = 7, DaysTo = 10, Cost = 3.49m }
             ]
         }, cancellationToken);
@@ -489,33 +593,98 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                // FREE US shipping (threshold-based)
-                new ShippingOptionConfig { Name = "Free US Standard (Orders $75+)", DaysFrom = 5, DaysTo = 8, Cost = 0m },
-
-                // USPS branded options
-                new ShippingOptionConfig { Name = "USPS Ground Advantage", DaysFrom = 5, DaysTo = 7, Cost = 5.99m },
-                new ShippingOptionConfig { Name = "USPS Priority Mail", DaysFrom = 2, DaysTo = 3, Cost = 9.99m },
-                new ShippingOptionConfig { Name = "USPS Priority Express", DaysFrom = 1, DaysTo = 2, Cost = 26.99m },
-
-                // UPS branded options
-                new ShippingOptionConfig { Name = "UPS Ground (East)", DaysFrom = 4, DaysTo = 6, Cost = 7.99m },
-                new ShippingOptionConfig { Name = "UPS 3 Day Select", DaysFrom = 3, DaysTo = 3, Cost = 14.99m },
-                new ShippingOptionConfig { Name = "UPS Next Day Air (East)", DaysFrom = 1, DaysTo = 1, Cost = 34.99m, IsNextDay = true },
-
-                // FedEx options (flat-rate with carrier branding)
-                new ShippingOptionConfig { Name = "FedEx Ground", DaysFrom = 5, DaysTo = 7, Cost = 8.99m },
-                new ShippingOptionConfig { Name = "FedEx 2Day", DaysFrom = 2, DaysTo = 2, Cost = 15.99m },
-                new ShippingOptionConfig { Name = "FedEx Priority Overnight", DaysFrom = 1, DaysTo = 1, Cost = 29.99m, IsNextDay = true },
-
-                // International from US East (no FixedCost — only resolves for listed countries)
                 new ShippingOptionConfig
                 {
-                    Name = "USPS Priority Intl (East)", DaysFrom = 10, DaysTo = 14,
+                    Name = "Free US Standard (Orders $75+)",
+                    DaysFrom = 5,
+                    DaysTo = 8,
+                    Cost = 0m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Ground Advantage",
+                    DaysFrom = 5,
+                    DaysTo = 7,
+                    Cost = 5.99m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Priority Mail",
+                    DaysFrom = 2,
+                    DaysTo = 3,
+                    Cost = 9.99m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Priority Express",
+                    DaysFrom = 1,
+                    DaysTo = 2,
+                    Cost = 26.99m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "UPS Ground (East)",
+                    DaysFrom = 4,
+                    DaysTo = 6,
+                    Cost = 7.99m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "UPS 3 Day Select",
+                    DaysFrom = 3,
+                    DaysTo = 3,
+                    Cost = 14.99m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "UPS Next Day Air (East)",
+                    DaysFrom = 1,
+                    DaysTo = 1,
+                    Cost = 34.99m,
+                    IsNextDay = true,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "FedEx Ground",
+                    DaysFrom = 5,
+                    DaysTo = 7,
+                    Cost = 8.99m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "FedEx 2Day",
+                    DaysFrom = 2,
+                    DaysTo = 2,
+                    Cost = 15.99m,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "FedEx Priority Overnight",
+                    DaysFrom = 1,
+                    DaysTo = 1,
+                    Cost = 29.99m,
+                    IsNextDay = true,
+                    ExcludedRegions = usEastDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Priority Intl (East)",
+                    DaysFrom = 10,
+                    DaysTo = 14,
                     CountrySpecificCosts = new Dictionary<string, decimal>
                     {
-                        { "GB", 24.99m }, { "CA", 19.99m }, { "MX", 18.99m },
-                        { "DE", 26.99m }, { "FR", 26.99m }, { "AU", 32.99m }, { "JP", 34.99m }
-                    }
+                        { "CA", 19.99m }, { "GB", 24.99m }
+                    },
+                    ExcludedRegions = usEastInternationalExclusions
                 }
             ]
         }, cancellationToken);
@@ -555,32 +724,89 @@ public class DbSeeder(
             ],
             ShippingOptions =
             [
-                // FREE US West shipping (threshold-based)
-                new ShippingOptionConfig { Name = "Free West Coast (Orders $75+)", DaysFrom = 4, DaysTo = 6, Cost = 0m },
-
-                // USPS branded options (West Coast delivery times)
-                new ShippingOptionConfig { Name = "USPS Ground Advantage (West)", DaysFrom = 4, DaysTo = 6, Cost = 5.49m },
-                new ShippingOptionConfig { Name = "USPS Priority Mail (West)", DaysFrom = 2, DaysTo = 3, Cost = 8.99m },
-
-                // UPS branded options
-                new ShippingOptionConfig { Name = "UPS Ground (West)", DaysFrom = 3, DaysTo = 5, Cost = 6.99m },
-                new ShippingOptionConfig { Name = "UPS 2nd Day Air (West)", DaysFrom = 2, DaysTo = 2, Cost = 18.99m },
-                new ShippingOptionConfig { Name = "UPS Next Day Air Saver (West)", DaysFrom = 1, DaysTo = 1, Cost = 32.99m, IsNextDay = true },
-
-                // FedEx options (flat-rate with carrier branding)
-                new ShippingOptionConfig { Name = "FedEx Ground (West)", DaysFrom = 4, DaysTo = 6, Cost = 7.99m },
-                new ShippingOptionConfig { Name = "FedEx Express Saver (West)", DaysFrom = 3, DaysTo = 3, Cost = 12.99m },
-                new ShippingOptionConfig { Name = "FedEx 2Day (West)", DaysFrom = 2, DaysTo = 2, Cost = 14.99m },
-
-                // International from US West (no FixedCost — only resolves for listed countries)
                 new ShippingOptionConfig
                 {
-                    Name = "USPS Priority Intl (West)", DaysFrom = 8, DaysTo = 12,
+                    Name = "Free West Coast (Orders $75+)",
+                    DaysFrom = 4,
+                    DaysTo = 6,
+                    Cost = 0m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Ground Advantage (West)",
+                    DaysFrom = 4,
+                    DaysTo = 6,
+                    Cost = 5.49m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Priority Mail (West)",
+                    DaysFrom = 2,
+                    DaysTo = 3,
+                    Cost = 8.99m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "UPS Ground (West)",
+                    DaysFrom = 3,
+                    DaysTo = 5,
+                    Cost = 6.99m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "UPS 2nd Day Air (West)",
+                    DaysFrom = 2,
+                    DaysTo = 2,
+                    Cost = 18.99m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "UPS Next Day Air Saver (West)",
+                    DaysFrom = 1,
+                    DaysTo = 1,
+                    Cost = 32.99m,
+                    IsNextDay = true,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "FedEx Ground (West)",
+                    DaysFrom = 4,
+                    DaysTo = 6,
+                    Cost = 7.99m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "FedEx Express Saver (West)",
+                    DaysFrom = 3,
+                    DaysTo = 3,
+                    Cost = 12.99m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "FedEx 2Day (West)",
+                    DaysFrom = 2,
+                    DaysTo = 2,
+                    Cost = 14.99m,
+                    ExcludedRegions = usWestDomesticExclusions
+                },
+                new ShippingOptionConfig
+                {
+                    Name = "USPS Priority Intl (West)",
+                    DaysFrom = 8,
+                    DaysTo = 12,
                     CountrySpecificCosts = new Dictionary<string, decimal>
                     {
-                        { "GB", 22.99m }, { "CA", 16.99m }, { "MX", 14.99m },
-                        { "DE", 24.99m }, { "FR", 24.99m }, { "AU", 28.99m }, { "JP", 29.99m }
-                    }
+                        { "CA", 16.99m }, { "MX", 14.99m }, { "GB", 22.99m }
+                    },
+                    ExcludedRegions = usWestInternationalExclusions
                 }
             ]
         }, cancellationToken);
@@ -1661,7 +1887,7 @@ public class DbSeeder(
         if (shippingResult.WarehouseGroups.Count > 1)
         {
             logger.LogDebug(
-                "✓ Multi-warehouse test case SUCCESS: {Description} - {GroupCount} warehouse groups created", 
+                "✓ Multi-warehouse test case SUCCESS: {Description} - {GroupCount} warehouse groups created",
                 testCaseDescription, shippingResult.WarehouseGroups.Count);
         }
         else
@@ -1675,7 +1901,15 @@ public class DbSeeder(
         Dictionary<Guid, string> selectedShippingOptions = [];
         foreach (var group in shippingResult.WarehouseGroups)
         {
-            var firstOption = group.AvailableShippingOptions.First();
+            var firstOption = group.AvailableShippingOptions.FirstOrDefault();
+            if (firstOption == null)
+            {
+                logger.LogWarning(
+                    "No selectable shipping option in group {GroupId} for multi-warehouse test case: {Description}",
+                    group.GroupId,
+                    testCaseDescription);
+                return;
+            }
             selectedShippingOptions[group.GroupId] = firstOption.SelectionKey;
         }
 
@@ -1812,10 +2046,25 @@ public class DbSeeder(
 
             // 3. Build checkout session - select random shipping option per group
             Dictionary<Guid, string> selectedShippingOptions = [];
+            var hasGroupWithNoOptions = false;
             foreach (var group in shippingResult.WarehouseGroups)
             {
                 var options = group.AvailableShippingOptions.ToList();
+                if (options.Count == 0)
+                {
+                    logger.LogWarning(
+                        "No selectable shipping option in group {GroupId} for {Country} ({Name}), skipping",
+                        group.GroupId,
+                        shippingAddress.CountryCode,
+                        customer.billing.Name);
+                    hasGroupWithNoOptions = true;
+                    break;
+                }
                 selectedShippingOptions[group.GroupId] = options[random.Next(options.Count)].SelectionKey;
+            }
+            if (hasGroupWithNoOptions)
+            {
+                continue;
             }
 
             var checkoutSession = new CheckoutSession
@@ -2409,9 +2658,28 @@ public class DbSeeder(
                     }
 
                     // Select first shipping option per group
-                    var selectedShippingOptions = shippingResult.WarehouseGroups
-                        .DistinctBy(g => g.GroupId)
-                        .ToDictionary(g => g.GroupId, g => g.AvailableShippingOptions.First().SelectionKey);
+                    Dictionary<Guid, string> selectedShippingOptions = [];
+                    var distinctGroups = shippingResult.WarehouseGroups.DistinctBy(g => g.GroupId);
+                    var hasGroupWithNoOptions = false;
+                    foreach (var group in distinctGroups)
+                    {
+                        var firstOption = group.AvailableShippingOptions.FirstOrDefault();
+                        if (firstOption == null)
+                        {
+                            logger.LogWarning(
+                                "No selectable shipping option in group {GroupId} for account-customer scenario {Scenario}",
+                                group.GroupId,
+                                scenarioName);
+                            hasGroupWithNoOptions = true;
+                            break;
+                        }
+
+                        selectedShippingOptions[group.GroupId] = firstOption.SelectionKey;
+                    }
+                    if (hasGroupWithNoOptions)
+                    {
+                        continue;
+                    }
 
                     var checkoutSession = new CheckoutSession
                     {

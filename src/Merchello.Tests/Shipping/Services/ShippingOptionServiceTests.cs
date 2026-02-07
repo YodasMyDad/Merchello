@@ -174,6 +174,41 @@ public class ShippingOptionServiceTests
         persisted.ProviderSettings.ShouldContain("accountNumber");
     }
 
+    [Fact]
+    public async Task CreateAsync_PersistsExcludedRegions()
+    {
+        // Arrange
+        var dto = new CreateShippingOptionDto
+        {
+            Name = "Domestic Only",
+            WarehouseId = _warehouseId,
+            ExcludedRegions =
+            [
+                new CreateShippingDestinationExclusionDto
+                {
+                    CountryCode = "us"
+                },
+                new CreateShippingDestinationExclusionDto
+                {
+                    CountryCode = "gb",
+                    RegionCode = "nir"
+                }
+            ]
+        };
+
+        // Act
+        var result = await _service.CreateAsync(dto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var persisted = await _fixture.DbContext.ShippingOptions.FindAsync(result.ResultObject!.Id);
+        persisted.ShouldNotBeNull();
+        persisted.ExcludedRegions.Count.ShouldBe(2);
+        persisted.ExcludedRegions.ShouldContain(x => x.CountryCode == "US" && x.RegionCode == null);
+        persisted.ExcludedRegions.ShouldContain(x => x.CountryCode == "GB" && x.RegionCode == "NIR");
+    }
+
     #endregion
 
     #region GetByIdAsync Tests
@@ -262,6 +297,36 @@ public class ShippingOptionServiceTests
         result.WeightTiers[0].Surcharge.ShouldBe(2.00m);
     }
 
+    [Fact]
+    public async Task GetByIdAsync_IncludesExcludedRegions()
+    {
+        // Arrange
+        var createDto = new CreateShippingOptionDto
+        {
+            Name = "Domestic",
+            WarehouseId = _warehouseId,
+            ExcludedRegions =
+            [
+                new CreateShippingDestinationExclusionDto
+                {
+                    CountryCode = "US"
+                }
+            ]
+        };
+
+        var created = await _service.CreateAsync(createDto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _service.GetByIdAsync(created.ResultObject!.Id);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.ExclusionCount.ShouldBe(1);
+        result.ExcludedRegions.Count.ShouldBe(1);
+        result.ExcludedRegions[0].CountryCode.ShouldBe("US");
+    }
+
     #endregion
 
     #region UpdateAsync Tests
@@ -319,6 +384,44 @@ public class ShippingOptionServiceTests
         // Assert
         result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "Shipping option not found");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_PreservesExcludedRegions_WhenExcludedRegionsNotProvided()
+    {
+        // Arrange
+        var createDto = new CreateShippingOptionDto
+        {
+            Name = "Original",
+            WarehouseId = _warehouseId,
+            ExcludedRegions =
+            [
+                new CreateShippingDestinationExclusionDto
+                {
+                    CountryCode = "US"
+                }
+            ]
+        };
+        var created = await _service.CreateAsync(createDto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var updateDto = new CreateShippingOptionDto
+        {
+            Name = "Updated",
+            WarehouseId = _warehouseId
+            // ExcludedRegions intentionally null to test backward compatibility
+        };
+
+        // Act
+        var result = await _service.UpdateAsync(created.ResultObject!.Id, updateDto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var persisted = await _fixture.DbContext.ShippingOptions.FindAsync(created.ResultObject!.Id);
+        persisted.ShouldNotBeNull();
+        persisted.ExcludedRegions.Count.ShouldBe(1);
+        persisted.ExcludedRegions[0].CountryCode.ShouldBe("US");
     }
 
     #endregion

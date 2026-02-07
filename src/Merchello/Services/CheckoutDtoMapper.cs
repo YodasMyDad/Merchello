@@ -63,7 +63,8 @@ public class CheckoutDtoMapper(
                     LineTotal = displayLineTotal,
                     FormattedUnitPrice = currencyConversion.Format(displayUnitPrice, displayCurrencySymbol),
                     FormattedLineTotal = currencyConversion.Format(displayLineTotal, displayCurrencySymbol),
-                    LineItemType = li.LineItemType
+                    LineItemType = li.LineItemType,
+                    DependantLineItemSku = li.DependantLineItemSku
                 };
             })
             .ToList();

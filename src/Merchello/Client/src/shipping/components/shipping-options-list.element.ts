@@ -143,6 +143,7 @@ export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElem
         <td>${option.fixedCost != null ? formatCurrency(option.fixedCost) : "-"}</td>
         <td>${option.costCount}</td>
         <td>${option.weightTierCount}</td>
+        <td>${option.exclusionCount}</td>
         <td class="actions">
           <uui-button
             look="secondary"
@@ -212,7 +213,7 @@ export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElem
               </uui-button>
             </div>
             <p class="section-description">
-              Configure shipping options for each warehouse. Each option can have location-based costs and weight-based surcharges.
+              Configure shipping options per warehouse with destination rates, weight surcharges, and explicit destination exclusions.
             </p>
             ${this._options.length === 0
               ? html`<p class="no-items">No shipping options configured yet. Click "Add Shipping Option" to create one.</p>`
@@ -226,6 +227,7 @@ export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElem
                         <th>Fixed Cost</th>
                         <th>Costs</th>
                         <th>Weight Tiers</th>
+                        <th>Exclusions</th>
                         <th>Actions</th>
                       </tr>
                     </thead>

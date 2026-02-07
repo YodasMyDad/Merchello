@@ -310,6 +310,7 @@ public class WarehouseService(
                     shippingOption.SetShippingCosts(costs);
                 }
 
+                shippingOption.SetExcludedRegions(NormalizeExcludedRegions(shippingConfig.ExcludedRegions));
                 shippingOptions.Add(shippingOption);
             }
         }
@@ -1418,6 +1419,28 @@ public class WarehouseService(
             parts.Add(address.CountryCode);
 
         return parts.Count > 0 ? string.Join(", ", parts) : null;
+    }
+
+    private static List<ShippingOptionExcludedRegion> NormalizeExcludedRegions(
+        IReadOnlyCollection<(string CountryCode, string? RegionCode)>? exclusions)
+    {
+        if (exclusions is not { Count: > 0 })
+        {
+            return [];
+        }
+
+        return exclusions
+            .Where(x => !string.IsNullOrWhiteSpace(x.CountryCode))
+            .Select(x => new ShippingOptionExcludedRegion
+            {
+                CountryCode = x.CountryCode.Trim().ToUpperInvariant(),
+                RegionCode = string.IsNullOrWhiteSpace(x.RegionCode)
+                    ? null
+                    : x.RegionCode.Trim().ToUpperInvariant()
+            })
+            .GroupBy(x => $"{x.CountryCode}:{x.RegionCode ?? string.Empty}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
     }
 
     private static AddressDto MapAddress(Address address)

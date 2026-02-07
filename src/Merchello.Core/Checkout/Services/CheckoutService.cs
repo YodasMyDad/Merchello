@@ -2148,6 +2148,7 @@ public class CheckoutService(
                         TaxRate = li.TaxRate,
                         IsTaxable = li.IsTaxable,
                         LineItemType = li.LineItemType,
+                        DependantLineItemSku = li.DependantLineItemSku,
                         ImageUrl = imageUrl
                     });
                 }

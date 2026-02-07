@@ -124,6 +124,7 @@ export interface ShippingOptionDto {
   allowsDeliveryDateSelection: boolean;
   costCount: number;
   weightTierCount: number;
+  exclusionCount: number;
   updateDate: string;
   /** The provider key (e.g., "flat-rate", "ups", "fedex") */
   providerKey: string;
@@ -146,6 +147,7 @@ export interface ShippingOptionDetailDto extends ShippingOptionDto {
   isDeliveryDateGuaranteed: boolean;
   costs: ShippingCostDto[];
   weightTiers: ShippingWeightTierDto[];
+  excludedRegions: ShippingDestinationExclusionDto[];
   /** Provider-specific settings (JSON parsed to key-value pairs) */
   providerSettings?: Record<string, string>;
 }
@@ -171,6 +173,20 @@ export interface ShippingWeightTierDto {
   regionDisplay?: string;
 }
 
+/** DTO for destination exclusions on shipping options */
+export interface ShippingDestinationExclusionDto {
+  id: string;
+  countryCode: string;
+  regionCode?: string;
+  regionDisplay?: string;
+}
+
+/** DTO for creating destination exclusions on shipping options */
+export interface CreateShippingDestinationExclusionDto {
+  countryCode: string;
+  regionCode?: string;
+}
+
 /** DTO for creating/updating a shipping option */
 export interface CreateShippingOptionDto {
   name: string;
@@ -193,6 +209,8 @@ export interface CreateShippingOptionDto {
   providerSettings?: Record<string, string>;
   /** Whether this shipping method is enabled */
   isEnabled?: boolean;
+  /** Destinations this shipping option should not be shown for */
+  excludedRegions?: CreateShippingDestinationExclusionDto[];
 }
 
 /** DTO for creating/updating a shipping cost */

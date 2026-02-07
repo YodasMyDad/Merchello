@@ -14,6 +14,12 @@ public class ShippingOptionConfig
     public Dictionary<string, decimal>? CountrySpecificCosts { get; set; }
 
     /// <summary>
+    /// Destination exclusions for this shipping option.
+    /// Tuple values are (CountryCode, RegionCode).
+    /// </summary>
+    public List<(string CountryCode, string? RegionCode)>? ExcludedRegions { get; set; }
+
+    /// <summary>
     /// The provider key (e.g., "flat-rate", "fedex", "ups").
     /// Defaults to "flat-rate" for manual pricing.
     /// </summary>

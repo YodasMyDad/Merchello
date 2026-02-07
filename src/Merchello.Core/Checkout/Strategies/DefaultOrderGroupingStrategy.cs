@@ -212,6 +212,11 @@ public class DefaultOrderGroupingStrategy(
             : warehouseShippingOptions;
 
         var allowedShippingOptions = product.GetAllowedShippingOptions(baseShippingOptions).ToList();
+        var resolvedAllowedShippingOptions = ResolveShippingOptions(allowedShippingOptions, context, enabledProviderKeys);
+        var resolvedAllowedShippingOptionIds = resolvedAllowedShippingOptions
+            .Select(so => so.ShippingOptionId)
+            .OrderBy(id => id)
+            .ToList();
 
         // Check if this line item has a specific shipping selection (from order edit flow)
         // If so, group by that specific shipping option to ensure items with different
@@ -241,29 +246,22 @@ public class DefaultOrderGroupingStrategy(
             if (group == null)
             {
                 // Find the selected shipping option details (only for flat-rate selections)
-                ShippingOption? selectedOption = null;
-                if (lineItemShippingOptionId.HasValue)
-                {
-                    selectedOption = allowedShippingOptions.FirstOrDefault(so => so.Id == lineItemShippingOptionId.Value);
-                    if (selectedOption == null)
-                    {
-                        // Fallback: try to find in warehouse options
-                        selectedOption = warehouseShippingOptions.FirstOrDefault(so => so.Id == lineItemShippingOptionId.Value);
-                    }
-                }
+                var selectedOption = lineItemShippingOptionId.HasValue
+                    ? resolvedAllowedShippingOptions.FirstOrDefault(so => so.ShippingOptionId == lineItemShippingOptionId.Value)
+                    : null;
 
                 var shippingOptionsForGroup = selectedOption != null
                     ? [selectedOption]
-                    : allowedShippingOptions;
+                    : resolvedAllowedShippingOptions;
 
-                var optionIds = shippingOptionsForGroup.Select(so => so.Id).ToList();
+                var optionIds = shippingOptionsForGroup.Select(so => so.ShippingOptionId).OrderBy(id => id).ToList();
                 group = new OrderGroup
                 {
                     GroupId = GenerateDeterministicGroupId(warehouseId, optionIds),
                     GroupName = $"Shipment from {warehouseName}",
                     WarehouseId = warehouseId,
                     SelectedShippingOptionId = lineItemSelectionKey,
-                    AvailableShippingOptions = ResolveShippingOptions(shippingOptionsForGroup, context, enabledProviderKeys)
+                    AvailableShippingOptions = shippingOptionsForGroup
                 };
 
                 orderGroups.Add(group);
@@ -275,8 +273,7 @@ public class DefaultOrderGroupingStrategy(
             // The frontend sends selections keyed by groupId (not warehouseId), so we need to:
             // 1. Generate the expected groupId for this warehouse's available options
             // 2. Look up the selection using that groupId
-            var allowedShippingOptionIds = allowedShippingOptions.Select(so => so.Id).OrderBy(id => id).ToList();
-            var expectedGroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds);
+            var expectedGroupId = GenerateDeterministicGroupId(warehouseId, resolvedAllowedShippingOptionIds);
             var groupSelectionKey = context.SelectedShippingOptions.GetValueOrDefault(expectedGroupId);
 
             // Fallback: try looking up by WarehouseId (handles key mismatch when GroupId changes between PRE/POST selection)
@@ -295,7 +292,7 @@ public class DefaultOrderGroupingStrategy(
 
             var productSupportsSelected = !string.IsNullOrEmpty(groupSelectionKey) &&
                 (selectedOptionId.HasValue
-                    ? allowedShippingOptions.Any(so => so.Id == selectedOptionId.Value) // Flat-rate: check if option is in allowed list
+                    ? resolvedAllowedShippingOptions.Any(so => so.ShippingOptionId == selectedOptionId.Value) // Flat-rate: check available options for destination
                     : SelectionKeyExtensions.IsDynamicProvider(groupSelectionKey)); // Dynamic: always supported if product allows external carriers
 
             if (productSupportsSelected)
@@ -305,17 +302,17 @@ public class DefaultOrderGroupingStrategy(
                 // Use consistent GroupId based on all options so the key is stable.
                 group = orderGroups.FirstOrDefault(g =>
                     g.WarehouseId == warehouseId &&
-                    g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
+                    g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(resolvedAllowedShippingOptionIds));
 
                 if (group == null)
                 {
                     group = new OrderGroup
                     {
-                        GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
+                        GroupId = GenerateDeterministicGroupId(warehouseId, resolvedAllowedShippingOptionIds),
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
                         SelectedShippingOptionId = groupSelectionKey,
-                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context, enabledProviderKeys)
+                        AvailableShippingOptions = resolvedAllowedShippingOptions
                     };
                     orderGroups.Add(group);
                 }
@@ -333,16 +330,16 @@ public class DefaultOrderGroupingStrategy(
                 group = orderGroups.FirstOrDefault(g =>
                     g.WarehouseId == warehouseId &&
                     string.IsNullOrEmpty(g.SelectedShippingOptionId) &&
-                    g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(allowedShippingOptionIds));
+                    g.AvailableShippingOptions.Select(so => so.ShippingOptionId).OrderBy(id => id).SequenceEqual(resolvedAllowedShippingOptionIds));
 
                 if (group == null)
                 {
                     group = new OrderGroup
                     {
-                        GroupId = GenerateDeterministicGroupId(warehouseId, allowedShippingOptionIds),
+                        GroupId = GenerateDeterministicGroupId(warehouseId, resolvedAllowedShippingOptionIds),
                         GroupName = $"Shipment from {warehouseName}",
                         WarehouseId = warehouseId,
-                        AvailableShippingOptions = ResolveShippingOptions(allowedShippingOptions, context, enabledProviderKeys)
+                        AvailableShippingOptions = resolvedAllowedShippingOptions
                     };
                     orderGroups.Add(group);
                 }
@@ -614,6 +611,7 @@ public class DefaultOrderGroupingStrategy(
         var regionCode = context.ShippingAddress.CountyState?.RegionCode;
 
         return shippingOptions
+            .Where(so => !so.IsDestinationExcluded(countryCode, regionCode))
             // Filter out options whose provider is not enabled (flat-rate is always available)
             .Where(so => string.Equals(so.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase) ||
                          enabledProviderKeys.Contains(so.ProviderKey))

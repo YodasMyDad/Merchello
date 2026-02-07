@@ -30,6 +30,9 @@ public class ShippingOptionDbMapping : IEntityTypeConfiguration<ShippingOption>
         builder.Property(x => x.ServiceType)
             .HasMaxLength(50);
 
+        // JSON payload storing per-option destination exclusions.
+        builder.Property(x => x.ExcludedRegionsJson);
+
         builder.Property(x => x.IsEnabled)
             .HasDefaultValue(true);
 

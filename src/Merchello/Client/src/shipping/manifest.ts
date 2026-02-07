@@ -62,5 +62,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Shipping Weight Tier Modal",
     js: () => import("@shipping/modals/shipping-weight-tier-modal.element.js"),
   },
-];
 
+  // Shipping destination exclusion modal
+  {
+    type: "modal",
+    alias: "Merchello.ShippingDestinationExclusion.Modal",
+    name: "Shipping Destination Exclusion Modal",
+    js: () => import("@shipping/modals/shipping-destination-exclusion-modal.element.js"),
+  },
+];

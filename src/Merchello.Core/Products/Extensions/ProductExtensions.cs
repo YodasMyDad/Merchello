@@ -2,6 +2,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 
@@ -114,6 +115,7 @@ public static class ProductExtensions
         // Filter to eligible options (warehouse can serve region)
         var eligibleOptions = baseOptions
             .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, regionCode))
+            .Where(so => !so.IsDestinationExcluded(countryCode, regionCode))
             .ToList();
 
         // Find the first shipping option that has a resolvable cost for this destination
@@ -145,6 +147,7 @@ public static class ProductExtensions
         // CountryCode can be "*" for universal/wildcard shipping costs that apply to all countries.
         var validShippingOptions = baseOptions
             .Where(so => so.Warehouse == null || so.Warehouse.CanServeRegion(countryCode, regionCode))
+            .Where(so => !so.IsDestinationExcluded(countryCode, regionCode))
             .Where(so => so.ShippingCosts.Count == 0 || so.ShippingCosts.Any(sc =>
                 (sc.CountryCode == countryCode || sc.CountryCode == "*") &&
                 (regionCode == null || sc.RegionCode == regionCode || sc.RegionCode == null)))

@@ -1344,57 +1344,6 @@ public class ProductService(
     }
 
     /// <summary>
-    /// Query product roots with filtering and pagination
-    /// </summary>
-    /// <param name="parameters"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    public async Task<PaginatedList<ProductRoot>> QueryProductRoots(ProductRootQueryParameters parameters, CancellationToken cancellationToken = default)
-    {
-        using var scope = efCoreScopeProvider.CreateScope();
-        var result = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var query =
-                db.RootProducts
-                    .Include(x => x.Collections)
-                    .Include(x => x.ProductType)
-                    .AsQueryable();
-
-            if (parameters.NoTracking)
-            {
-                query = query.AsNoTracking();
-            }
-
-            if (parameters.ProductTypeKey != null)
-            {
-                query = query.Where(x => x.ProductType.Id == parameters.ProductTypeKey);
-            }
-
-            if (parameters.CollectionIds?.Any() == true)
-            {
-                query = query.Where(x => x.Collections.Any(pc => parameters.CollectionIds.Contains(pc.Id)));
-            }
-
-            // Paging
-            var pageIndex = parameters.CurrentPage - 1;
-            var pageSize = parameters.AmountPerPage;
-
-            var totalCount = await query.AsSplitQuery().Select(x => x.Id).CountAsync(cancellationToken: cancellationToken);
-
-            var items = await query
-                .OrderBy(x => x.Id)
-                .AsSplitQuery()
-                .Skip(pageIndex * pageSize)
-                .Take(pageSize)
-                .ToListAsync(cancellationToken: cancellationToken);
-
-            return new PaginatedList<ProductRoot>(items, totalCount, parameters.CurrentPage, parameters.AmountPerPage);
-        });
-        scope.Complete();
-        return result;
-    }
-
-    /// <summary>
     /// Gets a product root with all details including variants, options, and warehouse stock
     /// </summary>
     public async Task<ProductRootDetailDto?> GetProductRootWithDetails(Guid productRootId, CancellationToken cancellationToken = default)
@@ -2846,7 +2795,7 @@ public class ProductService(
     /// <summary>
     /// Serializes element property values to JSON for storage.
     /// </summary>
-    public string SerializeElementProperties(Dictionary<string, object?> properties)
+    private static string SerializeElementProperties(Dictionary<string, object?> properties)
         => JsonSerializer.Serialize(properties, JsonOptions);
 
     /// <summary>
