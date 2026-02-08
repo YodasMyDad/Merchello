@@ -42,25 +42,17 @@ public class AbandonedCheckoutService(
             var existing = await db.AbandonedCheckouts
                 .FirstOrDefaultAsync(ac => ac.BasketId == basketId, ct);
 
-            if (existing != null)
+            if (existing == null)
             {
-                existing.LastActivityUtc = DateTime.UtcNow;
-
-                // Reset recovered/abandoned checkouts to active when new activity detected
-                // This allows the detection job to re-abandon them if the user leaves again
-                if (existing.Status == AbandonedCheckoutStatus.Recovered ||
-                    existing.Status == AbandonedCheckoutStatus.Abandoned)
-                {
-                    existing.Status = AbandonedCheckoutStatus.Active;
-                    existing.RecoveryEmailsSent = 0;
-                    existing.DateAbandoned = null;
-                    // Note: We preserve DateRecovered for analytics - it indicates this checkout
-                    // went through the recovery flow at some point
-                }
-
-                await db.SaveChangesAsync(ct);
+                return true;
             }
 
+            var basket = await db.Baskets
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.Id == basketId, ct);
+
+            UpdateCheckoutFromBasket(existing, basket, email: null);
+            await db.SaveChangesAsync(ct);
             return true;
         });
         scope.Complete();
@@ -78,60 +70,41 @@ public class AbandonedCheckoutService(
 
             if (existing != null)
             {
-                // Update existing record
-                existing.LastActivityUtc = DateTime.UtcNow;
-
-                // Reset recovered/abandoned checkouts to active when new activity detected
-                // This allows the detection job to re-abandon them if the user leaves again
-                if (existing.Status == AbandonedCheckoutStatus.Recovered ||
-                    existing.Status == AbandonedCheckoutStatus.Abandoned)
-                {
-                    existing.Status = AbandonedCheckoutStatus.Active;
-                    existing.RecoveryEmailsSent = 0;
-                    existing.DateAbandoned = null;
-                    // Note: We preserve DateRecovered for analytics - it indicates this checkout
-                    // went through the recovery flow at some point
-                }
-
-                // Update email if provided and different
-                if (!string.IsNullOrWhiteSpace(email) && existing.Email != email)
-                {
-                    existing.Email = email;
-                }
-
-                // Update snapshot data
-                existing.BasketTotal = basket.Total;
-                existing.ItemCount = basket.LineItems.Count(li => li.LineItemType == Accounting.Models.LineItemType.Product);
-                existing.CurrencyCode = basket.Currency;
-                existing.CurrencySymbol = basket.CurrencySymbol;
-                existing.CustomerName = basket.BillingAddress.Name;
-
-                // Store address snapshots for recovery (addresses may be lost if HTTP session expires)
-                StoreAddressSnapshots(existing, basket);
+                UpdateCheckoutFromBasket(existing, basket, email);
+                await db.SaveChangesAsync(ct);
+                return true;
             }
-            else if (!string.IsNullOrWhiteSpace(email))
+
+            if (string.IsNullOrWhiteSpace(email))
             {
-                // Create new record only if we have an email
-                var abandoned = new AbandonedCheckout
-                {
-                    BasketId = basket.Id,
-                    CustomerId = basket.CustomerId,
-                    Email = email,
-                    BasketTotal = basket.Total,
-                    CurrencyCode = basket.Currency,
-                    CurrencySymbol = basket.CurrencySymbol,
-                    ItemCount = basket.LineItems.Count(li => li.LineItemType == Accounting.Models.LineItemType.Product),
-                    CustomerName = basket.BillingAddress.Name,
-                    Status = AbandonedCheckoutStatus.Active
-                };
-
-                // Store address snapshots for recovery (addresses may be lost if HTTP session expires)
-                StoreAddressSnapshots(abandoned, basket);
-
-                db.AbandonedCheckouts.Add(abandoned);
+                return true;
             }
 
-            await db.SaveChangesAsync(ct);
+            // Create new record only if we have an email
+            var abandoned = CreateCheckoutSnapshot(basket, email);
+            db.AbandonedCheckouts.Add(abandoned);
+
+            try
+            {
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+            {
+                // Another request created the row concurrently; update that row instead.
+                db.ChangeTracker.Clear();
+
+                var concurrent = await db.AbandonedCheckouts
+                    .FirstOrDefaultAsync(ac => ac.BasketId == basket.Id, ct);
+
+                if (concurrent == null)
+                {
+                    throw;
+                }
+
+                UpdateCheckoutFromBasket(concurrent, basket, email);
+                await db.SaveChangesAsync(ct);
+            }
+
             return true;
         });
         scope.Complete();
@@ -339,6 +312,26 @@ public class AbandonedCheckoutService(
         }
     }
 
+    public async Task<bool> MarkRecoveryEmailSentAsync(Guid id, DateTime? sentUtc = null, CancellationToken ct = default)
+    {
+        var when = sentUtc ?? DateTime.UtcNow;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var updated = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var record = await db.AbandonedCheckouts.FirstOrDefaultAsync(ac => ac.Id == id, ct);
+            if (record == null) return false;
+
+            record.RecoveryEmailsSent++;
+            record.LastRecoveryEmailSentUtc = when;
+            await db.SaveChangesAsync(ct);
+            return true;
+        });
+        scope.Complete();
+
+        return updated;
+    }
+
     // =====================================================
     // Recovery
     // =====================================================
@@ -369,8 +362,7 @@ public class AbandonedCheckoutService(
             throw new InvalidOperationException($"Abandoned checkout {id} not found");
         }
 
-        var baseUrl = _settings.RecoveryUrlBase.TrimEnd('/');
-        return $"{baseUrl}/{token}";
+        return BuildRecoveryLink(token);
     }
 
     public async Task<CrudResult<Basket>> RestoreBasketFromRecoveryAsync(string token, CancellationToken ct = default)
@@ -582,7 +574,7 @@ public class AbandonedCheckoutService(
         foreach (var checkout in abandonedCheckouts)
         {
             var recoveryLink = !string.IsNullOrEmpty(checkout.RecoveryToken)
-                ? $"{_settings.RecoveryUrlBase.TrimEnd('/')}/{checkout.RecoveryToken}"
+                ? BuildRecoveryLink(checkout.RecoveryToken)
                 : null;
 
             await notificationPublisher.PublishAsync(
@@ -705,7 +697,7 @@ public class AbandonedCheckoutService(
         where TNotification : CheckoutAbandonedNotificationBase, new()
     {
         var recoveryLink = !string.IsNullOrEmpty(checkout.RecoveryToken)
-            ? $"{_settings.RecoveryUrlBase.TrimEnd('/')}/{checkout.RecoveryToken}"
+            ? BuildRecoveryLink(checkout.RecoveryToken)
             : null;
 
         return new TNotification
@@ -751,6 +743,88 @@ public class AbandonedCheckoutService(
             RecoveryEmailsSent = checkout.RecoveryEmailsSent,
             CurrencyCode = checkout.CurrencyCode
         };
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        var text = $"{ex.Message} {ex.InnerException?.Message}".ToLowerInvariant();
+        return text.Contains("unique") || text.Contains("duplicate");
+    }
+
+    private static void ResetRecoveredOrAbandonedToActive(AbandonedCheckout checkout)
+    {
+        // This allows re-abandonment if the customer leaves again.
+        if (checkout.Status == AbandonedCheckoutStatus.Recovered ||
+            checkout.Status == AbandonedCheckoutStatus.Abandoned)
+        {
+            checkout.Status = AbandonedCheckoutStatus.Active;
+            checkout.RecoveryEmailsSent = 0;
+            checkout.DateAbandoned = null;
+        }
+    }
+
+    private static AbandonedCheckout CreateCheckoutSnapshot(Basket basket, string email)
+    {
+        var snapshot = new AbandonedCheckout
+        {
+            BasketId = basket.Id,
+            CustomerId = basket.CustomerId,
+            Email = email,
+            BasketTotal = basket.Total,
+            CurrencyCode = basket.Currency,
+            CurrencySymbol = basket.CurrencySymbol,
+            ItemCount = basket.LineItems.Count(li => li.LineItemType == Accounting.Models.LineItemType.Product),
+            CustomerName = basket.BillingAddress?.Name,
+            Status = AbandonedCheckoutStatus.Active
+        };
+
+        StoreAddressSnapshots(snapshot, basket);
+        return snapshot;
+    }
+
+    private static void UpdateCheckoutFromBasket(AbandonedCheckout checkout, Basket? basket, string? email)
+    {
+        checkout.LastActivityUtc = DateTime.UtcNow;
+        ResetRecoveredOrAbandonedToActive(checkout);
+
+        if (!string.IsNullOrWhiteSpace(email) && checkout.Email != email)
+        {
+            checkout.Email = email;
+        }
+
+        if (basket == null)
+        {
+            return;
+        }
+
+        checkout.BasketTotal = basket.Total;
+        checkout.ItemCount = basket.LineItems.Count(li => li.LineItemType == Accounting.Models.LineItemType.Product);
+        checkout.CurrencyCode = basket.Currency;
+        checkout.CurrencySymbol = basket.CurrencySymbol;
+        checkout.CustomerName = basket.BillingAddress?.Name;
+        StoreAddressSnapshots(checkout, basket);
+    }
+
+    private string BuildRecoveryLink(string token)
+    {
+        var configured = _settings.RecoveryUrlBase;
+        var baseUrl = string.IsNullOrWhiteSpace(configured)
+            ? "/checkout/recover"
+            : configured.Trim();
+
+        var tokenPath = $"{baseUrl.TrimEnd('/')}/{token}";
+        if (Uri.TryCreate(tokenPath, UriKind.Absolute, out var absolute))
+        {
+            return absolute.ToString();
+        }
+
+        if (Uri.TryCreate(_merchelloSettings.WebsiteUrl, UriKind.Absolute, out var websiteUri))
+        {
+            var relative = tokenPath.StartsWith('/') ? tokenPath : $"/{tokenPath}";
+            return new Uri(websiteUri, relative).ToString();
+        }
+
+        return tokenPath;
     }
 
     private static string GetStatusDisplay(AbandonedCheckoutStatus status) => status switch

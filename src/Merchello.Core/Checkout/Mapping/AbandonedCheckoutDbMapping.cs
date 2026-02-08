@@ -23,7 +23,9 @@ public class AbandonedCheckoutDbMapping : IEntityTypeConfiguration<AbandonedChec
         builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
         // Indexes for common query patterns
-        builder.HasIndex(x => x.BasketId);
+        builder.HasIndex(x => x.BasketId)
+            .IsUnique()
+            .HasFilter("[BasketId] IS NOT NULL");
         builder.HasIndex(x => x.CustomerId);
         builder.HasIndex(x => x.Email);
         builder.HasIndex(x => x.Status);

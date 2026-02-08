@@ -88,7 +88,8 @@ public class InvoiceService(
         Basket basket,
         CheckoutSession checkoutSession,
         InvoiceSource? source = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? purchaseOrder = null)
     {
         var result = new CrudResult<Invoice>();
 
@@ -248,7 +249,8 @@ public class InvoiceService(
                 presentmentCurrency,
                 storeCurrency,
                 customer.Id,
-                source);
+                source,
+                purchaseOrder: purchaseOrder);
 
             // Persist upsell impressions from checkout session for conversion attribution
             if (checkoutSession.UpsellImpressions.Count > 0)

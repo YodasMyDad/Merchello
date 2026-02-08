@@ -189,15 +189,8 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 await ApplyBuyerInfoAsync(basket, ucpRequest.Buyer, ct);
             }
 
-            // Apply discount codes if provided
-            if (ucpRequest?.Discounts?.Codes != null)
-            {
-                var countryCode = basket.ShippingAddress?.CountryCode ?? _merchelloSettings.DefaultShippingCountry;
-                foreach (var code in ucpRequest.Discounts.Codes)
-                {
-                    await _checkoutDiscountService.ApplyDiscountCodeAsync(basket, code, countryCode, ct);
-                }
-            }
+            // Apply/replace promotional discount codes if provided.
+            await SyncPromotionalDiscountCodesAsync(basket, ucpRequest?.Discounts?.Codes, ct);
 
             var sessionState = await _checkoutService.GetSessionStateAsync(
                 new GetSessionStateParameters { BasketId = basket.Id },
@@ -311,15 +304,8 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 await ApplyBuyerInfoAsync(basket, buyerInfo, ct);
             }
 
-            // Apply discount codes if provided
-            if (ucpRequest?.Discounts?.Codes is { Count: > 0 } codes)
-            {
-                var countryCode = basket.ShippingAddress?.CountryCode ?? _merchelloSettings.DefaultShippingCountry;
-                foreach (var code in codes)
-                {
-                    await _checkoutDiscountService.ApplyDiscountCodeAsync(basket, code, countryCode, ct);
-                }
-            }
+            // Apply/replace promotional discount codes if provided.
+            await SyncPromotionalDiscountCodesAsync(basket, ucpRequest?.Discounts?.Codes, ct);
 
             // Apply fulfillment selections if provided
             var fulfillmentGroups = GetFulfillmentGroupSelections(ucpRequest);
@@ -1364,6 +1350,76 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         return null;
     }
 
+    private async Task SyncPromotionalDiscountCodesAsync(
+        Basket basket,
+        IReadOnlyList<string>? requestedCodes,
+        CancellationToken ct)
+    {
+        if (requestedCodes == null)
+        {
+            return;
+        }
+
+        var countryCode = basket.ShippingAddress?.CountryCode ?? _merchelloSettings.DefaultShippingCountry;
+        var normalizedRequested = requestedCodes
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var existingDiscountLineItems = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount && !string.IsNullOrWhiteSpace(GetDiscountCode(li)))
+            .ToList();
+
+        var existingCodes = existingDiscountLineItems
+            .Select(GetDiscountCode)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var discountLineItem in existingDiscountLineItems)
+        {
+            var existingCode = GetDiscountCode(discountLineItem);
+            if (string.IsNullOrWhiteSpace(existingCode))
+            {
+                continue;
+            }
+
+            if (!normalizedRequested.Contains(existingCode, StringComparer.OrdinalIgnoreCase))
+            {
+                await _checkoutDiscountService.RemoveDiscountFromBasketAsync(
+                    basket,
+                    discountLineItem.Id,
+                    countryCode,
+                    ct);
+            }
+        }
+
+        foreach (var requestedCode in normalizedRequested)
+        {
+            if (existingCodes.Contains(requestedCode))
+            {
+                continue;
+            }
+
+            await _checkoutDiscountService.ApplyDiscountCodeAsync(
+                basket,
+                requestedCode,
+                countryCode,
+                ct);
+        }
+    }
+
+    private static string? GetDiscountCode(LineItem lineItem)
+    {
+        if (!lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var code))
+        {
+            return null;
+        }
+
+        return code.UnwrapJsonElement()?.ToString();
+    }
+
     private static Dictionary<string, string>? ConvertInstrumentData(Dictionary<string, object>? data)
     {
         if (data == null || data.Count == 0)
@@ -1509,6 +1565,18 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                     Version = settings.Version,
                     Spec = "https://ucp.dev/specifications/buyer-consent.md",
                     Schema = "https://ucp.dev/schemas/shopping/buyer-consent.json",
+                    Extends = UcpCapabilityNames.Checkout
+                });
+            }
+
+            if (settings.Extensions.Ap2Mandates)
+            {
+                capabilities.Add(new UcpCapability
+                {
+                    Name = UcpExtensionNames.Ap2Mandates,
+                    Version = settings.Version,
+                    Spec = "https://ucp.dev/specifications/ap2-mandates.md",
+                    Schema = "https://ucp.dev/schemas/shopping/ap2-mandates.json",
                     Extends = UcpCapabilityNames.Checkout
                 });
             }
@@ -1826,10 +1894,16 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 capabilities.Add(UcpExtensionNames.Discount);
             if (settings.Extensions.Fulfillment)
                 capabilities.Add(UcpExtensionNames.Fulfillment);
+            if (settings.Extensions.BuyerConsent)
+                capabilities.Add(UcpExtensionNames.BuyerConsent);
+            if (settings.Extensions.Ap2Mandates)
+                capabilities.Add(UcpExtensionNames.Ap2Mandates);
         }
 
         if (settings.Capabilities.Order)
             capabilities.Add(UcpCapabilityNames.Order);
+        if (settings.Capabilities.IdentityLinking)
+            capabilities.Add(UcpCapabilityNames.IdentityLinking);
 
         return capabilities;
     }

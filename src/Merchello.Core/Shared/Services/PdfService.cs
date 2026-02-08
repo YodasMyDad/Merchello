@@ -141,10 +141,16 @@ public class PdfService : IPdfService
         IReadOnlyList<string[]> rows,
         double leftMargin = 40)
     {
+        if (columns.Count == 0)
+        {
+            return startY;
+        }
+
         var y = startY;
-        var rowHeight = 18.0;
+        var minRowHeight = 18.0;
         var headerHeight = 22.0;
         var cellPadding = 4.0;
+        var lineHeight = Math.Max(11.0, graphics.MeasureString("Ag", Fonts.TableBody).Height);
 
         // Draw header background
         var totalWidth = columns.Sum(c => c.Width);
@@ -170,6 +176,20 @@ public class PdfService : IPdfService
         var alternateRow = false;
         foreach (var row in rows)
         {
+            var wrappedCells = new List<IReadOnlyList<string>>(columns.Count);
+            var maxLineCount = 1;
+
+            for (var i = 0; i < columns.Count; i++)
+            {
+                var cellValue = i < row.Length ? row[i] ?? "" : "";
+                var maxCellTextWidth = Math.Max(1.0, columns[i].Width - (cellPadding * 2));
+                var wrappedLines = WrapTextToWidth(cellValue, maxCellTextWidth, Fonts.TableBody, graphics);
+                wrappedCells.Add(wrappedLines);
+                maxLineCount = Math.Max(maxLineCount, wrappedLines.Count);
+            }
+
+            var rowHeight = Math.Max(minRowHeight, (maxLineCount * lineHeight) + (cellPadding * 2));
+
             // Alternate row background
             if (alternateRow)
             {
@@ -182,12 +202,19 @@ public class PdfService : IPdfService
             }
 
             x = leftMargin;
-            for (var i = 0; i < columns.Count && i < row.Length; i++)
+            for (var i = 0; i < columns.Count; i++)
             {
                 var column = columns[i];
-                var cellValue = row[i] ?? "";
-                var cellX = GetAlignedX(x, column.Width, cellValue, Fonts.TableBody, column.Alignment, graphics, cellPadding);
-                graphics.DrawString(cellValue, Fonts.TableBody, XBrushes.Black, cellX, y + 13);
+                var wrappedLines = wrappedCells[i];
+                var lineY = y + cellPadding + lineHeight - 1;
+
+                foreach (var line in wrappedLines)
+                {
+                    var cellX = GetAlignedX(x, column.Width, line, Fonts.TableBody, column.Alignment, graphics, cellPadding);
+                    graphics.DrawString(line, Fonts.TableBody, XBrushes.Black, cellX, lineY);
+                    lineY += lineHeight;
+                }
+
                 x += column.Width;
             }
 
@@ -200,6 +227,99 @@ public class PdfService : IPdfService
 
         return y + 10;
     }
+
+    private static IReadOnlyList<string> WrapTextToWidth(
+        string text,
+        double maxWidth,
+        XFont font,
+        XGraphics graphics)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return new[] { string.Empty };
+        }
+
+        var lines = new List<string>();
+        var paragraphs = text
+            .Replace("\r\n", "\n")
+            .Replace('\r', '\n')
+            .Split('\n');
+
+        foreach (var paragraph in paragraphs)
+        {
+            var remaining = paragraph.Trim();
+
+            if (remaining.Length == 0)
+            {
+                lines.Add(string.Empty);
+                continue;
+            }
+
+            while (remaining.Length > 0)
+            {
+                if (graphics.MeasureString(remaining, font).Width <= maxWidth)
+                {
+                    lines.Add(remaining);
+                    break;
+                }
+
+                var breakIndex = FindBreakIndex(remaining, maxWidth, font, graphics);
+                if (breakIndex <= 0)
+                {
+                    breakIndex = 1;
+                }
+
+                var line = remaining[..breakIndex].TrimEnd();
+                if (line.Length == 0)
+                {
+                    line = remaining[..Math.Min(1, remaining.Length)];
+                }
+
+                lines.Add(line);
+                remaining = breakIndex >= remaining.Length
+                    ? string.Empty
+                    : remaining[breakIndex..].TrimStart();
+            }
+        }
+
+        return lines.Count == 0 ? new[] { string.Empty } : lines;
+    }
+
+    private static int FindBreakIndex(string text, double maxWidth, XFont font, XGraphics graphics)
+    {
+        var low = 1;
+        var high = text.Length;
+        var best = 1;
+
+        while (low <= high)
+        {
+            var mid = low + ((high - low) / 2);
+            var candidate = text[..mid];
+
+            if (graphics.MeasureString(candidate, font).Width <= maxWidth)
+            {
+                best = mid;
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid - 1;
+            }
+        }
+
+        for (var i = best; i > 0; i--)
+        {
+            if (IsPreferredBreakCharacter(text[i - 1]))
+            {
+                return i;
+            }
+        }
+
+        return best;
+    }
+
+    private static bool IsPreferredBreakCharacter(char value) =>
+        value is ' ' or '-' or '_' or '/' or '.';
 
     public void DrawText(
         XGraphics graphics,

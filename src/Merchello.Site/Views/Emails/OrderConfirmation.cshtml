@@ -31,6 +31,10 @@
       You'll receive another email when your order ships.
     </mj-text>
     @Html.Mjml().Text($"Order #{Model.Notification.Invoice.InvoiceNumber}", bold: true)
+    @if (!string.IsNullOrWhiteSpace(Model.Notification.Invoice.PurchaseOrder))
+    {
+      @Html.Mjml().Text($"Purchase Order: {Model.Notification.Invoice.PurchaseOrder}", bold: true)
+    }
   </mj-column>
 </mj-section>
 

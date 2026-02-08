@@ -35,6 +35,22 @@ const PAYMENT_CONTAINER_IDS = {
 // Checkout callback URLs
 const getCheckoutReturnUrl = () => `${window.location.origin}/checkout/return`;
 const getCheckoutCancelUrl = () => `${window.location.origin}/checkout/cancel`;
+const RECOVERY_PATH_REGEX = /^\/checkout\/recover\/([^/?#]+)/i;
+
+/**
+ * Extract recovery token from /checkout/recover/{token} URL.
+ * @returns {string|null}
+ */
+function getRecoveryTokenFromPath() {
+    const match = window.location.pathname.match(RECOVERY_PATH_REGEX);
+    if (!match?.[1]) return null;
+
+    try {
+        return decodeURIComponent(match[1]);
+    } catch {
+        return match[1];
+    }
+}
 
 /**
  * Initialize the single page checkout Alpine.data component
@@ -179,6 +195,10 @@ export function initSinglePageCheckout() {
             _paymentReinitTimeout: null,
             /** @type {boolean} Whether shipping has been calculated at least once */
             _shippingCalculated: false,
+            /** @type {boolean} True while captureAddress request is in-flight */
+            _captureAddressInFlight: false,
+            /** @type {boolean} Set when address capture should run after shipping/capture completes */
+            _captureAddressPending: false,
             /** @type {boolean} Whether shipping calculation is taking longer than expected */
             showSlowShippingMessage: false,
             announcement: '',
@@ -320,6 +340,8 @@ export function initSinglePageCheckout() {
             // ============================================
 
             async init() {
+                await this.recoverBasketFromUrlIfNeeded();
+
                 // Sync local state from store
                 this.shippingSameAsBilling = this.$store.checkout?.form?.sameAsBilling ?? true;
                 this._shippingCalculated = (this.$store.checkout?.shippingGroups?.length ?? 0) > 0;
@@ -378,6 +400,84 @@ export function initSinglePageCheckout() {
                 // to prevent phantom orders during submission.
                 document.addEventListener('merchello:payment-reinit-needed', () => {
                     this.reinitializePaymentFormIfActive();
+                });
+            },
+
+            async recoverBasketFromUrlIfNeeded() {
+                const token = getRecoveryTokenFromPath();
+                if (!token) return;
+
+                const store = this.$store.checkout;
+                const canonicalPath = '/checkout/information';
+
+                try {
+                    const data = await checkoutApi.recoverBasket(token);
+                    if (data.success && data.basket) {
+                        store?.updateBasket(data.basket);
+                        this.applyBasketAddressesToForm(data.basket);
+
+                        if (data.hasUnavailableItems) {
+                            const warning = data.message || 'Your basket was restored, but some items may no longer be available.';
+                            store?.setShippingError(warning);
+                        } else if (data.message) {
+                            this.announce(data.message);
+                        } else {
+                            this.announce('Your basket has been restored.');
+                        }
+                    } else {
+                        store?.setGeneralError(data.message || 'Unable to restore your basket from this recovery link.');
+                    }
+                } catch (error) {
+                    console.error('Failed to recover basket from token URL:', error);
+                    store?.setGeneralError('Unable to restore your basket from this recovery link.');
+                } finally {
+                    if (window.location.pathname.toLowerCase().startsWith('/checkout/recover/') &&
+                        window.history?.replaceState) {
+                        window.history.replaceState({}, document.title, canonicalPath);
+                    }
+                }
+            },
+
+            /**
+             * Hydrate checkout form from recovered basket addresses.
+             * @param {any} basket
+             */
+            applyBasketAddressesToForm(basket) {
+                if (!basket) return;
+
+                const billing = basket.billingAddress || {};
+                const shipping = basket.shippingAddress || {};
+
+                if (billing.email) {
+                    this.form.email = billing.email;
+                }
+
+                Object.assign(this.form.billing, {
+                    name: billing.name ?? this.form.billing.name,
+                    company: billing.company ?? this.form.billing.company,
+                    addressOne: billing.addressOne ?? this.form.billing.addressOne,
+                    addressTwo: billing.addressTwo ?? this.form.billing.addressTwo,
+                    townCity: billing.townCity ?? this.form.billing.townCity,
+                    countyState: billing.countyState ?? this.form.billing.countyState,
+                    regionCode: billing.regionCode ?? this.form.billing.regionCode,
+                    country: billing.country ?? this.form.billing.country,
+                    countryCode: billing.countryCode ?? this.form.billing.countryCode,
+                    postalCode: billing.postalCode ?? this.form.billing.postalCode,
+                    phone: billing.phone ?? this.form.billing.phone
+                });
+
+                Object.assign(this.form.shipping, {
+                    name: shipping.name ?? this.form.shipping.name,
+                    company: shipping.company ?? this.form.shipping.company,
+                    addressOne: shipping.addressOne ?? this.form.shipping.addressOne,
+                    addressTwo: shipping.addressTwo ?? this.form.shipping.addressTwo,
+                    townCity: shipping.townCity ?? this.form.shipping.townCity,
+                    countyState: shipping.countyState ?? this.form.shipping.countyState,
+                    regionCode: shipping.regionCode ?? this.form.shipping.regionCode,
+                    country: shipping.country ?? this.form.shipping.country,
+                    countryCode: shipping.countryCode ?? this.form.shipping.countryCode,
+                    postalCode: shipping.postalCode ?? this.form.shipping.postalCode,
+                    phone: shipping.phone ?? this.form.shipping.phone
                 });
             },
 
@@ -845,26 +945,43 @@ export function initSinglePageCheckout() {
             },
 
             async captureAddress() {
+                // Avoid parallel writes with shipping initialization against SQLite.
+                // If shipping is calculating, defer capture and retry once loading ends.
+                if (this.shippingLoading) {
+                    this._captureAddressPending = true;
+                    this.debouncedCaptureAddress();
+                    return;
+                }
+
+                // Coalesce multiple blur events while a capture request is already running.
+                if (this._captureAddressInFlight) {
+                    this._captureAddressPending = true;
+                    return;
+                }
+
+                this._captureAddressInFlight = true;
+                this._captureAddressPending = false;
+
                 // DEDUPLICATION: Hash current address data and compare to last capture.
                 // This prevents redundant API calls when address hasn't actually changed.
                 // Important for abandoned cart recovery - we want to capture changes,
                 // but not spam the server with identical data.
-                const addressHash = JSON.stringify({
-                    email: this.form.email,
-                    billing: this.form.billing,
-                    shipping: this.shippingSameAsBilling ? this.form.billing : this.form.shipping,
-                    shippingSameAsBilling: this.shippingSameAsBilling
-                });
-                if (this._lastAddressHash === addressHash) return;
-
-                const hasBillingData = this.form.billing.name ||
-                    this.form.billing.addressOne ||
-                    this.form.billing.townCity ||
-                    this.form.billing.postalCode ||
-                    this.form.billing.countryCode;
-                if (!this.form.email && !hasBillingData) return;
-
                 try {
+                    const addressHash = JSON.stringify({
+                        email: this.form.email,
+                        billing: this.form.billing,
+                        shipping: this.shippingSameAsBilling ? this.form.billing : this.form.shipping,
+                        shippingSameAsBilling: this.shippingSameAsBilling
+                    });
+                    if (this._lastAddressHash === addressHash) return;
+
+                    const hasBillingData = this.form.billing.name ||
+                        this.form.billing.addressOne ||
+                        this.form.billing.townCity ||
+                        this.form.billing.postalCode ||
+                        this.form.billing.countryCode;
+                    if (!this.form.email && !hasBillingData) return;
+
                     const data = {
                         email: this.form.email || undefined,
                         billingAddress: this.form.billing,
@@ -877,6 +994,14 @@ export function initSinglePageCheckout() {
                     }
                 } catch (error) {
                     console.error('Failed to capture address:', error);
+                } finally {
+                    this._captureAddressInFlight = false;
+
+                    // Run one trailing capture for any changes that happened while we were busy.
+                    if (this._captureAddressPending && !this.shippingLoading) {
+                        this._captureAddressPending = false;
+                        this.debouncedCaptureAddress();
+                    }
                 }
             },
 
@@ -992,6 +1117,11 @@ export function initSinglePageCheckout() {
                     if (requestId === this._shippingRequestId) {
                         store?.setShippingLoading(false);
                         this.showSlowShippingMessage = false;
+
+                        // If address capture was deferred during shipping, flush it now.
+                        if (this._captureAddressPending && !this._captureAddressInFlight) {
+                            this.debouncedCaptureAddress();
+                        }
                     }
                 }
             },

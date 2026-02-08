@@ -28,6 +28,7 @@ public interface IInvoiceService
     /// <param name="checkoutSession">The checkout session with addresses and shipping selections.</param>
     /// <param name="source">Optional source tracking information. Defaults to web checkout if not provided.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="purchaseOrder">Optional purchase order number captured at checkout.</param>
     /// <remarks>
     /// <para><b>Basket Lifecycle:</b> The basket is NOT automatically deleted after order creation.
     /// This allows for order recovery/retry scenarios. The basket should be cleared by the caller
@@ -35,7 +36,12 @@ public interface IInvoiceService
     /// <para><b>Multi-warehouse:</b> Creates separate Order entities per warehouse group.</para>
     /// <para><b>Stock:</b> Reserves stock immediately upon order creation.</para>
     /// </remarks>
-    Task<CrudResult<Invoice>> CreateOrderFromBasketAsync(Basket basket, CheckoutSession checkoutSession, InvoiceSource? source = null, CancellationToken cancellationToken = default);
+    Task<CrudResult<Invoice>> CreateOrderFromBasketAsync(
+        Basket basket,
+        CheckoutSession checkoutSession,
+        InvoiceSource? source = null,
+        CancellationToken cancellationToken = default,
+        string? purchaseOrder = null);
     Task<CrudResult<bool>> UpdateOrderStatusAsync(UpdateOrderStatusParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> CancelOrderAsync(Guid orderId, string reason, CancellationToken cancellationToken = default);
 

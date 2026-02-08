@@ -89,11 +89,11 @@ public class InvoiceSavedPdfAttachment(
             // Line items table
             var columns = new List<PdfTableColumn>
             {
-                new("Item", 200, PdfTextAlignment.Left),
-                new("SKU", 80, PdfTextAlignment.Left),
-                new("Qty", 50, PdfTextAlignment.Right),
-                new("Price", 80, PdfTextAlignment.Right),
-                new("Total", 80, PdfTextAlignment.Right)
+                new("Item", 150, PdfTextAlignment.Left),
+                new("SKU", 190, PdfTextAlignment.Left),
+                new("Qty", 40, PdfTextAlignment.Right),
+                new("Price", 55, PdfTextAlignment.Right),
+                new("Total", 55, PdfTextAlignment.Right)
             };
 
             var rows = new List<string[]>();

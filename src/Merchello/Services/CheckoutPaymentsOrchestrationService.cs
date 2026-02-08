@@ -994,6 +994,13 @@ public class CheckoutPaymentsOrchestrationService(
             });
         }
 
+        // Sanitize form data up front so invoice creation and payment processing use the same values.
+        var sanitizedFormData = SanitizeFormData(request.FormData);
+        var purchaseOrderNumber = ExtractPurchaseOrderNumber(
+            request.ProviderAlias,
+            request.MethodAlias,
+            sanitizedFormData);
+
         // Get current basket and session first (needed for invoice lookup/creation)
         var currentBasket = await checkoutService.GetBasket(
             new GetBasketParameters(),
@@ -1075,7 +1082,12 @@ public class CheckoutPaymentsOrchestrationService(
                 });
             }
 
-            var createResult = await invoiceService.CreateOrderFromBasketAsync(currentBasket, session, source: null, cancellationToken);
+            var createResult = await invoiceService.CreateOrderFromBasketAsync(
+                currentBasket,
+                session,
+                source: null,
+                cancellationToken: cancellationToken,
+                purchaseOrder: purchaseOrderNumber);
             if (!createResult.Success || createResult.ResultObject == null)
             {
                 var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
@@ -1132,9 +1144,6 @@ public class CheckoutPaymentsOrchestrationService(
                 ErrorMessage = "Payment provider '" + request.ProviderAlias + "' is not available."
             });
         }
-
-        // Sanitize form data to prevent injection attacks
-        var sanitizedFormData = SanitizeFormData(request.FormData);
 
         // Log form fields being processed (for security monitoring)
         if (sanitizedFormData.Any())
@@ -2486,6 +2495,26 @@ public class CheckoutPaymentsOrchestrationService(
     // Helper Methods
     // =====================================================
 
+    private static string? ExtractPurchaseOrderNumber(
+        string providerAlias,
+        string? methodAlias,
+        IReadOnlyDictionary<string, string> formData)
+    {
+        var effectiveMethodAlias = methodAlias ?? providerAlias;
+        if (!string.Equals(effectiveMethodAlias, Core.Constants.PaymentProviders.Aliases.PurchaseOrder, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (!formData.TryGetValue(Core.Constants.FormFields.PurchaseOrderNumber, out var purchaseOrderNumber) ||
+            string.IsNullOrWhiteSpace(purchaseOrderNumber))
+        {
+            return null;
+        }
+
+        return purchaseOrderNumber.Trim();
+    }
+
     /// <summary>
     /// Sanitizes form data values to prevent injection attacks.
     /// Trims whitespace and limits string length for security.
@@ -2950,7 +2979,5 @@ public class CheckoutPaymentsOrchestrationService(
         CurrentHttpContext.Session.Remove("Basket");
     }
 }
-
-
 
 

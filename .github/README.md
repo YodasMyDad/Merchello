@@ -55,6 +55,42 @@ Multi-warehouse inventory with priority-based warehouse selection and region res
 
 Proportional shipping tax calculation for EU/UK VAT compliance.
 
+### UCP (Universal Commerce Protocol)
+
+Expose your store to AI agents. UCP is an [open standard](https://ucp.dev/) co-developed by Google, Shopify, Stripe, Visa, Mastercard and 25+ industry partners that lets AI agents (Google Gemini, ChatGPT, etc.) browse products, build carts, and complete checkout on behalf of users.
+
+Merchello implements UCP as a protocol adapter on top of existing services — no separate storefront required.
+
+| Feature | Details |
+|---------|---------|
+| **Discovery** | `/.well-known/ucp` manifest with capabilities, payment handlers, and signing keys |
+| **Checkout sessions** | Create, update, complete, and cancel via REST API |
+| **Discounts & shipping** | Discount codes, multi-warehouse fulfilment groups, and live carrier rates exposed through UCP extensions |
+| **Order webhooks** | Signed (ES256 / RFC 7797 detached JWT) order lifecycle events pushed to the agent's webhook URL |
+| **Agent authentication** | `UCP-Agent` header parsing (RFC 8941), allowlist, capability negotiation (server-selects model) |
+| **Source tracking** | UCP orders tagged on the invoice for analytics and reporting |
+
+Spec version: `2026-01-11`. Configurable per-capability and per-extension in `appsettings.json`.
+
+### Fulfilment Providers
+
+A pluggable 3PL integration system for automating post-purchase logistics. Fulfilment providers handle order submission, real-time tracking, product catalog sync, and inventory management — all through a single `IFulfilmentProvider` interface.
+
+| Provider | Description |
+|----------|-------------|
+| **ShipBob** | Full-featured 3PL — order submission, webhook status updates, polling, product sync, inventory sync |
+| **Custom** | Implement `IFulfilmentProvider` (or extend `FulfilmentProviderBase`) and deploy — auto-discovered at runtime |
+
+| Capability | Details |
+|------------|---------|
+| **Order submission** | Automatic on order creation with exponential-backoff retry (configurable attempts and delays) |
+| **Status updates** | Real-time via provider webhooks (HMAC-validated, deduplicated) or periodic polling |
+| **Product sync** | Push your catalogue to the 3PL |
+| **Inventory sync** | Pull stock levels back (full replace or delta mode) |
+| **Backoffice UI** | Configure providers, test connections, trigger syncs, and view sync/webhook logs |
+
+Background jobs handle polling, retry, and log cleanup automatically.
+
 ### Everything Else
 
 - **Multi-currency** — live exchange rates, automatic country-to-currency mapping, rate locking at checkout
@@ -67,7 +103,6 @@ Proportional shipping tax calculation for EU/UK VAT compliance.
 - **Customer segments** — manual and automated (spend, order count, location, tags)
 - **Reporting** — sales breakdown, best sellers, gross profit, dashboard KPIs, CSV export
 - **Product routing** — products render at root-level URLs without Umbraco content nodes
-- **UCP (Universal Commerce Protocol)** — expose your store to AI agents via a standardised protocol
 
 ### Pluggable Architecture
 

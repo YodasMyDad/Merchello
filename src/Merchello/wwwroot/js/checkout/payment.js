@@ -868,14 +868,15 @@ const MerchelloPayment = {
         if (!style) return '';
 
         const parts = [];
+        // Apply base colors first so selected colors can override when provided.
+        if (style.backgroundColor) parts.push(`background-color: ${style.backgroundColor}`);
+        if (style.borderColor) parts.push(`border-color: ${style.borderColor}`);
+        if (style.textColor) parts.push(`color: ${style.textColor}`);
+
         if (isSelected) {
             if (style.selectedBackgroundColor) parts.push(`background-color: ${style.selectedBackgroundColor}`);
             if (style.selectedBorderColor) parts.push(`border-color: ${style.selectedBorderColor}`);
             if (style.selectedTextColor) parts.push(`color: ${style.selectedTextColor}`);
-        } else {
-            if (style.backgroundColor) parts.push(`background-color: ${style.backgroundColor}`);
-            if (style.borderColor) parts.push(`border-color: ${style.borderColor}`);
-            if (style.textColor) parts.push(`color: ${style.textColor}`);
         }
         return parts.join('; ');
     },

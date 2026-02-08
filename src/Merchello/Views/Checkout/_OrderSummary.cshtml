@@ -172,7 +172,7 @@
             }
             else if (isSinglePage)
             {
-                <template x-for="item in productLineItems" :key="item.id">
+                <template x-for="item in (($store.checkout?.basketLineItems ?? []).filter(li => li && (li.lineItemType === 'Product' || li.lineItemType === 'Custom' || li.lineItemType === 0 || li.lineItemType === 1)))" :key="item.id">
                     <div class="flex gap-4 items-start">
                         <!-- Product Image with Quantity Badge -->
                         <div class="relative flex-shrink-0">
@@ -205,20 +205,21 @@
                                 </div>
                             </template>
 
-                            <template x-if="getAddonsForProduct(item.sku).length > 0">
+                            <template x-if="(($store.checkout?.basketLineItems ?? []).filter(li => li && (li.lineItemType === 'Addon' || li.lineItemType === 4) && li.dependantLineItemSku === item.sku)).length > 0">
                                 <div>
-                                    <template x-for="addon in getAddonsForProduct(item.sku)" :key="addon.id">
+                                    <template x-for="addon in (($store.checkout?.basketLineItems ?? []).filter(li => li && (li.lineItemType === 'Addon' || li.lineItemType === 4) && li.dependantLineItemSku === item.sku))" :key="addon.id">
                                         <p class="text-xs text-gray-500 mt-1 pl-3 border-l-2 border-gray-200">
                                             <span class="font-medium">Add-on:</span>
                                             <span x-text="addon.name || addon.productRootName"></span>
-                                            <span class="ml-1" x-text="'(+' + formatAddonUnitPrice(addon) + ')'"></span>
+                                            <span class="ml-1" x-text="'(+' + ($store.checkout?.formatCurrency(((Number(addon?.displayUnitPrice ?? addon?.unitPrice ?? 0)) * (($store.checkout?.displayPricesIncTax && addon?.isTaxable === true && Number(addon?.taxRate ?? 0) > 0) ? (1 + (Number(addon?.taxRate ?? 0) / 100)) : 1))) ?? '') + ')'"></span>
                                         </p>
                                     </template>
                                 </div>
                             </template>
                         </div>
 
-                        <div class="text-sm font-medium text-gray-900" x-text="formatLineItemTotal(item)"></div>
+                        <div class="text-sm font-medium text-gray-900"
+                             x-text="$store.checkout?.formatCurrency(((Number(item?.displayLineTotal ?? item?.lineTotal ?? 0)) * (($store.checkout?.displayPricesIncTax && item?.isTaxable === true && Number(item?.taxRate ?? 0) > 0) ? (1 + (Number(item?.taxRate ?? 0) / 100)) : 1))) ?? ''"></div>
                     </div>
                 </template>
             }
@@ -380,7 +381,7 @@
                 {
                     <!-- For single-page checkout, Alpine.js handles tax-inclusive display -->
                     <span class="text-gray-900 font-medium"
-                          x-text="displayPricesIncTax ? formattedTaxInclusiveDisplaySubTotal : formatCurrency(subTotal)"></span>
+                          x-text="displayPricesIncTax ? formattedTaxInclusiveDisplaySubTotal : formatCurrency(subtotal)"></span>
                 }
                 else
                 {

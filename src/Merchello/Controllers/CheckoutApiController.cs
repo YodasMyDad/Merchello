@@ -1110,6 +1110,8 @@ public class CheckoutApiController(
         }
 
         var basket = result.ResultObject;
+        await checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
+        EnsureBasketCookie(basket);
 
         // Check availability of recovered items (stock may have changed since abandonment)
         var availability = await storefrontContext.GetBasketAvailabilityAsync(
@@ -1208,6 +1210,25 @@ public class CheckoutApiController(
             itemCount = abandonedCheckout.ItemCount,
             customerEmail = abandonedCheckout.Email
         });
+    }
+
+    private void EnsureBasketCookie(Basket basket)
+    {
+        if (basket.CustomerId.HasValue)
+        {
+            return;
+        }
+
+        Response.Cookies.Append(
+            Core.Constants.Cookies.BasketId,
+            basket.Id.ToString(),
+            new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddDays(30),
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax
+            });
     }
 
     #endregion

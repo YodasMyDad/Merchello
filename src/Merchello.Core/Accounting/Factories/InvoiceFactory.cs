@@ -24,6 +24,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
     /// <param name="source">Optional source tracking information. Defaults to web checkout if not provided.</param>
     /// <param name="hasAccountTerms">Whether the customer has account terms enabled.</param>
     /// <param name="paymentTermsDays">Payment terms in days (e.g., 30 for Net 30).</param>
+    /// <param name="purchaseOrder">Optional purchase order number captured during checkout.</param>
     public Invoice CreateFromBasket(
         Basket basket,
         string invoiceNumber,
@@ -34,7 +35,8 @@ public class InvoiceFactory(ICurrencyService currencyService)
         Guid customerId,
         InvoiceSource? source = null,
         bool hasAccountTerms = false,
-        int? paymentTermsDays = null)
+        int? paymentTermsDays = null,
+        string? purchaseOrder = null)
     {
         var now = DateTime.UtcNow;
 
@@ -51,6 +53,7 @@ public class InvoiceFactory(ICurrencyService currencyService)
             BasketId = basket.Id, // For finding existing unpaid invoices when user returns to checkout
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
+            PurchaseOrder = string.IsNullOrWhiteSpace(purchaseOrder) ? null : purchaseOrder.Trim(),
             CurrencyCode = presentmentCurrency,
             CurrencySymbol = basket.CurrencySymbol ?? currencyService.GetCurrency(presentmentCurrency).Symbol,
             StoreCurrencyCode = storeCurrency,

@@ -1,5 +1,6 @@
 using Merchello.Core;
 using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Checkout.Models;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -55,6 +56,34 @@ public class InvoiceFactoryTests
     public void ManualInvoiceSourceAlias_MatchesDraft()
     {
         Constants.InvoiceSources.Manual.ShouldBe(Constants.InvoiceSources.Draft);
+    }
+
+    [Fact]
+    public void CreateFromBasket_WithPurchaseOrder_SetsTrimmedPurchaseOrder()
+    {
+        var basket = new Basket
+        {
+            Id = Guid.NewGuid(),
+            Currency = "USD",
+            CurrencySymbol = "$",
+            SubTotal = 100m,
+            Discount = 0m,
+            AdjustedSubTotal = 100m,
+            Tax = 20m,
+            Total = 120m
+        };
+
+        var invoice = _factory.CreateFromBasket(
+            basket: basket,
+            invoiceNumber: "INV-1002",
+            billingAddress: CreateAddress(),
+            shippingAddress: CreateAddress(),
+            presentmentCurrency: "USD",
+            storeCurrency: "USD",
+            customerId: Guid.NewGuid(),
+            purchaseOrder: "  PO-12345  ");
+
+        invoice.PurchaseOrder.ShouldBe("PO-12345");
     }
 
     private static Address CreateAddress() =>

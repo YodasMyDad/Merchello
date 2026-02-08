@@ -623,7 +623,7 @@
                                        class="w-4 h-4 text-accent focus:ring-accent" />
                                 <div class="flex items-center gap-2 flex-1">
                                     <span x-html="getPaymentMethodIcon(cardPaymentMethods[0])" class="flex-shrink-0"></span>
-                                    <span class="text-sm font-medium text-gray-900" x-text="cardPaymentMethods[0].displayName"></span>
+                                    <span class="text-sm font-medium" x-text="cardPaymentMethods[0].displayName"></span>
                                 </div>
                             </label>
                         </div>
@@ -644,7 +644,7 @@
                                            class="w-4 h-4 text-accent focus:ring-accent" />
                                     <div class="flex items-center gap-2 flex-1">
                                         <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
-                                        <span class="text-sm font-medium text-gray-900" x-text="method.displayName"></span>
+                                        <span class="text-sm font-medium" x-text="method.displayName"></span>
                                     </div>
                                 </label>
                             </template>
@@ -680,7 +680,7 @@
                                             :class="{ 'border-accent bg-accent/5': isPaymentMethodSelected(method) }"
                                             :style="getPaymentMethodStyle(method, isPaymentMethodSelected(method))">
                                         <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
-                                        <span class="text-sm font-medium text-gray-900" x-text="method.displayName"></span>
+                                        <span class="text-sm font-medium" x-text="method.displayName"></span>
                                     </button>
                                 </template>
                             </div>

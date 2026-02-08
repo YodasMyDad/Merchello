@@ -188,6 +188,24 @@ export const checkoutApi = {
     },
 
     /**
+     * Recover a basket from an abandoned checkout token.
+     * @param {string} token
+     * @returns {Promise<{success: boolean, message?: string, basket?: any, hasUnavailableItems?: boolean, unavailableItems?: any[]}>}
+     */
+    recoverBasket(token) {
+        return fetchJson(`${BASE_URL}/recover/${encodeURIComponent(token)}`);
+    },
+
+    /**
+     * Validate a recovery token without restoring the basket.
+     * @param {string} token
+     * @returns {Promise<{valid: boolean, message?: string}>}
+     */
+    validateRecoveryToken(token) {
+        return fetchJson(`${BASE_URL}/recover/${encodeURIComponent(token)}/validate`);
+    },
+
+    /**
      * Save billing and shipping addresses
      * @param {Object} data
      * @param {string} data.email
