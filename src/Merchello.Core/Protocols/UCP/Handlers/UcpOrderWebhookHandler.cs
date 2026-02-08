@@ -12,6 +12,7 @@ using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Notifications;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
+using Merchello.Core.Shared.Security;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Models;
 using Microsoft.Extensions.Logging;
@@ -118,6 +119,20 @@ public class UcpOrderWebhookHandler(
                 logger.LogDebug(
                     "No webhook URL configured for UCP invoice {InvoiceId}",
                     invoice.Id);
+                return;
+            }
+
+            if (!UrlSecurityValidator.TryValidatePublicHttpUrl(
+                    webhookUrl,
+                    requireHttps: true,
+                    out _,
+                    out var urlError))
+            {
+                logger.LogWarning(
+                    "Blocked UCP webhook for invoice {InvoiceId}. Disallowed URL {WebhookUrl}. Reason: {Reason}",
+                    invoice.Id,
+                    webhookUrl,
+                    urlError);
                 return;
             }
 

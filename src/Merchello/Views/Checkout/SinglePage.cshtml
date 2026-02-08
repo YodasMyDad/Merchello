@@ -44,6 +44,41 @@
         subtotal = displaySubtotal,
         discount = displayDiscount
     },
+    basketId = basket?.Id.ToString(),
+    basketLineItems = (basket?.LineItems ?? []).Where(li =>
+        li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product
+        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Custom
+        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon)
+        .Select(li =>
+        {
+            var selectedOptions = li.GetSelectedOptions()
+                .Select(o => new
+                {
+                    optionName = o.OptionName,
+                    valueName = o.ValueName
+                });
+            var displayUnitPrice = CurrencyService.Round(li.Amount * exchangeRate, displayCurrencyCode);
+            var displayLineTotal = CurrencyService.Round(li.Amount * li.Quantity * exchangeRate, displayCurrencyCode);
+
+            return new
+            {
+                id = li.Id.ToString(),
+                sku = li.Sku ?? "",
+                name = li.Name ?? "",
+                productRootName = li.GetProductRootName(),
+                selectedOptions,
+                quantity = li.Quantity,
+                unitPrice = li.Amount,
+                lineTotal = li.Amount * li.Quantity,
+                displayUnitPrice,
+                displayLineTotal,
+                taxRate = li.TaxRate,
+                isTaxable = li.IsTaxable,
+                lineItemType = li.LineItemType.ToString(),
+                dependantLineItemSku = li.DependantLineItemSku,
+                imageUrl = li.ExtendedData?.GetValueOrDefault("ImageUrl")?.ToString()
+            };
+        }),
     currency = new {
         code = displayCurrencyCode,
         symbol = displayCurrencySymbol

@@ -418,11 +418,6 @@ export function initSinglePageCheckout() {
                         subTotal: this.basketSubtotal
                     }
                 }));
-                this.$store.checkout?.updateBasket({
-                    total: this.basketTotal,
-                    shipping: this.basketShipping,
-                    tax: this.basketTax
-                });
             },
 
             // Delegate to helper - kept for template compatibility
@@ -492,10 +487,12 @@ export function initSinglePageCheckout() {
             /**
              * Update basket in store and dispatch event, then reinitialize payment form if active.
              * Handles the express checkout re-render skip flag to prevent UI flickering.
-             * @param {{ total?: number, shipping?: number, tax?: number, subtotal?: number }} basketUpdate
+             * @param {Object} basketUpdate
              */
             async updateBasketAndReinitPayment(basketUpdate) {
-                this.$store.checkout?.updateBasket(basketUpdate);
+                if (basketUpdate) {
+                    this.$store.checkout?.updateBasket(basketUpdate);
+                }
 
                 const willReinitPayment = this.shouldSkipExpressReRender();
                 if (willReinitPayment) {
@@ -509,6 +506,20 @@ export function initSinglePageCheckout() {
                 } else {
                     this.setExpressReRenderSkip(false);
                 }
+            },
+
+            /**
+             * Refresh checkout basket state from backend and reinitialize payment if needed.
+             */
+            async refreshCheckoutBasketAndReinitPayment() {
+                const basket = await checkoutApi.getBasket();
+                if (basket?.isEmpty) {
+                    this.$store.checkout?.updateBasket({ ...basket, lineItems: [] });
+                    this.dispatchBasketUpdate();
+                    return;
+                }
+
+                await this.updateBasketAndReinitPayment(basket);
             },
 
             // ============================================
@@ -943,13 +954,8 @@ export function initSinglePageCheckout() {
                         store?.updateShipping(groups, selections);
 
                         if (data.basket) {
-                            // Trust the API response - backend calculates totals with correct shipping selections
-                            await this.updateBasketAndReinitPayment({
-                                total: data.basket.displayTotal ?? data.basket.total,
-                                shipping: data.basket.displayShipping ?? data.basket.shipping ?? 0,
-                                tax: data.basket.displayTax ?? data.basket.tax ?? 0,
-                                subtotal: data.basket.displaySubTotal ?? data.basket.subtotal ?? 0
-                            });
+                            // Trust the API response - backend calculates totals and line items.
+                            await this.updateBasketAndReinitPayment(data.basket);
 
                             if (data.basket.errors?.length > 0) {
                                 const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
@@ -1016,11 +1022,7 @@ export function initSinglePageCheckout() {
                 try {
                     const data = await checkoutApi.saveShipping(this.shippingSelections, this._buildQuotedCosts());
                     if (data.success && data.basket) {
-                        await this.updateBasketAndReinitPayment({
-                            total: data.basket.displayTotal ?? data.basket.total,
-                            shipping: data.basket.displayShipping ?? data.basket.shipping ?? 0,
-                            tax: data.basket.displayTax ?? data.basket.tax ?? 0
-                        });
+                        await this.updateBasketAndReinitPayment(data.basket);
                     }
                 } catch (error) {
                     this.setExpressReRenderSkip(false);
@@ -1495,6 +1497,8 @@ export function initSinglePageCheckout() {
                         if (result.data?.length > 0) {
                             this.trackUpsellImpressions(result.data);
                         }
+                    } else {
+                        store?.setUpsellsError(result.error || 'Unable to load recommendations');
                     }
                 } catch (error) {
                     console.error('Failed to load checkout upsells:', error);
@@ -1517,10 +1521,13 @@ export function initSinglePageCheckout() {
                 if (events.length === 0) return;
 
                 try {
-                    await checkoutApi.request('/upsells/events', {
+                    const result = await checkoutApi.request('/upsells/events', {
                         method: 'POST',
                         body: JSON.stringify({ events })
                     });
+                    if (!result.success) {
+                        console.warn('Upsell impression tracking failed:', result.error);
+                    }
                 } catch (error) {
                     console.error('Failed to track upsell impressions:', error);
                 }
@@ -1528,7 +1535,7 @@ export function initSinglePageCheckout() {
 
             async trackUpsellClick(upsellRuleId, productId) {
                 try {
-                    await checkoutApi.request('/upsells/events', {
+                    const result = await checkoutApi.request('/upsells/events', {
                         method: 'POST',
                         body: JSON.stringify({
                             events: [{
@@ -1539,6 +1546,9 @@ export function initSinglePageCheckout() {
                             }]
                         })
                     });
+                    if (!result.success) {
+                        console.warn('Upsell click tracking failed:', result.error);
+                    }
                 } catch (error) {
                     console.error('Failed to track upsell click:', error);
                 }
@@ -1574,9 +1584,11 @@ export function initSinglePageCheckout() {
 
                     store?.markUpsellProductAdded(product.productRootId);
 
-                    // Recalculate shipping if address is available
+                    // Recalculate shipping when possible; otherwise refresh basket totals/items directly.
                     if (this.canCalculateShipping) {
                         await this.calculateShipping();
+                    } else {
+                        await this.refreshCheckoutBasketAndReinitPayment();
                     }
 
                     // Refresh upsells (added product should be suppressed if SuppressIfInCart)

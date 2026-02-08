@@ -1,9 +1,14 @@
+using Merchello.Core;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
+using Merchello.Core.Email.Attachments;
 using Merchello.Core.Email;
 using Merchello.Core.Email.Interfaces;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services;
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Locality.Models;
+using Merchello.Core.Notifications.Invoice;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Tests.TestInfrastructure;
@@ -328,6 +333,145 @@ public class EmailServiceTests
         result.ShouldBeFalse();
     }
 
+    [Fact]
+    public async Task SendImmediate_WithAttachments_SendsGeneratedAttachments()
+    {
+        _emailSenderMock
+            .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
+            .Returns(Task.CompletedTask);
+        _configServiceMock
+            .Setup(x => x.IncrementSentCountAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _attachmentResolverMock
+            .Setup(x => x.GenerateAttachmentsAsync<TestOrderNotification>(
+                It.IsAny<EmailModel<TestOrderNotification>>(),
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                new EmailAttachmentResult
+                {
+                    Content = [1, 2, 3],
+                    FileName = "invoice.pdf",
+                    ContentType = "application/pdf"
+                }
+            ]);
+
+        var config = CreateEmailConfig();
+        config.AttachmentAliases = ["test-attachment"];
+        var notification = new TestOrderNotification { OrderNumber = "ORD-001" };
+
+        var result = await _service.SendImmediateAsync(config, notification);
+
+        result.ShouldBeTrue();
+        _attachmentResolverMock.Verify(x => x.GenerateAttachmentsAsync<TestOrderNotification>(
+            It.IsAny<EmailModel<TestOrderNotification>>(),
+            It.IsAny<IEnumerable<string>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _emailSenderMock.Verify(
+            x => x.SendAsync(
+                It.Is<EmailMessage>(m => GetAttachmentCount(m) == 1),
+                "MerchelloEmail",
+                true,
+                null),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SendImmediate_AttachmentFailure_StillSendsWithoutAttachments()
+    {
+        _emailSenderMock
+            .Setup(x => x.SendAsync(It.IsAny<EmailMessage>(), It.IsAny<string>(), true, null))
+            .Returns(Task.CompletedTask);
+        _configServiceMock
+            .Setup(x => x.IncrementSentCountAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        _attachmentResolverMock
+            .Setup(x => x.GenerateAttachmentsAsync<TestOrderNotification>(
+                It.IsAny<EmailModel<TestOrderNotification>>(),
+                It.IsAny<IEnumerable<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("Attachment generation failed"));
+
+        var config = CreateEmailConfig();
+        config.AttachmentAliases = ["test-attachment"];
+        var notification = new TestOrderNotification { OrderNumber = "ORD-001" };
+
+        var result = await _service.SendImmediateAsync(config, notification);
+
+        result.ShouldBeTrue();
+        _emailSenderMock.Verify(
+            x => x.SendAsync(
+                It.Is<EmailMessage>(m => GetAttachmentCount(m) == 0),
+                "MerchelloEmail",
+                true,
+                null),
+            Times.Once);
+    }
+
+    #endregion
+
+    #region PreviewAndTestEmail
+
+    [Fact]
+    public async Task Preview_UsesTokenResolver_ForSubjectAndRecipients()
+    {
+        var configId = Guid.NewGuid();
+        var config = CreateInvoiceEmailConfig(configId);
+        var notification = CreateInvoiceSavedNotification("PO-12345");
+
+        _configServiceMock
+            .Setup(x => x.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _sampleNotificationFactoryMock
+            .Setup(x => x.CreateSampleNotification(Constants.EmailTopics.InvoiceCreated))
+            .Returns(notification);
+        SetupInvoiceTokenResolver();
+
+        var preview = await _service.PreviewAsync(configId);
+
+        preview.Success.ShouldBeTrue();
+        preview.Subject.ShouldBe("Order PO-12345");
+        preview.To.ShouldBe("customer@test.com");
+        _tokenResolverMock.Verify(
+            x => x.ResolveTokens<InvoiceSavedNotification>(
+                "Order {{invoice.purchaseOrder}}",
+                It.IsAny<EmailModel<InvoiceSavedNotification>>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SendTestEmail_UsesTokenResolver_ForSubject()
+    {
+        var configId = Guid.NewGuid();
+        var config = CreateInvoiceEmailConfig(configId);
+        var notification = CreateInvoiceSavedNotification("PO-999");
+
+        _configServiceMock
+            .Setup(x => x.GetByIdAsync(configId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(config);
+        _sampleNotificationFactoryMock
+            .Setup(x => x.CreateSampleNotification(Constants.EmailTopics.InvoiceCreated))
+            .Returns(notification);
+        SetupInvoiceTokenResolver();
+
+        var sendResult = await _service.SendTestEmailAsync(configId, "qa@test.com");
+
+        sendResult.Success.ShouldBeTrue();
+        _emailSenderMock.Verify(
+            x => x.SendAsync(
+                It.Is<EmailMessage>(m => GetStringProperty(m, "Subject") == "[TEST] Order PO-999"),
+                "MerchelloEmailTest",
+                true,
+                null),
+            Times.Once);
+        _tokenResolverMock.Verify(
+            x => x.ResolveTokens<InvoiceSavedNotification>(
+                "Order {{invoice.purchaseOrder}}",
+                It.IsAny<EmailModel<InvoiceSavedNotification>>()),
+            Times.Once);
+    }
+
     #endregion
 
     #region GetStoreContext
@@ -380,6 +524,71 @@ public class EmailServiceTests
             AttemptNumber = 0,
             ExtendedData = new Dictionary<string, object>()
         };
+    }
+
+    private EmailConfiguration CreateInvoiceEmailConfig(Guid id)
+    {
+        return new EmailConfiguration
+        {
+            Id = id,
+            Topic = Constants.EmailTopics.InvoiceCreated,
+            ToExpression = "{{invoice.billingAddress.email}}",
+            SubjectExpression = "Order {{invoice.purchaseOrder}}",
+            TemplatePath = "/Views/Emails/Invoice.cshtml",
+            Enabled = true,
+            AttachmentAliases = []
+        };
+    }
+
+    private static InvoiceSavedNotification CreateInvoiceSavedNotification(string purchaseOrder)
+    {
+        var invoice = new Invoice
+        {
+            Id = Guid.NewGuid(),
+            CustomerId = Guid.NewGuid(),
+            InvoiceNumber = "INV-1000",
+            PurchaseOrder = purchaseOrder,
+            BillingAddress = new Address { Name = "Customer", Email = "customer@test.com" },
+            ShippingAddress = new Address { Name = "Customer", Email = "customer@test.com" },
+            CurrencyCode = "USD",
+            CurrencySymbol = "$",
+            Total = 100m
+        };
+
+        return new InvoiceSavedNotification(invoice);
+    }
+
+    private void SetupInvoiceTokenResolver()
+    {
+        _tokenResolverMock
+            .Setup(x => x.ResolveTokens<InvoiceSavedNotification>(
+                It.IsAny<string>(),
+                It.IsAny<EmailModel<InvoiceSavedNotification>>()))
+            .Returns((string template, EmailModel<InvoiceSavedNotification> model) => template
+                .Replace("{{invoice.purchaseOrder}}", model.Notification.Invoice.PurchaseOrder ?? string.Empty)
+                .Replace("{{invoice.billingAddress.email}}", model.Notification.Invoice.BillingAddress.Email));
+    }
+
+    private static string? GetStringProperty(object instance, string propertyName)
+    {
+        return instance.GetType().GetProperty(propertyName)?.GetValue(instance)?.ToString();
+    }
+
+    private static int GetAttachmentCount(object instance)
+    {
+        var attachments = instance.GetType().GetProperty("Attachments")?.GetValue(instance);
+        if (attachments is not System.Collections.IEnumerable enumerable)
+        {
+            return 0;
+        }
+
+        var count = 0;
+        foreach (var _ in enumerable)
+        {
+            count++;
+        }
+
+        return count;
     }
 
     private void SeedWebhookSubscription(Guid id)

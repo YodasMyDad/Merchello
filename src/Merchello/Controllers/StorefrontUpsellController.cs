@@ -136,14 +136,17 @@ public class StorefrontUpsellController(
     /// </summary>
     [HttpPost("events")]
     public async Task<IActionResult> RecordEvents(
-        [FromBody] RecordUpsellEventsDto dto,
+        [FromBody] RecordUpsellEventsDto? dto,
         CancellationToken ct)
     {
-        if (dto.Events.Count == 0)
+        if (dto?.Events == null || dto.Events.Count == 0)
             return NoContent();
 
         foreach (var e in dto.Events)
         {
+            if (e.UpsellRuleId == Guid.Empty)
+                continue;
+
             var parameters = new RecordUpsellEventParameters
             {
                 UpsellRuleId = e.UpsellRuleId,

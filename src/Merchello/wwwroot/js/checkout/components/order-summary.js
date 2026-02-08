@@ -125,6 +125,70 @@ export function initOrderSummary() {
         },
 
         /**
+         * Reactive checkout line items (single-page mode).
+         * @returns {Array}
+         */
+        get basketLineItems() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.basketLineItems ?? [];
+        },
+
+        /**
+         * Product/custom parent line items for summary display.
+         * @returns {Array}
+         */
+        get productLineItems() {
+            return this.basketLineItems.filter(li => {
+                const type = li?.lineItemType;
+                return type === 'Product' || type === 'Custom' || type === 0 || type === 1;
+            });
+        },
+
+        /**
+         * Get addon line items for a parent product SKU.
+         * @param {string} productSku
+         * @returns {Array}
+         */
+        getAddonsForProduct(productSku) {
+            if (!productSku) return [];
+            return this.basketLineItems.filter(li => {
+                const type = li?.lineItemType;
+                const isAddon = type === 'Addon' || type === 4;
+                return isAddon && li.dependantLineItemSku === productSku;
+            });
+        },
+
+        /**
+         * Format a parent line item total, applying tax-inclusive display when enabled.
+         * @param {any} item
+         * @returns {string}
+         */
+        formatLineItemTotal(item) {
+            const base = Number(item?.displayLineTotal ?? item?.lineTotal ?? 0);
+            const taxRate = Number(item?.taxRate ?? 0);
+            const isTaxable = item?.isTaxable === true;
+            const total = this.displayPricesIncTax && isTaxable && taxRate > 0
+                ? base * (1 + (taxRate / 100))
+                : base;
+            return this.formatCurrency(total);
+        },
+
+        /**
+         * Format addon unit display amount, applying tax-inclusive display when enabled.
+         * @param {any} addon
+         * @returns {string}
+         */
+        formatAddonUnitPrice(addon) {
+            const base = Number(addon?.displayUnitPrice ?? addon?.unitPrice ?? 0);
+            const taxRate = Number(addon?.taxRate ?? 0);
+            const isTaxable = addon?.isTaxable === true;
+            const value = this.displayPricesIncTax && isTaxable && taxRate > 0
+                ? base * (1 + (taxRate / 100))
+                : base;
+            return this.formatCurrency(value);
+        },
+
+        /**
          * Check if any discount operation is in progress
          * @returns {boolean}
          */

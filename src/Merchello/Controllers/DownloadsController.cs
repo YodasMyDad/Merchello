@@ -2,6 +2,7 @@ using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.DigitalProducts.Dtos;
 using Merchello.Core.DigitalProducts.Services.Interfaces;
 using Merchello.Core.DigitalProducts.Services.Parameters;
+using Merchello.Core.Accounting.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -19,6 +20,7 @@ public class DownloadsController(
     IDigitalProductService digitalProductService,
     IMediaService mediaService,
     ICustomerService customerService,
+    IInvoiceService invoiceService,
     IMemberManager memberManager) : ControllerBase
 {
     /// <summary>
@@ -181,14 +183,20 @@ public class DownloadsController(
             return NotFound(new { error = "Customer not found" });
         }
 
-        // Get the download links
-        var links = await digitalProductService.GetInvoiceDownloadsAsync(invoiceId, ct);
+        // Enforce ownership even when no download links exist for the invoice.
+        var invoice = await invoiceService.GetInvoiceAsync(invoiceId, ct);
+        if (invoice == null)
+        {
+            return NotFound(new { error = "Invoice not found" });
+        }
 
-        // Verify customer owns the invoice by checking download link ownership
-        if (links.Count > 0 && links[0].CustomerId != customer.Id)
+        if (invoice.CustomerId != customer.Id)
         {
             return Forbid();
         }
+
+        // Get the download links
+        var links = await digitalProductService.GetInvoiceDownloadsAsync(invoiceId, ct);
 
         var dtos = links.Select(MapToDto).ToList();
         return Ok(dtos);

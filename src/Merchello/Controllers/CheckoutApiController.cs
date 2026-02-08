@@ -810,10 +810,10 @@ public class CheckoutApiController(
 
     /// <summary>
     /// Check if an email has an existing member account.
-    /// Used to determine if checkout should show login vs create account flow.
+    /// Always returns a neutral result to prevent account enumeration.
     /// </summary>
     [HttpPost("check-email")]
-    public async Task<IActionResult> CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    public IActionResult CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || !checkoutValidator.IsValidEmail(request.Email))
         {
@@ -830,8 +830,9 @@ public class CheckoutApiController(
             return Ok(new CheckEmailResultDto { HasExistingAccount = false });
         }
 
-        var result = await checkoutMemberService.CheckEmailAsync(request.Email.Trim(), ct);
-        return Ok(result);
+        // Intentionally return a neutral response regardless of account existence.
+        // This endpoint is used for UI hints only and must not leak membership data.
+        return Ok(new CheckEmailResultDto { HasExistingAccount = false });
     }
 
     /// <summary>

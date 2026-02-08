@@ -11,6 +11,43 @@ import { createAnnouncer } from '../utils/announcer.js';
 import { formatCurrencyLocale } from '../utils/formatters.js';
 import { MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
 
+const INTERSTITIAL_SEEN_STORAGE_PREFIX = 'merchello:checkout:upsells:interstitial-seen:';
+
+/**
+ * Get persisted interstitial "seen" flag for a basket.
+ * @param {string|null|undefined} basketId
+ * @returns {boolean}
+ */
+function getInterstitialSeenForBasket(basketId) {
+    if (!basketId) return false;
+
+    try {
+        return window.sessionStorage.getItem(`${INTERSTITIAL_SEEN_STORAGE_PREFIX}${basketId}`) === '1';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Persist interstitial "seen" flag for a basket.
+ * @param {string|null|undefined} basketId
+ * @param {boolean} seen
+ */
+function setInterstitialSeenForBasket(basketId, seen) {
+    if (!basketId) return;
+
+    try {
+        const key = `${INTERSTITIAL_SEEN_STORAGE_PREFIX}${basketId}`;
+        if (seen) {
+            window.sessionStorage.setItem(key, '1');
+        } else {
+            window.sessionStorage.removeItem(key);
+        }
+    } catch {
+        // Storage failures should never break checkout flow.
+    }
+}
+
 /**
  * @typedef {Object} BasketState
  * @property {number} total
@@ -139,6 +176,8 @@ import { MIN_POSTAL_CODE_LENGTH } from '../services/validation.js';
  */
 export function initCheckoutStore(initialData = {}) {
     const announcer = createAnnouncer();
+    const initialBasketId = initialData.basketId ?? initialData.basket?.id ?? null;
+    const initialInterstitialSeen = getInterstitialSeenForBasket(initialBasketId);
 
     // Parse initial shipping selections from groups
     // Note: JSON from Razor uses 'selectedOptionId', not 'selectedShippingOptionId'
@@ -226,6 +265,12 @@ export function initCheckoutStore(initialData = {}) {
             subtotal: initialData.basket?.subtotal ?? 0,
             discount: initialData.basket?.discount ?? 0
         },
+
+        /** @type {string|null} */
+        basketId: initialBasketId,
+
+        /** @type {Array} */
+        basketLineItems: initialData.basketLineItems ?? initialData.basket?.lineItems ?? [],
 
         // Tax-inclusive display state
         /** @type {boolean} */
@@ -331,8 +376,11 @@ export function initCheckoutStore(initialData = {}) {
         /** @type {string|null} */
         upsellsError: null,
 
+        /** @type {boolean} Whether interstitial upsells have been shown for this basket session */
+        interstitialSeen: initialInterstitialSeen,
+
         /** @type {boolean} Whether interstitial upsells have been dismissed */
-        interstitialDismissed: false,
+        interstitialDismissed: initialInterstitialSeen,
 
         /** @type {boolean} Whether inline upsells section is collapsed */
         inlineUpsellsCollapsed: false,
@@ -488,6 +536,19 @@ export function initCheckoutStore(initialData = {}) {
          * @param {Object} data - Basket data from API
          */
         updateBasket(data) {
+            if (!data) return;
+
+            // Keep basket identity in sync for session-scoped interstitial persistence.
+            if (data.id) {
+                const nextBasketId = String(data.id);
+                if (this.basketId !== nextBasketId) {
+                    this.basketId = nextBasketId;
+                    const seenForBasket = getInterstitialSeenForBasket(nextBasketId);
+                    this.interstitialSeen = seenForBasket;
+                    this.interstitialDismissed = seenForBasket;
+                }
+            }
+
             // Create a new basket object to ensure Alpine's reactivity detects the change
             // Use display currency amounts if available, otherwise fall back to store currency
             this.basket = {
@@ -497,6 +558,12 @@ export function initCheckoutStore(initialData = {}) {
                 subtotal: data.displaySubTotal ?? data.subtotal ?? this.basket.subtotal,
                 discount: data.displayDiscount ?? data.discount ?? this.basket.discount
             };
+
+            if (Array.isArray(data.lineItems)) {
+                this.basketLineItems = data.lineItems;
+            } else if (data.isEmpty === true) {
+                this.basketLineItems = [];
+            }
 
             // Update applied discounts list (for reactive UI updates)
             if (data.appliedDiscounts !== undefined) {
@@ -809,7 +876,14 @@ export function initCheckoutStore(initialData = {}) {
          * @param {Array} suggestions
          */
         setUpsellSuggestions(suggestions) {
-            this.upsellSuggestions = suggestions;
+            const normalizedSuggestions = Array.isArray(suggestions) ? suggestions : [];
+            this.upsellSuggestions = normalizedSuggestions;
+
+            // Mark as seen on first interstitial exposure so refresh does not show it again
+            // during the same checkout basket session.
+            if (!this.interstitialSeen && normalizedSuggestions.some(s => s.checkoutMode === 'Interstitial')) {
+                this.markInterstitialSeen();
+            }
         },
 
         /**
@@ -833,6 +907,15 @@ export function initCheckoutStore(initialData = {}) {
          */
         dismissInterstitial() {
             this.interstitialDismissed = true;
+            this.markInterstitialSeen();
+        },
+
+        /**
+         * Persist that this basket's interstitial upsells have been seen.
+         */
+        markInterstitialSeen() {
+            this.interstitialSeen = true;
+            setInterstitialSeenForBasket(this.basketId, true);
         },
 
         /**
@@ -874,7 +957,9 @@ export function initCheckoutStore(initialData = {}) {
             this.upsellSuggestions = [];
             this.upsellsLoading = false;
             this.upsellsError = null;
+            this.interstitialSeen = false;
             this.interstitialDismissed = false;
+            setInterstitialSeenForBasket(this.basketId, false);
             this.inlineUpsellsCollapsed = false;
             this.addedUpsellProductIds = new Set();
             this.upsellAddingToCart = false;

@@ -67,7 +67,14 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
             </div>
-            <span class="text-lg font-semibold text-gray-900">@(basket != null ? $"{displayCurrencySymbol}{displayTotal.ToString(numberFormat)}" : "--")</span>
+            @if (isSinglePage)
+            {
+                <span class="text-lg font-semibold text-gray-900" x-text="formatCurrency(total)"></span>
+            }
+            else
+            {
+                <span class="text-lg font-semibold text-gray-900">@(basket != null ? $"{displayCurrencySymbol}{displayTotal.ToString(numberFormat)}" : "--")</span>
+            }
         </button>
     }
 
@@ -162,6 +169,58 @@
                         </div>
                     </div>
                 }
+            }
+            else if (isSinglePage)
+            {
+                <template x-for="item in productLineItems" :key="item.id">
+                    <div class="flex gap-4 items-start">
+                        <!-- Product Image with Quantity Badge -->
+                        <div class="relative flex-shrink-0">
+                            <div class="w-16 h-16 bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
+                                <template x-if="item.imageUrl">
+                                    <img :src="item.imageUrl"
+                                         :alt="item.productRootName || item.name"
+                                         class="w-full h-full object-cover" />
+                                </template>
+                                <template x-if="!item.imageUrl">
+                                    <svg class="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    </svg>
+                                </template>
+                            </div>
+                            <span class="absolute -top-2 -right-2 w-5 h-5 bg-[rgba(114,114,114,0.9)] text-white text-xs font-medium rounded-full flex items-center justify-center"
+                                  x-text="item.quantity"></span>
+                        </div>
+
+                        <!-- Product Details -->
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-900 leading-tight" x-text="item.productRootName || item.name"></p>
+
+                            <template x-if="item.selectedOptions?.length > 0">
+                                <div>
+                                    <template x-for="opt in item.selectedOptions"
+                                              :key="item.id + '-' + opt.optionName + '-' + opt.valueName">
+                                        <p class="text-xs text-gray-500 mt-0.5" x-text="opt.optionName + ': ' + opt.valueName"></p>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="getAddonsForProduct(item.sku).length > 0">
+                                <div>
+                                    <template x-for="addon in getAddonsForProduct(item.sku)" :key="addon.id">
+                                        <p class="text-xs text-gray-500 mt-1 pl-3 border-l-2 border-gray-200">
+                                            <span class="font-medium">Add-on:</span>
+                                            <span x-text="addon.name || addon.productRootName"></span>
+                                            <span class="ml-1" x-text="'(+' + formatAddonUnitPrice(addon) + ')'"></span>
+                                        </p>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="text-sm font-medium text-gray-900" x-text="formatLineItemTotal(item)"></div>
+                    </div>
+                </template>
             }
             else if (basket?.LineItems != null)
             {

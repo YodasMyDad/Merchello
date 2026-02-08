@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Merchello.Core.Caching.Services.Interfaces;
+using Merchello.Core.Shared.Security;
 using Merchello.Core.Protocols.UCP.Models;
 using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -41,11 +42,18 @@ public class UcpAgentProfileService : IUcpAgentProfileService
             return null;
         }
 
-        // Validate URI format
-        if (!Uri.TryCreate(profileUri, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != "https" && uri.Scheme != "http"))
+        // Validate URI format and block local/private targets
+        if (!UrlSecurityValidator.TryValidatePublicHttpUrl(
+                profileUri,
+                requireHttps: true,
+                out var uri,
+                out var validationError) ||
+            uri == null)
         {
-            _logger.LogWarning("Invalid agent profile URI format: {ProfileUri}", profileUri);
+            _logger.LogWarning(
+                "Rejected UCP agent profile URI {ProfileUri}. Reason: {Reason}",
+                profileUri,
+                validationError);
             return null;
         }
 
