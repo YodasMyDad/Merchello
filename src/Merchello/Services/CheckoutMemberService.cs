@@ -7,6 +7,7 @@ using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -210,8 +211,12 @@ public class CheckoutMemberService(
         var token = await memberManager.GeneratePasswordResetTokenAsync(member);
 
         // Build reset URL
-        var baseUrl = resetBaseUrl ?? $"{_settings.WebsiteUrl}/checkout/reset-password";
-        var resetUrl = $"{baseUrl}?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
+        var baseUrl = BuildSafePasswordResetBaseUrl(resetBaseUrl);
+        var resetUrl = QueryHelpers.AddQueryString(baseUrl, new Dictionary<string, string?>
+        {
+            ["email"] = email,
+            ["token"] = token
+        });
 
         // Token expiry (display purposes - actual expiry managed by Umbraco Identity)
         var expiresUtc = DateTime.UtcNow.AddHours(1);
@@ -224,6 +229,65 @@ public class CheckoutMemberService(
         logger.LogInformation("Password reset initiated for member: {Email}", email);
 
         return result;
+    }
+
+    /// <summary>
+    /// Builds a safe password reset URL base and rejects external hosts to prevent token leakage.
+    /// </summary>
+    private string BuildSafePasswordResetBaseUrl(string? requestedBaseUrl)
+    {
+        var defaultBaseUrl = $"{_settings.WebsiteUrl.TrimEnd('/')}/checkout/reset-password";
+
+        if (string.IsNullOrWhiteSpace(requestedBaseUrl))
+        {
+            return defaultBaseUrl;
+        }
+
+        if (!Uri.TryCreate(defaultBaseUrl, UriKind.Absolute, out var defaultUri))
+        {
+            logger.LogWarning(
+                "Invalid configured WebsiteUrl for password reset. Falling back to default reset path.");
+            return defaultBaseUrl;
+        }
+
+        if (!Uri.TryCreate(requestedBaseUrl, UriKind.Absolute, out var requestedUri))
+        {
+            logger.LogWarning(
+                "Rejected password reset base URL {ResetBaseUrl}: must be an absolute URL.",
+                requestedBaseUrl);
+            return defaultBaseUrl;
+        }
+
+        var isHttpScheme =
+            string.Equals(requestedUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(requestedUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
+
+        if (!isHttpScheme)
+        {
+            logger.LogWarning(
+                "Rejected password reset base URL {ResetBaseUrl}: unsupported URI scheme.",
+                requestedBaseUrl);
+            return defaultBaseUrl;
+        }
+
+        if (!string.Equals(requestedUri.Scheme, defaultUri.Scheme, StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogWarning(
+                "Rejected password reset base URL {ResetBaseUrl}: scheme does not match configured website URL.",
+                requestedBaseUrl);
+            return defaultBaseUrl;
+        }
+
+        if (!string.Equals(requestedUri.Host, defaultUri.Host, StringComparison.OrdinalIgnoreCase) ||
+            requestedUri.Port != defaultUri.Port)
+        {
+            logger.LogWarning(
+                "Rejected password reset base URL {ResetBaseUrl}: host does not match configured website URL.",
+                requestedBaseUrl);
+            return defaultBaseUrl;
+        }
+
+        return requestedUri.GetLeftPart(UriPartial.Path).TrimEnd('/');
     }
 
     /// <inheritdoc />

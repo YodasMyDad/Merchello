@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Merchello.Core.Shared.Security;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Models.Enums;
 using Merchello.Core.Webhooks.Services.Interfaces;
@@ -33,6 +34,25 @@ public class WebhookDispatcher(
         WebhookSubscription subscription,
         CancellationToken ct = default)
     {
+        if (!UrlSecurityValidator.TryValidatePublicHttpUrl(
+                subscription.TargetUrl,
+                requireHttps: false,
+                out _,
+                out var urlError))
+        {
+            logger.LogWarning(
+                "Blocked webhook delivery {DeliveryId} to disallowed URL {Url}: {Reason}",
+                delivery.Id,
+                subscription.TargetUrl,
+                urlError);
+
+            return new OutboundDeliveryResult
+            {
+                Success = false,
+                ErrorMessage = $"Target URL is not allowed: {urlError}"
+            };
+        }
+
         var client = httpClientFactory.CreateClient("Webhooks");
         client.Timeout = TimeSpan.FromSeconds(subscription.TimeoutSeconds);
 
@@ -140,6 +160,15 @@ public class WebhookDispatcher(
 
     public async Task<OutboundDeliveryResult> PingAsync(string url, CancellationToken ct = default)
     {
+        if (!UrlSecurityValidator.TryValidatePublicHttpUrl(url, requireHttps: false, out _, out var urlError))
+        {
+            return new OutboundDeliveryResult
+            {
+                Success = false,
+                ErrorMessage = $"Target URL is not allowed: {urlError}"
+            };
+        }
+
         var client = httpClientFactory.CreateClient("Webhooks");
         client.Timeout = TimeSpan.FromSeconds(10);
 

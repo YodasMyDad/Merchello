@@ -180,6 +180,14 @@ export const checkoutApi = {
     },
 
     /**
+     * Get the current checkout basket.
+     * @returns {Promise<any>}
+     */
+    getBasket() {
+        return fetchJson(`${BASE_URL}/basket`);
+    },
+
+    /**
      * Save billing and shipping addresses
      * @param {Object} data
      * @param {string} data.email

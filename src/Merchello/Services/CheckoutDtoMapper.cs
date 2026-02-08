@@ -43,8 +43,11 @@ public class CheckoutDtoMapper(
                       || li.LineItemType == LineItemType.Addon)
             .Select(li =>
             {
+                var storeUnitPrice = li.Amount;
+                var storeLineTotal = li.Amount * li.Quantity;
                 var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
                 var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
+                li.ExtendedData.TryGetValue("ImageUrl", out var imageUrlObj);
 
                 return new CheckoutLineItemDto
                 {
@@ -59,12 +62,19 @@ public class CheckoutDtoMapper(
                             ValueName = o.ValueName
                         }).ToList(),
                     Quantity = li.Quantity,
-                    UnitPrice = displayUnitPrice,
-                    LineTotal = displayLineTotal,
-                    FormattedUnitPrice = currencyConversion.Format(displayUnitPrice, displayCurrencySymbol),
-                    FormattedLineTotal = currencyConversion.Format(displayLineTotal, displayCurrencySymbol),
+                    UnitPrice = storeUnitPrice,
+                    LineTotal = storeLineTotal,
+                    FormattedUnitPrice = currencyConversion.Format(storeUnitPrice, storeCurrencySymbol),
+                    FormattedLineTotal = currencyConversion.Format(storeLineTotal, storeCurrencySymbol),
+                    DisplayUnitPrice = displayUnitPrice,
+                    DisplayLineTotal = displayLineTotal,
+                    FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, displayCurrencySymbol),
+                    FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, displayCurrencySymbol),
+                    TaxRate = li.TaxRate,
+                    IsTaxable = li.IsTaxable,
                     LineItemType = li.LineItemType,
-                    DependantLineItemSku = li.DependantLineItemSku
+                    DependantLineItemSku = li.DependantLineItemSku,
+                    ImageUrl = imageUrlObj?.ToString()
                 };
             })
             .ToList();

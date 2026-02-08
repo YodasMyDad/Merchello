@@ -21,6 +21,8 @@ namespace Merchello.Core.Email.Services;
 /// </summary>
 public class SampleNotificationFactory : ISampleNotificationFactory
 {
+    private const string SamplePurchaseOrder = "PO-10001";
+
     private readonly IEmailTopicRegistry _topicRegistry;
     private readonly Dictionary<Type, Func<MerchelloNotification>> _sampleProviders;
 
@@ -255,6 +257,7 @@ public class SampleNotificationFactory : ISampleNotificationFactory
             Id = invoiceId,
             CustomerId = Guid.NewGuid(),
             InvoiceNumber = "INV-00001",
+            PurchaseOrder = SamplePurchaseOrder,
             BillingAddress = CreateSampleAddress(),
             ShippingAddress = CreateSampleAddress(),
             Orders = [order],
@@ -300,6 +303,7 @@ public class SampleNotificationFactory : ISampleNotificationFactory
                 Id = invoiceId,
                 CustomerId = Guid.NewGuid(),
                 InvoiceNumber = "INV-00001",
+                PurchaseOrder = SamplePurchaseOrder,
                 BillingAddress = CreateSampleAddress(),
                 ShippingAddress = CreateSampleAddress(),
                 SubTotal = 49.99m,
@@ -332,6 +336,7 @@ public class SampleNotificationFactory : ISampleNotificationFactory
                 Id = invoiceId,
                 CustomerId = Guid.NewGuid(),
                 InvoiceNumber = "INV-00001",
+                PurchaseOrder = SamplePurchaseOrder,
                 BillingAddress = CreateSampleAddress(),
                 ShippingAddress = CreateSampleAddress(),
                 SubTotal = 89.99m,

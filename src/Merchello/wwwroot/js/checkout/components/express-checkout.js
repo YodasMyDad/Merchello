@@ -339,7 +339,9 @@ export function initExpressCheckout() {
             const button = document.createElement('button');
             button.type = 'button';
             button.className = `express-button ${buttonClass}`;
-            button.innerHTML = `<span>${method.displayName}</span>`;
+            const label = document.createElement('span');
+            label.textContent = method.displayName || 'Express checkout';
+            button.appendChild(label);
             button.disabled = this.isProcessing;
 
             button.addEventListener('click', () => {

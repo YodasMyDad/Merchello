@@ -291,22 +291,40 @@ public class AbandonedCheckoutService(
 
     public async Task MarkAsConvertedAsync(Guid id, Guid invoiceId, CancellationToken ct = default)
     {
+        var statusChanged = false;
+
         using var scope = efCoreScopeProvider.CreateScope();
         var abandoned = await scope.ExecuteWithContextAsync(async db =>
         {
             var record = await db.AbandonedCheckouts.FirstOrDefaultAsync(ac => ac.Id == id, ct);
             if (record == null) return null;
 
+            if (record.Status == AbandonedCheckoutStatus.Converted)
+            {
+                // Idempotent behavior: do not re-convert or emit duplicate notifications.
+                if (record.RecoveredInvoiceId != invoiceId)
+                {
+                    logger.LogWarning(
+                        "Abandoned checkout {CheckoutId} already converted to invoice {ExistingInvoiceId}. Ignoring duplicate conversion to {NewInvoiceId}.",
+                        id,
+                        record.RecoveredInvoiceId,
+                        invoiceId);
+                }
+
+                return record;
+            }
+
             record.Status = AbandonedCheckoutStatus.Converted;
             record.DateConverted = DateTime.UtcNow;
             record.RecoveredInvoiceId = invoiceId;
 
             await db.SaveChangesAsync(ct);
+            statusChanged = true;
             return record;
         });
         scope.Complete();
 
-        if (abandoned != null)
+        if (abandoned != null && statusChanged)
         {
             // Publish notification
             await notificationPublisher.PublishAsync(

@@ -27,6 +27,7 @@ using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Security;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Models;
@@ -965,10 +966,25 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             var webhookUrl = _agentProfileService.GetOrderWebhookUrl(profile);
             if (!string.IsNullOrEmpty(webhookUrl))
             {
-                metadata[Constants.UcpMetadataKeys.WebhookUrl] = webhookUrl;
-                _logger.LogDebug(
-                    "Extracted order webhook URL from agent profile: {WebhookUrl}",
-                    webhookUrl);
+                if (UrlSecurityValidator.TryValidatePublicHttpUrl(
+                        webhookUrl,
+                        requireHttps: true,
+                        out _,
+                        out var urlError))
+                {
+                    metadata[Constants.UcpMetadataKeys.WebhookUrl] = webhookUrl;
+                    _logger.LogDebug(
+                        "Extracted order webhook URL from agent profile: {WebhookUrl}",
+                        webhookUrl);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Rejected UCP webhook URL from agent profile {ProfileUri}. URL: {WebhookUrl}. Reason: {Reason}",
+                        agentIdentity.ProfileUri,
+                        webhookUrl,
+                        urlError);
+                }
             }
 
             // Store agent capabilities

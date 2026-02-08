@@ -203,6 +203,7 @@ public class DigitalProductService(
         CancellationToken ct = default)
     {
         var result = new CrudResult<DownloadLink>();
+        const string invalidTokenMessage = "Invalid download token";
 
         // Parse link ID from token
         var parts = parameters.Token.Split('-', 2);
@@ -211,7 +212,7 @@ public class DigitalProductService(
             result.Messages.Add(new ResultMessage
             {
                 ResultMessageType = ResultMessageType.Error,
-                Message = "Invalid download token format"
+                Message = invalidTokenMessage
             });
             return result;
         }
@@ -227,7 +228,7 @@ public class DigitalProductService(
             result.Messages.Add(new ResultMessage
             {
                 ResultMessageType = ResultMessageType.Error,
-                Message = "Download link not found"
+                Message = invalidTokenMessage
             });
             return result;
         }
@@ -239,7 +240,7 @@ public class DigitalProductService(
             result.Messages.Add(new ResultMessage
             {
                 ResultMessageType = ResultMessageType.Error,
-                Message = "Invalid download token"
+                Message = invalidTokenMessage
             });
             return result;
         }
@@ -253,7 +254,7 @@ public class DigitalProductService(
             result.Messages.Add(new ResultMessage
             {
                 ResultMessageType = ResultMessageType.Error,
-                Message = "Access denied"
+                Message = invalidTokenMessage
             });
             return result;
         }

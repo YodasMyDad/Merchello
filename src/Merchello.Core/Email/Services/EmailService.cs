@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using Merchello.Core.Data;
 using Merchello.Core.Email.Attachments;
@@ -34,6 +35,12 @@ public class EmailService(
     ILogger<EmailService> logger) : IEmailService
 {
     private readonly EmailSettings _settings = emailSettings.Value;
+    private static readonly MethodInfo ResolveTokensGenericMethod =
+        typeof(IEmailTokenResolver).GetMethod(nameof(IEmailTokenResolver.ResolveTokens))
+        ?? throw new InvalidOperationException("Could not locate ResolveTokens<TNotification> method");
+    private static readonly MethodInfo GenerateAttachmentsGenericMethod =
+        typeof(IEmailAttachmentResolver).GetMethod(nameof(IEmailAttachmentResolver.GenerateAttachmentsAsync))
+        ?? throw new InvalidOperationException("Could not locate GenerateAttachmentsAsync<TNotification> method");
 
     public async Task<OutboundDelivery> QueueDeliveryAsync<TNotification>(
         EmailConfiguration config,
@@ -42,33 +49,15 @@ public class EmailService(
         string? entityType = null,
         CancellationToken ct = default) where TNotification : MerchelloNotification
     {
-        var storeContext = GetStoreContext();
-        var emailModel = new EmailModel<TNotification>
-        {
-            Notification = notification,
-            Store = storeContext,
-            Configuration = config
-        };
-
-        // Resolve token expressions
-        var toAddress = tokenResolver.ResolveTokens(config.ToExpression, emailModel);
-        var ccAddress = !string.IsNullOrWhiteSpace(config.CcExpression)
-            ? tokenResolver.ResolveTokens(config.CcExpression, emailModel)
-            : null;
-        var bccAddress = !string.IsNullOrWhiteSpace(config.BccExpression)
-            ? tokenResolver.ResolveTokens(config.BccExpression, emailModel)
-            : null;
-        var fromAddress = !string.IsNullOrWhiteSpace(config.FromExpression)
-            ? tokenResolver.ResolveTokens(config.FromExpression, emailModel)
-            : _settings.DefaultFromAddress ?? storeContext.Email;
-        var subject = tokenResolver.ResolveTokens(config.SubjectExpression, emailModel);
+        var context = CreateRuntimeEmailContext(config, notification);
+        var resolved = ResolveEmailFields(config, context);
 
         // Render the template
         string? body = null;
         string? templateError = null;
         try
         {
-            body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel, ct);
+            body = await RenderTemplateRuntimeAsync(config, context, ct);
         }
         catch (Exception ex)
         {
@@ -85,19 +74,11 @@ public class EmailService(
         {
             try
             {
-                var attachmentResults = await attachmentResolver.GenerateAttachmentsAsync(
-                    emailModel, config.AttachmentAliases, ct);
+                var attachmentResults = await GenerateAttachmentResultsRuntimeAsync(config, context, ct);
 
                 if (attachmentResults.Count > 0)
                 {
-                    var attachmentRefs = new List<StoredAttachmentReference>();
-                    foreach (var result in attachmentResults)
-                    {
-                        var reference = await attachmentStorageService.SaveAttachmentAsync(
-                            deliveryId, result, ct);
-                        attachmentRefs.Add(reference);
-                    }
-                    storedAttachments = attachmentRefs;
+                    storedAttachments = await SaveAttachmentResultsAsync(deliveryId, attachmentResults, ct);
 
                     logger.LogDebug(
                         "Saved {Count} attachments to temp storage for email configuration {ConfigurationId}",
@@ -116,8 +97,8 @@ public class EmailService(
         // Create the delivery record - mark as failed if template couldn't render
         var extendedData = new Dictionary<string, object>
         {
-            ["cc"] = ccAddress ?? string.Empty,
-            ["bcc"] = bccAddress ?? string.Empty
+            ["cc"] = resolved.Cc ?? string.Empty,
+            ["bcc"] = resolved.Bcc ?? string.Empty
         };
 
         if (storedAttachments != null && storedAttachments.Count > 0)
@@ -135,9 +116,9 @@ public class EmailService(
             EntityType = entityType,
             Status = templateError != null ? OutboundDeliveryStatus.Failed : OutboundDeliveryStatus.Pending,
             ErrorMessage = templateError,
-            EmailRecipients = toAddress,
-            EmailSubject = subject,
-            EmailFrom = fromAddress,
+            EmailRecipients = resolved.To,
+            EmailSubject = resolved.Subject,
+            EmailFrom = resolved.From,
             EmailBody = body,
             DateCreated = DateTime.UtcNow,
             AttemptNumber = 0,
@@ -163,7 +144,7 @@ public class EmailService(
         {
             logger.LogInformation(
                 "Queued email delivery {DeliveryId} for configuration {ConfigurationId} to {Recipients}",
-                delivery.Id, config.Id, toAddress);
+                delivery.Id, config.Id, resolved.To);
         }
 
         return delivery;
@@ -174,43 +155,49 @@ public class EmailService(
         TNotification notification,
         CancellationToken ct = default) where TNotification : MerchelloNotification
     {
-        var storeContext = GetStoreContext();
-        var emailModel = new EmailModel<TNotification>
-        {
-            Notification = notification,
-            Store = storeContext,
-            Configuration = config
-        };
+        var context = CreateRuntimeEmailContext(config, notification);
 
         try
         {
-            // Resolve token expressions
-            var toAddress = tokenResolver.ResolveTokens(config.ToExpression, emailModel);
-            var ccAddress = !string.IsNullOrWhiteSpace(config.CcExpression)
-                ? tokenResolver.ResolveTokens(config.CcExpression, emailModel)
-                : null;
-            var bccAddress = !string.IsNullOrWhiteSpace(config.BccExpression)
-                ? tokenResolver.ResolveTokens(config.BccExpression, emailModel)
-                : null;
-            var fromAddress = !string.IsNullOrWhiteSpace(config.FromExpression)
-                ? tokenResolver.ResolveTokens(config.FromExpression, emailModel)
-                : _settings.DefaultFromAddress ?? storeContext.Email;
-            var subject = tokenResolver.ResolveTokens(config.SubjectExpression, emailModel);
+            var resolved = ResolveEmailFields(config, context);
 
             // Render the template
-            var body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel, ct);
+            var body = await RenderTemplateRuntimeAsync(config, context, ct);
+
+            // Generate attachments if configured
+            IEnumerable<EmailMessageAttachment>? emailAttachments = null;
+            if (config.AttachmentAliases.Count > 0)
+            {
+                try
+                {
+                    var attachmentResults = await GenerateAttachmentResultsRuntimeAsync(config, context, ct);
+                    emailAttachments = ToEmailMessageAttachments(attachmentResults);
+
+                    if (attachmentResults.Count > 0)
+                    {
+                        logger.LogDebug("Generated {Count} attachments for immediate email", attachmentResults.Count);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(
+                        ex,
+                        "Failed to generate attachments for immediate email configuration {ConfigurationId}, continuing without attachments",
+                        config.Id);
+                }
+            }
 
             // Send the email
             var message = new EmailMessage(
-                fromAddress,
-                toAddress.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries),
-                ccAddress?.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries),
-                bccAddress?.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries),
+                resolved.From,
+                SplitAddresses(resolved.To),
+                SplitAddressesOrNull(resolved.Cc),
+                SplitAddressesOrNull(resolved.Bcc),
                 null, // replyTo
-                subject,
+                resolved.Subject,
                 body,
                 true, // isBodyHtml
-                null  // attachments
+                emailAttachments
             );
 
             await emailSender.SendAsync(message, "MerchelloEmail", enableNotification: true, expires: null);
@@ -220,7 +207,7 @@ public class EmailService(
 
             logger.LogInformation(
                 "Sent immediate email for configuration {ConfigurationId} to {Recipients}",
-                config.Id, toAddress);
+                config.Id, resolved.To);
 
             return true;
         }
@@ -318,13 +305,9 @@ public class EmailService(
 
             var message = new EmailMessage(
                 delivery.EmailFrom,
-                delivery.EmailRecipients.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries),
-                !string.IsNullOrWhiteSpace(ccAddress)
-                    ? ccAddress.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
-                    : null,
-                !string.IsNullOrWhiteSpace(bccAddress)
-                    ? bccAddress.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries)
-                    : null,
+                SplitAddresses(delivery.EmailRecipients),
+                SplitAddressesOrNull(ccAddress),
+                SplitAddressesOrNull(bccAddress),
                 null, // replyTo
                 delivery.EmailSubject,
                 delivery.EmailBody,
@@ -409,48 +392,26 @@ public class EmailService(
     {
         var result = new EmailSendTestResultDto { Recipient = testRecipient };
 
-        var config = await configurationService.GetByIdAsync(configurationId, ct);
-        if (config == null)
+        var loaded = await LoadSampleContextAsync(configurationId, ct);
+        if (loaded.Error != null || loaded.Config == null || loaded.Context == null)
         {
-            result.ErrorMessage = "Email configuration not found";
+            result.ErrorMessage = loaded.Error ?? "Failed to load email configuration";
             return result;
         }
+        var config = loaded.Config;
+        var context = loaded.Context;
 
         try
         {
-            var storeContext = GetStoreContext();
-
-            // Create a sample notification for testing
-            var sampleNotification = sampleNotificationFactory.CreateSampleNotification(config.Topic);
-            if (sampleNotification == null)
-            {
-                result.ErrorMessage = $"Cannot create sample notification for topic: {config.Topic}";
-                return result;
-            }
-
-            // Build a non-generic EmailModel using reflection
-            var emailModelType = typeof(EmailModel<>).MakeGenericType(sampleNotification.GetType());
-            var emailModel = Activator.CreateInstance(emailModelType);
-            emailModelType.GetProperty("Notification")!.SetValue(emailModel, sampleNotification);
-            emailModelType.GetProperty("Store")!.SetValue(emailModel, storeContext);
-            emailModelType.GetProperty("Configuration")!.SetValue(emailModel, config);
-
-            // Create a non-generic model for token resolution
-            var nonGenericModel = new EmailModel
-            {
-                Notification = sampleNotification,
-                Store = storeContext,
-                Configuration = config
-            };
-
-            // Resolve tokens using non-generic methods
-            var fromAddress = !string.IsNullOrWhiteSpace(config.FromExpression)
-                ? ResolveTokensNonGeneric(config.FromExpression, nonGenericModel)
-                : _settings.DefaultFromAddress ?? storeContext.Email;
-            var subject = ResolveTokensNonGeneric(config.SubjectExpression, nonGenericModel);
+            var resolved = ResolveEmailFields(
+                config,
+                context,
+                toOverride: testRecipient,
+                includeCcBcc: false,
+                subjectPrefix: "[TEST] ");
 
             // Render the template
-            var body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel!, ct);
+            var body = await RenderTemplateRuntimeAsync(config, context, ct);
 
             // Generate attachments if configured
             IEnumerable<EmailMessageAttachment>? emailAttachments = null;
@@ -458,31 +419,11 @@ public class EmailService(
             {
                 try
                 {
-                    // Use reflection to call the generic GenerateAttachmentsAsync method
-                    var notificationType = sampleNotification.GetType();
-                    var method = typeof(IEmailAttachmentResolver)
-                        .GetMethod(nameof(IEmailAttachmentResolver.GenerateAttachmentsAsync))!
-                        .MakeGenericMethod(notificationType);
-
-                    var task = (Task)method.Invoke(attachmentResolver, [emailModel, config.AttachmentAliases, ct])!;
-                    await task;
-
-                    // Get the result from the task
-                    var resultProperty = task.GetType().GetProperty("Result")!;
-                    var attachmentResults = (IReadOnlyList<EmailAttachmentResult>)resultProperty.GetValue(task)!;
+                    var attachmentResults = await GenerateAttachmentResultsRuntimeAsync(config, context, ct);
+                    emailAttachments = ToEmailMessageAttachments(attachmentResults);
 
                     if (attachmentResults.Count > 0)
                     {
-                        var attachmentList = new List<EmailMessageAttachment>();
-                        foreach (var attachment in attachmentResults)
-                        {
-                            byte[] content = attachment.Content;
-                            attachmentList.Add(new EmailMessageAttachment(
-                                new MemoryStream(content),
-                                attachment.FileName));
-                        }
-                        emailAttachments = attachmentList;
-
                         logger.LogDebug("Generated {Count} attachments for test email", attachmentResults.Count);
                     }
                 }
@@ -495,12 +436,12 @@ public class EmailService(
 
             // Send to test recipient
             var message = new EmailMessage(
-                fromAddress,
-                [testRecipient],
+                resolved.From,
+                SplitAddresses(resolved.To),
                 null,
                 null,
                 null,
-                $"[TEST] {subject}",
+                resolved.Subject,
                 body,
                 true,
                 emailAttachments
@@ -525,57 +466,28 @@ public class EmailService(
     {
         var result = new EmailPreviewDto();
 
-        var config = await configurationService.GetByIdAsync(configurationId, ct);
-        if (config == null)
+        var loaded = await LoadSampleContextAsync(configurationId, ct);
+        if (loaded.Error != null || loaded.Config == null || loaded.Context == null)
         {
-            result.ErrorMessage = "Email configuration not found";
+            result.ErrorMessage = loaded.Error ?? "Failed to load email configuration";
             return result;
         }
+        var config = loaded.Config;
+        var context = loaded.Context;
 
         try
         {
-            var storeContext = GetStoreContext();
-
-            // Create a sample notification for preview
-            var sampleNotification = sampleNotificationFactory.CreateSampleNotification(config.Topic);
-            if (sampleNotification == null)
-            {
-                result.ErrorMessage = $"Cannot create sample notification for topic: {config.Topic}";
-                return result;
-            }
-
-            // Create a non-generic model for token resolution
-            var nonGenericModel = new EmailModel
-            {
-                Notification = sampleNotification,
-                Store = storeContext,
-                Configuration = config
-            };
-
-            // Resolve tokens
-            result.To = ResolveTokensNonGeneric(config.ToExpression, nonGenericModel);
-            result.Cc = !string.IsNullOrWhiteSpace(config.CcExpression)
-                ? ResolveTokensNonGeneric(config.CcExpression, nonGenericModel)
-                : null;
-            result.Bcc = !string.IsNullOrWhiteSpace(config.BccExpression)
-                ? ResolveTokensNonGeneric(config.BccExpression, nonGenericModel)
-                : null;
-            result.From = !string.IsNullOrWhiteSpace(config.FromExpression)
-                ? ResolveTokensNonGeneric(config.FromExpression, nonGenericModel)
-                : _settings.DefaultFromAddress ?? storeContext.Email ?? "noreply@example.com";
-            result.Subject = ResolveTokensNonGeneric(config.SubjectExpression, nonGenericModel);
+            var resolved = ResolveEmailFields(config, context);
+            result.To = resolved.To;
+            result.Cc = resolved.Cc;
+            result.Bcc = resolved.Bcc;
+            result.From = resolved.From;
+            result.Subject = resolved.Subject;
 
             // Render the template
             try
             {
-                // Build a generic EmailModel using reflection
-                var emailModelType = typeof(EmailModel<>).MakeGenericType(sampleNotification.GetType());
-                var emailModel = Activator.CreateInstance(emailModelType);
-                emailModelType.GetProperty("Notification")!.SetValue(emailModel, sampleNotification);
-                emailModelType.GetProperty("Store")!.SetValue(emailModel, storeContext);
-                emailModelType.GetProperty("Configuration")!.SetValue(emailModel, config);
-
-                result.Body = await templateRenderer.RenderAsync(config.TemplatePath, emailModel!, ct);
+                result.Body = await RenderTemplateRuntimeAsync(config, context, ct);
             }
             catch (FileNotFoundException)
             {
@@ -636,70 +548,185 @@ public class EmailService(
         };
     }
 
-    /// <summary>
-    /// Resolves tokens using non-generic model (for preview and test scenarios).
-    /// </summary>
-    private static string ResolveTokensNonGeneric(string template, EmailModel model)
+    private RuntimeEmailContext CreateRuntimeEmailContext(EmailConfiguration config, MerchelloNotification notification)
+    {
+        var storeContext = GetStoreContext();
+        return new RuntimeEmailContext
+        {
+            StoreContext = storeContext,
+            NotificationType = notification.GetType(),
+            EmailModel = CreateRuntimeEmailModel(notification, storeContext, config)
+        };
+    }
+
+    private static object CreateRuntimeEmailModel(
+        MerchelloNotification notification,
+        EmailStoreContext storeContext,
+        EmailConfiguration config)
+    {
+        var emailModelType = typeof(EmailModel<>).MakeGenericType(notification.GetType());
+        var emailModel = Activator.CreateInstance(emailModelType)
+            ?? throw new InvalidOperationException($"Failed to create EmailModel for {notification.GetType().Name}");
+        emailModelType.GetProperty(nameof(EmailModel.Notification))!.SetValue(emailModel, notification);
+        emailModelType.GetProperty(nameof(EmailModel.Store))!.SetValue(emailModel, storeContext);
+        emailModelType.GetProperty(nameof(EmailModel.Configuration))!.SetValue(emailModel, config);
+        return emailModel;
+    }
+
+    private ResolvedEmailFields ResolveEmailFields(
+        EmailConfiguration config,
+        RuntimeEmailContext context,
+        string? toOverride = null,
+        bool includeCcBcc = true,
+        string? subjectPrefix = null)
+    {
+        var to = toOverride ?? ResolveTokensRuntime(config.ToExpression, context.EmailModel, context.NotificationType);
+        var cc = includeCcBcc && !string.IsNullOrWhiteSpace(config.CcExpression)
+            ? ResolveTokensRuntime(config.CcExpression, context.EmailModel, context.NotificationType)
+            : null;
+        var bcc = includeCcBcc && !string.IsNullOrWhiteSpace(config.BccExpression)
+            ? ResolveTokensRuntime(config.BccExpression, context.EmailModel, context.NotificationType)
+            : null;
+        var from = !string.IsNullOrWhiteSpace(config.FromExpression)
+            ? ResolveTokensRuntime(config.FromExpression, context.EmailModel, context.NotificationType)
+            : _settings.DefaultFromAddress ?? context.StoreContext.Email ?? "noreply@example.com";
+        var subject = ResolveTokensRuntime(config.SubjectExpression, context.EmailModel, context.NotificationType);
+        if (!string.IsNullOrWhiteSpace(subjectPrefix))
+        {
+            subject = $"{subjectPrefix}{subject}";
+        }
+
+        return new ResolvedEmailFields
+        {
+            To = to,
+            Cc = cc,
+            Bcc = bcc,
+            From = from,
+            Subject = subject
+        };
+    }
+
+    private string ResolveTokensRuntime(string template, object emailModel, Type notificationType)
     {
         if (string.IsNullOrEmpty(template))
             return template;
 
-        // Simple token replacement using reflection
-        return System.Text.RegularExpressions.Regex.Replace(template, @"\{\{([a-zA-Z0-9_.]+)\}\}", match =>
-        {
-            var path = match.Groups[1].Value;
-            var value = ResolvePathNonGeneric(path, model);
-            return value ?? match.Value;
-        });
+        var method = ResolveTokensGenericMethod.MakeGenericMethod(notificationType);
+        var resolved = method.Invoke(tokenResolver, [template, emailModel]) as string;
+        return resolved ?? template;
     }
 
-    /// <summary>
-    /// Resolves a token path on a non-generic model.
-    /// </summary>
-    private static string? ResolvePathNonGeneric(string path, EmailModel model)
+    private async Task<string> RenderTemplateRuntimeAsync(
+        EmailConfiguration config,
+        RuntimeEmailContext context,
+        CancellationToken ct)
     {
-        var parts = path.Split('.');
-        if (parts.Length == 0)
-            return null;
+        return await templateRenderer.RenderAsync(config.TemplatePath, context.EmailModel, ct);
+    }
 
-        object? current = parts[0].ToLowerInvariant() switch
+    private async Task<IReadOnlyList<EmailAttachmentResult>> GenerateAttachmentResultsRuntimeAsync(
+        EmailConfiguration config,
+        RuntimeEmailContext context,
+        CancellationToken ct)
+    {
+        if (config.AttachmentAliases.Count == 0)
         {
-            "store" => model.Store,
-            "config" or "configuration" => model.Configuration,
-            "notification" => model.Notification,
-            _ => GetPropertyValue(model.Notification, parts[0]) ?? GetPropertyValue(model.Store, parts[0])
-        };
-
-        if (current == null)
-            return null;
-
-        var startIndex = parts[0].ToLowerInvariant() switch
-        {
-            "store" or "config" or "configuration" or "notification" => 1,
-            _ => 1
-        };
-
-        for (var i = startIndex; i < parts.Length; i++)
-        {
-            current = GetPropertyValue(current, parts[i]);
-            if (current == null)
-                return null;
+            return [];
         }
 
-        return current?.ToString();
+        var method = GenerateAttachmentsGenericMethod.MakeGenericMethod(context.NotificationType);
+        var task = (Task)method.Invoke(attachmentResolver, [context.EmailModel, config.AttachmentAliases, ct])!;
+        await task;
+
+        var resultProperty = task.GetType().GetProperty("Result")
+            ?? throw new InvalidOperationException("Could not access attachment generation result");
+        var attachmentResults = resultProperty.GetValue(task) as IReadOnlyList<EmailAttachmentResult>;
+
+        return attachmentResults ?? [];
     }
 
-    private static object? GetPropertyValue(object? obj, string propertyName)
+    private async Task<List<StoredAttachmentReference>> SaveAttachmentResultsAsync(
+        Guid deliveryId,
+        IReadOnlyList<EmailAttachmentResult> attachmentResults,
+        CancellationToken ct)
     {
-        if (obj == null)
+        var attachmentRefs = new List<StoredAttachmentReference>(attachmentResults.Count);
+        foreach (var attachmentResult in attachmentResults)
+        {
+            var reference = await attachmentStorageService.SaveAttachmentAsync(
+                deliveryId, attachmentResult, ct);
+            attachmentRefs.Add(reference);
+        }
+
+        return attachmentRefs;
+    }
+
+    private static IEnumerable<EmailMessageAttachment>? ToEmailMessageAttachments(
+        IReadOnlyList<EmailAttachmentResult> attachmentResults)
+    {
+        if (attachmentResults.Count == 0)
+        {
             return null;
+        }
 
-        var type = obj.GetType();
-        var property = type.GetProperty(propertyName,
-            System.Reflection.BindingFlags.Public |
-            System.Reflection.BindingFlags.Instance |
-            System.Reflection.BindingFlags.IgnoreCase);
+        var attachments = new List<EmailMessageAttachment>(attachmentResults.Count);
+        foreach (var attachment in attachmentResults)
+        {
+            attachments.Add(new EmailMessageAttachment(new MemoryStream(attachment.Content), attachment.FileName));
+        }
 
-        return property?.GetValue(obj);
+        return attachments;
+    }
+
+    private static string[] SplitAddresses(string addresses)
+    {
+        return addresses.Split([',', ';'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    private static string[]? SplitAddressesOrNull(string? addresses)
+    {
+        if (string.IsNullOrWhiteSpace(addresses))
+        {
+            return null;
+        }
+
+        return SplitAddresses(addresses);
+    }
+
+    private async Task<(EmailConfiguration? Config, RuntimeEmailContext? Context, string? Error)> LoadSampleContextAsync(
+        Guid configurationId,
+        CancellationToken ct)
+    {
+        var config = await configurationService.GetByIdAsync(configurationId, ct);
+        if (config == null)
+        {
+            return (null, null, "Email configuration not found");
+        }
+
+        var sampleNotification = sampleNotificationFactory.CreateSampleNotification(config.Topic);
+        if (sampleNotification == null)
+        {
+            return (config, null, $"Cannot create sample notification for topic: {config.Topic}");
+        }
+
+        var context = CreateRuntimeEmailContext(config, sampleNotification);
+        return (config, context, null);
+    }
+
+    private sealed class RuntimeEmailContext
+    {
+        public required Type NotificationType { get; init; }
+        public required object EmailModel { get; init; }
+        public required EmailStoreContext StoreContext { get; init; }
+    }
+
+    private sealed class ResolvedEmailFields
+    {
+        public required string To { get; init; }
+        public string? Cc { get; init; }
+        public string? Bcc { get; init; }
+        public required string From { get; init; }
+        public required string Subject { get; init; }
     }
 }

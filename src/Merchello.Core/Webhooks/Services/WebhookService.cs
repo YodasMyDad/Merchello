@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Security;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -60,9 +61,13 @@ public class WebhookService(
         }
 
         // Validate URL format
-        if (!IsValidHttpUrl(parameters.TargetUrl))
+        if (!TryValidateWebhookUrl(parameters.TargetUrl, out var urlError))
         {
-            result.Messages.Add(new ResultMessage { ResultMessageType = ResultMessageType.Error, Message = "Target URL must be a valid HTTP or HTTPS URL." });
+            result.Messages.Add(new ResultMessage
+            {
+                ResultMessageType = ResultMessageType.Error,
+                Message = $"Target URL is not allowed: {urlError}"
+            });
             return result;
         }
 
@@ -126,9 +131,13 @@ public class WebhookService(
         // Validate URL if provided
         if (!string.IsNullOrWhiteSpace(parameters.TargetUrl))
         {
-            if (!IsValidHttpUrl(parameters.TargetUrl))
+            if (!TryValidateWebhookUrl(parameters.TargetUrl, out var urlError))
             {
-                result.Messages.Add(new ResultMessage { ResultMessageType = ResultMessageType.Error, Message = "Target URL must be a valid HTTP or HTTPS URL." });
+                result.Messages.Add(new ResultMessage
+                {
+                    ResultMessageType = ResultMessageType.Error,
+                    Message = $"Target URL is not allowed: {urlError}"
+                });
                 return result;
             }
             subscription.TargetUrl = parameters.TargetUrl;
@@ -560,12 +569,12 @@ public class WebhookService(
 
     public async Task<OutboundDeliveryResult> PingAsync(string url, CancellationToken ct = default)
     {
-        if (!IsValidHttpUrl(url))
+        if (!TryValidateWebhookUrl(url, out var urlError))
         {
             return new OutboundDeliveryResult
             {
                 Success = false,
-                ErrorMessage = "Invalid URL"
+                ErrorMessage = $"Invalid URL: {urlError}"
             };
         }
 
@@ -689,14 +698,13 @@ public class WebhookService(
 
     #region Utilities
 
-    private static bool IsValidHttpUrl(string url)
+    private static bool TryValidateWebhookUrl(string url, out string error)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            return false;
-        }
-
-        return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
+        return UrlSecurityValidator.TryValidatePublicHttpUrl(
+            url,
+            requireHttps: false,
+            out _,
+            out error);
     }
 
     private static OutboundDelivery CreatePendingWebhookDelivery(

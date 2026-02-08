@@ -17,6 +17,80 @@
     let currentContainer = null;
 
     /**
+     * Wait until a mount target is actually in the DOM and visible.
+     * Stripe can throw "didn't mount normally" if mounted too early.
+     * @param {HTMLElement} element
+     * @param {number} timeoutMs
+     * @returns {Promise<void>}
+     */
+    function waitForMountableElement(element, timeoutMs = 5000) {
+        return new Promise((resolve, reject) => {
+            const start = Date.now();
+
+            const check = () => {
+                if (!element || !element.isConnected) {
+                    if (Date.now() - start > timeoutMs) {
+                        reject(new Error('Stripe mount target is not connected to the DOM.'));
+                        return;
+                    }
+                    requestAnimationFrame(check);
+                    return;
+                }
+
+                const rect = element.getBoundingClientRect();
+                const style = window.getComputedStyle(element);
+                const isVisible = style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0;
+
+                if (isVisible) {
+                    resolve();
+                    return;
+                }
+
+                if (Date.now() - start > timeoutMs) {
+                    reject(new Error('Stripe mount target is not visible.'));
+                    return;
+                }
+
+                requestAnimationFrame(check);
+            };
+
+            requestAnimationFrame(check);
+        });
+    }
+
+    /**
+     * Wait for Stripe Payment Element ready or loaderror.
+     * @param {Object} element
+     * @param {number} timeoutMs
+     * @returns {Promise<void>}
+     */
+    function waitForPaymentElementReady(element, timeoutMs = 5000) {
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const timeoutId = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                reject(new Error('Stripe Payment Element did not become ready after mount.'));
+            }, timeoutMs);
+
+            element.on('ready', () => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeoutId);
+                resolve();
+            });
+
+            element.on('loaderror', (event) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeoutId);
+                const message = event?.error?.message || 'Stripe Payment Element failed to load.';
+                reject(new Error(message));
+            });
+        });
+    }
+
+    /**
      * Stripe Payment Adapter
      * Registered with window.MerchelloPaymentAdapters['stripe']
      */
@@ -71,17 +145,47 @@
                     }
                 });
 
-                // Create and mount the Payment Element
-                paymentElement = elementsInstance.create('payment', {
-                    layout: 'tabs'
-                });
-
-                // Mount to actual DOM element for Shadow DOM compatibility
                 const paymentElementContainer = container.querySelector('#stripe-payment-element');
                 if (!paymentElementContainer) {
                     throw new Error('Payment element container not found');
                 }
-                paymentElement.mount(paymentElementContainer);
+
+                // Ensure mount target is visible/stable before Stripe mount.
+                await waitForMountableElement(paymentElementContainer, 5000);
+
+                // Create and mount the Payment Element.
+                // Retry once if Stripe fails to reach ready state.
+                let lastMountError = null;
+                for (let attempt = 0; attempt < 2; attempt++) {
+                    paymentElement = elementsInstance.create('payment', {
+                        layout: 'tabs'
+                    });
+
+                    const readyPromise = waitForPaymentElementReady(paymentElement, 5000);
+                    paymentElement.mount(paymentElementContainer);
+
+                    try {
+                        await readyPromise;
+                        lastMountError = null;
+                        break;
+                    } catch (mountError) {
+                        lastMountError = mountError;
+                        try {
+                            paymentElement.destroy();
+                        } catch (destroyError) {
+                            console.warn('Stripe Payment Element destroy after failed mount:', destroyError);
+                        }
+                        paymentElement = null;
+
+                        // Give layout one frame before retrying.
+                        await new Promise((resolve) => requestAnimationFrame(resolve));
+                        await waitForMountableElement(paymentElementContainer, 2000);
+                    }
+                }
+
+                if (lastMountError) {
+                    throw lastMountError;
+                }
 
                 // Handle validation errors
                 // Note: Use currentContainer for Shadow DOM compatibility

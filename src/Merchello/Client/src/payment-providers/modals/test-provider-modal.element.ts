@@ -98,6 +98,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   #isConnected = false;
   #cardinalStyleElement?: HTMLStyleElement;
   #lightDomContainer?: HTMLElement;
+  #lightDomHost?: HTMLElement;
   #expressLightDomContainers: Map<string, HTMLElement> = new Map();
 
   override connectedCallback(): void {
@@ -116,7 +117,22 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     this.#lightDomContainer = document.createElement('div');
     this.#lightDomContainer.id = `merchello-payment-container-${Date.now()}`;
     this.#lightDomContainer.style.cssText = 'display: none;';
-    document.body.appendChild(this.#lightDomContainer);
+    this._getLightDomHost().appendChild(this.#lightDomContainer);
+  }
+
+  private _getLightDomHost(): HTMLElement {
+    if (this.#lightDomHost?.isConnected) {
+      return this.#lightDomHost;
+    }
+
+    // Sidebar modals render a <dialog> with a default <slot>. Appending to the
+    // modal element keeps content in light DOM (Stripe compatibility) while still
+    // being rendered in the dialog's top-layer via slot projection.
+    const modalElement = this.closest('uui-modal-sidebar, uui-modal-dialog') as HTMLElement | null;
+    const host = modalElement ?? this.parentElement ?? document.body;
+
+    this.#lightDomHost = host;
+    return host;
   }
 
   private _checkPaymentLinkSupport(): void {
@@ -157,6 +173,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       container.remove();
     }
     this.#expressLightDomContainers.clear();
+    this.#lightDomHost = undefined;
   }
 
   private _restoreSavedValues(): void {
@@ -639,7 +656,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       if (!lightDomContainer) {
         lightDomContainer = document.createElement('div');
         lightDomContainer.id = `merchello-express-container-${method.methodAlias}-${Date.now()}`;
-        document.body.appendChild(lightDomContainer);
+        this._getLightDomHost().appendChild(lightDomContainer);
         this.#expressLightDomContainers.set(method.methodAlias, lightDomContainer);
       }
 
@@ -806,6 +823,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
   // ============================================
 
   private _handleClose(): void {
+    this._cleanupLightDomContainers();
     this.modalContext?.reject();
   }
 
