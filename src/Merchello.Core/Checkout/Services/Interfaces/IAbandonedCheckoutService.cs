@@ -65,6 +65,11 @@ public interface IAbandonedCheckoutService
     /// </summary>
     Task MarkAsConvertedAsync(Guid id, Guid invoiceId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Records that a recovery email was sent (manual or scheduled).
+    /// </summary>
+    Task<bool> MarkRecoveryEmailSentAsync(Guid id, DateTime? sentUtc = null, CancellationToken ct = default);
+
     // =====================================================
     // Recovery
     // =====================================================

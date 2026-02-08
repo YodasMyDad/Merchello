@@ -155,6 +155,37 @@ public class PdfServiceTests
     }
 
     [Fact]
+    public void DrawTable_LongCellValue_WrapsAndIncreasesRowHeight()
+    {
+        var doc = _pdfService.CreateDocument("Long Cell Wrap Test");
+        var (page, graphics) = _pdfService.AddPage(doc);
+
+        var columns = new List<PdfTableColumn>
+        {
+            new("Item", 150),
+            new("SKU", 190),
+            new("Qty", 40, PdfTextAlignment.Right),
+            new("Price", 55, PdfTextAlignment.Right),
+            new("Total", 55, PdfTextAlignment.Right)
+        };
+
+        var rows = new List<string[]>
+        {
+            new[] { "Black - XS", new string('W', 120), "1", "$44.15", "$44.15" }
+        };
+
+        var startY = 100.0;
+        var endY = _pdfService.DrawTable(graphics, startY, columns, rows);
+
+        // Header (22) + single minimal row (18) + footer spacing (10)
+        var minSingleLineHeight = startY + 50.0;
+        endY.ShouldBeGreaterThan(minSingleLineHeight);
+
+        var bytes = _pdfService.SaveToBytes(doc);
+        bytes.Length.ShouldBeGreaterThan(1000);
+    }
+
+    [Fact]
     public void Fonts_AreAvailable()
     {
         var fonts = _pdfService.Fonts;

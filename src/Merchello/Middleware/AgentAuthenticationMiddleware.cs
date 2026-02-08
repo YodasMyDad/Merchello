@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Security.Authentication;
+using System.Globalization;
 
 namespace Merchello.Middleware;
 
@@ -95,6 +96,24 @@ public class AgentAuthenticationMiddleware(
 
         // Parse agent identity from headers
         var agentInfo = ParseAgentInfo(context.Request);
+        var requestedVersion = GetRequestedProtocolVersion(context.Request);
+
+        if (protocol == ProtocolAliases.Ucp &&
+            !string.IsNullOrWhiteSpace(requestedVersion) &&
+            IsVersionUnsupported(requestedVersion, settings.Value.Ucp.Version))
+        {
+            var versionError = ProtocolResponse.VersionUnsupported(
+                requestedVersion,
+                settings.Value.Ucp.Version);
+
+            context.Response.StatusCode = versionError.StatusCode;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                error = versionError.Error?.Code,
+                message = versionError.Error?.Message
+            });
+            return;
+        }
 
         // Publish authenticating notification (allows handlers to block)
         var authenticatingNotification = new AgentAuthenticatingNotification(
@@ -245,6 +264,49 @@ public class AgentAuthenticationMiddleware(
             Protocol = ProtocolAliases.Ucp,
             Capabilities = []
         };
+    }
+
+    private static string? GetRequestedProtocolVersion(HttpRequest request)
+    {
+        if (!request.Headers.TryGetValue(ProtocolHeaders.UcpAgent, out var agentHeader))
+        {
+            return null;
+        }
+
+        var headerValue = agentHeader.ToString();
+        if (string.IsNullOrWhiteSpace(headerValue))
+        {
+            return null;
+        }
+
+        return UcpAgentHeaderParser.GetVersion(headerValue);
+    }
+
+    private static bool IsVersionUnsupported(string requestedVersion, string supportedVersion)
+    {
+        if (TryParseDateVersion(requestedVersion, out var requestedDate) &&
+            TryParseDateVersion(supportedVersion, out var supportedDate))
+        {
+            return requestedDate > supportedDate;
+        }
+
+        if (Version.TryParse(requestedVersion, out var requestedSemVer) &&
+            Version.TryParse(supportedVersion, out var supportedSemVer))
+        {
+            return requestedSemVer > supportedSemVer;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseDateVersion(string value, out DateOnly version)
+    {
+        return DateOnly.TryParseExact(
+            value,
+            "yyyy-MM-dd",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out version);
     }
 
     private static int? ParseTlsVersion(string value) => value.Trim().ToLowerInvariant() switch

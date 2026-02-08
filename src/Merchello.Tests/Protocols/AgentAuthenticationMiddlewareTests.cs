@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
+using System.Text.Json;
 using Xunit;
 
 namespace Merchello.Tests.Protocols;
@@ -104,6 +105,53 @@ public class AgentAuthenticationMiddlewareTests
         // Assert
         nextCalled.ShouldBeFalse();
         context.Response.StatusCode.ShouldBe(StatusCodes.Status401Unauthorized);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WithHigherProtocolVersion_ReturnsVersionUnsupported()
+    {
+        // Arrange
+        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
+        var context = CreateHttpContext(
+            "/api/v1/checkout-sessions",
+            ucpAgentHeader: "profile=\"https://test-agent.example.com/profile\", version=\"2026-02-01\"");
+        var nextCalled = false;
+
+        var middleware = CreateMiddleware(
+            ctx => { nextCalled = true; return Task.CompletedTask; },
+            settings);
+
+        // Act
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
+
+        // Assert
+        nextCalled.ShouldBeFalse();
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
+
+        using var payload = await ReadResponseJsonAsync(context);
+        payload.RootElement.GetProperty("error").GetString().ShouldBe("version_unsupported");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WithEqualProtocolVersion_AllowsRequest()
+    {
+        // Arrange
+        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
+        var context = CreateHttpContext(
+            "/api/v1/checkout-sessions",
+            ucpAgentHeader: "profile=\"https://test-agent.example.com/profile\", version=\"2026-01-11\"");
+        var nextCalled = false;
+
+        var middleware = CreateMiddleware(
+            ctx => { nextCalled = true; return Task.CompletedTask; },
+            settings);
+
+        // Act
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
+
+        // Assert
+        nextCalled.ShouldBeTrue();
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
     }
 
     [Fact]
@@ -418,5 +466,13 @@ public class AgentAuthenticationMiddlewareTests
             next,
             _logger.Object,
             settings);
+    }
+
+    private static async Task<JsonDocument> ReadResponseJsonAsync(HttpContext context)
+    {
+        context.Response.Body.Position = 0;
+        using var reader = new StreamReader(context.Response.Body, leaveOpen: true);
+        var json = await reader.ReadToEndAsync();
+        return JsonDocument.Parse(json);
     }
 }

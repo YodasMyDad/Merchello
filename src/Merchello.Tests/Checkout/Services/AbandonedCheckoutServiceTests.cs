@@ -6,12 +6,17 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Data;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
+using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Tests.TestInfrastructure;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Shouldly;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
 
 namespace Merchello.Tests.Checkout.Services;
@@ -124,6 +129,47 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
         var record = await _service.GetByBasketIdAsync(basket.Id);
         record.ShouldNotBeNull();
         record.Email.ShouldBe("new@test.com");
+    }
+
+    [Fact]
+    public async Task TrackCheckoutActivity_WithBasketId_RefreshesSnapshotFromBasket()
+    {
+        var basket = CreateTestBasket();
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.TrackCheckoutActivityAsync(basket, "customer@test.com");
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var basketInDb = await _fixture.DbContext.Baskets.FindAsync(basket.Id);
+        basketInDb.ShouldNotBeNull();
+        basketInDb.Total = 225m;
+        basketInDb.Currency = "USD";
+        basketInDb.CurrencySymbol = "$";
+        basketInDb.BillingAddress.Name = "Updated Name";
+        basketInDb.BillingAddress.Email = "updated@example.com";
+        var additionalItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Another Product",
+            "TEST-002",
+            125m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m);
+        additionalItem.LineItemType = LineItemType.Product;
+        basketInDb.LineItems.Add(additionalItem);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.TrackCheckoutActivityAsync(basket.Id);
+
+        var record = await _service.GetByBasketIdAsync(basket.Id);
+        record.ShouldNotBeNull();
+        record.BasketTotal.ShouldBe(225m);
+        record.CurrencyCode.ShouldBe("USD");
+        record.CurrencySymbol.ShouldBe("$");
+        record.CustomerName.ShouldBe("Updated Name");
+        record.ItemCount.ShouldBe(2);
     }
 
     #endregion
@@ -293,6 +339,30 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
         record.DateConverted.ShouldNotBeNull();
     }
 
+    [Fact]
+    public async Task MarkRecoveryEmailSent_IncrementsCountAndTimestamp()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            BasketTotal = 75m,
+            RecoveryEmailsSent = 1
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        var sentAt = DateTime.UtcNow.AddMinutes(-5);
+        var updated = await _service.MarkRecoveryEmailSentAsync(abandoned.Id, sentAt);
+
+        updated.ShouldBeTrue();
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(2);
+        record.LastRecoveryEmailSentUtc.ShouldBe(sentAt);
+    }
+
     #endregion
 
     #region GenerateRecoveryLinkAsync
@@ -369,6 +439,35 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
     {
         await Should.ThrowAsync<InvalidOperationException>(
             () => _service.GenerateRecoveryLinkAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public async Task GenerateRecoveryLink_RelativeBase_UsesWebsiteUrl()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            BasketTotal = 100m
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        var relativeBaseService = new AbandonedCheckoutService(
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
+            _fixture.GetService<IMerchelloNotificationPublisher>(),
+            Options.Create(new AbandonedCheckoutSettings
+            {
+                Enabled = true,
+                RecoveryUrlBase = "/checkout/recover"
+            }),
+            Options.Create(_fixture.GetService<IOptions<Merchello.Core.Shared.Models.MerchelloSettings>>().Value),
+            _fixture.GetService<ILogger<AbandonedCheckoutService>>());
+
+        var link = await relativeBaseService.GenerateRecoveryLinkAsync(abandoned.Id);
+
+        link.ShouldStartWith("https://test.example.com/checkout/recover/");
     }
 
     #endregion

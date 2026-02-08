@@ -13,6 +13,7 @@ using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Logging;
@@ -39,7 +40,8 @@ public class MerchelloCheckoutController(
     IDiscountService discountService,
     IAddressLookupService addressLookupService,
     ICurrencyService currencyService,
-    IMemberManager memberManager)
+    IMemberManager memberManager,
+    IAbandonedCheckoutService? abandonedCheckoutService = null)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     private readonly CheckoutSettings _settings = checkoutSettings.Value;
@@ -59,6 +61,11 @@ public class MerchelloCheckoutController(
         {
             logger.LogWarning("CurrentPage is not a MerchelloCheckoutPage");
             return NotFound();
+        }
+
+        if (TryGetRecoveryTokenFromPath(out var recoveryToken))
+        {
+            return await HandleRecoveryLinkAsync(recoveryToken, ct);
         }
 
         // Handle confirmation step - load confirmation data once and reuse
@@ -471,6 +478,72 @@ public class MerchelloCheckoutController(
         };
 
         return View("~/Views/Checkout/SinglePage.cshtml", viewModel);
+    }
+
+    private bool TryGetRecoveryTokenFromPath(out string token)
+    {
+        token = string.Empty;
+
+        var segments = Request.Path.Value?
+            .Trim('/')
+            .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (segments is not { Length: 3 })
+        {
+            return false;
+        }
+
+        if (!segments[0].Equals("checkout", StringComparison.OrdinalIgnoreCase) ||
+            !segments[1].Equals("recover", StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(segments[2]))
+        {
+            return false;
+        }
+
+        token = segments[2];
+        return true;
+    }
+
+    private async Task<IActionResult> HandleRecoveryLinkAsync(string token, CancellationToken ct)
+    {
+        if (abandonedCheckoutService == null)
+        {
+            logger.LogWarning("Abandoned checkout service unavailable for recovery token route.");
+            return Redirect("/checkout/information");
+        }
+
+        var recoveryResult = await abandonedCheckoutService.RestoreBasketFromRecoveryAsync(token, ct);
+        if (recoveryResult.ResultObject == null)
+        {
+            var message = recoveryResult.Messages.FirstOrDefault()?.Message ?? "Unable to recover basket.";
+            logger.LogInformation("Checkout recovery link failed: {Message}", message);
+            return Redirect("/checkout/information");
+        }
+
+        var basket = recoveryResult.ResultObject;
+        await checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
+        EnsureBasketCookie(basket);
+
+        return Redirect("/checkout/information");
+    }
+
+    private void EnsureBasketCookie(Basket basket)
+    {
+        if (basket.CustomerId.HasValue)
+        {
+            return;
+        }
+
+        Response.Cookies.Append(
+            Core.Constants.Cookies.BasketId,
+            basket.Id.ToString(),
+            new CookieOptions
+            {
+                Expires = DateTimeOffset.UtcNow.AddDays(30),
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax
+            });
     }
 
     private static List<ShippingGroupDto> MapOrderGroupsToDto(

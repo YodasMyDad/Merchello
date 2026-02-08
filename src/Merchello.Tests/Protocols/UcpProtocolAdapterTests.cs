@@ -1,9 +1,11 @@
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
+using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.UCP;
 using Merchello.Core.Protocols.UCP.Models;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
 
@@ -324,5 +326,54 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
 
         // Assert - no payment providers are configured in test fixture
         handlers.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task GenerateManifestAsync_IncludesAp2MandatesExtension_WhenEnabled()
+    {
+        // Arrange
+        var settings = _scope.ServiceProvider.GetRequiredService<IOptions<ProtocolSettings>>().Value;
+        settings.Ucp.Extensions.Ap2Mandates = true;
+
+        // Act
+        var manifest = await _adapter.GenerateManifestAsync() as UcpManifest;
+
+        // Assert
+        manifest.ShouldNotBeNull();
+        manifest.Ucp.Capabilities.ShouldContain(c => c.Name == UcpExtensionNames.Ap2Mandates);
+        manifest.Ucp.Capabilities.ShouldContain(c =>
+            c.Name == UcpExtensionNames.Ap2Mandates &&
+            c.Extends == UcpCapabilityNames.Checkout);
+    }
+
+    [Fact]
+    public async Task CreateSessionAsync_EnvelopeIncludesEnabledIdentityAndExtensions()
+    {
+        // Arrange
+        var settings = _scope.ServiceProvider.GetRequiredService<IOptions<ProtocolSettings>>().Value;
+        settings.Ucp.Capabilities.IdentityLinking = true;
+        settings.Ucp.Extensions.BuyerConsent = true;
+        settings.Ucp.Extensions.Ap2Mandates = true;
+
+        var request = new Core.Protocols.UCP.Dtos.UcpCreateSessionRequestDto
+        {
+            Currency = "USD",
+            LineItems = []
+        };
+
+        // Act
+        var response = await _adapter.CreateSessionAsync(request, agentIdentity: null);
+
+        // Assert
+        response.Success.ShouldBeTrue();
+        var envelope = response.Data as ProtocolResponseEnvelope;
+        envelope.ShouldNotBeNull();
+        envelope.Ucp.Capabilities.ShouldContain(UcpCapabilityNames.Checkout);
+        envelope.Ucp.Capabilities.ShouldContain(UcpCapabilityNames.Order);
+        envelope.Ucp.Capabilities.ShouldContain(UcpCapabilityNames.IdentityLinking);
+        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.Discount);
+        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.Fulfillment);
+        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.BuyerConsent);
+        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.Ap2Mandates);
     }
 }

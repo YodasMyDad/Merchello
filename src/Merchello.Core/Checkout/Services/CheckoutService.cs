@@ -40,6 +40,7 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -1496,6 +1497,23 @@ public class CheckoutService(
                         basketId, maxRetries);
                     throw;
                 }
+                catch (DbUpdateException ex) when (IsTransientSqliteLockException(ex))
+                {
+                    if (attempt < maxRetries - 1)
+                    {
+                        var delay = GetSqliteLockRetryDelay(attempt);
+                        logger.LogWarning(ex,
+                            "Basket {BasketId} hit SQLite lock during SaveAddressesAsync (partial) (attempt {Attempt}). Retrying in {DelayMs}ms.",
+                            basketId, attempt + 1, delay.TotalMilliseconds);
+                        await Task.Delay(delay, cancellationToken);
+                        continue;
+                    }
+
+                    logger.LogError(ex,
+                        "Basket {BasketId} SQLite lock persisted after {MaxRetries} attempts in SaveAddressesAsync (partial).",
+                        basketId, maxRetries);
+                    throw;
+                }
             }
 
             return result;
@@ -1719,6 +1737,23 @@ public class CheckoutService(
 
                 logger.LogError(ex,
                     "Basket {BasketId} concurrency conflict persisted after {MaxRetries} attempts in SaveAddressesAsync.",
+                    fullBasketId, fullMaxRetries);
+                throw;
+            }
+            catch (DbUpdateException ex) when (IsTransientSqliteLockException(ex))
+            {
+                if (attempt < fullMaxRetries - 1)
+                {
+                    var delay = GetSqliteLockRetryDelay(attempt);
+                    logger.LogWarning(ex,
+                        "Basket {BasketId} hit SQLite lock during SaveAddressesAsync (attempt {Attempt}). Retrying in {DelayMs}ms.",
+                        fullBasketId, attempt + 1, delay.TotalMilliseconds);
+                    await Task.Delay(delay, cancellationToken);
+                    continue;
+                }
+
+                logger.LogError(ex,
+                    "Basket {BasketId} SQLite lock persisted after {MaxRetries} attempts in SaveAddressesAsync.",
                     fullBasketId, fullMaxRetries);
                 throw;
             }
@@ -2536,6 +2571,23 @@ public class CheckoutService(
                     basketId, maxRetries);
                 throw;
             }
+            catch (DbUpdateException ex) when (IsTransientSqliteLockException(ex))
+            {
+                if (attempt < maxRetries - 1)
+                {
+                    var delay = GetSqliteLockRetryDelay(attempt);
+                    logger.LogWarning(ex,
+                        "Basket {BasketId} hit SQLite lock during InitializeCheckoutAsync (attempt {Attempt}). Retrying in {DelayMs}ms.",
+                        basketId, attempt + 1, delay.TotalMilliseconds);
+                    await Task.Delay(delay, cancellationToken);
+                    continue;
+                }
+
+                logger.LogError(ex,
+                    "Basket {BasketId} SQLite lock persisted after {MaxRetries} attempts in InitializeCheckoutAsync.",
+                    basketId, maxRetries);
+                throw;
+            }
         }
 
         return result;
@@ -2595,6 +2647,25 @@ public class CheckoutService(
                string.Equals(a.CountryCode, b.CountryCode, StringComparison.OrdinalIgnoreCase) &&
                string.Equals(a.Phone, b.Phone, StringComparison.Ordinal) &&
                string.Equals(a.Email, b.Email, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsTransientSqliteLockException(DbUpdateException ex)
+    {
+        if (ex.InnerException is not SqliteException sqliteEx)
+        {
+            return false;
+        }
+
+        return sqliteEx.SqliteErrorCode is 5 or 6 ||
+               sqliteEx.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+               sqliteEx.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static TimeSpan GetSqliteLockRetryDelay(int attempt)
+    {
+        var baseDelayMs = 100 * (1 << Math.Clamp(attempt, 0, 5));
+        var jitterMs = Random.Shared.Next(25, 100);
+        return TimeSpan.FromMilliseconds(baseDelayMs + jitterMs);
     }
 
     /// <summary>

@@ -138,6 +138,7 @@ public class AbandonedCheckoutApiController(
         };
 
         await notificationPublisher.PublishAsync(notification, ct);
+        await abandonedCheckoutService.MarkRecoveryEmailSentAsync(checkout.Id, DateTime.UtcNow, ct);
 
         return Ok(new { success = true, message = "Recovery email sent." });
     }

@@ -791,7 +791,9 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BasketId");
+                    b.HasIndex("BasketId")
+                        .IsUnique()
+                        .HasFilter("[BasketId] IS NOT NULL");
 
                     b.HasIndex("CustomerId");
 

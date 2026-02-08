@@ -182,7 +182,8 @@ public static class Startup
         builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
         // Checkout flow configuration (guest checkout, session timeouts)
         builder.Services.Configure<CheckoutSettings>(builder.Config.GetSection("Merchello:Checkout"));
-        // Abandoned cart detection and recovery email timing
+        // Abandoned cart detection and recovery email timing (supports legacy and nested sections)
+        builder.Services.Configure<AbandonedCheckoutSettings>(builder.Config.GetSection("Merchello:AbandonedCheckout"));
         builder.Services.Configure<AbandonedCheckoutSettings>(builder.Config.GetSection("Merchello:Checkout:AbandonedCart"));
         // Cache durations for products, customers, etc.
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));

@@ -1,4 +1,7 @@
+using System.Text.Json;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
@@ -19,6 +22,7 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
     private readonly ServiceTestFixture _fixture;
     private readonly ICommerceProtocolAdapter _adapter;
     private readonly ICheckoutService _checkoutService;
+    private readonly LineItemFactory _lineItemFactory;
 
     public UcpCheckoutSessionTests(ServiceTestFixture fixture)
     {
@@ -27,6 +31,7 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
         _fixture.MockHttpContext.ClearSession();
         _adapter = fixture.GetService<ICommerceProtocolAdapter>();
         _checkoutService = fixture.GetService<ICheckoutService>();
+        _lineItemFactory = fixture.GetService<LineItemFactory>();
     }
 
     [Fact]
@@ -477,6 +482,29 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
         var createResponse = await _adapter.CreateSessionAsync(createRequest, agentIdentity);
         var sessionId = ExtractSessionId(createResponse.Data);
 
+        // Inject a promotional discount line item to verify clearing behavior end-to-end.
+        Guid.TryParse(sessionId, out var basketId).ShouldBeTrue();
+        var basket = await _checkoutService.GetBasketByIdAsync(new GetBasketByIdParameters
+        {
+            BasketId = basketId
+        });
+        basket.ShouldNotBeNull();
+
+        var discountLineItem = _lineItemFactory.CreateDiscountLineItem(
+            name: "Test Discount",
+            sku: $"DISCOUNT-{Guid.NewGuid():N}"[..16],
+            amount: -5m,
+            extendedData: new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountCode] = "INITIAL_CODE",
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountId] = Guid.NewGuid().ToString()
+            });
+        basket!.LineItems.Add(discountLineItem);
+        await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket });
+
+        var beforeClearResponse = await _adapter.GetSessionAsync(sessionId, agentIdentity);
+        ExtractDiscountCodes(beforeClearResponse.Data).ShouldContain("INITIAL_CODE");
+
         // Update with empty codes should clear
         var updateRequest = new UcpUpdateSessionRequestDto
         {
@@ -488,6 +516,9 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
 
         // Assert
         response.Success.ShouldBeTrue();
+
+        var afterClearResponse = await _adapter.GetSessionAsync(sessionId, agentIdentity);
+        ExtractDiscountCodes(afterClearResponse.Data).ShouldBeEmpty();
     }
 
     #endregion
@@ -912,5 +943,44 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
         }
 
         return string.Empty;
+    }
+
+    private static IReadOnlyList<string> ExtractDiscountCodes(object? responseData)
+    {
+        if (responseData == null)
+        {
+            return [];
+        }
+
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(responseData));
+        if (!document.RootElement.TryGetProperty("data", out var dataElement) &&
+            !document.RootElement.TryGetProperty("Data", out dataElement))
+        {
+            return [];
+        }
+
+        if (!dataElement.TryGetProperty("discounts", out var discountsElement) ||
+            discountsElement.ValueKind != JsonValueKind.Object)
+        {
+            return [];
+        }
+
+        if (!discountsElement.TryGetProperty("codes", out var codesElement) ||
+            codesElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var codes = new List<string>();
+        foreach (var codeElement in codesElement.EnumerateArray())
+        {
+            var code = codeElement.GetString();
+            if (!string.IsNullOrWhiteSpace(code))
+            {
+                codes.Add(code);
+            }
+        }
+
+        return codes;
     }
 }
