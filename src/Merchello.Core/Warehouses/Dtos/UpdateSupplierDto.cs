@@ -12,4 +12,9 @@ public class UpdateSupplierDto
     /// The default fulfilment provider configuration ID for this supplier.
     /// </summary>
     public Guid? FulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
+    /// If true, clears the FulfilmentProviderConfigurationId (sets it to null).
+    /// </summary>
+    public bool ShouldClearFulfilmentProviderId { get; set; }
 }

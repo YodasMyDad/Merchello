@@ -67,6 +67,7 @@ public class WarehousesApiController(
             Name = dto.Name,
             Code = dto.Code,
             SupplierId = dto.SupplierId,
+            FulfilmentProviderConfigurationId = dto.FulfilmentProviderConfigurationId,
             Address = dto.Address != null ? MapAddressFromDto(dto.Address) : null
         };
 
@@ -96,6 +97,8 @@ public class WarehousesApiController(
             Code = dto.Code,
             SupplierId = dto.SupplierId,
             ShouldClearSupplierId = dto.ShouldClearSupplierId,
+            FulfilmentProviderConfigurationId = dto.FulfilmentProviderConfigurationId,
+            ShouldClearFulfilmentProviderId = dto.ShouldClearFulfilmentProviderId,
             Address = dto.Address != null ? MapAddressFromDto(dto.Address) : null
         };
 
@@ -410,7 +413,8 @@ public class WarehousesApiController(
         var parameters = new CreateSupplierParameters
         {
             Name = dto.Name,
-            Code = dto.Code
+            Code = dto.Code,
+            DefaultFulfilmentProviderConfigurationId = dto.FulfilmentProviderConfigurationId
         };
 
         var result = await supplierService.CreateSupplierAsync(parameters, ct);
@@ -444,7 +448,9 @@ public class WarehousesApiController(
         {
             SupplierId = id,
             Name = dto.Name,
-            Code = dto.Code
+            Code = dto.Code,
+            DefaultFulfilmentProviderConfigurationId = dto.FulfilmentProviderConfigurationId,
+            ShouldClearDefaultFulfilmentProviderId = dto.ShouldClearFulfilmentProviderId
         };
 
         var result = await supplierService.UpdateSupplierAsync(parameters, ct);

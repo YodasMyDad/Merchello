@@ -253,6 +253,7 @@ public class WarehouseService(
         warehouse.SupplierId = parameters.SupplierId;
         warehouse.AutomationMethod = parameters.AutomationMethod;
         warehouse.ExtendedData = parameters.ExtendedData ?? [];
+        warehouse.FulfilmentProviderConfigurationId = parameters.FulfilmentProviderConfigurationId;
 
         // Publish creating notification (cancelable)
         var creatingNotification = new WarehouseCreatingNotification(warehouse);
@@ -391,6 +392,11 @@ public class WarehouseService(
 
             if (parameters.ExtendedData != null)
                 warehouse.ExtendedData = parameters.ExtendedData;
+
+            if (parameters.ShouldClearFulfilmentProviderId)
+                warehouse.FulfilmentProviderConfigurationId = null;
+            else if (parameters.FulfilmentProviderConfigurationId.HasValue)
+                warehouse.FulfilmentProviderConfigurationId = parameters.FulfilmentProviderConfigurationId;
 
             warehouse.DateUpdated = DateTime.UtcNow;
 

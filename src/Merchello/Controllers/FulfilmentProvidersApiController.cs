@@ -53,7 +53,7 @@ public class FulfilmentProvidersApiController(
     /// Get a specific fulfilment provider configuration by ID.
     /// </summary>
     [HttpGet("fulfilment-providers/{id:guid}")]
-    [ProducesResponseType<FulfilmentProviderDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<FulfilmentProviderConfigurationDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderConfiguration(Guid id, CancellationToken cancellationToken = default)
     {
@@ -64,7 +64,7 @@ public class FulfilmentProvidersApiController(
             return NotFound();
         }
 
-        return Ok(MapToProviderDto(provider));
+        return Ok(await MapToConfigurationDtoAsync(provider, cancellationToken));
     }
 
     /// <summary>
@@ -170,6 +170,34 @@ public class FulfilmentProvidersApiController(
 
         if (request.Configuration != null)
         {
+            // Retain sensitive field values when masked/empty on update
+            if (!string.IsNullOrEmpty(configuration.SettingsJson))
+            {
+                try
+                {
+                    var existingConfig = JsonSerializer.Deserialize<Dictionary<string, string>>(configuration.SettingsJson);
+                    var fields = await provider.Provider.GetConfigurationFieldsAsync(cancellationToken);
+                    var sensitiveKeys = fields.Where(f => f.IsSensitive).Select(f => f.Key).ToHashSet();
+
+                    if (existingConfig != null)
+                    {
+                        foreach (var key in sensitiveKeys)
+                        {
+                            var newValue = request.Configuration.GetValueOrDefault(key);
+                            var isMaskedOrEmpty = string.IsNullOrEmpty(newValue) || newValue == "••••••••";
+                            if (isMaskedOrEmpty && existingConfig.TryGetValue(key, out var existingValue))
+                            {
+                                request.Configuration[key] = existingValue;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore deserialization errors - proceed with raw update
+                }
+            }
+
             configuration.SettingsJson = JsonSerializer.Serialize(request.Configuration);
         }
 
@@ -394,6 +422,55 @@ public class FulfilmentProvidersApiController(
     // ============================================
     // Mapping Helpers
     // ============================================
+
+    private async Task<FulfilmentProviderConfigurationDto> MapToConfigurationDtoAsync(
+        RegisteredFulfilmentProvider registered,
+        CancellationToken cancellationToken)
+    {
+        var configuration = registered.Configuration!;
+
+        Dictionary<string, string>? config = null;
+        if (!string.IsNullOrEmpty(configuration.SettingsJson))
+        {
+            try
+            {
+                config = JsonSerializer.Deserialize<Dictionary<string, string>>(configuration.SettingsJson);
+
+                // Mask sensitive field values
+                if (config != null)
+                {
+                    var fields = await registered.Provider.GetConfigurationFieldsAsync(cancellationToken);
+                    var sensitiveKeys = fields.Where(f => f.IsSensitive).Select(f => f.Key).ToHashSet();
+
+                    foreach (var key in config.Keys.Where(k => sensitiveKeys.Contains(k)).ToList())
+                    {
+                        if (!string.IsNullOrEmpty(config[key]))
+                        {
+                            config[key] = "••••••••";
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore deserialization errors
+            }
+        }
+
+        return new FulfilmentProviderConfigurationDto
+        {
+            Id = configuration.Id,
+            ProviderKey = configuration.ProviderKey,
+            DisplayName = configuration.DisplayName ?? registered.Metadata.DisplayName,
+            IsEnabled = configuration.IsEnabled,
+            InventorySyncMode = configuration.InventorySyncMode,
+            Configuration = config,
+            SortOrder = configuration.SortOrder,
+            DateCreated = configuration.CreateDate,
+            DateUpdated = configuration.UpdateDate,
+            Provider = MapToProviderDto(registered)
+        };
+    }
 
     private static FulfilmentProviderDto MapToProviderDto(RegisteredFulfilmentProvider registered)
     {
