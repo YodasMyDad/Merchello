@@ -15,7 +15,7 @@ namespace Merchello.Tests.Fulfilment.Services;
 
 /// <summary>
 /// Unit tests for FulfilmentService.ResolveShippingServiceCode.
-/// Tests the fallback chain: ServiceMappings → Category → DefaultShippingMethod → raw carrier code.
+/// Tests the fallback chain: Category -> DefaultShippingMethod -> raw carrier code.
 /// </summary>
 public class ResolveShippingServiceCodeTests
 {
@@ -25,86 +25,7 @@ public class ResolveShippingServiceCodeTests
     private static readonly OrderFactory OrderFactory = new();
     private static readonly AddressFactory AddressFactory = new();
 
-    #region Step 1: ServiceMappings (flat-rate)
-
-    [Fact]
-    public void FlatRate_WithServiceMappings_ReturnsMappedCode()
-    {
-        var optionId = Guid.NewGuid();
-        var order = CreateOrder(shippingOptionId: optionId);
-        var settings = BuildSettings(serviceMappings: new Dictionary<string, string>
-        {
-            [optionId.ToString()] = "Ground"
-        });
-
-        var result = FulfilmentService.ResolveShippingServiceCode(order, settings);
-        result.ShouldBe("Ground");
-    }
-
-    [Fact]
-    public void FlatRate_WithServiceMappingsAndCategory_ServiceMappingsWins()
-    {
-        var optionId = Guid.NewGuid();
-        var order = CreateOrder(
-            shippingOptionId: optionId,
-            category: ShippingServiceCategory.Express);
-        var settings = BuildSettings(
-            serviceMappings: new Dictionary<string, string>
-            {
-                [optionId.ToString()] = "Priority"
-            },
-            categoryMappings: new Dictionary<string, string>
-            {
-                ["ServiceCategoryMapping_Express"] = "2-Day"
-            });
-
-        var result = FulfilmentService.ResolveShippingServiceCode(order, settings);
-        result.ShouldBe("Priority"); // Step 1 wins over step 2
-    }
-
-    [Fact]
-    public void FlatRate_ServiceMappingsUnmatched_FallsThrough()
-    {
-        var optionId = Guid.NewGuid();
-        var differentId = Guid.NewGuid();
-        var order = CreateOrder(
-            shippingOptionId: optionId,
-            category: ShippingServiceCategory.Standard);
-        var settings = BuildSettings(
-            serviceMappings: new Dictionary<string, string>
-            {
-                [differentId.ToString()] = "Ground"
-            },
-            categoryMappings: new Dictionary<string, string>
-            {
-                ["ServiceCategoryMapping_Standard"] = "Economy"
-            });
-
-        var result = FulfilmentService.ResolveShippingServiceCode(order, settings);
-        result.ShouldBe("Economy"); // Falls through to step 2
-    }
-
-    [Fact]
-    public void FlatRate_EmptyServiceMappingsJson_FallsThrough()
-    {
-        var optionId = Guid.NewGuid();
-        var order = CreateOrder(
-            shippingOptionId: optionId,
-            category: ShippingServiceCategory.Standard);
-        var settings = BuildSettings(
-            serviceMappingsRaw: "",
-            categoryMappings: new Dictionary<string, string>
-            {
-                ["ServiceCategoryMapping_Standard"] = "Ground"
-            });
-
-        var result = FulfilmentService.ResolveShippingServiceCode(order, settings);
-        result.ShouldBe("Ground"); // Falls through to step 2
-    }
-
-    #endregion
-
-    #region Step 2: Category Mapping
+    #region Step 1: Category Mapping
 
     [Fact]
     public void FlatRate_WithCategory_ReturnsCategoryMapping()
@@ -157,12 +78,37 @@ public class ResolveShippingServiceCodeTests
         result.ShouldBe(expected);
     }
 
+    [Fact]
+    public void ServiceMappingsPresent_AreIgnored_UsesCategoryMapping()
+    {
+        var optionId = Guid.NewGuid();
+        var order = CreateOrder(
+            shippingOptionId: optionId,
+            category: ShippingServiceCategory.Express);
+        var serviceMappings = JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            [optionId.ToString()] = "LegacyCode"
+        });
+        var settings = BuildSettings(
+            categoryMappings: new Dictionary<string, string>
+            {
+                ["ServiceCategoryMapping_Express"] = "2-Day"
+            },
+            additionalSettings: new Dictionary<string, object>
+            {
+                ["ServiceMappings"] = serviceMappings
+            });
+
+        var result = FulfilmentService.ResolveShippingServiceCode(order, settings);
+        result.ShouldBe("2-Day");
+    }
+
     #endregion
 
-    #region Step 3: DefaultShippingMethod
+    #region Step 2: DefaultShippingMethod
 
     [Fact]
-    public void FlatRate_NoMappings_NoCategory_ReturnsDefaultShippingMethod()
+    public void FlatRate_NoCategory_ReturnsDefaultShippingMethod()
     {
         var order = CreateOrder(shippingOptionId: Guid.NewGuid(), category: null);
         var settings = BuildSettings(defaultShippingMethod: "Standard");
@@ -186,7 +132,7 @@ public class ResolveShippingServiceCodeTests
 
     #endregion
 
-    #region Step 4: Raw carrier code
+    #region Step 3: Raw carrier code
 
     [Fact]
     public void Dynamic_NoCategory_NoDefault_ReturnsRawCarrierCode()
@@ -317,21 +263,18 @@ public class ResolveShippingServiceCodeTests
     }
 
     private static string BuildSettings(
-        Dictionary<string, string>? serviceMappings = null,
-        string? serviceMappingsRaw = null,
         Dictionary<string, string>? categoryMappings = null,
-        string? defaultShippingMethod = null)
+        string? defaultShippingMethod = null,
+        Dictionary<string, object>? additionalSettings = null)
     {
         var settings = new Dictionary<string, object>();
 
-        if (serviceMappings != null)
+        if (additionalSettings != null)
         {
-            // ServiceMappings is double-serialized (JSON string value)
-            settings["ServiceMappings"] = JsonSerializer.Serialize(serviceMappings);
-        }
-        else if (serviceMappingsRaw != null)
-        {
-            settings["ServiceMappings"] = serviceMappingsRaw;
+            foreach (var setting in additionalSettings)
+            {
+                settings[setting.Key] = setting.Value;
+            }
         }
 
         if (categoryMappings != null)

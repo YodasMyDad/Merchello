@@ -3,17 +3,10 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { FulfilmentProviderFieldDto, InventorySyncMode } from "@fulfilment-providers/types/fulfilment-providers.types.js";
-import type { ShippingOptionDto } from "@shipping/types/shipping.types.js";
 import type {
   FulfilmentProviderConfigModalData,
   FulfilmentProviderConfigModalValue,
 } from "@fulfilment-providers/modals/fulfilment-provider-config-modal.token.js";
-
-interface ServiceMapping {
-  shippingOptionId: string;
-  shippingOptionName: string;
-  providerServiceCode: string;
-}
 
 @customElement("merchello-fulfilment-provider-config-modal")
 export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseElement<
@@ -28,8 +21,6 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
-  @state() private _shippingOptions: ShippingOptionDto[] = [];
-  @state() private _serviceMappings: ServiceMapping[] = [];
 
   #isConnected = false;
 
@@ -62,11 +53,7 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
     this._isEnabled = configured?.isEnabled ?? true;
     this._inventorySyncMode = configured?.inventorySyncMode ?? 0;
 
-    // Load configuration fields and shipping options in parallel
-    const [fieldsResult, shippingResult] = await Promise.all([
-      MerchelloApi.getFulfilmentProviderFields(provider.key),
-      MerchelloApi.getShippingOptions(),
-    ]);
+    const fieldsResult = await MerchelloApi.getFulfilmentProviderFields(provider.key);
 
     if (!this.#isConnected) return;
 
@@ -77,40 +64,10 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
     }
 
     this._fields = fieldsResult.data ?? [];
-    this._shippingOptions = shippingResult.data ?? [];
-
     // Initialize values from existing configuration or defaults
     this._values = {};
     for (const field of this._fields) {
       this._values[field.key] = field.defaultValue ?? "";
-    }
-
-    // Initialize service mappings for all shipping options
-    this._serviceMappings = this._shippingOptions.map((option) => ({
-      shippingOptionId: option.id,
-      shippingOptionName: option.name ?? "Unnamed Option",
-      providerServiceCode: "",
-    }));
-
-    // If editing, fetch the full configuration
-    if (configured?.configurationId) {
-      const configResult = await MerchelloApi.getFulfilmentProviderConfiguration(configured.configurationId);
-      if (!this.#isConnected) return;
-      if (configResult.data) {
-        // Try to parse existing ServiceMappings from configuration
-        const existingMappings = this._values["ServiceMappings"];
-        if (existingMappings) {
-          try {
-            const parsed = JSON.parse(existingMappings) as Record<string, string>;
-            this._serviceMappings = this._serviceMappings.map((mapping) => ({
-              ...mapping,
-              providerServiceCode: parsed[mapping.shippingOptionId] ?? "",
-            }));
-          } catch {
-            // Ignore parsing errors
-          }
-        }
-      }
     }
 
     this._isLoading = false;
@@ -122,24 +79,6 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
 
   private _handleCheckboxChange(key: string, checked: boolean): void {
     this._values = { ...this._values, [key]: checked ? "true" : "false" };
-  }
-
-  private _handleServiceMappingChange(shippingOptionId: string, serviceCode: string): void {
-    this._serviceMappings = this._serviceMappings.map((mapping) =>
-      mapping.shippingOptionId === shippingOptionId
-        ? { ...mapping, providerServiceCode: serviceCode }
-        : mapping
-    );
-  }
-
-  private _getServiceMappingsJson(): string {
-    const mappings: Record<string, string> = {};
-    for (const mapping of this._serviceMappings) {
-      if (mapping.providerServiceCode.trim()) {
-        mappings[mapping.shippingOptionId] = mapping.providerServiceCode.trim();
-      }
-    }
-    return JSON.stringify(mappings);
   }
 
   private async _handleSave(): Promise<void> {
@@ -160,11 +99,7 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
       }
     }
 
-    // Include service mappings in configuration
-    const configurationValues = {
-      ...this._values,
-      ServiceMappings: this._getServiceMappingsJson(),
-    };
+    const configurationValues = { ...this._values };
 
     try {
       if (configured?.configurationId) {
@@ -413,30 +348,6 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
                       ${this._fields.map((field) => this._renderField(field))}
                     `
                   : nothing}
-
-                ${this._shippingOptions.length > 0
-                  ? html`
-                      <hr />
-                      <h3>Service Level Mapping</h3>
-                      <p class="section-description">
-                        Map your shipping options to the 3PL provider's service codes. Leave empty to use the provider's default shipping method.
-                      </p>
-                      <div class="service-mappings">
-                        ${this._serviceMappings.map((mapping) => html`
-                          <div class="mapping-row">
-                            <span class="mapping-label">${mapping.shippingOptionName}</span>
-                            <uui-input
-                              label="Service code for ${mapping.shippingOptionName}"
-                              placeholder="Provider service code"
-                              .value=${mapping.providerServiceCode}
-                              @input=${(e: Event) =>
-                                this._handleServiceMappingChange(mapping.shippingOptionId, (e.target as HTMLInputElement).value)}
-                            ></uui-input>
-                          </div>
-                        `)}
-                      </div>
-                    `
-                  : nothing}
               `}
         </div>
 
@@ -531,36 +442,6 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
     uui-input,
     uui-textarea,
     uui-select {
-      width: 100%;
-    }
-
-    .section-description {
-      margin: 0 0 var(--uui-size-space-4) 0;
-      font-size: 0.875rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .service-mappings {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-    }
-
-    .mapping-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--uui-size-space-3);
-      align-items: center;
-      padding: var(--uui-size-space-3);
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
-    }
-
-    .mapping-label {
-      font-weight: 500;
-    }
-
-    .mapping-row uui-input {
       width: 100%;
     }
 

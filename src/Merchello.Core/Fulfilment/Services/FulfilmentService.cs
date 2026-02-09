@@ -634,25 +634,7 @@ public class FulfilmentService(
             using var doc = System.Text.Json.JsonDocument.Parse(settingsJson);
             var root = doc.RootElement;
 
-            // 1. Flat-rate: lookup by ShippingOptionId in ServiceMappings
-            if (order.ShippingOptionId != Guid.Empty &&
-                root.TryGetProperty("ServiceMappings", out var mappingsElement))
-            {
-                var optionKey = order.ShippingOptionId.ToString();
-                // ServiceMappings is stored as a JSON string value (serialized by frontend)
-                var mappingsJson = mappingsElement.GetString();
-                if (!string.IsNullOrEmpty(mappingsJson))
-                {
-                    using var mappingsDoc = System.Text.Json.JsonDocument.Parse(mappingsJson);
-                    if (mappingsDoc.RootElement.TryGetProperty(optionKey, out var mapped))
-                    {
-                        var code = mapped.GetString();
-                        if (!string.IsNullOrEmpty(code)) return code;
-                    }
-                }
-            }
-
-            // 2. Category inference (works for both flat-rate and dynamic)
+            // 1. Category inference (works for both flat-rate and dynamic)
             if (order.ShippingServiceCategory.HasValue)
             {
                 var categoryKey = $"ServiceCategoryMapping_{order.ShippingServiceCategory.Value}";
@@ -663,7 +645,7 @@ public class FulfilmentService(
                 }
             }
 
-            // 3. DefaultShippingMethod
+            // 2. DefaultShippingMethod
             if (root.TryGetProperty("DefaultShippingMethod", out var defaultVal))
             {
                 var code = defaultVal.GetString();
@@ -672,7 +654,7 @@ public class FulfilmentService(
         }
         catch (System.Text.Json.JsonException) { /* fall through */ }
 
-        // 4. Raw carrier code (last resort)
+        // 3. Raw carrier code (last resort)
         return order.ShippingServiceCode;
     }
 
