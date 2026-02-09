@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.SqlServer.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20260208152902_AbandonedCheckoutHardening")]
-    partial class AbandonedCheckoutHardening
+    [Migration("20260209085500_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

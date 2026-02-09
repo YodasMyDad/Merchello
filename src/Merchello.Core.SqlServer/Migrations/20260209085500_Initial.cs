@@ -1604,7 +1604,9 @@ namespace Merchello.Core.SqlServer.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloAbandonedCheckouts_BasketId",
                 table: "merchelloAbandonedCheckouts",
-                column: "BasketId");
+                column: "BasketId",
+                unique: true,
+                filter: "[BasketId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloAbandonedCheckouts_CustomerId",
