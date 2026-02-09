@@ -1,4 +1,3 @@
-using System.Data;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Factories;
@@ -843,8 +842,6 @@ public class DiscountService(
         {
             var success = await scope.ExecuteWithContextAsync(async db =>
             {
-                await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-
                 // Check if already recorded (unique constraint will also enforce this)
                 var existingUsage = await db.DiscountUsages
                     .FirstOrDefaultAsync(u => u.DiscountId == discountId && u.InvoiceId == invoiceId, ct);
@@ -896,7 +893,6 @@ public class DiscountService(
 
                 db.DiscountUsages.Add(usage);
                 await db.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
 
                 logger.LogInformation("Recorded usage of discount {DiscountId} for invoice {InvoiceId}", discountId, invoiceId);
                 return true;

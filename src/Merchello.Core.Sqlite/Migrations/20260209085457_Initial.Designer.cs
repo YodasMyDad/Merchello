@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Merchello.Core.Sqlite.Migrations
 {
     [DbContext(typeof(MerchelloDbContext))]
-    [Migration("20260207075231_Initial")]
+    [Migration("20260209085457_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -787,7 +787,9 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BasketId");
+                    b.HasIndex("BasketId")
+                        .IsUnique()
+                        .HasFilter("[BasketId] IS NOT NULL");
 
                     b.HasIndex("CustomerId");
 
