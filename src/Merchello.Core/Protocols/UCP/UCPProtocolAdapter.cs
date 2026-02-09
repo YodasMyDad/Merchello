@@ -102,7 +102,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     );
 
     /// <inheritdoc />
-    public bool IsEnabled => _protocolSettings.Enabled && _protocolSettings.Ucp.Enabled;
+    public bool IsEnabled => true;
 
     /// <inheritdoc />
     public async Task<object> GenerateManifestAsync(CancellationToken ct = default)

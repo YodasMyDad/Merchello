@@ -148,6 +148,7 @@ export interface ShippingOptionDetailDto extends ShippingOptionDto {
   costs: ShippingCostDto[];
   weightTiers: ShippingWeightTierDto[];
   excludedRegions: ShippingDestinationExclusionDto[];
+  postcodeRules: ShippingPostcodeRuleDto[];
   /** Provider-specific settings (JSON parsed to key-value pairs) */
   providerSettings?: Record<string, string>;
 }
@@ -293,4 +294,38 @@ export interface TestShippingServiceLevelDto {
   isConfigured?: boolean;
   /** Whether the provider returned a valid rate for this service type */
   isValid?: boolean;
+}
+
+// ============================================
+// Postcode Rules Types
+// ============================================
+
+/** Match type for postcode rules */
+export type PostcodeMatchType = "Prefix" | "OutcodeRange" | "NumericRange" | "Exact";
+
+/** Action to take when a postcode rule matches */
+export type PostcodeRuleAction = "Block" | "Surcharge";
+
+/** DTO for postcode rule entries */
+export interface ShippingPostcodeRuleDto {
+  id: string;
+  countryCode: string;
+  pattern: string;
+  matchType: PostcodeMatchType;
+  action: PostcodeRuleAction;
+  surcharge: number;
+  description?: string;
+  matchTypeDisplay?: string;
+  actionDisplay?: string;
+  countryDisplay?: string;
+}
+
+/** DTO for creating/updating a postcode rule */
+export interface CreateShippingPostcodeRuleDto {
+  countryCode: string;
+  pattern: string;
+  matchType: PostcodeMatchType;
+  action: PostcodeRuleAction;
+  surcharge: number;
+  description?: string;
 }

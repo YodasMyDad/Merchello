@@ -28,4 +28,9 @@ public interface IShippingOptionService
     Task<CrudResult<ShippingWeightTier>> AddWeightTierAsync(Guid optionId, CreateShippingWeightTierDto dto, CancellationToken ct = default);
     Task<CrudResult<ShippingWeightTier>> UpdateWeightTierAsync(Guid tierId, CreateShippingWeightTierDto dto, CancellationToken ct = default);
     Task<CrudResult<bool>> DeleteWeightTierAsync(Guid tierId, CancellationToken ct = default);
+
+    // Postcode Rules
+    Task<CrudResult<ShippingPostcodeRuleDto>> AddPostcodeRuleAsync(Guid optionId, CreateShippingPostcodeRuleDto dto, CancellationToken ct = default);
+    Task<CrudResult<ShippingPostcodeRuleDto>> UpdatePostcodeRuleAsync(Guid ruleId, CreateShippingPostcodeRuleDto dto, CancellationToken ct = default);
+    Task<CrudResult<bool>> DeletePostcodeRuleAsync(Guid ruleId, CancellationToken ct = default);
 }

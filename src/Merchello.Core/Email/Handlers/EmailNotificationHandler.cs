@@ -1,5 +1,6 @@
 using Merchello.Core.DigitalProducts.Notifications;
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Base;
 using Merchello.Core.Notifications.CheckoutNotifications;
@@ -47,7 +48,8 @@ public class EmailNotificationHandler(
       INotificationAsyncHandler<CheckoutAbandonedFinalNotification>,
       INotificationAsyncHandler<CheckoutRecoveredNotification>,
       INotificationAsyncHandler<CheckoutRecoveryConvertedNotification>,
-      INotificationAsyncHandler<DigitalProductDeliveredNotification>
+      INotificationAsyncHandler<DigitalProductDeliveredNotification>,
+      INotificationAsyncHandler<SupplierOrderNotification>
 {
     private readonly EmailSettings _settings = options.Value;
 
@@ -171,6 +173,13 @@ public class EmailNotificationHandler(
 
     #endregion
 
+    #region Fulfilment
+
+    public Task HandleAsync(SupplierOrderNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.FulfilmentSupplierOrder, notification, notification.OrderId, "Order", ct);
+
+    #endregion
+
     /// <summary>
     /// Processes all email configurations for a given topic and queues deliveries.
     /// </summary>
@@ -181,12 +190,6 @@ public class EmailNotificationHandler(
         string entityType,
         CancellationToken ct) where TNotification : MerchelloNotification
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogDebug("Email system disabled, skipping dispatch for {Topic}", topic);
-            return;
-        }
-
         try
         {
             // Get all enabled email configurations for this topic

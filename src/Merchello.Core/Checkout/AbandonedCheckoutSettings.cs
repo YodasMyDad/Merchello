@@ -6,11 +6,6 @@ namespace Merchello.Core.Checkout;
 public class AbandonedCheckoutSettings
 {
     /// <summary>
-    /// Whether abandoned checkout tracking is enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// Hours of inactivity before a checkout is considered abandoned.
     /// </summary>
     public double AbandonmentThresholdHours { get; set; } = 1.0;

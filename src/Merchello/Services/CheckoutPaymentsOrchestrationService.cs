@@ -2644,7 +2644,7 @@ public class CheckoutPaymentsOrchestrationService(
         // Validate the merchant session
         var merchantSession = await worldPayProvider.ValidateApplePayMerchantAsync(
             request.ValidationUrl,
-            request.DisplayName ?? settings.Value.StoreName ?? "Store",
+            request.DisplayName ?? settings.Value.Store.Name ?? "Store",
             cancellationToken);
 
         if (merchantSession == null)

@@ -1248,9 +1248,14 @@ class Syncer : INotificationAsyncHandler<OrderCreatedNotification>
 | 1500 | `DigitalProductPaymentHandler` | Digital product link creation after payment |
 | 1800 | `FulfilmentOrderSubmissionHandler` | 3PL order submission after order creation |
 | 1800 | `FulfilmentCancellationHandler` | 3PL cancellation after status change |
+| 1900 | `FulfilmentAutoShipmentHandler` | Auto-shipment creation on order submission |
+| 1900 | `PaymentPostPurchaseHandler` | Post-purchase upsell window initialization |
 | 2000 | `InvoiceTimelineHandler` | Internal audit/timeline logging |
+| 2050 | `UpsellEmailEnrichmentHandler` | Enriches emails with upsell data |
 | 2100 | `EmailNotificationHandler` | Email delivery |
 | 2200 | `WebhookNotificationHandler` | Webhook delivery |
+| 2300 | `AutoAddUpsellHandler` | Auto-adds recommended upsells to baskets |
+| 2300 | `AutoAddRemovalTracker` | Tracks removal of auto-added items |
 | 3000 | `UcpOrderWebhookHandler` | UCP protocol webhooks |
 
 ```csharp

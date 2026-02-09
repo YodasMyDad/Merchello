@@ -1325,6 +1325,7 @@ public class WarehouseService(
             await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.Supplier)
+                .Include(w => w.FulfilmentProviderConfiguration)
                 
                 .Include(w => w.ShippingOptions)
                 .AsSplitQuery()
@@ -1357,6 +1358,7 @@ public class WarehouseService(
             var warehouse = await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.Supplier)
+                .Include(w => w.FulfilmentProviderConfiguration)
                 
                 .Include(w => w.ShippingOptions)
                 .AsSplitQuery()
@@ -1372,6 +1374,8 @@ public class WarehouseService(
                 Code = warehouse.Code,
                 SupplierId = warehouse.SupplierId,
                 SupplierName = warehouse.Supplier?.Name,
+                FulfilmentProviderConfigurationId = warehouse.FulfilmentProviderConfigurationId,
+                FulfilmentProviderName = warehouse.FulfilmentProviderConfiguration?.DisplayName,
                 Address = MapAddress(warehouse.Address),
                 ServiceRegions = warehouse.ServiceRegions
                     .OrderBy(r => r.CountryCode)

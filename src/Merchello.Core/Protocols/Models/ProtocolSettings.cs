@@ -6,11 +6,6 @@ namespace Merchello.Core.Protocols.Models;
 public class ProtocolSettings
 {
     /// <summary>
-    /// Whether protocol endpoints are enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// Base path for well-known endpoints.
     /// </summary>
     public string WellKnownPath { get; set; } = "/.well-known";

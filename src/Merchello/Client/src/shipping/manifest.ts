@@ -70,4 +70,12 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Shipping Destination Exclusion Modal",
     js: () => import("@shipping/modals/shipping-destination-exclusion-modal.element.js"),
   },
+
+  // Shipping postcode rule modal
+  {
+    type: "modal",
+    alias: "Merchello.ShippingPostcodeRule.Modal",
+    name: "Shipping Postcode Rule Modal",
+    js: () => import("@shipping/modals/shipping-postcode-rule-modal.element.js"),
+  },
 ];

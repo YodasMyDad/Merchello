@@ -125,9 +125,6 @@ public class PaymentProvidersApiController(
             return BadRequest($"Provider '{request.ProviderAlias}' is already configured.");
         }
 
-        // Get max sort order
-        var maxSortOrder = existingSettings.Any() ? existingSettings.Max(s => s.SortOrder) : 0;
-
         var setting = new PaymentProviderSetting
         {
             ProviderAlias = request.ProviderAlias,
@@ -136,7 +133,7 @@ public class PaymentProvidersApiController(
             IsTestMode = request.IsTestMode,
             IsVaultingEnabled = provider.Metadata.SupportsVaultedPayments && request.IsVaultingEnabled,
             Configuration = request.Configuration != null ? JsonSerializer.Serialize(request.Configuration) : null,
-            SortOrder = maxSortOrder + 1
+            SortOrder = existingSettings.GetNextSortOrder(s => s.SortOrder)
         };
 
         var result = await providerManager.SaveProviderSettingAsync(setting, cancellationToken);

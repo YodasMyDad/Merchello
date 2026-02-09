@@ -6,11 +6,6 @@ namespace Merchello.Core.Email;
 public class EmailSettings
 {
     /// <summary>
-    /// Whether the email system is enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// View locations for email templates (supports format string with {0} placeholder).
     /// Example: "/Views/Emails/{0}.cshtml"
     /// </summary>
@@ -43,11 +38,6 @@ public class EmailSettings
     /// Number of days to retain delivery records before cleanup.
     /// </summary>
     public int DeliveryRetentionDays { get; set; } = 30;
-
-    /// <summary>
-    /// Store context information for email templates.
-    /// </summary>
-    public EmailStoreSettings Store { get; set; } = new();
 
     /// <summary>
     /// Theme settings for MJML email templates.

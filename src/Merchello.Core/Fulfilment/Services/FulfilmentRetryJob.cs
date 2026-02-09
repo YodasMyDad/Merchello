@@ -23,12 +23,6 @@ public class FulfilmentRetryJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogInformation("FulfilmentRetryJob disabled - fulfilment system is not enabled");
-            return;
-        }
-
         logger.LogInformation("FulfilmentRetryJob started, waiting for database to be ready...");
 
         // Wait for migrations to complete before first check
@@ -144,6 +138,32 @@ public class FulfilmentRetryJob(
                                 result.ResultObject,
                                 providerConfig,
                                 result.ResultObject.FulfilmentErrorMessage ?? "Unknown error"),
+                            stoppingToken);
+                    }
+                }
+                else if (result.ResultObject != null)
+                {
+                    logger.LogWarning(
+                        "Fulfilment retry attempt failed for order {OrderId} (attempt {Attempt}/{MaxAttempts}).",
+                        order.Id,
+                        result.ResultObject.FulfilmentRetryCount,
+                        _settings.MaxRetryAttempts);
+
+                    var providerConfig = await fulfilmentService.ResolveProviderForWarehouseAsync(
+                        order.WarehouseId,
+                        stoppingToken);
+
+                    if (providerConfig != null)
+                    {
+                        await notificationPublisher.PublishAsync(
+                            new FulfilmentSubmissionAttemptFailedNotification(
+                                result.ResultObject,
+                                providerConfig,
+                                result.Messages.FirstOrDefault()?.Message
+                                    ?? result.ResultObject.FulfilmentErrorMessage
+                                    ?? "Unknown error",
+                                result.ResultObject.FulfilmentRetryCount,
+                                _settings.MaxRetryAttempts),
                             stoppingToken);
                     }
                 }

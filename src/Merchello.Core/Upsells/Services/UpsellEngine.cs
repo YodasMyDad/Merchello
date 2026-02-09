@@ -38,7 +38,7 @@ public class UpsellEngine(
     /// <inheritdoc />
     public async Task<List<UpsellSuggestion>> GetSuggestionsAsync(UpsellContext context, CancellationToken ct = default)
     {
-        if (!_settings.Enabled || context.LineItems.Count == 0)
+        if (context.LineItems.Count == 0)
             return [];
 
         var location = context.Location ?? UpsellDisplayLocation.All;
@@ -56,7 +56,7 @@ public class UpsellEngine(
         UpsellDisplayLocation location,
         CancellationToken ct = default)
     {
-        if (!_settings.Enabled || context.LineItems.Count == 0)
+        if (context.LineItems.Count == 0)
             return [];
 
         context.Location = location;
@@ -71,9 +71,6 @@ public class UpsellEngine(
     /// <inheritdoc />
     public async Task<List<UpsellSuggestion>> GetSuggestionsForInvoiceAsync(Guid invoiceId, CancellationToken ct = default)
     {
-        if (!_settings.Enabled)
-            return [];
-
         var invoice = await invoiceService.GetInvoiceAsync(invoiceId, ct);
         if (invoice == null)
             return [];
@@ -110,9 +107,6 @@ public class UpsellEngine(
     /// <inheritdoc />
     public async Task<List<UpsellSuggestion>> GetSuggestionsForProductAsync(Guid productId, CancellationToken ct = default)
     {
-        if (!_settings.Enabled)
-            return [];
-
         var syntheticLineItem = await upsellContextBuilder.BuildLineItemAsync(
             productId,
             1,
@@ -830,11 +824,11 @@ public class UpsellEngine(
             return url;
         }
 
-        if (string.IsNullOrWhiteSpace(_storeSettings.WebsiteUrl))
+        if (string.IsNullOrWhiteSpace(_storeSettings.Store.WebsiteUrl))
         {
             return url;
         }
 
-        return $"{_storeSettings.WebsiteUrl.TrimEnd('/')}/{url.TrimStart('/')}";
+        return $"{_storeSettings.Store.WebsiteUrl.TrimEnd('/')}/{url.TrimStart('/')}";
     }
 }

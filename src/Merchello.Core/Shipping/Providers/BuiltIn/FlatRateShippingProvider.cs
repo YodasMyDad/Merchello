@@ -2,6 +2,7 @@ using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Providers;
+using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Shipping.Providers.BuiltIn;
@@ -13,11 +14,13 @@ namespace Merchello.Core.Shipping.Providers.BuiltIn;
 public class FlatRateShippingProvider(
     IOptions<MerchelloSettings> settings,
     IExchangeRateCache exchangeRateCache,
-    ICurrencyService currencyService) : ShippingProviderBase(currencyService)
+    ICurrencyService currencyService,
+    IPostcodeMatcher postcodeMatcher) : ShippingProviderBase(currencyService)
 {
     private readonly MerchelloSettings _settings = settings.Value;
     private readonly IExchangeRateCache _exchangeRateCache = exchangeRateCache;
     private readonly ICurrencyService _currencyService = currencyService;
+    private readonly IPostcodeMatcher _postcodeMatcher = postcodeMatcher;
     /// <inheritdoc />
     public override ShippingProviderMetadata Metadata { get; } = new()
     {
@@ -151,13 +154,18 @@ public class FlatRateShippingProvider(
 
         foreach (var option in commonOptions)
         {
-            var (cost, itemErrors) = CalculateOptionCost(
+            var (cost, isBlocked, itemErrors) = CalculateOptionCost(
                 option,
                 totalWeightKg,
                 request.CountryCode,
-                request.RegionCode);
+                request.RegionCode,
+                request.PostalCode);
 
             errors.AddRange(itemErrors);
+
+            // Skip blocked options (postcode rule)
+            if (isBlocked)
+                continue;
 
             if (cost.HasValue)
             {
@@ -235,36 +243,50 @@ public class FlatRateShippingProvider(
     }
 
     /// <summary>
-    /// Calculate the total cost for a shipping option: base cost + weight tier surcharge.
+    /// Calculate the total cost for a shipping option: base cost + weight tier surcharge + postcode surcharge.
+    /// Returns IsBlocked=true if a postcode rule blocks delivery.
     /// </summary>
-    private static (decimal? Cost, List<string> Errors) CalculateOptionCost(
+    private (decimal? Cost, bool IsBlocked, List<string> Errors) CalculateOptionCost(
         ShippingOptionSnapshot option,
         decimal totalWeightKg,
         string countryCode,
-        string? regionCode)
+        string? regionCode,
+        string? postalCode)
     {
         List<string> errors = [];
 
-        // 1. Get base cost from ShippingCost table
+        // 1. Check postcode rules FIRST
+        var postcodeResult = _postcodeMatcher.EvaluateRules(postalCode, countryCode, option.PostcodeRules);
+
+        if (postcodeResult.IsBlocked)
+        {
+            // Return blocked - this option should be excluded
+            return (null, true, errors);
+        }
+
+        // 2. Get base cost from ShippingCost table
         var baseCost = ResolveBaseCost(option.Costs, countryCode, regionCode);
 
         if (!baseCost.HasValue)
         {
             errors.Add($"No base shipping cost configured for '{option.Name}' to {countryCode}.");
-            return (null, errors);
+            return (null, false, errors);
         }
 
-        // 2. Get weight tier surcharge (0 if no matching tier)
+        // 3. Get weight tier surcharge (0 if no matching tier)
         var weightSurcharge = ResolveWeightTierSurcharge(
             option.WeightTiers,
             totalWeightKg,
             countryCode,
             regionCode);
 
-        // 3. Total = base + weight surcharge
-        var totalCost = baseCost.Value + weightSurcharge;
+        // 4. Add postcode surcharge from matching rule
+        var postcodeSurcharge = postcodeResult.Surcharge;
 
-        return (totalCost, errors);
+        // 5. Total = base + weight surcharge + postcode surcharge
+        var totalCost = baseCost.Value + weightSurcharge + postcodeSurcharge;
+
+        return (totalCost, false, errors);
     }
 
     /// <summary>

@@ -241,14 +241,13 @@ public class ServiceTestFixture : IDisposable
             StoreCurrencyCode = "USD",
             DefaultShippingCountry = "US",
             DefaultRounding = MidpointRounding.AwayFromZero,
-            WebsiteUrl = "https://test.example.com",
+            Store = new StoreSettings { WebsiteUrl = "https://test.example.com" },
             DownloadTokenSecret = "test-download-token-secret-32-chars"
         };
         services.AddSingleton(Options.Create(merchelloSettings));
 
         var upsellSettings = new UpsellSettings
         {
-            Enabled = true,
             MaxSuggestionsPerLocation = 3,
             CacheDurationSeconds = 60,
             EventRetentionDays = 30,
@@ -365,7 +364,6 @@ public class ServiceTestFixture : IDisposable
         // Webhook settings
         var webhookSettings = new WebhookSettings
         {
-            Enabled = true,
             MaxRetries = 3,
             RetryDelaysSeconds = [60, 300, 900],
             DefaultTimeoutSeconds = 30
@@ -388,7 +386,6 @@ public class ServiceTestFixture : IDisposable
         // Email settings
         var emailSettings = new EmailSettings
         {
-            Enabled = true,
             DefaultFromAddress = "test@example.com",
             MaxRetries = 3,
             RetryDelaysSeconds = [60, 300, 900]
@@ -500,7 +497,6 @@ public class ServiceTestFixture : IDisposable
         // AbandonedCheckoutService and settings
         var abandonedCheckoutSettings = new AbandonedCheckoutSettings
         {
-            Enabled = true,
             RecoveryUrlBase = "https://example.com/checkout/recover"
         };
         services.AddSingleton(Options.Create(abandonedCheckoutSettings));
@@ -575,13 +571,11 @@ public class ServiceTestFixture : IDisposable
         // Protocol settings
         var protocolSettings = new ProtocolSettings
         {
-            Enabled = true,
             WellKnownPath = "/.well-known",
             ManifestCacheDurationMinutes = 60,
             RequireHttps = false, // Allow HTTP in tests
             Ucp = new UcpSettings
             {
-                Enabled = true,
                 Version = "2026-01-11",
                 RequireAuthentication = false,
                 AllowedAgents = ["*"],
@@ -637,7 +631,6 @@ public class ServiceTestFixture : IDisposable
         // Fulfilment settings
         var fulfilmentSettings = new FulfilmentSettings
         {
-            Enabled = true,
             PollingIntervalMinutes = 15,
             MaxRetryAttempts = 5,
             RetryDelaysMinutes = [5, 15, 30, 60, 120],

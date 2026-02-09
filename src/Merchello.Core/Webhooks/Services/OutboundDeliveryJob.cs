@@ -22,12 +22,6 @@ public class OutboundDeliveryJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogInformation("OutboundDeliveryJob disabled, exiting");
-            return;
-        }
-
         logger.LogInformation("OutboundDeliveryJob started, waiting for database to be ready...");
 
         // Wait for migrations to complete before first run

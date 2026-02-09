@@ -1,10 +1,13 @@
 using Merchello.Core.Data;
+using Merchello.Core.Fulfilment;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Fulfilment.Providers;
@@ -16,8 +19,10 @@ public class FulfilmentProviderManager(
     ExtensionManager extensionManager,
     IServiceScopeFactory serviceScopeFactory,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    IOptions<FulfilmentSettings> settings,
     ILogger<FulfilmentProviderManager> logger) : IFulfilmentProviderManager, IDisposable
 {
+    private readonly FulfilmentSettings _settings = settings.Value;
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
     private volatile IReadOnlyCollection<RegisteredFulfilmentProvider>? _cachedProviders;
     private IServiceScope? _providerScope;
@@ -75,6 +80,14 @@ public class FulfilmentProviderManager(
                 if (!keys.Add(metadata.Key))
                 {
                     logger.LogWarning("Duplicate fulfilment provider key '{ProviderKey}' detected. Provider {ProviderType} will be skipped.", metadata.Key, provider.GetType().FullName);
+                    continue;
+                }
+
+                if (!IsFeatureEnabled(metadata.Key))
+                {
+                    logger.LogDebug(
+                        "Skipping fulfilment provider {ProviderKey} because its feature flag is disabled.",
+                        metadata.Key);
                     continue;
                 }
 
@@ -298,5 +311,15 @@ public class FulfilmentProviderManager(
         _cacheLock.Dispose();
 
         GC.SuppressFinalize(this);
+    }
+
+    private bool IsFeatureEnabled(string providerKey)
+    {
+        if (!string.Equals(providerKey, SupplierDirectProviderDefaults.ProviderKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return _settings.SupplierDirect.Enabled;
     }
 }

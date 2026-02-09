@@ -21,11 +21,6 @@ public class FulfilmentCancellationHandler(
 
     public async Task HandleAsync(OrderStatusChangedNotification notification, CancellationToken ct)
     {
-        if (!_settings.Enabled)
-        {
-            return;
-        }
-
         // Only handle transitions to Cancelled status
         if (notification.NewStatus != OrderStatus.Cancelled)
         {
