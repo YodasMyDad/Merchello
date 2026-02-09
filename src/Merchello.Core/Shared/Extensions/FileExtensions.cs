@@ -8,12 +8,7 @@ public static class FileExtensions
     {
         if (!string.IsNullOrWhiteSpace(path))
         {
-            path = path.Replace("/", "\\");
-            if (!path.StartsWith("\\", StringComparison.CurrentCultureIgnoreCase))
-            {
-                path = $"\\{path}";
-            }
-            return $"{webHostEnvironment.ContentRootPath}{path}";
+            return Path.Combine(webHostEnvironment.ContentRootPath, path);
         }
         return webHostEnvironment.ContentRootPath;
     }

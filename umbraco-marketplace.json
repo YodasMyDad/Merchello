@@ -1,14 +1,14 @@
 {
-    "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json", 
+    "$schema": "https://marketplace.umbraco.com/umbraco-marketplace-schema.json",
     "AuthorDetails": {
       "Name": "Lee Messenger",
-      "ImageUrl": "https://github.com/GITHUB_USERNAME.png"
+      "ImageUrl": "https://github.com/YodasMyDad.png"
     },
-    "Category": "",
-    "Description": "",
+    "Category": "Commerce",
+    "Description": "Enterprise ecommerce for Umbraco. Products, variants, shipping, tax, payments, discounts, invoicing and more — designed to make enterprise ecommerce simple.",
     "LicenseTypes": [ "Free" ],
-    "IssueTrackerUrl": "https://github.com/GITHUB_USERNAME/GITHUB_REPOSITORY/issues",
+    "IssueTrackerUrl": "https://github.com/YodasMyDad/Merchello/issues",
     "PackageType": "Package",
-    "Tags": [],
+    "Tags": [ "ecommerce", "shop", "checkout", "commerce", "products", "shipping", "payments" ],
     "Title": "Merchello"
   }
