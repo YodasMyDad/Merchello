@@ -75,7 +75,13 @@ public static class CsvSanitizer
             .Replace('/', '_')
             .Replace("..", "_");
 
-        foreach (var invalidChar in Path.GetInvalidFileNameChars())
+        // Path.GetInvalidFileNameChars() is platform-dependent (Linux only returns \0 and /),
+        // so explicitly include chars that are unsafe across all platforms.
+        var invalidChars = Path.GetInvalidFileNameChars()
+            .Union([':', '?', '*', '"', '<', '>', '|'])
+            .ToHashSet();
+
+        foreach (var invalidChar in invalidChars)
         {
             sanitized = sanitized.Replace(invalidChar, '_');
         }
