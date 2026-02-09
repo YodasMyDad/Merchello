@@ -8,6 +8,7 @@ public static class FileExtensions
     {
         if (!string.IsNullOrWhiteSpace(path))
         {
+            path = path.TrimStart('/', '\\');
             return Path.Combine(webHostEnvironment.ContentRootPath, path);
         }
         return webHostEnvironment.ContentRootPath;
