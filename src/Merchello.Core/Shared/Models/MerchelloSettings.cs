@@ -18,15 +18,9 @@ public class MerchelloSettings
     public string InvoiceNumberPrefix { get; set; } = "INV-";
 
     /// <summary>
-    /// Store name displayed on invoices, statements, and emails.
+    /// Store identity and contact information.
     /// </summary>
-    public string? StoreName { get; set; }
-
-    /// <summary>
-    /// Store address displayed on invoices, statements, and emails.
-    /// Can include multiple lines separated by newlines.
-    /// </summary>
-    public string? StoreAddress { get; set; }
+    public StoreSettings Store { get; set; } = new();
 
     /// <summary>
     /// Default store currency code (ISO 4217), e.g., "GBP", "USD", "EUR".
@@ -149,12 +143,6 @@ public class MerchelloSettings
     public string DefaultMemberTypeAlias { get; set; } = "Member";
 
     // Digital Products
-
-    /// <summary>
-    /// The public website URL used for generating download links (e.g., "https://store.example.com").
-    /// Required for digital product functionality.
-    /// </summary>
-    public string WebsiteUrl { get; set; } = string.Empty;
 
     /// <summary>
     /// Secret key for HMAC-signing download tokens. Must be at least 32 characters.

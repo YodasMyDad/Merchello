@@ -9,6 +9,7 @@ using Merchello.Core.Email.Services;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Invoice;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Tests.TestInfrastructure;
@@ -66,11 +67,14 @@ public class EmailServiceTests
 
         var emailSettings = Options.Create(new EmailSettings
         {
-            Enabled = true,
             DefaultFromAddress = "noreply@store.com",
             MaxRetries = 3,
-            RetryDelaysSeconds = [60, 300, 900],
-            Store = new EmailStoreSettings
+            RetryDelaysSeconds = [60, 300, 900]
+        });
+
+        var merchelloSettings = Options.Create(new MerchelloSettings
+        {
+            Store = new StoreSettings
             {
                 Name = "Test Store",
                 Email = "store@example.com"
@@ -87,6 +91,7 @@ public class EmailServiceTests
             _emailSenderMock.Object,
             _sampleNotificationFactoryMock.Object,
             emailSettings,
+            merchelloSettings,
             NullLogger<EmailService>.Instance);
     }
 

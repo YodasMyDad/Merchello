@@ -2587,6 +2587,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<TimeSpan?>("NextDayCutOffTime")
                         .HasColumnType("time");
 
+                    b.Property<string>("PostcodeRulesJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("ProviderKey")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

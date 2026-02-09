@@ -33,6 +33,9 @@ public class ShippingOptionDbMapping : IEntityTypeConfiguration<ShippingOption>
         // JSON payload storing per-option destination exclusions.
         builder.Property(x => x.ExcludedRegionsJson);
 
+        // JSON payload storing postcode-based rules (block/surcharge).
+        builder.Property(x => x.PostcodeRulesJson);
+
         builder.Property(x => x.IsEnabled)
             .HasDefaultValue(true);
 

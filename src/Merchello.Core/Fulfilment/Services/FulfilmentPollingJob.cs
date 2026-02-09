@@ -23,12 +23,6 @@ public class FulfilmentPollingJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogInformation("FulfilmentPollingJob disabled - fulfilment system is not enabled");
-            return;
-        }
-
         logger.LogInformation("FulfilmentPollingJob started with {Interval} minute polling interval",
             _settings.PollingIntervalMinutes);
 

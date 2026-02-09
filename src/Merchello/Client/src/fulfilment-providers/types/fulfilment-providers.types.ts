@@ -100,6 +100,20 @@ export interface FulfilmentProviderListItemDto {
   supportsInventorySync: boolean;
 }
 
+/** Persisted fulfilment provider configuration with current settings values */
+export interface FulfilmentProviderConfigurationDto {
+  id: string;
+  providerKey: string;
+  displayName: string;
+  isEnabled: boolean;
+  inventorySyncMode: InventorySyncMode;
+  configuration?: Record<string, string>;
+  sortOrder: number;
+  dateCreated: string;
+  dateUpdated: string;
+  provider?: FulfilmentProviderDto;
+}
+
 /** Configuration field definition for dynamic UI - uses shared ProviderFieldDto */
 export type FulfilmentProviderFieldDto = ProviderFieldDto;
 

@@ -658,6 +658,16 @@ public class ShippingQuoteService(
                             MaxWeightKg = tier.MaxWeightKg,
                             Surcharge = tier.Surcharge
                         })
+                        .ToList(),
+                    PostcodeRules = option.PostcodeRules
+                        .Select(rule => new ShippingPostcodeRuleSnapshot
+                        {
+                            CountryCode = rule.CountryCode,
+                            Pattern = rule.Pattern,
+                            MatchType = rule.MatchType,
+                            Action = rule.Action,
+                            Surcharge = rule.Surcharge
+                        })
                         .ToList()
                 };
             })

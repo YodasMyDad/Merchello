@@ -22,12 +22,6 @@ public class AbandonedCheckoutDetectionJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogInformation("Abandoned checkout detection is disabled");
-            return;
-        }
-
         // Ensure reasonable minimum values
         var checkInterval = TimeSpan.FromMinutes(Math.Max(5, _settings.CheckIntervalMinutes));
         var abandonmentThreshold = TimeSpan.FromHours(Math.Max(0.5, _settings.AbandonmentThresholdHours));

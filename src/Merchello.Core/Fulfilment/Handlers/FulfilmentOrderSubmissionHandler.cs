@@ -25,11 +25,6 @@ public class FulfilmentOrderSubmissionHandler(
 
     public async Task HandleAsync(OrderCreatedNotification notification, CancellationToken ct)
     {
-        if (!_settings.Enabled)
-        {
-            return;
-        }
-
         var order = notification.Order;
 
         try
@@ -93,7 +88,26 @@ public class FulfilmentOrderSubmissionHandler(
                 logger.LogError("Order {OrderId} fulfilment submission failed after max retries.",
                     order.Id);
             }
-            // Note: If it failed but can retry, the FulfilmentRetryJob will handle it
+            else if (result.ResultObject != null)
+            {
+                // Publish non-terminal attempt failure for timeline/audit visibility.
+                await notificationPublisher.PublishAsync(
+                    new FulfilmentSubmissionAttemptFailedNotification(
+                        result.ResultObject,
+                        providerConfig,
+                        result.Messages.FirstOrDefault()?.Message
+                            ?? result.ResultObject.FulfilmentErrorMessage
+                            ?? "Unknown error",
+                        result.ResultObject.FulfilmentRetryCount,
+                        _settings.MaxRetryAttempts),
+                    ct);
+
+                logger.LogWarning(
+                    "Order {OrderId} fulfilment submission attempt {Attempt}/{MaxAttempts} failed. Retry scheduled.",
+                    order.Id,
+                    result.ResultObject.FulfilmentRetryCount,
+                    _settings.MaxRetryAttempts);
+            }
         }
         catch (Exception ex)
         {

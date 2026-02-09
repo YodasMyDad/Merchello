@@ -2,6 +2,7 @@ using Merchello.Core.AddressLookup.Dtos;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Models;
 
 namespace Merchello.Models;
 
@@ -14,6 +15,7 @@ public class CheckoutViewModel
     public CheckoutViewModel(
         CheckoutStep step,
         CheckoutSettings settings,
+        StoreSettings store,
         Basket? basket = null,
         CheckoutSession? session = null,
         IReadOnlyCollection<CountryDto>? billingCountries = null,
@@ -23,6 +25,7 @@ public class CheckoutViewModel
     {
         Step = step;
         Settings = settings;
+        Store = store;
         Basket = basket;
         Session = session;
         BillingCountries = billingCountries ?? [];
@@ -40,6 +43,11 @@ public class CheckoutViewModel
     /// Checkout branding and configuration settings.
     /// </summary>
     public CheckoutSettings Settings { get; }
+
+    /// <summary>
+    /// Store identity and contact information.
+    /// </summary>
+    public StoreSettings Store { get; }
 
     /// <summary>
     /// The shopping basket (null if no basket exists).

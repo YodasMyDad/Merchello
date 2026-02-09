@@ -84,7 +84,7 @@ public class StatementServiceTests : IDisposable
         var settings = Options.Create(new MerchelloSettings
         {
             StoreCurrencyCode = "USD",
-            StoreName = "Test Store"
+            Store = new StoreSettings { Name = "Test Store" }
         });
 
         _invoiceFactory = new InvoiceFactory(_currencyServiceMock.Object);

@@ -236,8 +236,8 @@ public class CustomersApiController(
             CustomerId = id,
             PeriodStart = periodStart,
             PeriodEnd = periodEnd,
-            CompanyName = merchelloSettings.StoreName,
-            CompanyAddress = merchelloSettings.StoreAddress
+            CompanyName = merchelloSettings.Store.Name,
+            CompanyAddress = merchelloSettings.Store.Address
         };
 
         var pdf = await statementService.GenerateStatementPdfAsync(parameters, ct);

@@ -2580,6 +2580,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<TimeSpan?>("NextDayCutOffTime")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("PostcodeRulesJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ProviderKey")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

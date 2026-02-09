@@ -52,6 +52,31 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
     this._displayName = configured?.displayName ?? provider.displayName;
     this._isEnabled = configured?.isEnabled ?? true;
     this._inventorySyncMode = configured?.inventorySyncMode ?? 0;
+    let existingConfig: Record<string, string> = {};
+
+    // Load existing persisted configuration values when editing.
+    // The list endpoint does not include field values.
+    if (configured?.configurationId) {
+      const configurationResult = await MerchelloApi.getFulfilmentProviderConfiguration(
+        configured.configurationId,
+      );
+
+      if (!this.#isConnected) return;
+
+      if (configurationResult.error) {
+        this._errorMessage = configurationResult.error.message;
+        this._isLoading = false;
+        return;
+      }
+
+      const configuration = configurationResult.data;
+      if (configuration) {
+        this._displayName = configuration.displayName;
+        this._isEnabled = configuration.isEnabled;
+        this._inventorySyncMode = configuration.inventorySyncMode;
+        existingConfig = configuration.configuration ?? {};
+      }
+    }
 
     const fieldsResult = await MerchelloApi.getFulfilmentProviderFields(provider.key);
 
@@ -67,7 +92,7 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
     // Initialize values from existing configuration or defaults
     this._values = {};
     for (const field of this._fields) {
-      this._values[field.key] = field.defaultValue ?? "";
+      this._values[field.key] = existingConfig[field.key] ?? field.defaultValue ?? "";
     }
 
     this._isLoading = false;
@@ -178,6 +203,26 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
               id="${field.key}"
               label="${field.label}"
               type="${field.fieldType === "Url" ? "url" : "text"}"
+              .value=${value}
+              placeholder="${field.placeholder ?? ""}"
+              ?required=${field.isRequired}
+              @input=${(e: Event) =>
+                this._handleValueChange(field.key, (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          </div>
+        `;
+
+      case "Number":
+        return html`
+          <div class="form-field">
+            <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
+            ${field.description
+              ? html`<p class="field-description">${field.description}</p>`
+              : nothing}
+            <uui-input
+              id="${field.key}"
+              label="${field.label}"
+              type="number"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
               ?required=${field.isRequired}

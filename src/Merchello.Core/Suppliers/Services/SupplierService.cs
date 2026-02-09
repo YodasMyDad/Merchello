@@ -31,6 +31,7 @@ public class SupplierService(
             await db.Suppliers
                 .AsNoTracking()
                 .Include(s => s.Warehouses)
+                .Include(s => s.DefaultFulfilmentProviderConfiguration)
                 .OrderBy(s => s.Name)
                 .ToListAsync(cancellationToken));
         scope.Complete();
@@ -47,6 +48,7 @@ public class SupplierService(
             await db.Suppliers
                 .AsNoTracking()
                 .Include(s => s.Warehouses)
+                .Include(s => s.DefaultFulfilmentProviderConfiguration)
                 .FirstOrDefaultAsync(s => s.Id == supplierId, cancellationToken));
         scope.Complete();
         return result;

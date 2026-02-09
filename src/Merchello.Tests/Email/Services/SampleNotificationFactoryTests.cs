@@ -1,4 +1,5 @@
 using Merchello.Core;
+using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Notifications.Invoice;
 using Merchello.Core.Notifications.Order;
@@ -36,5 +37,15 @@ public class SampleNotificationFactoryTests : IClassFixture<ServiceTestFixture>
         var invoice = orderNotification.Order.Invoice;
         invoice.ShouldNotBeNull();
         invoice!.PurchaseOrder.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void CreateSampleNotification_FulfilmentSupplierOrder_ReturnsSupplierOrderNotification()
+    {
+        var notification = _factory.CreateSampleNotification(Constants.EmailTopics.FulfilmentSupplierOrder);
+
+        var supplierOrderNotification = notification.ShouldBeOfType<SupplierOrderNotification>();
+        supplierOrderNotification.SupplierEmail.ShouldBe("supplier@example.com");
+        supplierOrderNotification.OrderNumber.ShouldBe("ORD-00001");
     }
 }

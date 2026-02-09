@@ -1,12 +1,10 @@
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
-using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.UCP;
 using Merchello.Core.Protocols.UCP.Dtos;
 using Merchello.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -17,8 +15,7 @@ namespace Merchello.Controllers;
 [ApiController]
 [Route("api/v1/checkout-sessions")]
 public class UcpCheckoutSessionsController(
-    ICommerceProtocolManager protocolManager,
-    IOptions<ProtocolSettings> settings) : ControllerBase
+    ICommerceProtocolManager protocolManager) : ControllerBase
 {
     /// <summary>
     /// Creates a new checkout session.
@@ -139,11 +136,6 @@ public class UcpCheckoutSessionsController(
 
     private async Task<ICommerceProtocolAdapter?> GetUcpAdapterAsync(CancellationToken ct)
     {
-        if (!settings.Value.Enabled || !settings.Value.Ucp.Enabled)
-        {
-            return null;
-        }
-
         // Ensure adapters are loaded (triggers ExtensionManager discovery on first call)
         await protocolManager.GetAdaptersAsync(ct);
 

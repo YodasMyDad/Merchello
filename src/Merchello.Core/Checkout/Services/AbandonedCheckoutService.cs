@@ -34,8 +34,6 @@ public class AbandonedCheckoutService(
 
     public async Task TrackCheckoutActivityAsync(Guid basketId, CancellationToken ct = default)
     {
-        if (!_settings.Enabled) return;
-
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
@@ -60,8 +58,6 @@ public class AbandonedCheckoutService(
 
     public async Task TrackCheckoutActivityAsync(Basket basket, string? email = null, CancellationToken ct = default)
     {
-        if (!_settings.Enabled) return;
-
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
@@ -541,8 +537,6 @@ public class AbandonedCheckoutService(
 
     public async Task DetectAbandonedCheckoutsAsync(TimeSpan abandonmentThreshold, CancellationToken ct = default)
     {
-        if (!_settings.Enabled) return;
-
         var cutoffTime = DateTime.UtcNow - abandonmentThreshold;
         var abandonedCheckouts = new List<AbandonedCheckout>();
 
@@ -597,8 +591,6 @@ public class AbandonedCheckoutService(
 
     public async Task SendScheduledRecoveryEmailsAsync(CancellationToken ct = default)
     {
-        if (!_settings.Enabled) return;
-
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
@@ -819,7 +811,7 @@ public class AbandonedCheckoutService(
             return absolute.ToString();
         }
 
-        if (Uri.TryCreate(_merchelloSettings.WebsiteUrl, UriKind.Absolute, out var websiteUri))
+        if (Uri.TryCreate(_merchelloSettings.Store.WebsiteUrl, UriKind.Absolute, out var websiteUri))
         {
             var relative = tokenPath.StartsWith('/') ? tokenPath : $"/{tokenPath}";
             return new Uri(websiteUri, relative).ToString();

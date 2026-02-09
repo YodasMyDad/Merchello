@@ -6,11 +6,6 @@ namespace Merchello.Core.Accounting;
 public class InvoiceReminderSettings
 {
     /// <summary>
-    /// Whether invoice reminders are enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// Number of days before due date to send a reminder.
     /// </summary>
     public int ReminderDaysBeforeDue { get; set; } = 7;

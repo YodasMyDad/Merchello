@@ -255,4 +255,66 @@ public class ShippingOptionsApiController(
     }
 
     #endregion
+
+    #region Postcode Rules
+
+    /// <summary>
+    /// Add a postcode rule to a shipping option
+    /// </summary>
+    [HttpPost("shipping-options/{optionId:guid}/postcode-rules")]
+    [ProducesResponseType<ShippingPostcodeRuleDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AddPostcodeRule(Guid optionId, [FromBody] CreateShippingPostcodeRuleDto dto, CancellationToken ct)
+    {
+        var result = await service.AddPostcodeRuleAsync(optionId, dto, ct);
+        if (!result.Success)
+        {
+            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add postcode rule.");
+        }
+
+        var rule = result.ResultObject!;
+        return Created($"/api/v1/shipping-postcode-rules/{rule.Id}", rule);
+    }
+
+    /// <summary>
+    /// Update a postcode rule
+    /// </summary>
+    [HttpPut("shipping-postcode-rules/{ruleId:guid}")]
+    [ProducesResponseType<ShippingPostcodeRuleDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdatePostcodeRule(Guid ruleId, [FromBody] CreateShippingPostcodeRuleDto dto, CancellationToken ct)
+    {
+        var result = await service.UpdatePostcodeRuleAsync(ruleId, dto, ct);
+        if (!result.Success)
+        {
+            var errorMessage = result.Messages.FirstOrDefault()?.Message;
+            if (errorMessage?.Contains("not found") == true)
+            {
+                return NotFound(errorMessage);
+            }
+            return BadRequest(errorMessage ?? "Failed to update postcode rule.");
+        }
+
+        return Ok(result.ResultObject!);
+    }
+
+    /// <summary>
+    /// Delete a postcode rule
+    /// </summary>
+    [HttpDelete("shipping-postcode-rules/{ruleId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeletePostcodeRule(Guid ruleId, CancellationToken ct)
+    {
+        var result = await service.DeletePostcodeRuleAsync(ruleId, ct);
+        if (!result.Success)
+        {
+            return NotFound();
+        }
+
+        return NoContent();
+    }
+
+    #endregion
 }

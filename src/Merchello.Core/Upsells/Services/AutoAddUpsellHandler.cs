@@ -8,7 +8,6 @@ using Merchello.Core.Notifications.BasketNotifications;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 
 namespace Merchello.Core.Upsells.Services;
@@ -27,7 +26,6 @@ public class AutoAddUpsellHandler(
     LineItemFactory lineItemFactory,
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
-    IOptions<UpsellSettings> upsellSettings,
     ILogger<AutoAddUpsellHandler> logger)
     : INotificationAsyncHandler<BasketItemAddedNotification>
 {
@@ -35,8 +33,6 @@ public class AutoAddUpsellHandler(
     {
         try
         {
-            if (!upsellSettings.Value.Enabled) return;
-
             // Check if any active auto-add rules exist (early exit to avoid unnecessary work)
             var activeRules = await upsellService.GetActiveUpsellRulesAsync(ct);
             var autoAddRuleIds = activeRules

@@ -83,10 +83,8 @@ public class UcpOrderWebhookHandlerTests
 
         _settings = new ProtocolSettings
         {
-            Enabled = true,
             Ucp = new UcpSettings
             {
-                Enabled = true,
                 Version = "2026-01-11",
                 WebhookTimeoutSeconds = 30,
                 Capabilities = new UcpCapabilitySettings { Order = true }
@@ -162,23 +160,6 @@ public class UcpOrderWebhookHandlerTests
 
         // Assert
         _mockHandler.ReceivedRequests.Count.ShouldBe(0);
-    }
-
-    [Fact]
-    public async Task HandleAsync_OrderStatusChanged_DoesNotSendWhenProtocolDisabled()
-    {
-        // Arrange
-        _settings.Enabled = false;
-
-        var order = CreateOrder(Guid.NewGuid());
-        var notification = new OrderStatusChangedNotification(order, OrderStatus.Pending, OrderStatus.Shipped);
-
-        // Act
-        await _handler.HandleAsync(notification, CancellationToken.None);
-
-        // Assert
-        _mockHandler.ReceivedRequests.Count.ShouldBe(0);
-        _invoiceServiceMock.Verify(x => x.GetInvoiceAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
