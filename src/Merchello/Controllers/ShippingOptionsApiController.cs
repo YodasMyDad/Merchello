@@ -44,10 +44,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> Create([FromBody] CreateShippingOptionDto dto, CancellationToken ct)
     {
         var result = await service.CreateAsync(dto, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create shipping option.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var detail = await service.GetByIdAsync(result.ResultObject!.Id, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.ResultObject.Id }, detail);
@@ -63,15 +60,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> Update(Guid id, [FromBody] CreateShippingOptionDto dto, CancellationToken ct)
     {
         var result = await service.UpdateAsync(id, dto, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update shipping option.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var detail = await service.GetByIdAsync(id, ct);
         return Ok(detail);
@@ -87,15 +76,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var result = await service.DeleteAsync(id, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to delete shipping option.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }
@@ -113,10 +94,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> AddCost(Guid optionId, [FromBody] CreateShippingCostDto dto, CancellationToken ct)
     {
         var result = await service.AddCostAsync(optionId, dto, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add shipping cost.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var cost = result.ResultObject!;
         return Created($"/api/v1/shipping-costs/{cost.Id}", new ShippingCostDto
@@ -138,15 +116,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> UpdateCost(Guid costId, [FromBody] CreateShippingCostDto dto, CancellationToken ct)
     {
         var result = await service.UpdateCostAsync(costId, dto, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update shipping cost.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var cost = result.ResultObject!;
         return Ok(new ShippingCostDto
@@ -167,10 +137,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> DeleteCost(Guid costId, CancellationToken ct)
     {
         var result = await service.DeleteCostAsync(costId, ct);
-        if (!result.Success)
-        {
-            return NotFound();
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }
@@ -188,10 +155,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> AddWeightTier(Guid optionId, [FromBody] CreateShippingWeightTierDto dto, CancellationToken ct)
     {
         var result = await service.AddWeightTierAsync(optionId, dto, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add weight tier.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var tier = result.ResultObject!;
         return Created($"/api/v1/shipping-weight-tiers/{tier.Id}", new ShippingWeightTierDto
@@ -215,15 +179,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> UpdateWeightTier(Guid tierId, [FromBody] CreateShippingWeightTierDto dto, CancellationToken ct)
     {
         var result = await service.UpdateWeightTierAsync(tierId, dto, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update weight tier.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var tier = result.ResultObject!;
         return Ok(new ShippingWeightTierDto
@@ -246,10 +202,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> DeleteWeightTier(Guid tierId, CancellationToken ct)
     {
         var result = await service.DeleteWeightTierAsync(tierId, ct);
-        if (!result.Success)
-        {
-            return NotFound();
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }
@@ -267,10 +220,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> AddPostcodeRule(Guid optionId, [FromBody] CreateShippingPostcodeRuleDto dto, CancellationToken ct)
     {
         var result = await service.AddPostcodeRuleAsync(optionId, dto, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add postcode rule.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var rule = result.ResultObject!;
         return Created($"/api/v1/shipping-postcode-rules/{rule.Id}", rule);
@@ -286,15 +236,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> UpdatePostcodeRule(Guid ruleId, [FromBody] CreateShippingPostcodeRuleDto dto, CancellationToken ct)
     {
         var result = await service.UpdatePostcodeRuleAsync(ruleId, dto, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update postcode rule.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         return Ok(result.ResultObject!);
     }
@@ -308,10 +250,7 @@ public class ShippingOptionsApiController(
     public async Task<IActionResult> DeletePostcodeRule(Guid ruleId, CancellationToken ct)
     {
         var result = await service.DeletePostcodeRuleAsync(ruleId, ct);
-        if (!result.Success)
-        {
-            return NotFound();
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }

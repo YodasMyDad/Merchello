@@ -84,15 +84,7 @@ public class CustomersApiController(
         };
 
         var result = await customerService.UpdateAsync(parameters, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update customer.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         // Fetch the DTO to get the correct order count
         var customer = await customerService.GetDtoByIdAsync(id, ct);

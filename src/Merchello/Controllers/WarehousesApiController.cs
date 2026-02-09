@@ -77,10 +77,7 @@ public class WarehousesApiController(
         };
 
         var result = await warehouseService.CreateWarehouse(parameters, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create warehouse.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var detail = await warehouseService.GetWarehouseDetailAsync(result.ResultObject!.Id, ct);
         return CreatedAtAction(nameof(GetWarehouse), new { id = result.ResultObject.Id }, detail);
@@ -108,15 +105,7 @@ public class WarehousesApiController(
         };
 
         var result = await warehouseService.UpdateWarehouse(parameters, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update warehouse.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var detail = await warehouseService.GetWarehouseDetailAsync(id, ct);
         return Ok(detail);
@@ -132,15 +121,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> DeleteWarehouse(Guid id, [FromQuery] bool force = false, CancellationToken ct = default)
     {
         var result = await warehouseService.DeleteWarehouse(id, force, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to delete warehouse.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }
@@ -159,15 +140,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> AddServiceRegion(Guid warehouseId, [FromBody] CreateServiceRegionDto dto, CancellationToken ct)
     {
         var result = await warehouseService.AddServiceRegionAsync(warehouseId, dto, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to add service region.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var region = result.ResultObject!;
         var regionDto = new ServiceRegionDto
@@ -192,15 +165,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> UpdateServiceRegion(Guid warehouseId, Guid regionId, [FromBody] CreateServiceRegionDto dto, CancellationToken ct)
     {
         var result = await warehouseService.UpdateServiceRegionAsync(warehouseId, regionId, dto, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update service region.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var region = result.ResultObject!;
         return Ok(new ServiceRegionDto
@@ -222,10 +187,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> DeleteServiceRegion(Guid warehouseId, Guid regionId, CancellationToken ct)
     {
         var result = await warehouseService.DeleteServiceRegionAsync(warehouseId, regionId, ct);
-        if (!result.Success)
-        {
-            return NotFound();
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }
@@ -279,10 +241,7 @@ public class WarehousesApiController(
         CancellationToken ct)
     {
         var result = await warehouseService.AddProductsToWarehouseAsync(warehouseId, dto.ProductRootIds, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to add products to warehouse.");
-        }
+        if (CrudError(result) is { } error) return error;
         return Ok(result.ResultObject);
     }
 
@@ -298,10 +257,7 @@ public class WarehousesApiController(
         CancellationToken ct)
     {
         var result = await warehouseService.RemoveProductsFromWarehouseAsync(warehouseId, dto.ProductRootIds, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to remove products from warehouse.");
-        }
+        if (CrudError(result) is { } error) return error;
         return NoContent();
     }
 
@@ -441,10 +397,7 @@ public class WarehousesApiController(
         };
 
         var result = await supplierService.CreateSupplierAsync(parameters, ct);
-        if (!result.Success)
-        {
-            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to create supplier.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var supplier = result.ResultObject!;
         return Created($"/api/v1/suppliers/{supplier.Id}", MapToSupplierDetailDto(supplier));
@@ -504,15 +457,7 @@ public class WarehousesApiController(
         };
 
         var result = await supplierService.UpdateSupplierAsync(parameters, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to update supplier.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         var supplier = result.ResultObject!;
         return Ok(MapToSupplierDetailDto(supplier));
@@ -528,15 +473,7 @@ public class WarehousesApiController(
     public async Task<IActionResult> DeleteSupplier(Guid id, [FromQuery] bool force = false, CancellationToken ct = default)
     {
         var result = await supplierService.DeleteSupplierAsync(id, force, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to delete supplier.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }

@@ -6,7 +6,6 @@ using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -80,21 +79,9 @@ public class DiscountsApiController(
     public async Task<IActionResult> GetDiscount(Guid id, CancellationToken ct)
     {
         var discount = await discountService.GetByIdAsync(id, ct);
-        if (discount == null)
-        {
-            return NotFound();
-        }
+        if (discount == null) return NotFound();
 
-        var usageCount = await discountService.GetUsageCountAsync(id, ct);
-        var dto = MapToDetailDto(discount, usageCount);
-
-        // Resolve target rule names
-        await ruleNameResolver.ResolveTargetRuleNamesAsync(dto.TargetRules, ct);
-
-        // Resolve eligibility rule names
-        await ruleNameResolver.ResolveEligibilityRuleNamesAsync(dto.EligibilityRules, ct);
-
-        return Ok(dto);
+        return Ok(await GetDiscountDetailAsync(id, ct));
     }
 
     /// <summary>
@@ -108,22 +95,10 @@ public class DiscountsApiController(
         var parameters = MapToCreateParameters(dto);
 
         var result = await discountService.CreateAsync(parameters, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages
-                .Where(m => m.ResultMessageType == ResultMessageType.Error)
-                .Select(m => m.Message);
-            return BadRequest(new { errors });
-        }
+        if (CrudErrors(result) is { } error) return error;
 
-        var discount = await discountService.GetByIdAsync(result.ResultObject!.Id, ct);
-        var detailDto = MapToDetailDto(discount!, 0); // New discount has 0 usage
-
-        // Resolve target and eligibility rule names
-        await ruleNameResolver.ResolveTargetRuleNamesAsync(detailDto.TargetRules, ct);
-        await ruleNameResolver.ResolveEligibilityRuleNamesAsync(detailDto.EligibilityRules, ct);
-
-        return CreatedAtAction(nameof(GetDiscount), new { id = discount!.Id }, detailDto);
+        var detailDto = await GetDiscountDetailAsync(result.ResultObject!.Id, ct);
+        return CreatedAtAction(nameof(GetDiscount), new { id = result.ResultObject.Id }, detailDto);
     }
 
     /// <summary>
@@ -138,29 +113,9 @@ public class DiscountsApiController(
         var parameters = MapToUpdateParameters(dto);
 
         var result = await discountService.UpdateAsync(id, parameters, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages
-                .Where(m => m.ResultMessageType == ResultMessageType.Error)
-                .Select(m => m.Message);
+        if (CrudErrors(result) is { } error) return error;
 
-            if (errors.Any(e => e?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true))
-            {
-                return NotFound();
-            }
-
-            return BadRequest(new { errors });
-        }
-
-        var discount = await discountService.GetByIdAsync(id, ct);
-        var usageCount = await discountService.GetUsageCountAsync(id, ct);
-        var detailDto = MapToDetailDto(discount!, usageCount);
-
-        // Resolve target and eligibility rule names
-        await ruleNameResolver.ResolveTargetRuleNamesAsync(detailDto.TargetRules, ct);
-        await ruleNameResolver.ResolveEligibilityRuleNamesAsync(detailDto.EligibilityRules, ct);
-
-        return Ok(detailDto);
+        return Ok(await GetDiscountDetailAsync(id, ct));
     }
 
     /// <summary>
@@ -172,19 +127,7 @@ public class DiscountsApiController(
     public async Task<IActionResult> DeleteDiscount(Guid id, CancellationToken ct)
     {
         var result = await discountService.DeleteAsync(id, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages
-                .Where(m => m.ResultMessageType == ResultMessageType.Error)
-                .Select(m => m.Message);
-
-            if (errors.Any(e => e?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true))
-            {
-                return NotFound();
-            }
-
-            return BadRequest(new { errors });
-        }
+        if (CrudErrors(result) is { } error) return error;
 
         return NoContent();
     }
@@ -202,29 +145,9 @@ public class DiscountsApiController(
     public async Task<IActionResult> ActivateDiscount(Guid id, CancellationToken ct)
     {
         var result = await discountService.ActivateAsync(id, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages
-                .Where(m => m.ResultMessageType == ResultMessageType.Error)
-                .Select(m => m.Message);
+        if (CrudErrors(result) is { } error) return error;
 
-            if (errors.Any(e => e?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true))
-            {
-                return NotFound();
-            }
-
-            return BadRequest(new { errors });
-        }
-
-        var discount = await discountService.GetByIdAsync(id, ct);
-        var usageCount = await discountService.GetUsageCountAsync(id, ct);
-        var dto = MapToDetailDto(discount!, usageCount);
-
-        // Resolve target and eligibility rule names
-        await ruleNameResolver.ResolveTargetRuleNamesAsync(dto.TargetRules, ct);
-        await ruleNameResolver.ResolveEligibilityRuleNamesAsync(dto.EligibilityRules, ct);
-
-        return Ok(dto);
+        return Ok(await GetDiscountDetailAsync(id, ct));
     }
 
     /// <summary>
@@ -236,29 +159,9 @@ public class DiscountsApiController(
     public async Task<IActionResult> DeactivateDiscount(Guid id, CancellationToken ct)
     {
         var result = await discountService.DeactivateAsync(id, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages
-                .Where(m => m.ResultMessageType == ResultMessageType.Error)
-                .Select(m => m.Message);
+        if (CrudErrors(result) is { } error) return error;
 
-            if (errors.Any(e => e?.Contains("not found", StringComparison.OrdinalIgnoreCase) == true))
-            {
-                return NotFound();
-            }
-
-            return BadRequest(new { errors });
-        }
-
-        var discount = await discountService.GetByIdAsync(id, ct);
-        var usageCount = await discountService.GetUsageCountAsync(id, ct);
-        var dto = MapToDetailDto(discount!, usageCount);
-
-        // Resolve target and eligibility rule names
-        await ruleNameResolver.ResolveTargetRuleNamesAsync(dto.TargetRules, ct);
-        await ruleNameResolver.ResolveEligibilityRuleNamesAsync(dto.EligibilityRules, ct);
-
-        return Ok(dto);
+        return Ok(await GetDiscountDetailAsync(id, ct));
     }
 
     #endregion
@@ -335,6 +238,16 @@ public class DiscountsApiController(
     #endregion
 
     #region Mapping Helpers
+
+    private async Task<DiscountDetailDto> GetDiscountDetailAsync(Guid id, CancellationToken ct)
+    {
+        var discount = await discountService.GetByIdAsync(id, ct);
+        var usageCount = await discountService.GetUsageCountAsync(id, ct);
+        var dto = MapToDetailDto(discount!, usageCount);
+        await ruleNameResolver.ResolveTargetRuleNamesAsync(dto.TargetRules, ct);
+        await ruleNameResolver.ResolveEligibilityRuleNamesAsync(dto.EligibilityRules, ct);
+        return dto;
+    }
 
     private static List<T>? SafeDeserializeList<T>(string? json)
     {

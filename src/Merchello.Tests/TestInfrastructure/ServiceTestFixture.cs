@@ -141,15 +141,12 @@ public class ServiceTestFixture : IDisposable
 {
     private readonly string _databaseFilePath;
     private readonly string _connectionString;
+    private readonly string[] _tableNames;
 
     // Keep a master connection open so the shared database persists while tests run
     private SqliteConnection _keepAliveConnection;
     private readonly ServiceProvider _serviceProvider;
     private MockHttpContextAccessor _mockHttpContextAccessor = null!;
-
-    // Track all connections created by CreateDbContext for proper disposal
-    private readonly List<SqliteConnection> _trackedConnections = [];
-    private readonly object _connectionLock = new();
 
     // Configurable exchange rate cache mock for multi-currency testing
     private Mock<IExchangeRateCache> _exchangeRateCacheMock = null!;
@@ -206,10 +203,16 @@ public class ServiceTestFixture : IDisposable
         services.AddDbContextFactory<MerchelloDbContext>(options =>
             options.UseSqlite(_connectionString));
 
-        // Ensure the schema exists on the shared in-memory database
+        // Ensure the schema exists and cache table names for fast reset operations
         using (var setupContext = CreateDbContext())
         {
             setupContext.Database.EnsureCreated();
+            _tableNames = setupContext.Model.GetEntityTypes()
+                .Select(t => t.GetTableName())
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct()
+                .Select(n => n!)
+                .ToArray();
         }
 
         DbContext = CreateDbContext();
@@ -1197,24 +1200,28 @@ public class ServiceTestFixture : IDisposable
         DbContext.Dispose();
 
         using var resetContext = CreateDbContext();
-        resetContext.Database.EnsureCreated();
-        resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF;");
-
-        var tableNames = resetContext.Model.GetEntityTypes()
-            .Select(t => t.GetTableName())
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Distinct()
-            .ToList();
-
-        foreach (var table in tableNames)
+        resetContext.Database.OpenConnection();
+        try
         {
+            resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF;");
+            try
+            {
+                foreach (var table in _tableNames)
+                {
 #pragma warning disable EF1002 // Table names come from EF metadata, not user input
-            resetContext.Database.ExecuteSqlRaw($"""DELETE FROM "{table}";""");
+                    resetContext.Database.ExecuteSqlRaw($"""DELETE FROM "{table}";""");
 #pragma warning restore EF1002
+                }
+            }
+            finally
+            {
+                resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON;");
+            }
         }
-
-        resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON;");
-        resetContext.SaveChanges();
+        finally
+        {
+            resetContext.Database.CloseConnection();
+        }
 
         DbContext = CreateDbContext();
     }
@@ -1254,23 +1261,13 @@ public class ServiceTestFixture : IDisposable
     }
 
     /// <summary>
-    /// Creates a new DbContext instance that points at the shared in-memory database.
+    /// Creates a new DbContext instance that points at the shared test database.
     /// Useful for concurrent test threads where a unique context is required.
-    /// Note: Connections are tracked and disposed when the fixture is disposed.
     /// </summary>
     public MerchelloDbContext CreateDbContext()
     {
-        var connection = new SqliteConnection(_connectionString);
-        connection.Open();
-
-        // Track connection for cleanup (EF Core doesn't dispose externally-provided connections)
-        lock (_connectionLock)
-        {
-            _trackedConnections.Add(connection);
-        }
-
         var options = new DbContextOptionsBuilder<MerchelloDbContext>()
-            .UseSqlite(connection)
+            .UseSqlite(_connectionString)
             .Options;
 
         return new MerchelloDbContext(options);
@@ -1316,16 +1313,6 @@ public class ServiceTestFixture : IDisposable
     {
         DbContext?.Dispose();
         _serviceProvider?.Dispose();
-
-        // Dispose all tracked connections from CreateDbContext calls
-        lock (_connectionLock)
-        {
-            foreach (var connection in _trackedConnections)
-            {
-                connection.Dispose();
-            }
-            _trackedConnections.Clear();
-        }
 
         _keepAliveConnection?.Dispose();
 

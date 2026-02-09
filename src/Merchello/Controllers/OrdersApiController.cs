@@ -247,19 +247,16 @@ public class OrdersApiController(
             AuthorName = authorName
         }, ct);
 
-        if (result.ResultObject == null)
-        {
-            var error = result.Messages.FirstOrDefault()?.Message ?? "Failed to add note";
-            return error.Contains("not found") ? NotFound(error) : BadRequest(error);
-        }
+        if (CrudError(result) is { } error) return error;
 
+        var note = result.ResultObject!;
         return Ok(new InvoiceNoteDto
         {
-            Date = result.ResultObject.DateCreated,
-            Text = result.ResultObject.Description ?? string.Empty,
-            AuthorId = result.ResultObject.AuthorId,
-            Author = result.ResultObject.Author,
-            IsVisibleToCustomer = result.ResultObject.VisibleToCustomer
+            Date = note.DateCreated,
+            Text = note.Description ?? string.Empty,
+            AuthorId = note.AuthorId,
+            Author = note.Author,
+            IsVisibleToCustomer = note.VisibleToCustomer
         });
     }
 
@@ -446,14 +443,11 @@ public class OrdersApiController(
 
         var result = await shipmentService.CreateShipmentAsync(parameters, ct);
 
-        if (result.ResultObject == null)
-        {
-            var error = result.Messages.FirstOrDefault()?.Message ?? "Failed to create shipment";
-            return error.Contains("not found") ? NotFound(error) : BadRequest(error);
-        }
+        if (CrudError(result) is { } error) return error;
 
-        var productImages = await GetProductImagesForShipment(result.ResultObject, ct);
-        return Ok(ordersDtoMapper.MapToShipmentDetail(result.ResultObject, productImages));
+        var shipment = result.ResultObject!;
+        var productImages = await GetProductImagesForShipment(shipment, ct);
+        return Ok(ordersDtoMapper.MapToShipmentDetail(shipment, productImages));
     }
 
     /// <summary>
