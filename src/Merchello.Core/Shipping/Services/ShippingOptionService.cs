@@ -511,16 +511,27 @@ public class ShippingOptionService(
             }
 
             var (targetOption, targetCost) = found.Value;
+            var costs = targetOption.ShippingCosts;
+            var updatedCost = costs.FirstOrDefault(c => c.Id == targetCost.Id);
+            if (updatedCost == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Shipping cost not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
 
-            targetCost.CountryCode = dto.CountryCode.ToUpperInvariant();
-            targetCost.RegionCode = dto.RegionCode?.ToUpperInvariant();
-            targetCost.Cost = dto.Cost;
-            targetCost.ShippingOptionId = targetOption.Id;
+            updatedCost.CountryCode = dto.CountryCode.ToUpperInvariant();
+            updatedCost.RegionCode = dto.RegionCode?.ToUpperInvariant();
+            updatedCost.Cost = dto.Cost;
+            updatedCost.ShippingOptionId = targetOption.Id;
 
-            targetOption.SetShippingCosts(targetOption.ShippingCosts);
+            targetOption.SetShippingCosts(costs);
             targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            result.ResultObject = targetCost;
+            result.ResultObject = updatedCost;
             return true;
         });
         scope.Complete();
@@ -645,19 +656,30 @@ public class ShippingOptionService(
             }
 
             var (targetOption, targetTier) = found.Value;
+            var tiers = targetOption.WeightTiers;
+            var updatedTier = tiers.FirstOrDefault(t => t.Id == targetTier.Id);
+            if (updatedTier == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Weight tier not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
 
-            targetTier.CountryCode = dto.CountryCode.ToUpperInvariant();
-            targetTier.RegionCode = dto.RegionCode?.ToUpperInvariant();
-            targetTier.MinWeightKg = dto.MinWeightKg;
-            targetTier.MaxWeightKg = dto.MaxWeightKg;
-            targetTier.Surcharge = dto.Surcharge;
-            targetTier.UpdateDate = DateTime.UtcNow;
-            targetTier.ShippingOptionId = targetOption.Id;
+            updatedTier.CountryCode = dto.CountryCode.ToUpperInvariant();
+            updatedTier.RegionCode = dto.RegionCode?.ToUpperInvariant();
+            updatedTier.MinWeightKg = dto.MinWeightKg;
+            updatedTier.MaxWeightKg = dto.MaxWeightKg;
+            updatedTier.Surcharge = dto.Surcharge;
+            updatedTier.UpdateDate = DateTime.UtcNow;
+            updatedTier.ShippingOptionId = targetOption.Id;
 
-            targetOption.SetShippingWeightTiers(targetOption.WeightTiers);
+            targetOption.SetShippingWeightTiers(tiers);
             targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            result.ResultObject = targetTier;
+            result.ResultObject = updatedTier;
             return true;
         });
         scope.Complete();
@@ -816,32 +838,43 @@ public class ShippingOptionService(
             }
 
             var (targetOption, targetRule) = found.Value;
+            var rules = targetOption.PostcodeRules;
+            var updatedRule = rules.FirstOrDefault(r => r.Id == targetRule.Id);
+            if (updatedRule == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Postcode rule not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
 
-            targetRule.CountryCode = dto.CountryCode.ToUpperInvariant();
-            targetRule.Pattern = dto.Pattern.Trim();
-            targetRule.MatchType = matchType;
-            targetRule.Action = action;
-            targetRule.Surcharge = dto.Surcharge;
-            targetRule.Description = dto.Description;
-            targetRule.UpdateDate = DateTime.UtcNow;
-            targetRule.ShippingOptionId = targetOption.Id;
+            updatedRule.CountryCode = dto.CountryCode.ToUpperInvariant();
+            updatedRule.Pattern = dto.Pattern.Trim();
+            updatedRule.MatchType = matchType;
+            updatedRule.Action = action;
+            updatedRule.Surcharge = dto.Surcharge;
+            updatedRule.Description = dto.Description;
+            updatedRule.UpdateDate = DateTime.UtcNow;
+            updatedRule.ShippingOptionId = targetOption.Id;
 
-            targetOption.SetPostcodeRules(targetOption.PostcodeRules);
+            targetOption.SetPostcodeRules(rules);
             targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
 
             result.ResultObject = new ShippingPostcodeRuleDto
             {
-                Id = targetRule.Id,
-                CountryCode = targetRule.CountryCode,
-                Pattern = targetRule.Pattern,
-                MatchType = targetRule.MatchType.ToString(),
-                Action = targetRule.Action.ToString(),
-                Surcharge = targetRule.Surcharge,
-                Description = targetRule.Description,
-                MatchTypeDisplay = FormatMatchType(targetRule.MatchType),
-                ActionDisplay = FormatRuleAction(targetRule.Action),
-                CountryDisplay = targetRule.CountryCode
+                Id = updatedRule.Id,
+                CountryCode = updatedRule.CountryCode,
+                Pattern = updatedRule.Pattern,
+                MatchType = updatedRule.MatchType.ToString(),
+                Action = updatedRule.Action.ToString(),
+                Surcharge = updatedRule.Surcharge,
+                Description = updatedRule.Description,
+                MatchTypeDisplay = FormatMatchType(updatedRule.MatchType),
+                ActionDisplay = FormatRuleAction(updatedRule.Action),
+                CountryDisplay = updatedRule.CountryCode
             };
             return true;
         });

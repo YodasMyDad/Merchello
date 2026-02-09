@@ -8,6 +8,8 @@ import type {
   FulfilmentProviderConfigModalValue,
 } from "@fulfilment-providers/modals/fulfilment-provider-config-modal.token.js";
 
+const SUPPLIER_DIRECT_PROVIDER_KEY = "supplier-direct";
+
 @customElement("merchello-fulfilment-provider-config-modal")
 export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseElement<
   FulfilmentProviderConfigModalData,
@@ -174,6 +176,10 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
 
   private _handleCancel(): void {
     this.modalContext?.reject();
+  }
+
+  private _isSupplierDirectProvider(): boolean {
+    return this.data?.provider?.key === SUPPLIER_DIRECT_PROVIDER_KEY;
   }
 
   private _getSelectFieldOptions(field: FulfilmentProviderFieldDto, currentValue: string): Array<{ name: string; value: string; selected: boolean }> {
@@ -386,6 +392,19 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
                   ></uui-select>
                 </div>
 
+                ${this._isSupplierDirectProvider()
+                  ? html`
+                      <div class="info-message">
+                        <uui-icon name="icon-info"></uui-icon>
+                        <div>
+                          Supplier Direct has no shared delivery defaults in this modal.
+                          Go to <strong>Warehouses &gt; Suppliers</strong>, edit a supplier, then set that supplier's
+                          <strong>Supplier Direct Profile</strong> (Email / FTP / SFTP).
+                        </div>
+                      </div>
+                    `
+                  : nothing}
+
                 ${this._fields.length > 0
                   ? html`
                       <hr />
@@ -441,6 +460,17 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
       padding: var(--uui-size-space-3);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .info-message {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
       border-radius: var(--uui-border-radius);
       margin-bottom: var(--uui-size-space-4);
     }

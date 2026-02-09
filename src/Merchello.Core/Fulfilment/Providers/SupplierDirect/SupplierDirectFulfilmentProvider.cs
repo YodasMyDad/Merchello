@@ -23,7 +23,12 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
     private readonly IFtpClientFactory _ftpClientFactory;
     private readonly SupplierDirectCsvGenerator _csvGenerator;
     private readonly ILogger<SupplierDirectFulfilmentProvider> _logger;
-    private SupplierDirectSettings? _settings;
+
+    private const bool SendCopyToStore = true;
+    private const bool FtpPassiveMode = true;
+    private const bool FtpUseTls = true;
+    private const int TimeoutSeconds = SupplierDirectProviderDefaults.DefaultTimeoutSeconds;
+    private const bool OverwriteExistingFiles = false;
 
     public SupplierDirectFulfilmentProvider(
         IEmailConfigurationService emailConfigurationService,
@@ -64,173 +69,7 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
     public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(
         CancellationToken cancellationToken = default)
     {
-        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>(
-        [
-            new ProviderConfigurationField
-            {
-                Key = "DefaultDeliveryMethod",
-                Label = "Default Delivery Method",
-                FieldType = ConfigurationFieldType.Select,
-                IsRequired = true,
-                DefaultValue = "Email",
-                Description = "How orders are sent to suppliers by default",
-                Options =
-                [
-                    new SelectOption { Value = "Email", Label = "Email" },
-                    new SelectOption { Value = "Ftp", Label = "FTP" },
-                    new SelectOption { Value = "Sftp", Label = "SFTP (Secure)" }
-                ]
-            },
-            new ProviderConfigurationField
-            {
-                Key = "DefaultSupplierEmail",
-                Label = "Fallback Supplier Email",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = false,
-                Description = "Used when supplier has no ContactEmail configured"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "EmailSubjectTemplate",
-                Label = "Email Subject Template",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = false,
-                DefaultValue = SupplierDirectProviderDefaults.DefaultEmailSubjectTemplate,
-                Description = "Template for email subject. Supports {OrderNumber}, {SupplierName}"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "SendCopyToStore",
-                Label = "Send Copy To Store",
-                FieldType = ConfigurationFieldType.Checkbox,
-                IsRequired = false,
-                DefaultValue = "true",
-                Description = "When disabled, CC/BCC on the supplier email configuration are ignored"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpHost",
-                Label = "FTP/SFTP Host",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = false,
-                Description = "Default FTP/SFTP server address",
-                Placeholder = "ftp.supplier.com"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpPort",
-                Label = "FTP Port",
-                FieldType = ConfigurationFieldType.Number,
-                IsRequired = false,
-                DefaultValue = SupplierDirectProviderDefaults.DefaultFtpPort.ToString(),
-                Description = "Port used when delivery method is FTP"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "SftpPort",
-                Label = "SFTP Port",
-                FieldType = ConfigurationFieldType.Number,
-                IsRequired = false,
-                DefaultValue = SupplierDirectProviderDefaults.DefaultSftpPort.ToString(),
-                Description = "Port used when delivery method is SFTP"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpUsername",
-                Label = "FTP/SFTP Username",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = false,
-                Description = "Default FTP/SFTP username"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpPassword",
-                Label = "FTP/SFTP Password",
-                FieldType = ConfigurationFieldType.Password,
-                IsRequired = false,
-                IsSensitive = true,
-                Description = "Default FTP/SFTP password"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpRemotePath",
-                Label = "Remote Path",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = false,
-                DefaultValue = SupplierDirectProviderDefaults.DefaultRemotePath,
-                Description = "Default directory for file uploads"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "SftpHostFingerprint",
-                Label = "SFTP Host Fingerprint",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = false,
-                Description = "Optional host fingerprint used to verify the remote SFTP server"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpPassiveMode",
-                Label = "FTP Passive Mode",
-                FieldType = ConfigurationFieldType.Checkbox,
-                IsRequired = false,
-                DefaultValue = "true",
-                Description = "Recommended for most hosted FTP endpoints"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpUseTls",
-                Label = "FTP TLS",
-                FieldType = ConfigurationFieldType.Checkbox,
-                IsRequired = false,
-                DefaultValue = "true",
-                Description = "Use explicit TLS when using FTP mode"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "AllowInsecureFtp",
-                Label = "Allow Plain FTP",
-                FieldType = ConfigurationFieldType.Checkbox,
-                IsRequired = false,
-                DefaultValue = "false",
-                Description = "Explicitly allow insecure FTP mode (SFTP is strongly recommended)"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "TimeoutSeconds",
-                Label = "Timeout (Seconds)",
-                FieldType = ConfigurationFieldType.Number,
-                IsRequired = false,
-                DefaultValue = SupplierDirectProviderDefaults.DefaultTimeoutSeconds.ToString(),
-                Description = "Connection and upload timeout in seconds"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FtpOverwriteExistingFiles",
-                Label = "Overwrite Existing Files",
-                FieldType = ConfigurationFieldType.Checkbox,
-                IsRequired = false,
-                DefaultValue = "false",
-                Description = "When disabled, deterministic file names make retries idempotent"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "FileNamePattern",
-                Label = "File Name Pattern",
-                FieldType = ConfigurationFieldType.Text,
-                IsRequired = false,
-                DefaultValue = "{OrderNumber}-{OrderId}.csv",
-                Description = "Supports {OrderNumber} and {OrderId} placeholders"
-            },
-            new ProviderConfigurationField
-            {
-                Key = "CsvColumnMappingJson",
-                Label = "CSV Column Mapping JSON",
-                FieldType = ConfigurationFieldType.Textarea,
-                IsRequired = false,
-                Description = "Optional JSON payload to customize CSV headers and ordering"
-            }
-        ]);
+        return ValueTask.FromResult<IEnumerable<ProviderConfigurationField>>([]);
     }
 
     /// <inheritdoc />
@@ -238,9 +77,6 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
         FulfilmentProviderConfiguration? configuration,
         CancellationToken cancellationToken = default)
     {
-        _settings = configuration?.SettingsJson != null
-            ? SupplierDirectSettings.FromJson(configuration.SettingsJson)
-            : null;
         return base.ConfigureAsync(configuration, cancellationToken);
     }
 
@@ -253,13 +89,19 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
         FulfilmentOrderRequest request,
         CancellationToken cancellationToken = default)
     {
-        var settings = _settings ?? new SupplierDirectSettings();
         var profile = ResolveSupplierProfile(request.ExtendedData);
 
         var supplierName = request.ExtendedData.GetValueOrDefault("SupplierName")?.UnwrapJsonElement()?.ToString() ?? "Unknown Supplier";
         var supplierEmail = request.ExtendedData.GetValueOrDefault("SupplierContactEmail")?.UnwrapJsonElement()?.ToString();
 
-        var deliveryMethod = ResolveDeliveryMethod(request.ExtendedData, profile, settings.DefaultDeliveryMethod);
+        if (profile == null)
+        {
+            return FulfilmentOrderResult.Failed(
+                $"Supplier '{supplierName}' is missing a Supplier Direct delivery profile. Configure Email/FTP/SFTP on the supplier before submitting orders.",
+                ErrorClassification.ConfigurationError.ToString());
+        }
+
+        var deliveryMethod = ResolveDeliveryMethod(request.ExtendedData, profile);
 
         return deliveryMethod switch
         {
@@ -268,17 +110,14 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
                 supplierName,
                 supplierEmail,
                 profile,
-                settings,
                 cancellationToken),
             SupplierDirectDeliveryMethod.Ftp => await SubmitViaFileTransferAsync(
                 request,
-                settings,
                 profile,
                 useSftp: false,
                 cancellationToken),
             SupplierDirectDeliveryMethod.Sftp => await SubmitViaFileTransferAsync(
                 request,
-                settings,
                 profile,
                 useSftp: true,
                 cancellationToken),
@@ -290,22 +129,21 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
         FulfilmentOrderRequest request,
         string supplierName,
         string? supplierEmail,
-        SupplierDirectProfile? profile,
-        SupplierDirectSettings settings,
+        SupplierDirectProfile profile,
         CancellationToken cancellationToken)
     {
         var explicitEmail = GetExtendedDataString(request.ExtendedData, SupplierDirectExtendedDataKeys.OrderEmail);
-        var profileEmail = profile?.EmailSettings?.RecipientEmail;
-        var targetEmail = FirstNonEmpty(explicitEmail, profileEmail, supplierEmail, settings.DefaultSupplierEmail);
+        var profileEmail = profile.EmailSettings?.RecipientEmail;
+        var targetEmail = FirstNonEmpty(explicitEmail, profileEmail, supplierEmail);
 
         if (string.IsNullOrWhiteSpace(targetEmail))
         {
             return FulfilmentOrderResult.Failed(
-                "No supplier email address configured. Set ContactEmail on the supplier or configure a default.",
+                "No supplier email address configured. Set Supplier Direct email recipient or supplier contact email.",
                 ErrorClassification.ConfigurationError.ToString());
         }
 
-        var resolvedSubject = settings.EmailSubjectTemplate
+        var resolvedSubject = SupplierDirectProviderDefaults.DefaultEmailSubjectTemplate
             .Replace("{OrderNumber}", request.OrderNumber)
             .Replace("{SupplierName}", supplierName);
 
@@ -338,7 +176,7 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
                     config,
                     targetEmail,
                     resolvedSubject,
-                    settings.SendCopyToStore,
+                    SendCopyToStore,
                     profileCcAddresses);
                 var delivery = await _emailService.QueueDeliveryAsync(
                     runtimeConfig,
@@ -391,19 +229,11 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
 
     private async Task<FulfilmentOrderResult> SubmitViaFileTransferAsync(
         FulfilmentOrderRequest request,
-        SupplierDirectSettings settings,
-        SupplierDirectProfile? profile,
+        SupplierDirectProfile profile,
         bool useSftp,
         CancellationToken cancellationToken)
     {
-        if (!useSftp && !settings.FtpUseTls && !settings.AllowInsecureFtp)
-        {
-            return FulfilmentOrderResult.Failed(
-                "Plain FTP (without TLS) requires explicit opt-in in provider settings (AllowInsecureFtp).",
-                ErrorClassification.ConfigurationError.ToString());
-        }
-
-        var resolvedTransfer = ResolveTransferSettings(settings, profile, request.ExtendedData, useSftp);
+        var resolvedTransfer = ResolveTransferSettings(profile, request.ExtendedData, useSftp);
         var validationErrors = GetTransferValidationErrors(resolvedTransfer).ToList();
         if (validationErrors.Count > 0)
         {
@@ -414,27 +244,8 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
 
         try
         {
-            CsvColumnMapping mapping;
-            if (string.IsNullOrWhiteSpace(settings.CsvColumnMappingJson))
-            {
-                mapping = CsvColumnMapping.Default;
-            }
-            else
-            {
-                var parsedMapping = CsvColumnMapping.FromJson(settings.CsvColumnMappingJson);
-                if (parsedMapping == null)
-                {
-                    return FulfilmentOrderResult.Failed(
-                        "CsvColumnMappingJson is invalid JSON.",
-                        ErrorClassification.ConfigurationError.ToString());
-                }
-
-                mapping = parsedMapping;
-            }
-
-            var csvBytes = _csvGenerator.Generate(request, mapping);
-
-            var fileName = ResolveFileName(settings.FileNamePattern, request);
+            var csvBytes = _csvGenerator.Generate(request, CsvColumnMapping.Default);
+            var fileName = ResolveFileName(request);
             var remoteFilePath = BuildRemoteFilePath(resolvedTransfer.ConnectionSettings.RemotePath, fileName);
             var uploadMode = resolvedTransfer.ConnectionSettings.UseSftp ? "SFTP" : "FTP";
 
@@ -521,68 +332,20 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
     /// <inheritdoc />
     public override async Task<FulfilmentConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
-        var settings = _settings ?? new SupplierDirectSettings();
+        var emailConfigs = await _emailConfigurationService.GetEnabledByTopicAsync(
+            Constants.EmailTopics.FulfilmentSupplierOrder,
+            cancellationToken);
 
-        if (settings.DefaultDeliveryMethod == SupplierDirectDeliveryMethod.Email)
+        var emailSummary = emailConfigs.Count > 0
+            ? $"{emailConfigs.Count} email config(s)"
+            : "no email topic configuration";
+
+        return new FulfilmentConnectionTestResult
         {
-            var emailConfigs = await _emailConfigurationService.GetEnabledByTopicAsync(
-                Constants.EmailTopics.FulfilmentSupplierOrder,
-                cancellationToken);
-
-            if (emailConfigs.Count == 0)
-            {
-                return FulfilmentConnectionTestResult.Failed(
-                    $"No enabled email configuration found for topic '{Constants.EmailTopics.FulfilmentSupplierOrder}'.");
-            }
-
-            return new FulfilmentConnectionTestResult
-            {
-                Success = true,
-                ProviderVersion = "1.0",
-                AccountName = $"Supplier Direct (Email, {emailConfigs.Count} config(s))"
-            };
-        }
-
-        var useSftp = settings.DefaultDeliveryMethod == SupplierDirectDeliveryMethod.Sftp;
-        if (!useSftp && !settings.FtpUseTls && !settings.AllowInsecureFtp)
-        {
-            return FulfilmentConnectionTestResult.Failed(
-                "Plain FTP (without TLS) requires explicit opt-in in provider settings (AllowInsecureFtp).");
-        }
-
-        var transferSettings = ResolveTransferSettings(settings, profile: null, extendedData: null, useSftp);
-        var validationErrors = GetTransferValidationErrors(transferSettings).ToList();
-        if (validationErrors.Count > 0)
-        {
-            return FulfilmentConnectionTestResult.Failed(string.Join("; ", validationErrors));
-        }
-
-        try
-        {
-            await using var client = await _ftpClientFactory.CreateClientAsync(transferSettings.ConnectionSettings, cancellationToken);
-            var testResult = await client.TestConnectionAsync(cancellationToken);
-
-            if (!testResult.Success)
-            {
-                var safeError = SupplierDirectSecretRedactor.RedactSecrets(testResult.ErrorMessage);
-                return FulfilmentConnectionTestResult.Failed(safeError);
-            }
-
-            return new FulfilmentConnectionTestResult
-            {
-                Success = true,
-                ProviderVersion = "1.0",
-                AccountName = SupplierDirectSecretRedactor.SafeConnectionDescription(
-                    transferSettings.ConnectionSettings.Host,
-                    transferSettings.ConnectionSettings.Port,
-                    transferSettings.ConnectionSettings.Username)
-            };
-        }
-        catch (Exception ex)
-        {
-            var safeError = SupplierDirectSecretRedactor.RedactSecrets(ex.Message);
-            return FulfilmentConnectionTestResult.Failed($"Connection test failed: {safeError}");
-        }
+            Success = true,
+            ProviderVersion = "1.0",
+            AccountName = $"Supplier Direct (per-supplier only, {emailSummary})"
+        };
     }
 
     #endregion
@@ -595,8 +358,7 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
 
     private static SupplierDirectDeliveryMethod ResolveDeliveryMethod(
         IReadOnlyDictionary<string, object> extendedData,
-        SupplierDirectProfile? profile,
-        SupplierDirectDeliveryMethod defaultMethod)
+        SupplierDirectProfile profile)
     {
         var methodValue = GetExtendedDataString(extendedData, SupplierDirectExtendedDataKeys.DeliveryMethod);
         if (Enum.TryParse<SupplierDirectDeliveryMethod>(methodValue, true, out var explicitMethod))
@@ -604,12 +366,7 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
             return explicitMethod;
         }
 
-        if (profile != null)
-        {
-            return profile.DeliveryMethod;
-        }
-
-        return defaultMethod;
+        return profile.DeliveryMethod;
     }
 
     private static EmailConfiguration BuildRuntimeEmailConfiguration(
@@ -673,29 +430,27 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
     }
 
     private static ResolvedTransferSettings ResolveTransferSettings(
-        SupplierDirectSettings settings,
-        SupplierDirectProfile? profile,
+        SupplierDirectProfile profile,
         IReadOnlyDictionary<string, object>? extendedData,
         bool useSftp)
     {
-        var profileFtp = profile?.FtpSettings;
+        var profileFtp = profile.FtpSettings;
 
         var host = FirstNonEmpty(
             GetExtendedDataString(extendedData, SupplierDirectExtendedDataKeys.FtpHost),
-            profileFtp?.Host,
-            settings.FtpHost);
+            profileFtp?.Host);
 
         var username = FirstNonEmpty(
             GetExtendedDataString(extendedData, SupplierDirectExtendedDataKeys.FtpUsername),
-            profileFtp?.Username,
-            settings.FtpUsername);
+            profileFtp?.Username);
 
         var password = FirstNonEmpty(
             GetExtendedDataString(extendedData, SupplierDirectExtendedDataKeys.FtpPassword),
-            profileFtp?.Password,
-            settings.FtpPassword);
+            profileFtp?.Password);
 
-        var defaultPort = useSftp ? settings.SftpPort : settings.FtpPort;
+        var defaultPort = useSftp
+            ? SupplierDirectProviderDefaults.DefaultSftpPort
+            : SupplierDirectProviderDefaults.DefaultFtpPort;
         var port = GetExtendedDataInt(extendedData, SupplierDirectExtendedDataKeys.FtpPort)
                    ?? profileFtp?.Port
                    ?? defaultPort;
@@ -703,14 +458,12 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
         var remotePath = FirstNonEmpty(
             GetExtendedDataString(extendedData, SupplierDirectExtendedDataKeys.FtpRemotePath),
             profileFtp?.RemotePath,
-            settings.FtpRemotePath,
             SupplierDirectProviderDefaults.DefaultRemotePath)
             ?? SupplierDirectProviderDefaults.DefaultRemotePath;
 
         var fingerprint = FirstNonEmpty(
             GetExtendedDataString(extendedData, SupplierDirectExtendedDataKeys.SftpHostFingerprint),
-            profileFtp?.HostFingerprint,
-            settings.SftpHostFingerprint);
+            profileFtp?.HostFingerprint);
 
         return new ResolvedTransferSettings
         {
@@ -723,11 +476,11 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
                 RemotePath = CsvSanitizer.SanitizeRemotePath(remotePath),
                 UseSftp = useSftp,
                 HostFingerprint = fingerprint,
-                UsePassiveMode = settings.FtpPassiveMode,
-                UseTls = settings.FtpUseTls,
-                TimeoutSeconds = settings.TimeoutSeconds
+                UsePassiveMode = FtpPassiveMode,
+                UseTls = !useSftp && FtpUseTls,
+                TimeoutSeconds = TimeoutSeconds
             },
-            OverwriteExistingFiles = settings.FtpOverwriteExistingFiles
+            OverwriteExistingFiles = OverwriteExistingFiles
         };
     }
 
@@ -759,22 +512,9 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
         }
     }
 
-    private static string ResolveFileName(string? pattern, FulfilmentOrderRequest request)
+    private static string ResolveFileName(FulfilmentOrderRequest request)
     {
-        if (string.IsNullOrWhiteSpace(pattern))
-        {
-            return SupplierDirectCsvGenerator.GenerateFileName(request);
-        }
-
-        var resolved = pattern
-            .Replace("{OrderNumber}", request.OrderNumber)
-            .Replace("{OrderId}", request.OrderId.ToString("N"));
-
-        if (!resolved.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
-        {
-            resolved += ".csv";
-        }
-
+        var resolved = SupplierDirectCsvGenerator.GenerateFileName(request);
         resolved = CsvSanitizer.SanitizeFileName(resolved);
         return string.IsNullOrWhiteSpace(resolved)
             ? SupplierDirectCsvGenerator.GenerateFileName(request)

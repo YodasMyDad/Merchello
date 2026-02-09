@@ -514,6 +514,48 @@ public class ShippingOptionServiceTests
 
     #endregion
 
+    #region UpdateCostAsync Tests
+
+    [Fact]
+    public async Task UpdateCostAsync_PersistsChangesToSerializedList()
+    {
+        // Arrange
+        var option = await CreateShippingOptionViaService();
+        var addResult = await _service.AddCostAsync(option.Id, new CreateShippingCostDto
+        {
+            CountryCode = "GB",
+            Cost = 5.00m
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var updateDto = new CreateShippingCostDto
+        {
+            CountryCode = "us",
+            RegionCode = "ny",
+            Cost = 7.25m
+        };
+
+        // Act
+        var result = await _service.UpdateCostAsync(addResult.ResultObject!.Id, updateDto);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.CountryCode.ShouldBe("US");
+        result.ResultObject.RegionCode.ShouldBe("NY");
+        result.ResultObject.Cost.ShouldBe(7.25m);
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var persistedOption = await _fixture.DbContext.ShippingOptions.FindAsync(option.Id);
+        persistedOption.ShouldNotBeNull();
+        var persistedCost = persistedOption!.ShippingCosts.First(c => c.Id == addResult.ResultObject.Id);
+        persistedCost.CountryCode.ShouldBe("US");
+        persistedCost.RegionCode.ShouldBe("NY");
+        persistedCost.Cost.ShouldBe(7.25m);
+    }
+
+    #endregion
+
     #region DeleteCostAsync Tests
 
     [Fact]
@@ -628,6 +670,56 @@ public class ShippingOptionServiceTests
 
     #endregion
 
+    #region UpdateWeightTierAsync Tests
+
+    [Fact]
+    public async Task UpdateWeightTierAsync_PersistsChangesToSerializedList()
+    {
+        // Arrange
+        var option = await CreateShippingOptionViaService();
+        var addResult = await _service.AddWeightTierAsync(option.Id, new CreateShippingWeightTierDto
+        {
+            CountryCode = "GB",
+            MinWeightKg = 0,
+            MaxWeightKg = 5,
+            Surcharge = 2.00m
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var updateDto = new CreateShippingWeightTierDto
+        {
+            CountryCode = "us",
+            RegionCode = "ca",
+            MinWeightKg = 1,
+            MaxWeightKg = 10,
+            Surcharge = 3.50m
+        };
+
+        // Act
+        var result = await _service.UpdateWeightTierAsync(addResult.ResultObject!.Id, updateDto);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.CountryCode.ShouldBe("US");
+        result.ResultObject.RegionCode.ShouldBe("CA");
+        result.ResultObject.MinWeightKg.ShouldBe(1m);
+        result.ResultObject.MaxWeightKg.ShouldBe(10m);
+        result.ResultObject.Surcharge.ShouldBe(3.50m);
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var persistedOption = await _fixture.DbContext.ShippingOptions.FindAsync(option.Id);
+        persistedOption.ShouldNotBeNull();
+        var persistedTier = persistedOption!.WeightTiers.First(t => t.Id == addResult.ResultObject.Id);
+        persistedTier.CountryCode.ShouldBe("US");
+        persistedTier.RegionCode.ShouldBe("CA");
+        persistedTier.MinWeightKg.ShouldBe(1m);
+        persistedTier.MaxWeightKg.ShouldBe(10m);
+        persistedTier.Surcharge.ShouldBe(3.50m);
+    }
+
+    #endregion
+
     #region DeleteWeightTierAsync Tests
 
     [Fact]
@@ -666,6 +758,61 @@ public class ShippingOptionServiceTests
         // Assert
         result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message == "Weight tier not found");
+    }
+
+    #endregion
+
+    #region PostcodeRuleAsync Tests
+
+    [Fact]
+    public async Task UpdatePostcodeRuleAsync_PersistsChangesToSerializedList()
+    {
+        // Arrange
+        var option = await CreateShippingOptionViaService();
+        var addResult = await _service.AddPostcodeRuleAsync(option.Id, new CreateShippingPostcodeRuleDto
+        {
+            CountryCode = "GB",
+            Pattern = "SW",
+            MatchType = "Prefix",
+            Action = "Block",
+            Surcharge = 0m,
+            Description = "Block SW postcodes"
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var updateDto = new CreateShippingPostcodeRuleDto
+        {
+            CountryCode = "us",
+            Pattern = "90210",
+            MatchType = "Exact",
+            Action = "Surcharge",
+            Surcharge = 4.50m,
+            Description = "Surcharge premium zone"
+        };
+
+        // Act
+        var result = await _service.UpdatePostcodeRuleAsync(addResult.ResultObject!.Id, updateDto);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.CountryCode.ShouldBe("US");
+        result.ResultObject.Pattern.ShouldBe("90210");
+        result.ResultObject.MatchType.ShouldBe("Exact");
+        result.ResultObject.Action.ShouldBe("Surcharge");
+        result.ResultObject.Surcharge.ShouldBe(4.50m);
+        result.ResultObject.Description.ShouldBe("Surcharge premium zone");
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var persistedOption = await _fixture.DbContext.ShippingOptions.FindAsync(option.Id);
+        persistedOption.ShouldNotBeNull();
+        var persistedRule = persistedOption!.PostcodeRules.First(r => r.Id == addResult.ResultObject.Id);
+        persistedRule.CountryCode.ShouldBe("US");
+        persistedRule.Pattern.ShouldBe("90210");
+        persistedRule.MatchType.ShouldBe(PostcodeMatchType.Exact);
+        persistedRule.Action.ShouldBe(PostcodeRuleAction.Surcharge);
+        persistedRule.Surcharge.ShouldBe(4.50m);
+        persistedRule.Description.ShouldBe("Surcharge premium zone");
     }
 
     #endregion

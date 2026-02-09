@@ -33,7 +33,7 @@ Deliver a first-party fulfilment provider that can submit supplier purchase orde
 - FTP/SFTP supplier PO dispatch with CSV payload
 - Auto shipment creation on successful fulfilment submission
 - Invoice timeline notes for success/failure lifecycle
-- Supplier-level delivery profile (Email vs FTP/SFTP) with provider-level defaults
+- Supplier-level delivery profile (Email vs FTP/SFTP) per supplier (no global endpoint fallback)
 - Enterprise test coverage, observability, and rollout runbook
 
 ## Non-goals
@@ -45,8 +45,8 @@ Deliver a first-party fulfilment provider that can submit supplier purchase orde
 ## Architecture Decisions
 
 1. Configuration model
-Use supplier-level profiles stored in `Supplier.ExtendedData` with provider-level defaults in `FulfilmentProviderConfiguration.SettingsJson`.
-Rationale: keeps one-provider-key architecture intact while enabling "one method per supplier."
+Use supplier-level profiles stored in `Supplier.ExtendedData` as the source of truth for delivery method and endpoint credentials. Supplier Direct has no provider-level delivery settings.
+Rationale: enforces "one method per supplier" with zero shared defaults that could misroute orders.
 
 2. Single source of truth
 All routing and data assembly stays in services:
@@ -102,7 +102,6 @@ Introduce built-in `supplier-direct` provider with fully functional email-based 
 
 Create `src/Merchello.Core/Fulfilment/Providers/SupplierDirect/`:
 - `SupplierDirectFulfilmentProvider.cs`
-- `SupplierDirectSettings.cs`
 - `SupplierDirectDeliveryMethod.cs`
 - `SupplierDirectProviderDefaults.cs` (optional constants/defaults)
 - `SupplierDirectIcon.cs`
@@ -124,7 +123,7 @@ Fulfilment context enrichment:
   - Supplier delivery profile payload (if present)
 
 Provider behavior:
-- Resolve supplier delivery method (supplier profile -> provider default)
+- Resolve supplier delivery method directly from supplier profile (required)
 - For email method:
   - Queue via `IEmailService.QueueDeliveryAsync`
   - Return provider reference as `email:{deliveryId}`
@@ -157,10 +156,9 @@ Dependencies:
 - Add `FluentFTP` and `SSH.NET` package references in `Merchello.Core.csproj`
 
 Settings support:
-- Host, Port, Username, Password, RemotePath, UseSftp
-- Host fingerprint (SFTP), timeout, passive mode, overwrite behavior
-- FileNamePattern
-- ColumnMapping JSON (validated)
+- Supplier profile settings (required per supplier): Host, Port, Username, Password, RemotePath, HostFingerprint, DeliveryMethod
+- No provider-level delivery defaults; provider config panel is informational only for Supplier Direct
+- Safe internal defaults for transport behavior (deterministic CSV naming, secure transfer defaults)
 
 CSV requirements:
 - Configurable column ordering and aliases
@@ -169,9 +167,8 @@ CSV requirements:
 - Deterministic file naming for idempotency
 
 Connection testing:
-- `TestConnectionAsync()` validates configured mode:
-  - Email: validate topic configuration exists
-  - FTP/SFTP: connect + auth + directory accessibility check
+- `TestConnectionAsync()` validates provider availability and email topic availability
+- Supplier transport endpoint validity is verified at order submission time (or via supplier-specific integration tests)
 
 ### Exit criteria
 
@@ -245,7 +242,7 @@ Make per-supplier delivery profile manageable without manual JSON edits.
 ### Data storage
 
 - Store profile in `Supplier.ExtendedData["Fulfilment:SupplierDirect:Profile"]`
-- Provider-level settings remain as defaults/fallback
+- No provider-level delivery settings (no shared defaults, no supplier endpoint fallback)
 
 ### Exit criteria
 
@@ -297,7 +294,6 @@ Reach enterprise release quality and make this provider a reference implementati
 
 ### Unit tests
 
-- Settings parsing and validation (including stringly-typed config payloads)
 - CSV mapping and escaping
 - Email submission path success/failure
 - FTP/SFTP upload success/failure classification

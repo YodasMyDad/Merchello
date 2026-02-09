@@ -30,18 +30,18 @@ public static class SupplierDirectProviderDefaults
 
         This built-in provider sends orders directly to your suppliers when their warehouse is assigned to fulfill an order.
 
-        ### Delivery Methods
+        ### Delivery Methods (Per Supplier)
 
-        1. **Email** - Sends order details to the supplier's email address using a configurable email template
-        2. **FTP** - Uploads order CSV file to supplier's FTP server
-        3. **SFTP** - Uploads order CSV file to supplier's SFTP server (more secure, recommended)
+        1. **Email** - Sends order details to that supplier's email address using a configurable email template
+        2. **FTP** - Uploads order CSV file to that supplier's FTP server
+        3. **SFTP** - Uploads order CSV file to that supplier's SFTP server (more secure, recommended)
 
-        ### Configuration
+        ### Configuration Model
 
-        - Set a **default delivery method** that applies to all suppliers
-        - Override the delivery method **per-supplier** in the supplier profile
-        - **Plain FTP requires explicit opt-in** (`AllowInsecureFtp = true`)
-        - Configure **email templates** in the Email Builder for topic `fulfilment.supplier_order`
+        - Assign **Supplier Direct** as the supplier's default fulfilment provider (or warehouse override)
+        - Configure a **Supplier Direct profile on each supplier**
+        - Choose delivery method per supplier (`Email`, `Ftp`, `Sftp`) and set supplier-specific endpoint details
+        - Supplier Direct has **no provider-level delivery defaults**
 
         ### Per-Supplier Settings
 
@@ -50,7 +50,8 @@ public static class SupplierDirectProviderDefaults
         - Custom FTP/SFTP host and credentials
         - Custom remote upload path
 
-        If a supplier doesn't have custom settings, the provider-level defaults are used.
+        Supplier Direct requires a supplier profile. Orders fail fast when a supplier has not been configured.
+        The provider settings panel is intentionally minimal and does not hold supplier delivery config.
         """;
 
     /// <summary>

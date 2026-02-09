@@ -7,6 +7,7 @@ import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fu
 import type { SupplierDirectProfileDto } from "@suppliers/types/suppliers.types.js";
 
 type SupplierDirectDeliveryMethod = "Email" | "Ftp" | "Sftp";
+const SUPPLIER_DIRECT_PROVIDER_KEY = "supplier-direct";
 
 @customElement("merchello-supplier-modal")
 export class MerchelloSupplierModalElement extends UmbModalBaseElement<
@@ -25,7 +26,6 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
   @state() private _isSaving = false;
   @state() private _errors: Record<string, string> = {};
 
-  @state() private _useSupplierDirectProfile = false;
   @state() private _deliveryMethod: SupplierDirectDeliveryMethod = "Email";
   @state() private _emailRecipient = "";
   @state() private _ftpHost = "";
@@ -41,6 +41,18 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
   private get _isLoading(): boolean {
     return this._isLoadingProviders || this._isLoadingSupplier;
+  }
+
+  private _isSupplierDirectSelected(): boolean {
+    if (!this._fulfilmentProviderConfigurationId) {
+      return false;
+    }
+
+    const selectedProvider = this._fulfilmentProviderOptions.find(
+      (provider) => provider.configurationId === this._fulfilmentProviderConfigurationId
+    );
+
+    return selectedProvider?.providerKey === SUPPLIER_DIRECT_PROVIDER_KEY;
   }
 
   override connectedCallback(): void {
@@ -95,10 +107,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       this._fulfilmentProviderConfigurationId = data.fulfilmentProviderConfigurationId ?? "";
 
       if (data.supplierDirectProfile) {
-        this._useSupplierDirectProfile = true;
         this._applySupplierDirectProfile(data.supplierDirectProfile);
-      } else {
-        this._useSupplierDirectProfile = false;
       }
     }
 
@@ -140,8 +149,10 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       errors.contactEmail = "Contact email format is invalid";
     }
 
+    const isSupplierDirectSelected = this._isSupplierDirectSelected();
+
     if (
-      this._useSupplierDirectProfile &&
+      isSupplierDirectSelected &&
       this._deliveryMethod === "Email" &&
       !this._validateEmail(this._emailRecipient.trim())
     ) {
@@ -149,12 +160,33 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     }
 
     if (
-      this._useSupplierDirectProfile &&
+      isSupplierDirectSelected &&
+      this._deliveryMethod === "Email" &&
+      !this._emailRecipient.trim() &&
+      !this._contactEmail.trim()
+    ) {
+      errors.emailRecipient = "Provide supplier recipient email or supplier contact email";
+    }
+
+    if (
+      isSupplierDirectSelected &&
       this._deliveryMethod !== "Email" &&
       this._ftpPort.trim() &&
       Number.isNaN(Number(this._ftpPort.trim()))
     ) {
       errors.ftpPort = "FTP/SFTP port must be a valid number";
+    }
+
+    if (isSupplierDirectSelected && this._deliveryMethod !== "Email" && !this._ftpHost.trim()) {
+      errors.ftpHost = "FTP/SFTP host is required";
+    }
+
+    if (isSupplierDirectSelected && this._deliveryMethod !== "Email" && !this._ftpUsername.trim()) {
+      errors.ftpUsername = "FTP/SFTP username is required";
+    }
+
+    if (isSupplierDirectSelected && this._deliveryMethod !== "Email" && !this._isEditMode && !this._ftpPassword.trim()) {
+      errors.ftpPassword = "FTP/SFTP password is required when creating a supplier";
     }
 
     this._errors = errors;
@@ -195,6 +227,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
     const previousProviderId = this.data?.supplier?.fulfilmentProviderConfigurationId ?? "";
     const shouldClearProviderId = this._isEditMode && !this._fulfilmentProviderConfigurationId && !!previousProviderId;
+    const shouldIncludeSupplierDirectProfile = this._isSupplierDirectSelected();
 
     const basePayload = {
       name: this._name.trim(),
@@ -204,11 +237,11 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       contactPhone: this._contactPhone.trim() || undefined,
       fulfilmentProviderConfigurationId: this._fulfilmentProviderConfigurationId || undefined,
       shouldClearFulfilmentProviderId: shouldClearProviderId || undefined,
-      supplierDirectProfile: this._useSupplierDirectProfile
+      supplierDirectProfile: shouldIncludeSupplierDirectProfile
         ? this._buildSupplierDirectProfile()
         : undefined,
       shouldClearSupplierDirectProfile:
-        this._isEditMode && !this._useSupplierDirectProfile ? true : undefined,
+        this._isEditMode && !shouldIncludeSupplierDirectProfile ? true : undefined,
     };
 
     if (this._isEditMode) {
@@ -266,10 +299,6 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
   }
 
   private _renderSupplierDirectFields(): unknown {
-    if (!this._useSupplierDirectProfile) {
-      return nothing;
-    }
-
     return html`
       <div class="section">
         <h4>Supplier Direct Profile</h4>
@@ -283,7 +312,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
             @change=${(e: Event) =>
               (this._deliveryMethod = (e.target as HTMLSelectElement).value as SupplierDirectDeliveryMethod)}
           ></uui-select>
-          <span class="hint">Overrides provider default delivery for this supplier</span>
+          <span class="hint">Choose how this supplier receives fulfilment orders</span>
         </div>
 
         ${this._deliveryMethod === "Email"
@@ -298,7 +327,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
                   placeholder="orders@supplier.com"
                   label="Supplier recipient email"
                 ></uui-input>
-                <span class="hint">If empty, supplier contact email or provider fallback email is used</span>
+                <span class="hint">If empty, supplier contact email is used</span>
                 ${this._errors.emailRecipient
                   ? html`<span class="error">${this._errors.emailRecipient}</span>`
                   : nothing}
@@ -314,6 +343,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
                   placeholder="ftp.supplier.com"
                   label="FTP host"
                 ></uui-input>
+                ${this._errors.ftpHost ? html`<span class="error">${this._errors.ftpHost}</span>` : nothing}
               </div>
 
               <div class="form-row">
@@ -337,6 +367,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
                   @input=${(e: Event) => (this._ftpUsername = (e.target as HTMLInputElement).value)}
                   label="Username"
                 ></uui-input>
+                ${this._errors.ftpUsername ? html`<span class="error">${this._errors.ftpUsername}</span>` : nothing}
               </div>
 
               <div class="form-row">
@@ -349,6 +380,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
                   placeholder="Leave blank to keep existing password"
                   label="Password"
                 ></uui-input>
+                ${this._errors.ftpPassword ? html`<span class="error">${this._errors.ftpPassword}</span>` : nothing}
               </div>
 
               <div class="form-row">
@@ -498,23 +530,15 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
                   </div>
                 </div>
 
-                <div class="section">
-                  <div class="form-row checkbox-row">
-                    <uui-checkbox
-                      id="use-supplier-direct-profile"
-                      ?checked=${this._useSupplierDirectProfile}
-                      @change=${(e: Event) =>
-                        (this._useSupplierDirectProfile = (e.target as HTMLInputElement).checked)}
-                    >
-                      Configure Supplier Direct Profile
-                    </uui-checkbox>
-                    <span class="hint">
-                      Enable per-supplier delivery settings (Email / FTP / SFTP) for the Supplier Direct provider
-                    </span>
-                  </div>
-
-                  ${this._renderSupplierDirectFields()}
-                </div>
+                ${this._isSupplierDirectSelected()
+                  ? this._renderSupplierDirectFields()
+                  : html`
+                      <div class="section">
+                        <span class="hint">
+                          Select Supplier Direct as the default fulfilment provider to configure per-supplier Email/FTP/SFTP delivery.
+                        </span>
+                      </div>
+                    `}
               `}
         </div>
 
@@ -563,10 +587,6 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-1);
-    }
-
-    .checkbox-row {
-      gap: var(--uui-size-space-2);
     }
 
     label,
