@@ -892,7 +892,7 @@ public record FulfilmentOrderRequest
     public FulfilmentAddress? BillingAddress { get; init; }
     public string? CustomerEmail { get; init; }
     public string? CustomerPhone { get; init; }
-    public string? ShippingServiceCode { get; init; }  // Mapped from ShippingOption via ServiceMappings
+    public string? ShippingServiceCode { get; init; }  // Resolved from service category/default mapping
     public DateTime? RequestedDeliveryDate { get; init; }
     public string? InternalNotes { get; init; }
     public Dictionary<string, object> ExtendedData { get; init; } = [];
@@ -1263,7 +1263,7 @@ public static class FulfilmentRetryPolicy
 - [x] Warehouse UI: optional provider override dropdown
 - [x] Sync logs viewer
 - [x] **Test Provider Modal** (see [Admin Test UI](#admin-test-ui) section below)
-- [x] **Service Level Mapping UI** - Provider config displays all ShippingOptions with text fields to enter 3PL service codes. Stored in `SettingsJson` under `ServiceMappings` key. Empty = use 3PL's default shipping method.
+- [x] **Category-Based Shipping Mapping** - Provider config exposes `ServiceCategoryMapping_*` and `DefaultShippingMethod` fields for unified mapping across flat-rate and dynamic shipping providers.
 
 ### Phase 6: Integration Tests
 - [x] Core infrastructure tests (FulfilmentProviderConfiguration, FulfilmentSyncLog models)

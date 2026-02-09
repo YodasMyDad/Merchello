@@ -778,10 +778,9 @@ Carrier API → TransitTime → DaysFrom/DaysTo on ShippingOptionInfo
 **ShippingServiceCategory enum:** `Standard` (4-7 days), `Economy` (8+), `Express` (2-3), `Overnight` (≤1)
 
 **Resolution Priority (ResolveShippingServiceCode):**
-1. `ServiceMappings` lookup by ShippingOptionId (flat-rate explicit mapping)
-2. `ServiceCategoryMapping_{Category}` from provider settings (category-based)
-3. `DefaultShippingMethod` from provider settings (catch-all)
-4. Raw carrier code from `Order.ShippingServiceCode` (last resort)
+1. `ServiceCategoryMapping_{Category}` from provider settings (category-based)
+2. `DefaultShippingMethod` from provider settings (catch-all)
+3. Raw carrier code from `Order.ShippingServiceCode` (last resort)
 
 Each fulfilment provider defines category mappings via `GetConfigurationFieldsAsync()` (auto-rendered in config UI):
 ```

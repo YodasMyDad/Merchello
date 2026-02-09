@@ -2,7 +2,7 @@
 Enterprise ecommerce NuGet. **Ethos: making enterprise ecommerce simple. no over-engineered code**
 - **Modular** - `ExtensionManager` for plugins (ShippingProviders, etc.)
 - **Services** - Feature-grouped, DI, parameter models
-- **Factories** - All key classes via factories
+- **Factories** - All domain entities (Invoice, Order, Product, Customer, Basket, Payment, Shipment, etc.) MUST be created via their factory. Never `new Entity{}` directly. Factories are registered as singletons.
 
 Never make assumptions about code in the project before you are making changes, even if a document states something, before changes, ALWAYS trace through the actual code and check everything.
 
@@ -132,6 +132,37 @@ var str = extendedData["Name"].UnwrapJsonElement()?.ToString();
 
 **Note:** This only applies to `object?` values from dictionaries/deserialization. `JsonElement` from `JsonDocument.Parse()` with `TryGetProperty()` is controlled and doesn't need unwrapping.
 
+## EFCoreScope Transactions (CRITICAL)
+
+**NEVER call `db.Database.BeginTransactionAsync()` inside `scope.ExecuteWithContextAsync()`.** The `EFCoreScope` already manages a transaction — starting an explicit one causes `InvalidOperationException: The connection is already in a transaction`.
+
+**BAD - Will crash at runtime:**
+```csharp
+using var scope = efCoreScopeProvider.CreateScope();
+var result = await scope.ExecuteWithContextAsync(async db =>
+{
+    await using var transaction = await db.Database.BeginTransactionAsync(...); // FAILS!
+    // ... work ...
+    await transaction.CommitAsync(ct);
+    return result;
+});
+scope.Complete();
+```
+
+**GOOD - Let the scope manage the transaction:**
+```csharp
+using var scope = efCoreScopeProvider.CreateScope();
+var result = await scope.ExecuteWithContextAsync(async db =>
+{
+    // ... work ...
+    await db.SaveChangesAsync(ct);
+    return result;
+});
+scope.Complete(); // Commits the implicit transaction
+```
+
+For concurrency protection, rely on unique constraints + `DbUpdateException` catch blocks.
+
 ## Conventions
 - DI throughout, custom mapping (no AutoMapper), IHostedService for background
 - Controllers never access DbContext - inject services; design reusable methods with flexible parameters
@@ -142,6 +173,29 @@ var str = extendedData["Name"].UnwrapJsonElement()?.ToString();
 // BAD: GetUnpaidInvoicesForCustomerCreatedThisMonth(id)
 // GOOD: QueryAsync(InvoiceQueryParameters p)
 ```
+
+## CrudResult\<T\>
+
+Return `CrudResult<T>` for operations that can fail. Use `AddErrorMessage()`/`AddWarningMessage()` for user-facing errors.
+
+- Query/read methods: return entities directly
+- CRUD/mutation methods: return `CrudResult<T>`
+- Reference: `Merchello.Core/Shared/Models/CrudResult.cs`, `CrudResultExtensions.cs`
+
+## Single Source of Truth
+
+All business calculations are centralized in services. NEVER duplicate calculation logic — always call the designated service/provider:
+
+- Tax rates: `TaxService.GetApplicableRateAsync()` | Payment status: `PaymentService.CalculatePaymentStatus()`
+- Basket totals: `CheckoutService.CalculateBasketAsync()` | Stock: `InventoryService` (reserve/allocate/release)
+- Shipping tax: `ITaxCalculationService.CalculateProportionalShippingTax()` — never reimplement
+
+## Multi-Currency (CRITICAL)
+
+- Basket stores amounts in **store currency** — amounts NEVER change when display currency changes
+- **Display:** `amount × rate` (via `StorefrontDisplayContext`) | **Checkout/Payment:** `amount ÷ rate` (invoice creation)
+- Rate locked at invoice creation via `PricingExchangeRate`
+- NEVER use display amounts for payment calculations
 
 ## Dependency Injection
 **Always use proper constructor injection.** Never use workarounds like:
@@ -163,6 +217,22 @@ services.AddScoped<IMyService, MyService>(); // MyService injects IMyRenderer
 ```
 
 This keeps dependency direction correct (web → core) while allowing Core services to use web implementations.
+
+## Notification Handler Priorities
+
+`[NotificationHandlerPriority(N)]` — lower runs first, default 1000.
+
+| Range | Purpose |
+| ----- | ------- |
+| 100-500 | Validation/blocking |
+| 1000 | Default business logic |
+| 1500-1900 | Post-processing (digital delivery, fulfilment, post-purchase) |
+| 2000 | Internal audit/timeline |
+| 2100 | Email dispatch |
+| 2200 | Webhook dispatch |
+| 3000 | Protocol-specific |
+
+Handlers should catch exceptions and log (fault-tolerant), not rethrow.
 
 ## Migrations/Testing/Security/Blazor
 - Migrations: `scripts/add-migration.ps1` only
