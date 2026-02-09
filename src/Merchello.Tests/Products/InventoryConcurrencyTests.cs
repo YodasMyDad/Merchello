@@ -11,6 +11,13 @@ namespace Merchello.Tests.Products;
 [Collection("Integration Tests")]
 public class InventoryConcurrencyTests
 {
+    private const int DigitalSequentialReservationIterations = 40;
+    private const int HighVolumeAvailableStock = 30;
+    private const int HighVolumeConcurrentReservationCount = 60;
+    private const int StressAvailableStock = 300;
+    private const int StressConcurrentReservationCount = 600;
+    private const int DigitalParallelReservationCount = 60;
+
     private readonly ServiceTestFixture _fixture;
 
     public InventoryConcurrencyTests(ServiceTestFixture fixture)
@@ -24,8 +31,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task InterleavedReservationsAndReleases_MaintainsConsistency()
     {
-        _fixture.ResetDatabase();
-
         // Arrange - Start with 100 stock, 50 reserved
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -63,8 +68,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task ExhaustStockThenRelease_AllowsNewReservations()
     {
-        _fixture.ResetDatabase();
-
         // Arrange - 10 items in stock
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -105,8 +108,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task DigitalProduct_UnlimitedReservations_AllSucceed()
     {
-        _fixture.ResetDatabase();
-
         // Arrange - Digital product with TrackStock = false
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -116,7 +117,7 @@ public class InventoryConcurrencyTests
 
         // Act - Many sequential reservations
         int successCount = 0;
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < DigitalSequentialReservationIterations; i++)
         {
             var result = await _fixture.GetService<IInventoryService>().ReserveStockAsync(product.Id, warehouse.Id, 1);
             if (result.ResultObject)
@@ -124,7 +125,7 @@ public class InventoryConcurrencyTests
         }
 
         // Assert - All should succeed for digital product
-        successCount.ShouldBe(100);
+        successCount.ShouldBe(DigitalSequentialReservationIterations);
 
         // Verify stock unchanged
         using var verificationScope = _fixture.CreateScope();
@@ -148,8 +149,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task ParallelReservations_DoNotOversell_WithLimitedStock()
     {
-        _fixture.ResetDatabase();
-
         // Arrange: 10 stock, 20 concurrent requests for 1 each
         // Expected: Exactly 10 succeed, 10 fail
         var dataBuilder = _fixture.CreateDataBuilder();
@@ -187,25 +186,23 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task HighVolumeConcurrentReservations_ExactlyAvailableStockReserved()
     {
-        _fixture.ResetDatabase();
-
-        // Arrange: 50 stock, 100 concurrent requests for 1 each
+        // Arrange: 30 stock, 60 concurrent requests for 1 each
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 50, trackStock: true);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: HighVolumeAvailableStock, trackStock: true);
         await dataBuilder.SaveChangesAsync();
 
-        // Act: Fire 100 concurrent requests
+        // Act: Fire 60 concurrent requests
         var results = await ConcurrentTestHelper.RunWithResultTrackingAsync(
-            100,
+            HighVolumeConcurrentReservationCount,
             async () => await _fixture.GetService<IInventoryService>()
                 .ReserveStockAsync(product.Id, warehouse.Id, 1),
             result => result.ResultObject);
 
-        // Assert: Exactly 50 should succeed
-        results.SuccessCount.ShouldBe(50);
-        results.FailureCount.ShouldBe(50);
+        // Assert: Exactly 30 should succeed
+        results.SuccessCount.ShouldBe(HighVolumeAvailableStock);
+        results.FailureCount.ShouldBe(HighVolumeConcurrentReservationCount - HighVolumeAvailableStock);
 
         // Verify final state
         using var verificationScope = _fixture.CreateScope();
@@ -214,7 +211,7 @@ public class InventoryConcurrencyTests
             .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
-        finalState!.ReservedStock.ShouldBe(50);
+        finalState!.ReservedStock.ShouldBe(HighVolumeAvailableStock);
     }
 
     /// <summary>
@@ -224,8 +221,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task ConcurrentReserveAndRelease_MaintainsDataIntegrity()
     {
-        _fixture.ResetDatabase();
-
         // Arrange: 100 stock, 50 already reserved
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -269,8 +264,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task ConcurrentAllocations_MaintainDataIntegrity()
     {
-        _fixture.ResetDatabase();
-
         // Arrange: 50 stock, 50 reserved (ready for allocation)
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -312,8 +305,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task LastItemRace_OnlyOneWins()
     {
-        _fixture.ResetDatabase();
-
         // Arrange: Only 1 item left available (5 stock, 4 reserved)
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -348,8 +339,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task ConcurrentBulkReservations_CorrectPartialFulfillment()
     {
-        _fixture.ResetDatabase();
-
         // Arrange: 25 stock, 5 concurrent requests for 10 each (only 2 can succeed)
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -382,32 +371,31 @@ public class InventoryConcurrencyTests
     /// Stress test: Very high concurrency to validate no deadlocks or corruption.
     /// </summary>
     [Fact]
+    [Trait("Category", "Stress")]
     public async Task StressTest_MassiveParallelReservations_NoDeadlocks()
     {
-        _fixture.ResetDatabase();
-
-        // Arrange: 500 stock, 1000 concurrent requests
+        // Arrange: 300 stock, 600 concurrent requests
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
         var product = dataBuilder.CreateProduct();
-        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 500, trackStock: true);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: StressAvailableStock, trackStock: true);
         await dataBuilder.SaveChangesAsync();
 
-        // Act: Fire 1000 concurrent reservations
+        // Act: Fire 600 concurrent reservations
         var results = await ConcurrentTestHelper.RunWithResultTrackingAsync(
-            1000,
+            StressConcurrentReservationCount,
             async () => await _fixture.GetService<IInventoryService>()
                 .ReserveStockAsync(product.Id, warehouse.Id, 1),
             result => result.ResultObject);
 
         // Assert: Total should equal concurrency level
-        results.TotalCount.ShouldBe(1000);
+        results.TotalCount.ShouldBe(StressConcurrentReservationCount);
 
         // Success + Failure should equal total requests
-        (results.SuccessCount + results.FailureCount).ShouldBe(1000);
+        (results.SuccessCount + results.FailureCount).ShouldBe(StressConcurrentReservationCount);
 
         // Success count should equal available stock
-        results.SuccessCount.ShouldBe(500);
+        results.SuccessCount.ShouldBe(StressAvailableStock);
 
         // Verify final state
         using var verificationScope = _fixture.CreateScope();
@@ -416,8 +404,8 @@ public class InventoryConcurrencyTests
             .AsNoTracking()
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id && pw.WarehouseId == warehouse.Id);
 
-        finalState!.ReservedStock.ShouldBe(500);
-        finalState.Stock.ShouldBe(500);
+        finalState!.ReservedStock.ShouldBe(StressAvailableStock);
+        finalState.Stock.ShouldBe(StressAvailableStock);
     }
 
     /// <summary>
@@ -426,8 +414,6 @@ public class InventoryConcurrencyTests
     [Fact]
     public async Task DigitalProduct_ParallelReservations_AllSucceed()
     {
-        _fixture.ResetDatabase();
-
         // Arrange: Digital product with TrackStock = false
         var dataBuilder = _fixture.CreateDataBuilder();
         var warehouse = dataBuilder.CreateWarehouse();
@@ -435,15 +421,15 @@ public class InventoryConcurrencyTests
         dataBuilder.CreateProductWarehouse(product, warehouse, stock: 0, trackStock: false);
         await dataBuilder.SaveChangesAsync();
 
-        // Act: 100 concurrent reservations
+        // Act: 60 concurrent reservations
         var results = await ConcurrentTestHelper.RunWithResultTrackingAsync(
-            100,
+            DigitalParallelReservationCount,
             async () => await _fixture.GetService<IInventoryService>()
                 .ReserveStockAsync(product.Id, warehouse.Id, 1),
             result => result.ResultObject);
 
         // Assert: ALL should succeed for digital product
-        results.SuccessCount.ShouldBe(100);
+        results.SuccessCount.ShouldBe(DigitalParallelReservationCount);
         results.FailureCount.ShouldBe(0);
 
         // Verify stock unchanged

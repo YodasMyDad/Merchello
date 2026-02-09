@@ -4,7 +4,6 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Models;
-using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -54,10 +53,7 @@ public class ProductsApiController(
     public async Task<IActionResult> CreateProduct([FromBody] CreateProductRootDto request, CancellationToken ct)
     {
         var result = await productService.CreateProductRoot(request, ct);
-        if (!result.Success)
-        {
-            return BadRequest(new { errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message) });
-        }
+        if (CrudErrors(result) is { } error) return error;
 
         var detail = await productService.GetProductRootWithDetails(result.ResultObject!.Id, ct);
         return CreatedAtAction(nameof(GetProductDetail), new { id = result.ResultObject!.Id }, detail);
@@ -73,15 +69,7 @@ public class ProductsApiController(
     public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductRootDto request, CancellationToken ct)
     {
         var result = await productService.UpdateProductRoot(id, request, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
-            if (errors.Any(e => e?.Contains("not found") == true))
-            {
-                return NotFound();
-            }
-            return BadRequest(new { errors });
-        }
+        if (CrudErrors(result) is { } error) return error;
 
         var detail = await productService.GetProductRootWithDetails(id, ct);
         return Ok(detail);
@@ -96,10 +84,7 @@ public class ProductsApiController(
     public async Task<IActionResult> DeleteProduct(Guid id, CancellationToken ct)
     {
         var result = await productService.DeleteProductRoot(id, ct);
-        if (!result.Success)
-        {
-            return NotFound();
-        }
+        if (CrudError(result) is { } error) return error;
         return NoContent();
     }
 
@@ -134,15 +119,7 @@ public class ProductsApiController(
     public async Task<IActionResult> UpdateVariant(Guid productRootId, Guid variantId, [FromBody] UpdateVariantDto request, CancellationToken ct)
     {
         var result = await productService.UpdateVariant(productRootId, variantId, request, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
-            if (errors.Any(e => e?.Contains("not found") == true))
-            {
-                return NotFound();
-            }
-            return BadRequest(new { errors });
-        }
+        if (CrudErrors(result) is { } error) return error;
 
         return Ok(MapToVariantDto(result.ResultObject!));
     }
@@ -156,10 +133,7 @@ public class ProductsApiController(
     public async Task<IActionResult> SetDefaultVariant(Guid productRootId, Guid variantId, CancellationToken ct)
     {
         var result = await productService.SetDefaultVariant(variantId, ct);
-        if (!result.Success)
-        {
-            return NotFound();
-        }
+        if (CrudError(result) is { } error) return error;
         return NoContent();
     }
 
@@ -246,7 +220,7 @@ public class ProductsApiController(
             request.ExcludedShippingOptionIds,
             ct);
 
-        if (!result.Success) return NotFound();
+        if (CrudError(result) is { } error) return error;
         return NoContent();
     }
 
@@ -267,7 +241,7 @@ public class ProductsApiController(
             request.ExcludedShippingOptionIds,
             ct);
 
-        if (!result.Success) return NotFound();
+        if (CrudError(result) is { } error) return error;
         return NoContent();
     }
 
@@ -339,15 +313,7 @@ public class ProductsApiController(
     public async Task<IActionResult> SaveOptions(Guid productRootId, [FromBody] List<SaveProductOptionDto> options, CancellationToken ct)
     {
         var result = await productService.SaveProductOptions(productRootId, options, ct);
-        if (!result.Success)
-        {
-            var errors = result.Messages.Where(m => m.ResultMessageType == ResultMessageType.Error).Select(m => m.Message).ToList();
-            if (errors.Any(e => e?.Contains("not found") == true))
-            {
-                return NotFound();
-            }
-            return BadRequest(new { errors });
-        }
+        if (CrudErrors(result) is { } error) return error;
 
         return Ok(result.ResultObject!.Select(MapToOptionDto).ToList());
     }
@@ -431,11 +397,7 @@ public class ProductsApiController(
     public async Task<IActionResult> CreateProductType([FromBody] CreateProductTypeDto request, CancellationToken ct)
     {
         var result = await productTypeService.CreateProductType(request.Name, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
-            return BadRequest(new ProblemDetails { Title = "Failed to create product type", Detail = errorMessage });
-        }
+        if (CrudError(result) is { } error) return error;
 
         var productType = result.ResultObject!;
         return Ok(new ProductTypeDto { Id = productType.Id, Name = productType.Name ?? string.Empty, Alias = productType.Alias });
@@ -448,15 +410,7 @@ public class ProductsApiController(
     public async Task<IActionResult> UpdateProductType(Guid id, [FromBody] UpdateProductTypeDto request, CancellationToken ct)
     {
         var result = await productTypeService.UpdateProductType(id, request.Name, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound();
-            }
-            return BadRequest(new ProblemDetails { Title = "Failed to update product type", Detail = errorMessage });
-        }
+        if (CrudError(result) is { } error) return error;
 
         var productType = result.ResultObject!;
         return Ok(new ProductTypeDto { Id = productType.Id, Name = productType.Name ?? string.Empty, Alias = productType.Alias });
@@ -469,15 +423,7 @@ public class ProductsApiController(
     public async Task<IActionResult> DeleteProductType(Guid id, CancellationToken ct)
     {
         var result = await productTypeService.DeleteProductType(id, ct);
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault(m => m.ResultMessageType == ResultMessageType.Error)?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound();
-            }
-            return BadRequest(new ProblemDetails { Title = "Failed to delete product type", Detail = errorMessage });
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }
@@ -502,12 +448,7 @@ public class ProductsApiController(
         }
 
         var result = await productCollectionService.CreateProductCollection(dto.Name.Trim(), ct);
-
-        if (!result.Success)
-        {
-            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to create collection";
-            return BadRequest(message);
-        }
+        if (CrudError(result) is { } error) return error;
 
         var collection = result.ResultObject!;
         return CreatedAtAction(
@@ -532,16 +473,7 @@ public class ProductsApiController(
         }
 
         var result = await productCollectionService.UpdateProductCollection(id, dto.Name.Trim(), ct);
-
-        if (!result.Success)
-        {
-            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to update collection";
-            if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
-            {
-                return NotFound(message);
-            }
-            return BadRequest(message);
-        }
+        if (CrudError(result) is { } error) return error;
 
         var collection = result.ResultObject!;
         // Get the updated product count
@@ -563,16 +495,7 @@ public class ProductsApiController(
     public async Task<IActionResult> DeleteProductCollection(Guid id, CancellationToken ct)
     {
         var result = await productCollectionService.DeleteProductCollection(id, ct);
-
-        if (!result.Success)
-        {
-            var message = result.Messages.FirstOrDefault()?.Message ?? "Failed to delete collection";
-            if (message.Contains("not found", StringComparison.OrdinalIgnoreCase))
-            {
-                return NotFound(message);
-            }
-            return BadRequest(message);
-        }
+        if (CrudError(result) is { } error) return error;
 
         return NoContent();
     }

@@ -232,15 +232,7 @@ public class PaymentsApiController(
             },
             cancellationToken);
 
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to record payment.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         return Ok(await MapToPaymentDtoAsync(result.ResultObject!, cancellationToken));
     }
@@ -294,15 +286,7 @@ public class PaymentsApiController(
             }, cancellationToken);
         }
 
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to process refund.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         return Ok(await MapToPaymentDtoAsync(result.ResultObject!, cancellationToken));
     }
@@ -327,15 +311,7 @@ public class PaymentsApiController(
             Percentage = request?.Percentage
         }, cancellationToken);
 
-        if (!result.Success)
-        {
-            var errorMessage = result.Messages.FirstOrDefault()?.Message;
-            if (errorMessage?.Contains("not found") == true)
-            {
-                return NotFound(errorMessage);
-            }
-            return BadRequest(errorMessage ?? "Failed to preview refund.");
-        }
+        if (CrudError(result) is { } error) return error;
 
         return Ok(result.ResultObject);
     }
