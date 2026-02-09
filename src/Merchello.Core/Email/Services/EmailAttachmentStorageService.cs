@@ -125,14 +125,17 @@ public class EmailAttachmentStorageService(
 
     private string GetFullPath(string storagePath)
     {
-        // Normalize path separators
-        storagePath = storagePath.Replace('/', Path.DirectorySeparatorChar);
+        // Normalize both slash types to platform separator
+        storagePath = storagePath.Replace('/', Path.DirectorySeparatorChar)
+                                 .Replace('\\', Path.DirectorySeparatorChar);
         return Path.Combine(_baseStoragePath, storagePath);
     }
 
     private void ValidatePathSecurity(string fullPath)
     {
-        var resolvedPath = Path.GetFullPath(fullPath);
+        // Normalize backslashes before resolving (backslash is not a separator on Linux)
+        var normalized = fullPath.Replace('\\', Path.DirectorySeparatorChar);
+        var resolvedPath = Path.GetFullPath(normalized);
         var resolvedBasePath = Path.GetFullPath(_baseStoragePath);
 
         if (!resolvedPath.StartsWith(resolvedBasePath, StringComparison.OrdinalIgnoreCase))
@@ -141,10 +144,13 @@ public class EmailAttachmentStorageService(
         }
     }
 
+    // Consistent across platforms — Path.GetInvalidFileNameChars() varies by OS
+    private static readonly char[] InvalidFileNameChars =
+        [.. Path.GetInvalidFileNameChars(), '<', '>', ':', '"', '|', '?', '*'];
+
     private static string SanitizeFileName(string fileName)
     {
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+        var sanitized = string.Join("_", fileName.Split(InvalidFileNameChars, StringSplitOptions.RemoveEmptyEntries));
 
         // Ensure non-empty
         if (string.IsNullOrWhiteSpace(sanitized))
