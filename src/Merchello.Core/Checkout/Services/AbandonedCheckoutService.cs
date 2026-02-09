@@ -813,7 +813,8 @@ public class AbandonedCheckoutService(
             : configured.Trim();
 
         var tokenPath = $"{baseUrl.TrimEnd('/')}/{token}";
-        if (Uri.TryCreate(tokenPath, UriKind.Absolute, out var absolute))
+        if (Uri.TryCreate(tokenPath, UriKind.Absolute, out var absolute)
+            && absolute.Scheme is "http" or "https")
         {
             return absolute.ToString();
         }

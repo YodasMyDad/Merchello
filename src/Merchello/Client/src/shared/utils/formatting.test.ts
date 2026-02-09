@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   formatCurrency,
   formatNumber,
@@ -7,6 +7,7 @@ import {
   formatShortDate,
   formatDate,
   formatDateTime,
+  formatRelativeDate,
 } from "@shared/utils/formatting.js";
 
 describe("formatting utilities", () => {
@@ -115,6 +116,40 @@ describe("formatting utilities", () => {
       const result = formatDateTime("2024-06-15T10:30:00Z");
       expect(result).toContain("at");
       expect(result).toMatch(/\d+/);
+    });
+  });
+
+  describe("formatRelativeDate", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-06-15T12:00:00Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("formats same-day dates as today", () => {
+      const result = formatRelativeDate("2024-06-15T09:30:00Z");
+      expect(result).toContain("Today at ");
+    });
+
+    it("formats one-day difference as yesterday", () => {
+      const result = formatRelativeDate("2024-06-14T12:00:00Z");
+      expect(result).toContain("Yesterday at ");
+    });
+
+    it("formats dates within a week with weekday and time", () => {
+      const result = formatRelativeDate("2024-06-10T12:00:00Z");
+      expect(result).toContain(" at ");
+      expect(result).not.toContain("Today");
+      expect(result).not.toContain("Yesterday");
+    });
+
+    it("formats older dates with month-day-year format", () => {
+      const result = formatRelativeDate("2024-06-01T12:00:00Z");
+      expect(result).toMatch(/[A-Za-z]{3}\s+\d{1,2},\s+\d{4}/);
+      expect(result).not.toContain(" at ");
     });
   });
 });
