@@ -244,7 +244,8 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
 
         try
         {
-            var csvBytes = _csvGenerator.Generate(request, CsvColumnMapping.Default);
+            var csvMapping = ResolveCsvMapping(profile);
+            var csvBytes = _csvGenerator.Generate(request, csvMapping);
             var fileName = ResolveFileName(request);
             var remoteFilePath = BuildRemoteFilePath(resolvedTransfer.ConnectionSettings.RemotePath, fileName);
             var uploadMode = resolvedTransfer.ConnectionSettings.UseSftp ? "SFTP" : "FTP";
@@ -484,6 +485,28 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
         };
     }
 
+    private static CsvColumnMapping ResolveCsvMapping(SupplierDirectProfile profile)
+    {
+        if (profile.CsvSettings == null)
+        {
+            return CsvColumnMapping.Default;
+        }
+
+        var columns = profile.CsvSettings.Columns.Count > 0
+            ? new Dictionary<string, string>(profile.CsvSettings.Columns)
+            : new Dictionary<string, string>(CsvColumnMapping.Default.Columns);
+
+        var staticColumns = profile.CsvSettings.StaticColumns.Count > 0
+            ? new Dictionary<string, string>(profile.CsvSettings.StaticColumns)
+            : new Dictionary<string, string>();
+
+        return new CsvColumnMapping
+        {
+            Columns = columns,
+            StaticColumns = staticColumns
+        };
+    }
+
     private static IEnumerable<string> GetTransferValidationErrors(ResolvedTransferSettings settings)
     {
         if (string.IsNullOrWhiteSpace(settings.ConnectionSettings.Host))
@@ -552,11 +575,5 @@ public sealed class SupplierDirectFulfilmentProvider : FulfilmentProviderBase
     private static string? FirstNonEmpty(params string?[] values)
     {
         return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
-    }
-
-    private sealed record ResolvedTransferSettings
-    {
-        public required FtpConnectionSettings ConnectionSettings { get; init; }
-        public bool OverwriteExistingFiles { get; init; }
     }
 }

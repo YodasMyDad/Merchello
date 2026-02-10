@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Asp.Versioning;
 using Merchello.Core.Fulfilment.Providers.SupplierDirect;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect.Csv;
 using Merchello.Core.Fulfilment.Providers.SupplierDirect.Models;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect.Transport;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Models;
@@ -32,6 +34,7 @@ public class WarehousesApiController(
     ILocationsService locationsService,
     IShippingService shippingService,
     IProductService productService,
+    IFtpClientFactory ftpClientFactory,
     AddressFactory addressFactory) : MerchelloApiControllerBase
 {
     #region Warehouses
@@ -464,6 +467,115 @@ public class WarehousesApiController(
     }
 
     /// <summary>
+    /// Test FTP/SFTP connection settings for a supplier direct profile.
+    /// </summary>
+    [HttpPost("suppliers/test-ftp-connection")]
+    [ProducesResponseType<TestSupplierFtpConnectionResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestSupplierFtpConnection(
+        [FromBody] TestSupplierFtpConnectionDto dto,
+        CancellationToken ct = default)
+    {
+        if (!Enum.TryParse<SupplierDirectDeliveryMethod>(dto.DeliveryMethod, true, out var deliveryMethod) ||
+            deliveryMethod is not (SupplierDirectDeliveryMethod.Ftp or SupplierDirectDeliveryMethod.Sftp))
+        {
+            return BadRequest("DeliveryMethod must be either 'Ftp' or 'Sftp'.");
+        }
+
+        if (dto.FtpSettings == null)
+        {
+            return BadRequest("FtpSettings is required.");
+        }
+
+        var host = dto.FtpSettings.Host?.Trim();
+        var username = dto.FtpSettings.Username?.Trim();
+        var password = dto.FtpSettings.Password;
+
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return BadRequest("FtpSettings.host is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            return BadRequest("FtpSettings.username is required.");
+        }
+
+        if (dto.FtpSettings.Port is { } invalidPort && invalidPort <= 0)
+        {
+            return BadRequest("FtpSettings.port must be greater than 0.");
+        }
+
+        if (string.IsNullOrWhiteSpace(password) && dto.SupplierId.HasValue)
+        {
+            var supplier = await supplierService.GetSupplierByIdAsync(dto.SupplierId.Value, ct);
+            if (supplier == null)
+            {
+                return NotFound("Supplier not found.");
+            }
+
+            if (supplier.ExtendedData?.TryGetValue(SupplierDirectExtendedDataKeys.Profile, out var profileObj) == true)
+            {
+                var profileJson = profileObj.UnwrapJsonElement()?.ToString();
+                var profile = SupplierDirectProfile.FromJson(profileJson);
+                password = profile?.FtpSettings?.Password;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return BadRequest("FtpSettings.password is required.");
+        }
+
+        var useSftp = deliveryMethod == SupplierDirectDeliveryMethod.Sftp;
+        var port = dto.FtpSettings.Port ?? (useSftp
+            ? SupplierDirectProviderDefaults.DefaultSftpPort
+            : SupplierDirectProviderDefaults.DefaultFtpPort);
+        var remotePath = string.IsNullOrWhiteSpace(dto.FtpSettings.RemotePath)
+            ? SupplierDirectProviderDefaults.DefaultRemotePath
+            : dto.FtpSettings.RemotePath.Trim();
+        var resolvedHost = host!;
+        var resolvedUsername = username!;
+        var resolvedPassword = password!;
+
+        var connectionSettings = new FtpConnectionSettings
+        {
+            Host = resolvedHost,
+            Port = port,
+            Username = resolvedUsername,
+            Password = resolvedPassword,
+            RemotePath = remotePath,
+            UseSftp = useSftp,
+            HostFingerprint = useSftp
+                ? dto.FtpSettings.HostFingerprint?.Trim()
+                : null,
+            TimeoutSeconds = SupplierDirectProviderDefaults.DefaultTimeoutSeconds
+        };
+
+        try
+        {
+            await using var client = await ftpClientFactory.CreateClientAsync(connectionSettings, ct);
+            var testResult = await client.TestConnectionAsync(ct);
+
+            return Ok(new TestSupplierFtpConnectionResultDto
+            {
+                Success = testResult.Success,
+                ErrorMessage = testResult.ErrorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            var safeError = SupplierDirectSecretRedactor.RedactSecrets(ex.Message);
+            return Ok(new TestSupplierFtpConnectionResultDto
+            {
+                Success = false,
+                ErrorMessage = safeError
+            });
+        }
+    }
+
+    /// <summary>
     /// Delete a supplier
     /// </summary>
     [HttpDelete("suppliers/{id:guid}")]
@@ -528,7 +640,7 @@ public class WarehousesApiController(
         // Deserialize SupplierDirect profile if present
         if (supplier.ExtendedData?.TryGetValue(SupplierDirectExtendedDataKeys.Profile, out var profileObj) == true)
         {
-            var profileJson = profileObj?.ToString();
+            var profileJson = profileObj.UnwrapJsonElement()?.ToString();
             if (!string.IsNullOrWhiteSpace(profileJson))
             {
                 var profile = SupplierDirectProfile.FromJson(profileJson);
@@ -564,6 +676,17 @@ public class WarehousesApiController(
                     RemotePath = profile.FtpSettings.RemotePath,
                     UseSftp = profile.FtpSettings.UseSftp,
                     HostFingerprint = profile.FtpSettings.HostFingerprint
+                }
+                : null,
+            CsvSettings = profile.CsvSettings != null
+                ? new CsvDeliverySettingsDto
+                {
+                    Columns = profile.CsvSettings.Columns.Count > 0
+                        ? new Dictionary<string, string>(profile.CsvSettings.Columns)
+                        : null,
+                    StaticColumns = profile.CsvSettings.StaticColumns.Count > 0
+                        ? new Dictionary<string, string>(profile.CsvSettings.StaticColumns)
+                        : null
                 }
                 : null
         };
@@ -601,7 +724,10 @@ public class WarehousesApiController(
                     UseSftp = dto.FtpSettings.UseSftp,
                     HostFingerprint = dto.FtpSettings.HostFingerprint
                 }
-                : existingProfile?.FtpSettings
+                : existingProfile?.FtpSettings,
+            CsvSettings = dto.CsvSettings != null
+                ? BuildCsvSettings(dto.CsvSettings)
+                : existingProfile?.CsvSettings
         };
     }
 
@@ -621,9 +747,27 @@ public class WarehousesApiController(
             return "SupplierDirectProfile.emailSettings.recipientEmail is invalid.";
         }
 
+        var ccAddresses = dto.EmailSettings?.CcAddresses?
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .ToList() ?? [];
+        if (ccAddresses.Any(cc => !IsValidEmailAddress(cc)))
+        {
+            return "SupplierDirectProfile.emailSettings.ccAddresses contains an invalid email address.";
+        }
+
         if (dto.FtpSettings?.Port is { } port && port <= 0)
         {
             return "SupplierDirectProfile.ftpSettings.port must be greater than 0.";
+        }
+
+        if (dto.CsvSettings != null)
+        {
+            var csvValidationError = ValidateCsvSettings(dto.CsvSettings);
+            if (csvValidationError != null)
+            {
+                return csvValidationError;
+            }
         }
 
         if (deliveryMethod is SupplierDirectDeliveryMethod.Ftp or SupplierDirectDeliveryMethod.Sftp)
@@ -633,6 +777,98 @@ public class WarehousesApiController(
                 string.IsNullOrWhiteSpace(existingProfile?.FtpSettings?.Password))
             {
                 return "SupplierDirectProfile.ftpSettings.password cannot be empty when no existing password is stored.";
+            }
+        }
+
+        return null;
+    }
+
+    private static CsvColumnMapping? BuildCsvSettings(CsvDeliverySettingsDto dto)
+    {
+        var columns = NormalizeDictionary(dto.Columns, allowEmptyValue: false);
+        var staticColumns = NormalizeDictionary(dto.StaticColumns, allowEmptyValue: true);
+
+        if (columns.Count == 0 && staticColumns.Count == 0)
+        {
+            return null;
+        }
+
+        return new CsvColumnMapping
+        {
+            Columns = columns,
+            StaticColumns = staticColumns
+        };
+    }
+
+    private static Dictionary<string, string> NormalizeDictionary(
+        Dictionary<string, string>? source,
+        bool allowEmptyValue)
+    {
+        var normalized = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        if (source == null)
+        {
+            return normalized;
+        }
+
+        foreach (var entry in source)
+        {
+            var key = entry.Key?.Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            var value = entry.Value?.Trim() ?? string.Empty;
+            if (!allowEmptyValue && string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            normalized[key] = value;
+        }
+
+        return normalized;
+    }
+
+    private static string? ValidateCsvSettings(CsvDeliverySettingsDto dto)
+    {
+        if (dto.Columns != null)
+        {
+            var seenFields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var column in dto.Columns)
+            {
+                if (string.IsNullOrWhiteSpace(column.Key))
+                {
+                    return "SupplierDirectProfile.csvSettings.columns has an empty field key.";
+                }
+
+                if (!seenFields.Add(column.Key.Trim()))
+                {
+                    return $"SupplierDirectProfile.csvSettings.columns contains a duplicate field key '{column.Key}'.";
+                }
+
+                if (string.IsNullOrWhiteSpace(column.Value))
+                {
+                    return $"SupplierDirectProfile.csvSettings.columns field '{column.Key}' requires a header value.";
+                }
+            }
+        }
+
+        if (dto.StaticColumns != null)
+        {
+            var seenHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var staticColumn in dto.StaticColumns)
+            {
+                if (string.IsNullOrWhiteSpace(staticColumn.Key))
+                {
+                    return "SupplierDirectProfile.csvSettings.staticColumns has an empty header key.";
+                }
+
+                if (!seenHeaders.Add(staticColumn.Key.Trim()))
+                {
+                    return $"SupplierDirectProfile.csvSettings.staticColumns contains a duplicate header '{staticColumn.Key}'.";
+                }
             }
         }
 

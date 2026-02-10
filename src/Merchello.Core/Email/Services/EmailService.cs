@@ -257,13 +257,17 @@ public class EmailService(
                 throw new InvalidOperationException("Email body not rendered");
             }
 
-            var ccAddress = delivery.ExtendedData.TryGetValue("cc", out var cc) ? cc?.ToString() : null;
-            var bccAddress = delivery.ExtendedData.TryGetValue("bcc", out var bcc) ? bcc?.ToString() : null;
+            var ccAddress = delivery.ExtendedData.TryGetValue("cc", out var cc)
+                ? cc.UnwrapJsonElement()?.ToString()
+                : null;
+            var bccAddress = delivery.ExtendedData.TryGetValue("bcc", out var bcc)
+                ? bcc.UnwrapJsonElement()?.ToString()
+                : null;
 
             // Load attachments from temp file storage
             IEnumerable<EmailMessageAttachment>? emailAttachments = null;
             var attachmentsStr = delivery.ExtendedData.TryGetValue("attachments", out var attachmentsJson)
-                ? attachmentsJson?.ToString()
+                ? attachmentsJson.UnwrapJsonElement()?.ToString()
                 : null;
             if (!string.IsNullOrWhiteSpace(attachmentsStr))
             {
@@ -715,21 +719,5 @@ public class EmailService(
 
         var context = CreateRuntimeEmailContext(config, sampleNotification);
         return (config, context, null);
-    }
-
-    private sealed class RuntimeEmailContext
-    {
-        public required Type NotificationType { get; init; }
-        public required object EmailModel { get; init; }
-        public required EmailStoreContext StoreContext { get; init; }
-    }
-
-    private sealed class ResolvedEmailFields
-    {
-        public required string To { get; init; }
-        public string? Cc { get; init; }
-        public string? Bcc { get; init; }
-        public required string From { get; init; }
-        public required string Subject { get; init; }
     }
 }

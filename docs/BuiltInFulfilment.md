@@ -11,6 +11,54 @@
 
 Deliver a first-party fulfilment provider that can submit supplier purchase orders via Email or FTP/SFTP, auto-create preparing shipments, and produce reliable timeline/audit telemetry with enterprise-grade failure handling.
 
+## Current Supplier Configuration (Implemented)
+
+Supplier Direct is configured per supplier in the Supplier dialog.
+
+1. Set **Default Fulfilment Provider** = `Supplier Direct`
+2. Configure a **Supplier Direct Profile** on that supplier
+3. Choose delivery method (`Email`, `Ftp`, or `Sftp`)
+
+### Per-supplier Email settings
+
+- `recipientEmail` (optional): supplier inbox override. Falls back to supplier contact email.
+- `ccAddresses` (optional): additional CC recipients for supplier order emails.
+
+### Per-supplier FTP/SFTP CSV settings
+
+For FTP/SFTP suppliers you can configure `csvSettings`:
+
+- `columns`: ordered mapping of `fieldKey -> outputHeader`
+- `staticColumns`: fixed `header -> value` columns appended on each row
+
+If `csvSettings` is not provided, Supplier Direct uses default CSV columns.
+
+#### Built-in CSV field keys
+
+- `OrderNumber`
+- `CustomerEmail`
+- `CustomerPhone`
+- `RequestedDeliveryDate`
+- `InternalNotes`
+- `ShippingServiceCode`
+- `Sku`
+- `ProductName`
+- `Quantity`
+- `UnitPrice`
+- `Weight`
+- `Barcode`
+- `RecipientName`
+- `Company`
+- `AddressOne`
+- `AddressTwo`
+- `TownCity`
+- `CountyState`
+- `PostalCode`
+- `CountryCode`
+- `Phone`
+
+Custom field keys are also supported and are resolved from line item/order extended data.
+
 ## Audit Summary (from previous draft)
 
 ### Critical blockers
@@ -181,6 +229,12 @@ Connection testing:
 ### Objectives
 
 Make supplier-direct operationally visible and fulfilment-complete.
+
+### Submission trigger semantics
+
+- Auto-submission must run from `PaymentCreatedNotification`, not `OrderCreatedNotification`.
+- Guard submission with `IPaymentService.GetInvoicePaymentStatusAsync(invoiceId) == InvoicePaymentStatus.Paid`.
+- Submit all eligible invoice orders only after the invoice is fully paid to avoid dispatching unpaid orders.
 
 ### Auto-shipment
 

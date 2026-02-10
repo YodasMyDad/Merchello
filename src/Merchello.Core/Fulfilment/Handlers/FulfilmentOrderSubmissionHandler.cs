@@ -1,9 +1,12 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
-using Merchello.Core.Notifications.Order;
+using Merchello.Core.Notifications.Payment;
+using Merchello.Core.Payments.Models;
+using Merchello.Core.Payments.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
@@ -11,25 +14,59 @@ using Umbraco.Cms.Core.Events;
 namespace Merchello.Core.Fulfilment.Handlers;
 
 /// <summary>
-/// Handles order created notifications to automatically submit orders to fulfilment providers.
-/// Runs after business logic handlers but before external sync handlers (email, webhooks).
+/// Handles payment created notifications to automatically submit fully paid invoice orders
+/// to fulfilment providers. Runs after business logic handlers but before external sync handlers.
 /// </summary>
 [NotificationHandlerPriority(1800)]
 public class FulfilmentOrderSubmissionHandler(
+    IInvoiceService invoiceService,
+    IPaymentService paymentService,
     IFulfilmentService fulfilmentService,
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<FulfilmentSettings> settings,
-    ILogger<FulfilmentOrderSubmissionHandler> logger) : INotificationAsyncHandler<OrderCreatedNotification>
+    ILogger<FulfilmentOrderSubmissionHandler> logger) : INotificationAsyncHandler<PaymentCreatedNotification>
 {
     private readonly FulfilmentSettings _settings = settings.Value;
 
-    public async Task HandleAsync(OrderCreatedNotification notification, CancellationToken ct)
+    public async Task HandleAsync(PaymentCreatedNotification notification, CancellationToken ct)
     {
-        var order = notification.Order;
+        var payment = notification.Payment;
 
+        if (!payment.PaymentSuccess || payment.PaymentType != PaymentType.Payment)
+        {
+            return;
+        }
+
+        var paymentStatus = await paymentService.GetInvoicePaymentStatusAsync(payment.InvoiceId, ct);
+        if (paymentStatus != InvoicePaymentStatus.Paid)
+        {
+            logger.LogDebug(
+                "Skipping fulfilment auto-submission for invoice {InvoiceId}. Current payment status: {Status}.",
+                payment.InvoiceId,
+                paymentStatus);
+            return;
+        }
+
+        var invoice = await invoiceService.GetInvoiceAsync(payment.InvoiceId, ct);
+        if (invoice?.Orders == null || invoice.Orders.Count == 0)
+        {
+            logger.LogDebug(
+                "Skipping fulfilment auto-submission for invoice {InvoiceId}. No orders found.",
+                payment.InvoiceId);
+            return;
+        }
+
+        foreach (var order in invoice.Orders)
+        {
+            await SubmitOrderIfEligibleAsync(order, ct);
+        }
+    }
+
+    private async Task SubmitOrderIfEligibleAsync(Order order, CancellationToken ct)
+    {
         try
         {
-            // Guard: Already submitted (shouldn't happen on OrderCreated, but be safe)
+            // Guard: Already submitted
             if (!string.IsNullOrEmpty(order.FulfilmentProviderReference))
             {
                 logger.LogDebug("Order {OrderId} already has a fulfilment reference. Skipping auto-submission.", order.Id);
@@ -111,8 +148,8 @@ public class FulfilmentOrderSubmissionHandler(
         }
         catch (Exception ex)
         {
-            // Don't let fulfilment failures break order creation
-            logger.LogError(ex, "Error during automatic fulfilment submission for order {OrderId}. Order created successfully but fulfilment may need manual intervention.",
+            // Don't let fulfilment failures break payment processing
+            logger.LogError(ex, "Error during automatic fulfilment submission for order {OrderId}. Payment succeeded but fulfilment may need manual intervention.",
                 order.Id);
         }
     }

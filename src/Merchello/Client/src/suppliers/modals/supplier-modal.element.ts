@@ -4,10 +4,57 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { SupplierModalData, SupplierModalValue } from "@suppliers/modals/supplier-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
-import type { SupplierDirectProfileDto } from "@suppliers/types/suppliers.types.js";
+import type {
+  CsvDeliverySettingsDto,
+  SupplierDirectProfileDto,
+  TestSupplierFtpConnectionResultDto,
+} from "@suppliers/types/suppliers.types.js";
 
 type SupplierDirectDeliveryMethod = "Email" | "Ftp" | "Sftp";
+type CsvColumnRow = { field: string; header: string };
+type CsvStaticColumnRow = { header: string; value: string };
 const SUPPLIER_DIRECT_PROVIDER_KEY = "supplier-direct";
+
+const DEFAULT_CSV_COLUMNS: ReadonlyArray<CsvColumnRow> = [
+  { field: "OrderNumber", header: "Order Number" },
+  { field: "Sku", header: "SKU" },
+  { field: "ProductName", header: "Product Name" },
+  { field: "Quantity", header: "Quantity" },
+  { field: "UnitPrice", header: "Unit Price" },
+  { field: "RecipientName", header: "Ship To Name" },
+  { field: "Company", header: "Company" },
+  { field: "AddressOne", header: "Address Line 1" },
+  { field: "AddressTwo", header: "Address Line 2" },
+  { field: "TownCity", header: "City" },
+  { field: "CountyState", header: "State/Province" },
+  { field: "PostalCode", header: "Postal Code" },
+  { field: "CountryCode", header: "Country" },
+  { field: "Phone", header: "Phone" },
+];
+
+const BUILT_IN_CSV_FIELDS: ReadonlyArray<{ key: string; label: string }> = [
+  { key: "OrderNumber", label: "Order number" },
+  { key: "CustomerEmail", label: "Customer email" },
+  { key: "CustomerPhone", label: "Customer phone" },
+  { key: "RequestedDeliveryDate", label: "Requested delivery date" },
+  { key: "InternalNotes", label: "Internal notes" },
+  { key: "ShippingServiceCode", label: "Shipping service code" },
+  { key: "Sku", label: "Line item SKU" },
+  { key: "ProductName", label: "Line item product name" },
+  { key: "Quantity", label: "Line item quantity" },
+  { key: "UnitPrice", label: "Line item unit price" },
+  { key: "Weight", label: "Line item weight" },
+  { key: "Barcode", label: "Line item barcode" },
+  { key: "RecipientName", label: "Shipping name" },
+  { key: "Company", label: "Shipping company" },
+  { key: "AddressOne", label: "Shipping address line 1" },
+  { key: "AddressTwo", label: "Shipping address line 2" },
+  { key: "TownCity", label: "Shipping city" },
+  { key: "CountyState", label: "Shipping state/province" },
+  { key: "PostalCode", label: "Shipping postal code" },
+  { key: "CountryCode", label: "Shipping country code" },
+  { key: "Phone", label: "Shipping phone" },
+];
 
 @customElement("merchello-supplier-modal")
 export class MerchelloSupplierModalElement extends UmbModalBaseElement<
@@ -28,12 +75,19 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
   @state() private _deliveryMethod: SupplierDirectDeliveryMethod = "Email";
   @state() private _emailRecipient = "";
+  @state() private _emailCcAddresses = "";
   @state() private _ftpHost = "";
   @state() private _ftpPort = "";
   @state() private _ftpUsername = "";
   @state() private _ftpPassword = "";
   @state() private _ftpRemotePath = "";
   @state() private _ftpHostFingerprint = "";
+  @state() private _useCustomCsvSettings = false;
+  @state() private _csvColumns: CsvColumnRow[] = this._createDefaultCsvColumns();
+  @state() private _csvStaticColumns: CsvStaticColumnRow[] = [];
+  @state() private _isTestingFtpConnection = false;
+  @state() private _ftpConnectionTestResult: TestSupplierFtpConnectionResultDto | null = null;
+  @state() private _ftpConnectionTestError: string | null = null;
 
   private get _isEditMode(): boolean {
     return !!this.data?.supplier;
@@ -67,6 +121,35 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
     this._loadFulfilmentProviders();
     this._loadSupplierDetailsIfEditing();
+  }
+
+  private _createDefaultCsvColumns(): CsvColumnRow[] {
+    return DEFAULT_CSV_COLUMNS.map((column) => ({ ...column }));
+  }
+
+  private _parseEmailList(value: string): string[] {
+    return value
+      .split(/[\n,;]+/g)
+      .map((x) => x.trim())
+      .filter((x) => x.length > 0);
+  }
+
+  private _normalizeCsvColumns(columns: CsvColumnRow[]): CsvColumnRow[] {
+    return columns
+      .map((column) => ({
+        field: column.field.trim(),
+        header: column.header.trim(),
+      }))
+      .filter((column) => column.field.length > 0 && column.header.length > 0);
+  }
+
+  private _normalizeCsvStaticColumns(columns: CsvStaticColumnRow[]): CsvStaticColumnRow[] {
+    return columns
+      .map((column) => ({
+        header: column.header.trim(),
+        value: column.value.trim(),
+      }))
+      .filter((column) => column.header.length > 0);
   }
 
   private async _loadFulfilmentProviders(): Promise<void> {
@@ -122,6 +205,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
     this._deliveryMethod = method;
     this._emailRecipient = profile.emailSettings?.recipientEmail ?? "";
+    this._emailCcAddresses = (profile.emailSettings?.ccAddresses ?? []).join(", ");
     this._ftpHost = profile.ftpSettings?.host ?? "";
     this._ftpPort =
       profile.ftpSettings?.port !== undefined && profile.ftpSettings?.port !== null
@@ -131,6 +215,19 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     this._ftpPassword = "";
     this._ftpRemotePath = profile.ftpSettings?.remotePath ?? "";
     this._ftpHostFingerprint = profile.ftpSettings?.hostFingerprint ?? "";
+
+    const csvColumns = Object.entries(profile.csvSettings?.columns ?? {}).map(
+      ([field, header]) => ({ field, header })
+    );
+    const csvStaticColumns = Object.entries(profile.csvSettings?.staticColumns ?? {}).map(
+      ([header, value]) => ({ header, value })
+    );
+    const hasCustomCsv = csvColumns.length > 0 || csvStaticColumns.length > 0;
+
+    this._useCustomCsvSettings = hasCustomCsv;
+    this._csvColumns = hasCustomCsv ? csvColumns : this._createDefaultCsvColumns();
+    this._csvStaticColumns = hasCustomCsv ? csvStaticColumns : [];
+    this._clearFtpConnectionTestState();
   }
 
   private _validateEmail(value: string): boolean {
@@ -150,6 +247,11 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     }
 
     const isSupplierDirectSelected = this._isSupplierDirectSelected();
+    const parsedCcAddresses = this._parseEmailList(this._emailCcAddresses);
+
+    if (parsedCcAddresses.some((address) => !this._validateEmail(address))) {
+      errors.emailCcAddresses = "One or more CC email addresses are invalid";
+    }
 
     if (
       isSupplierDirectSelected &&
@@ -189,17 +291,92 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       errors.ftpPassword = "FTP/SFTP password is required when creating a supplier";
     }
 
+    if (isSupplierDirectSelected && this._deliveryMethod !== "Email" && this._useCustomCsvSettings) {
+      const hasIncompleteColumn = this._csvColumns.some(
+        (column) => !column.field.trim() || !column.header.trim()
+      );
+      if (hasIncompleteColumn) {
+        errors.csvColumns = "Each CSV column row must include both a field key and a header.";
+      }
+
+      const hasIncompleteStaticColumn = this._csvStaticColumns.some(
+        (column) => !column.header.trim()
+      );
+      if (hasIncompleteStaticColumn) {
+        errors.csvStaticColumns = "Each static column requires a header.";
+      }
+
+      const normalizedColumns = this._normalizeCsvColumns(this._csvColumns);
+      const normalizedStaticColumns = this._normalizeCsvStaticColumns(this._csvStaticColumns);
+
+      if (normalizedColumns.length === 0 && normalizedStaticColumns.length === 0) {
+        errors.csvColumns =
+          "Add at least one CSV column or static column, or disable custom CSV format.";
+      }
+
+      const fieldSet = new Set<string>();
+      for (const column of normalizedColumns) {
+        const normalizedField = column.field.toLowerCase();
+        if (fieldSet.has(normalizedField)) {
+          errors.csvColumns = `CSV field '${column.field}' is duplicated.`;
+          break;
+        }
+
+        fieldSet.add(normalizedField);
+      }
+
+      const staticHeaderSet = new Set<string>();
+      for (const column of normalizedStaticColumns) {
+        const normalizedHeader = column.header.toLowerCase();
+        if (staticHeaderSet.has(normalizedHeader)) {
+          errors.csvStaticColumns = `Static column header '${column.header}' is duplicated.`;
+          break;
+        }
+
+        staticHeaderSet.add(normalizedHeader);
+      }
+    }
+
     this._errors = errors;
     return Object.keys(errors).length === 0;
   }
 
+  private _buildCsvSettings(): CsvDeliverySettingsDto {
+    if (!this._useCustomCsvSettings) {
+      return {};
+    }
+
+    const columns = this._normalizeCsvColumns(this._csvColumns);
+    const staticColumns = this._normalizeCsvStaticColumns(this._csvStaticColumns);
+
+    return {
+      columns:
+        columns.length > 0
+          ? Object.fromEntries(columns.map((column) => [column.field, column.header]))
+          : undefined,
+      staticColumns:
+        staticColumns.length > 0
+          ? Object.fromEntries(staticColumns.map((column) => [column.header, column.value]))
+          : undefined,
+    };
+  }
+
   private _buildSupplierDirectProfile(): SupplierDirectProfileDto {
+    const parsedCcAddresses = this._parseEmailList(this._emailCcAddresses);
+    const csvSettings = this._buildCsvSettings();
+    const emailSettings =
+      this._emailRecipient.trim() || parsedCcAddresses.length > 0
+        ? {
+            recipientEmail: this._emailRecipient.trim() || undefined,
+            ccAddresses: parsedCcAddresses.length > 0 ? parsedCcAddresses : undefined,
+          }
+        : undefined;
+
     if (this._deliveryMethod === "Email") {
       return {
         deliveryMethod: "Email",
-        emailSettings: {
-          recipientEmail: this._emailRecipient.trim() || undefined,
-        },
+        emailSettings,
+        csvSettings,
       };
     }
 
@@ -207,6 +384,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
     return {
       deliveryMethod: this._deliveryMethod,
+      emailSettings,
       ftpSettings: {
         host: this._ftpHost.trim() || undefined,
         port: Number.isNaN(parsedPort) ? undefined : parsedPort,
@@ -217,6 +395,79 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
         useSftp: this._deliveryMethod === "Sftp",
         hostFingerprint: this._ftpHostFingerprint.trim() || undefined,
       },
+      csvSettings,
+    };
+  }
+
+  private _clearFtpConnectionTestState(): void {
+    this._ftpConnectionTestResult = null;
+    this._ftpConnectionTestError = null;
+  }
+
+  private async _handleTestFtpConnection(): Promise<void> {
+    if (this._deliveryMethod === "Email") {
+      return;
+    }
+
+    const host = this._ftpHost.trim();
+    const username = this._ftpUsername.trim();
+    const password = this._ftpPassword.trim();
+    const parsedPort = this._ftpPort.trim() ? parseInt(this._ftpPort.trim(), 10) : undefined;
+
+    this._clearFtpConnectionTestState();
+
+    if (!host) {
+      this._ftpConnectionTestError = "FTP/SFTP host is required to test the connection.";
+      return;
+    }
+
+    if (!username) {
+      this._ftpConnectionTestError = "FTP/SFTP username is required to test the connection.";
+      return;
+    }
+
+    if (this._ftpPort.trim() && Number.isNaN(parsedPort)) {
+      this._ftpConnectionTestError = "FTP/SFTP port must be a valid number.";
+      return;
+    }
+
+    if (parsedPort !== undefined && parsedPort <= 0) {
+      this._ftpConnectionTestError = "FTP/SFTP port must be greater than 0.";
+      return;
+    }
+
+    if (!password && !this._isEditMode) {
+      this._ftpConnectionTestError =
+        "FTP/SFTP password is required to test the connection when creating a supplier.";
+      return;
+    }
+
+    this._isTestingFtpConnection = true;
+
+    const { data, error } = await MerchelloApi.testSupplierFtpConnection({
+      supplierId: this.data?.supplier?.id,
+      deliveryMethod: this._deliveryMethod,
+      ftpSettings: {
+        host: host || undefined,
+        port: Number.isNaN(parsedPort) ? undefined : parsedPort,
+        username: username || undefined,
+        password: password || undefined,
+        remotePath: this._ftpRemotePath.trim() || undefined,
+        useSftp: this._deliveryMethod === "Sftp",
+        hostFingerprint: this._ftpHostFingerprint.trim() || undefined,
+      },
+    });
+
+    this._isTestingFtpConnection = false;
+
+    if (error) {
+      this._ftpConnectionTestError = error.message;
+      return;
+    }
+
+    this._ftpConnectionTestResult = data ?? {
+      success: false,
+      errorMessage: "No response returned from connection test.",
     };
   }
 
@@ -298,6 +549,401 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     ];
   }
 
+  private _setCsvCustomEnabled(enabled: boolean): void {
+    this._useCustomCsvSettings = enabled;
+    if (enabled && this._csvColumns.length === 0 && this._csvStaticColumns.length === 0) {
+      this._csvColumns = this._createDefaultCsvColumns();
+    }
+  }
+
+  private _addCsvColumn(): void {
+    this._csvColumns = [...this._csvColumns, { field: "", header: "" }];
+  }
+
+  private _removeCsvColumn(index: number): void {
+    this._csvColumns = this._csvColumns.filter((_, currentIndex) => currentIndex !== index);
+  }
+
+  private _updateCsvColumnField(index: number, value: string): void {
+    const updated = [...this._csvColumns];
+    const row = updated[index];
+    if (!row) return;
+
+    updated[index] = {
+      ...row,
+      field: value,
+    };
+    this._csvColumns = updated;
+  }
+
+  private _updateCsvColumnHeader(index: number, value: string): void {
+    const updated = [...this._csvColumns];
+    const row = updated[index];
+    if (!row) return;
+
+    updated[index] = {
+      ...row,
+      header: value,
+    };
+    this._csvColumns = updated;
+  }
+
+  private _resetCsvColumnsToDefault(): void {
+    this._csvColumns = this._createDefaultCsvColumns();
+  }
+
+  private _addCsvStaticColumn(): void {
+    this._csvStaticColumns = [...this._csvStaticColumns, { header: "", value: "" }];
+  }
+
+  private _removeCsvStaticColumn(index: number): void {
+    this._csvStaticColumns = this._csvStaticColumns.filter(
+      (_, currentIndex) => currentIndex !== index
+    );
+  }
+
+  private _updateCsvStaticColumnHeader(index: number, value: string): void {
+    const updated = [...this._csvStaticColumns];
+    const row = updated[index];
+    if (!row) return;
+
+    updated[index] = {
+      ...row,
+      header: value,
+    };
+    this._csvStaticColumns = updated;
+  }
+
+  private _updateCsvStaticColumnValue(index: number, value: string): void {
+    const updated = [...this._csvStaticColumns];
+    const row = updated[index];
+    if (!row) return;
+
+    updated[index] = {
+      ...row,
+      value,
+    };
+    this._csvStaticColumns = updated;
+  }
+
+  private _renderCsvSettingsSection(): unknown {
+    return html`
+      <div class="subsection">
+        <h5>CSV Format (FTP/SFTP)</h5>
+        <uui-checkbox
+          label="Use custom CSV format for this supplier"
+          ?checked=${this._useCustomCsvSettings}
+          @change=${(e: Event) =>
+            this._setCsvCustomEnabled((e.target as HTMLInputElement).checked)}
+        >
+          Use custom CSV format for this supplier
+        </uui-checkbox>
+        <span class="hint">
+          If disabled, Supplier Direct uses its built-in default CSV columns.
+        </span>
+
+        ${this._useCustomCsvSettings
+          ? html`
+              <div class="csv-grid csv-grid-header">
+                <span>Field key</span>
+                <span>Column header</span>
+                <span></span>
+              </div>
+
+              ${this._csvColumns.map(
+                (column, index) => html`
+                  <div class="csv-grid">
+                    <uui-input
+                      .value=${column.field}
+                      @input=${(e: Event) =>
+                        this._updateCsvColumnField(index, (e.target as HTMLInputElement).value)}
+                      placeholder="e.g., OrderNumber"
+                      label="Field key"
+                    ></uui-input>
+                    <uui-input
+                      .value=${column.header}
+                      @input=${(e: Event) =>
+                        this._updateCsvColumnHeader(index, (e.target as HTMLInputElement).value)}
+                      placeholder="e.g., Order Number"
+                      label="Column header"
+                    ></uui-input>
+                    <uui-button
+                      look="secondary"
+                      compact
+                      label="Remove column"
+                      @click=${() => this._removeCsvColumn(index)}
+                    >
+                      Remove
+                    </uui-button>
+                  </div>
+                `
+              )}
+
+              <div class="row-actions">
+                <uui-button look="secondary" label="Add column" @click=${this._addCsvColumn}>
+                  Add Column
+                </uui-button>
+                <uui-button
+                  look="secondary"
+                  label="Reset to defaults"
+                  @click=${this._resetCsvColumnsToDefault}
+                >
+                  Reset Columns
+                </uui-button>
+              </div>
+              ${this._errors.csvColumns
+                ? html`<span class="error">${this._errors.csvColumns}</span>`
+                : nothing}
+
+              <h6>Static Columns</h6>
+              <span class="hint">
+                Static columns add fixed values to every row in this supplier CSV.
+              </span>
+              ${this._csvStaticColumns.map(
+                (column, index) => html`
+                  <div class="csv-grid">
+                    <uui-input
+                      .value=${column.header}
+                      @input=${(e: Event) =>
+                        this._updateCsvStaticColumnHeader(
+                          index,
+                          (e.target as HTMLInputElement).value
+                        )}
+                      placeholder="e.g., Source"
+                      label="Static header"
+                    ></uui-input>
+                    <uui-input
+                      .value=${column.value}
+                      @input=${(e: Event) =>
+                        this._updateCsvStaticColumnValue(
+                          index,
+                          (e.target as HTMLInputElement).value
+                        )}
+                      placeholder="e.g., Merchello"
+                      label="Static value"
+                    ></uui-input>
+                    <uui-button
+                      look="secondary"
+                      compact
+                      label="Remove static column"
+                      @click=${() => this._removeCsvStaticColumn(index)}
+                    >
+                      Remove
+                    </uui-button>
+                  </div>
+                `
+              )}
+
+              <div class="row-actions">
+                <uui-button
+                  look="secondary"
+                  label="Add static column"
+                  @click=${this._addCsvStaticColumn}
+                >
+                  Add Static Column
+                </uui-button>
+              </div>
+              ${this._errors.csvStaticColumns
+                ? html`<span class="error">${this._errors.csvStaticColumns}</span>`
+                : nothing}
+            `
+          : html`
+              <div class="default-columns">
+                ${DEFAULT_CSV_COLUMNS.map((column) => html`<code>${column.field}</code>`)}
+              </div>
+            `}
+
+        <div class="field-reference">
+          <h6>Built-in CSV Field Keys</h6>
+          <div class="field-key-list">
+            ${BUILT_IN_CSV_FIELDS.map(
+              (field) => html`
+                <span class="field-key-item">
+                  <code>${field.key}</code>
+                  <span class="hint-inline">${field.label}</span>
+                </span>
+              `
+            )}
+          </div>
+          <span class="hint">
+            Custom field keys are also supported and are resolved from line item/order extended data.
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderEmailSettingsSection(): unknown {
+    return html`
+      <div class="subsection">
+        <h5>Email Settings</h5>
+        <div class="form-row">
+          <label for="supplier-email">Supplier Recipient Email</label>
+          <uui-input
+            id="supplier-email"
+            type="email"
+            .value=${this._emailRecipient}
+            @input=${(e: Event) => (this._emailRecipient = (e.target as HTMLInputElement).value)}
+            placeholder="orders@supplier.com"
+            label="Supplier recipient email"
+          ></uui-input>
+          <span class="hint">If empty, supplier contact email is used</span>
+          ${this._errors.emailRecipient
+            ? html`<span class="error">${this._errors.emailRecipient}</span>`
+            : nothing}
+        </div>
+
+        <div class="form-row">
+          <label for="supplier-email-cc">CC Addresses</label>
+          <uui-textarea
+            id="supplier-email-cc"
+            .value=${this._emailCcAddresses}
+            @input=${(e: Event) => (this._emailCcAddresses = (e.target as HTMLTextAreaElement).value)}
+            placeholder="warehouse@supplier.com, ops@supplier.com"
+            label="CC addresses"
+          ></uui-textarea>
+          <span class="hint">Comma, semicolon, or newline separated email addresses</span>
+          ${this._errors.emailCcAddresses
+            ? html`<span class="error">${this._errors.emailCcAddresses}</span>`
+            : nothing}
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderFtpSettingsSection(): unknown {
+    return html`
+      <div class="subsection">
+        <h5>FTP/SFTP Settings</h5>
+        <div class="form-row">
+          <label for="ftp-host">FTP/SFTP Host</label>
+          <uui-input
+            id="ftp-host"
+            .value=${this._ftpHost}
+            @input=${(e: Event) => {
+              this._ftpHost = (e.target as HTMLInputElement).value;
+              this._clearFtpConnectionTestState();
+            }}
+            placeholder="ftp.supplier.com"
+            label="FTP host"
+          ></uui-input>
+          ${this._errors.ftpHost ? html`<span class="error">${this._errors.ftpHost}</span>` : nothing}
+        </div>
+
+        <div class="form-row">
+          <label for="ftp-port">Port</label>
+          <uui-input
+            id="ftp-port"
+            type="number"
+            .value=${this._ftpPort}
+            @input=${(e: Event) => {
+              this._ftpPort = (e.target as HTMLInputElement).value;
+              this._clearFtpConnectionTestState();
+            }}
+            placeholder=${this._deliveryMethod === "Sftp" ? "22" : "21"}
+            label="Port"
+          ></uui-input>
+          ${this._errors.ftpPort ? html`<span class="error">${this._errors.ftpPort}</span>` : nothing}
+        </div>
+
+        <div class="form-row">
+          <label for="ftp-username">Username</label>
+          <uui-input
+            id="ftp-username"
+            .value=${this._ftpUsername}
+            @input=${(e: Event) => {
+              this._ftpUsername = (e.target as HTMLInputElement).value;
+              this._clearFtpConnectionTestState();
+            }}
+            label="Username"
+          ></uui-input>
+          ${this._errors.ftpUsername ? html`<span class="error">${this._errors.ftpUsername}</span>` : nothing}
+        </div>
+
+        <div class="form-row">
+          <label for="ftp-password">Password</label>
+          <uui-input
+            id="ftp-password"
+            type="password"
+            .value=${this._ftpPassword}
+            @input=${(e: Event) => {
+              this._ftpPassword = (e.target as HTMLInputElement).value;
+              this._clearFtpConnectionTestState();
+            }}
+            placeholder="Leave blank to keep existing password"
+            label="Password"
+          ></uui-input>
+          ${this._errors.ftpPassword ? html`<span class="error">${this._errors.ftpPassword}</span>` : nothing}
+        </div>
+
+        <div class="form-row">
+          <label for="ftp-remote-path">Remote Path</label>
+          <uui-input
+            id="ftp-remote-path"
+            .value=${this._ftpRemotePath}
+            @input=${(e: Event) => {
+              this._ftpRemotePath = (e.target as HTMLInputElement).value;
+              this._clearFtpConnectionTestState();
+            }}
+            placeholder="/orders"
+            label="Remote path"
+          ></uui-input>
+        </div>
+
+        ${this._deliveryMethod === "Sftp"
+          ? html`
+              <div class="form-row">
+                <label for="sftp-host-fingerprint">Host Fingerprint</label>
+                <uui-input
+                  id="sftp-host-fingerprint"
+                  .value=${this._ftpHostFingerprint}
+                  @input=${(e: Event) => {
+                    this._ftpHostFingerprint = (e.target as HTMLInputElement).value;
+                    this._clearFtpConnectionTestState();
+                  }}
+                  placeholder="Optional"
+                  label="SFTP host fingerprint"
+                ></uui-input>
+                <span class="hint">Recommended for strict host verification</span>
+              </div>
+            `
+          : nothing}
+
+        <div class="connection-test">
+          <uui-button
+            look="secondary"
+            label=${this._isTestingFtpConnection
+              ? "Testing FTP/SFTP Connection..."
+              : "Test FTP/SFTP Connection"}
+            ?disabled=${this._isTestingFtpConnection || this._isSaving || this._isLoading}
+            @click=${this._handleTestFtpConnection}
+          >
+            ${this._isTestingFtpConnection
+              ? html`<uui-loader-circle></uui-loader-circle>`
+              : "Test FTP/SFTP Connection"}
+          </uui-button>
+          <span class="hint">Tests the current FTP/SFTP settings without saving supplier changes.</span>
+
+          ${this._ftpConnectionTestError
+            ? html`<span class="error">${this._ftpConnectionTestError}</span>`
+            : nothing}
+
+          ${this._ftpConnectionTestResult
+            ? html`
+                <div class="connection-test-result ${this._ftpConnectionTestResult.success ? "success" : "error"}">
+                  ${this._ftpConnectionTestResult.success
+                    ? "Connection test successful."
+                    : this._ftpConnectionTestResult.errorMessage ?? "Connection test failed."}
+                </div>
+              `
+            : nothing}
+        </div>
+      </div>
+
+      ${this._renderCsvSettingsSection()}
+    `;
+  }
+
   private _renderSupplierDirectFields(): unknown {
     return html`
       <div class="section">
@@ -309,107 +955,17 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
             id="delivery-method"
             label="Delivery method"
             .options=${this._getDeliveryMethodOptions()}
-            @change=${(e: Event) =>
-              (this._deliveryMethod = (e.target as HTMLSelectElement).value as SupplierDirectDeliveryMethod)}
+            @change=${(e: Event) => {
+              this._deliveryMethod = (e.target as HTMLSelectElement).value as SupplierDirectDeliveryMethod;
+              this._clearFtpConnectionTestState();
+            }}
           ></uui-select>
           <span class="hint">Choose how this supplier receives fulfilment orders</span>
         </div>
 
         ${this._deliveryMethod === "Email"
-          ? html`
-              <div class="form-row">
-                <label for="supplier-email">Supplier Recipient Email</label>
-                <uui-input
-                  id="supplier-email"
-                  type="email"
-                  .value=${this._emailRecipient}
-                  @input=${(e: Event) => (this._emailRecipient = (e.target as HTMLInputElement).value)}
-                  placeholder="orders@supplier.com"
-                  label="Supplier recipient email"
-                ></uui-input>
-                <span class="hint">If empty, supplier contact email is used</span>
-                ${this._errors.emailRecipient
-                  ? html`<span class="error">${this._errors.emailRecipient}</span>`
-                  : nothing}
-              </div>
-            `
-          : html`
-              <div class="form-row">
-                <label for="ftp-host">FTP/SFTP Host</label>
-                <uui-input
-                  id="ftp-host"
-                  .value=${this._ftpHost}
-                  @input=${(e: Event) => (this._ftpHost = (e.target as HTMLInputElement).value)}
-                  placeholder="ftp.supplier.com"
-                  label="FTP host"
-                ></uui-input>
-                ${this._errors.ftpHost ? html`<span class="error">${this._errors.ftpHost}</span>` : nothing}
-              </div>
-
-              <div class="form-row">
-                <label for="ftp-port">Port</label>
-                <uui-input
-                  id="ftp-port"
-                  type="number"
-                  .value=${this._ftpPort}
-                  @input=${(e: Event) => (this._ftpPort = (e.target as HTMLInputElement).value)}
-                  placeholder=${this._deliveryMethod === "Sftp" ? "22" : "21"}
-                  label="Port"
-                ></uui-input>
-                ${this._errors.ftpPort ? html`<span class="error">${this._errors.ftpPort}</span>` : nothing}
-              </div>
-
-              <div class="form-row">
-                <label for="ftp-username">Username</label>
-                <uui-input
-                  id="ftp-username"
-                  .value=${this._ftpUsername}
-                  @input=${(e: Event) => (this._ftpUsername = (e.target as HTMLInputElement).value)}
-                  label="Username"
-                ></uui-input>
-                ${this._errors.ftpUsername ? html`<span class="error">${this._errors.ftpUsername}</span>` : nothing}
-              </div>
-
-              <div class="form-row">
-                <label for="ftp-password">Password</label>
-                <uui-input
-                  id="ftp-password"
-                  type="password"
-                  .value=${this._ftpPassword}
-                  @input=${(e: Event) => (this._ftpPassword = (e.target as HTMLInputElement).value)}
-                  placeholder="Leave blank to keep existing password"
-                  label="Password"
-                ></uui-input>
-                ${this._errors.ftpPassword ? html`<span class="error">${this._errors.ftpPassword}</span>` : nothing}
-              </div>
-
-              <div class="form-row">
-                <label for="ftp-remote-path">Remote Path</label>
-                <uui-input
-                  id="ftp-remote-path"
-                  .value=${this._ftpRemotePath}
-                  @input=${(e: Event) => (this._ftpRemotePath = (e.target as HTMLInputElement).value)}
-                  placeholder="/orders"
-                  label="Remote path"
-                ></uui-input>
-              </div>
-
-              ${this._deliveryMethod === "Sftp"
-                ? html`
-                    <div class="form-row">
-                      <label for="sftp-host-fingerprint">Host Fingerprint</label>
-                      <uui-input
-                        id="sftp-host-fingerprint"
-                        .value=${this._ftpHostFingerprint}
-                        @input=${(e: Event) =>
-                          (this._ftpHostFingerprint = (e.target as HTMLInputElement).value)}
-                        placeholder="Optional"
-                        label="SFTP host fingerprint"
-                      ></uui-input>
-                    </div>
-                  `
-                : nothing}
-            `}
+          ? this._renderEmailSettingsSection()
+          : this._renderFtpSettingsSection()}
       </div>
     `;
   }
@@ -523,8 +1079,10 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
                             selected: p.configurationId === this._fulfilmentProviderConfigurationId,
                           })),
                       ]}
-                      @change=${(e: Event) =>
-                        (this._fulfilmentProviderConfigurationId = (e.target as HTMLSelectElement).value)}
+                      @change=${(e: Event) => {
+                        this._fulfilmentProviderConfigurationId = (e.target as HTMLSelectElement).value;
+                        this._clearFtpConnectionTestState();
+                      }}
                     ></uui-select>
                     <span class="hint">Used when warehouses under this supplier do not specify an override</span>
                   </div>
@@ -583,6 +1141,16 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       border-bottom: none;
     }
 
+    .subsection {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+      border: 1px solid var(--uui-color-border);
+    }
+
     .form-row {
       display: flex;
       flex-direction: column;
@@ -590,7 +1158,9 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     }
 
     label,
-    h4 {
+    h4,
+    h5,
+    h6 {
       font-weight: 600;
       font-size: 0.8125rem;
       margin: 0;
@@ -601,17 +1171,102 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       margin-bottom: var(--uui-size-space-1);
     }
 
+    h5 {
+      font-size: 0.8125rem;
+      color: var(--uui-color-text);
+    }
+
+    h6 {
+      margin-top: var(--uui-size-space-1);
+    }
+
     .required {
       color: var(--uui-color-danger);
     }
 
     uui-input,
-    uui-select {
+    uui-select,
+    uui-textarea {
       width: 100%;
+    }
+
+    .csv-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: var(--uui-size-space-2);
+      align-items: center;
+    }
+
+    .csv-grid-header {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+      font-weight: 600;
+    }
+
+    .row-actions {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .connection-test {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+      margin-top: var(--uui-size-space-2);
+    }
+
+    .connection-test-result {
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      border-radius: var(--uui-border-radius);
+      font-size: 0.8125rem;
+    }
+
+    .connection-test-result.success {
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
+    }
+
+    .connection-test-result.error {
+      background: var(--uui-color-danger-standalone);
+      color: var(--uui-color-danger-contrast);
+    }
+
+    .default-columns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-1);
+    }
+
+    .field-reference {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .field-key-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: var(--uui-size-space-2);
+    }
+
+    .field-key-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--uui-size-space-1) var(--uui-size-space-2);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface);
     }
 
     .hint {
       font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .hint-inline {
+      font-size: 0.7rem;
       color: var(--uui-color-text-alt);
     }
 

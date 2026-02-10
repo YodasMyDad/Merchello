@@ -47,8 +47,10 @@ public static class SupplierDirectProviderDefaults
 
         Each supplier can have their own delivery configuration stored in their profile:
         - Custom email recipient address
+        - Optional email CC addresses
         - Custom FTP/SFTP host and credentials
         - Custom remote upload path
+        - Custom CSV column mapping and static columns (FTP/SFTP)
 
         Supplier Direct requires a supplier profile. Orders fail fast when a supplier has not been configured.
         The provider settings panel is intentionally minimal and does not hold supplier delivery config.

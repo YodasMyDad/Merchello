@@ -28,10 +28,16 @@ export interface FtpDeliverySettingsDto {
   hostFingerprint?: string;
 }
 
+export interface CsvDeliverySettingsDto {
+  columns?: Record<string, string>;
+  staticColumns?: Record<string, string>;
+}
+
 export interface SupplierDirectProfileDto {
   deliveryMethod: "Email" | "Ftp" | "Sftp" | string;
   emailSettings?: EmailDeliverySettingsDto;
   ftpSettings?: FtpDeliverySettingsDto;
+  csvSettings?: CsvDeliverySettingsDto;
 }
 
 export interface SupplierDetailDto extends SupplierListItemDto {
@@ -67,4 +73,15 @@ export interface UpdateSupplierDto {
   shouldClearFulfilmentProviderId?: boolean;
   supplierDirectProfile?: SupplierDirectProfileDto;
   shouldClearSupplierDirectProfile?: boolean;
+}
+
+export interface TestSupplierFtpConnectionDto {
+  supplierId?: string;
+  deliveryMethod: "Ftp" | "Sftp" | string;
+  ftpSettings: FtpDeliverySettingsDto;
+}
+
+export interface TestSupplierFtpConnectionResultDto {
+  success: boolean;
+  errorMessage?: string;
 }

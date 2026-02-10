@@ -221,8 +221,6 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
   }
 
   private _renderProvider(provider: AddressLookupProviderDto): unknown {
-    const hasConfiguration = Object.values(provider.configuration ?? {}).some((value) => value);
-
     return html`
       <div class="provider-card ${provider.isActive ? "active" : ""}">
         <div class="provider-main">
@@ -285,20 +283,9 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
           </div>
         </div>
 
-        <div class="provider-footer">
-          <div class="provider-features">
-            <span class="feature-badge">${this._formatSupportedCountries(provider)}</span>
-            ${provider.requiresApiCredentials
-              ? html`<span class="feature-badge">Requires credentials</span>`
-              : html`<span class="feature-badge">No credentials required</span>`}
-            ${provider.requiresApiCredentials && !hasConfiguration
-              ? html`<span class="feature-badge warning">Setup required</span>`
-              : nothing}
-          </div>
-          ${provider.setupInstructions
-            ? html`<p class="provider-setup">${provider.setupInstructions}</p>`
-            : nothing}
-        </div>
+        ${provider.setupInstructions
+          ? html`<p class="provider-setup">${provider.setupInstructions}</p>`
+          : nothing}
       </div>
     `;
   }
@@ -634,39 +621,8 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
       font-size: 0.875rem;
     }
 
-    .provider-footer {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-      margin-top: var(--uui-size-space-4);
-      padding-top: var(--uui-size-space-3);
-      border-top: 1px solid var(--uui-color-border);
-    }
-
-    .provider-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-3);
-    }
-
-    .feature-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-1) var(--uui-size-space-3);
-      background: var(--uui-color-surface-alt);
-      border-radius: 100px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .feature-badge.warning {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
-    }
-
     .provider-setup {
-      margin: 0;
+      margin: var(--uui-size-space-4) 0 0 0;
       font-size: 0.8125rem;
       color: var(--uui-color-text-alt);
     }

@@ -252,7 +252,10 @@ public class InvoiceEditService(
                     if (effectiveDiscount == null && existingDiscount != null)
                     {
                         // Convert existing discount to DTO format
-                        var discountTypeStr = existingDiscount.ExtendedData?.GetValueOrDefault(Constants.ExtendedDataKeys.DiscountValueType)?.ToString();
+                        var discountTypeStr = existingDiscount.ExtendedData?
+                            .GetValueOrDefault(Constants.ExtendedDataKeys.DiscountValueType)
+                            .UnwrapJsonElement()
+                            ?.ToString();
                         var discountValueRaw = existingDiscount.ExtendedData?.GetValueOrDefault(Constants.ExtendedDataKeys.DiscountValue);
 
                         var discountValue = discountValueRaw != null

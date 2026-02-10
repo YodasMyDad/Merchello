@@ -15,6 +15,8 @@ import { MERCHELLO_TEST_FULFILMENT_PROVIDER_MODAL } from "@fulfilment-providers/
 import { getFulfilmentProviderIconSvg } from "@fulfilment-providers/utils/brand-icons.js";
 import "@fulfilment-providers/components/sync-logs-list.element.js";
 
+const SUPPLIER_DIRECT_PROVIDER_KEY = "supplier-direct";
+
 @customElement("merchello-fulfilment-providers-list")
 export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(LitElement) {
   @state() private _availableProviders: FulfilmentProviderDto[] = [];
@@ -179,6 +181,7 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
 
   private _renderConfiguredProvider(provider: FulfilmentProviderListItemDto): unknown {
     const availableProvider = this._availableProviders.find(p => p.key === provider.key);
+    const showGenericTestButton = provider.key !== SUPPLIER_DIRECT_PROVIDER_KEY;
 
     return html`
       <div class="provider-card configured">
@@ -196,14 +199,18 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
               @change=${() => this._toggleProvider(provider)}
               label="${provider.isEnabled ? 'Enabled' : 'Disabled'}"
             ></uui-toggle>
-            <uui-button
-              look="secondary"
-              label="Test"
-              title="Test this provider connection"
-              @click=${() => this._openTestModal(provider)}
-            >
-              <uui-icon name="icon-lab"></uui-icon>
-            </uui-button>
+            ${showGenericTestButton
+              ? html`
+                  <uui-button
+                    look="secondary"
+                    label="Test"
+                    title="Test this provider connection"
+                    @click=${() => this._openTestModal(provider)}
+                  >
+                    <uui-icon name="icon-lab"></uui-icon>
+                  </uui-button>
+                `
+              : nothing}
             <uui-button
               look="secondary"
               label="Configure"
@@ -224,24 +231,6 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
         ${provider.description
           ? html`<p class="provider-description">${provider.description}</p>`
           : nothing}
-        <div class="provider-footer">
-          <div class="provider-features">
-            <span class="feature-badge api-style">${provider.apiStyleLabel}</span>
-            <span class="feature-badge sync-mode">Sync: ${provider.inventorySyncModeLabel}</span>
-            ${provider.supportsOrderSubmission
-              ? html`<span class="feature-badge">Orders</span>`
-              : nothing}
-            ${provider.supportsWebhooks
-              ? html`<span class="feature-badge">Webhooks</span>`
-              : nothing}
-            ${provider.supportsProductSync
-              ? html`<span class="feature-badge">Product Sync</span>`
-              : nothing}
-            ${provider.supportsInventorySync
-              ? html`<span class="feature-badge">Inventory Sync</span>`
-              : nothing}
-          </div>
-        </div>
       </div>
     `;
   }
@@ -265,26 +254,9 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
             Install
           </uui-button>
         </div>
-        <div class="provider-footer">
-          ${provider.description
-            ? html`<p class="provider-description">${provider.description}</p>`
-            : nothing}
-          <div class="provider-features">
-            <span class="feature-badge api-style">${provider.apiStyleLabel}</span>
-            ${provider.supportsOrderSubmission
-              ? html`<span class="feature-badge">Orders</span>`
-              : nothing}
-            ${provider.supportsWebhooks
-              ? html`<span class="feature-badge">Webhooks</span>`
-              : nothing}
-            ${provider.supportsProductSync
-              ? html`<span class="feature-badge">Product Sync</span>`
-              : nothing}
-            ${provider.supportsInventorySync
-              ? html`<span class="feature-badge">Inventory Sync</span>`
-              : nothing}
-          </div>
-        </div>
+        ${provider.description
+          ? html`<p class="provider-description">${provider.description}</p>`
+          : nothing}
       </div>
     `;
   }
@@ -484,37 +456,6 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
       flex: 1;
     }
 
-    .provider-footer {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-      margin-top: var(--uui-size-space-3);
-    }
-
-    .provider-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-    }
-
-    .feature-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      background: var(--uui-color-surface-alt);
-      border-radius: 12px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .feature-badge.api-style {
-      background: var(--uui-color-default-emphasis);
-      color: var(--uui-color-default-contrast);
-    }
-
-    .feature-badge.sync-mode {
-      background: var(--uui-color-interactive-emphasis);
-      color: var(--uui-color-interactive-contrast);
-    }
   `;
 }
 

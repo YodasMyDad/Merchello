@@ -281,6 +281,8 @@ import type {
   CreateSupplierDto,
   SupplierDetailDto,
   SupplierListItemDto,
+  TestSupplierFtpConnectionDto,
+  TestSupplierFtpConnectionResultDto,
   UpdateSupplierDto,
 } from '@suppliers/types/suppliers.types.js';
 
@@ -1304,6 +1306,10 @@ export const MerchelloApi = {
   /** Delete a supplier */
   deleteSupplier: (id: string, force = false) =>
     apiDelete(`suppliers/${id}${force ? '?force=true' : ''}`),
+
+  /** Test supplier FTP/SFTP connection settings */
+  testSupplierFtpConnection: (data: TestSupplierFtpConnectionDto) =>
+    apiPost<TestSupplierFtpConnectionResultDto>('suppliers/test-ftp-connection', data),
 
   // ============================================
   // Customers API

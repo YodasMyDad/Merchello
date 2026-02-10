@@ -1,8 +1,10 @@
+using System.Text;
 using Merchello.Core;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Notifications;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect.Csv;
 using Merchello.Core.Fulfilment.Providers.SupplierDirect;
 using Merchello.Core.Fulfilment.Providers.SupplierDirect.Models;
 using Merchello.Core.Fulfilment.Providers.SupplierDirect.Transport;
@@ -121,6 +123,57 @@ public class SupplierDirectFulfilmentProviderTests
                 false,
                 It.IsAny<CancellationToken>()),
             Times.Once);
+    }
+
+    [Fact]
+    public async Task SubmitOrderAsync_Ftp_UsesSupplierCsvSettings_WhenConfigured()
+    {
+        var emailConfigurationService = new Mock<IEmailConfigurationService>();
+        var emailService = new Mock<IEmailService>();
+        var ftpClientFactory = new Mock<IFtpClientFactory>();
+        var ftpClient = new Mock<IFtpClient>();
+        byte[]? uploadedContent = null;
+
+        ftpClientFactory
+            .Setup(x => x.CreateClientAsync(It.IsAny<FtpConnectionSettings>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ftpClient.Object);
+
+        ftpClient
+            .Setup(x => x.UploadFileAsync(It.IsAny<string>(), It.IsAny<byte[]>(), false, It.IsAny<CancellationToken>()))
+            .Callback<string, byte[], bool, CancellationToken>((_, content, _, _) => uploadedContent = content)
+            .ReturnsAsync(true);
+
+        var provider = CreateProvider(emailConfigurationService.Object, emailService.Object, ftpClientFactory.Object);
+        await ConfigureProviderAsync(provider);
+
+        var request = CreateRequest();
+        request.ExtendedData[SupplierDirectExtendedDataKeys.Profile] = CreateFtpProfile(
+            new CsvColumnMapping
+            {
+                Columns = new Dictionary<string, string>
+                {
+                    ["OrderNumber"] = "Order #",
+                    ["Sku"] = "Item SKU"
+                },
+                StaticColumns = new Dictionary<string, string>
+                {
+                    ["Source"] = "Merchello"
+                }
+            }).ToJson();
+
+        var result = await provider.SubmitOrderAsync(request);
+
+        result.Success.ShouldBeTrue();
+        uploadedContent.ShouldNotBeNull();
+
+        var csvText = Encoding.UTF8.GetString(uploadedContent);
+        var lines = csvText
+            .Split(["\r\n", "\n"], StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        lines.Count.ShouldBe(2);
+        lines[0].TrimStart('\uFEFF').ShouldBe("Order #,Item SKU,Source");
+        lines[1].ShouldContain("ORD-1001,SKU-001,Merchello");
     }
 
     [Fact]
@@ -323,7 +376,7 @@ public class SupplierDirectFulfilmentProviderTests
         };
     }
 
-    private static SupplierDirectProfile CreateFtpProfile()
+    private static SupplierDirectProfile CreateFtpProfile(CsvColumnMapping? csvSettings = null)
     {
         return new SupplierDirectProfile
         {
@@ -336,7 +389,8 @@ public class SupplierDirectFulfilmentProviderTests
                 RemotePath = "/orders",
                 Port = 21,
                 UseSftp = false
-            }
+            },
+            CsvSettings = csvSettings
         };
     }
 

@@ -517,7 +517,7 @@ public static class Startup
         // -----------------------------------------------------
         // Auto-submit orders to 3PL fulfilment providers and handle cancellation.
 
-        builder.AddNotificationAsyncHandler<OrderCreatedNotification, FulfilmentOrderSubmissionHandler>();
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, FulfilmentOrderSubmissionHandler>();
         builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, FulfilmentCancellationHandler>();
         // Auto-create preparing shipments for providers that handle fulfilment internally
         builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentSubmittedNotification, Core.Fulfilment.Handlers.FulfilmentAutoShipmentHandler>();
