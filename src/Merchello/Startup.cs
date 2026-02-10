@@ -28,6 +28,7 @@ using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Locality.Services;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Products.Factories;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
@@ -181,6 +182,8 @@ public static class Startup
 
         // Core settings (currency, tax, store defaults)
         builder.Services.Configure<MerchelloSettings>(builder.Config.GetSection("Merchello"));
+        // Google Shopping taxonomy feed mappings and cache settings
+        builder.Services.Configure<GoogleShoppingCategorySettings>(builder.Config.GetSection("Merchello:GoogleShoppingCategories"));
         // Checkout flow configuration (guest checkout, session timeouts)
         builder.Services.Configure<CheckoutSettings>(builder.Config.GetSection("Merchello:Checkout"));
         // Abandoned cart detection and recovery email timing (supports legacy and nested sections)
@@ -303,6 +306,7 @@ public static class Startup
         builder.Services.AddScoped<IProductFilterService, ProductFilterService>();
         builder.Services.AddScoped<IProductTypeService, ProductTypeService>();
         builder.Services.AddScoped<IProductCollectionService, ProductCollectionService>();
+        builder.Services.AddScoped<IGoogleShoppingCategoryService, GoogleShoppingCategoryService>();
         builder.Services.AddScoped<IInventoryService, InventoryService>();
 
         // Digital Products

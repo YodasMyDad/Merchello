@@ -222,22 +222,6 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     return typeof value === "string" ? value : "";
   }
 
-  private _getStringArrayFromPropertyValue(value: unknown): string[] {
-    if (Array.isArray(value)) {
-      return value
-        .filter((x): x is string => typeof x === "string")
-        .map((x) => x.trim())
-        .filter(Boolean);
-    }
-    if (typeof value === "string") {
-      return value
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean);
-    }
-    return [];
-  }
-
   private _getElementTypeSelectionKey(): string | undefined {
     const alias = this._formData.elementTypeAlias;
     if (!alias) return undefined;
@@ -263,6 +247,17 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     }
 
     this._formData = { ...this._formData, elementTypeAlias: selectedType?.alias ?? null };
+  }
+
+  private _handleWarehouseToggle(warehouseId: string, checked: boolean): void {
+    const warehouseIds = this._formData.warehouseIds;
+    this._formData = checked
+      ? { ...this._formData, warehouseIds: [...warehouseIds, warehouseId] }
+      : { ...this._formData, warehouseIds: warehouseIds.filter((id) => id !== warehouseId) };
+
+    if (this._errors.warehouseIds) {
+      this._errors = { ...this._errors, warehouseIds: undefined };
+    }
   }
 
   private _getProductTypePropertyConfig(): UmbPropertyEditorConfig {
@@ -295,22 +290,6 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     ];
   }
 
-  private _getWarehousePropertyConfig(): UmbPropertyEditorConfig {
-    return [
-      {
-        alias: "items",
-        value: this._warehouses.map((warehouse) => ({
-          name: warehouse.name || "Unnamed Warehouse",
-          value: warehouse.id,
-        })),
-      },
-      {
-        alias: "multiple",
-        value: true,
-      },
-    ];
-  }
-
   private _getDatasetValue(): UmbPropertyValueData[] {
     const elementTypeKey = this._getElementTypeSelectionKey();
 
@@ -320,7 +299,6 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       { alias: "price", value: this._formData.price },
       { alias: "productTypeId", value: this._formData.productTypeId ? [this._formData.productTypeId] : [] },
       { alias: "taxGroupId", value: this._formData.taxGroupId ? [this._formData.taxGroupId] : [] },
-      { alias: "warehouseIds", value: this._formData.warehouseIds },
       { alias: "elementTypeAlias", value: elementTypeKey },
     ];
   }
@@ -339,7 +317,6 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       price: Number.isFinite(priceValue) ? priceValue : 0,
       productTypeId: this._getFirstDropdownValue(values.productTypeId),
       taxGroupId: this._getFirstDropdownValue(values.taxGroupId),
-      warehouseIds: this._getStringArrayFromPropertyValue(values.warehouseIds),
     };
 
     if (Object.keys(this._errors).length > 0) {
@@ -375,6 +352,25 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     return html`
       <div class="loading-container">
         <uui-loader-bar></uui-loader-bar>
+      </div>
+    `;
+  }
+
+  private _renderWarehouseSelector() {
+    const selectedWarehouseIds = this._formData.warehouseIds;
+
+    return html`
+      <div class="warehouse-toggle-list">
+        ${this._warehouses.map((warehouse) => html`
+          <div class="toggle-field">
+            <uui-toggle
+              label="${warehouse.name || "Unnamed Warehouse"}"
+              .checked=${selectedWarehouseIds.includes(warehouse.id)}
+              @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
+            </uui-toggle>
+            <label>${warehouse.name || "Unnamed Warehouse"}${warehouse.code ? ` (${warehouse.code})` : ""}</label>
+          </div>
+        `)}
       </div>
     `;
   }
@@ -447,15 +443,18 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
             .config=${this._elementTypePickerConfig}>
           </umb-property>
 
-          <umb-property
-            alias="warehouseIds"
-            label="Warehouses"
-            description="Select which warehouses stock this product"
-            property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
-            .config=${this._getWarehousePropertyConfig()}
-            .validation=${{ mandatory: true }}>
-          </umb-property>
         </umb-property-dataset>
+
+        <umb-property-layout
+          label="Warehouses"
+          description="Select which warehouses stock this product"
+          mandatory
+          ?invalid=${!!this._errors.warehouseIds}>
+          <div slot="editor">
+            ${this._renderWarehouseSelector()}
+          </div>
+          ${this._errors.warehouseIds ? html`<span class="error-message">${this._errors.warehouseIds}</span>` : nothing}
+        </umb-property-layout>
 
         ${this._warehouses.length === 0
           ? html`<p class="hint">No warehouses available. Create a warehouse first.</p>`
@@ -482,8 +481,28 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
 
     umb-property uui-input,
     umb-property uui-select,
-    umb-property uui-textarea {
+    umb-property uui-textarea,
+    umb-property-layout uui-input,
+    umb-property-layout uui-select,
+    umb-property-layout uui-textarea {
       width: 100%;
+    }
+
+    .warehouse-toggle-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-4);
+    }
+
+    .warehouse-toggle-list .toggle-field {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+    }
+
+    .warehouse-toggle-list label {
+      color: var(--uui-color-text);
+      font-weight: normal;
     }
 
     .hint {
@@ -499,6 +518,13 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-1);
+    }
+
+    .error-message {
+      color: var(--uui-color-danger);
+      display: block;
+      font-size: var(--uui-type-small-size);
+      margin-top: var(--uui-size-space-1);
     }
 
     [slot="actions"] {

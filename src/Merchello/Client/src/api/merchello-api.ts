@@ -254,6 +254,7 @@ import type {
   ProductOptionDto,
   SaveProductOptionDto,
   ProductViewDto,
+  GoogleShoppingCategoryResultDto,
   ElementTypeListItemDto,
   ShippingOptionExclusionDto,
   UpdateShippingExclusionsDto,
@@ -1075,6 +1076,16 @@ export const MerchelloApi = {
 
   /** Get available product views for the view selection dropdown */
   getProductViews: () => apiGet<ProductViewDto[]>('products/views'),
+
+  /** Get Google Shopping categories for autocomplete (country resolved by backend settings). */
+  getGoogleShoppingCategories: (params?: {
+    query?: string;
+    countryCode?: string;
+    limit?: number;
+  }) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<GoogleShoppingCategoryResultDto>(`products/google-shopping-categories${queryString ? `?${queryString}` : ''}`);
+  },
 
   /** Get full product root with all variants and options */
   getProductDetail: (id: string) => apiGet<ProductRootDetailDto>(`products/${id}`),

@@ -32,6 +32,7 @@ import { manifests as productTypePickerPropertyEditor } from "@property-editors/
 import { manifests as filterGroupPickerPropertyEditor } from "@property-editors/filter-group-picker/manifest.js";
 import { manifests as filterValuePickerPropertyEditor } from "@property-editors/filter-value-picker/manifest.js";
 import { manifests as productPickerPropertyEditor } from "@property-editors/product-picker/manifest.js";
+import { manifests as googleShoppingCategoryPickerPropertyEditor } from "@property-editors/google-shopping-category-picker/manifest.js";
 import { manifests as dropdownLayoutPropertyContext } from "@property-editors/dropdown-layout/manifest.js";
 
 // Job of the bundle is to collate all the manifests from different parts of the extension and load other manifests
@@ -71,5 +72,6 @@ export const manifests: Array<UmbExtensionManifest> = [
   ...filterGroupPickerPropertyEditor,
   ...filterValuePickerPropertyEditor,
   ...productPickerPropertyEditor,
+  ...googleShoppingCategoryPickerPropertyEditor,
   ...dropdownLayoutPropertyContext,
 ];
