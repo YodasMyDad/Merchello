@@ -993,16 +993,16 @@ public class InvoiceEditService(
                 // Custom items don't go through the strategy since they have explicit user selections
                 if (request.CustomItems.Any())
                 {
-                    // Separate physical items (need shipping grouping) from non-physical items
+                    // Separate physical items (warehouse-based grouping) from non-physical items
                     var physicalItems = request.CustomItems
-                        .Where(c => c.IsPhysicalProduct && c.WarehouseId.HasValue && c.ShippingOptionId.HasValue)
+                        .Where(c => c.IsPhysicalProduct && c.WarehouseId.HasValue)
                         .ToList();
                     var nonPhysicalItems = request.CustomItems
-                        .Where(c => !c.IsPhysicalProduct || !c.WarehouseId.HasValue || !c.ShippingOptionId.HasValue)
+                        .Where(c => !c.IsPhysicalProduct || !c.WarehouseId.HasValue)
                         .ToList();
 
-                    // Process physical items - group by warehouse + shipping option
-                    var physicalItemGroups = physicalItems.GroupBy(c => (c.WarehouseId!.Value, c.ShippingOptionId!.Value));
+                    // Process physical items - group by warehouse + shipping option (Guid.Empty = no shipping)
+                    var physicalItemGroups = physicalItems.GroupBy(c => (c.WarehouseId!.Value, c.ShippingOptionId ?? Guid.Empty));
                     foreach (var group in physicalItemGroups)
                     {
                         var warehouseId = group.Key.Item1;
@@ -1014,21 +1014,28 @@ public class InvoiceEditService(
 
                         if (targetOrder == null)
                         {
-                            // Get shipping option name for the change log
-                            var shippingOption = await db.ShippingOptions
-                                .Where(so => so.Id == shippingOptionId && so.WarehouseId == warehouseId)
-                                .FirstOrDefaultAsync(cancellationToken);
-
-                            if (shippingOption == null)
-                            {
-                                return OperationResult<EditInvoiceResultDto>.Fail($"Shipping option not found for warehouse");
-                            }
-
                             targetOrder = orderFactory.Create(invoice.Id, warehouseId, shippingOptionId, shippingCost: 0);
                             targetOrder.LineItems = [];
                             db.Orders.Add(targetOrder);
                             orders.Add(targetOrder);
-                            changes.Add($"Created new order for custom items with {shippingOption.Name} shipping");
+
+                            if (shippingOptionId == Guid.Empty)
+                            {
+                                changes.Add("Created new order for custom items with no shipping");
+                            }
+                            else
+                            {
+                                var shippingOption = await db.ShippingOptions
+                                    .Where(so => so.Id == shippingOptionId && so.WarehouseId == warehouseId)
+                                    .FirstOrDefaultAsync(cancellationToken);
+
+                                if (shippingOption == null)
+                                {
+                                    return OperationResult<EditInvoiceResultDto>.Fail("Shipping option not found for warehouse");
+                                }
+
+                                changes.Add($"Created new order for custom items with {shippingOption.Name} shipping");
+                            }
                         }
 
                         targetOrder.LineItems ??= [];
@@ -1240,7 +1247,9 @@ public class InvoiceEditService(
             Id = order.Id,
             Status = order.Status.ToString(),
             ShippingCost = order.ShippingCost,
-            ShippingMethodName = shippingOptionNames.GetValueOrDefault(order.ShippingOptionId),
+            ShippingMethodName = order.ShippingOptionId == Guid.Empty
+                ? "No Shipping"
+                : shippingOptionNames.GetValueOrDefault(order.ShippingOptionId),
             LineItems = productLineItems.Select(li => MapLineItemForEdit(li, discountLineItems, addonLineItems, stockInfoMap)).ToList()
         };
     }

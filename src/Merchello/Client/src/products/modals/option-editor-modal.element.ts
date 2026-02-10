@@ -5,6 +5,8 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UMB_MEDIA_PICKER_MODAL } from "@umbraco-cms/backoffice/media";
+import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
+import type { UmbPropertyEditorConfig } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/imaging";
 import type { OptionEditorModalData, OptionEditorModalValue } from "@products/modals/option-editor-modal.token.js";
 import type { ProductOptionDto, ProductOptionValueDto } from "@products/types/product.types.js";
@@ -59,25 +61,89 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     this.#isConnected = false;
   }
 
-  private _getOptionTypeOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+  private _toPropertyValueMap(values: UmbPropertyValueData[]): Record<string, unknown> {
+    const map: Record<string, unknown> = {};
+    for (const value of values) {
+      map[value.alias] = value.value;
+    }
+    return map;
+  }
+
+  private _getStringFromPropertyValue(value: unknown): string {
+    return typeof value === "string" ? value : "";
+  }
+
+  private _getFirstDropdownValue(value: unknown): string {
+    if (Array.isArray(value)) {
+      const first = value.find((x) => typeof x === "string");
+      return typeof first === "string" ? first : "";
+    }
+    return typeof value === "string" ? value : "";
+  }
+
+  private _getBooleanFromPropertyValue(value: unknown, fallback: boolean): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    return fallback;
+  }
+
+  private _getOptionTypePropertyConfig(): UmbPropertyEditorConfig {
     const typeAliases = this.data?.settings?.optionTypeAliases ?? [];
     return [
-      { name: "Select type...", value: "", selected: !this._formData.optionTypeAlias },
-      ...typeAliases.map((alias) => ({
-        name: alias.charAt(0).toUpperCase() + alias.slice(1),
-        value: alias,
-        selected: alias === this._formData.optionTypeAlias,
-      })),
+      {
+        alias: "items",
+        value: [
+          { name: "Select type...", value: "" },
+          ...typeAliases.map((alias) => ({
+            name: alias.charAt(0).toUpperCase() + alias.slice(1),
+            value: alias,
+          })),
+        ],
+      },
     ];
   }
 
-  private _getOptionUiOptions(): Array<{ name: string; value: string; selected?: boolean }> {
+  private _getOptionUiPropertyConfig(): UmbPropertyEditorConfig {
     const uiAliases = this.data?.settings?.optionUiAliases ?? [];
-    return uiAliases.map((alias) => ({
-      name: alias.charAt(0).toUpperCase() + alias.slice(1),
-      value: alias,
-      selected: alias === this._formData.optionUiAlias,
-    }));
+    return [
+      {
+        alias: "items",
+        value: uiAliases.map((alias) => ({
+          name: alias.charAt(0).toUpperCase() + alias.slice(1),
+          value: alias,
+        })),
+      },
+    ];
+  }
+
+  private _getOptionDetailsDatasetValue(): UmbPropertyValueData[] {
+    return [
+      { alias: "name", value: this._formData.name ?? "" },
+      { alias: "alias", value: this._formData.alias ?? "" },
+      { alias: "optionTypeAlias", value: this._formData.optionTypeAlias ? [this._formData.optionTypeAlias] : [] },
+      { alias: "optionUiAlias", value: this._formData.optionUiAlias ? [this._formData.optionUiAlias] : [] },
+      { alias: "isVariant", value: this._formData.isVariant ?? false },
+      { alias: "isMultiSelect", value: this._formData.isMultiSelect ?? true },
+    ];
+  }
+
+  private _handleOptionDetailsDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+    const isVariant = this._getBooleanFromPropertyValue(values.isVariant, false);
+
+    this._formData = {
+      ...this._formData,
+      name: this._getStringFromPropertyValue(values.name),
+      alias: this._getStringFromPropertyValue(values.alias),
+      optionTypeAlias: this._getFirstDropdownValue(values.optionTypeAlias),
+      optionUiAlias: this._getFirstDropdownValue(values.optionUiAlias),
+      isVariant,
+      isMultiSelect: isVariant ? false : this._getBooleanFromPropertyValue(values.isMultiSelect, true),
+    };
   }
 
   private async _handleSave(): Promise<void> {
@@ -383,93 +449,59 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                 </div>
               `
             : nothing}
-
           <uui-box headline="Option Details">
-            <umb-property-layout
-              label="Option Name"
-              description="Customer-facing name for this option"
-              ?mandatory=${true}>
-              <uui-input
-                slot="editor"
-                label="Option name"
-                .value=${this._formData.name || ""}
-                placeholder="e.g., Size, Color, Material"
-                @input=${(e: Event) => (this._formData = { ...this._formData, name: (e.target as HTMLInputElement).value })}
-                aria-required="true">
-              </uui-input>
-            </umb-property-layout>
+            <umb-property-dataset
+              .value=${this._getOptionDetailsDatasetValue()}
+              @change=${this._handleOptionDetailsDatasetChange}>
+              <umb-property
+                alias="name"
+                label="Option Name"
+                description="Customer-facing name for this option"
+                property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                .validation=${{ mandatory: true }}>
+              </umb-property>
 
-            <umb-property-layout
-              label="Alias"
-              description="Used in code/integrations (auto-generated if empty)">
-              <uui-input
-                slot="editor"
+              <umb-property
+                alias="alias"
                 label="Alias"
-                .value=${this._formData.alias || ""}
-                placeholder="Optional: machine-readable name"
-                @input=${(e: Event) => (this._formData = { ...this._formData, alias: (e.target as HTMLInputElement).value })}>
-              </uui-input>
-            </umb-property-layout>
+                description="Used in code/integrations (auto-generated if empty)"
+                property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+              </umb-property>
 
-            <umb-property-layout
-              label="Option Type"
-              description="Categorize this option (e.g., colour, size, material)">
-              <uui-select
-                slot="editor"
-                label="Option type"
-                .options=${this._getOptionTypeOptions()}
-                @change=${(e: Event) => {
-                  const value = (e.target as HTMLSelectElement).value;
-                  this._formData = { ...this._formData, optionTypeAlias: value };
-                }}>
-              </uui-select>
-            </umb-property-layout>
+              <umb-property
+                alias="optionTypeAlias"
+                label="Option Type"
+                description="Categorize this option (e.g., colour, size, material)"
+                property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+                .config=${this._getOptionTypePropertyConfig()}>
+              </umb-property>
 
-            <umb-property-layout
-              label="Display As"
-              description="How customers select this option on your storefront">
-              <uui-select
-                slot="editor"
-                label="Display type"
-                .options=${this._getOptionUiOptions()}
-                @change=${(e: Event) => {
-                  const value = (e.target as HTMLSelectElement).value;
-                  this._formData = { ...this._formData, optionUiAlias: value };
-                }}>
-              </uui-select>
-            </umb-property-layout>
+              <umb-property
+                alias="optionUiAlias"
+                label="Display As"
+                description="How customers select this option on your storefront"
+                property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+                .config=${this._getOptionUiPropertyConfig()}>
+              </umb-property>
 
-            <umb-property-layout
-              label="Generates Variants"
-              description="Creates all combinations (e.g., 3 sizes × 4 colors = 12 variants). If disabled, this is an add-on that modifies price.">
-              <uui-toggle
-                slot="editor"
+              <umb-property
+                alias="isVariant"
                 label="Generates Variants"
-                .checked=${this._formData.isVariant ?? false}
-                @change=${(e: Event) => {
-                  const isVariant = (e.target as HTMLInputElement).checked;
-                  this._formData = {
-                    ...this._formData,
-                    isVariant,
-                    isMultiSelect: isVariant ? false : this._formData.isMultiSelect ?? true,
-                  };
-                }}>
-              </uui-toggle>
-            </umb-property-layout>
-            ${!this._formData.isVariant
-              ? html`
-                  <umb-property-layout
-                    label="Add-on Selection Mode"
-                    description="Single-select allows one value. Multi-select allows multiple values for this add-on option.">
-                    <uui-toggle
-                      slot="editor"
-                      label="Allow Multiple Selections"
-                      .checked=${this._formData.isMultiSelect ?? true}
-                      @change=${(e: Event) => (this._formData = { ...this._formData, isMultiSelect: (e.target as HTMLInputElement).checked })}>
-                    </uui-toggle>
-                  </umb-property-layout>
-                `
-              : nothing}
+                description="Creates all combinations (e.g., 3 sizes x 4 colors = 12 variants). If disabled, this is an add-on that modifies price."
+                property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+              </umb-property>
+
+              ${!(this._formData.isVariant ?? false)
+                ? html`
+                    <umb-property
+                      alias="isMultiSelect"
+                      label="Add-on Selection Mode"
+                      description="Single-select allows one value. Multi-select allows multiple values for this add-on option."
+                      property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+                    </umb-property>
+                  `
+                : nothing}
+            </umb-property-dataset>
           </uui-box>
 
           <uui-box>
@@ -742,8 +774,8 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       color: var(--uui-color-text);
     }
 
-    umb-property-layout uui-input,
-    umb-property-layout uui-select {
+    umb-property uui-input,
+    umb-property uui-select {
       width: 100%;
     }
   `;
@@ -756,3 +788,4 @@ declare global {
     "merchello-option-editor-modal": MerchelloOptionEditorModalElement;
   }
 }
+

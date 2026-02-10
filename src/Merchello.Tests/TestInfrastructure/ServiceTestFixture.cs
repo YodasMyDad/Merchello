@@ -1003,6 +1003,23 @@ public class ServiceTestFixture : IDisposable
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PaginatedList<Invoice>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<PaginatedList<Invoice>>> func) => func(dbContext));
 
+                // Invoice edit service return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<InvoiceForEditDto?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<InvoiceForEditDto?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PreviewEditResultDto?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PreviewEditResultDto?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<PreviewDiscountResultDto>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<PreviewDiscountResultDto>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Merchello.Core.Shared.OperationResult<EditInvoiceResultDto>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<Merchello.Core.Shared.OperationResult<EditInvoiceResultDto>>> func) => func(dbContext));
+
                 // Order return types
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<Order?>>>()))

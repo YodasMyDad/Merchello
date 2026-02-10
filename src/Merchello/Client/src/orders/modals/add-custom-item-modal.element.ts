@@ -7,6 +7,8 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type { WarehouseListDto, WarehouseShippingOptionDto } from "@warehouses/types/warehouses.types.js";
 
 type ModalStep = "details" | "shipping";
+const NO_SHIPPING_OPTION_VALUE = "__no-shipping__";
+const NO_SHIPPING_OPTION_NAME = "No Shipping";
 
 @customElement("merchello-add-custom-item-modal")
 export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
@@ -99,7 +101,9 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
 
     const destination = this.data?.shippingDestination;
     if (!destination?.countryCode) {
-      this._shippingError = "No shipping destination configured for this order";
+      this._shippingOptions = [];
+      this._selectedShippingOptionId = null;
+      this._shippingError = null;
       return;
     }
 
@@ -198,6 +202,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   private _submitItem(): void {
     const selectedWarehouse = this._warehouses.find(w => w.id === this._selectedWarehouseId);
     const selectedShippingOption = this._shippingOptions.find(o => o.id === this._selectedShippingOptionId);
+    const noShippingSelected = this._selectedShippingOptionId === NO_SHIPPING_OPTION_VALUE;
 
     this.value = {
       item: {
@@ -210,8 +215,16 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         isPhysicalProduct: this._isPhysicalProduct,
         warehouseId: this._isPhysicalProduct ? this._selectedWarehouseId ?? undefined : undefined,
         warehouseName: this._isPhysicalProduct ? selectedWarehouse?.name ?? undefined : undefined,
-        shippingOptionId: this._isPhysicalProduct ? this._selectedShippingOptionId ?? undefined : undefined,
-        shippingOptionName: this._isPhysicalProduct ? selectedShippingOption?.name ?? undefined : undefined,
+        shippingOptionId: this._isPhysicalProduct
+          ? noShippingSelected
+            ? null
+            : this._selectedShippingOptionId ?? undefined
+          : undefined,
+        shippingOptionName: this._isPhysicalProduct
+          ? noShippingSelected
+            ? NO_SHIPPING_OPTION_NAME
+            : selectedShippingOption?.name ?? undefined
+          : undefined,
       },
     };
     this.modalContext?.submit();
@@ -493,14 +506,14 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
                 <uui-loader-circle></uui-loader-circle>
                 <span>Loading shipping options...</span>
               </div>
-            ` : this._shippingOptions.length > 0 ? html`
+            ` : html`
               <uui-select
                 id="shipping-option"
                 .options=${this._getShippingOptionOptions()}
                 @change=${this._handleShippingOptionChange}
               ></uui-select>
               ${this._selectedShippingOptionId ? this._renderSelectedShippingDetails() : nothing}
-            ` : nothing}
+            `}
           </div>
         ` : nothing}
 
@@ -515,6 +528,8 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   }
 
   private _renderSelectedShippingDetails() {
+    if (this._selectedShippingOptionId === NO_SHIPPING_OPTION_VALUE) return nothing;
+
     const option = this._shippingOptions.find(o => o.id === this._selectedShippingOptionId);
     if (!option) return nothing;
 
@@ -563,7 +578,12 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
           : o.name,
         value: o.id,
         selected: this._selectedShippingOptionId === o.id
-      }))
+      })),
+      {
+        name: NO_SHIPPING_OPTION_NAME,
+        value: NO_SHIPPING_OPTION_VALUE,
+        selected: this._selectedShippingOptionId === NO_SHIPPING_OPTION_VALUE
+      }
     ];
   }
 

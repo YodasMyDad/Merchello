@@ -47,11 +47,11 @@ interface EditableOrder extends OrderForEditDto {
 interface PendingCustomItem extends AddCustomItemDto {
   tempId: string;
   /** Warehouse ID for physical items */
-  warehouseId?: string;
+  warehouseId?: string | null;
   /** Warehouse name for display */
   warehouseName?: string;
   /** Shipping option ID for physical items */
-  shippingOptionId?: string;
+  shippingOptionId?: string | null;
   /** Shipping option name for display */
   shippingOptionName?: string;
 }
@@ -1061,7 +1061,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
               </div>
               <div class="shipping-info">
                 <uui-icon name="icon-truck"></uui-icon>
-                ${item.shippingOptionName || "Standard"}
+                ${item.shippingOptionName || "No Shipping"}
               </div>
             ` : nothing}
           </div>

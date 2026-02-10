@@ -69,6 +69,7 @@ export class MerchelloPropertyEditorUiFilterGroupPickerElement
 
   constructor() {
     super();
+    this.#sorter.disable();
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (ctx) => {
       this.#modalManager = ctx;
     });
@@ -87,6 +88,14 @@ export class MerchelloPropertyEditorUiFilterGroupPickerElement
   public set config(config: UmbPropertyEditorConfigCollection | undefined) {
     const maxItems = config?.getValueByAlias<number>("maxItems");
     this._maxItems = maxItems === 0 ? Infinity : maxItems ?? 1;
+
+    if (this._maxItems === 1) {
+      this.#sorter.disable();
+      return;
+    }
+
+    this.#sorter.enable();
+    this.#sorter.setModel(this._selection);
   }
 
   public override set value(val: string | undefined) {
@@ -382,13 +391,15 @@ export class MerchelloPropertyEditorUiFilterGroupPickerElement
   }
 
   override render() {
-    if (this._isLoading && this._selection.length === 0) {
+    const isMultiSelect = this._maxItems !== 1;
+
+    if (!isMultiSelect && this._isLoading && this._selection.length === 0) {
       return html`<uui-loader></uui-loader>`;
     }
 
-    return this._maxItems === 1
-      ? this.#renderSingleSelect()
-      : this.#renderMultiSelect();
+    return isMultiSelect
+      ? this.#renderMultiSelect()
+      : this.#renderSingleSelect();
   }
 
   static override readonly styles = css`

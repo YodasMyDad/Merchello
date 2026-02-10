@@ -5,6 +5,7 @@ import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
+import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
 import type { MerchelloProductsWorkspaceContext } from "@products/contexts/products-workspace.context.js";
 import type { ProductRootDetailDto, ProductVariantDto, ProductPackageDto, UpdateVariantDto, ShippingOptionExclusionDto } from "@products/types/product.types.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
@@ -217,6 +218,50 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     return "basic";
   }
 
+  private _toPropertyValueMap(values: UmbPropertyValueData[]): Record<string, unknown> {
+    const map: Record<string, unknown> = {};
+    for (const value of values) {
+      map[value.alias] = value.value;
+    }
+    return map;
+  }
+
+  private _getStringFromPropertyValue(value: unknown): string {
+    return typeof value === "string" ? value : "";
+  }
+
+  private _getBooleanFromPropertyValue(value: unknown, fallback: boolean): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    return fallback;
+  }
+
+  private _getPackageSettingsDatasetValue(): UmbPropertyValueData[] {
+    return [{ alias: "overridePackageConfigurations", value: this._isOverridingPackages() }];
+  }
+
+  private _handlePackageSettingsDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+    const shouldOverride = this._getBooleanFromPropertyValue(values.overridePackageConfigurations, false);
+    if (shouldOverride !== this._isOverridingPackages()) {
+      this._togglePackageOverride();
+    }
+  }
+
+  private _getSeoDatasetValue(): UmbPropertyValueData[] {
+    return [{ alias: "url", value: this._formData.url ?? "" }];
+  }
+
+  private _handleSeoDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+    this._formData = { ...this._formData, url: this._getStringFromPropertyValue(values.url) };
+  }
+
   private async _handleSave(): Promise<void> {
     if (!this._product || !this._variant) return;
 
@@ -245,6 +290,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         shoppingFeedColour: this._formData.shoppingFeedColour ?? undefined,
         shoppingFeedMaterial: this._formData.shoppingFeedMaterial ?? undefined,
         shoppingFeedSize: this._formData.shoppingFeedSize ?? undefined,
+        shoppingFeedWidth: this._formData.shoppingFeedWidth ?? undefined,
+        shoppingFeedHeight: this._formData.shoppingFeedHeight ?? undefined,
         removeFromFeed: this._formData.removeFromFeed,
         warehouseStock: this._formData.warehouseStock?.map((ws) => ({
           warehouseId: ws.warehouseId,
@@ -382,16 +429,16 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         ${hasRootPackages
           ? html`
               <uui-box headline="Package Settings">
-                <umb-property-layout
-                  label="Override Product Packages"
-                  description="By default, this variant inherits packages from the product. Enable to define variant-specific packages.">
-                  <uui-toggle
-                    slot="editor"
+                <umb-property-dataset
+                  .value=${this._getPackageSettingsDatasetValue()}
+                  @change=${this._handlePackageSettingsDatasetChange}>
+                  <umb-property
+                    alias="overridePackageConfigurations"
                     label="Override Product Packages"
-                    .checked=${isOverriding}
-                    @change=${() => this._togglePackageOverride()}>
-                  </uui-toggle>
-                </umb-property-layout>
+                    description="By default, this variant inherits packages from the product. Enable to define variant-specific packages."
+                    property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+                  </umb-property>
+                </umb-property-dataset>
               </uui-box>
             `
           : nothing}
@@ -458,16 +505,16 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     return html`
       <div class="tab-content">
         <uui-box headline="Search Engine Optimization">
-          <umb-property-layout
-            label="URL Slug"
-            description="Custom URL path for this variant">
-            <uui-input
-              slot="editor"
-              .value=${this._formData.url || ""}
-              @input=${(e: Event) => (this._formData = { ...this._formData, url: (e.target as HTMLInputElement).value })}
-              placeholder="/products/my-product/blue-large">
-            </uui-input>
-          </umb-property-layout>
+          <umb-property-dataset
+            .value=${this._getSeoDatasetValue()}
+            @change=${this._handleSeoDatasetChange}>
+            <umb-property
+              alias="url"
+              label="URL Slug"
+              description="Custom URL path for this variant"
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+            </umb-property>
+          </umb-property-dataset>
         </uui-box>
       </div>
     `;
@@ -730,16 +777,16 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       }
 
       /* Property layout adjustments */
-      umb-property-layout:first-child {
+      umb-property:first-child {
         padding-top: 0;
       }
 
-      umb-property-layout:last-child {
+      umb-property:last-child {
         padding-bottom: 0;
       }
 
-      umb-property-layout uui-input,
-      umb-property-layout uui-textarea {
+      umb-property uui-input,
+      umb-property uui-textarea {
         width: 100%;
       }
 
