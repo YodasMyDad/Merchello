@@ -795,7 +795,7 @@ export interface AddCustomItemDto {
   isPhysicalProduct: boolean;
   /** Warehouse ID for physical products */
   warehouseId?: string | null;
-  /** Shipping option ID for physical products */
+  /** Shipping option ID for physical products (null means no shipping) */
   shippingOptionId?: string | null;
 }
 

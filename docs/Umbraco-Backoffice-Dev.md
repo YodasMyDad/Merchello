@@ -53,6 +53,40 @@ Use `js` for lazy-loading elements/views, `api` for context/action classes, `ele
 | `ufmComponent` | `alias` (meta) | — | — |
 | `entitySign` | `forEntityTypes`, `forEntityFlags` (meta: `iconName`, `label`, `iconColorAlias`) | `icon` | — |
 
+## Property Actions (Umbraco v17+)
+
+Property actions are attached to rendered Umbraco properties, not raw HTML inputs.
+Reference: https://docs.umbraco.com/umbraco-cms/customizing/property-editors/property-actions
+
+### When property actions appear
+
+- The field is rendered as `<umb-property>` inside a `<umb-property-dataset>`.
+- The property has `alias` and `property-editor-ui-alias`.
+- The action manifest targets that editor UI alias via `forPropertyEditorUis`.
+
+### When property actions do not appear
+
+- Field is rendered as raw UUI input/select/textarea/toggle without `<umb-property>`.
+- Layout-only wrappers (`<umb-property-layout>`) are used without an actual property host.
+- Property alias changes between backend DTOs and frontend bindings.
+
+### Property Action Manifest Pattern
+
+```typescript
+{
+  type: "propertyAction",
+  alias: "My.PropertyAction.Example",
+  name: "My Property Action",
+  api: () => import("./my-property-action.js"),
+  forPropertyEditorUis: ["Umb.PropertyEditorUi.Tiptap"],
+  meta: { label: "Do Action", icon: "icon-wand" }
+}
+```
+
+### Merchello Rule
+
+For product/variant editing surfaces, default to `umb-property-dataset` + `umb-property` so Umbraco AI/property actions work out of the box.
+
 ## UFM (Umbraco Form Markup)
 
 Custom filters and components to transform/render values in Umbraco's markup syntax.
@@ -334,6 +368,55 @@ export class MyPropertyEditor extends UmbLitElement implements UmbPropertyEditor
 }
 export default MyPropertyEditor;
 declare global { interface HTMLElementTagNameMap { 'my-property-editor': MyPropertyEditor; } }
+```
+
+### Sorter Container Lifecycle (Critical)
+
+`UmbSorterController` throws when `containerSelector` is missing at initialization:
+`Sorter could not find the container element, using this query selector '...'`.
+
+Use these rules for all sortable backoffice UI:
+
+- Always render the sorter container element in DOM, including loading/error/empty states.
+- If sorting only applies in one mode (for example multi-select), disable sorter in other modes.
+- In mode switches, call `#sorter.disable()` for non-sortable mode and `#sorter.enable()` + `#sorter.setModel(...)` for sortable mode.
+- In loading branches, only return loader-only markup for non-sortable mode. For sortable mode, keep the container rendered.
+- Add an inline comment `Always render container for sorter` above container markup.
+
+Bad:
+
+```typescript
+override render() {
+  if (this._isLoading) return html`<uui-loader></uui-loader>`;
+  return html`<div class="item-list">${this._items.map(...)}</div>`;
+}
+```
+
+Good:
+
+```typescript
+override render() {
+  const isMultiSelect = this._maxItems !== 1;
+
+  if (!isMultiSelect && this._isLoading && this._selection.length === 0) {
+    return html`<uui-loader></uui-loader>`;
+  }
+
+  return isMultiSelect
+    ? html`<div class="item-list">${this._selection.map(...)}</div>`
+    : this.#renderSingleSelect();
+}
+```
+
+Good (container always present):
+
+```typescript
+<!-- Always render container for sorter -->
+<div class="methods-list">
+  ${!this._isLoading && !this._errorMessage
+    ? this._methods.map((m) => this._renderMethod(m))
+    : nothing}
+</div>
 ```
 
 ### Tree Repository
@@ -793,10 +876,26 @@ this.observe(myContext.counter, (value) => { this.#counter = value; }, '_counter
 
 ### Property Dataset (Form Builder)
 ```typescript
-html`<umb-property-dataset .value=${this.data} @change=${(e) => { this.data = e.target.value; }}>
-  <umb-property label="Name" alias="name" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
+html`<umb-property-dataset
+  .value=${[
+    { alias: "rootName", value: this._formData.rootName },
+    { alias: "taxGroupId", value: this._formData.taxGroupId ? [this._formData.taxGroupId] : [] },
+  ]}
+  @change=${(e: Event) => {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const map = Object.fromEntries((dataset.value ?? []).map((x) => [x.alias, x.value]));
+    this._formData = {
+      ...this._formData,
+      rootName: typeof map.rootName === "string" ? map.rootName : "",
+      taxGroupId: Array.isArray(map.taxGroupId) ? (map.taxGroupId[0] as string ?? "") : "",
+    };
+  }}>
+  <umb-property alias="rootName" label="Product Name" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
+  <umb-property alias="taxGroupId" label="Tax Group" property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"></umb-property>
 </umb-property-dataset>`
 ```
+
+Use backend DTO field names for aliases (`rootName`, `taxGroupId`, `warehouseIds`, etc.) to keep cross-boundary contracts consistent and keep property actions attached.
 
 ## Conditions Reference
 `Umb.Condition.SectionAlias`, `.WorkspaceAlias`, `.CollectionAlias`, `.UserPermission`, `.UserPermission.Document`, `.UserPermission.Media`, `.SectionUserPermission`, `.WorkspaceEntityType`
@@ -1002,13 +1101,15 @@ Errors should be specific, helpful, and appear where the admin can act on them.
 
 **Field-level validation:**
 ```typescript
-html`<umb-property-layout label="Name" mandatory
-  ?invalid=${!!this._fieldErrors.name}
-  description=${this._fieldErrors.name || "Internal identifier for this rule"}>
-  <uui-input slot="editor" .value=${this._formData.name || ""}
-    @input=${this._handleNameChange}
-    ?invalid=${!!this._fieldErrors.name}></uui-input>
-</umb-property-layout>`
+html`<umb-property-dataset .value=${[{ alias: "name", value: this._formData.name || "" }]}>
+  <umb-property
+    alias="name"
+    label="Name"
+    description=${this._fieldErrors.name || "Internal identifier for this rule"}
+    property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+    .validation=${{ mandatory: true, mandatoryMessage: "Name is required" }}>
+  </umb-property>
+</umb-property-dataset>`
 ```
 
 **API error (save/load failure):**
@@ -1127,7 +1228,7 @@ Detail views are where admins spend time creating and editing. They must be orga
 - **Save button**: Always in the footer (sticky), primary + positive colour. Shows "Saving..." during async. Disabled when no changes or when saving.
 - **Back navigation**: Back arrow button in the header. Uses `href` (not `window.location`). Returns to the list view.
 - **Unsaved changes**: If the admin navigates away with unsaved changes, warn them. (Use browser `beforeunload` or a workspace-level guard.)
-- **Field layout**: Use `<umb-property-layout>` for consistent 2-column label/editor layout. Labels on the left, inputs on the right. Add `description` for non-obvious fields. Mark required fields with `mandatory`.
+- **Field layout**: Use `<umb-property-dataset>` + `<umb-property>` for editable fields. This is required for property actions/AI integrations. Keep labels/descriptions on the property and use `.validation` for required fields.
 - **Grouping**: Use `<uui-box headline="...">` to group related fields within a tab. Keep groups to 3-6 fields.
 - **Defaults**: Pre-fill sensible defaults for new entities. Priority: 1000. Max products: 4. Suppress if in cart: on. This reduces friction for the common case.
 
@@ -1257,7 +1358,7 @@ Features like discounts and upsells have rule builders — complex, multi-part i
 Accessibility is not optional. Every component must be usable with keyboard alone and work with screen readers.
 
 - **Keyboard navigation**: All interactive elements reachable via Tab. Enter/Space to activate buttons and toggles. Escape to close modals.
-- **Labels**: Every `<uui-button>` needs a `label` attribute. Every `<uui-input>` needs an associated label (via `<umb-property-layout>` or `aria-label`). Every `<uui-checkbox>` needs a `label`.
+- **Labels**: Every `<uui-button>` needs a `label` attribute. For editable form fields, prefer `<umb-property label="...">` so label + description are provided consistently (and property actions remain available). Use `aria-label` for standalone controls.
 - **Focus management**: When a modal opens, focus the first input. When a modal closes, return focus to the trigger element. When deleting a list item, focus the next item or the list.
 - **Colour**: Never use colour alone to convey status. Always pair with text labels or icons. The status badge shows both a colour and a text label.
 - **ARIA**: Use `aria-live="polite"` for dynamic content updates (loading states, search results count). Use `role="status"` for toast notifications.
@@ -1589,23 +1690,42 @@ uui-tab-group { --uui-tab-divider: var(--uui-color-border); width: 100%; }
 umb-router-slot { display: none; }  /* URL tracking only */
 ```
 
-### Property Layout (umb-property-layout)
-2-column label/editor layout (200px label + flexible editor, sticky labels, mandatory/invalid states):
+### Property Rendering (umb-property-dataset + umb-property)
+Use property datasets for editable fields so Umbraco property actions can attach.
 ```typescript
-html`<umb-property-layout label="Product Type" description="Categorize for reporting" ?mandatory=${true} ?invalid=${!!this._fieldErrors.productType}>
-  <uui-select slot="editor" .options=${this._getProductTypeOptions()} @change=${this._handleProductTypeChange}></uui-select>
-</umb-property-layout>`
+html`<uui-box headline="Basic Information">
+  <umb-property-dataset .value=${this._getDetailsDatasetValue()} @change=${this._handleDetailsDatasetChange}>
+    <umb-property
+      alias="rootName"
+      label="Product Name"
+      description="Customer-facing product name"
+      property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+      .validation=${{ mandatory: true }}>
+    </umb-property>
+
+    <umb-property
+      alias="productTypeId"
+      label="Product Type"
+      property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+      .config=${this._getProductTypePropertyConfig()}>
+    </umb-property>
+  </umb-property-dataset>
+</uui-box>`
 ```
-Attributes: `label`, `description`, `mandatory`, `invalid`, `orientation` ('horizontal'|'vertical')
+Use canonical aliases that match DTO fields (`rootName`, `taxGroupId`, `warehouseIds`, etc.). Avoid raw `uui-input`/`uui-select` for property-bound fields.
 
 ### Property Grouping
 ```typescript
 html`<uui-box headline="Basic Information">
-  <umb-property-layout label="Name" ...></umb-property-layout>
-  <umb-property-layout label="Description" ...></umb-property-layout>
+  <umb-property-dataset .value=${this._getDetailsDatasetValue()} @change=${this._handleDetailsDatasetChange}>
+    <umb-property alias="rootName" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
+    <umb-property alias="description" property-editor-ui-alias="Umb.PropertyEditorUi.Tiptap"></umb-property>
+  </umb-property-dataset>
 </uui-box>
-<uui-box headline="Pricing">
-  <umb-property-layout label="Price" ...></umb-property-layout>
+<uui-box headline="Media">
+  <umb-property-dataset .value=${this._getMediaDatasetValue()} @change=${this._handleMediaDatasetChange}>
+    <umb-property alias="rootImages" property-editor-ui-alias="Umb.PropertyEditorUi.MediaPicker"></umb-property>
+  </umb-property-dataset>
 </uui-box>`
 ```
 ```css
@@ -1637,6 +1757,19 @@ private _renderFooter(): unknown {
 Use `href` on breadcrumb items, last item (current page) has no href.
 
 Examples: [product-detail.element.ts](../src/Merchello/Client/src/products/components/product-detail.element.ts), [variant-detail.element.ts](../src/Merchello/Client/src/products/components/variant-detail.element.ts)
+
+### Merchello Product Property-Action Coverage
+
+Product add/edit surfaces are now aligned to `umb-property-dataset` + `umb-property`:
+
+- `src/Merchello/Client/src/products/components/product-detail.element.ts`
+- `src/Merchello/Client/src/products/modals/create-product-modal.element.ts`
+- `src/Merchello/Client/src/products/components/variant-basic-info.element.ts`
+- `src/Merchello/Client/src/products/components/variant-feed-settings.element.ts`
+- `src/Merchello/Client/src/products/components/variant-detail.element.ts`
+- `src/Merchello/Client/src/products/modals/option-editor-modal.element.ts`
+
+When adding new product fields, follow the same pattern. If a field is rendered with raw UUI controls instead of `umb-property`, property actions will not be available for that field.
 
 ## Using Umbraco Property Editors with DataType Configuration
 

@@ -46,7 +46,8 @@ public class AddCustomItemDto
     public Guid? WarehouseId { get; set; }
 
     /// <summary>
-    /// Selected shipping option ID for this item (required if IsPhysicalProduct is true)
+    /// Selected shipping option ID for this item.
+    /// Null means "No Shipping" for physical custom items.
     /// </summary>
     public Guid? ShippingOptionId { get; set; }
 }

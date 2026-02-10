@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
 import type { ProductVariantDto } from "@products/types/product.types.js";
 
 /**
@@ -13,97 +14,137 @@ import type { ProductVariantDto } from "@products/types/product.types.js";
 export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElement) {
   @property({ type: Object }) formData: Partial<ProductVariantDto> = {};
 
-  private _updateField<K extends keyof ProductVariantDto>(field: K, value: ProductVariantDto[K]): void {
-    const updated = { ...this.formData, [field]: value };
+  private _dispatchVariantChange(updated: Partial<ProductVariantDto>): void {
     this.dispatchEvent(new CustomEvent("variant-change", { detail: updated, bubbles: true, composed: true }));
+  }
+
+  private _toPropertyValueMap(values: UmbPropertyValueData[]): Record<string, unknown> {
+    const map: Record<string, unknown> = {};
+    for (const value of values) {
+      map[value.alias] = value.value;
+    }
+    return map;
+  }
+
+  private _getStringFromPropertyValue(value: unknown): string {
+    return typeof value === "string" ? value : "";
+  }
+
+  private _getBooleanFromPropertyValue(value: unknown, fallback: boolean): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    return fallback;
+  }
+
+  private _getDatasetValue(): UmbPropertyValueData[] {
+    return [
+      { alias: "removeFromFeed", value: this.formData.removeFromFeed ?? false },
+      { alias: "shoppingFeedTitle", value: this.formData.shoppingFeedTitle ?? "" },
+      { alias: "shoppingFeedDescription", value: this.formData.shoppingFeedDescription ?? "" },
+      { alias: "shoppingFeedColour", value: this.formData.shoppingFeedColour ?? "" },
+      { alias: "shoppingFeedMaterial", value: this.formData.shoppingFeedMaterial ?? "" },
+      { alias: "shoppingFeedSize", value: this.formData.shoppingFeedSize ?? "" },
+      { alias: "shoppingFeedWidth", value: this.formData.shoppingFeedWidth ?? "" },
+      { alias: "shoppingFeedHeight", value: this.formData.shoppingFeedHeight ?? "" },
+    ];
+  }
+
+  private _handleDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+
+    const updated: Partial<ProductVariantDto> = {
+      ...this.formData,
+      removeFromFeed: this._getBooleanFromPropertyValue(values.removeFromFeed, false),
+      shoppingFeedTitle: this._getStringFromPropertyValue(values.shoppingFeedTitle),
+      shoppingFeedDescription: this._getStringFromPropertyValue(values.shoppingFeedDescription),
+      shoppingFeedColour: this._getStringFromPropertyValue(values.shoppingFeedColour),
+      shoppingFeedMaterial: this._getStringFromPropertyValue(values.shoppingFeedMaterial),
+      shoppingFeedSize: this._getStringFromPropertyValue(values.shoppingFeedSize),
+      shoppingFeedWidth: this._getStringFromPropertyValue(values.shoppingFeedWidth),
+      shoppingFeedHeight: this._getStringFromPropertyValue(values.shoppingFeedHeight),
+    };
+
+    this._dispatchVariantChange(updated);
   }
 
   override render() {
     return html`
-      <uui-box headline="Shopping Feed Settings">
-        <umb-property-layout label="Remove from Feed" description="Exclude this product from shopping feeds">
-          <uui-toggle
-            slot="editor"
+      <umb-property-dataset
+        .value=${this._getDatasetValue()}
+        @change=${this._handleDatasetChange}>
+        <uui-box headline="Shopping Feed Settings">
+          <umb-property
+            alias="removeFromFeed"
             label="Remove from Feed"
-            .checked=${this.formData.removeFromFeed ?? false}
-            @change=${(e: Event) => this._updateField("removeFromFeed", (e.target as HTMLInputElement).checked)}>
-          </uui-toggle>
-        </umb-property-layout>
+            description="Exclude this product from shopping feeds"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
 
-        ${!this.formData.removeFromFeed
-          ? html`
-              <umb-property-layout label="Feed Title" description="Title for shopping feed">
-                <uui-input
-                  slot="editor"
-                  label="Feed title"
-                  maxlength="200"
-                  .value=${this.formData.shoppingFeedTitle || ""}
-                  @input=${(e: Event) => this._updateField("shoppingFeedTitle", (e.target as HTMLInputElement).value)}>
-                </uui-input>
-              </umb-property-layout>
+          ${!(this.formData.removeFromFeed ?? false)
+            ? html`
+                <umb-property
+                  alias="shoppingFeedTitle"
+                  label="Feed Title"
+                  description="Title for shopping feed"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 200 }]}>
+                </umb-property>
 
-              <umb-property-layout label="Feed Description" description="Description for shopping feed">
-                <uui-textarea
-                  slot="editor"
-                  label="Feed description"
-                  maxlength="100"
-                  .value=${this.formData.shoppingFeedDescription || ""}
-                  @input=${(e: Event) => this._updateField("shoppingFeedDescription", (e.target as HTMLTextAreaElement).value)}>
-                </uui-textarea>
-              </umb-property-layout>
+                <umb-property
+                  alias="shoppingFeedDescription"
+                  label="Feed Description"
+                  description="Description for shopping feed"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextArea"
+                  .config=${[{ alias: "maxChars", value: 100 }]}>
+                </umb-property>
 
-              <umb-property-layout label="Colour" description="Product colour for feed">
-                <uui-input
-                  slot="editor"
+                <umb-property
+                  alias="shoppingFeedColour"
                   label="Colour"
-                  maxlength="100"
-                  .value=${this.formData.shoppingFeedColour || ""}
-                  @input=${(e: Event) => this._updateField("shoppingFeedColour", (e.target as HTMLInputElement).value)}>
-                </uui-input>
-              </umb-property-layout>
+                  description="Product colour for feed"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 100 }]}>
+                </umb-property>
 
-              <umb-property-layout label="Material" description="Product material for feed">
-                <uui-input
-                  slot="editor"
+                <umb-property
+                  alias="shoppingFeedMaterial"
                   label="Material"
-                  maxlength="100"
-                  .value=${this.formData.shoppingFeedMaterial || ""}
-                  @input=${(e: Event) => this._updateField("shoppingFeedMaterial", (e.target as HTMLInputElement).value)}>
-                </uui-input>
-              </umb-property-layout>
+                  description="Product material for feed"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 100 }]}>
+                </umb-property>
 
-              <umb-property-layout label="Size" description="Product size for feed">
-                <uui-input
-                  slot="editor"
+                <umb-property
+                  alias="shoppingFeedSize"
                   label="Size"
-                  maxlength="100"
-                  .value=${this.formData.shoppingFeedSize || ""}
-                  @input=${(e: Event) => this._updateField("shoppingFeedSize", (e.target as HTMLInputElement).value)}>
-                </uui-input>
-              </umb-property-layout>
+                  description="Product size for feed"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 100 }]}>
+                </umb-property>
 
-              <umb-property-layout label="Width" description="Product width for feed (e.g. 10 cm)">
-                <uui-input
-                  slot="editor"
+                <umb-property
+                  alias="shoppingFeedWidth"
                   label="Width"
-                  maxlength="100"
-                  .value=${this.formData.shoppingFeedWidth || ""}
-                  @input=${(e: Event) => this._updateField("shoppingFeedWidth", (e.target as HTMLInputElement).value)}>
-                </uui-input>
-              </umb-property-layout>
+                  description="Product width for feed (e.g. 10 cm)"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 100 }]}>
+                </umb-property>
 
-              <umb-property-layout label="Height" description="Product height for feed (e.g. 15 cm)">
-                <uui-input
-                  slot="editor"
+                <umb-property
+                  alias="shoppingFeedHeight"
                   label="Height"
-                  maxlength="100"
-                  .value=${this.formData.shoppingFeedHeight || ""}
-                  @input=${(e: Event) => this._updateField("shoppingFeedHeight", (e.target as HTMLInputElement).value)}>
-                </uui-input>
-              </umb-property-layout>
-            `
-          : nothing}
-      </uui-box>
+                  description="Product height for feed (e.g. 15 cm)"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 100 }]}>
+                </umb-property>
+              `
+            : nothing}
+        </uui-box>
+      </umb-property-dataset>
     `;
   }
 
@@ -116,8 +157,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
       --uui-box-default-padding: var(--uui-size-space-5);
     }
 
-    umb-property-layout uui-input,
-    umb-property-layout uui-textarea {
+    umb-property uui-input,
+    umb-property uui-textarea {
       width: 100%;
     }
   `;

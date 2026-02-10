@@ -17,11 +17,11 @@ export interface AddCustomItemModalValue {
   /** The custom item to add, or undefined if cancelled */
   item?: AddCustomItemDto & {
     /** Warehouse ID for physical products */
-    warehouseId?: string;
+    warehouseId?: string | null;
     /** Warehouse name for display */
     warehouseName?: string;
-    /** Shipping option ID for physical products */
-    shippingOptionId?: string;
+    /** Shipping option ID for physical products (null when "No Shipping" is selected) */
+    shippingOptionId?: string | null;
     /** Shipping option name for display */
     shippingOptionName?: string;
   };
