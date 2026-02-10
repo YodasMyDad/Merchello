@@ -123,4 +123,18 @@ public static class EnumerableExtensions
 
         return combos;
     }
+
+    /// <summary>
+    /// Gets the next sort order value by finding the max sort order in the collection and adding 1.
+    /// Returns 1 if the collection is empty.
+    /// </summary>
+    /// <typeparam name="T">The type of elements in the collection</typeparam>
+    /// <param name="collection">The collection to search</param>
+    /// <param name="sortOrderSelector">Function to extract the sort order from each element</param>
+    /// <returns>The next available sort order value</returns>
+    public static int GetNextSortOrder<T>(this IEnumerable<T> collection, Func<T, int> sortOrderSelector)
+    {
+        var items = collection.ToList();
+        return items.Count == 0 ? 1 : items.Max(sortOrderSelector) + 1;
+    }
 }

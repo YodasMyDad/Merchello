@@ -188,6 +188,23 @@ public class ShippingOptionService(
                     RegionCode = x.RegionCode,
                     RegionDisplay = FormatRegion(x.CountryCode, x.RegionCode)
                 })
+                .ToList(),
+            PostcodeRules = option.PostcodeRules
+                .OrderBy(r => r.CountryCode)
+                .ThenBy(r => r.Pattern)
+                .Select(r => new ShippingPostcodeRuleDto
+                {
+                    Id = r.Id,
+                    CountryCode = r.CountryCode,
+                    Pattern = r.Pattern,
+                    MatchType = r.MatchType.ToString(),
+                    Action = r.Action.ToString(),
+                    Surcharge = r.Surcharge,
+                    Description = r.Description,
+                    MatchTypeDisplay = FormatMatchType(r.MatchType),
+                    ActionDisplay = FormatRuleAction(r.Action),
+                    CountryDisplay = r.CountryCode
+                })
                 .ToList()
         };
     }
@@ -494,16 +511,27 @@ public class ShippingOptionService(
             }
 
             var (targetOption, targetCost) = found.Value;
+            var costs = targetOption.ShippingCosts;
+            var updatedCost = costs.FirstOrDefault(c => c.Id == targetCost.Id);
+            if (updatedCost == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Shipping cost not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
 
-            targetCost.CountryCode = dto.CountryCode.ToUpperInvariant();
-            targetCost.RegionCode = dto.RegionCode?.ToUpperInvariant();
-            targetCost.Cost = dto.Cost;
-            targetCost.ShippingOptionId = targetOption.Id;
+            updatedCost.CountryCode = dto.CountryCode.ToUpperInvariant();
+            updatedCost.RegionCode = dto.RegionCode?.ToUpperInvariant();
+            updatedCost.Cost = dto.Cost;
+            updatedCost.ShippingOptionId = targetOption.Id;
 
-            targetOption.SetShippingCosts(targetOption.ShippingCosts);
+            targetOption.SetShippingCosts(costs);
             targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            result.ResultObject = targetCost;
+            result.ResultObject = updatedCost;
             return true;
         });
         scope.Complete();
@@ -628,19 +656,30 @@ public class ShippingOptionService(
             }
 
             var (targetOption, targetTier) = found.Value;
+            var tiers = targetOption.WeightTiers;
+            var updatedTier = tiers.FirstOrDefault(t => t.Id == targetTier.Id);
+            if (updatedTier == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Weight tier not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
 
-            targetTier.CountryCode = dto.CountryCode.ToUpperInvariant();
-            targetTier.RegionCode = dto.RegionCode?.ToUpperInvariant();
-            targetTier.MinWeightKg = dto.MinWeightKg;
-            targetTier.MaxWeightKg = dto.MaxWeightKg;
-            targetTier.Surcharge = dto.Surcharge;
-            targetTier.UpdateDate = DateTime.UtcNow;
-            targetTier.ShippingOptionId = targetOption.Id;
+            updatedTier.CountryCode = dto.CountryCode.ToUpperInvariant();
+            updatedTier.RegionCode = dto.RegionCode?.ToUpperInvariant();
+            updatedTier.MinWeightKg = dto.MinWeightKg;
+            updatedTier.MaxWeightKg = dto.MaxWeightKg;
+            updatedTier.Surcharge = dto.Surcharge;
+            updatedTier.UpdateDate = DateTime.UtcNow;
+            updatedTier.ShippingOptionId = targetOption.Id;
 
-            targetOption.SetShippingWeightTiers(targetOption.WeightTiers);
+            targetOption.SetShippingWeightTiers(tiers);
             targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            result.ResultObject = targetTier;
+            result.ResultObject = updatedTier;
             return true;
         });
         scope.Complete();
@@ -671,6 +710,202 @@ public class ShippingOptionService(
             var tiers = targetOption.WeightTiers;
             tiers.RemoveAll(t => t.Id == tierId);
             targetOption.SetShippingWeightTiers(tiers);
+            targetOption.UpdateDate = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            result.ResultObject = true;
+            return true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    #endregion
+
+    #region Postcode Rules
+
+    public async Task<CrudResult<ShippingPostcodeRuleDto>> AddPostcodeRuleAsync(Guid optionId, CreateShippingPostcodeRuleDto dto, CancellationToken ct = default)
+    {
+        var result = new CrudResult<ShippingPostcodeRuleDto>();
+
+        if (!TryParseMatchType(dto.MatchType, out var matchType))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Invalid match type: {dto.MatchType}",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        if (!TryParseRuleAction(dto.Action, out var action))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Invalid action: {dto.Action}",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        using var scope = scopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var option = await db.ShippingOptions.FirstOrDefaultAsync(o => o.Id == optionId, ct);
+            if (option == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Shipping option not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
+
+            var rule = new ShippingPostcodeRule
+            {
+                ShippingOptionId = optionId,
+                CountryCode = dto.CountryCode.ToUpperInvariant(),
+                Pattern = dto.Pattern.Trim(),
+                MatchType = matchType,
+                Action = action,
+                Surcharge = dto.Surcharge,
+                Description = dto.Description
+            };
+
+            var rules = option.PostcodeRules;
+            rules.Add(rule);
+            option.SetPostcodeRules(rules);
+            option.UpdateDate = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+
+            result.ResultObject = new ShippingPostcodeRuleDto
+            {
+                Id = rule.Id,
+                CountryCode = rule.CountryCode,
+                Pattern = rule.Pattern,
+                MatchType = rule.MatchType.ToString(),
+                Action = rule.Action.ToString(),
+                Surcharge = rule.Surcharge,
+                Description = rule.Description,
+                MatchTypeDisplay = FormatMatchType(rule.MatchType),
+                ActionDisplay = FormatRuleAction(rule.Action),
+                CountryDisplay = rule.CountryCode
+            };
+            return true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    public async Task<CrudResult<ShippingPostcodeRuleDto>> UpdatePostcodeRuleAsync(Guid ruleId, CreateShippingPostcodeRuleDto dto, CancellationToken ct = default)
+    {
+        var result = new CrudResult<ShippingPostcodeRuleDto>();
+
+        if (!TryParseMatchType(dto.MatchType, out var matchType))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Invalid match type: {dto.MatchType}",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        if (!TryParseRuleAction(dto.Action, out var action))
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Invalid action: {dto.Action}",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        using var scope = scopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var found = await FindShippingPostcodeRuleAsync(db, ruleId, ct);
+            if (found == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Postcode rule not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
+
+            var (targetOption, targetRule) = found.Value;
+            var rules = targetOption.PostcodeRules;
+            var updatedRule = rules.FirstOrDefault(r => r.Id == targetRule.Id);
+            if (updatedRule == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Postcode rule not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
+
+            updatedRule.CountryCode = dto.CountryCode.ToUpperInvariant();
+            updatedRule.Pattern = dto.Pattern.Trim();
+            updatedRule.MatchType = matchType;
+            updatedRule.Action = action;
+            updatedRule.Surcharge = dto.Surcharge;
+            updatedRule.Description = dto.Description;
+            updatedRule.UpdateDate = DateTime.UtcNow;
+            updatedRule.ShippingOptionId = targetOption.Id;
+
+            targetOption.SetPostcodeRules(rules);
+            targetOption.UpdateDate = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+
+            result.ResultObject = new ShippingPostcodeRuleDto
+            {
+                Id = updatedRule.Id,
+                CountryCode = updatedRule.CountryCode,
+                Pattern = updatedRule.Pattern,
+                MatchType = updatedRule.MatchType.ToString(),
+                Action = updatedRule.Action.ToString(),
+                Surcharge = updatedRule.Surcharge,
+                Description = updatedRule.Description,
+                MatchTypeDisplay = FormatMatchType(updatedRule.MatchType),
+                ActionDisplay = FormatRuleAction(updatedRule.Action),
+                CountryDisplay = updatedRule.CountryCode
+            };
+            return true;
+        });
+        scope.Complete();
+
+        return result;
+    }
+
+    public async Task<CrudResult<bool>> DeletePostcodeRuleAsync(Guid ruleId, CancellationToken ct = default)
+    {
+        var result = new CrudResult<bool>();
+
+        using var scope = scopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var found = await FindShippingPostcodeRuleAsync(db, ruleId, ct);
+            if (found == null)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "Postcode rule not found",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return false;
+            }
+
+            var (targetOption, _) = found.Value;
+
+            var rules = targetOption.PostcodeRules;
+            rules.RemoveAll(r => r.Id == ruleId);
+            targetOption.SetPostcodeRules(rules);
             targetOption.UpdateDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             result.ResultObject = true;
@@ -721,6 +956,24 @@ public class ShippingOptionService(
         return null;
     }
 
+    private static async Task<(ShippingOption Option, ShippingPostcodeRule Rule)?> FindShippingPostcodeRuleAsync(
+        MerchelloDbContext db,
+        Guid ruleId,
+        CancellationToken ct)
+    {
+        var options = await db.ShippingOptions.ToListAsync(ct);
+        foreach (var option in options)
+        {
+            var match = option.PostcodeRules.FirstOrDefault(r => r.Id == ruleId);
+            if (match != null)
+            {
+                return (option, match);
+            }
+        }
+
+        return null;
+    }
+
     private static string FormatRegion(string countryCode, string? stateCode)
     {
         if (countryCode == "*") return "All Countries";
@@ -752,6 +1005,38 @@ public class ShippingOptionService(
     private static string FormatWeightRange(decimal min, decimal? max)
     {
         return max.HasValue ? $"{min}-{max} kg" : $"{min}+ kg";
+    }
+
+    private static string FormatMatchType(PostcodeMatchType matchType)
+    {
+        return matchType switch
+        {
+            PostcodeMatchType.Prefix => "Prefix match",
+            PostcodeMatchType.OutcodeRange => "UK outcode range",
+            PostcodeMatchType.NumericRange => "Numeric range",
+            PostcodeMatchType.Exact => "Exact match",
+            _ => matchType.ToString()
+        };
+    }
+
+    private static string FormatRuleAction(PostcodeRuleAction action)
+    {
+        return action switch
+        {
+            PostcodeRuleAction.Block => "Block delivery",
+            PostcodeRuleAction.Surcharge => "Add surcharge",
+            _ => action.ToString()
+        };
+    }
+
+    private static bool TryParseMatchType(string value, out PostcodeMatchType matchType)
+    {
+        return Enum.TryParse(value, ignoreCase: true, out matchType);
+    }
+
+    private static bool TryParseRuleAction(string value, out PostcodeRuleAction action)
+    {
+        return Enum.TryParse(value, ignoreCase: true, out action);
     }
 
     /// <summary>

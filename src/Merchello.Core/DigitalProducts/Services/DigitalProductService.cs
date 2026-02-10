@@ -493,7 +493,7 @@ public class DigitalProductService(
     /// </summary>
     private void PopulateDownloadUrls(IEnumerable<DownloadLink> links)
     {
-        var baseUrl = _settings.WebsiteUrl.TrimEnd('/');
+        var baseUrl = (_settings.Store.WebsiteUrl ?? string.Empty).TrimEnd('/');
         foreach (var link in links)
         {
             link.DownloadUrl = $"{baseUrl}/api/merchello/downloads/{link.Token}";
@@ -545,11 +545,11 @@ public class DigitalProductService(
     /// </summary>
     private string? ValidateConfiguration()
     {
-        if (string.IsNullOrEmpty(_settings.WebsiteUrl))
+        if (string.IsNullOrEmpty(_settings.Store.WebsiteUrl))
         {
             logger.LogError(
-                "Digital products require Merchello:WebsiteUrl to be configured (e.g., \"https://shop.example.com\")");
-            return "Digital product configuration incomplete: WebsiteUrl not configured";
+                "Digital products require Merchello:Store:WebsiteUrl to be configured (e.g., \"https://shop.example.com\")");
+            return "Digital product configuration incomplete: Store.WebsiteUrl not configured";
         }
 
         if (string.IsNullOrEmpty(_settings.DownloadTokenSecret) || _settings.DownloadTokenSecret.Length < 32)

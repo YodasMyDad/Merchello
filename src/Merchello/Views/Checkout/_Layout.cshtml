@@ -2,13 +2,14 @@
 @{
     Layout = null;
     var settings = Model.Settings;
+    var store = Model.Store;
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>@(settings.CompanyName ?? "Checkout") - @Model.Step</title>
+    <title>@(store.Name ?? "Checkout") - @Model.Step</title>
 
     @if (Model.Step != CheckoutStep.Confirmation && Model.Step != CheckoutStep.PostPurchase)
     {
@@ -64,19 +65,19 @@
     <header class="checkout-header border-b border-gray-200">
         <div class="max-w-6xl mx-auto px-4 py-4">
             <div class="flex items-center @Model.LogoPositionClass">
-                @if (!string.IsNullOrEmpty(settings.LogoUrl))
+                @if (!string.IsNullOrEmpty(store.LogoUrl))
                 {
                     <a href="/" class="block">
-                        <img src="@settings.LogoUrl"
-                             alt="@(settings.CompanyName ?? "Store")"
+                        <img src="@store.LogoUrl"
+                             alt="@(store.Name ?? "Store")"
                              style="max-width: @(settings.LogoMaxWidth)px;"
                              class="h-auto" />
                     </a>
                 }
-                else if (!string.IsNullOrEmpty(settings.CompanyName))
+                else if (!string.IsNullOrEmpty(store.Name))
                 {
                     <a href="/" class="font-heading text-xl font-semibold text-gray-900 hover:text-gray-700">
-                        @settings.CompanyName
+                        @store.Name
                     </a>
                 }
                 else
@@ -153,36 +154,36 @@
         <div class="max-w-6xl mx-auto px-4 py-6">
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm text-gray-600">
                 <div class="flex flex-wrap items-center gap-4">
-                    @if (!string.IsNullOrEmpty(settings.TermsUrl))
+                    @if (!string.IsNullOrEmpty(store.TermsUrl))
                     {
-                        <a href="@settings.TermsUrl" class="hover:text-gray-900 hover:underline">Terms & Conditions</a>
+                        <a href="@store.TermsUrl" class="hover:text-gray-900 hover:underline">Terms & Conditions</a>
                     }
-                    @if (!string.IsNullOrEmpty(settings.PrivacyUrl))
+                    @if (!string.IsNullOrEmpty(store.PrivacyUrl))
                     {
-                        <a href="@settings.PrivacyUrl" class="hover:text-gray-900 hover:underline">Privacy Policy</a>
+                        <a href="@store.PrivacyUrl" class="hover:text-gray-900 hover:underline">Privacy Policy</a>
                     }
                 </div>
                 <div class="flex flex-wrap items-center gap-4">
-                    @if (!string.IsNullOrEmpty(settings.SupportEmail))
+                    @if (!string.IsNullOrEmpty(store.SupportEmail))
                     {
-                        <a href="mailto:@settings.SupportEmail" class="hover:text-gray-900">
+                        <a href="mailto:@store.SupportEmail" class="hover:text-gray-900">
                             <span class="sr-only">Email:</span>
-                            @settings.SupportEmail
+                            @store.SupportEmail
                         </a>
                     }
-                    @if (!string.IsNullOrEmpty(settings.SupportPhone))
+                    @if (!string.IsNullOrEmpty(store.Phone))
                     {
-                        <a href="tel:@settings.SupportPhone" class="hover:text-gray-900">
+                        <a href="tel:@store.Phone" class="hover:text-gray-900">
                             <span class="sr-only">Phone:</span>
-                            @settings.SupportPhone
+                            @store.Phone
                         </a>
                     }
                 </div>
             </div>
-            @if (!string.IsNullOrEmpty(settings.CompanyName))
+            @if (!string.IsNullOrEmpty(store.Name))
             {
                 <p class="mt-4 text-xs text-gray-500">
-                    &copy; @DateTime.Now.Year @settings.CompanyName. All rights reserved.
+                    &copy; @DateTime.Now.Year @store.Name. All rights reserved.
                 </p>
             }
         </div>

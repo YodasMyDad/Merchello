@@ -92,6 +92,7 @@ public class MerchelloCheckoutController(
                 var unauthorizedViewModel = new CheckoutViewModel(
                     checkoutPage.Step,
                     _settings,
+                    _merchelloSettings.Store,
                     basket: null,
                     session: null,
                     billingCountries: null,
@@ -284,6 +285,7 @@ public class MerchelloCheckoutController(
             var confirmationViewModel = new CheckoutViewModel(
                 checkoutPage.Step,
                 _settings,
+                _merchelloSettings.Store,
                 basket: null,
                 session: null,
                 billingCountries: null,
@@ -307,7 +309,8 @@ public class MerchelloCheckoutController(
 
             var postPurchaseViewModel = new CheckoutViewModel(
                 checkoutPage.Step,
-                _settings);
+                _settings,
+                _merchelloSettings.Store);
 
             if (!checkoutPage.InvoiceId.HasValue)
             {
@@ -337,12 +340,12 @@ public class MerchelloCheckoutController(
         // Handle payment return/cancel steps
         if (checkoutPage.Step == CheckoutStep.PaymentReturn)
         {
-            return View("~/Views/Checkout/Return.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings));
+            return View("~/Views/Checkout/Return.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
         }
 
         if (checkoutPage.Step == CheckoutStep.PaymentCancelled)
         {
-            return View("~/Views/Checkout/Cancel.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings));
+            return View("~/Views/Checkout/Cancel.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
         }
 
         // For all other steps (Information, Shipping, Payment), render single-page checkout
@@ -448,6 +451,7 @@ public class MerchelloCheckoutController(
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
             _settings,
+            _merchelloSettings.Store,
             basket,
             session,
             billingCountries,

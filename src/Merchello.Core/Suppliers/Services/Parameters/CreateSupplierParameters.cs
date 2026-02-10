@@ -38,4 +38,9 @@ public class CreateSupplierParameters
     /// Extended data for custom properties
     /// </summary>
     public Dictionary<string, object>? ExtendedData { get; set; }
+
+    /// <summary>
+    /// Default fulfilment provider configuration for all warehouses owned by this supplier
+    /// </summary>
+    public Guid? DefaultFulfilmentProviderConfigurationId { get; set; }
 }

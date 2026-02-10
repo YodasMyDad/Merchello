@@ -3,6 +3,8 @@ using Merchello.Core.Customers.Models;
 using Merchello.Core.DigitalProducts.Models;
 using Merchello.Core.DigitalProducts.Notifications;
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Fulfilment.Models;
+using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Base;
 using Merchello.Core.Notifications.CheckoutNotifications;
@@ -118,7 +120,14 @@ public class SampleNotificationFactory : ISampleNotificationFactory
             // Digital product notifications
             [typeof(DigitalProductDeliveredNotification)] = () => new DigitalProductDeliveredNotification(
                 CreateSampleInvoice(),
-                CreateSampleDownloadLinks())
+                CreateSampleDownloadLinks()),
+
+            // Fulfilment notifications
+            [typeof(SupplierOrderNotification)] = () => new SupplierOrderNotification(
+                CreateSampleFulfilmentRequest(),
+                "Sample Supplier Inc",
+                "supplier@example.com",
+                "New Order: ORD-00001")
         };
     }
 
@@ -449,6 +458,47 @@ public class SampleNotificationFactory : ISampleNotificationFactory
                 DownloadUrl = "https://example.com/download?token=sample-download-token-abc123"
             }
         ];
+    }
+
+    private static FulfilmentOrderRequest CreateSampleFulfilmentRequest()
+    {
+        return new FulfilmentOrderRequest
+        {
+            OrderId = Guid.NewGuid(),
+            OrderNumber = "ORD-00001",
+            LineItems =
+            [
+                new FulfilmentLineItem
+                {
+                    LineItemId = Guid.NewGuid(),
+                    Sku = "SKU-001",
+                    Name = "Sample Product",
+                    Quantity = 2,
+                    UnitPrice = 49.99m
+                },
+                new FulfilmentLineItem
+                {
+                    LineItemId = Guid.NewGuid(),
+                    Sku = "SKU-002",
+                    Name = "Another Product",
+                    Quantity = 1,
+                    UnitPrice = 29.99m
+                }
+            ],
+            ShippingAddress = new FulfilmentAddress
+            {
+                Name = "John Doe",
+                Company = "Acme Corp",
+                AddressOne = "123 Main Street",
+                AddressTwo = "Apt 4B",
+                TownCity = "New York",
+                CountyState = "NY",
+                PostalCode = "10001",
+                CountryCode = "US",
+                Phone = "+1 (555) 123-4567"
+            },
+            CustomerEmail = "customer@example.com"
+        };
     }
 
     private static T CreateAbandonedCheckoutNotification<T>() where T : CheckoutAbandonedNotificationBase, new()

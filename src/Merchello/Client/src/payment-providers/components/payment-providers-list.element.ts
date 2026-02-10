@@ -300,26 +300,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
         ${provider?.description
           ? html`<p class="provider-description">${provider.description}</p>`
           : nothing}
-        <div class="provider-footer">
-          <div class="provider-features">
-            ${setting.isTestMode
-              ? html`<span class="feature-badge test-mode">Test Mode</span>`
-              : html`<span class="feature-badge live-mode">Live</span>`}
-            ${provider?.supportsRefunds
-              ? html`<span class="feature-badge">Refunds</span>`
-              : nothing}
-            ${provider?.supportsPartialRefunds
-              ? html`<span class="feature-badge">Partial Refunds</span>`
-              : nothing}
-            ${provider?.usesRedirectCheckout
-              ? html`<span class="feature-badge">Redirect Checkout</span>`
-              : nothing}
-            ${provider?.supportsAuthAndCapture
-              ? html`<span class="feature-badge">Auth & Capture</span>`
-              : nothing}
-          </div>
-          ${provider?.setupInstructions
-            ? html`
+        ${provider?.setupInstructions
+          ? html`
+              <div class="provider-footer provider-footer-actions">
                 <uui-button
                   look="secondary"
                   compact
@@ -329,9 +312,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
                 >
                   <uui-icon name="icon-help-alt"></uui-icon>
                 </uui-button>
-              `
-            : nothing}
-        </div>
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -607,11 +590,8 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       gap: var(--uui-size-space-3);
     }
 
-    .provider-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-      flex: 1;
+    .provider-footer-actions {
+      justify-content: flex-end;
     }
 
     .help-button {
@@ -640,24 +620,6 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       font-size: 16px;
     }
 
-    .feature-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      background: var(--uui-color-surface-alt);
-      border-radius: 12px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .feature-badge.test-mode {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
-    }
-
-    .feature-badge.live-mode {
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
-    }
   `;
 }
 

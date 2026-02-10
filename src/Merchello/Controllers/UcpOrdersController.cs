@@ -1,10 +1,8 @@
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
-using Merchello.Core.Protocols.Models;
 using Merchello.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -15,8 +13,7 @@ namespace Merchello.Controllers;
 [ApiController]
 [Route("api/v1/orders")]
 public class UcpOrdersController(
-    ICommerceProtocolManager protocolManager,
-    IOptions<ProtocolSettings> settings) : ControllerBase
+    ICommerceProtocolManager protocolManager) : ControllerBase
 {
     /// <summary>
     /// Retrieves an order by ID.
@@ -27,11 +24,6 @@ public class UcpOrdersController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetOrder(string orderId, CancellationToken ct)
     {
-        if (!settings.Value.Enabled || !settings.Value.Ucp.Enabled)
-        {
-            return NotFound(new { error = "UCP protocol not available" });
-        }
-
         // Ensure adapters are loaded (triggers ExtensionManager discovery on first call)
         await protocolManager.GetAdaptersAsync(ct);
 

@@ -103,4 +103,9 @@ public class Basket
     /// Shipping quotes returned by enabled providers during basket calculation.
     /// </summary>
     public List<ShippingRateQuote> AvailableShippingQuotes { get; set; } = [];
+
+    /// <summary>
+    /// Total quantity of items in the basket (sum of all line item quantities).
+    /// </summary>
+    public int ItemCount => LineItems.Sum(li => li.Quantity);
 }

@@ -43,4 +43,14 @@ public class UpdateSupplierParameters
     /// Extended data (null to keep existing)
     /// </summary>
     public Dictionary<string, object>? ExtendedData { get; set; }
+
+    /// <summary>
+    /// Default fulfilment provider configuration (null to keep existing)
+    /// </summary>
+    public Guid? DefaultFulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
+    /// When true, clears the default fulfilment provider assignment
+    /// </summary>
+    public bool ShouldClearDefaultFulfilmentProviderId { get; set; }
 }

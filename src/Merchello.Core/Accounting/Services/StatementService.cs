@@ -192,7 +192,7 @@ public class StatementService(
             graphics,
             page,
             "Customer Statement",
-            companyName ?? _settings.StoreName ?? "Store",
+            companyName ?? _settings.Store.Name ?? "Store",
             companyAddress);
 
         // Statement info section

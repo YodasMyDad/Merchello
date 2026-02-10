@@ -20,12 +20,6 @@ public class InvoiceReminderJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogInformation("InvoiceReminderJob is disabled");
-            return;
-        }
-
         logger.LogInformation("InvoiceReminderJob started, waiting for database to be ready...");
 
         // Wait for migrations to complete before first check

@@ -199,4 +199,9 @@ public class Product
     /// If empty, the variant inherits packages from ProductRoot.DefaultPackageConfigurations.
     /// </summary>
     public List<ProductPackage> PackageConfigurations { get; set; } = [];
+
+    /// <summary>
+    /// Total stock across all warehouses.
+    /// </summary>
+    public int TotalStock => ProductWarehouses?.Sum(pw => pw.Stock) ?? 0;
 }

@@ -323,6 +323,9 @@ public static class Constants
 
         // Digital Products
         public const string DigitalProductDelivered = "digital.delivered";
+
+        // Fulfilment
+        public const string FulfilmentSupplierOrder = "fulfilment.supplier_order";
     }
 
     public static class StatusLabels

@@ -105,6 +105,11 @@ public class ShippingOption
     public string? ExcludedRegionsJson { get; set; }
 
     /// <summary>
+    /// Postcode-based rules for blocking or surcharging specific postcodes.
+    /// </summary>
+    public string? PostcodeRulesJson { get; set; }
+
+    /// <summary>
     /// Whether this shipping option allows customers to select a specific delivery date
     /// </summary>
     public bool AllowsDeliveryDateSelection { get; set; }
@@ -166,6 +171,11 @@ public class ShippingOption
         string.IsNullOrEmpty(ExcludedRegionsJson) ? [] :
         JsonSerializer.Deserialize<List<ShippingOptionExcludedRegion>>(ExcludedRegionsJson) ?? [];
 
+    [NotMapped]
+    public List<ShippingPostcodeRule> PostcodeRules =>
+        string.IsNullOrEmpty(PostcodeRulesJson) ? [] :
+        JsonSerializer.Deserialize<List<ShippingPostcodeRule>>(PostcodeRulesJson) ?? [];
+
     // =====================================================
     // Setter Helpers
     // =====================================================
@@ -178,4 +188,7 @@ public class ShippingOption
 
     public void SetExcludedRegions(List<ShippingOptionExcludedRegion>? excludedRegions) =>
         ExcludedRegionsJson = excludedRegions is { Count: > 0 } ? JsonSerializer.Serialize(excludedRegions) : null;
+
+    public void SetPostcodeRules(List<ShippingPostcodeRule>? rules) =>
+        PostcodeRulesJson = rules is { Count: > 0 } ? JsonSerializer.Serialize(rules) : null;
 }

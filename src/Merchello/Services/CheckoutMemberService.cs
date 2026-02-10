@@ -236,7 +236,7 @@ public class CheckoutMemberService(
     /// </summary>
     private string BuildSafePasswordResetBaseUrl(string? requestedBaseUrl)
     {
-        var defaultBaseUrl = $"{_settings.WebsiteUrl.TrimEnd('/')}/checkout/reset-password";
+        var defaultBaseUrl = $"{(_settings.Store.WebsiteUrl ?? string.Empty).TrimEnd('/')}/checkout/reset-password";
 
         if (string.IsNullOrWhiteSpace(requestedBaseUrl))
         {

@@ -1,4 +1,3 @@
-using Merchello.Core.Fulfilment;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services.Interfaces;
@@ -6,7 +5,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Merchello.Controllers;
 
@@ -19,10 +17,8 @@ namespace Merchello.Controllers;
 public class FulfilmentWebhookController(
     IFulfilmentProviderManager providerManager,
     IFulfilmentService fulfilmentService,
-    IOptions<FulfilmentSettings> settings,
     ILogger<FulfilmentWebhookController> logger) : ControllerBase
 {
-    private readonly FulfilmentSettings _settings = settings.Value;
 
     /// <summary>
     /// Receive webhook from fulfilment provider (3PL).
@@ -35,11 +31,6 @@ public class FulfilmentWebhookController(
         string providerKey,
         CancellationToken cancellationToken = default)
     {
-        if (!_settings.Enabled)
-        {
-            return BadRequest("Fulfilment system is disabled.");
-        }
-
         var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString();
         logger.LogInformation("Received fulfilment webhook for provider: {Provider} from {RemoteIp}",
             providerKey, remoteIp);

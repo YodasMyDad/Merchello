@@ -31,6 +31,7 @@ public class SupplierService(
             await db.Suppliers
                 .AsNoTracking()
                 .Include(s => s.Warehouses)
+                .Include(s => s.DefaultFulfilmentProviderConfiguration)
                 .OrderBy(s => s.Name)
                 .ToListAsync(cancellationToken));
         scope.Complete();
@@ -47,6 +48,7 @@ public class SupplierService(
             await db.Suppliers
                 .AsNoTracking()
                 .Include(s => s.Warehouses)
+                .Include(s => s.DefaultFulfilmentProviderConfiguration)
                 .FirstOrDefaultAsync(s => s.Id == supplierId, cancellationToken));
         scope.Complete();
         return result;
@@ -67,6 +69,7 @@ public class SupplierService(
         supplier.ContactEmail = parameters.ContactEmail;
         supplier.ContactPhone = parameters.ContactPhone;
         supplier.ExtendedData = parameters.ExtendedData ?? [];
+        supplier.DefaultFulfilmentProviderConfigurationId = parameters.DefaultFulfilmentProviderConfigurationId;
 
         // Publish "Before" notification - handlers can modify or cancel
         var creatingNotification = new SupplierCreatingNotification(supplier);
@@ -165,6 +168,11 @@ public class SupplierService(
 
             if (parameters.ExtendedData != null)
                 toUpdate.ExtendedData = parameters.ExtendedData;
+
+            if (parameters.ShouldClearDefaultFulfilmentProviderId)
+                toUpdate.DefaultFulfilmentProviderConfigurationId = null;
+            else if (parameters.DefaultFulfilmentProviderConfigurationId.HasValue)
+                toUpdate.DefaultFulfilmentProviderConfigurationId = parameters.DefaultFulfilmentProviderConfigurationId;
 
             toUpdate.DateUpdated = DateTime.UtcNow;
 

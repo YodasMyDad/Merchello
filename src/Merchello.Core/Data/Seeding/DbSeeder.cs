@@ -12,7 +12,7 @@ using Merchello.Core.Discounts.Services.Parameters;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
-using Merchello.Core.Products.Extensions;
+using Merchello.Core.Data.Seeding;
 using Merchello.Core.Shared.Helpers;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;

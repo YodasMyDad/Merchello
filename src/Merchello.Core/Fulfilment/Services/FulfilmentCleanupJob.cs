@@ -23,12 +23,6 @@ public class FulfilmentCleanupJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogInformation("FulfilmentCleanupJob disabled - fulfilment system is not enabled");
-            return;
-        }
-
         logger.LogInformation("FulfilmentCleanupJob started with {Interval} hour cleanup interval",
             _cleanupInterval.TotalHours);
 

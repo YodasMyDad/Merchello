@@ -253,6 +253,7 @@ public class WarehouseService(
         warehouse.SupplierId = parameters.SupplierId;
         warehouse.AutomationMethod = parameters.AutomationMethod;
         warehouse.ExtendedData = parameters.ExtendedData ?? [];
+        warehouse.FulfilmentProviderConfigurationId = parameters.FulfilmentProviderConfigurationId;
 
         // Publish creating notification (cancelable)
         var creatingNotification = new WarehouseCreatingNotification(warehouse);
@@ -391,6 +392,11 @@ public class WarehouseService(
 
             if (parameters.ExtendedData != null)
                 warehouse.ExtendedData = parameters.ExtendedData;
+
+            if (parameters.ShouldClearFulfilmentProviderId)
+                warehouse.FulfilmentProviderConfigurationId = null;
+            else if (parameters.FulfilmentProviderConfigurationId.HasValue)
+                warehouse.FulfilmentProviderConfigurationId = parameters.FulfilmentProviderConfigurationId;
 
             warehouse.DateUpdated = DateTime.UtcNow;
 
@@ -1319,6 +1325,7 @@ public class WarehouseService(
             await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.Supplier)
+                .Include(w => w.FulfilmentProviderConfiguration)
                 
                 .Include(w => w.ShippingOptions)
                 .AsSplitQuery()
@@ -1351,6 +1358,7 @@ public class WarehouseService(
             var warehouse = await db.Warehouses
                 .AsNoTracking()
                 .Include(w => w.Supplier)
+                .Include(w => w.FulfilmentProviderConfiguration)
                 
                 .Include(w => w.ShippingOptions)
                 .AsSplitQuery()
@@ -1366,6 +1374,8 @@ public class WarehouseService(
                 Code = warehouse.Code,
                 SupplierId = warehouse.SupplierId,
                 SupplierName = warehouse.Supplier?.Name,
+                FulfilmentProviderConfigurationId = warehouse.FulfilmentProviderConfigurationId,
+                FulfilmentProviderName = warehouse.FulfilmentProviderConfiguration?.DisplayName,
                 Address = MapAddress(warehouse.Address),
                 ServiceRegions = warehouse.ServiceRegions
                     .OrderBy(r => r.CountryCode)

@@ -279,16 +279,6 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
           </div>
         </div>
 
-        <div class="provider-footer">
-          <div class="provider-features">
-            ${provider.supportsHistoricalRates
-              ? html`<span class="feature-badge"><uui-icon name="icon-calendar"></uui-icon> Historical Rates</span>`
-              : nothing}
-            ${provider.lastFetchedAt
-              ? html`<span class="feature-badge"><uui-icon name="icon-time"></uui-icon> Last fetch: ${this._formatDate(provider.lastFetchedAt)}</span>`
-              : nothing}
-          </div>
-        </div>
       </div>
     `;
   }
@@ -612,35 +602,6 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
       font-size: 0.875rem;
     }
 
-    .provider-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: var(--uui-size-space-4);
-      padding-top: var(--uui-size-space-3);
-      border-top: 1px solid var(--uui-color-border);
-    }
-
-    .provider-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-3);
-    }
-
-    .feature-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-1) var(--uui-size-space-3);
-      background: var(--uui-color-surface-alt);
-      border-radius: 100px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .feature-badge uui-icon {
-      font-size: 0.75rem;
-    }
   `;
 }
 

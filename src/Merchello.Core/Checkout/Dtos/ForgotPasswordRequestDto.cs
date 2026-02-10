@@ -12,7 +12,7 @@ public class ForgotPasswordRequestDto
 
     /// <summary>
     /// Base URL for the reset link (e.g., "https://shop.example.com/checkout").
-    /// If not provided, uses MerchelloSettings.WebsiteUrl + "/checkout/reset-password".
+    /// If not provided, uses MerchelloSettings.Store.WebsiteUrl + "/checkout/reset-password".
     /// </summary>
     public string? ResetBaseUrl { get; set; }
 }

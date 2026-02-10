@@ -214,9 +214,7 @@ public class DownloadsController(
             ProductName = "", // Could be populated from line item if needed
             MaxDownloads = link.MaxDownloads,
             DownloadCount = link.DownloadCount,
-            RemainingDownloads = link.MaxDownloads.HasValue
-                ? Math.Max(0, link.MaxDownloads.Value - link.DownloadCount)
-                : null,
+            RemainingDownloads = link.RemainingDownloads,
             LastDownloadUtc = link.LastDownloadUtc,
             IsExpired = link.ExpiresUtc.HasValue && link.ExpiresUtc < now,
             IsDownloadLimitReached = link.MaxDownloads.HasValue && link.DownloadCount >= link.MaxDownloads

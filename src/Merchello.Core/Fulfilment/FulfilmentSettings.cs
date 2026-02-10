@@ -7,11 +7,6 @@ namespace Merchello.Core.Fulfilment;
 public class FulfilmentSettings
 {
     /// <summary>
-    /// Whether the fulfilment system is enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// Interval in minutes for polling 3PLs for order status updates.
     /// </summary>
     public int PollingIntervalMinutes { get; set; } = 15;
@@ -45,6 +40,11 @@ public class FulfilmentSettings
     /// Number of days to retain webhook logs.
     /// </summary>
     public int WebhookLogRetentionDays { get; set; } = 7;
+
+    /// <summary>
+    /// Feature flags for Supplier Direct fulfilment provider rollout.
+    /// </summary>
+    public SupplierDirectFeatureSettings SupplierDirect { get; set; } = new();
 
     /// <summary>
     /// Gets the next retry delay based on the current retry count.

@@ -1,6 +1,7 @@
 using Merchello.Core.DigitalProducts.Notifications;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Notifications.Inventory;
@@ -265,6 +266,16 @@ public class EmailTopicRegistry : IEmailTopicRegistry
                 Description = "Triggered when download links are ready for digital products. Use for delivery emails with download links.",
                 Category = "Digital Products",
                 NotificationType = typeof(DigitalProductDeliveredNotification)
+            },
+
+            // Fulfilment
+            [Constants.EmailTopics.FulfilmentSupplierOrder] = new EmailTopic
+            {
+                Topic = Constants.EmailTopics.FulfilmentSupplierOrder,
+                DisplayName = "Supplier Order",
+                Description = "Triggered when an order is ready to be sent to a supplier. Use for supplier notification emails with order details.",
+                Category = "Fulfilment",
+                NotificationType = typeof(SupplierOrderNotification)
             }
         };
     }

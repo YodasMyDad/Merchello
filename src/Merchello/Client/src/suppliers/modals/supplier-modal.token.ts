@@ -1,5 +1,5 @@
 import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
-import type { SupplierListItemDto } from '@suppliers/types/suppliers.types.js';
+import type { SupplierDetailDto, SupplierListItemDto } from '@suppliers/types/suppliers.types.js';
 
 export interface SupplierModalData {
   /** If provided, the modal will be in edit mode. Otherwise, it's in create mode. */
@@ -8,7 +8,7 @@ export interface SupplierModalData {
 
 export interface SupplierModalValue {
   /** The created or updated supplier */
-  supplier?: SupplierListItemDto;
+  supplier?: SupplierDetailDto;
   /** True if a new supplier was created */
   isCreated?: boolean;
   /** True if an existing supplier was updated */

@@ -6,11 +6,6 @@ namespace Merchello.Core.Protocols.Models;
 public class UcpSettings
 {
     /// <summary>
-    /// Whether UCP protocol is enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = false;
-
-    /// <summary>
     /// UCP protocol version this implementation supports.
     /// </summary>
     public string Version { get; set; } = ProtocolVersions.CurrentUcpVersion;

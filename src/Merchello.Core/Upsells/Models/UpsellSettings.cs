@@ -7,11 +7,6 @@ namespace Merchello.Core.Upsells.Models;
 public class UpsellSettings
 {
     /// <summary>
-    /// Whether the upsells feature is enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// Maximum number of upsell suggestions returned per display location.
     /// Individual rules may return fewer products via their MaxProducts setting.
     /// </summary>
