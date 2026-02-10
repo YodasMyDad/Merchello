@@ -50,5 +50,10 @@ public class AddCustomItemDto
     /// Null means "No Shipping" for physical custom items.
     /// </summary>
     public Guid? ShippingOptionId { get; set; }
+
+    /// <summary>
+    /// Optional add-ons linked to this custom item.
+    /// </summary>
+    public List<CustomItemAddonDto> Addons { get; set; } = [];
 }
 

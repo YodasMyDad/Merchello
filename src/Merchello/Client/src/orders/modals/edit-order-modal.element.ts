@@ -13,6 +13,7 @@ import type {
   EditInvoiceDto,
   EditLineItemDto,
   AddCustomItemDto,
+  CustomItemAddonDto,
   LineItemDiscountDto,
   TaxGroupDto,
   RemoveLineItemDto,
@@ -592,6 +593,13 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         quantity: item.quantity,
         taxGroupId: item.taxGroupId,
         isPhysicalProduct: item.isPhysicalProduct,
+        addons: (item.addons ?? []).map((addon) => ({
+          key: addon.key,
+          value: addon.value,
+          priceAdjustment: addon.priceAdjustment,
+          costAdjustment: addon.costAdjustment,
+          skuSuffix: addon.skuSuffix,
+        })),
         warehouseId: item.warehouseId ?? null,
         shippingOptionId: item.shippingOptionId ?? null,
       })),
@@ -1089,6 +1097,43 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           >
             <uui-icon name="icon-delete"></uui-icon>
           </uui-button>
+        </div>
+      </div>
+      ${(item.addons ?? []).map((addon) =>
+        this._renderPendingCustomItemAddon(addon, item.quantity, currencySymbol))}
+    `;
+  }
+
+  private _renderPendingCustomItemAddon(addon: CustomItemAddonDto, quantity: number, currencySymbol: string) {
+    return html`
+      <div class="line-item child-item addon-item">
+        <div class="line-item-product">
+          <div class="addon-indicator">
+            <span class="addon-connector"></span>
+          </div>
+          <div class="line-item-details">
+            <div class="line-item-name">
+              <span class="addon-badge">Add-on</span>
+              ${addon.key}: ${addon.value}
+            </div>
+          </div>
+        </div>
+
+        <div class="line-item-price">
+          +${currencySymbol}${formatNumber(addon.priceAdjustment, 2)}
+        </div>
+
+        <div class="line-item-quantity">
+          ${quantity}
+        </div>
+
+        <div class="line-item-total">
+          <!-- Pending items: total included in preview summary -->
+          <span class="pending-total">-</span>
+        </div>
+
+        <div class="line-item-actions">
+          <!-- Add-ons follow parent quantity, no individual actions -->
         </div>
       </div>
     `;
