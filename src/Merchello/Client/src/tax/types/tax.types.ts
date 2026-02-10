@@ -25,6 +25,8 @@ export interface PreviewCustomItemTaxRequestDto {
   quantity: number;
   /** Tax group ID (null for no tax) */
   taxGroupId: string | null;
+  /** Total add-on price adjustment per unit */
+  addonsTotal: number;
 }
 
 /** Result DTO for custom item tax preview calculation */

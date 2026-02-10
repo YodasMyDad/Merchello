@@ -376,16 +376,30 @@ public class InvoiceEditService(
                 var taxRate = customItem.TaxGroupId.HasValue && taxGroups.TryGetValue(customItem.TaxGroupId.Value, out var rate)
                     ? rate
                     : 0m;
+                var isTaxable = customItem.TaxGroupId.HasValue;
 
                 virtualLineItems.Add(new VirtualLineItem
                 {
                     Id = Guid.NewGuid(),
                     Amount = customItem.Price,
                     Quantity = customItem.Quantity,
-                    IsTaxable = customItem.TaxGroupId.HasValue,
+                    IsTaxable = isTaxable,
                     TaxRate = taxRate,
                     Discount = null
                 });
+
+                foreach (var addon in GetValidCustomItemAddons(customItem))
+                {
+                    virtualLineItems.Add(new VirtualLineItem
+                    {
+                        Id = Guid.NewGuid(),
+                        Amount = addon.PriceAdjustment,
+                        Quantity = customItem.Quantity,
+                        IsTaxable = isTaxable,
+                        TaxRate = taxRate,
+                        Discount = null
+                    });
+                }
             }
 
             // Calculate order discounts (coupons, etc.) - excluding removed ones
@@ -1046,6 +1060,19 @@ public class InvoiceEditService(
                             targetOrder.LineItems.Add(lineItem);
                             db.LineItems.Add(lineItem);
                             changes.Add($"Added custom item: {customItem.Name}");
+
+                            var addonLineItems = CreateCustomAddonLineItems(
+                                targetOrder.Id,
+                                lineItem.Sku ?? string.Empty,
+                                customItem,
+                                lineItem.IsTaxable,
+                                lineItem.TaxRate);
+                            foreach (var addonLineItem in addonLineItems)
+                            {
+                                targetOrder.LineItems.Add(addonLineItem);
+                                db.LineItems.Add(addonLineItem);
+                                changes.Add($"  + Add-on: {addonLineItem.Name}");
+                            }
                         }
                     }
 
@@ -1082,6 +1109,19 @@ public class InvoiceEditService(
                             targetOrder.LineItems.Add(lineItem);
                             db.LineItems.Add(lineItem);
                             changes.Add($"Added custom item: {customItem.Name}");
+
+                            var addonLineItems = CreateCustomAddonLineItems(
+                                targetOrder.Id,
+                                lineItem.Sku ?? string.Empty,
+                                customItem,
+                                lineItem.IsTaxable,
+                                lineItem.TaxRate);
+                            foreach (var addonLineItem in addonLineItems)
+                            {
+                                targetOrder.LineItems.Add(addonLineItem);
+                                db.LineItems.Add(addonLineItem);
+                                changes.Add($"  + Add-on: {addonLineItem.Name}");
+                            }
                         }
                     }
                 }
@@ -1724,6 +1764,74 @@ public class InvoiceEditService(
                 ["TaxGroupId"] = customItem.TaxGroupId?.ToString() ?? string.Empty,
                 ["TaxGroupName"] = taxGroupName ?? string.Empty
             });
+    }
+
+    private static List<CustomItemAddonDto> GetValidCustomItemAddons(AddCustomItemDto customItem)
+    {
+        return (customItem.Addons ?? [])
+            .Where(addon =>
+                !string.IsNullOrWhiteSpace(addon.Key) &&
+                !string.IsNullOrWhiteSpace(addon.Value))
+            .ToList();
+    }
+
+    private static List<LineItem> CreateCustomAddonLineItems(
+        Guid orderId,
+        string parentSku,
+        AddCustomItemDto customItem,
+        bool isTaxable,
+        decimal taxRate)
+    {
+        var safeParentSku = string.IsNullOrWhiteSpace(parentSku)
+            ? $"CUSTOM-{Guid.NewGuid():N}"[..20]
+            : parentSku.Trim();
+        var addons = GetValidCustomItemAddons(customItem);
+        if (!addons.Any())
+        {
+            return [];
+        }
+
+        List<LineItem> lineItems = [];
+        for (var i = 0; i < addons.Count; i++)
+        {
+            var addon = addons[i];
+            var addonName = $"{addon.Key.Trim()}: {addon.Value.Trim()}";
+            var addonSku = BuildCustomAddonSku(safeParentSku, addon, i);
+
+            var addonLineItem = LineItemFactory.CreateAddonForOrderEdit(
+                orderId: orderId,
+                parentSku: safeParentSku,
+                name: addonName,
+                sku: addonSku,
+                priceAdjustment: addon.PriceAdjustment,
+                quantity: customItem.Quantity,
+                isTaxable: isTaxable,
+                taxRate: taxRate,
+                extendedData: new Dictionary<string, object>
+                {
+                    ["CustomAddonKey"] = addon.Key.Trim(),
+                    ["CustomAddonValue"] = addon.Value.Trim(),
+                    ["CostAdjustment"] = addon.CostAdjustment,
+                    ["SkuSuffix"] = addon.SkuSuffix?.Trim() ?? string.Empty,
+                    ["IsAddon"] = true
+                });
+            addonLineItem.Cost = addon.CostAdjustment;
+
+            lineItems.Add(addonLineItem);
+        }
+
+        return lineItems;
+    }
+
+    private static string BuildCustomAddonSku(string parentSku, CustomItemAddonDto addon, int index)
+    {
+        var suffix = addon.SkuSuffix?.Trim();
+        if (!string.IsNullOrWhiteSpace(suffix))
+        {
+            return $"{parentSku}-{suffix}";
+        }
+
+        return $"{parentSku}-ADDON-{index + 1}";
     }
 
     /// <summary>

@@ -19,4 +19,9 @@ public class PreviewCustomItemTaxRequestDto
     /// Tax group ID (null for no tax)
     /// </summary>
     public Guid? TaxGroupId { get; set; }
+
+    /// <summary>
+    /// Total add-on price adjustment per unit.
+    /// </summary>
+    public decimal AddonsTotal { get; set; }
 }

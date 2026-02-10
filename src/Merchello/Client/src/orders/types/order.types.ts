@@ -749,6 +749,20 @@ export interface OrderAddonDto {
   skuSuffix: string | null;
 }
 
+/** A custom add-on attached to a custom line item */
+export interface CustomItemAddonDto {
+  /** Add-on key/name (e.g., "Drawers") */
+  key: string;
+  /** Add-on value (e.g., "Left side") */
+  value: string;
+  /** Price adjustment per unit to add to the parent custom item */
+  priceAdjustment: number;
+  /** Cost adjustment per unit for profit calculations */
+  costAdjustment: number;
+  /** Optional SKU suffix to append to the parent SKU */
+  skuSuffix: string | null;
+}
+
 /** Line item removal with return-to-stock option */
 export interface RemoveLineItemDto {
   id: string;
@@ -797,6 +811,32 @@ export interface AddCustomItemDto {
   warehouseId?: string | null;
   /** Shipping option ID for physical products (null means no shipping) */
   shippingOptionId?: string | null;
+  /** Optional custom add-ons attached to this item */
+  addons: CustomItemAddonDto[];
+}
+
+/** Product variant result used by custom item autocomplete in order edit */
+export interface OrderProductAutocompleteDto {
+  /** Variant ID */
+  id: string;
+  /** Product root ID */
+  productRootId: string;
+  /** Product root name */
+  rootName: string;
+  /** Variant name */
+  name: string;
+  /** Variant SKU */
+  sku: string | null;
+  /** Variant price */
+  price: number;
+  /** Variant cost of goods */
+  cost: number;
+  /** Product root tax group ID */
+  taxGroupId: string | null;
+  /** Whether this item should be treated as physical in order edit */
+  isPhysicalProduct: boolean;
+  /** Variant image URL (falls back to root image) */
+  imageUrl: string | null;
 }
 
 /** Tax group data for dropdowns */
