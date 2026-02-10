@@ -74,6 +74,7 @@ import "@umbraco-cms/backoffice/tiptap";
 // Import document type input for element type picker
 import "@umbraco-cms/backoffice/document-type";
 import "@property-editors/collection-picker/property-editor-ui-collection-picker.element.js";
+import "@property-editors/google-shopping-category-picker/property-editor-ui-google-shopping-category-picker.element.js";
 
 // ============================================
 // Component
@@ -729,29 +730,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     ];
   }
 
-  private _getWarehousePropertyConfig(): UmbPropertyEditorConfig {
-    return [
-      {
-        alias: "items",
-        value: this._warehouses.map((warehouse) => ({
-          name: warehouse.name,
-          value: warehouse.id,
-        })),
-      },
-      {
-        alias: "multiple",
-        value: true,
-      },
-    ];
-  }
-
   private _getDetailsDatasetValue(): UmbPropertyValueData[] {
     const elementTypeKey = this._getElementTypeSelectionKey();
 
     return [
       { alias: "rootName", value: this._formData.rootName ?? "" },
-      { alias: "productTypeId", value: this._formData.productTypeId ? [this._formData.productTypeId] : [] },
-      { alias: "collectionIds", value: this._getCollectionPickerValue() },
       { alias: "taxGroupId", value: this._formData.taxGroupId ? [this._formData.taxGroupId] : [] },
       { alias: "viewAlias", value: this._formData.viewAlias ? [this._formData.viewAlias] : [] },
       { alias: "elementTypeAlias", value: elementTypeKey },
@@ -760,12 +743,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     ];
   }
 
-  private _getWarehouseDatasetValue(): UmbPropertyValueData[] {
+  private _getCategorisationDatasetValue(): UmbPropertyValueData[] {
     return [
-      {
-        alias: "warehouseIds",
-        value: this._formData.warehouseIds ?? [],
-      },
+      { alias: "productTypeId", value: this._formData.productTypeId ? [this._formData.productTypeId] : [] },
+      { alias: "collectionIds", value: this._getCollectionPickerValue() },
+      { alias: "googleShoppingFeedCategory", value: this._formData.googleShoppingFeedCategory ?? "" },
     ];
   }
 
@@ -806,8 +788,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     this._formData = {
       ...this._formData,
       rootName: this._getStringFromPropertyValue(values.rootName),
-      productTypeId: this._getFirstDropdownValue(values.productTypeId),
-      collectionIds: this._getStringArrayFromPropertyValue(values.collectionIds),
       taxGroupId: this._getFirstDropdownValue(values.taxGroupId),
       viewAlias: this._getFirstDropdownValue(values.viewAlias) || null,
       isDigitalProduct: Boolean(values.isDigitalProduct),
@@ -817,14 +797,31 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     void this._setElementTypeAliasFromSelectionValue(values.elementTypeAlias);
   }
 
-  private _handleWarehouseDatasetChange(e: Event): void {
+  private _handleCategorisationDatasetChange(e: Event): void {
     const dataset = e.target as UmbPropertyDatasetElement;
     const values = this._toPropertyValueMap(dataset.value ?? []);
 
     this._formData = {
       ...this._formData,
-      warehouseIds: this._getStringArrayFromPropertyValue(values.warehouseIds),
+      productTypeId: this._getFirstDropdownValue(values.productTypeId),
+      collectionIds: this._getStringArrayFromPropertyValue(values.collectionIds),
+      googleShoppingFeedCategory: this._getStringFromPropertyValue(values.googleShoppingFeedCategory) || null,
     };
+  }
+
+  private _handleWarehouseToggle(warehouseId: string, checked: boolean): void {
+    const warehouseIds = this._formData.warehouseIds ?? [];
+    const hasWarehouse = warehouseIds.includes(warehouseId);
+    const nextWarehouseIds = checked
+      ? (hasWarehouse ? warehouseIds : [...warehouseIds, warehouseId])
+      : warehouseIds.filter((id) => id !== warehouseId);
+
+    this._formData = { ...this._formData, warehouseIds: nextWarehouseIds };
+
+    if (this._fieldErrors.warehouseIds) {
+      const { warehouseIds: _warehouseIdsError, ...rest } = this._fieldErrors;
+      this._fieldErrors = rest;
+    }
   }
 
   private _handleMediaDatasetChange(e: Event): void {
@@ -888,6 +885,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private async _createProduct(): Promise<void> {
     const request: CreateProductRootDto = {
       rootName: this._formData.rootName || "",
+      googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? undefined,
       taxGroupId: this._formData.taxGroupId || "",
       productTypeId: this._formData.productTypeId || "",
       collectionIds: this._formData.collectionIds,
@@ -1324,23 +1322,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             </umb-property>
 
             <umb-property
-              alias="productTypeId"
-              label="Product Type"
-              description="Categorize your product for reporting and organization"
-              property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
-              .config=${this._getProductTypePropertyConfig()}
-              .validation=${{ mandatory: true }}>
-            </umb-property>
-
-            <umb-property
-              alias="collectionIds"
-              label="Collections"
-              description="Assign this product to one or more collections for storefront organization"
-              property-editor-ui-alias="Merchello.PropertyEditorUi.CollectionPicker"
-              .config=${this._collectionPickerConfig}>
-            </umb-property>
-
-            <umb-property
               alias="taxGroupId"
               label="Tax Group"
               description="Tax rate applied to this product"
@@ -1386,23 +1367,78 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             : nothing}
         </uui-box>
 
+        <uui-box headline="Categorisation">
+          <umb-property-dataset
+            .value=${this._getCategorisationDatasetValue()}
+            @change=${this._handleCategorisationDatasetChange}>
+            <umb-property
+              alias="productTypeId"
+              label="Product Type"
+              description="Categorize your product for reporting and organization"
+              property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+              .config=${this._getProductTypePropertyConfig()}
+              .validation=${{ mandatory: true }}>
+            </umb-property>
+
+            <umb-property
+              alias="collectionIds"
+              label="Collections"
+              description="Assign this product to one or more collections for storefront organization"
+              property-editor-ui-alias="Merchello.PropertyEditorUi.CollectionPicker"
+              .config=${this._collectionPickerConfig}>
+            </umb-property>
+
+            <umb-property
+              alias="googleShoppingFeedCategory"
+              label="Shopping Category"
+              description="Select a shopping taxonomy category for this product"
+              property-editor-ui-alias="Merchello.PropertyEditorUi.GoogleShoppingCategoryPicker">
+            </umb-property>
+          </umb-property-dataset>
+        </uui-box>
+
         ${!this._formData.isDigitalProduct
           ? html`
               <uui-box headline="Warehouses">
-                <umb-property-dataset
-                  .value=${this._getWarehouseDatasetValue()}
-                  @change=${this._handleWarehouseDatasetChange}>
-                  <umb-property
-                    alias="warehouseIds"
-                    label="Stock Locations"
-                    description="Select which warehouses stock this product"
-                    property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
-                    .config=${this._getWarehousePropertyConfig()}
-                    .validation=${{ mandatory: true }}>
-                  </umb-property>
-                </umb-property-dataset>
+                <umb-property-layout
+                  label="Stock Locations"
+                  description="Select which warehouses stock this product"
+                  mandatory
+                  ?invalid=${!!this._fieldErrors.warehouseIds}>
+                  <div slot="editor">
+                    ${this._renderWarehouseSelector()}
+                  </div>
+                  ${this._fieldErrors.warehouseIds
+                    ? html`<span class="field-error-message">${this._fieldErrors.warehouseIds}</span>`
+                    : nothing}
+                </umb-property-layout>
               </uui-box>
             `
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _renderWarehouseSelector(): unknown {
+    const selectedWarehouseIds = this._formData.warehouseIds ?? [];
+
+    return html`
+      <div class="warehouse-toggle-list">
+        ${this._warehouses.map((warehouse) => {
+          const warehouseName = warehouse.name || "Unnamed Warehouse";
+          return html`
+            <div class="toggle-field">
+              <uui-toggle
+                label="${warehouseName}"
+                .checked=${selectedWarehouseIds.includes(warehouse.id)}
+                @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
+              </uui-toggle>
+              <label>${warehouseName}${warehouse.code ? ` (${warehouse.code})` : ""}</label>
+            </div>
+          `;
+        })}
+        ${this._warehouses.length === 0
+          ? html`<p class="hint">No warehouses available. Create a warehouse first.</p>`
           : nothing}
       </div>
     `;
@@ -2541,6 +2577,30 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         display: flex;
         flex-direction: column;
         gap: var(--uui-size-space-5);
+      }
+
+      .warehouse-toggle-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
+      }
+
+      .warehouse-toggle-list .toggle-field {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-3);
+      }
+
+      .warehouse-toggle-list label {
+        color: var(--uui-color-text);
+        font-weight: normal;
+      }
+
+      .field-error-message {
+        color: var(--uui-color-danger);
+        display: block;
+        font-size: var(--uui-type-small-size);
+        margin-top: var(--uui-size-space-1);
       }
 
       .hint {

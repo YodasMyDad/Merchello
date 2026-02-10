@@ -20,6 +20,7 @@ public class ProductsApiController(
     IProductService productService,
     IProductTypeService productTypeService,
     IProductCollectionService productCollectionService,
+    IGoogleShoppingCategoryService googleShoppingCategoryService,
     IShippingService shippingService,
     IContentTypeService contentTypeService,
     IDataTypeService dataTypeService,
@@ -42,6 +43,27 @@ public class ProductsApiController(
             return NotFound();
         }
         return Ok(product);
+    }
+
+    /// <summary>
+    /// Returns Google Shopping categories for autocomplete, resolved by store default country with US fallback.
+    /// </summary>
+    [HttpGet("products/google-shopping-categories")]
+    [ProducesResponseType<GoogleShoppingCategoryResultDto>(StatusCodes.Status200OK)]
+    public async Task<GoogleShoppingCategoryResultDto> GetGoogleShoppingCategories(
+        [FromQuery] string? query,
+        [FromQuery] string? countryCode,
+        [FromQuery] int limit = 25,
+        CancellationToken ct = default)
+    {
+        return await googleShoppingCategoryService.GetCategoriesAsync(
+            new GetGoogleShoppingCategoriesParameters
+            {
+                Query = query,
+                CountryCode = countryCode,
+                Limit = limit
+            },
+            ct);
     }
 
     /// <summary>
