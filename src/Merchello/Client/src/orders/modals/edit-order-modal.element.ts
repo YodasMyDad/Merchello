@@ -65,6 +65,12 @@ interface PendingOrderDiscount {
   tempId: string;
 }
 
+interface PendingOrderDiscountCode {
+  code: string;
+  name?: string | null;
+  tempId: string;
+}
+
 interface PendingProduct {
   tempId: string;
   productId: string;
@@ -111,6 +117,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   // Order-level discounts (coupons, etc.)
   @state() private _removedOrderDiscounts: Set<string> = new Set();
   @state() private _pendingOrderDiscounts: PendingOrderDiscount[] = [];
+  @state() private _pendingOrderDiscountCodes: PendingOrderDiscountCode[] = [];
 
   // Preview state - Single source of truth from backend
   @state() private _previewResult: PreviewEditResultDto | null = null;
@@ -358,6 +365,34 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       ];
       this._refreshPreview();
     }
+
+    if (result?.discountCode) {
+      const code = result.discountCode.trim();
+      if (!code) return;
+
+      const alreadyPending = this._pendingOrderDiscountCodes.some(
+        (d) => d.code.toLowerCase() === code.toLowerCase()
+      );
+      if (alreadyPending) {
+        this.#notificationContext?.peek("warning", {
+          data: {
+            headline: "Discount Already Added",
+            message: `Discount code '${code}' is already pending.`,
+          },
+        });
+        return;
+      }
+
+      this._pendingOrderDiscountCodes = [
+        ...this._pendingOrderDiscountCodes,
+        {
+          code,
+          name: result.discountName ?? null,
+          tempId: `discount-code-${Date.now()}`,
+        },
+      ];
+      this._refreshPreview();
+    }
   }
 
   private _removeDiscount(lineItemId: string): void {
@@ -502,6 +537,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     this._refreshPreview();
   }
 
+  private _removePendingOrderDiscountCode(tempId: string): void {
+    this._pendingOrderDiscountCodes = this._pendingOrderDiscountCodes.filter((d) => d.tempId !== tempId);
+    this._refreshPreview();
+  }
+
   private _hasChanges(): boolean {
     if (!this._invoice) return false;
 
@@ -543,6 +583,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
     // Check for pending order discounts
     if (this._pendingOrderDiscounts.length > 0) return true;
+
+    // Check for pending order discount codes
+    if (this._pendingOrderDiscountCodes.length > 0) return true;
 
     return false;
   }
@@ -623,6 +666,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         reason: d.reason,
         isVisibleToCustomer: d.isVisibleToCustomer,
       })),
+      orderDiscountCodes: this._pendingOrderDiscountCodes.map((d) => d.code),
       orderShippingUpdates: orderShippingUpdates,
       editReason: this._editReason || null,
       shouldRemoveTax: this._taxRemoved,
@@ -978,7 +1022,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       (d) => !this._removedOrderDiscounts.has(d.id)
     );
 
-    const hasPendingDiscounts = this._pendingOrderDiscounts.length > 0;
+    const hasPendingDiscounts = this._pendingOrderDiscounts.length > 0 || this._pendingOrderDiscountCodes.length > 0;
     const hasActiveDiscounts = activeDiscounts.length > 0;
 
     if (!hasActiveDiscounts && !hasPendingDiscounts) return nothing;
@@ -1033,6 +1077,28 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
                   color="danger"
                   @click=${() => this._removePendingOrderDiscount(discount.tempId)}
                   title="Remove discount"
+                >
+                  <uui-icon name="icon-delete"></uui-icon>
+                </uui-button>
+              </div>
+            </div>
+          `
+        )}
+        ${this._pendingOrderDiscountCodes.map(
+          (discount) => html`
+            <div class="order-discount-row pending">
+              <div class="discount-info">
+                <span class="discount-name">${discount.name || "Discount code"}</span>
+                <span class="discount-value code">${discount.code}</span>
+                <span class="pending-badge">Code</span>
+              </div>
+              <div class="discount-amount-cell">
+                <uui-button
+                  compact
+                  look="secondary"
+                  color="danger"
+                  @click=${() => this._removePendingOrderDiscountCode(discount.tempId)}
+                  title="Remove discount code"
                 >
                   <uui-icon name="icon-delete"></uui-icon>
                 </uui-button>
@@ -2186,6 +2252,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       background: var(--uui-color-surface-alt);
       padding: 2px 8px;
       border-radius: 4px;
+    }
+
+    .order-discount-row .discount-value.code {
+      font-family: var(--uui-font-family-monospace);
+      letter-spacing: 0.02em;
     }
 
     .order-discount-row .discount-amount-cell {

@@ -36,6 +36,11 @@ public class EditInvoiceDto
     public List<LineItemDiscountDto> OrderDiscounts { get; set; } = [];
 
     /// <summary>
+    /// Promotional discount codes to apply using checkout discount validation/calculation rules.
+    /// </summary>
+    public List<string> OrderDiscountCodes { get; set; } = [];
+
+    /// <summary>
     /// Per-order shipping cost updates
     /// </summary>
     public List<OrderShippingUpdateDto> OrderShippingUpdates { get; set; } = [];

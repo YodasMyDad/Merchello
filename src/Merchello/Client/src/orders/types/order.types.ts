@@ -708,6 +708,8 @@ export interface EditInvoiceDto {
   productsToAdd?: AddProductToOrderDto[];
   /** Order-level discounts to add (not tied to specific line items) */
   orderDiscounts?: LineItemDiscountDto[];
+  /** Promotional discount codes to apply via checkout discount logic */
+  orderDiscountCodes?: string[];
   orderShippingUpdates: OrderShippingUpdateDto[];
   editReason: string | null;
   /** If true, removes tax from all line items (VAT exemption) */

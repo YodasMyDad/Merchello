@@ -27,7 +27,7 @@ public class InvoiceForEditDto
 
     /// <summary>
     /// Order-level discounts (coupons, etc.) not linked to specific line items.
-    /// These can be viewed and removed but not added via the edit modal.
+    /// These can be viewed, removed, and supplemented via the edit modal.
     /// </summary>
     public List<DiscountLineItemDto> OrderDiscounts { get; set; } = [];
 

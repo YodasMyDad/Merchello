@@ -80,6 +80,7 @@ using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Models;
+using Merchello.Core.Discounts.Services.Calculators;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Upsells.Factories;
@@ -430,6 +431,8 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<ILineItemService, LineItemService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IDiscountService, DiscountService>();
+        services.AddScoped<IDiscountEngine, DiscountEngine>();
+        services.AddScoped<IBuyXGetYCalculator, BuyXGetYCalculator>();
         services.AddScoped<IDigitalProductService, DigitalProductService>();
         services.AddScoped<IInvoiceEditService, InvoiceEditService>();
 

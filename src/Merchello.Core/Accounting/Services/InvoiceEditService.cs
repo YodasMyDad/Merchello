@@ -11,6 +11,7 @@ using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Discounts.Models;
+using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
@@ -45,9 +46,18 @@ public class InvoiceEditService(
     BasketFactory basketFactory,
     OrderFactory orderFactory,
     IOptions<MerchelloSettings> settings,
-    ILogger<InvoiceEditService> logger) : IInvoiceEditService
+    ILogger<InvoiceEditService> logger,
+    IDiscountEngine? discountEngine = null,
+    IDiscountService? discountService = null) : IInvoiceEditService
 {
     private readonly MerchelloSettings _settings = settings.Value;
+
+    private sealed record AppliedDiscountUsage(
+        Guid DiscountId,
+        decimal Amount,
+        int? TotalUsageLimit,
+        int? PerCustomerUsageLimit,
+        string? Code);
 
     /// <inheritdoc />
     public async Task<InvoiceForEditDto?> GetInvoiceForEditAsync(Guid invoiceId, CancellationToken cancellationToken = default)
@@ -280,6 +290,11 @@ public class InvoiceEditService(
                     virtualLineItems.Add(new VirtualLineItem
                     {
                         Id = lineItem.Id,
+                        ProductId = lineItem.ProductId,
+                        WarehouseId = order.WarehouseId,
+                        Sku = lineItem.Sku,
+                        ParentLineItemSku = lineItem.DependantLineItemSku,
+                        LineItemType = lineItem.LineItemType,
                         Amount = lineItem.Amount,
                         Quantity = quantity,
                         IsTaxable = lineItem.IsTaxable,
@@ -340,6 +355,11 @@ public class InvoiceEditService(
                 virtualLineItems.Add(new VirtualLineItem
                 {
                     Id = Guid.NewGuid(),
+                    ProductId = productDto.ProductId,
+                    WarehouseId = productDto.WarehouseId,
+                    Sku = product.Sku ?? $"PROD-{product.Id:N}"[..20],
+                    ParentLineItemSku = null,
+                    LineItemType = LineItemType.Product,
                     Amount = unitPrice,
                     Quantity = productDto.Quantity,
                     IsTaxable = isTaxable,
@@ -354,9 +374,18 @@ public class InvoiceEditService(
                 foreach (var addon in productDto.Addons)
                 {
                     var addonPrice = ConvertStoreToPresentmentCurrency(invoice, addon.PriceAdjustment, currencyCode);
+                    var parentSku = product.Sku ?? $"PROD-{product.Id:N}"[..20];
+                    var addonSku = !string.IsNullOrWhiteSpace(addon.SkuSuffix)
+                        ? $"{parentSku}-{addon.SkuSuffix}"
+                        : $"{parentSku}-ADDON";
                     virtualLineItems.Add(new VirtualLineItem
                     {
                         Id = Guid.NewGuid(),
+                        ProductId = productDto.ProductId,
+                        WarehouseId = productDto.WarehouseId,
+                        Sku = addonSku,
+                        ParentLineItemSku = parentSku,
+                        LineItemType = LineItemType.Addon,
                         Amount = addonPrice,
                         Quantity = productDto.Quantity,
                         IsTaxable = isTaxable,
@@ -381,6 +410,11 @@ public class InvoiceEditService(
                 virtualLineItems.Add(new VirtualLineItem
                 {
                     Id = Guid.NewGuid(),
+                    ProductId = null,
+                    WarehouseId = customItem.WarehouseId,
+                    Sku = customItem.Sku,
+                    ParentLineItemSku = null,
+                    LineItemType = LineItemType.Custom,
                     Amount = customItem.Price,
                     Quantity = customItem.Quantity,
                     IsTaxable = isTaxable,
@@ -393,6 +427,11 @@ public class InvoiceEditService(
                     virtualLineItems.Add(new VirtualLineItem
                     {
                         Id = Guid.NewGuid(),
+                        ProductId = null,
+                        WarehouseId = customItem.WarehouseId,
+                        Sku = $"{customItem.Sku ?? "CUSTOM"}-ADDON",
+                        ParentLineItemSku = customItem.Sku,
+                        LineItemType = LineItemType.Addon,
                         Amount = addon.PriceAdjustment,
                         Quantity = customItem.Quantity,
                         IsTaxable = isTaxable,
@@ -471,15 +510,45 @@ public class InvoiceEditService(
 
             shippingTotal = currencyService.Round(shippingTotal, currencyCode);
 
-            // Calculate subtotal and line item discounts
-            var subTotal = 0m;
+            // Calculate subtotal from virtual line items (before any discounts)
+            var subTotal = currencyService.Round(
+                virtualLineItems.Sum(item => currencyService.Round(item.Amount * item.Quantity, currencyCode)),
+                currencyCode);
+
+            // Calculate new percentage order discounts now that we have subtotal
+            var newOrderPercentageDiscounts = 0m;
+            foreach (var newDiscount in request.OrderDiscounts.Where(d => d.Type == DiscountValueType.Percentage))
+            {
+                var percentageAmount = currencyService.Round(subTotal * (newDiscount.Value / 100m), currencyCode);
+                newOrderPercentageDiscounts += percentageAmount;
+            }
+            orderDiscountTotal += newOrderPercentageDiscounts;
+
+            // Calculate promotional discount code amounts using checkout discount engine rules
+            var normalizedOrderDiscountCodes = NormalizeDiscountCodes(request.OrderDiscountCodes);
+            if (normalizedOrderDiscountCodes.Count > 0)
+            {
+                var (codeDiscountTotal, codeWarnings) = await CalculatePromotionalDiscountCodesForPreviewAsync(
+                    db,
+                    invoice,
+                    orders,
+                    virtualLineItems,
+                    request.RemovedOrderDiscounts,
+                    subTotal,
+                    shippingTotal,
+                    normalizedOrderDiscountCodes,
+                    cancellationToken);
+                orderDiscountTotal += codeDiscountTotal;
+                warnings.AddRange(codeWarnings);
+            }
+
+            // Calculate line item discounts
             var lineItemDiscountTotal = 0m;
             List<LineItemPreviewDto> lineItemPreviews = [];
 
             foreach (var item in virtualLineItems)
             {
                 var itemTotal = currencyService.Round(item.Amount * item.Quantity, currencyCode);
-                subTotal += itemTotal;
 
                 // Calculate discount for this item
                 var discountAmount = 0m;
@@ -557,15 +626,6 @@ public class InvoiceEditService(
                     CanAddDiscount = canAddDiscount
                 });
             }
-
-            // Calculate new percentage order discounts now that we have subtotal
-            var newOrderPercentageDiscounts = 0m;
-            foreach (var newDiscount in request.OrderDiscounts.Where(d => d.Type == DiscountValueType.Percentage))
-            {
-                var percentageAmount = currencyService.Round(subTotal * (newDiscount.Value / 100m), currencyCode);
-                newOrderPercentageDiscounts += percentageAmount;
-            }
-            orderDiscountTotal += newOrderPercentageDiscounts;
 
             // Cap total discount at subtotal
             var rawDiscountTotal = lineItemDiscountTotal + orderDiscountTotal;
@@ -683,6 +743,9 @@ public class InvoiceEditService(
 
         List<string> changes = [];
         List<string> warnings = [];
+        List<AppliedDiscountUsage> appliedDiscountUsages = [];
+        List<Guid> removedDiscountUsageIds = [];
+        Guid? customerId = null;
 
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
@@ -705,6 +768,8 @@ public class InvoiceEditService(
                 return OperationResult<EditInvoiceResultDto>.Fail(
                     "Cannot edit a multi-currency invoice without a locked pricing exchange rate. This is required for auditability.");
             }
+
+            customerId = invoice.CustomerId;
 
             var orders = invoice.Orders?.ToList() ?? [];
             var (canEdit, cannotEditReason) = CanEditInvoice(orders);
@@ -924,10 +989,15 @@ public class InvoiceEditService(
 
                     if (discount != null)
                     {
+                        var removedDiscountId = TryGetLineItemDiscountId(discount);
                         var discountOrder = orders.First(o => o.LineItems?.Contains(discount) == true);
                         discountOrder.LineItems?.Remove(discount);
                         db.LineItems.Remove(discount);
                         changes.Add($"Removed order discount: {discount.Name}");
+                        if (removedDiscountId.HasValue)
+                        {
+                            removedDiscountUsageIds.Add(removedDiscountId.Value);
+                        }
                     }
                 }
 
@@ -1184,6 +1254,25 @@ public class InvoiceEditService(
                     }
                 }
 
+                // Apply promotional discount codes using checkout discount validation/calculation rules
+                var normalizedOrderDiscountCodes = NormalizeDiscountCodes(request.OrderDiscountCodes);
+                if (normalizedOrderDiscountCodes.Count > 0)
+                {
+                    var (success, errorMessage) = await ApplyPromotionalDiscountCodesAsync(
+                        db,
+                        invoice,
+                        orders,
+                        normalizedOrderDiscountCodes,
+                        changes,
+                        appliedDiscountUsages,
+                        cancellationToken);
+
+                    if (!success)
+                    {
+                        return OperationResult<EditInvoiceResultDto>.Fail(errorMessage ?? "Failed to apply discount code.");
+                    }
+                }
+
                 // Handle tax removal (VAT exemption)
                 if (request.ShouldRemoveTax)
                 {
@@ -1237,7 +1326,79 @@ public class InvoiceEditService(
         });
 
         scope.Complete();
+
+        if (result.Success && result.Data?.IsSuccessful == true)
+        {
+            await SyncPromotionalDiscountUsageAsync(
+                invoiceId,
+                customerId,
+                removedDiscountUsageIds,
+                appliedDiscountUsages,
+                cancellationToken);
+        }
+
         return result;
+    }
+
+    private async Task SyncPromotionalDiscountUsageAsync(
+        Guid invoiceId,
+        Guid? customerId,
+        List<Guid> removedDiscountUsageIds,
+        List<AppliedDiscountUsage> appliedDiscountUsages,
+        CancellationToken cancellationToken)
+    {
+        if (discountService == null)
+        {
+            return;
+        }
+
+        foreach (var discountId in removedDiscountUsageIds.Distinct())
+        {
+            try
+            {
+                await discountService.RemoveUsageAsync(discountId, invoiceId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "Failed to remove discount usage for discount {DiscountId} on invoice {InvoiceId}",
+                    discountId,
+                    invoiceId);
+            }
+        }
+
+        foreach (var usage in appliedDiscountUsages)
+        {
+            try
+            {
+                var recorded = await discountService.TryRecordUsageAsync(
+                    usage.DiscountId,
+                    invoiceId,
+                    customerId,
+                    usage.Amount,
+                    usage.TotalUsageLimit,
+                    usage.PerCustomerUsageLimit,
+                    cancellationToken);
+
+                if (!recorded)
+                {
+                    logger.LogInformation(
+                        "Discount usage not recorded for discount {DiscountId} ({Code}) on invoice {InvoiceId} (duplicate or limit reached).",
+                        usage.DiscountId,
+                        usage.Code ?? "no-code",
+                        invoiceId);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(
+                    ex,
+                    "Failed to record discount usage for discount {DiscountId} on invoice {InvoiceId}",
+                    usage.DiscountId,
+                    invoiceId);
+            }
+        }
     }
 
     // ============================================
@@ -1270,6 +1431,371 @@ public class InvoiceEditService(
         }
 
         return (true, null);
+    }
+
+    private static List<string> NormalizeDiscountCodes(IEnumerable<string>? codes)
+    {
+        return codes?
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+    }
+
+    private static Guid? TryGetLineItemDiscountId(LineItem lineItem)
+    {
+        if (!lineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj) || discountIdObj == null)
+        {
+            return null;
+        }
+
+        var unwrapped = discountIdObj.UnwrapJsonElement();
+        return unwrapped switch
+        {
+            Guid guid => guid,
+            string value when Guid.TryParse(value, out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private async Task<(decimal TotalDiscount, List<string> Warnings)> CalculatePromotionalDiscountCodesForPreviewAsync(
+        MerchelloDbContext db,
+        Invoice invoice,
+        List<Order> orders,
+        List<VirtualLineItem> virtualLineItems,
+        List<Guid> removedOrderDiscounts,
+        decimal subTotal,
+        decimal shippingTotal,
+        List<string> orderDiscountCodes,
+        CancellationToken cancellationToken)
+    {
+        List<string> warnings = [];
+        if (discountEngine == null)
+        {
+            warnings.Add("Discount engine is not configured.");
+            return (0m, warnings);
+        }
+
+        var removedDiscountSet = removedOrderDiscounts.ToHashSet();
+        var appliedDiscountIds = orders
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType == LineItemType.Discount && !removedDiscountSet.Contains(li.Id))
+            .Select(TryGetLineItemDiscountId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        var context = await BuildDiscountContextFromVirtualLineItemsAsync(
+            db,
+            invoice,
+            virtualLineItems,
+            subTotal,
+            shippingTotal,
+            appliedDiscountIds,
+            cancellationToken);
+
+        var totalDiscount = 0m;
+        foreach (var code in orderDiscountCodes)
+        {
+            var validationResult = await discountEngine.ValidateCodeAsync(code, context, cancellationToken);
+            if (!validationResult.IsValid || validationResult.Discount == null)
+            {
+                var reason = validationResult.ErrorMessage ?? "Discount code is not valid for this order.";
+                warnings.Add($"Discount code '{code}' was not applied: {reason}");
+                continue;
+            }
+
+            var calculationResult = await discountEngine.CalculateAsync(validationResult.Discount, context, cancellationToken);
+            if (!calculationResult.Success || calculationResult.TotalDiscountAmount <= 0)
+            {
+                var reason = calculationResult.ErrorMessage ?? "Discount code does not apply to this order.";
+                warnings.Add($"Discount code '{code}' was not applied: {reason}");
+                continue;
+            }
+
+            totalDiscount += currencyService.Round(calculationResult.TotalDiscountAmount, context.CurrencyCode);
+
+            context.AppliedDiscountIds ??= [];
+            context.AppliedDiscountIds.Add(validationResult.Discount.Id);
+        }
+
+        return (totalDiscount, warnings);
+    }
+
+    private async Task<(bool Success, string? ErrorMessage)> ApplyPromotionalDiscountCodesAsync(
+        MerchelloDbContext db,
+        Invoice invoice,
+        List<Order> orders,
+        List<string> orderDiscountCodes,
+        List<string> changes,
+        List<AppliedDiscountUsage> appliedDiscountUsages,
+        CancellationToken cancellationToken)
+    {
+        if (discountEngine == null)
+        {
+            return (false, "Discount engine is not configured.");
+        }
+
+        var targetOrder = orders.FirstOrDefault();
+        if (targetOrder == null)
+        {
+            return (false, "No order found to attach discount to");
+        }
+
+        var appliedDiscountIds = orders
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .Select(TryGetLineItemDiscountId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode) ? _settings.StoreCurrencyCode : invoice.CurrencyCode;
+        var subTotal = orders
+            .SelectMany(o => o.LineItems ?? [])
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .Sum(li => currencyService.Round(li.Amount * li.Quantity, currencyCode));
+        var shippingTotal = orders.Sum(o => o.ShippingCost);
+
+        var context = await BuildDiscountContextFromOrdersAsync(
+            db,
+            invoice,
+            orders,
+            subTotal,
+            shippingTotal,
+            appliedDiscountIds,
+            cancellationToken);
+
+        foreach (var code in orderDiscountCodes)
+        {
+            var validationResult = await discountEngine.ValidateCodeAsync(code, context, cancellationToken);
+            if (!validationResult.IsValid || validationResult.Discount == null)
+            {
+                return (false, validationResult.ErrorMessage ?? $"Discount code '{code}' is not valid.");
+            }
+
+            var discount = validationResult.Discount;
+            var existingDiscountSku = $"PROMO-{discount.Id}";
+            var alreadyApplied = orders
+                .SelectMany(o => o.LineItems ?? [])
+                .Any(li => li.LineItemType == LineItemType.Discount && li.Sku == existingDiscountSku);
+            if (alreadyApplied)
+            {
+                return (false, $"Discount '{discount.Name}' has already been applied to this invoice");
+            }
+
+            var calculationResult = await discountEngine.CalculateAsync(discount, context, cancellationToken);
+            if (!calculationResult.Success || calculationResult.TotalDiscountAmount <= 0)
+            {
+                var reason = calculationResult.ErrorMessage ?? "Discount code does not apply to this order.";
+                return (false, reason);
+            }
+
+            var discountAmount = currencyService.Round(calculationResult.TotalDiscountAmount, context.CurrencyCode);
+            var discountLineItem = lineItemFactory.CreateDiscountLineItem(
+                name: discount.Name,
+                sku: existingDiscountSku,
+                amount: -discountAmount,
+                orderId: targetOrder.Id,
+                extendedData: new Dictionary<string, object>
+                {
+                    [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
+                    [Constants.ExtendedDataKeys.DiscountCode] = discount.Code ?? code,
+                    [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
+                    [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
+                    [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString(),
+                    [Constants.ExtendedDataKeys.DiscountValueType] = discount.ValueType.ToString(),
+                    [Constants.ExtendedDataKeys.DiscountValue] = discount.Value,
+                    [Constants.ExtendedDataKeys.VisibleToCustomer] = true
+                });
+
+            targetOrder.LineItems ??= [];
+            targetOrder.LineItems.Add(discountLineItem);
+            db.LineItems.Add(discountLineItem);
+            changes.Add($"Applied discount code: {discount.Code ?? code} ({discount.Name})");
+
+            var usageAmount = discountAmount;
+            if (!string.Equals(invoice.CurrencyCode, invoice.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase) &&
+                invoice.PricingExchangeRate.HasValue)
+            {
+                usageAmount = currencyService.Round(discountAmount * invoice.PricingExchangeRate.Value, invoice.StoreCurrencyCode);
+            }
+
+            appliedDiscountUsages.Add(new AppliedDiscountUsage(
+                discount.Id,
+                usageAmount,
+                discount.TotalUsageLimit,
+                discount.PerCustomerUsageLimit,
+                discount.Code ?? code));
+
+            context.AppliedDiscountIds ??= [];
+            context.AppliedDiscountIds.Add(discount.Id);
+        }
+
+        return (true, null);
+    }
+
+    private async Task<DiscountContext> BuildDiscountContextFromVirtualLineItemsAsync(
+        MerchelloDbContext db,
+        Invoice invoice,
+        List<VirtualLineItem> virtualLineItems,
+        decimal subTotal,
+        decimal shippingTotal,
+        List<Guid> appliedDiscountIds,
+        CancellationToken cancellationToken)
+    {
+        var productIds = virtualLineItems
+            .Where(li => li.ProductId.HasValue)
+            .Select(li => li.ProductId!.Value)
+            .Distinct()
+            .ToList();
+        var productLookup = await LoadDiscountContextProductsAsync(db, productIds, cancellationToken);
+
+        var productLineItemsBySku = virtualLineItems
+            .Where(li => li.LineItemType == LineItemType.Product && !string.IsNullOrWhiteSpace(li.Sku))
+            .ToDictionary(li => li.Sku!, li => li);
+
+        var contextLineItems = new List<DiscountContextLineItem>();
+        foreach (var lineItem in virtualLineItems.Where(li => li.LineItemType is LineItemType.Product or LineItemType.Addon))
+        {
+            var isAddon = lineItem.LineItemType == LineItemType.Addon;
+            VirtualLineItem? parentLineItem = null;
+            if (isAddon && !string.IsNullOrWhiteSpace(lineItem.ParentLineItemSku))
+            {
+                productLineItemsBySku.TryGetValue(lineItem.ParentLineItemSku, out parentLineItem);
+            }
+
+            var effectiveProductId = lineItem.ProductId ?? parentLineItem?.ProductId;
+            var ctxLineItem = new DiscountContextLineItem
+            {
+                LineItemId = lineItem.Id,
+                ProductId = effectiveProductId ?? Guid.Empty,
+                Sku = lineItem.Sku ?? string.Empty,
+                Quantity = lineItem.Quantity,
+                UnitPrice = lineItem.Amount,
+                LineTotal = lineItem.Amount * lineItem.Quantity,
+                IsAddon = isAddon,
+                ParentLineItemId = parentLineItem?.Id,
+                WarehouseId = lineItem.WarehouseId
+            };
+
+            if (effectiveProductId.HasValue && productLookup.TryGetValue(effectiveProductId.Value, out var product))
+            {
+                ctxLineItem.ProductRootId = product.ProductRootId;
+                ctxLineItem.ProductTypeId = product.ProductRoot?.ProductTypeId;
+                ctxLineItem.CollectionIds = product.ProductRoot?.Collections.Select(c => c.Id).ToList() ?? [];
+                ctxLineItem.ProductFilterIds = product.Filters.Select(f => f.Id).ToList();
+            }
+
+            contextLineItems.Add(ctxLineItem);
+        }
+
+        var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode) ? _settings.StoreCurrencyCode : invoice.CurrencyCode;
+        return new DiscountContext
+        {
+            CustomerId = invoice.CustomerId,
+            SubTotal = subTotal,
+            ShippingTotal = shippingTotal,
+            CurrencyCode = currencyCode,
+            ShippingAddress = invoice.ShippingAddress,
+            AppliedDiscountIds = appliedDiscountIds,
+            LineItems = contextLineItems
+        };
+    }
+
+    private async Task<DiscountContext> BuildDiscountContextFromOrdersAsync(
+        MerchelloDbContext db,
+        Invoice invoice,
+        List<Order> orders,
+        decimal subTotal,
+        decimal shippingTotal,
+        List<Guid> appliedDiscountIds,
+        CancellationToken cancellationToken)
+    {
+        var editableLineItems = orders
+            .SelectMany(order => (order.LineItems ?? []).Select(lineItem => new { Order = order, LineItem = lineItem }))
+            .Where(x => x.LineItem.LineItemType is LineItemType.Product or LineItemType.Addon)
+            .ToList();
+
+        var productIds = editableLineItems
+            .Where(x => x.LineItem.ProductId.HasValue)
+            .Select(x => x.LineItem.ProductId!.Value)
+            .Distinct()
+            .ToList();
+        var productLookup = await LoadDiscountContextProductsAsync(db, productIds, cancellationToken);
+
+        var productLineItemsBySku = editableLineItems
+            .Where(x => x.LineItem.LineItemType == LineItemType.Product && !string.IsNullOrWhiteSpace(x.LineItem.Sku))
+            .ToDictionary(x => x.LineItem.Sku!, x => x.LineItem);
+
+        var contextLineItems = new List<DiscountContextLineItem>();
+        foreach (var entry in editableLineItems)
+        {
+            var lineItem = entry.LineItem;
+            var isAddon = lineItem.LineItemType == LineItemType.Addon;
+            LineItem? parentLineItem = null;
+            if (isAddon && !string.IsNullOrWhiteSpace(lineItem.DependantLineItemSku))
+            {
+                productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+            }
+
+            var effectiveProductId = lineItem.ProductId ?? parentLineItem?.ProductId;
+            var ctxLineItem = new DiscountContextLineItem
+            {
+                LineItemId = lineItem.Id,
+                ProductId = effectiveProductId ?? Guid.Empty,
+                Sku = lineItem.Sku ?? string.Empty,
+                Quantity = lineItem.Quantity,
+                UnitPrice = lineItem.Amount,
+                LineTotal = lineItem.Amount * lineItem.Quantity,
+                IsAddon = isAddon,
+                ParentLineItemId = parentLineItem?.Id,
+                WarehouseId = entry.Order.WarehouseId
+            };
+
+            if (effectiveProductId.HasValue && productLookup.TryGetValue(effectiveProductId.Value, out var product))
+            {
+                ctxLineItem.ProductRootId = product.ProductRootId;
+                ctxLineItem.ProductTypeId = product.ProductRoot?.ProductTypeId;
+                ctxLineItem.CollectionIds = product.ProductRoot?.Collections.Select(c => c.Id).ToList() ?? [];
+                ctxLineItem.ProductFilterIds = product.Filters.Select(f => f.Id).ToList();
+            }
+
+            contextLineItems.Add(ctxLineItem);
+        }
+
+        var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode) ? _settings.StoreCurrencyCode : invoice.CurrencyCode;
+        return new DiscountContext
+        {
+            CustomerId = invoice.CustomerId,
+            SubTotal = subTotal,
+            ShippingTotal = shippingTotal,
+            CurrencyCode = currencyCode,
+            ShippingAddress = invoice.ShippingAddress,
+            AppliedDiscountIds = appliedDiscountIds,
+            LineItems = contextLineItems
+        };
+    }
+
+    private static async Task<Dictionary<Guid, Product>> LoadDiscountContextProductsAsync(
+        MerchelloDbContext db,
+        List<Guid> productIds,
+        CancellationToken cancellationToken)
+    {
+        if (productIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await db.Products
+            .AsNoTracking()
+            .Include(p => p.ProductRoot!)
+                .ThenInclude(pr => pr.Collections)
+            .Include(p => p.Filters)
+            .Where(p => productIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, cancellationToken);
     }
 
     private static OrderForEditDto MapOrderForEdit(
