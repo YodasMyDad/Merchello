@@ -293,10 +293,11 @@ public class FullCheckoutFlowTests : IClassFixture<ServiceTestFixture>
         // Assert
         result.Success.ShouldBeTrue();
         var invoice = result.ResultObject!;
+        var shippingTotal = invoice.Orders!.Sum(o => o.ShippingCost);
 
-        // Invoice should include product + shipping costs
-        // Product: 50.00, Tax (20%): 10.00, Shipping: 5.00 = 65.00
-        invoice.Total.ShouldBeGreaterThan(basket.Total);
+        // Invoice total should include shipping from all orders
+        shippingTotal.ShouldBeGreaterThan(0m);
+        invoice.Total.ShouldBe(invoice.AdjustedSubTotal + invoice.Tax + shippingTotal);
     }
 
     [Fact]

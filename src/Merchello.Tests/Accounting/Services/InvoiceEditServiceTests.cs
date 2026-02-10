@@ -104,6 +104,179 @@ public class InvoiceEditServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
+    public async Task EditInvoiceAsync_PhysicalCustomItemWithoutShippingOption_DoesNotMergeIntoDynamicShippingOrder()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var warehouse = dataBuilder.CreateWarehouse("Dynamic Warehouse", "CA");
+        var placeholderShipping = dataBuilder.CreateShippingOption("Placeholder", warehouse, fixedCost: 0m);
+        var dynamicOrder = dataBuilder.CreateOrder(invoice, warehouse, placeholderShipping, OrderStatus.Pending);
+        dynamicOrder.ShippingOptionId = Guid.Empty;
+        dynamicOrder.ShippingProviderKey = "fedex";
+        dynamicOrder.ShippingServiceCode = "FEDEX_GROUND";
+        dynamicOrder.ShippingServiceName = "FedEx Ground";
+        dynamicOrder.ShippingCost = 12m;
+        dataBuilder.CreateLineItem(dynamicOrder, name: "Dynamic Item", quantity: 1, amount: 25m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var parameters = new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems =
+                [
+                    new AddCustomItemDto
+                    {
+                        Name = "No Shipping Custom Item",
+                        Sku = "CUST-NOSHIP",
+                        Price = 15m,
+                        Cost = 5m,
+                        Quantity = 1,
+                        TaxGroupId = null,
+                        IsPhysicalProduct = true,
+                        WarehouseId = warehouse.Id,
+                        ShippingOptionId = null
+                    }
+                ],
+                ProductsToAdd = [],
+                OrderDiscounts = [],
+                OrderDiscountCodes = [],
+                OrderShippingUpdates = [],
+                EditReason = "Add no-shipping custom item to invoice with dynamic shipping order",
+                ShouldRemoveTax = false
+            },
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        };
+
+        // Act
+        var result = await _invoiceEditService.EditInvoiceAsync(parameters);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Data.ShouldNotBeNull();
+        result.Data.IsSuccessful.ShouldBeTrue();
+
+        await using var db = _fixture.CreateDbContext();
+        var persistedInvoice = await db.Invoices
+            .Include(i => i.Orders!)
+                .ThenInclude(o => o.LineItems)
+            .FirstAsync(i => i.Id == invoice.Id);
+
+        var noShippingOrder = persistedInvoice.Orders!
+            .FirstOrDefault(o =>
+                o.WarehouseId == warehouse.Id &&
+                o.ShippingOptionId == Guid.Empty &&
+                string.IsNullOrWhiteSpace(o.ShippingProviderKey) &&
+                string.IsNullOrWhiteSpace(o.ShippingServiceCode));
+
+        noShippingOrder.ShouldNotBeNull();
+        noShippingOrder.LineItems.ShouldNotBeNull();
+        noShippingOrder.LineItems.Any(li => li.Sku == "CUST-NOSHIP").ShouldBeTrue();
+
+        var persistedDynamicOrder = persistedInvoice.Orders!
+            .FirstOrDefault(o =>
+                o.WarehouseId == warehouse.Id &&
+                o.ShippingOptionId == Guid.Empty &&
+                string.Equals(o.ShippingProviderKey, "fedex", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(o.ShippingServiceCode, "FEDEX_GROUND", StringComparison.OrdinalIgnoreCase));
+
+        persistedDynamicOrder.ShouldNotBeNull();
+        persistedDynamicOrder.LineItems.ShouldNotBeNull();
+        persistedDynamicOrder.LineItems.Any(li => li.Sku == "CUST-NOSHIP").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task PreviewInvoiceEditAsync_OrderDiscountCode_WithDuplicateProductSkus_CalculatesDiscount()
+    {
+        // Arrange
+        const string discountCode = "DUPPREV10";
+        await CreateActiveCodeDiscountAsync(discountCode, 10m);
+        var invoice = await CreateInvoiceWithDuplicateSkuProductsAsync();
+
+        var request = new EditInvoiceDto
+        {
+            LineItems = [],
+            RemovedLineItems = [],
+            RemovedOrderDiscounts = [],
+            CustomItems = [],
+            ProductsToAdd = [],
+            OrderDiscounts = [],
+            OrderDiscountCodes = [discountCode],
+            OrderShippingUpdates = [],
+            EditReason = "Preview duplicate SKU discount",
+            ShouldRemoveTax = false
+        };
+
+        // Act
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(invoice.Id, request);
+
+        // Assert
+        result.ShouldNotBeNull();
+        result.DiscountTotal.ShouldBe(20m);
+    }
+
+    [Fact]
+    public async Task EditInvoiceAsync_OrderDiscountCode_WithDuplicateProductSkus_AddsDiscountLineItem()
+    {
+        // Arrange
+        const string discountCode = "DUPEDIT10";
+        await CreateActiveCodeDiscountAsync(discountCode, 10m);
+        var invoice = await CreateInvoiceWithDuplicateSkuProductsAsync();
+
+        var parameters = new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                ProductsToAdd = [],
+                OrderDiscounts = [],
+                OrderDiscountCodes = [discountCode],
+                OrderShippingUpdates = [],
+                EditReason = "Apply duplicate SKU discount",
+                ShouldRemoveTax = false
+            },
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        };
+
+        // Act
+        var result = await _invoiceEditService.EditInvoiceAsync(parameters);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Data.ShouldNotBeNull();
+        result.Data.IsSuccessful.ShouldBeTrue();
+
+        await using var db = _fixture.CreateDbContext();
+        var persistedInvoice = await db.Invoices
+            .Include(i => i.Orders!)
+                .ThenInclude(o => o.LineItems)
+            .FirstAsync(i => i.Id == invoice.Id);
+
+        var discountLineItem = (persistedInvoice.Orders ?? [])
+            .SelectMany(o => o.LineItems ?? [])
+            .FirstOrDefault(li =>
+                li.LineItemType == LineItemType.Discount &&
+                li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var codeObj) &&
+                string.Equals(codeObj?.ToString(), discountCode, StringComparison.OrdinalIgnoreCase));
+
+        discountLineItem.ShouldNotBeNull();
+        discountLineItem.Amount.ShouldBe(-20m);
+    }
+
+    [Fact]
     public async Task PreviewInvoiceEditAsync_OrderDiscountCode_IncludesDiscountInPreview()
     {
         // Arrange
@@ -222,6 +395,31 @@ public class InvoiceEditServiceTests : IClassFixture<ServiceTestFixture>
             .FirstOrDefaultAsync(u => u.InvoiceId == invoice.Id && u.DiscountId == discount.Id);
         usage.ShouldNotBeNull();
         usage.Amount.ShouldBe(10m);
+    }
+
+    private async Task<Invoice> CreateInvoiceWithDuplicateSkuProductsAsync()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+
+        var warehouseA = dataBuilder.CreateWarehouse("Warehouse A", "CA");
+        var shippingOptionA = dataBuilder.CreateShippingOption("Ground A", warehouseA, fixedCost: 0m);
+        var orderA = dataBuilder.CreateOrder(invoice, warehouseA, shippingOptionA, OrderStatus.Pending);
+
+        var warehouseB = dataBuilder.CreateWarehouse("Warehouse B", "CA");
+        var shippingOptionB = dataBuilder.CreateShippingOption("Ground B", warehouseB, fixedCost: 0m);
+        var orderB = dataBuilder.CreateOrder(invoice, warehouseB, shippingOptionB, OrderStatus.Pending);
+
+        var taxGroup = dataBuilder.CreateTaxGroup("No Tax", 0m);
+        var productRoot = dataBuilder.CreateProductRoot("Duplicate SKU Product", taxGroup);
+        var product = dataBuilder.CreateProduct("Duplicate SKU Variant", productRoot, price: 100m);
+
+        dataBuilder.CreateLineItem(orderA, product, quantity: 1, amount: 100m, isTaxable: false, taxRate: 0m);
+        dataBuilder.CreateLineItem(orderB, product, quantity: 1, amount: 100m, isTaxable: false, taxRate: 0m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        return invoice;
     }
 
     private async Task<Discount> CreateActiveCodeDiscountAsync(string code, decimal percentageValue)

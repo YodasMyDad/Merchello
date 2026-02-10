@@ -488,13 +488,7 @@ public class InvoiceEditService(
                         var shippingOptionId = parsedOptionId ?? Guid.Empty;
 
                         var existingOrder = orders.FirstOrDefault(o =>
-                            o.WarehouseId == warehouseId &&
-                            (shippingOptionId != Guid.Empty
-                                ? o.ShippingOptionId == shippingOptionId
-                                : !string.IsNullOrWhiteSpace(providerKey) &&
-                                  !string.IsNullOrWhiteSpace(serviceCode) &&
-                                  string.Equals(o.ShippingProviderKey, providerKey, StringComparison.OrdinalIgnoreCase) &&
-                                  string.Equals(o.ShippingServiceCode, serviceCode, StringComparison.OrdinalIgnoreCase)));
+                            IsMatchingOrderForShipping(o, warehouseId, shippingOptionId, providerKey, serviceCode));
 
                         if (existingOrder == null)
                         {
@@ -1029,7 +1023,7 @@ public class InvoiceEditService(
 
                         // Find existing order for this warehouse + shipping option or create new
                         var targetOrder = orders.FirstOrDefault(o =>
-                            o.WarehouseId == warehouseId && o.ShippingOptionId == shippingOptionId);
+                            IsMatchingOrderForShipping(o, warehouseId, shippingOptionId, providerKey, serviceCode));
                         var groupShippingCost = ResolveGroupShippingCost(group, invoice);
                         var createdNewOrder = false;
 
@@ -1094,7 +1088,7 @@ public class InvoiceEditService(
 
                         // Find existing order for this warehouse + shipping option or create new one
                         var targetOrder = orders.FirstOrDefault(o =>
-                            o.WarehouseId == warehouseId && o.ShippingOptionId == shippingOptionId);
+                            IsMatchingOrderForShipping(o, warehouseId, shippingOptionId, providerKey: null, serviceCode: null));
 
                         if (targetOrder == null)
                         {
@@ -1653,9 +1647,15 @@ public class InvoiceEditService(
             .ToList();
         var productLookup = await LoadDiscountContextProductsAsync(db, productIds, cancellationToken);
 
-        var productLineItemsBySku = virtualLineItems
+        var productLineItems = virtualLineItems
             .Where(li => li.LineItemType == LineItemType.Product && !string.IsNullOrWhiteSpace(li.Sku))
-            .ToDictionary(li => li.Sku!, li => li);
+            .ToList();
+        var productLineItemsByWarehouseAndSku = productLineItems
+            .GroupBy(li => (li.WarehouseId, Sku: li.Sku!))
+            .ToDictionary(g => g.Key, g => g.First());
+        var productLineItemsBySku = productLineItems
+            .GroupBy(li => li.Sku!)
+            .ToDictionary(g => g.Key, g => g.First());
 
         var contextLineItems = new List<DiscountContextLineItem>();
         foreach (var lineItem in virtualLineItems.Where(li => li.LineItemType is LineItemType.Product or LineItemType.Addon))
@@ -1664,7 +1664,10 @@ public class InvoiceEditService(
             VirtualLineItem? parentLineItem = null;
             if (isAddon && !string.IsNullOrWhiteSpace(lineItem.ParentLineItemSku))
             {
-                productLineItemsBySku.TryGetValue(lineItem.ParentLineItemSku, out parentLineItem);
+                if (!productLineItemsByWarehouseAndSku.TryGetValue((lineItem.WarehouseId, lineItem.ParentLineItemSku), out parentLineItem))
+                {
+                    productLineItemsBySku.TryGetValue(lineItem.ParentLineItemSku, out parentLineItem);
+                }
             }
 
             var effectiveProductId = lineItem.ProductId ?? parentLineItem?.ProductId;
@@ -1726,9 +1729,15 @@ public class InvoiceEditService(
             .ToList();
         var productLookup = await LoadDiscountContextProductsAsync(db, productIds, cancellationToken);
 
-        var productLineItemsBySku = editableLineItems
+        var productLineItemEntries = editableLineItems
             .Where(x => x.LineItem.LineItemType == LineItemType.Product && !string.IsNullOrWhiteSpace(x.LineItem.Sku))
-            .ToDictionary(x => x.LineItem.Sku!, x => x.LineItem);
+            .ToList();
+        var productLineItemsByOrderAndSku = productLineItemEntries
+            .GroupBy(x => (x.Order.Id, Sku: x.LineItem.Sku!))
+            .ToDictionary(g => g.Key, g => g.First().LineItem);
+        var productLineItemsBySku = productLineItemEntries
+            .GroupBy(x => x.LineItem.Sku!)
+            .ToDictionary(g => g.Key, g => g.First().LineItem);
 
         var contextLineItems = new List<DiscountContextLineItem>();
         foreach (var entry in editableLineItems)
@@ -1738,7 +1747,10 @@ public class InvoiceEditService(
             LineItem? parentLineItem = null;
             if (isAddon && !string.IsNullOrWhiteSpace(lineItem.DependantLineItemSku))
             {
-                productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+                if (!productLineItemsByOrderAndSku.TryGetValue((entry.Order.Id, lineItem.DependantLineItemSku), out parentLineItem))
+                {
+                    productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+                }
             }
 
             var effectiveProductId = lineItem.ProductId ?? parentLineItem?.ProductId;
@@ -2109,6 +2121,36 @@ public class InvoiceEditService(
         }
 
         return ConvertStoreToPresentmentCurrency(invoice, option.Cost, invoice.CurrencyCode);
+    }
+
+    private static bool IsMatchingOrderForShipping(
+        Order order,
+        Guid warehouseId,
+        Guid shippingOptionId,
+        string? providerKey,
+        string? serviceCode)
+    {
+        if (order.WarehouseId != warehouseId)
+        {
+            return false;
+        }
+
+        if (shippingOptionId != Guid.Empty)
+        {
+            return order.ShippingOptionId == shippingOptionId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(providerKey) && !string.IsNullOrWhiteSpace(serviceCode))
+        {
+            return order.ShippingOptionId == Guid.Empty &&
+                   string.Equals(order.ShippingProviderKey, providerKey, StringComparison.OrdinalIgnoreCase) &&
+                   string.Equals(order.ShippingServiceCode, serviceCode, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Explicit no-shipping order (not a dynamic provider order).
+        return order.ShippingOptionId == Guid.Empty &&
+               string.IsNullOrWhiteSpace(order.ShippingProviderKey) &&
+               string.IsNullOrWhiteSpace(order.ShippingServiceCode);
     }
 
     private decimal ConvertStoreToPresentmentCurrency(Invoice invoice, decimal storeAmount, string? currencyCode)
