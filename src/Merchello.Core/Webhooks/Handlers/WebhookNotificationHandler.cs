@@ -449,12 +449,6 @@ public class WebhookNotificationHandler(
         string entityType,
         CancellationToken ct) where T : class
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogDebug("Webhooks disabled, skipping dispatch for {Topic}", topic);
-            return;
-        }
-
         try
         {
             await webhookService.QueueDeliveryAsync(topic, payload, entityId, entityType, ct);

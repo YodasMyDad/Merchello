@@ -201,6 +201,7 @@ import type {
 import type {
   FulfilmentProviderDto,
   FulfilmentProviderListItemDto,
+  FulfilmentProviderConfigurationDto,
   FulfilmentProviderFieldDto,
   CreateFulfilmentProviderDto,
   UpdateFulfilmentProviderDto,
@@ -226,6 +227,8 @@ import type {
   CreateShippingCostDto,
   ShippingWeightTierDto,
   CreateShippingWeightTierDto,
+  ShippingPostcodeRuleDto,
+  CreateShippingPostcodeRuleDto,
   ProviderMethodConfigDto,
   AvailableProviderDto,
   TestShippingProviderDto,
@@ -276,7 +279,10 @@ import type {
 // Import supplier types
 import type {
   CreateSupplierDto,
+  SupplierDetailDto,
   SupplierListItemDto,
+  TestSupplierFtpConnectionDto,
+  TestSupplierFtpConnectionResultDto,
   UpdateSupplierDto,
 } from '@suppliers/types/suppliers.types.js';
 
@@ -1191,6 +1197,17 @@ export const MerchelloApi = {
   /** Delete a weight tier */
   deleteShippingWeightTier: (tierId: string) => apiDelete(`shipping-weight-tiers/${tierId}`),
 
+  /** Add a postcode rule to a shipping option */
+  addShippingPostcodeRule: (optionId: string, data: CreateShippingPostcodeRuleDto) =>
+    apiPost<ShippingPostcodeRuleDto>(`shipping-options/${optionId}/postcode-rules`, data),
+
+  /** Update a postcode rule */
+  updateShippingPostcodeRule: (ruleId: string, data: CreateShippingPostcodeRuleDto) =>
+    apiPut<ShippingPostcodeRuleDto>(`shipping-postcode-rules/${ruleId}`, data),
+
+  /** Delete a postcode rule */
+  deleteShippingPostcodeRule: (ruleId: string) => apiDelete(`shipping-postcode-rules/${ruleId}`),
+
   // ============================================
   // Warehouses Management API
   // ============================================
@@ -1276,19 +1293,23 @@ export const MerchelloApi = {
   getSuppliers: () => apiGet<SupplierListItemDto[]>('suppliers'),
 
   /** Get a single supplier by ID */
-  getSupplier: (id: string) => apiGet<SupplierListItemDto>(`suppliers/${id}`),
+  getSupplier: (id: string) => apiGet<SupplierDetailDto>(`suppliers/${id}`),
 
   /** Create a new supplier */
   createSupplier: (data: CreateSupplierDto) =>
-    apiPost<SupplierListItemDto>('suppliers', data),
+    apiPost<SupplierDetailDto>('suppliers', data),
 
   /** Update an existing supplier */
   updateSupplier: (id: string, data: UpdateSupplierDto) =>
-    apiPut<SupplierListItemDto>(`suppliers/${id}`, data),
+    apiPut<SupplierDetailDto>(`suppliers/${id}`, data),
 
   /** Delete a supplier */
   deleteSupplier: (id: string, force = false) =>
     apiDelete(`suppliers/${id}${force ? '?force=true' : ''}`),
+
+  /** Test supplier FTP/SFTP connection settings */
+  testSupplierFtpConnection: (data: TestSupplierFtpConnectionDto) =>
+    apiPost<TestSupplierFtpConnectionResultDto>('suppliers/test-ftp-connection', data),
 
   // ============================================
   // Customers API
@@ -1860,7 +1881,7 @@ export const MerchelloApi = {
 
   /** Get a specific fulfilment provider configuration by ID */
   getFulfilmentProviderConfiguration: (id: string) =>
-    apiGet<FulfilmentProviderDto>(`fulfilment-providers/${id}`),
+    apiGet<FulfilmentProviderConfigurationDto>(`fulfilment-providers/${id}`),
 
   /** Get configuration fields for a fulfilment provider */
   getFulfilmentProviderFields: (key: string) =>

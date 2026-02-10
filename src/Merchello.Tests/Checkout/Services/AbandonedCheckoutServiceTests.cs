@@ -459,7 +459,6 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
             _fixture.GetService<IMerchelloNotificationPublisher>(),
             Options.Create(new AbandonedCheckoutSettings
             {
-                Enabled = true,
                 RecoveryUrlBase = "/checkout/recover"
             }),
             Options.Create(_fixture.GetService<IOptions<Merchello.Core.Shared.Models.MerchelloSettings>>().Value),

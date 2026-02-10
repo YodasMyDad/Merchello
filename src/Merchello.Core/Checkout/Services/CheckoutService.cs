@@ -2153,7 +2153,7 @@ public class CheckoutService(
                     var lineTotal = li.Quantity * li.Amount;
 
                     // Get display data from ExtendedData
-                    var imageUrl = li.ExtendedData?.GetValueOrDefault("ImageUrl")?.ToString();
+                    var imageUrl = li.ExtendedData?.GetValueOrDefault("ImageUrl").UnwrapJsonElement()?.ToString();
                     var productRootName = li.GetProductRootName();
                     var selectedOptions = li.GetSelectedOptions()
                         .Select(o => new SelectedOptionDto
@@ -2897,10 +2897,14 @@ public class CheckoutService(
             {
                 LineItemId = li.Id.ToString(),
                 ProductId = li.ProductId?.ToString(),
-                VariantId = li.ExtendedData.TryGetValue("VariantId", out var vid) ? vid?.ToString() : null,
+                VariantId = li.ExtendedData.TryGetValue("VariantId", out var vid)
+                    ? vid.UnwrapJsonElement()?.ToString()
+                    : null,
                 Sku = li.Sku ?? string.Empty,
                 Name = li.Name ?? string.Empty,
-                Description = li.ExtendedData.TryGetValue("Description", out var desc) ? desc?.ToString() : null,
+                Description = li.ExtendedData.TryGetValue("Description", out var desc)
+                    ? desc.UnwrapJsonElement()?.ToString()
+                    : null,
                 Quantity = li.Quantity,
                 UnitPrice = ToMinorUnits(li.Amount, currencyCode),
                 LineTotal = ToMinorUnits(li.Amount * li.Quantity, currencyCode),
@@ -2908,8 +2912,12 @@ public class CheckoutService(
                 TaxAmount = li.IsTaxable ? ToMinorUnits(li.Amount * li.Quantity * li.TaxRate / 100, currencyCode) : 0,
                 FinalTotal = ToMinorUnits(li.Amount * li.Quantity, currencyCode),
                 RequiresShipping = !IsDigitalProduct(li),
-                ImageUrl = li.ExtendedData.TryGetValue("ImageUrl", out var img) ? img?.ToString() : null,
-                ProductUrl = li.ExtendedData.TryGetValue("ProductUrl", out var url) ? url?.ToString() : null,
+                ImageUrl = li.ExtendedData.TryGetValue("ImageUrl", out var img)
+                    ? img.UnwrapJsonElement()?.ToString()
+                    : null,
+                ProductUrl = li.ExtendedData.TryGetValue("ProductUrl", out var url)
+                    ? url.UnwrapJsonElement()?.ToString()
+                    : null,
                 SelectedOptions = MapLineItemOptions(li)
             })
             .ToList();
@@ -2931,8 +2939,8 @@ public class CheckoutService(
             {
                 result.Add(new CheckoutLineItemOption
                 {
-                    Name = name?.ToString() ?? string.Empty,
-                    Value = value?.ToString() ?? string.Empty
+                    Name = name.UnwrapJsonElement()?.ToString() ?? string.Empty,
+                    Value = value.UnwrapJsonElement()?.ToString() ?? string.Empty
                 });
             }
         }
@@ -2975,13 +2983,16 @@ public class CheckoutService(
             .Select(li => new CheckoutDiscountState
             {
                 DiscountId = li.Id.ToString(),
-                Code = li.ExtendedData.TryGetValue("DiscountCode", out var code) ? code?.ToString() : null,
+                Code = li.ExtendedData.TryGetValue("DiscountCode", out var code)
+                    ? code.UnwrapJsonElement()?.ToString()
+                    : null,
                 Name = li.Name ?? "Discount",
                 Type = li.ExtendedData.TryGetValue("DiscountType", out var type)
-                    ? MapDiscountType(type?.ToString())
+                    ? MapDiscountType(type.UnwrapJsonElement()?.ToString())
                     : ProtocolDiscountTypes.FixedAmount,
                 Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity), currencyCode),
-                IsAutomatic = li.ExtendedData.TryGetValue("IsAutomatic", out var auto) && auto is true,
+                IsAutomatic = li.ExtendedData.TryGetValue("IsAutomatic", out var auto) &&
+                    auto.UnwrapJsonElement() is true,
                 Method = ProtocolDiscountAllocationMethods.Across
             })
             .ToList();

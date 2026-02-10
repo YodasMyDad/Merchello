@@ -7,6 +7,7 @@ using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Fulfilment.Services.Parameters;
 using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Providers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +23,8 @@ public class FulfilmentProvidersApiController(
     IFulfilmentProviderManager providerManager,
     IFulfilmentSyncService syncService) : MerchelloApiControllerBase
 {
+    private const string SensitiveMask = "********";
+
     /// <summary>
     /// Get all available fulfilment providers discovered from assemblies.
     /// </summary>
@@ -53,7 +56,7 @@ public class FulfilmentProvidersApiController(
     /// Get a specific fulfilment provider configuration by ID.
     /// </summary>
     [HttpGet("fulfilment-providers/{id:guid}")]
-    [ProducesResponseType<FulfilmentProviderDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType<FulfilmentProviderConfigurationDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProviderConfiguration(Guid id, CancellationToken cancellationToken = default)
     {
@@ -64,7 +67,7 @@ public class FulfilmentProvidersApiController(
             return NotFound();
         }
 
-        return Ok(MapToProviderDto(provider));
+        return Ok(await MapToConfigurationDtoAsync(provider, cancellationToken));
     }
 
     /// <summary>
@@ -110,11 +113,7 @@ public class FulfilmentProvidersApiController(
         }
 
         var allProviders = await providerManager.GetProvidersAsync(cancellationToken);
-        var maxSortOrder = allProviders
-            .Where(p => p.Configuration != null)
-            .Select(p => p.Configuration!.SortOrder)
-            .DefaultIfEmpty(0)
-            .Max();
+        var configuredProviders = allProviders.Where(p => p.Configuration != null).ToList();
 
         var configuration = new FulfilmentProviderConfiguration
         {
@@ -123,7 +122,7 @@ public class FulfilmentProvidersApiController(
             IsEnabled = request.IsEnabled,
             InventorySyncMode = request.InventorySyncMode,
             SettingsJson = request.Configuration != null ? JsonSerializer.Serialize(request.Configuration) : null,
-            SortOrder = maxSortOrder + 1
+            SortOrder = configuredProviders.GetNextSortOrder(p => p.Configuration!.SortOrder)
         };
 
         var result = await providerManager.SaveConfigurationAsync(configuration, cancellationToken);
@@ -170,6 +169,34 @@ public class FulfilmentProvidersApiController(
 
         if (request.Configuration != null)
         {
+            // Retain sensitive field values when masked/empty on update
+            if (!string.IsNullOrEmpty(configuration.SettingsJson))
+            {
+                try
+                {
+                    var existingConfig = ParseSettingsAsStrings(configuration.SettingsJson);
+                    var fields = await provider.Provider.GetConfigurationFieldsAsync(cancellationToken);
+                    var sensitiveKeys = fields.Where(f => f.IsSensitive).Select(f => f.Key).ToHashSet();
+
+                    if (existingConfig != null)
+                    {
+                        foreach (var key in sensitiveKeys)
+                        {
+                            var newValue = request.Configuration.GetValueOrDefault(key);
+                            var isMaskedOrEmpty = string.IsNullOrEmpty(newValue) || IsMaskedValue(newValue);
+                            if (isMaskedOrEmpty && existingConfig.TryGetValue(key, out var existingValue))
+                            {
+                                request.Configuration[key] = existingValue;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore deserialization errors - proceed with raw update
+                }
+            }
+
             configuration.SettingsJson = JsonSerializer.Serialize(request.Configuration);
         }
 
@@ -395,6 +422,48 @@ public class FulfilmentProvidersApiController(
     // Mapping Helpers
     // ============================================
 
+    private async Task<FulfilmentProviderConfigurationDto> MapToConfigurationDtoAsync(
+        RegisteredFulfilmentProvider registered,
+        CancellationToken cancellationToken)
+    {
+        var configuration = registered.Configuration!;
+
+        Dictionary<string, string>? config = null;
+        if (!string.IsNullOrEmpty(configuration.SettingsJson))
+        {
+            config = ParseSettingsAsStrings(configuration.SettingsJson);
+
+            // Mask sensitive field values
+            if (config != null)
+            {
+                var fields = await registered.Provider.GetConfigurationFieldsAsync(cancellationToken);
+                var sensitiveKeys = fields.Where(f => f.IsSensitive).Select(f => f.Key).ToHashSet();
+
+                foreach (var key in config.Keys.Where(k => sensitiveKeys.Contains(k)).ToList())
+                {
+                    if (!string.IsNullOrEmpty(config[key]))
+                    {
+                        config[key] = SensitiveMask;
+                    }
+                }
+            }
+        }
+
+        return new FulfilmentProviderConfigurationDto
+        {
+            Id = configuration.Id,
+            ProviderKey = configuration.ProviderKey,
+            DisplayName = configuration.DisplayName ?? registered.Metadata.DisplayName,
+            IsEnabled = configuration.IsEnabled,
+            InventorySyncMode = configuration.InventorySyncMode,
+            Configuration = config,
+            SortOrder = configuration.SortOrder,
+            DateCreated = configuration.CreateDate,
+            DateUpdated = configuration.UpdateDate,
+            Provider = MapToProviderDto(registered)
+        };
+    }
+
     private static FulfilmentProviderDto MapToProviderDto(RegisteredFulfilmentProvider registered)
     {
         var meta = registered.Metadata;
@@ -539,4 +608,60 @@ public class FulfilmentProvidersApiController(
             _ => "Unknown"
         };
     }
+    private static bool IsMaskedValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (value == SensitiveMask)
+        {
+            return true;
+        }
+
+        // Backward compatibility for historic bullet masks.
+        var bulletMask = new string('\u2022', 8);
+        var mojibakeBulletMask = string.Concat(Enumerable.Repeat("\u00E2\u20AC\u00A2", 8));
+        return value == bulletMask || value == mojibakeBulletMask;
+    }
+
+    private static Dictionary<string, string>? ParseSettingsAsStrings(string? settingsJson)
+    {
+        if (string.IsNullOrWhiteSpace(settingsJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(settingsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            Dictionary<string, string> parsed = [];
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                parsed[property.Name] = property.Value.ValueKind switch
+                {
+                    JsonValueKind.String => property.Value.GetString() ?? string.Empty,
+                    JsonValueKind.Number => property.Value.GetRawText(),
+                    JsonValueKind.True => "true",
+                    JsonValueKind.False => "false",
+                    JsonValueKind.Null or JsonValueKind.Undefined => string.Empty,
+                    _ => property.Value.GetRawText()
+                };
+            }
+
+            return parsed;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
 }
+

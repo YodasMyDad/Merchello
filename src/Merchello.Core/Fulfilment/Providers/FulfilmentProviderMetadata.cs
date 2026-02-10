@@ -68,6 +68,13 @@ public record FulfilmentProviderMetadata
     public bool SupportsInventorySync { get; init; }
 
     /// <summary>
+    /// Whether this provider creates shipments immediately upon successful submission.
+    /// When true, a Preparing shipment is auto-created after FulfilmentSubmittedNotification.
+    /// Providers that receive shipment data via webhooks (e.g., ShipBob) should set this to false.
+    /// </summary>
+    public bool CreatesShipmentOnSubmission { get; init; }
+
+    /// <summary>
     /// API style used by the provider. Affects how the provider client is implemented.
     /// </summary>
     public FulfilmentApiStyle ApiStyle { get; init; } = FulfilmentApiStyle.Rest;

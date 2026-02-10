@@ -2,6 +2,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Upsells.Dtos;
+using Merchello.Models;
 using Merchello.Core.Upsells.Extensions;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;

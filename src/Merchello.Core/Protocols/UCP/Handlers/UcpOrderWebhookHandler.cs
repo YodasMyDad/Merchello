@@ -50,7 +50,7 @@ public class UcpOrderWebhookHandler(
 
     public async Task HandleAsync(OrderStatusChangedNotification notification, CancellationToken ct)
     {
-        if (!_protocolSettings.Enabled || !_protocolSettings.Ucp.Enabled || !_protocolSettings.Ucp.Capabilities.Order)
+        if (!_protocolSettings.Ucp.Capabilities.Order)
         {
             return;
         }
@@ -63,7 +63,7 @@ public class UcpOrderWebhookHandler(
 
     public async Task HandleAsync(ShipmentCreatedNotification notification, CancellationToken ct)
     {
-        if (!_protocolSettings.Enabled || !_protocolSettings.Ucp.Enabled || !_protocolSettings.Ucp.Capabilities.Order)
+        if (!_protocolSettings.Ucp.Capabilities.Order)
         {
             return;
         }
@@ -78,7 +78,7 @@ public class UcpOrderWebhookHandler(
 
     public async Task HandleAsync(ShipmentSavedNotification notification, CancellationToken ct)
     {
-        if (!_protocolSettings.Enabled || !_protocolSettings.Ucp.Enabled || !_protocolSettings.Ucp.Capabilities.Order)
+        if (!_protocolSettings.Ucp.Capabilities.Order)
         {
             return;
         }

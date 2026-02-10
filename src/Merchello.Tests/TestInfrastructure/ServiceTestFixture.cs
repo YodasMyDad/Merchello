@@ -141,15 +141,12 @@ public class ServiceTestFixture : IDisposable
 {
     private readonly string _databaseFilePath;
     private readonly string _connectionString;
+    private readonly string[] _tableNames;
 
     // Keep a master connection open so the shared database persists while tests run
     private SqliteConnection _keepAliveConnection;
     private readonly ServiceProvider _serviceProvider;
     private MockHttpContextAccessor _mockHttpContextAccessor = null!;
-
-    // Track all connections created by CreateDbContext for proper disposal
-    private readonly List<SqliteConnection> _trackedConnections = [];
-    private readonly object _connectionLock = new();
 
     // Configurable exchange rate cache mock for multi-currency testing
     private Mock<IExchangeRateCache> _exchangeRateCacheMock = null!;
@@ -206,10 +203,16 @@ public class ServiceTestFixture : IDisposable
         services.AddDbContextFactory<MerchelloDbContext>(options =>
             options.UseSqlite(_connectionString));
 
-        // Ensure the schema exists on the shared in-memory database
+        // Ensure the schema exists and cache table names for fast reset operations
         using (var setupContext = CreateDbContext())
         {
             setupContext.Database.EnsureCreated();
+            _tableNames = setupContext.Model.GetEntityTypes()
+                .Select(t => t.GetTableName())
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct()
+                .Select(n => n!)
+                .ToArray();
         }
 
         DbContext = CreateDbContext();
@@ -241,14 +244,13 @@ public class ServiceTestFixture : IDisposable
             StoreCurrencyCode = "USD",
             DefaultShippingCountry = "US",
             DefaultRounding = MidpointRounding.AwayFromZero,
-            WebsiteUrl = "https://test.example.com",
+            Store = new StoreSettings { WebsiteUrl = "https://test.example.com" },
             DownloadTokenSecret = "test-download-token-secret-32-chars"
         };
         services.AddSingleton(Options.Create(merchelloSettings));
 
         var upsellSettings = new UpsellSettings
         {
-            Enabled = true,
             MaxSuggestionsPerLocation = 3,
             CacheDurationSeconds = 60,
             EventRetentionDays = 30,
@@ -365,7 +367,6 @@ public class ServiceTestFixture : IDisposable
         // Webhook settings
         var webhookSettings = new WebhookSettings
         {
-            Enabled = true,
             MaxRetries = 3,
             RetryDelaysSeconds = [60, 300, 900],
             DefaultTimeoutSeconds = 30
@@ -388,7 +389,6 @@ public class ServiceTestFixture : IDisposable
         // Email settings
         var emailSettings = new EmailSettings
         {
-            Enabled = true,
             DefaultFromAddress = "test@example.com",
             MaxRetries = 3,
             RetryDelaysSeconds = [60, 300, 900]
@@ -500,7 +500,6 @@ public class ServiceTestFixture : IDisposable
         // AbandonedCheckoutService and settings
         var abandonedCheckoutSettings = new AbandonedCheckoutSettings
         {
-            Enabled = true,
             RecoveryUrlBase = "https://example.com/checkout/recover"
         };
         services.AddSingleton(Options.Create(abandonedCheckoutSettings));
@@ -575,13 +574,11 @@ public class ServiceTestFixture : IDisposable
         // Protocol settings
         var protocolSettings = new ProtocolSettings
         {
-            Enabled = true,
             WellKnownPath = "/.well-known",
             ManifestCacheDurationMinutes = 60,
             RequireHttps = false, // Allow HTTP in tests
             Ucp = new UcpSettings
             {
-                Enabled = true,
                 Version = "2026-01-11",
                 RequireAuthentication = false,
                 AllowedAgents = ["*"],
@@ -637,7 +634,6 @@ public class ServiceTestFixture : IDisposable
         // Fulfilment settings
         var fulfilmentSettings = new FulfilmentSettings
         {
-            Enabled = true,
             PollingIntervalMinutes = 15,
             MaxRetryAttempts = 5,
             RetryDelaysMinutes = [5, 15, 30, 60, 120],
@@ -1204,24 +1200,28 @@ public class ServiceTestFixture : IDisposable
         DbContext.Dispose();
 
         using var resetContext = CreateDbContext();
-        resetContext.Database.EnsureCreated();
-        resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF;");
-
-        var tableNames = resetContext.Model.GetEntityTypes()
-            .Select(t => t.GetTableName())
-            .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Distinct()
-            .ToList();
-
-        foreach (var table in tableNames)
+        resetContext.Database.OpenConnection();
+        try
         {
+            resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = OFF;");
+            try
+            {
+                foreach (var table in _tableNames)
+                {
 #pragma warning disable EF1002 // Table names come from EF metadata, not user input
-            resetContext.Database.ExecuteSqlRaw($"""DELETE FROM "{table}";""");
+                    resetContext.Database.ExecuteSqlRaw($"""DELETE FROM "{table}";""");
 #pragma warning restore EF1002
+                }
+            }
+            finally
+            {
+                resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON;");
+            }
         }
-
-        resetContext.Database.ExecuteSqlRaw("PRAGMA foreign_keys = ON;");
-        resetContext.SaveChanges();
+        finally
+        {
+            resetContext.Database.CloseConnection();
+        }
 
         DbContext = CreateDbContext();
     }
@@ -1261,23 +1261,13 @@ public class ServiceTestFixture : IDisposable
     }
 
     /// <summary>
-    /// Creates a new DbContext instance that points at the shared in-memory database.
+    /// Creates a new DbContext instance that points at the shared test database.
     /// Useful for concurrent test threads where a unique context is required.
-    /// Note: Connections are tracked and disposed when the fixture is disposed.
     /// </summary>
     public MerchelloDbContext CreateDbContext()
     {
-        var connection = new SqliteConnection(_connectionString);
-        connection.Open();
-
-        // Track connection for cleanup (EF Core doesn't dispose externally-provided connections)
-        lock (_connectionLock)
-        {
-            _trackedConnections.Add(connection);
-        }
-
         var options = new DbContextOptionsBuilder<MerchelloDbContext>()
-            .UseSqlite(connection)
+            .UseSqlite(_connectionString)
             .Options;
 
         return new MerchelloDbContext(options);
@@ -1323,16 +1313,6 @@ public class ServiceTestFixture : IDisposable
     {
         DbContext?.Dispose();
         _serviceProvider?.Dispose();
-
-        // Dispose all tracked connections from CreateDbContext calls
-        lock (_connectionLock)
-        {
-            foreach (var connection in _trackedConnections)
-            {
-                connection.Dispose();
-            }
-            _trackedConnections.Clear();
-        }
 
         _keepAliveConnection?.Dispose();
 

@@ -416,22 +416,6 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public async Task AutoAddHandler_UpsellsDisabled_DoesNotModifyBasket()
-    {
-        var typeId = Guid.NewGuid();
-        await CreateActivatedRuleAsync("Disabled System Rule", typeId, autoAdd: true);
-
-        // Create handler with disabled upsell settings
-        var handler = CreateAutoAddHandler(enabled: false);
-        var basket = CreateBasketWithProductType(typeId);
-        var notification = CreateBasketItemAddedNotification(basket);
-
-        await handler.HandleAsync(notification, CancellationToken.None);
-
-        basket.LineItems.Count.ShouldBe(1);
-    }
-
-    [Fact]
     public async Task AutoAddHandler_RemovedAutoAdd_DoesNotReAdd()
     {
         // Create real DB products for trigger and recommendation
@@ -822,9 +806,8 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
         return (await _upsellService.GetByIdAsync(result.ResultObject!.Id))!;
     }
 
-    private AutoAddUpsellHandler CreateAutoAddHandler(bool enabled = true)
+    private AutoAddUpsellHandler CreateAutoAddHandler()
     {
-        var settings = Options.Create(new UpsellSettings { Enabled = enabled });
         return new AutoAddUpsellHandler(
             _engine,
             _upsellService,
@@ -833,7 +816,6 @@ public class UpsellPackageProtectionTests : IClassFixture<ServiceTestFixture>
             _fixture.GetService<LineItemFactory>(),
             _checkoutService,
             _checkoutSessionService,
-            settings,
             _fixture.GetService<ILogger<AutoAddUpsellHandler>>());
     }
 

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Providers;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
@@ -116,11 +117,7 @@ public class ShippingProvidersApiController(
         }
 
         var allProviders = await providerManager.GetProvidersAsync(cancellationToken);
-        var maxSortOrder = allProviders
-            .Where(p => p.Configuration != null)
-            .Select(p => p.Configuration!.SortOrder)
-            .DefaultIfEmpty(0)
-            .Max();
+        var configuredProviders = allProviders.Where(p => p.Configuration != null).ToList();
 
         var configuration = new ShippingProviderConfiguration
         {
@@ -128,7 +125,7 @@ public class ShippingProvidersApiController(
             DisplayName = request.DisplayName ?? provider.Metadata.DisplayName,
             IsEnabled = request.IsEnabled,
             SettingsJson = request.Configuration != null ? JsonSerializer.Serialize(request.Configuration) : null,
-            SortOrder = maxSortOrder + 1
+            SortOrder = configuredProviders.GetNextSortOrder(p => p.Configuration!.SortOrder)
         };
 
         var result = await providerManager.SaveConfigurationAsync(configuration, cancellationToken);

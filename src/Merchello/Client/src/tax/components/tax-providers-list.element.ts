@@ -172,16 +172,6 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
           </div>
         </div>
 
-        <div class="provider-footer">
-          <div class="provider-features">
-            ${provider.supportsRealTimeCalculation
-              ? html`<span class="feature-badge"><uui-icon name="icon-cloud"></uui-icon> Real-time Calculation</span>`
-              : html`<span class="feature-badge"><uui-icon name="icon-calculator"></uui-icon> Manual Rates</span>`}
-            ${provider.requiresApiCredentials
-              ? html`<span class="feature-badge"><uui-icon name="icon-key"></uui-icon> API Credentials Required</span>`
-              : nothing}
-          </div>
-        </div>
       </div>
     `;
   }
@@ -430,35 +420,6 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
       font-size: 0.875rem;
     }
 
-    .provider-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: var(--uui-size-space-4);
-      padding-top: var(--uui-size-space-3);
-      border-top: 1px solid var(--uui-color-border);
-    }
-
-    .provider-features {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-3);
-    }
-
-    .feature-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-1) var(--uui-size-space-3);
-      background: var(--uui-color-surface-alt);
-      border-radius: 100px;
-      font-size: 0.75rem;
-      color: var(--uui-color-text-alt);
-    }
-
-    .feature-badge uui-icon {
-      font-size: 0.75rem;
-    }
   `;
 }
 

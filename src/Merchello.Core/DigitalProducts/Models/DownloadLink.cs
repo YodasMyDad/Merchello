@@ -82,4 +82,11 @@ public class DownloadLink
     /// </summary>
     [NotMapped]
     public string DownloadUrl { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Number of downloads remaining. Null if unlimited.
+    /// </summary>
+    public int? RemainingDownloads => MaxDownloads.HasValue
+        ? Math.Max(0, MaxDownloads.Value - DownloadCount)
+        : null;
 }

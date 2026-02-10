@@ -13,6 +13,11 @@ public class CreateWarehouseParameters
     public Dictionary<string, object>? ExtendedData { get; set; }
 
     /// <summary>
+    /// Fulfilment provider configuration override for this warehouse
+    /// </summary>
+    public Guid? FulfilmentProviderConfigurationId { get; set; }
+
+    /// <summary>
     /// Service regions to add to the warehouse. Each tuple contains:
     /// - CountryCode: ISO 2-letter country code
     /// - RegionCode: State/province code (null for country-wide)

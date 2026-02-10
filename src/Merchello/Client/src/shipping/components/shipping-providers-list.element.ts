@@ -270,10 +270,6 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
               <span class="provider-key">${provider.key}</span>
             </div>
           </div>
-          <span class="built-in-badge">
-            <uui-icon name="icon-check"></uui-icon>
-            Always Available
-          </span>
         </div>
         ${provider.description
           ? html`<p class="provider-description">${provider.description}</p>`
@@ -480,18 +476,6 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     .provider-card.built-in {
       border-left: 3px solid var(--uui-color-positive);
       background: var(--uui-color-surface-alt);
-    }
-
-    .built-in-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
-      border-radius: var(--uui-border-radius);
-      font-size: 0.75rem;
-      font-weight: 600;
     }
 
     .provider-header {

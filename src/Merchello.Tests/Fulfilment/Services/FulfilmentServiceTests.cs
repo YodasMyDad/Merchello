@@ -3,6 +3,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Fulfilment;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services;
 using Merchello.Core.Fulfilment.Services.Interfaces;
@@ -155,6 +156,68 @@ public class FulfilmentServiceTests
     }
 
     [Fact]
+    public async Task SubmitOrderAsync_ProcessingOrderWithPreviousFailure_AllowsRetryAttempt()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var warehouse = _dataBuilder.CreateWarehouse();
+        _dataBuilder.AssignFulfilmentProviderToWarehouse(warehouse, config);
+        var shippingOption = _dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var invoice = _dataBuilder.CreateInvoice();
+        var order = _dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+        order.FulfilmentProviderConfigurationId = config.Id;
+        order.FulfilmentErrorMessage = "Previous timeout";
+        order.FulfilmentRetryCount = 1;
+        _dataBuilder.CreateLineItem(order, name: "Retry Product", amount: 10.00m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateFulfilmentServiceWithProvider(config);
+        _testProvider.NextSubmitOrderResult = FulfilmentOrderResult.Succeeded("RETRY-REF-001");
+
+        // Act
+        var result = await service.SubmitOrderAsync(order.Id);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        _testProvider.SubmittedOrders.Count.ShouldBe(1);
+
+        var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
+        updatedOrder.ShouldNotBeNull();
+        updatedOrder!.FulfilmentProviderReference.ShouldBe("RETRY-REF-001");
+        updatedOrder.FulfilmentErrorMessage.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task SubmitOrderAsync_ProcessingOrderWithoutFailure_RemainsInProgress()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var warehouse = _dataBuilder.CreateWarehouse();
+        _dataBuilder.AssignFulfilmentProviderToWarehouse(warehouse, config);
+        var shippingOption = _dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var invoice = _dataBuilder.CreateInvoice();
+        var order = _dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+        order.FulfilmentProviderConfigurationId = config.Id;
+        order.FulfilmentErrorMessage = null;
+        order.FulfilmentRetryCount = 0;
+        _dataBuilder.CreateLineItem(order, name: "In Progress Product", amount: 10.00m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateFulfilmentServiceWithProvider(config);
+        _testProvider.NextSubmitOrderResult = FulfilmentOrderResult.Succeeded("SHOULD-NOT-SUBMIT");
+
+        // Act
+        var result = await service.SubmitOrderAsync(order.Id);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Messages.WarningMessages().Select(m => m.Message!).ShouldContain(m => m.Contains("already in progress"));
+        _testProvider.SubmittedOrders.Count.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task SubmitOrderAsync_ExceedsMaxRetries_SetsStatusToFulfilmentFailed()
     {
         // Arrange
@@ -181,6 +244,38 @@ public class FulfilmentServiceTests
         var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
         updatedOrder!.FulfilmentRetryCount.ShouldBe(5);
         updatedOrder.Status.ShouldBe(OrderStatus.FulfilmentFailed);
+    }
+
+    [Fact]
+    public async Task SubmitOrderAsync_NonRetryableErrorCode_FailsImmediately()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var warehouse = _dataBuilder.CreateWarehouse();
+        _dataBuilder.AssignFulfilmentProviderToWarehouse(warehouse, config);
+        var shippingOption = _dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var invoice = _dataBuilder.CreateInvoice();
+        var order = _dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Pending);
+        _dataBuilder.CreateLineItem(order, name: "Test Product", amount: 25.00m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateFulfilmentServiceWithProvider(config);
+        _testProvider.NextSubmitOrderResult = FulfilmentOrderResult.Failed(
+            "Supplier host is missing",
+            ErrorClassification.ConfigurationError.ToString());
+
+        // Act
+        var result = await service.SubmitOrderAsync(order.Id);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+
+        var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
+        updatedOrder.ShouldNotBeNull();
+        updatedOrder!.Status.ShouldBe(OrderStatus.FulfilmentFailed);
+        updatedOrder.FulfilmentRetryCount.ShouldBe(5);
+        updatedOrder.ExtendedData["Fulfilment:ErrorCode"].ToString().ShouldBe(ErrorClassification.ConfigurationError.ToString());
     }
 
     [Fact]

@@ -11,6 +11,7 @@ import type {
   ShippingCostDto,
   ShippingWeightTierDto,
   ShippingDestinationExclusionDto,
+  ShippingPostcodeRuleDto,
   CreateShippingOptionDto,
   WarehouseDto,
 } from "@shipping/types/shipping.types.js";
@@ -18,6 +19,7 @@ import type { ShippingOptionDetailModalData, ShippingOptionDetailModalValue } fr
 import { MERCHELLO_SHIPPING_COST_MODAL } from "@shipping/modals/shipping-cost-modal.token.js";
 import { MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL } from "@shipping/modals/shipping-weight-tier-modal.token.js";
 import { MERCHELLO_SHIPPING_DESTINATION_EXCLUSION_MODAL } from "@shipping/modals/shipping-destination-exclusion-modal.token.js";
+import { MERCHELLO_SHIPPING_POSTCODE_RULE_MODAL } from "@shipping/modals/shipping-postcode-rule-modal.token.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 
 type ShippingOptionModalTab = "overview" | "delivery" | "destinations" | "pricing";
@@ -422,6 +424,53 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     this._excludedRegions = this._excludedRegions.filter((x) => x.id !== exclusion.id);
   }
 
+  private async _openPostcodeRuleModal(rule?: ShippingPostcodeRuleDto): Promise<void> {
+    if (!this.#modalManager || !this._detail) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_SHIPPING_POSTCODE_RULE_MODAL, {
+      data: { rule, optionId: this._detail.id },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (result?.isSaved) {
+      await this._loadDetail();
+    }
+  }
+
+  private async _deletePostcodeRule(rule: ShippingPostcodeRuleDto): Promise<void> {
+    const displayName = rule.pattern || rule.id;
+
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Postcode Rule",
+        content: `Are you sure you want to delete the postcode rule "${displayName}"?`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return; // User cancelled
+    }
+
+    const { error } = await MerchelloApi.deleteShippingPostcodeRule(rule.id);
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Error", message: error.message },
+      });
+      return;
+    }
+
+    this.#notificationContext?.peek("positive", {
+      data: { headline: "Success", message: "Postcode rule deleted" },
+    });
+
+    await this._loadDetail();
+  }
+
   private _close(): void {
     this.modalContext?.setValue({ isSaved: this._detail !== null });
     this.modalContext?.submit();
@@ -725,6 +774,18 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         </div>
         <p class="no-items">Create this shipping option first, then reopen it to configure weight surcharges.</p>
       </uui-box>
+
+      <uui-box headline="Postcode Rules">
+        <p class="section-hint">
+          Postcode rules are available after the shipping option has been created.
+        </p>
+        <div class="table-header">
+          <uui-button look="outline" label="Add Rule" disabled>
+            + Add Rule
+          </uui-button>
+        </div>
+        <p class="no-items">Create this shipping option first, then reopen it to configure postcode rules.</p>
+      </uui-box>
     `;
   }
 
@@ -741,6 +802,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
           ? html`
               ${this._renderCostsTable()}
               ${this._renderWeightTiersTable()}
+              ${this._renderPostcodeRulesTable()}
             `
           : this._renderPricingRequiresSave();
       default:
@@ -895,6 +957,64 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
                         </td>
                       </tr>
                     `)}
+                </tbody>
+              </table>
+            `}
+      </uui-box>
+    `;
+  }
+
+  private _renderPostcodeRulesTable(): unknown {
+    if (!this._detail) return nothing;
+
+    return html`
+      <uui-box headline="Postcode Rules">
+        <p class="section-hint">
+          Block delivery or add surcharges for specific postcodes. Rules match by prefix (IM, HS),
+          UK outcode range (IV21-IV28), numeric range (20010-21000), or exact match.
+          The most specific rule wins when multiple patterns match.
+        </p>
+        <div class="table-header">
+          <uui-button look="outline" label="Add Rule" @click=${() => this._openPostcodeRuleModal()}>
+            + Add Rule
+          </uui-button>
+        </div>
+        ${(this._detail.postcodeRules?.length ?? 0) === 0
+          ? html`<p class="no-items">No postcode rules configured.</p>`
+          : html`
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Country</th>
+                    <th>Pattern</th>
+                    <th>Match Type</th>
+                    <th>Action</th>
+                    <th class="actions-col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${this._detail.postcodeRules?.map(
+                    (rule) => html`
+                      <tr>
+                        <td>${rule.countryDisplay ?? rule.countryCode}</td>
+                        <td><code class="postcode-pattern">${rule.pattern}</code></td>
+                        <td>${rule.matchTypeDisplay ?? rule.matchType}</td>
+                        <td>
+                          ${rule.action === "Block"
+                            ? html`<span class="rule-action rule-action-block">Block</span>`
+                            : html`<span class="rule-action rule-action-surcharge">+${formatCurrency(rule.surcharge ?? 0)}</span>`}
+                        </td>
+                        <td class="actions-col">
+                          <uui-button compact look="secondary" label="Edit" @click=${() => this._openPostcodeRuleModal(rule)}>
+                            <uui-icon name="icon-edit"></uui-icon>
+                          </uui-button>
+                          <uui-button compact look="secondary" color="danger" label="Delete" @click=${() => this._deletePostcodeRule(rule)}>
+                            <uui-icon name="icon-trash"></uui-icon>
+                          </uui-button>
+                        </td>
+                      </tr>
+                    `
+                  )}
                 </tbody>
               </table>
             `}
@@ -1215,6 +1335,33 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
 
     .date-options .form-grid {
       margin-bottom: var(--uui-size-space-4);
+    }
+
+    /* Postcode rules */
+    .postcode-pattern {
+      font-family: var(--uui-font-family-monospace, monospace);
+      font-size: 0.875rem;
+      padding: 2px 6px;
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+    }
+
+    .rule-action {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: var(--uui-border-radius);
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+
+    .rule-action-block {
+      background: var(--uui-color-danger);
+      color: var(--uui-color-danger-contrast);
+    }
+
+    .rule-action-surcharge {
+      background: var(--uui-color-warning);
+      color: var(--uui-color-warning-contrast);
     }
 
   `;

@@ -65,6 +65,10 @@
     <PackageReference Include="PayPalServerSDK" Version="2.2.0" />
     <PackageReference Include="Stripe.net" Version="50.3.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+
+    <!-- FTP/SFTP for Supplier Direct fulfilment provider -->
+    <PackageReference Include="FluentFTP" Version="51.*" />
+    <PackageReference Include="SSH.NET" Version="2024.*" />
   </ItemGroup>
 
   <ItemGroup>

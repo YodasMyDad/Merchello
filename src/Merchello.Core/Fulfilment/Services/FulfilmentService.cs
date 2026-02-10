@@ -1,6 +1,8 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Fulfilment.Models;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect.Models;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
@@ -54,8 +56,12 @@ public class FulfilmentService(
             return result;
         }
 
-        // Guard: Already processing (submission in progress)
-        if (order.Status == OrderStatus.Processing && order.FulfilmentProviderConfigurationId.HasValue)
+        // Guard: Already processing (submission in progress).
+        // Allow retries when a previous attempt recorded an error.
+        if (order.Status == OrderStatus.Processing &&
+            order.FulfilmentProviderConfigurationId.HasValue &&
+            string.IsNullOrWhiteSpace(order.FulfilmentErrorMessage) &&
+            order.FulfilmentRetryCount == 0)
         {
             scope.Complete();
             result.AddWarningMessage("Order submission is already in progress.");
@@ -149,11 +155,26 @@ public class FulfilmentService(
             {
                 // Submission failed
                 order.FulfilmentErrorMessage = providerResult.ErrorMessage;
+                if (!string.IsNullOrWhiteSpace(providerResult.ErrorCode))
+                {
+                    order.ExtendedData["Fulfilment:ErrorCode"] = providerResult.ErrorCode;
+                }
                 order.FulfilmentRetryCount++;
                 order.DateUpdated = DateTime.UtcNow;
 
-                // Check if max retries exceeded
-                if (order.FulfilmentRetryCount >= _settings.MaxRetryAttempts)
+                var isRetryableError = IsRetryableFulfilmentError(providerResult.ErrorCode);
+                if (!isRetryableError)
+                {
+                    order.Status = OrderStatus.FulfilmentFailed;
+                    // Prevent retry job from re-processing non-retryable failures.
+                    order.FulfilmentRetryCount = Math.Max(order.FulfilmentRetryCount, _settings.MaxRetryAttempts);
+                    logger.LogError(
+                        "Order {OrderId} fulfilment failed with non-retryable error code {ErrorCode}. Error: {Error}",
+                        orderId,
+                        providerResult.ErrorCode,
+                        providerResult.ErrorMessage);
+                }
+                else if (order.FulfilmentRetryCount >= _settings.MaxRetryAttempts)
                 {
                     order.Status = OrderStatus.FulfilmentFailed;
                     logger.LogError("Order {OrderId} fulfilment failed after {RetryCount} attempts. Error: {Error}",
@@ -610,6 +631,101 @@ public class FulfilmentService(
         // Resolve 3PL shipping method via fallback chain
         var shippingServiceCode = ResolveShippingServiceCode(order, providerConfig.SettingsJson);
 
+        // Build extended data with supplier context for providers that need it
+        var extendedData = new Dictionary<string, object>(order.ExtendedData);
+
+        // Load warehouse and supplier context
+        if (order.WarehouseId != Guid.Empty)
+        {
+            var warehouse = await scope.ExecuteWithContextAsync(async db =>
+                await db.Warehouses
+                    .Include(w => w.Supplier)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(w => w.Id == order.WarehouseId, cancellationToken));
+
+            if (warehouse != null)
+            {
+                extendedData["WarehouseId"] = warehouse.Id;
+                extendedData["WarehouseName"] = warehouse.Name ?? "";
+
+                if (warehouse.Supplier != null)
+                {
+                    extendedData["SupplierId"] = warehouse.Supplier.Id;
+                    extendedData["SupplierName"] = warehouse.Supplier.Name;
+                    extendedData["SupplierCode"] = warehouse.Supplier.Code ?? "";
+                    extendedData["SupplierContactEmail"] = warehouse.Supplier.ContactEmail ?? "";
+
+                    // Include supplier extended data for profile settings
+                    if (warehouse.Supplier.ExtendedData.Count > 0)
+                    {
+                        if (warehouse.Supplier.ExtendedData.TryGetValue(SupplierDirectExtendedDataKeys.Profile, out var profileObj))
+                        {
+                            var profileJson = profileObj?.UnwrapJsonElement()?.ToString();
+                            if (!string.IsNullOrWhiteSpace(profileJson))
+                            {
+                                extendedData[SupplierDirectExtendedDataKeys.Profile] = profileJson;
+
+                                var profile = SupplierDirectProfile.FromJson(profileJson);
+                                if (profile != null)
+                                {
+                                    extendedData[SupplierDirectExtendedDataKeys.DeliveryMethod] = profile.DeliveryMethod.ToString();
+
+                                    var emailRecipient = profile.EmailSettings?.RecipientEmail;
+                                    if (!string.IsNullOrWhiteSpace(emailRecipient))
+                                    {
+                                        extendedData[SupplierDirectExtendedDataKeys.OrderEmail] = emailRecipient;
+                                    }
+
+                                    var ftpSettings = profile.FtpSettings;
+                                    if (ftpSettings != null)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(ftpSettings.Host))
+                                        {
+                                            extendedData[SupplierDirectExtendedDataKeys.FtpHost] = ftpSettings.Host;
+                                        }
+
+                                        if (!string.IsNullOrWhiteSpace(ftpSettings.Username))
+                                        {
+                                            extendedData[SupplierDirectExtendedDataKeys.FtpUsername] = ftpSettings.Username;
+                                        }
+
+                                        if (!string.IsNullOrWhiteSpace(ftpSettings.Password))
+                                        {
+                                            extendedData[SupplierDirectExtendedDataKeys.FtpPassword] = ftpSettings.Password;
+                                        }
+
+                                        if (ftpSettings.Port.HasValue)
+                                        {
+                                            extendedData[SupplierDirectExtendedDataKeys.FtpPort] = ftpSettings.Port.Value.ToString();
+                                        }
+
+                                        if (!string.IsNullOrWhiteSpace(ftpSettings.RemotePath))
+                                        {
+                                            extendedData[SupplierDirectExtendedDataKeys.FtpRemotePath] = ftpSettings.RemotePath;
+                                        }
+
+                                        if (!string.IsNullOrWhiteSpace(ftpSettings.HostFingerprint))
+                                        {
+                                            extendedData[SupplierDirectExtendedDataKeys.SftpHostFingerprint] = ftpSettings.HostFingerprint;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        foreach (var kvp in warehouse.Supplier.ExtendedData)
+                        {
+                            // Prefix supplier data to avoid conflicts
+                            if (kvp.Key.StartsWith("SupplierDirect:"))
+                            {
+                                extendedData[kvp.Key] = kvp.Value;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         return new FulfilmentOrderRequest
         {
             OrderId = order.Id,
@@ -621,7 +737,7 @@ public class FulfilmentService(
             ShippingServiceCode = shippingServiceCode,
             RequestedDeliveryDate = order.RequestedDeliveryDate,
             InternalNotes = order.InternalNotes,
-            ExtendedData = order.ExtendedData
+            ExtendedData = extendedData
         };
     }
 
@@ -775,5 +891,20 @@ public class FulfilmentService(
             return true;
         });
         scope.Complete();
+    }
+
+    private static bool IsRetryableFulfilmentError(string? errorCode)
+    {
+        if (string.IsNullOrWhiteSpace(errorCode))
+        {
+            return true;
+        }
+
+        if (!Enum.TryParse<ErrorClassification>(errorCode, true, out var classification))
+        {
+            return true;
+        }
+
+        return SupplierDirectErrorClassifier.IsRetryable(classification);
     }
 }

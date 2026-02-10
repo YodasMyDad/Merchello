@@ -21,11 +21,6 @@ public class CheckoutSettings
     // === Logo ===
 
     /// <summary>
-    /// Logo image URL displayed in checkout header.
-    /// </summary>
-    public string? LogoUrl { get; set; }
-
-    /// <summary>
     /// Logo position in the header.
     /// </summary>
     public LogoPosition LogoPosition { get; set; } = LogoPosition.Left;
@@ -74,23 +69,6 @@ public class CheckoutSettings
     /// </summary>
     public string BodyFontFamily { get; set; } = "system-ui";
 
-    // === Company Info ===
-
-    /// <summary>
-    /// Company name displayed in checkout.
-    /// </summary>
-    public string? CompanyName { get; set; }
-
-    /// <summary>
-    /// Support email displayed in checkout footer.
-    /// </summary>
-    public string? SupportEmail { get; set; }
-
-    /// <summary>
-    /// Support phone number displayed in checkout footer.
-    /// </summary>
-    public string? SupportPhone { get; set; }
-
     // === Behavior ===
 
     /// <summary>
@@ -108,16 +86,6 @@ public class CheckoutSettings
     /// If set, user is redirected with invoice number in query string.
     /// </summary>
     public string? ConfirmationRedirectUrl { get; set; }
-
-    /// <summary>
-    /// URL to terms and conditions page.
-    /// </summary>
-    public string? TermsUrl { get; set; }
-
-    /// <summary>
-    /// URL to privacy policy page.
-    /// </summary>
-    public string? PrivacyUrl { get; set; }
 
     /// <summary>
     /// Optional order terms configuration. When set, displays terms text and/or

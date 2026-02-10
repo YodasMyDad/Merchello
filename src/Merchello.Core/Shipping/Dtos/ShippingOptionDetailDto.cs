@@ -14,4 +14,5 @@ public class ShippingOptionDetailDto : ShippingOptionListItemDto
     public List<ShippingCostDto> Costs { get; set; } = [];
     public List<ShippingWeightTierDto> WeightTiers { get; set; } = [];
     public List<ShippingDestinationExclusionDto> ExcludedRegions { get; set; } = [];
+    public List<ShippingPostcodeRuleDto> PostcodeRules { get; set; } = [];
 }

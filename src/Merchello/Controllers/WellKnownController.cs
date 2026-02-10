@@ -32,12 +32,6 @@ public class WellKnownController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetManifest(string protocol, CancellationToken ct)
     {
-        // Check if protocols are enabled globally
-        if (!settings.Value.Enabled)
-        {
-            return NotFound(new { error = "Protocol endpoints are disabled" });
-        }
-
         // Ensure adapters are loaded (triggers ExtensionManager discovery on first call)
         await protocolManager.GetAdaptersAsync(ct);
 
@@ -73,8 +67,8 @@ public class WellKnownController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetOAuthMetadata()
     {
-        // Check if UCP Identity Linking is enabled
-        if (!settings.Value.Enabled || !settings.Value.Ucp.Enabled || !settings.Value.Ucp.Capabilities.IdentityLinking)
+        // Check if UCP Identity Linking capability is enabled
+        if (!settings.Value.Ucp.Capabilities.IdentityLinking)
         {
             return NotFound(new { error = "OAuth metadata not available" });
         }

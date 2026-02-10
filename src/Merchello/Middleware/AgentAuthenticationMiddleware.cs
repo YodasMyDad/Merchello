@@ -34,13 +34,6 @@ public class AgentAuthenticationMiddleware(
         IMerchelloNotificationPublisher notificationPublisher,
         IUcpAgentProfileService agentProfileService)
     {
-        // Skip if protocols are disabled
-        if (!settings.Value.Enabled)
-        {
-            await next(context);
-            return;
-        }
-
         // Only process protocol-related paths
         var path = context.Request.Path.Value?.ToLowerInvariant() ?? "";
         if (!IsProtocolPath(path))

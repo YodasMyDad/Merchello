@@ -12,5 +12,7 @@ public class UpdateWarehouseParameters
     public Address? Address { get; set; }
     public string? AutomationMethod { get; set; }
     public Dictionary<string, object>? ExtendedData { get; set; }
+    public Guid? FulfilmentProviderConfigurationId { get; set; }
+    public bool ShouldClearFulfilmentProviderId { get; set; }
 }
 

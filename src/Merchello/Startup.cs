@@ -20,6 +20,7 @@ using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
+using Merchello.Core.Data.Seeding;
 using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Calculators;
@@ -329,11 +330,14 @@ public static class Startup
         builder.Services.AddScoped<IShipmentService, ShipmentService>();
         builder.Services.AddScoped<IWarehouseProviderConfigService, WarehouseProviderConfigService>();
         builder.Services.AddSingleton<IShippingCostResolver, ShippingCostResolver>();
+        builder.Services.AddSingleton<IPostcodeMatcher, PostcodeMatcher>();
 
         // Fulfilment
         builder.Services.AddScoped<IFulfilmentProviderManager, FulfilmentProviderManager>();
         builder.Services.AddScoped<IFulfilmentService, FulfilmentService>();
         builder.Services.AddScoped<IFulfilmentSyncService, FulfilmentSyncService>();
+        builder.Services.AddSingleton<Merchello.Core.Fulfilment.Providers.SupplierDirect.Csv.SupplierDirectCsvGenerator>();
+        builder.Services.AddSingleton<Merchello.Core.Fulfilment.Providers.SupplierDirect.Transport.IFtpClientFactory, Merchello.Core.Fulfilment.Providers.SupplierDirect.Transport.FtpClientFactory>();
 
         // Tax
         builder.Services.AddScoped<ITaxService, TaxService>();
@@ -513,8 +517,14 @@ public static class Startup
         // -----------------------------------------------------
         // Auto-submit orders to 3PL fulfilment providers and handle cancellation.
 
-        builder.AddNotificationAsyncHandler<OrderCreatedNotification, FulfilmentOrderSubmissionHandler>();
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, FulfilmentOrderSubmissionHandler>();
         builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, FulfilmentCancellationHandler>();
+        // Auto-create preparing shipments for providers that handle fulfilment internally
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentSubmittedNotification, Core.Fulfilment.Handlers.FulfilmentAutoShipmentHandler>();
+        // Add timeline notes for fulfilment events
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentSubmittedNotification, Core.Fulfilment.Handlers.FulfilmentTimelineHandler>();
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentSubmissionAttemptFailedNotification, Core.Fulfilment.Handlers.FulfilmentTimelineHandler>();
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.FulfilmentSubmissionFailedNotification, Core.Fulfilment.Handlers.FulfilmentTimelineHandler>();
 
         // -----------------------------------------------------
         // UCP Protocol Handlers
@@ -562,6 +572,8 @@ public static class Startup
         builder.AddNotificationAsyncHandler<CheckoutRecoveryConvertedNotification, EmailNotificationHandler>();
         // Digital Products
         builder.AddNotificationAsyncHandler<Core.DigitalProducts.Notifications.DigitalProductDeliveredNotification, EmailNotificationHandler>();
+        // Fulfilment
+        builder.AddNotificationAsyncHandler<Core.Fulfilment.Notifications.SupplierOrderNotification, EmailNotificationHandler>();
 
         // Upsells
         builder.AddNotificationAsyncHandler<OrderCreatedNotification, UpsellEmailEnrichmentHandler>();

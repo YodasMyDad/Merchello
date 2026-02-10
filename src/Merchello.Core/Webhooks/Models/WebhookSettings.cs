@@ -6,11 +6,6 @@ namespace Merchello.Core.Webhooks.Models;
 public class WebhookSettings
 {
     /// <summary>
-    /// Whether the webhook system is enabled.
-    /// </summary>
-    public bool Enabled { get; set; } = true;
-
-    /// <summary>
     /// Maximum number of retry attempts for failed deliveries.
     /// </summary>
     public int MaxRetries { get; set; } = 5;

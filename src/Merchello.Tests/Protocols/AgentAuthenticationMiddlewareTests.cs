@@ -224,25 +224,6 @@ public class AgentAuthenticationMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_WithProtocolsDisabled_SkipsAuthentication()
-    {
-        // Arrange
-        var settings = CreateSettings(protocolsEnabled: false, requireAuth: true, allowedAgents: []);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: null);
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
-    }
-
-    [Fact]
     public async Task InvokeAsync_WithWildcardAllowlist_AllowsAllAgents()
     {
         // Arrange
@@ -421,17 +402,14 @@ public class AgentAuthenticationMiddlewareTests
     // Helper methods
 
     private static IOptions<ProtocolSettings> CreateSettings(
-        bool protocolsEnabled = true,
         bool requireAuth = false,
         string[]? allowedAgents = null)
     {
         var settings = new ProtocolSettings
         {
-            Enabled = protocolsEnabled,
             RequireHttps = false,
             Ucp = new UcpSettings
             {
-                Enabled = true,
                 Version = "2026-01-11",
                 RequireAuthentication = requireAuth,
                 AllowedAgents = (allowedAgents ?? ["*"]).ToList()

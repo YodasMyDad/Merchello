@@ -21,12 +21,6 @@ public class EmailAttachmentCleanupJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.Enabled)
-        {
-            logger.LogInformation("EmailAttachmentCleanupJob disabled - email system is not enabled");
-            return;
-        }
-
         logger.LogInformation(
             "EmailAttachmentCleanupJob started with {Interval} hour cleanup interval, {Retention} hour retention",
             _cleanupInterval.TotalHours, _settings.AttachmentRetentionHours);
