@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Models;
 
 namespace Merchello.Core.Accounting.Services;
 
@@ -8,6 +9,11 @@ namespace Merchello.Core.Accounting.Services;
 internal sealed class VirtualLineItem
 {
     public Guid Id { get; set; }
+    public Guid? ProductId { get; set; }
+    public Guid? WarehouseId { get; set; }
+    public string? Sku { get; set; }
+    public string? ParentLineItemSku { get; set; }
+    public LineItemType LineItemType { get; set; } = LineItemType.Product;
     public decimal Amount { get; set; }
     public int Quantity { get; set; }
     public bool IsTaxable { get; set; }

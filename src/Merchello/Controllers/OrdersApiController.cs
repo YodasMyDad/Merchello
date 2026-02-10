@@ -23,6 +23,8 @@ using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Products.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.AddressLookup.Dtos;
 using Merchello.Core.AddressLookup.Services.Interfaces;
@@ -565,6 +567,66 @@ public class OrdersApiController(
     {
         var results = await customerService.SearchCustomersAsync(email, name, ct: ct);
         return Ok(results);
+    }
+
+    /// <summary>
+    /// Search product variants by name or SKU for custom item autocomplete in order edit.
+    /// </summary>
+    [HttpGet("orders/product-autocomplete")]
+    [ProducesResponseType<List<OrderProductAutocompleteDto>>(StatusCodes.Status200OK)]
+    public async Task<List<OrderProductAutocompleteDto>> SearchProductsForOrder(
+        [FromQuery] string? query,
+        [FromQuery] int limit = 10,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return [];
+        }
+
+        var trimmedQuery = query.Trim();
+        var clampedLimit = Math.Clamp(limit, 1, 25);
+        var fetchSize = Math.Clamp(clampedLimit * 3, clampedLimit, 75);
+
+        var result = await productService.QueryProducts(new ProductQueryParameters
+        {
+            CurrentPage = 1,
+            AmountPerPage = fetchSize,
+            Search = trimmedQuery,
+            AllVariants = true,
+            NoTracking = true,
+            OrderBy = ProductOrderBy.ProductRoot
+        }, ct);
+
+        return result.Items
+            .Select(product => new
+            {
+                Product = product,
+                RootName = product.ProductRoot?.RootName ?? product.Name ?? "Unnamed Product",
+                VariantName = product.Name ?? product.ProductRoot?.RootName ?? "Unnamed Product"
+            })
+            .OrderByDescending(x => string.Equals(x.Product.Sku, trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(x => x.Product.Sku != null &&
+                x.Product.Sku.StartsWith(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(x => x.RootName.StartsWith(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ThenByDescending(x => x.VariantName.StartsWith(trimmedQuery, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(x => x.RootName)
+            .ThenBy(x => x.Product.Sku)
+            .Take(clampedLimit)
+            .Select(x => new OrderProductAutocompleteDto
+            {
+                Id = x.Product.Id,
+                ProductRootId = x.Product.ProductRootId,
+                RootName = x.RootName,
+                Name = x.VariantName,
+                Sku = x.Product.Sku,
+                Price = x.Product.Price,
+                Cost = x.Product.CostOfGoods,
+                TaxGroupId = x.Product.ProductRoot?.TaxGroupId,
+                IsPhysicalProduct = !(x.Product.ProductRoot?.IsDigitalProduct ?? false),
+                ImageUrl = x.Product.Images.FirstOrDefault() ?? x.Product.ProductRoot?.RootImages.FirstOrDefault()
+            })
+            .ToList();
     }
 
     /// <summary>

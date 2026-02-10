@@ -59,7 +59,7 @@ public class TaxApiController(
         }
 
         var result = taxCalculationService.PreviewTax(
-            request.Price,
+            request.Price + request.AddonsTotal,
             request.Quantity,
             taxRate,
             settings.Value.StoreCurrencyCode);

@@ -171,6 +171,7 @@ import type {
   CreateManualOrderDto,
   CreateManualOrderResultDto,
   CustomerLookupResultDto,
+  OrderProductAutocompleteDto,
 } from '@orders/types/order.types.js';
 
 // Import payment provider types
@@ -253,6 +254,7 @@ import type {
   ProductOptionDto,
   SaveProductOptionDto,
   ProductViewDto,
+  GoogleShoppingCategoryResultDto,
   ElementTypeListItemDto,
   ShippingOptionExclusionDto,
   UpdateShippingExclusionsDto,
@@ -632,6 +634,14 @@ export const MerchelloApi = {
     if (name) params.set('name', name);
     const query = params.toString();
     return apiGet<CustomerLookupResultDto[]>(`orders/customer-lookup${query ? `?${query}` : ''}`);
+  },
+
+  /** Product variant autocomplete for add custom item in order edit (search by name or SKU) */
+  searchOrderProducts: (query: string, limit: number = 10) => {
+    const params = new URLSearchParams();
+    params.set('query', query);
+    params.set('limit', limit.toString());
+    return apiGet<OrderProductAutocompleteDto[]>(`orders/product-autocomplete?${params.toString()}`);
   },
 
   /** Get all orders for a customer by their billing email address */
@@ -1066,6 +1076,16 @@ export const MerchelloApi = {
 
   /** Get available product views for the view selection dropdown */
   getProductViews: () => apiGet<ProductViewDto[]>('products/views'),
+
+  /** Get Google Shopping categories for autocomplete (country resolved by backend settings). */
+  getGoogleShoppingCategories: (params?: {
+    query?: string;
+    countryCode?: string;
+    limit?: number;
+  }) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<GoogleShoppingCategoryResultDto>(`products/google-shopping-categories${queryString ? `?${queryString}` : ''}`);
+  },
 
   /** Get full product root with all variants and options */
   getProductDetail: (id: string) => apiGet<ProductRootDetailDto>(`products/${id}`),

@@ -708,6 +708,8 @@ export interface EditInvoiceDto {
   productsToAdd?: AddProductToOrderDto[];
   /** Order-level discounts to add (not tied to specific line items) */
   orderDiscounts?: LineItemDiscountDto[];
+  /** Promotional discount codes to apply via checkout discount logic */
+  orderDiscountCodes?: string[];
   orderShippingUpdates: OrderShippingUpdateDto[];
   editReason: string | null;
   /** If true, removes tax from all line items (VAT exemption) */
@@ -746,6 +748,20 @@ export interface OrderAddonDto {
   /** Cost adjustment for this add-on (for profit calculations) */
   costAdjustment: number;
   /** SKU suffix to append to the parent product SKU */
+  skuSuffix: string | null;
+}
+
+/** A custom add-on attached to a custom line item */
+export interface CustomItemAddonDto {
+  /** Add-on key/name (e.g., "Drawers") */
+  key: string;
+  /** Add-on value (e.g., "Left side") */
+  value: string;
+  /** Price adjustment per unit to add to the parent custom item */
+  priceAdjustment: number;
+  /** Cost adjustment per unit for profit calculations */
+  costAdjustment: number;
+  /** Optional SKU suffix to append to the parent SKU */
   skuSuffix: string | null;
 }
 
@@ -795,8 +811,34 @@ export interface AddCustomItemDto {
   isPhysicalProduct: boolean;
   /** Warehouse ID for physical products */
   warehouseId?: string | null;
-  /** Shipping option ID for physical products */
+  /** Shipping option ID for physical products (null means no shipping) */
   shippingOptionId?: string | null;
+  /** Optional custom add-ons attached to this item */
+  addons: CustomItemAddonDto[];
+}
+
+/** Product variant result used by custom item autocomplete in order edit */
+export interface OrderProductAutocompleteDto {
+  /** Variant ID */
+  id: string;
+  /** Product root ID */
+  productRootId: string;
+  /** Product root name */
+  rootName: string;
+  /** Variant name */
+  name: string;
+  /** Variant SKU */
+  sku: string | null;
+  /** Variant price */
+  price: number;
+  /** Variant cost of goods */
+  cost: number;
+  /** Product root tax group ID */
+  taxGroupId: string | null;
+  /** Whether this item should be treated as physical in order edit */
+  isPhysicalProduct: boolean;
+  /** Variant image URL (falls back to root image) */
+  imageUrl: string | null;
 }
 
 /** Tax group data for dropdowns */

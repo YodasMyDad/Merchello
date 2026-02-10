@@ -2,11 +2,25 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { AddCustomItemModalData, AddCustomItemModalValue } from "@orders/modals/add-custom-item-modal.token.js";
+import type { CustomItemAddonDto, OrderProductAutocompleteDto } from "@orders/types/order.types.js";
 import { formatNumber } from "@shared/utils/formatting.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { WarehouseListDto, WarehouseShippingOptionDto } from "@warehouses/types/warehouses.types.js";
 
 type ModalStep = "details" | "shipping";
+type AutocompleteField = "name" | "sku";
+const NO_SHIPPING_OPTION_VALUE = "__no-shipping__";
+const NO_SHIPPING_OPTION_NAME = "No Shipping";
+const PRODUCT_AUTOCOMPLETE_MIN_QUERY_LENGTH = 2;
+const PRODUCT_AUTOCOMPLETE_DEBOUNCE_MS = 250;
+
+interface CustomItemAddonFormRow {
+  key: string;
+  value: string;
+  priceAdjustment: number;
+  costAdjustment: number;
+  skuSuffix: string;
+}
 
 @customElement("merchello-add-custom-item-modal")
 export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
@@ -21,12 +35,23 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   @state() private _quantity: number = 1;
   @state() private _selectedTaxGroupId: string | null = null;
   @state() private _isPhysicalProduct: boolean = true;
+  @state() private _addons: CustomItemAddonFormRow[] = [];
   @state() private _errors: Record<string, string> = {};
 
   // Tax preview state (from backend calculation)
   @state() private _taxPreview: { subtotal: number; taxRate: number; taxAmount: number; total: number } | null = null;
   @state() private _isLoadingTaxPreview: boolean = false;
   private _taxPreviewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Product autocomplete state
+  @state() private _productAutocompleteResults: OrderProductAutocompleteDto[] = [];
+  @state() private _isSearchingProducts: boolean = false;
+  @state() private _showProductAutocomplete: boolean = false;
+  @state() private _autocompleteField: AutocompleteField = "name";
+  @state() private _selectedAutocompleteProduct: OrderProductAutocompleteDto | null = null;
+  @state() private _draggedAddonIndex: number | null = null;
+  private _productSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private _productAutocompleteHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Multi-step state
   @state() private _step: ModalStep = "details";
@@ -45,6 +70,12 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     if (this._taxPreviewDebounceTimer) {
       clearTimeout(this._taxPreviewDebounceTimer);
     }
+    if (this._productSearchDebounceTimer) {
+      clearTimeout(this._productSearchDebounceTimer);
+    }
+    if (this._productAutocompleteHideTimer) {
+      clearTimeout(this._productAutocompleteHideTimer);
+    }
   }
 
   /**
@@ -62,6 +93,27 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     if (!this._sku.trim()) {
       errors.sku = "SKU is required";
     }
+
+    this._addons.forEach((addon, index) => {
+      const hasAnyValue = Boolean(
+        addon.key.trim() ||
+        addon.value.trim() ||
+        addon.skuSuffix.trim() ||
+        addon.priceAdjustment !== 0 ||
+        addon.costAdjustment !== 0
+      );
+
+      if (!hasAnyValue) {
+        return;
+      }
+
+      if (!addon.key.trim()) {
+        errors[`addon-key-${index}`] = "Key is required";
+      }
+      if (!addon.value.trim()) {
+        errors[`addon-value-${index}`] = "Value is required";
+      }
+    });
 
     // Note: Business rules for price and quantity are validated by backend
 
@@ -99,7 +151,9 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
 
     const destination = this.data?.shippingDestination;
     if (!destination?.countryCode) {
-      this._shippingError = "No shipping destination configured for this order";
+      this._shippingOptions = [];
+      this._selectedShippingOptionId = null;
+      this._shippingError = null;
       return;
     }
 
@@ -176,6 +230,280 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     }
   }
 
+  private _handleNameInput(e: Event): void {
+    const value = (e.target as HTMLInputElement).value;
+    this._name = value;
+    this._selectedAutocompleteProduct = null;
+    this._clearFieldError("name");
+    this._scheduleProductAutocompleteSearch(value, "name");
+  }
+
+  private _handleSkuInput(e: Event): void {
+    const value = (e.target as HTMLInputElement).value;
+    this._sku = value;
+    this._selectedAutocompleteProduct = null;
+    this._clearFieldError("sku");
+    this._scheduleProductAutocompleteSearch(value, "sku");
+  }
+
+  private _handleProductAutocompleteFocus(field: AutocompleteField): void {
+    this._autocompleteField = field;
+    if (this._productAutocompleteHideTimer) {
+      clearTimeout(this._productAutocompleteHideTimer);
+      this._productAutocompleteHideTimer = null;
+    }
+    if (this._productAutocompleteResults.length > 0) {
+      this._showProductAutocomplete = true;
+      return;
+    }
+
+    const query = field === "name" ? this._name : this._sku;
+    if (query.trim().length >= PRODUCT_AUTOCOMPLETE_MIN_QUERY_LENGTH) {
+      this._scheduleProductAutocompleteSearch(query, field);
+    }
+  }
+
+  private _handleProductAutocompleteBlur(): void {
+    if (this._productAutocompleteHideTimer) {
+      clearTimeout(this._productAutocompleteHideTimer);
+    }
+    // Delay hide so suggestion clicks can be handled first.
+    this._productAutocompleteHideTimer = setTimeout(() => {
+      this._showProductAutocomplete = false;
+      this._productAutocompleteHideTimer = null;
+    }, 150);
+  }
+
+  private _scheduleProductAutocompleteSearch(query: string, field: AutocompleteField): void {
+    this._autocompleteField = field;
+    if (this._productSearchDebounceTimer) {
+      clearTimeout(this._productSearchDebounceTimer);
+    }
+
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length < PRODUCT_AUTOCOMPLETE_MIN_QUERY_LENGTH) {
+      this._productAutocompleteResults = [];
+      this._showProductAutocomplete = false;
+      this._isSearchingProducts = false;
+      return;
+    }
+
+    this._productSearchDebounceTimer = setTimeout(async () => {
+      const searchQuery = trimmedQuery;
+      this._isSearchingProducts = true;
+
+      const { data, error } = await MerchelloApi.searchOrderProducts(searchQuery, 8);
+
+      const activeQuery = (field === "name" ? this._name : this._sku).trim();
+      if (this._autocompleteField !== field || activeQuery !== searchQuery) {
+        this._isSearchingProducts = false;
+        return;
+      }
+
+      this._isSearchingProducts = false;
+      if (error) {
+        this._productAutocompleteResults = [];
+        this._showProductAutocomplete = false;
+        return;
+      }
+
+      this._productAutocompleteResults = data ?? [];
+      this._showProductAutocomplete = true;
+    }, PRODUCT_AUTOCOMPLETE_DEBOUNCE_MS);
+  }
+
+  private _applyAutocompleteProduct(product: OrderProductAutocompleteDto): void {
+    const displayName = this._getAutocompleteProductDisplayName(product);
+
+    this._selectedAutocompleteProduct = product;
+    this._name = displayName || this._name;
+    this._sku = product.sku ?? this._sku;
+    this._price = product.price;
+    this._cost = product.cost;
+    this._selectedTaxGroupId = product.taxGroupId ?? null;
+    this._isPhysicalProduct = product.isPhysicalProduct;
+    this._productAutocompleteResults = [];
+    this._showProductAutocomplete = false;
+    this._clearFieldError("name");
+    this._clearFieldError("sku");
+    this._refreshTaxPreview();
+  }
+
+  private _getAutocompleteProductDisplayName(product: OrderProductAutocompleteDto): string {
+    const rootName = (product.rootName ?? "").trim();
+    const variantName = (product.name ?? "").trim();
+
+    if (rootName && variantName && rootName.toLowerCase() !== variantName.toLowerCase()) {
+      return `${rootName} - ${variantName}`;
+    }
+
+    return rootName || variantName;
+  }
+
+  private _addAddonRow(): void {
+    this._addons = [
+      ...this._addons,
+      {
+        key: "",
+        value: "",
+        priceAdjustment: 0,
+        costAdjustment: 0,
+        skuSuffix: "",
+      },
+    ];
+  }
+
+  private _moveAddon(fromIndex: number, toIndex: number): void {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    if (fromIndex >= this._addons.length || toIndex >= this._addons.length) return;
+
+    const reorderedAddons = [...this._addons];
+    const [movedAddon] = reorderedAddons.splice(fromIndex, 1);
+    reorderedAddons.splice(toIndex, 0, movedAddon);
+    this._addons = reorderedAddons;
+
+    const nextErrors: Record<string, string> = {};
+    for (const [key, value] of Object.entries(this._errors)) {
+      if (!key.startsWith("addon-key-") && !key.startsWith("addon-value-")) {
+        nextErrors[key] = value;
+        continue;
+      }
+
+      const parts = key.split("-");
+      const parsedIndex = Number.parseInt(parts[2], 10);
+      if (!Number.isFinite(parsedIndex)) {
+        continue;
+      }
+
+      let nextIndex = parsedIndex;
+      if (parsedIndex === fromIndex) {
+        nextIndex = toIndex;
+      } else if (fromIndex < toIndex && parsedIndex > fromIndex && parsedIndex <= toIndex) {
+        nextIndex = parsedIndex - 1;
+      } else if (fromIndex > toIndex && parsedIndex >= toIndex && parsedIndex < fromIndex) {
+        nextIndex = parsedIndex + 1;
+      }
+
+      nextErrors[`${parts[0]}-${parts[1]}-${nextIndex}`] = value;
+    }
+
+    this._errors = nextErrors;
+    this._refreshTaxPreview();
+  }
+
+  private _moveAddonUp(index: number): void {
+    if (index <= 0) return;
+    this._moveAddon(index, index - 1);
+  }
+
+  private _moveAddonDown(index: number): void {
+    if (index >= this._addons.length - 1) return;
+    this._moveAddon(index, index + 1);
+  }
+
+  private _handleAddonDragStart(index: number, event: DragEvent): void {
+    this._draggedAddonIndex = index;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", index.toString());
+    }
+  }
+
+  private _handleAddonDragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+  }
+
+  private _handleAddonDrop(targetIndex: number, event: DragEvent): void {
+    event.preventDefault();
+    const sourceIndex = this._draggedAddonIndex;
+    if (sourceIndex === null) {
+      this._handleAddonDragEnd();
+      return;
+    }
+
+    this._moveAddon(sourceIndex, targetIndex);
+    this._handleAddonDragEnd();
+  }
+
+  private _handleAddonDragEnd(): void {
+    this._draggedAddonIndex = null;
+  }
+
+  private _removeAddonRow(index: number): void {
+    this._addons = this._addons.filter((_, currentIndex) => currentIndex !== index);
+    const nextErrors: Record<string, string> = {};
+    for (const [key, value] of Object.entries(this._errors)) {
+      if (!key.startsWith("addon-key-") && !key.startsWith("addon-value-")) {
+        nextErrors[key] = value;
+        continue;
+      }
+
+      const parts = key.split("-");
+      const parsedIndex = Number.parseInt(parts[2], 10);
+      if (!Number.isFinite(parsedIndex) || parsedIndex === index) {
+        continue;
+      }
+
+      if (parsedIndex > index) {
+        nextErrors[`${parts[0]}-${parts[1]}-${parsedIndex - 1}`] = value;
+      } else {
+        nextErrors[key] = value;
+      }
+    }
+
+    this._errors = nextErrors;
+    this._refreshTaxPreview();
+  }
+
+  private _updateAddonStringField(index: number, field: "key" | "value" | "skuSuffix", value: string): void {
+    this._addons = this._addons.map((addon, currentIndex) =>
+      currentIndex === index ? { ...addon, [field]: value } : addon
+    );
+
+    if (field === "key" || field === "value") {
+      this._clearFieldError(`addon-${field}-${index}`);
+    }
+  }
+
+  private _updateAddonNumberField(index: number, field: "priceAdjustment" | "costAdjustment", rawValue: string): void {
+    const parsedValue = parseFloat(rawValue);
+    const value = Number.isFinite(parsedValue) ? parsedValue : 0;
+
+    this._addons = this._addons.map((addon, currentIndex) =>
+      currentIndex === index ? { ...addon, [field]: value } : addon
+    );
+
+    if (field === "priceAdjustment") {
+      this._refreshTaxPreview();
+    }
+  }
+
+  private _toCustomItemAddons(): CustomItemAddonDto[] {
+    return this._addons
+      .filter((addon) => addon.key.trim() && addon.value.trim())
+      .map((addon) => ({
+        key: addon.key.trim(),
+        value: addon.value.trim(),
+        priceAdjustment: addon.priceAdjustment,
+        costAdjustment: addon.costAdjustment,
+        skuSuffix: addon.skuSuffix.trim() ? addon.skuSuffix.trim() : null,
+      }));
+  }
+
+  private _clearFieldError(field: string): void {
+    if (!this._errors[field]) return;
+    const nextErrors = { ...this._errors };
+    delete nextErrors[field];
+    this._errors = nextErrors;
+  }
+
+  private _getAddonsTotalPerUnit(): number {
+    return this._toCustomItemAddons().reduce((total, addon) => total + addon.priceAdjustment, 0);
+  }
+
   private _handleAdd(): void {
     // For non-physical products, validate and add directly
     if (!this._isPhysicalProduct) {
@@ -198,6 +526,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   private _submitItem(): void {
     const selectedWarehouse = this._warehouses.find(w => w.id === this._selectedWarehouseId);
     const selectedShippingOption = this._shippingOptions.find(o => o.id === this._selectedShippingOptionId);
+    const noShippingSelected = this._selectedShippingOptionId === NO_SHIPPING_OPTION_VALUE;
 
     this.value = {
       item: {
@@ -208,10 +537,19 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         quantity: this._quantity,
         taxGroupId: this._selectedTaxGroupId,
         isPhysicalProduct: this._isPhysicalProduct,
+        addons: this._toCustomItemAddons(),
         warehouseId: this._isPhysicalProduct ? this._selectedWarehouseId ?? undefined : undefined,
         warehouseName: this._isPhysicalProduct ? selectedWarehouse?.name ?? undefined : undefined,
-        shippingOptionId: this._isPhysicalProduct ? this._selectedShippingOptionId ?? undefined : undefined,
-        shippingOptionName: this._isPhysicalProduct ? selectedShippingOption?.name ?? undefined : undefined,
+        shippingOptionId: this._isPhysicalProduct
+          ? noShippingSelected
+            ? null
+            : this._selectedShippingOptionId ?? undefined
+          : undefined,
+        shippingOptionName: this._isPhysicalProduct
+          ? noShippingSelected
+            ? NO_SHIPPING_OPTION_NAME
+            : selectedShippingOption?.name ?? undefined
+          : undefined,
       },
     };
     this.modalContext?.submit();
@@ -253,6 +591,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
           price: this._price,
           quantity: this._quantity,
           taxGroupId: this._selectedTaxGroupId,
+          addonsTotal: this._getAddonsTotalPerUnit(),
         });
 
         if (error) {
@@ -301,8 +640,50 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     `;
   }
 
+  private _renderProductAutocompleteDropdown(field: AutocompleteField) {
+    if (this._autocompleteField !== field || !this._showProductAutocomplete) {
+      return nothing;
+    }
+
+    const query = (field === "name" ? this._name : this._sku).trim();
+    if (query.length < PRODUCT_AUTOCOMPLETE_MIN_QUERY_LENGTH) {
+      return nothing;
+    }
+
+    const currencySymbol = this.data?.currencySymbol ?? "£";
+
+    return html`
+      <div class="autocomplete-dropdown" role="listbox">
+        ${this._isSearchingProducts ? html`
+          <div class="autocomplete-status">
+            <uui-loader-circle></uui-loader-circle>
+            <span>Searching products...</span>
+          </div>
+        ` : this._productAutocompleteResults.length === 0 ? html`
+          <div class="autocomplete-status">No products found</div>
+        ` : this._productAutocompleteResults.map((product) => html`
+          <button
+            type="button"
+            class="autocomplete-option"
+            @mousedown=${(event: MouseEvent) => {
+              event.preventDefault();
+              this._applyAutocompleteProduct(product);
+            }}
+          >
+            <span class="autocomplete-option-name">${this._getAutocompleteProductDisplayName(product)}</span>
+            <span class="autocomplete-option-meta">
+              ${product.sku || "No SKU"} | ${currencySymbol}${formatNumber(product.price, 2)}
+            </span>
+          </button>
+        `)}
+      </div>
+    `;
+  }
+
   private _renderDetailsStep() {
     const currencySymbol = this.data?.currencySymbol ?? "£";
+    const addonsTotalPerUnit = this._getAddonsTotalPerUnit();
+    const addonsTotal = addonsTotalPerUnit * this._quantity;
 
     // Use ONLY backend preview values - no local calculations
     const hasTaxPreview = this._taxPreview !== null;
@@ -313,28 +694,59 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
 
     return html`
       <div class="form-row-group">
-        <div class="form-row">
+        <div class="form-row autocomplete-group">
           <label for="item-name">Item name</label>
-          <uui-input
-            id="item-name"
-            .value=${this._name}
-            @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
-            placeholder="Enter item name"
-          ></uui-input>
+          <div class="autocomplete-field">
+            <uui-input
+              id="item-name"
+              .value=${this._name}
+              @input=${this._handleNameInput}
+              @focus=${() => this._handleProductAutocompleteFocus("name")}
+              @blur=${this._handleProductAutocompleteBlur}
+              placeholder="Enter item name"
+              autocomplete="off"
+            ></uui-input>
+            ${this._renderProductAutocompleteDropdown("name")}
+          </div>
           ${this._errors.name ? html`<span class="error">${this._errors.name}</span>` : nothing}
         </div>
 
-        <div class="form-row">
+        <div class="form-row autocomplete-group">
           <label for="item-sku">SKU</label>
-          <uui-input
-            id="item-sku"
-            .value=${this._sku}
-            @input=${(e: Event) => (this._sku = (e.target as HTMLInputElement).value)}
-            placeholder="Enter SKU"
-          ></uui-input>
+          <div class="autocomplete-field">
+            <uui-input
+              id="item-sku"
+              .value=${this._sku}
+              @input=${this._handleSkuInput}
+              @focus=${() => this._handleProductAutocompleteFocus("sku")}
+              @blur=${this._handleProductAutocompleteBlur}
+              placeholder="Enter SKU"
+              autocomplete="off"
+            ></uui-input>
+            ${this._renderProductAutocompleteDropdown("sku")}
+          </div>
           ${this._errors.sku ? html`<span class="error">${this._errors.sku}</span>` : nothing}
         </div>
       </div>
+
+      ${this._selectedAutocompleteProduct ? html`
+        <div class="selected-product-chip">
+          <uui-icon name="icon-check"></uui-icon>
+          <span>
+            Based on existing product:
+            <strong>${this._getAutocompleteProductDisplayName(this._selectedAutocompleteProduct)}</strong>
+            ${this._selectedAutocompleteProduct.sku ? ` (${this._selectedAutocompleteProduct.sku})` : ""}
+          </span>
+          <uui-button
+            compact
+            look="secondary"
+            @click=${() => (this._selectedAutocompleteProduct = null)}
+            title="Clear product selection"
+          >
+            <uui-icon name="icon-delete"></uui-icon>
+          </uui-button>
+        </div>
+      ` : nothing}
 
       <div class="form-row-group">
         <div class="form-row">
@@ -388,13 +800,141 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
           .options=${this._getTaxGroupOptions()}
           @change=${this._handleTaxGroupChange}
         ></uui-select>
-        ${this._selectedTaxGroupId && this._price > 0 ? html`
+        ${this._selectedTaxGroupId && (this._price > 0 || addonsTotalPerUnit > 0) ? html`
           <span class="tax-info">
             ${hasTaxPreview && taxAmount !== undefined && taxRate !== undefined
               ? `Tax: ${currencySymbol}${formatNumber(taxAmount, 2)} at ${taxRate}%`
               : html`<span class="calculating">Calculating tax...</span>`}
           </span>
         ` : nothing}
+      </div>
+
+      <div class="addons-section">
+        <div class="addons-header">
+          <h4>Add-ons</h4>
+          <uui-button look="secondary" compact @click=${this._addAddonRow}>
+            <uui-icon name="icon-add"></uui-icon>
+            Add add-on
+          </uui-button>
+        </div>
+
+        ${this._addons.length === 0 ? html`
+          <div class="addons-empty">
+            Add key/value rows such as "Drawers: Left side", with optional price, cost, and SKU suffix.
+          </div>
+        ` : this._addons.map((addon, index) => html`
+          <div
+            class="addon-row ${this._draggedAddonIndex === index ? "dragging" : ""}"
+            draggable="true"
+            @dragstart=${(event: DragEvent) => this._handleAddonDragStart(index, event)}
+            @dragover=${this._handleAddonDragOver}
+            @drop=${(event: DragEvent) => this._handleAddonDrop(index, event)}
+            @dragend=${this._handleAddonDragEnd}
+          >
+            <div class="addon-fields-top">
+              <div class="form-row">
+                <label for=${`addon-key-${index}`}>Key</label>
+                <uui-input
+                  id=${`addon-key-${index}`}
+                  .value=${addon.key}
+                  @input=${(e: Event) =>
+                    this._updateAddonStringField(index, "key", (e.target as HTMLInputElement).value)}
+                  placeholder="e.g. Drawers"
+                ></uui-input>
+                ${this._errors[`addon-key-${index}`]
+                  ? html`<span class="error">${this._errors[`addon-key-${index}`]}</span>`
+                  : nothing}
+              </div>
+
+              <div class="form-row">
+                <label for=${`addon-value-${index}`}>Value</label>
+                <uui-input
+                  id=${`addon-value-${index}`}
+                  .value=${addon.value}
+                  @input=${(e: Event) =>
+                    this._updateAddonStringField(index, "value", (e.target as HTMLInputElement).value)}
+                  placeholder="e.g. Left side"
+                ></uui-input>
+                ${this._errors[`addon-value-${index}`]
+                  ? html`<span class="error">${this._errors[`addon-value-${index}`]}</span>`
+                  : nothing}
+              </div>
+
+              <div class="addon-remove">
+                <uui-button
+                  compact
+                  look="secondary"
+                  @click=${() => this._moveAddonUp(index)}
+                  ?disabled=${index === 0}
+                  title="Move add-on up"
+                >
+                  Up
+                </uui-button>
+                <uui-button
+                  compact
+                  look="secondary"
+                  @click=${() => this._moveAddonDown(index)}
+                  ?disabled=${index === this._addons.length - 1}
+                  title="Move add-on down"
+                >
+                  Down
+                </uui-button>
+                <uui-button
+                  compact
+                  look="secondary"
+                  color="danger"
+                  @click=${() => this._removeAddonRow(index)}
+                  title="Remove add-on"
+                >
+                  <uui-icon name="icon-delete"></uui-icon>
+                </uui-button>
+              </div>
+            </div>
+
+            <div class="addon-fields-bottom">
+              <div class="form-row">
+                <label for=${`addon-price-${index}`}>Price adjustment</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">${currencySymbol}</span>
+                  <uui-input
+                    id=${`addon-price-${index}`}
+                    type="number"
+                    .value=${addon.priceAdjustment.toString()}
+                    @input=${(e: Event) =>
+                      this._updateAddonNumberField(index, "priceAdjustment", (e.target as HTMLInputElement).value)}
+                    step="0.01"
+                  ></uui-input>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label for=${`addon-cost-${index}`}>Cost adjustment</label>
+                <div class="input-with-prefix">
+                  <span class="prefix">${currencySymbol}</span>
+                  <uui-input
+                    id=${`addon-cost-${index}`}
+                    type="number"
+                    .value=${addon.costAdjustment.toString()}
+                    @input=${(e: Event) =>
+                      this._updateAddonNumberField(index, "costAdjustment", (e.target as HTMLInputElement).value)}
+                    step="0.01"
+                  ></uui-input>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label for=${`addon-sku-${index}`}>SKU suffix</label>
+                <uui-input
+                  id=${`addon-sku-${index}`}
+                  .value=${addon.skuSuffix}
+                  @input=${(e: Event) =>
+                    this._updateAddonStringField(index, "skuSuffix", (e.target as HTMLInputElement).value)}
+                  placeholder="e.g. DRAWER-L"
+                ></uui-input>
+              </div>
+            </div>
+          </div>
+        `)}
       </div>
 
       <div class="form-row checkbox-row">
@@ -410,8 +950,14 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         ` : nothing}
       </div>
 
-      ${this._price > 0 ? html`
+      ${this._price > 0 || addonsTotalPerUnit > 0 ? html`
         <div class="summary ${this._isLoadingTaxPreview || !hasTaxPreview ? 'loading' : ''}">
+          ${addonsTotalPerUnit > 0 ? html`
+            <div class="summary-row">
+              <span>Add-ons (${currencySymbol}${formatNumber(addonsTotalPerUnit, 2)} per unit)</span>
+              <span>+${currencySymbol}${formatNumber(addonsTotal, 2)}</span>
+            </div>
+          ` : nothing}
           <div class="summary-row">
             <span>Subtotal</span>
             <span>
@@ -446,6 +992,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   private _renderShippingStep() {
     const currencySymbol = this.data?.currencySymbol ?? "£";
     const destination = this.data?.shippingDestination;
+    const addonsTotalPerUnit = this._getAddonsTotalPerUnit();
 
     return html`
       <div class="shipping-step">
@@ -453,7 +1000,10 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
           <div class="item-summary-name">${this._name}</div>
           <div class="item-summary-details">
             <span>${this._sku}</span>
-            <span>${currencySymbol}${formatNumber(this._price, 2)} × ${this._quantity}</span>
+            <span>${currencySymbol}${formatNumber(this._price, 2)} x ${this._quantity}</span>
+            ${addonsTotalPerUnit > 0
+              ? html`<span>Add-ons +${currencySymbol}${formatNumber(addonsTotalPerUnit, 2)} each</span>`
+              : nothing}
           </div>
         </div>
 
@@ -493,14 +1043,14 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
                 <uui-loader-circle></uui-loader-circle>
                 <span>Loading shipping options...</span>
               </div>
-            ` : this._shippingOptions.length > 0 ? html`
+            ` : html`
               <uui-select
                 id="shipping-option"
                 .options=${this._getShippingOptionOptions()}
                 @change=${this._handleShippingOptionChange}
               ></uui-select>
               ${this._selectedShippingOptionId ? this._renderSelectedShippingDetails() : nothing}
-            ` : nothing}
+            `}
           </div>
         ` : nothing}
 
@@ -515,6 +1065,8 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   }
 
   private _renderSelectedShippingDetails() {
+    if (this._selectedShippingOptionId === NO_SHIPPING_OPTION_VALUE) return nothing;
+
     const option = this._shippingOptions.find(o => o.id === this._selectedShippingOptionId);
     if (!option) return nothing;
 
@@ -563,7 +1115,12 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
           : o.name,
         value: o.id,
         selected: this._selectedShippingOptionId === o.id
-      }))
+      })),
+      {
+        name: NO_SHIPPING_OPTION_NAME,
+        value: NO_SHIPPING_OPTION_VALUE,
+        selected: this._selectedShippingOptionId === NO_SHIPPING_OPTION_VALUE
+      }
     ];
   }
 
@@ -624,6 +1181,146 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: var(--uui-size-space-4);
+    }
+
+    .autocomplete-group {
+      position: relative;
+    }
+
+    .autocomplete-field {
+      position: relative;
+    }
+
+    .autocomplete-dropdown {
+      position: absolute;
+      top: calc(100% + 2px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      box-shadow: var(--uui-shadow-depth-2);
+      max-height: 240px;
+      overflow-y: auto;
+    }
+
+    .autocomplete-option {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      cursor: pointer;
+      gap: 2px;
+    }
+
+    .autocomplete-option:hover {
+      background: var(--uui-color-surface-alt);
+    }
+
+    .autocomplete-option-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--uui-color-text);
+    }
+
+    .autocomplete-option-meta {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .autocomplete-status {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      font-size: 0.813rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    .selected-product-chip {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      border: 1px solid var(--uui-color-positive);
+      border-radius: var(--uui-border-radius);
+      background: rgba(var(--uui-color-positive-rgb), 0.08);
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      font-size: 0.813rem;
+    }
+
+    .selected-product-chip span {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .addons-section {
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
+    .addons-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--uui-size-space-2);
+    }
+
+    .addons-header h4 {
+      margin: 0;
+      font-size: 0.875rem;
+    }
+
+    .addons-empty {
+      font-size: 0.813rem;
+      color: var(--uui-color-text-alt);
+      padding: var(--uui-size-space-2);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
+    }
+
+    .addon-row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
+      cursor: grab;
+    }
+
+    .addon-row.dragging {
+      opacity: 0.6;
+      border-color: var(--uui-color-current);
+      background: rgba(var(--uui-color-current-rgb), 0.08);
+    }
+
+    .addon-fields-top {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: var(--uui-size-space-3);
+      align-items: end;
+    }
+
+    .addon-remove {
+      display: flex;
+      gap: var(--uui-size-space-1);
+      justify-content: flex-end;
+      padding-bottom: 2px;
+    }
+
+    .addon-fields-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--uui-size-space-3);
     }
 
     label {
@@ -811,6 +1508,31 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     .shipping-detail-row.next-day {
       color: var(--uui-color-positive);
     }
+
+    @media (max-width: 900px) {
+      .form-row-group {
+        grid-template-columns: 1fr;
+      }
+
+      .addon-fields-top,
+      .addon-fields-bottom {
+        grid-template-columns: 1fr;
+      }
+
+      .addons-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .addon-remove {
+        justify-content: flex-start;
+      }
+
+      .item-summary-details {
+        flex-direction: column;
+        gap: var(--uui-size-space-1);
+      }
+    }
   `;
 }
 
@@ -821,3 +1543,4 @@ declare global {
     "merchello-add-custom-item-modal": MerchelloAddCustomItemModalElement;
   }
 }
+

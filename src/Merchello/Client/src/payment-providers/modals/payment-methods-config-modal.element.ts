@@ -253,29 +253,36 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
                   <span>Loading methods...</span>
                 </div>
               `
-            : html`
-                ${this._errorMessage
-                  ? html`
-                      <div class="error-message">
-                        <uui-icon name="icon-alert"></uui-icon>
-                        ${this._errorMessage}
-                      </div>
-                    `
-                  : nothing}
+            : nothing}
 
+          ${!this._isLoading && this._errorMessage
+            ? html`
+                <div class="error-message">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  ${this._errorMessage}
+                </div>
+              `
+            : nothing}
+
+          ${!this._isLoading
+            ? html`
                 <p class="description">
                   Enable or disable individual payment methods for this provider.
                   Drag to reorder. Click Edit to customize display name, icon, and styling.
                 </p>
+              `
+            : nothing}
 
-                <div class="methods-list">
-                  ${this._methods.map((m) => this._renderMethod(m))}
-                </div>
+          <!-- Always render container for sorter -->
+          <div class="methods-list">
+            ${!this._isLoading && !this._errorMessage
+              ? this._methods.map((m) => this._renderMethod(m))
+              : nothing}
+          </div>
 
-                ${this._methods.length === 0
-                  ? html`<p class="no-methods">This provider has no configurable methods.</p>`
-                  : nothing}
-              `}
+          ${!this._isLoading && !this._errorMessage && this._methods.length === 0
+            ? html`<p class="no-methods">This provider has no configurable methods.</p>`
+            : nothing}
         </div>
 
         <div slot="actions">

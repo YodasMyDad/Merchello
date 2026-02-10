@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
 import type { ProductVariantDto } from "@products/types/product.types.js";
 
 /**
@@ -15,143 +16,203 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
   @property({ type: Object }) fieldErrors: Record<string, string> = {};
   @property({ type: Boolean }) showVariantName = false;
 
-  private _updateField<K extends keyof ProductVariantDto>(field: K, value: ProductVariantDto[K]): void {
-    const updated = { ...this.formData, [field]: value };
+  private _dispatchVariantChange(updated: Partial<ProductVariantDto>): void {
     this.dispatchEvent(new CustomEvent("variant-change", { detail: updated, bubbles: true, composed: true }));
   }
 
+  private _toPropertyValueMap(values: UmbPropertyValueData[]): Record<string, unknown> {
+    const map: Record<string, unknown> = {};
+    for (const value of values) {
+      map[value.alias] = value.value;
+    }
+    return map;
+  }
+
+  private _getStringFromPropertyValue(value: unknown): string {
+    return typeof value === "string" ? value : "";
+  }
+
+  private _getNumberFromPropertyValue(value: unknown, fallback = 0): number {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    return fallback;
+  }
+
+  private _getBooleanFromPropertyValue(value: unknown, fallback: boolean): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    return fallback;
+  }
+
+  private _getDatasetValue(): UmbPropertyValueData[] {
+    const values: UmbPropertyValueData[] = [
+      { alias: "sku", value: this.formData.sku ?? "" },
+      { alias: "gtin", value: this.formData.gtin ?? "" },
+      { alias: "supplierSku", value: this.formData.supplierSku ?? "" },
+      { alias: "hsCode", value: this.formData.hsCode ?? "" },
+      { alias: "price", value: this.formData.price ?? 0 },
+      { alias: "costOfGoods", value: this.formData.costOfGoods ?? 0 },
+      { alias: "onSale", value: this.formData.onSale ?? false },
+      { alias: "previousPrice", value: this.formData.previousPrice ?? 0 },
+      { alias: "availableForPurchase", value: this.formData.availableForPurchase ?? true },
+      { alias: "canPurchase", value: this.formData.canPurchase ?? true },
+    ];
+
+    if (this.showVariantName) {
+      values.unshift({ alias: "name", value: this.formData.name ?? "" });
+    }
+
+    return values;
+  }
+
+  private _handleDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+    const hasPreviousPrice = Object.prototype.hasOwnProperty.call(values, "previousPrice");
+
+    const updated: Partial<ProductVariantDto> = {
+      ...this.formData,
+      ...(this.showVariantName ? { name: this._getStringFromPropertyValue(values.name) } : {}),
+      sku: this._getStringFromPropertyValue(values.sku),
+      gtin: this._getStringFromPropertyValue(values.gtin),
+      supplierSku: this._getStringFromPropertyValue(values.supplierSku),
+      hsCode: this._getStringFromPropertyValue(values.hsCode),
+      price: this._getNumberFromPropertyValue(values.price, 0),
+      costOfGoods: this._getNumberFromPropertyValue(values.costOfGoods, 0),
+      onSale: this._getBooleanFromPropertyValue(values.onSale, false),
+      availableForPurchase: this._getBooleanFromPropertyValue(values.availableForPurchase, true),
+      canPurchase: this._getBooleanFromPropertyValue(values.canPurchase, true),
+    };
+
+    if (hasPreviousPrice) {
+      updated.previousPrice = this._getNumberFromPropertyValue(values.previousPrice, 0);
+    }
+
+    this._dispatchVariantChange(updated);
+  }
+
   override render() {
+    const errorMessages = Object.values(this.fieldErrors).filter((error): error is string => !!error);
+
     return html`
-      <uui-box headline="Identification">
-        ${this.showVariantName
-          ? html`
-              <umb-property-layout label="Variant Name" description="If empty, generated from option values">
-                <uui-input
-                  slot="editor"
-                  label="Variant name"
-                  maxlength="500"
-                  .value=${this.formData.name || ""}
-                  @input=${(e: Event) => this._updateField("name", (e.target as HTMLInputElement).value)}
-                  placeholder="e.g., Blue T-Shirt - Large">
-                </uui-input>
-              </umb-property-layout>
-            `
-          : nothing}
+      ${errorMessages.length > 0
+        ? html`
+            <div class="error-summary">
+              ${errorMessages.map((message) => html`<div>${message}</div>`)}
+            </div>
+          `
+        : nothing}
 
-        <umb-property-layout label="SKU" description="Stock Keeping Unit - unique product identifier" ?mandatory=${true}>
-          <uui-input
-            slot="editor"
+      <umb-property-dataset
+        .value=${this._getDatasetValue()}
+        @change=${this._handleDatasetChange}>
+        <uui-box headline="Identification">
+          ${this.showVariantName
+            ? html`
+                <umb-property
+                  alias="name"
+                  label="Variant Name"
+                  description="If empty, generated from option values"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 500 }]}>
+                </umb-property>
+              `
+            : nothing}
+
+          <umb-property
+            alias="sku"
             label="SKU"
-            maxlength="150"
-            .value=${this.formData.sku || ""}
-            @input=${(e: Event) => this._updateField("sku", (e.target as HTMLInputElement).value)}
-            placeholder="PROD-001"
-            ?invalid=${!!this.fieldErrors.sku}>
-          </uui-input>
-        </umb-property-layout>
+            description="Stock Keeping Unit - unique product identifier"
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+            .config=${[{ alias: "maxChars", value: 150 }]}
+            .validation=${{ mandatory: true }}>
+          </umb-property>
 
-        <umb-property-layout label="GTIN/Barcode" description="Global Trade Item Number (EAN/UPC)">
-          <uui-input
-            slot="editor"
+          <umb-property
+            alias="gtin"
             label="GTIN/Barcode"
-            maxlength="150"
-            .value=${this.formData.gtin || ""}
-            @input=${(e: Event) => this._updateField("gtin", (e.target as HTMLInputElement).value)}
-            placeholder="012345678905">
-          </uui-input>
-        </umb-property-layout>
+            description="Global Trade Item Number (EAN/UPC)"
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+            .config=${[{ alias: "maxChars", value: 150 }]}>
+          </umb-property>
 
-        <umb-property-layout label="Supplier SKU" description="Your supplier's product code">
-          <uui-input
-            slot="editor"
+          <umb-property
+            alias="supplierSku"
             label="Supplier SKU"
-            maxlength="150"
-            .value=${this.formData.supplierSku || ""}
-            @input=${(e: Event) => this._updateField("supplierSku", (e.target as HTMLInputElement).value)}
-            placeholder="SUP-001">
-          </uui-input>
-        </umb-property-layout>
+            description="Your supplier's product code"
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+            .config=${[{ alias: "maxChars", value: 150 }]}>
+          </umb-property>
 
-        <umb-property-layout label="HS Code" description="Harmonized System code for customs/tariff classification">
-          <uui-input
-            slot="editor"
+          <umb-property
+            alias="hsCode"
             label="HS Code"
-            .value=${this.formData.hsCode || ""}
-            @input=${(e: Event) => this._updateField("hsCode", (e.target as HTMLInputElement).value)}
-            placeholder="6109.10"
-            maxlength="10">
-          </uui-input>
-        </umb-property-layout>
-      </uui-box>
+            description="Harmonized System code for customs/tariff classification"
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+            .config=${[{ alias: "maxChars", value: 10 }]}>
+          </umb-property>
+        </uui-box>
 
-      <uui-box headline="Pricing">
-        <umb-property-layout label="Price" description="Customer-facing price (excluding tax)" ?mandatory=${true}>
-          <uui-input
-            slot="editor"
+        <uui-box headline="Pricing">
+          <umb-property
+            alias="price"
             label="Price"
-            type="number"
-            step="0.01"
-            .value=${String(this.formData.price ?? 0)}
-            @input=${(e: Event) => this._updateField("price", parseFloat((e.target as HTMLInputElement).value) || 0)}
-            ?invalid=${!!this.fieldErrors.price}>
-          </uui-input>
-        </umb-property-layout>
+            description="Customer-facing price (excluding tax)"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Decimal"
+            .config=${[{ alias: "min", value: 0 }, { alias: "step", value: 0.01 }]}
+            .validation=${{ mandatory: true }}>
+          </umb-property>
 
-        <umb-property-layout label="Cost of Goods" description="Your cost for profit margin calculation">
-          <uui-input
-            slot="editor"
-            label="Cost of goods"
-            type="number"
-            step="0.01"
-            .value=${String(this.formData.costOfGoods ?? 0)}
-            @input=${(e: Event) => this._updateField("costOfGoods", parseFloat((e.target as HTMLInputElement).value) || 0)}>
-          </uui-input>
-        </umb-property-layout>
+          <umb-property
+            alias="costOfGoods"
+            label="Cost of Goods"
+            description="Your cost for profit margin calculation"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Decimal"
+            .config=${[{ alias: "min", value: 0 }, { alias: "step", value: 0.01 }]}>
+          </umb-property>
 
-        <umb-property-layout label="On Sale" description="Enable sale pricing">
-          <uui-toggle
-            slot="editor"
+          <umb-property
+            alias="onSale"
             label="On Sale"
-            .checked=${this.formData.onSale ?? false}
-            @change=${(e: Event) => this._updateField("onSale", (e.target as HTMLInputElement).checked)}>
-          </uui-toggle>
-        </umb-property-layout>
+            description="Enable sale pricing"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
 
-        ${this.formData.onSale
-          ? html`
-              <umb-property-layout label="Previous Price (Was)" description="Original price to show discount">
-                <uui-input
-                  slot="editor"
-                  label="Previous price"
-                  type="number"
-                  step="0.01"
-                  .value=${String(this.formData.previousPrice ?? 0)}
-                  @input=${(e: Event) => this._updateField("previousPrice", parseFloat((e.target as HTMLInputElement).value) || 0)}>
-                </uui-input>
-              </umb-property-layout>
-            `
-          : nothing}
-      </uui-box>
+          ${(this.formData.onSale ?? false)
+            ? html`
+                <umb-property
+                  alias="previousPrice"
+                  label="Previous Price (Was)"
+                  description="Original price to show discount"
+                  property-editor-ui-alias="Umb.PropertyEditorUi.Decimal"
+                  .config=${[{ alias: "min", value: 0 }, { alias: "step", value: 0.01 }]}>
+                </umb-property>
+              `
+            : nothing}
+        </uui-box>
 
-      <uui-box headline="Availability">
-        <umb-property-layout label="Visible on Website" description="Show on storefront and allow adding to cart">
-          <uui-toggle
-            slot="editor"
+        <uui-box headline="Availability">
+          <umb-property
+            alias="availableForPurchase"
             label="Visible on Website"
-            .checked=${this.formData.availableForPurchase ?? true}
-            @change=${(e: Event) => this._updateField("availableForPurchase", (e.target as HTMLInputElement).checked)}>
-          </uui-toggle>
-        </umb-property-layout>
+            description="Show on storefront and allow adding to cart"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
 
-        <umb-property-layout label="Allow Purchase" description="Enable checkout (used for stock/inventory validation)">
-          <uui-toggle
-            slot="editor"
+          <umb-property
+            alias="canPurchase"
             label="Allow Purchase"
-            .checked=${this.formData.canPurchase ?? true}
-            @change=${(e: Event) => this._updateField("canPurchase", (e.target as HTMLInputElement).checked)}>
-          </uui-toggle>
-        </umb-property-layout>
-      </uui-box>
+            description="Enable checkout (used for stock/inventory validation)"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
+        </uui-box>
+      </umb-property-dataset>
     `;
   }
 
@@ -168,8 +229,13 @@ export class MerchelloVariantBasicInfoElement extends UmbElementMixin(LitElement
       margin-top: var(--uui-size-space-5);
     }
 
-    umb-property-layout uui-input,
-    umb-property-layout uui-textarea {
+    .error-summary {
+      color: var(--uui-color-danger);
+      font-size: var(--uui-type-small-size);
+    }
+
+    umb-property uui-input,
+    umb-property uui-textarea {
       width: 100%;
     }
   `;

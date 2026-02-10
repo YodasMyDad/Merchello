@@ -1445,6 +1445,11 @@ public class ProductService(
                 isDigitalProduct: request.IsDigitalProduct,
                 rootImages: request.RootImages?.Select(g => g.ToString()).ToList());
 
+            if (!string.IsNullOrWhiteSpace(request.GoogleShoppingFeedCategory))
+            {
+                productRoot.GoogleShoppingFeedCategory = request.GoogleShoppingFeedCategory.Trim();
+            }
+
             if (!string.IsNullOrWhiteSpace(elementTypeAlias))
             {
                 productRoot.ElementTypeAlias = elementTypeAlias;

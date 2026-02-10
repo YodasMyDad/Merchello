@@ -19,7 +19,6 @@ import type {
   CreateProductRootDto,
   ProductViewDto,
   RichTextEditorValue,
-  RichTextBlockValue,
   ShippingOptionExclusionDto,
   ElementTypeListItemDto,
 } from "@products/types/product.types.js";
@@ -35,7 +34,6 @@ import { MERCHELLO_VARIANT_BATCH_UPDATE_MODAL } from "@products/modals/variant-b
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
-import type { SelectOption } from "@shared/types/index.js";
 import "@shared/components/editable-text-list.element.js";
 
 // Shared components
@@ -65,14 +63,18 @@ import {
 } from "@products/utils/variant-helpers.js";
 
 import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
+import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
 import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
-import type { UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType } from "@umbraco-cms/backoffice/property-editor";
-import type { UmbInputDocumentTypeElement } from "@umbraco-cms/backoffice/document-type";
+import type {
+  UmbPropertyEditorConfig,
+  UmbPropertyEditorConfigCollection as UmbPropertyEditorConfigCollectionType,
+} from "@umbraco-cms/backoffice/property-editor";
 // Import TipTap component to register the custom element
 import "@umbraco-cms/backoffice/tiptap";
 // Import document type input for element type picker
 import "@umbraco-cms/backoffice/document-type";
 import "@property-editors/collection-picker/property-editor-ui-collection-picker.element.js";
+import "@property-editors/google-shopping-category-picker/property-editor-ui-google-shopping-category-picker.element.js";
 
 // ============================================
 // Component
@@ -164,8 +166,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     { alias: "maxItems", value: 0 },
   ]);
 
-  /** Block data for the description rich text editor (maintained separately from markup) */
-  @state() private _descriptionBlocks: RichTextBlockValue | null = null;
+  /** Element type picker: allow one optional Element Type */
+  private readonly _elementTypePickerConfig = new UmbPropertyEditorConfigCollection([
+    { alias: "validationLimit", value: { min: 0, max: 1 } },
+    { alias: "onlyPickElementTypes", value: true },
+  ]);
 
   // ============================================
   // Private Members
@@ -188,8 +193,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           this._product = product ?? null;
           if (product) {
             this._formData = { ...product };
-            // Reset description blocks when loading a new product
-            this._descriptionBlocks = null;
             // Initialize shipping options from product data
             this._shippingOptions = product.availableShippingOptions ?? [];
             // Reset batch-selection state when product reloads
@@ -535,81 +538,132 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     this._formData = { ...this._formData, [field]: value };
   }
 
-  private _handleToggleChange(field: keyof ProductRootDetailDto, value: boolean): void {
-    this._formData = { ...this._formData, [field]: value };
-  }
-
-  private _getTaxGroupOptions(): SelectOption[] {
-    return [
-      { name: "Select tax group...", value: "", selected: !this._formData.taxGroupId },
-      ...this._taxGroups.map((t) => ({
-        name: t.name,
-        value: t.id,
-        selected: t.id === this._formData.taxGroupId,
-      })),
-    ];
-  }
-
-  private _getProductTypeOptions(): SelectOption[] {
-    return [
-      { name: "Select product type...", value: "", selected: !this._formData.productTypeId },
-      ...this._productTypes.map((t) => ({
-        name: t.name,
-        value: t.id,
-        selected: t.id === this._formData.productTypeId,
-      })),
-    ];
-  }
-
-  private _handleTaxGroupChange(e: Event): void {
-    const select = e.target as HTMLSelectElement;
-    this._formData = { ...this._formData, taxGroupId: select.value };
-  }
-
-  private _handleProductTypeChange(e: Event): void {
-    const select = e.target as HTMLSelectElement;
-    this._formData = { ...this._formData, productTypeId: select.value };
-  }
-
   private _getCollectionPickerValue(): string | undefined {
     const collectionIds = this._formData.collectionIds ?? [];
     return collectionIds.length > 0 ? collectionIds.join(",") : undefined;
   }
 
-  private _handleCollectionIdsChange(e: Event): void {
-    const picker = e.target as HTMLElement & { value?: string };
-    const value = picker.value ?? "";
-    const collectionIds = value
-      .split(",")
-      .map((id) => id.trim())
+  private _toPropertyValueMap(values: UmbPropertyValueData[]): Record<string, unknown> {
+    const map: Record<string, unknown> = {};
+    for (const value of values) {
+      map[value.alias] = value.value;
+    }
+    return map;
+  }
+
+  private _getStringFromPropertyValue(value: unknown): string {
+    if (typeof value === "string") return value;
+    return "";
+  }
+
+  private _getFirstDropdownValue(value: unknown): string {
+    if (Array.isArray(value)) {
+      const first = value.find((x) => typeof x === "string");
+      return typeof first === "string" ? first : "";
+    }
+    if (typeof value === "string") return value;
+    return "";
+  }
+
+  private _getStringArrayFromPropertyValue(value: unknown): string[] {
+    if (Array.isArray(value)) {
+      return value
+        .filter((x): x is string => typeof x === "string")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+    if (typeof value === "string") {
+      return value
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+    return [];
+  }
+
+  private _getMediaKeysFromPropertyValue(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return value
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return "";
+        const mediaEntry = entry as { mediaKey?: unknown; key?: unknown };
+        if (typeof mediaEntry.mediaKey === "string" && mediaEntry.mediaKey) return mediaEntry.mediaKey;
+        if (typeof mediaEntry.key === "string" && mediaEntry.key) return mediaEntry.key;
+        return "";
+      })
       .filter(Boolean);
-    this._formData = { ...this._formData, collectionIds };
   }
 
-  private _getViewOptions(): SelectOption[] {
-    return this._productViews.map((v) => ({
-      name: v.alias,
-      value: v.alias,
-      selected: v.alias === this._formData.viewAlias,
-    }));
+  private _createMediaPickerValue(keys: string[]): Array<{ key: string; mediaKey: string }> {
+    return keys.map((key) => ({ key, mediaKey: key }));
   }
 
-  private _handleViewChange(e: Event): void {
-    const select = e.target as HTMLSelectElement;
-    this._formData = { ...this._formData, viewAlias: select.value };
+  private _getDescriptionPropertyValue(): RichTextEditorValue {
+    const description = this._formData.description;
+    if (!description) {
+      return {
+        markup: "",
+        blocks: null,
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(description) as Partial<RichTextEditorValue>;
+      if (typeof parsed?.markup === "string" || parsed?.blocks !== undefined) {
+        return {
+          markup: parsed.markup ?? "",
+          blocks: parsed.blocks ?? null,
+        };
+      }
+    } catch {
+      // Backwards compatibility: treat plain stored HTML as markup.
+    }
+
+    return {
+      markup: description,
+      blocks: null,
+    };
   }
 
-  private _getElementTypeSelection(): string[] {
+  private _serializeDescriptionPropertyValue(value: unknown): string | null {
+    if (value === null || value === undefined) return null;
+
+    if (typeof value === "string") {
+      return JSON.stringify({
+        markup: value,
+        blocks: null,
+      } satisfies RichTextEditorValue);
+    }
+
+    if (typeof value === "object") {
+      const parsed = value as Partial<RichTextEditorValue>;
+      if (typeof parsed.markup === "string" || parsed.blocks !== undefined) {
+        return JSON.stringify({
+          markup: parsed.markup ?? "",
+          blocks: parsed.blocks ?? null,
+        } satisfies RichTextEditorValue);
+      }
+      return JSON.stringify(value);
+    }
+
+    return null;
+  }
+
+  private _getElementTypeSelectionKey(): string | undefined {
     const alias = this._formData.elementTypeAlias;
-    if (!alias) return [];
+    if (!alias) return undefined;
     const match = this._elementTypes.find((t) => t.alias.toLowerCase() === alias.toLowerCase());
-    return match ? [match.key] : [];
+    return match?.key;
   }
 
-  private async _handleElementTypeChange(e: Event): Promise<void> {
-    const picker = e.target as UmbInputDocumentTypeElement;
-    const selection = picker.selection ?? [];
-    const selectedKey = selection[0];
+  private async _setElementTypeAliasFromSelectionValue(value: unknown): Promise<void> {
+    const selectedRawValue = this._getFirstDropdownValue(value);
+    const selectedKey = selectedRawValue
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)[0];
+
     let selectedType = this._elementTypes.find((t) => t.key === selectedKey);
 
     if (selectedKey && !selectedType) {
@@ -629,6 +683,180 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     this._elementPropertyValues = {};
     this.#workspaceContext?.setElementPropertyValues({});
     await this.#workspaceContext?.loadElementType(alias);
+  }
+
+  private _getProductTypePropertyConfig(): UmbPropertyEditorConfig {
+    return [
+      {
+        alias: "items",
+        value: [
+          { name: "Select product type...", value: "" },
+          ...this._productTypes.map((productType) => ({
+            name: productType.name,
+            value: productType.id,
+          })),
+        ],
+      },
+    ];
+  }
+
+  private _getTaxGroupPropertyConfig(): UmbPropertyEditorConfig {
+    return [
+      {
+        alias: "items",
+        value: [
+          { name: "Select tax group...", value: "" },
+          ...this._taxGroups.map((taxGroup) => ({
+            name: taxGroup.name,
+            value: taxGroup.id,
+          })),
+        ],
+      },
+    ];
+  }
+
+  private _getViewPropertyConfig(): UmbPropertyEditorConfig {
+    return [
+      {
+        alias: "items",
+        value: [
+          { name: "", value: "" },
+          ...this._productViews.map((view) => ({
+            name: view.alias,
+            value: view.alias,
+          })),
+        ],
+      },
+    ];
+  }
+
+  private _getDetailsDatasetValue(): UmbPropertyValueData[] {
+    const elementTypeKey = this._getElementTypeSelectionKey();
+
+    return [
+      { alias: "rootName", value: this._formData.rootName ?? "" },
+      { alias: "taxGroupId", value: this._formData.taxGroupId ? [this._formData.taxGroupId] : [] },
+      { alias: "viewAlias", value: this._formData.viewAlias ? [this._formData.viewAlias] : [] },
+      { alias: "elementTypeAlias", value: elementTypeKey },
+      { alias: "isDigitalProduct", value: this._formData.isDigitalProduct ?? false },
+      { alias: "description", value: this._getDescriptionPropertyValue() },
+    ];
+  }
+
+  private _getCategorisationDatasetValue(): UmbPropertyValueData[] {
+    return [
+      { alias: "productTypeId", value: this._formData.productTypeId ? [this._formData.productTypeId] : [] },
+      { alias: "collectionIds", value: this._getCollectionPickerValue() },
+      { alias: "googleShoppingFeedCategory", value: this._formData.googleShoppingFeedCategory ?? "" },
+    ];
+  }
+
+  private _getMediaDatasetValue(): UmbPropertyValueData[] {
+    return [
+      {
+        alias: "rootImages",
+        value: this._createMediaPickerValue(this._formData.rootImages ?? []),
+      },
+    ];
+  }
+
+  private _getSeoDatasetValue(): UmbPropertyValueData[] {
+    return [
+      { alias: "rootUrl", value: this._formData.rootUrl ?? "" },
+      { alias: "pageTitle", value: this._formData.pageTitle ?? "" },
+      { alias: "metaDescription", value: this._formData.metaDescription ?? "" },
+      { alias: "canonicalUrl", value: this._formData.canonicalUrl ?? "" },
+      { alias: "noIndex", value: this._formData.noIndex ?? false },
+    ];
+  }
+
+  private _getSocialDatasetValue(): UmbPropertyValueData[] {
+    return [
+      {
+        alias: "openGraphImage",
+        value: this._formData.openGraphImage
+          ? this._createMediaPickerValue([this._formData.openGraphImage])
+          : [],
+      },
+    ];
+  }
+
+  private _handleDetailsDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+
+    this._formData = {
+      ...this._formData,
+      rootName: this._getStringFromPropertyValue(values.rootName),
+      taxGroupId: this._getFirstDropdownValue(values.taxGroupId),
+      viewAlias: this._getFirstDropdownValue(values.viewAlias) || null,
+      isDigitalProduct: Boolean(values.isDigitalProduct),
+      description: this._serializeDescriptionPropertyValue(values.description),
+    };
+
+    void this._setElementTypeAliasFromSelectionValue(values.elementTypeAlias);
+  }
+
+  private _handleCategorisationDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+
+    this._formData = {
+      ...this._formData,
+      productTypeId: this._getFirstDropdownValue(values.productTypeId),
+      collectionIds: this._getStringArrayFromPropertyValue(values.collectionIds),
+      googleShoppingFeedCategory: this._getStringFromPropertyValue(values.googleShoppingFeedCategory) || null,
+    };
+  }
+
+  private _handleWarehouseToggle(warehouseId: string, checked: boolean): void {
+    const warehouseIds = this._formData.warehouseIds ?? [];
+    const hasWarehouse = warehouseIds.includes(warehouseId);
+    const nextWarehouseIds = checked
+      ? (hasWarehouse ? warehouseIds : [...warehouseIds, warehouseId])
+      : warehouseIds.filter((id) => id !== warehouseId);
+
+    this._formData = { ...this._formData, warehouseIds: nextWarehouseIds };
+
+    if (this._fieldErrors.warehouseIds) {
+      const { warehouseIds: _warehouseIdsError, ...rest } = this._fieldErrors;
+      this._fieldErrors = rest;
+    }
+  }
+
+  private _handleMediaDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+
+    this._formData = {
+      ...this._formData,
+      rootImages: this._getMediaKeysFromPropertyValue(values.rootImages),
+    };
+  }
+
+  private _handleSeoDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+
+    this._formData = {
+      ...this._formData,
+      rootUrl: this._getStringFromPropertyValue(values.rootUrl) || null,
+      pageTitle: this._getStringFromPropertyValue(values.pageTitle) || null,
+      metaDescription: this._getStringFromPropertyValue(values.metaDescription) || null,
+      canonicalUrl: this._getStringFromPropertyValue(values.canonicalUrl) || null,
+      noIndex: Boolean(values.noIndex),
+    };
+  }
+
+  private _handleSocialDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+    const openGraphImage = this._getMediaKeysFromPropertyValue(values.openGraphImage)[0] ?? null;
+
+    this._formData = {
+      ...this._formData,
+      openGraphImage,
+    };
   }
 
   private async _handleSave(): Promise<void> {
@@ -657,6 +885,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private async _createProduct(): Promise<void> {
     const request: CreateProductRootDto = {
       rootName: this._formData.rootName || "",
+      googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? undefined,
       taxGroupId: this._formData.taxGroupId || "",
       productTypeId: this._formData.productTypeId || "",
       collectionIds: this._formData.collectionIds,
@@ -1081,89 +1310,91 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           : nothing}
 
         <uui-box headline="Basic Information">
-          <umb-property-layout
-            label="Product Type"
-            description="Categorize your product for reporting and organization"
-            ?mandatory=${true}
-            ?invalid=${!!this._fieldErrors.productTypeId}>
-            <uui-select
-              slot="editor"
-              .options=${this._getProductTypeOptions()}
-              @change=${this._handleProductTypeChange}>
-            </uui-select>
-          </umb-property-layout>
+          <umb-property-dataset
+            .value=${this._getDetailsDatasetValue()}
+            @change=${this._handleDetailsDatasetChange}>
+            <umb-property
+              alias="rootName"
+              label="Product Name"
+              description="Customer-facing product name"
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+              .validation=${{ mandatory: true }}>
+            </umb-property>
 
-          <umb-property-layout
-            label="Collections"
-            description="Assign this product to one or more collections for storefront organization">
-            <merchello-property-editor-ui-collection-picker
-              slot="editor"
-              .config=${this._collectionPickerConfig}
-              .value=${this._getCollectionPickerValue()}
-              @change=${this._handleCollectionIdsChange}>
-            </merchello-property-editor-ui-collection-picker>
-          </umb-property-layout>
+            <umb-property
+              alias="taxGroupId"
+              label="Tax Group"
+              description="Tax rate applied to this product"
+              property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+              .config=${this._getTaxGroupPropertyConfig()}
+              .validation=${{ mandatory: true }}>
+            </umb-property>
 
-          <umb-property-layout
-            label="Tax Group"
-            description="Tax rate applied to this product"
-            ?mandatory=${true}
-            ?invalid=${!!this._fieldErrors.taxGroupId}>
-            <uui-select
-              slot="editor"
-              .options=${this._getTaxGroupOptions()}
-              @change=${this._handleTaxGroupChange}>
-            </uui-select>
-          </umb-property-layout>
+            <umb-property
+              alias="viewAlias"
+              label="Product View"
+              description="Select the view template used to render this product on the front-end"
+              property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+              .config=${this._getViewPropertyConfig()}>
+            </umb-property>
 
-          <umb-property-layout
-            label="Product View"
-            description="Select the view template used to render this product on the front-end">
-            ${this._productViews.length > 0
-              ? html`
-                  <uui-select
-                    slot="editor"
-                    .options=${this._getViewOptions()}
-                    @change=${this._handleViewChange}>
-                  </uui-select>
-                `
-              : html`
-                  <div slot="editor" style="color: var(--uui-color-text-alt); font-style: italic;">
-                    No views found. Add .cshtml files to ~/Views/Products/
-                  </div>
-                `}
-          </umb-property-layout>
+            <umb-property
+              alias="elementTypeAlias"
+              label="Element Type"
+              description="Optional: select an Element Type to add custom properties to this product"
+              property-editor-ui-alias="Umb.PropertyEditorUi.DocumentTypePicker"
+              .config=${this._elementTypePickerConfig}>
+            </umb-property>
 
-          <umb-property-layout
-            label="Element Type"
-            description="Optional: select an Element Type to add custom properties to this product">
-            <umb-input-document-type
-              slot="editor"
-              .selection=${this._getElementTypeSelection()}
-              .max=${1}
-              .elementTypesOnly=${true}
-              @change=${this._handleElementTypeChange}>
-            </umb-input-document-type>
-          </umb-property-layout>
-
-          <umb-property-layout
-            label="Digital Product"
-            description="No shipping costs, instant delivery, no warehouse needed">
-            <uui-toggle
-              slot="editor"
+            <umb-property
+              alias="isDigitalProduct"
               label="Digital Product"
-              .checked=${this._formData.isDigitalProduct ?? false}
-              @change=${(e: Event) => this._handleToggleChange("isDigitalProduct", (e.target as HTMLInputElement).checked)}>
-            </uui-toggle>
-          </umb-property-layout>
+              description="No shipping costs, instant delivery, no warehouse needed"
+              property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+            </umb-property>
 
-          <umb-property-layout
-            label="Description"
-            description="Product description for your storefront. Edit the DataType in Settings > Data Types to customize the editor toolbar.">
-            <div slot="editor">
-              ${this._renderDescriptionEditor()}
-            </div>
-          </umb-property-layout>
+            <umb-property
+              alias="description"
+              label="Description"
+              description="Product description for your storefront. Edit the DataType in Settings > Data Types to customize the editor toolbar."
+              property-editor-ui-alias="Umb.PropertyEditorUi.Tiptap"
+              .config=${this._descriptionEditorConfig}>
+            </umb-property>
+          </umb-property-dataset>
+
+          ${this._productViews.length === 0
+            ? html`<p class="hint">No product views found. Add .cshtml files to ~/Views/Products/.</p>`
+            : nothing}
+        </uui-box>
+
+        <uui-box headline="Categorisation">
+          <umb-property-dataset
+            .value=${this._getCategorisationDatasetValue()}
+            @change=${this._handleCategorisationDatasetChange}>
+            <umb-property
+              alias="productTypeId"
+              label="Product Type"
+              description="Categorize your product for reporting and organization"
+              property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+              .config=${this._getProductTypePropertyConfig()}
+              .validation=${{ mandatory: true }}>
+            </umb-property>
+
+            <umb-property
+              alias="collectionIds"
+              label="Collections"
+              description="Assign this product to one or more collections for storefront organization"
+              property-editor-ui-alias="Merchello.PropertyEditorUi.CollectionPicker"
+              .config=${this._collectionPickerConfig}>
+            </umb-property>
+
+            <umb-property
+              alias="googleShoppingFeedCategory"
+              label="Shopping Category"
+              description="Select a shopping taxonomy category for this product"
+              property-editor-ui-alias="Merchello.PropertyEditorUi.GoogleShoppingCategoryPicker">
+            </umb-property>
+          </umb-property-dataset>
         </uui-box>
 
         ${!this._formData.isDigitalProduct
@@ -1172,14 +1403,42 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
                 <umb-property-layout
                   label="Stock Locations"
                   description="Select which warehouses stock this product"
-                  ?mandatory=${true}
+                  mandatory
                   ?invalid=${!!this._fieldErrors.warehouseIds}>
                   <div slot="editor">
                     ${this._renderWarehouseSelector()}
                   </div>
+                  ${this._fieldErrors.warehouseIds
+                    ? html`<span class="field-error-message">${this._fieldErrors.warehouseIds}</span>`
+                    : nothing}
                 </umb-property-layout>
               </uui-box>
             `
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _renderWarehouseSelector(): unknown {
+    const selectedWarehouseIds = this._formData.warehouseIds ?? [];
+
+    return html`
+      <div class="warehouse-toggle-list">
+        ${this._warehouses.map((warehouse) => {
+          const warehouseName = warehouse.name || "Unnamed Warehouse";
+          return html`
+            <div class="toggle-field">
+              <uui-toggle
+                label="${warehouseName}"
+                .checked=${selectedWarehouseIds.includes(warehouse.id)}
+                @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
+              </uui-toggle>
+              <label>${warehouseName}${warehouse.code ? ` (${warehouse.code})` : ""}</label>
+            </div>
+          `;
+        })}
+        ${this._warehouses.length === 0
+          ? html`<p class="hint">No warehouses available. Create a warehouse first.</p>`
           : nothing}
       </div>
     `;
@@ -1189,13 +1448,17 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     return html`
       <div class="tab-content">
         <uui-box headline="Product Images">
-          <umb-property-layout
-            label="Images"
-            description="Add images that will be displayed on your storefront. These images are shared across all variants.">
-            <div slot="editor">
-              ${this._renderMediaPicker()}
-            </div>
-          </umb-property-layout>
+          <umb-property-dataset
+            .value=${this._getMediaDatasetValue()}
+            @change=${this._handleMediaDatasetChange}>
+            <umb-property
+              alias="rootImages"
+              label="Images"
+              description="Add images that will be displayed on your storefront. These images are shared across all variants."
+              property-editor-ui-alias="Umb.PropertyEditorUi.MediaPicker"
+              .config=${[{ alias: "multiple", value: true }]}>
+            </umb-property>
+          </umb-property-dataset>
         </uui-box>
       </div>
     `;
@@ -1259,186 +1522,67 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     }));
   }
 
-  /**
-   * Renders the Description rich text editor using Umbraco's TipTap input component.
-   * The editor configuration comes from a DataType that can be customized in Settings > Data Types.
-   */
-  private _renderDescriptionEditor(): unknown {
-    // Show loading state while config is being fetched
-    if (!this._descriptionEditorConfig) {
-      return html`<uui-loader-bar></uui-loader-bar>`;
-    }
-
-    // Parse existing value to extract markup for the editor
-    const markup = this._getDescriptionMarkup();
-
-    return html`
-      <umb-input-tiptap
-        .configuration=${this._descriptionEditorConfig}
-        .value=${markup}
-        @change=${this._handleDescriptionChange}>
-      </umb-input-tiptap>
-    `;
-  }
-
-  /**
-   * Extracts the markup string from the description field.
-   * Handles both new JSON format (RichTextEditorValue) and legacy plain markup.
-   */
-  private _getDescriptionMarkup(): string {
-    const description = this._formData.description;
-    if (!description) return "";
-
-    try {
-      const parsed = JSON.parse(description) as RichTextEditorValue;
-      // Store blocks for later save
-      if (parsed.blocks && !this._descriptionBlocks) {
-        this._descriptionBlocks = parsed.blocks;
-      }
-      return parsed.markup || "";
-    } catch {
-      // Backwards compatibility: treat as plain markup
-      return description;
-    }
-  }
-
-  /**
-   * Handles changes from the Description rich text editor.
-   * Builds the full RichTextEditorValue JSON structure for storage.
-   */
-  private _handleDescriptionChange(e: Event): void {
-    const target = e.target as HTMLElement & { value?: string };
-    const markup = target?.value || "";
-
-    // Build full RichTextEditorValue and serialize to JSON
-    const richTextValue: RichTextEditorValue = {
-      markup: markup,
-      blocks: this._descriptionBlocks,
-    };
-
-    this._formData = {
-      ...this._formData,
-      description: JSON.stringify(richTextValue),
-    };
-  }
-
-  private _renderMediaPicker(): unknown {
-    const imageKeys = this._formData.rootImages || [];
-    const mediaValue = imageKeys.map((key) => ({ key, mediaKey: key }));
-
-    return html`
-      <umb-input-rich-media
-        .value=${mediaValue}
-        ?multiple=${true}
-        @change=${this._handleMediaChange}>
-      </umb-input-rich-media>
-      ${imageKeys.length === 0 ? html`
-        <div class="empty-media-state">
-          <uui-icon name="icon-picture"></uui-icon>
-          <p>No images added yet</p>
-          <small>Click the button above to add product images</small>
-        </div>
-      ` : nothing}
-    `;
-  }
-
-  private _handleMediaChange(e: CustomEvent): void {
-    const target = e.target as HTMLElement & { value?: Array<{ mediaKey?: string }> };
-    const value = target?.value || [];
-    const imageKeys = value.map((item) => item.mediaKey).filter(Boolean) as string[];
-    this._formData = { ...this._formData, rootImages: imageKeys };
-  }
-
   private _renderSeoTab(): unknown {
-    const openGraphImageValue = this._formData.openGraphImage
-      ? [{ key: this._formData.openGraphImage, mediaKey: this._formData.openGraphImage }]
-      : [];
-
     return html`
       <div class="tab-content">
         <uui-box headline="Search Engine Optimization">
-          <umb-property-layout
-            label="Product URL"
-            description="The URL path for this product on your storefront">
-            <uui-input
-              slot="editor"
-              .value=${this._formData.rootUrl || ""}
-              @input=${(e: Event) => this._handleInputChange("rootUrl", (e.target as HTMLInputElement).value)}
-              placeholder="/products/my-product">
-            </uui-input>
-          </umb-property-layout>
+          <umb-property-dataset
+            .value=${this._getSeoDatasetValue()}
+            @change=${this._handleSeoDatasetChange}>
+            <umb-property
+              alias="rootUrl"
+              label="Product URL"
+              description="The URL path for this product on your storefront"
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+            </umb-property>
 
-          <umb-property-layout
-            label="Page Title"
-            description="The title shown in browser tabs and search results">
-            <uui-input
-              slot="editor"
-              maxlength="100"
-              .value=${this._formData.pageTitle || ""}
-              @input=${(e: Event) => this._handleInputChange("pageTitle", (e.target as HTMLInputElement).value)}
-              placeholder="e.g., Blue T-Shirt | Your Store Name">
-            </uui-input>
-          </umb-property-layout>
+            <umb-property
+              alias="pageTitle"
+              label="Page Title"
+              description="The title shown in browser tabs and search results"
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+            </umb-property>
 
-          <umb-property-layout
-            label="Meta Description"
-            description="The description shown in search results (recommended: 150-160 characters)">
-            <uui-textarea
-              slot="editor"
-              maxlength="200"
-              .value=${this._formData.metaDescription || ""}
-              @input=${(e: Event) => this._handleInputChange("metaDescription", (e.target as HTMLTextAreaElement).value)}
-              placeholder="A brief description for search engines...">
-            </uui-textarea>
-          </umb-property-layout>
+            <umb-property
+              alias="metaDescription"
+              label="Meta Description"
+              description="The description shown in search results (recommended: 150-160 characters)"
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextArea">
+            </umb-property>
 
-          <umb-property-layout
-            label="Canonical URL"
-            description="Optional URL to indicate the preferred version of this page for SEO">
-            <uui-input
-              slot="editor"
-              maxlength="1000"
-              .value=${this._formData.canonicalUrl || ""}
-              @input=${(e: Event) => this._handleInputChange("canonicalUrl", (e.target as HTMLInputElement).value)}
-              placeholder="https://example.com/products/blue-t-shirt">
-            </uui-input>
-          </umb-property-layout>
+            <umb-property
+              alias="canonicalUrl"
+              label="Canonical URL"
+              description="Optional URL to indicate the preferred version of this page for SEO"
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+            </umb-property>
 
-          <umb-property-layout
-            label="Hide from Search Engines"
-            description="Adds noindex meta tag to prevent search engines from indexing this page">
-            <uui-toggle
-              slot="editor"
+            <umb-property
+              alias="noIndex"
               label="Hide from Search Engines"
-              .checked=${this._formData.noIndex ?? false}
-              @change=${(e: Event) => this._handleToggleChange("noIndex", (e.target as HTMLInputElement).checked)}>
-            </uui-toggle>
-          </umb-property-layout>
+              description="Adds noindex meta tag to prevent search engines from indexing this page"
+              property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+            </umb-property>
+          </umb-property-dataset>
         </uui-box>
 
         <uui-box headline="Social Sharing">
-          <umb-property-layout
-            label="Open Graph Image"
-            description="Image displayed when this page is shared on social media">
-            <div slot="editor">
-              <umb-input-rich-media
-                .value=${openGraphImageValue}
-                ?multiple=${false}
-                @change=${this._handleOpenGraphImageChange}>
-              </umb-input-rich-media>
-              <small style="color: var(--uui-color-text-alt); display: block; margin-top: var(--uui-size-space-2);">Recommended size: 1200×630 pixels</small>
-            </div>
-          </umb-property-layout>
+          <umb-property-dataset
+            .value=${this._getSocialDatasetValue()}
+            @change=${this._handleSocialDatasetChange}>
+            <umb-property
+              alias="openGraphImage"
+              label="Open Graph Image"
+              description="Image displayed when this page is shared on social media"
+              property-editor-ui-alias="Umb.PropertyEditorUi.MediaPicker"
+              .config=${[{ alias: "multiple", value: false }]}>
+            </umb-property>
+          </umb-property-dataset>
+          <small class="hint">Recommended size: 1200x630 pixels</small>
         </uui-box>
 
         <uui-box headline="Search Preview">
-          <umb-property-layout
-            label="Google Search Result"
-            description="Preview how this product may appear in Google search results">
-            <div slot="editor">
-              ${this._renderGoogleSearchPreview()}
-            </div>
-          </umb-property-layout>
+          <div>${this._renderGoogleSearchPreview()}</div>
         </uui-box>
       </div>
     `;
@@ -1495,46 +1639,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
    */
   private _formatUrlAsBreadcrumb(url: string): string {
     return formatUrlAsBreadcrumb(url);
-  }
-
-  private _handleOpenGraphImageChange(e: CustomEvent): void {
-    const target = e.target as HTMLElement & { value?: Array<{ mediaKey?: string }> };
-    const value = target?.value || [];
-    const imageKey = value.length > 0 ? value[0].mediaKey : null;
-    this._formData = { ...this._formData, openGraphImage: imageKey };
-  }
-
-  private _renderWarehouseSelector(): unknown {
-    const selectedWarehouseIds = this._formData.warehouseIds || [];
-
-    return html`
-      <div class="warehouse-toggle-list">
-        ${this._warehouses.map(
-          (warehouse) => html`
-            <div class="toggle-field">
-              <uui-toggle
-                label="${warehouse.name}"
-                .checked=${selectedWarehouseIds.includes(warehouse.id)}
-                @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
-              </uui-toggle>
-              <label>${warehouse.name} ${warehouse.code ? `(${warehouse.code})` : ""}</label>
-            </div>
-          `
-        )}
-        ${this._warehouses.length === 0
-          ? html`<p class="hint">No warehouses available. Create a warehouse first.</p>`
-          : nothing}
-      </div>
-    `;
-  }
-
-  private _handleWarehouseToggle(warehouseId: string, checked: boolean): void {
-    const warehouseIds = this._formData.warehouseIds || [];
-    if (checked) {
-      this._formData = { ...this._formData, warehouseIds: [...warehouseIds, warehouseId] };
-    } else {
-      this._formData = { ...this._formData, warehouseIds: warehouseIds.filter((id) => id !== warehouseId) };
-    }
   }
 
   private _renderVariantsTab(): unknown {
@@ -2453,17 +2557,18 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         --uui-box-default-padding: var(--uui-size-space-5);
       }
 
-      /* Property layout adjustments */
-      umb-property-layout:first-child {
+      /* Property adjustments */
+      umb-property:first-child {
         padding-top: 0;
       }
 
-      umb-property-layout:last-child {
+      umb-property:last-child {
         padding-bottom: 0;
       }
 
-      umb-property-layout uui-select,
-      umb-property-layout uui-input {
+      umb-property uui-select,
+      umb-property uui-input,
+      umb-property uui-textarea {
         width: 100%;
       }
 
@@ -2474,7 +2579,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         gap: var(--uui-size-space-5);
       }
 
-      /* Warehouse toggle list */
       .warehouse-toggle-list {
         display: flex;
         flex-direction: column;
@@ -2488,53 +2592,21 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       }
 
       .warehouse-toggle-list label {
-        font-weight: normal;
         color: var(--uui-color-text);
+        font-weight: normal;
+      }
+
+      .field-error-message {
+        color: var(--uui-color-danger);
+        display: block;
+        font-size: var(--uui-type-small-size);
+        margin-top: var(--uui-size-space-1);
       }
 
       .hint {
         font-size: 0.875rem;
         color: var(--uui-color-text-alt);
         margin: 0;
-      }
-
-      /* Empty media state */
-      .empty-media-state {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: var(--uui-size-space-6);
-        margin-top: var(--uui-size-space-3);
-        background: var(--uui-color-surface);
-        border: 2px dashed var(--uui-color-border);
-        border-radius: var(--uui-border-radius);
-        color: var(--uui-color-text-alt);
-        text-align: center;
-      }
-
-      .empty-media-state uui-icon {
-        font-size: 48px;
-        opacity: 0.5;
-        margin-bottom: var(--uui-size-space-2);
-      }
-
-      .empty-media-state p {
-        margin: 0 0 var(--uui-size-space-1) 0;
-        font-weight: 500;
-      }
-
-      .empty-media-state small {
-        font-size: 0.875rem;
-        color: var(--uui-color-text-alt);
-      }
-
-      .empty-media-state.small {
-        padding: var(--uui-size-space-4);
-      }
-
-      .empty-media-state.small uui-icon {
-        font-size: 32px;
       }
 
       /* Info and error banners */
@@ -2834,12 +2906,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-warning);
       }
 
-      /* Description editor styling */
-      umb-property-dataset {
-        display: block;
-      }
-
-      umb-property-dataset umb-property {
+      /* Element Type content styling */
+      merchello-product-element-properties umb-property {
         --umb-property-layout-description-display: none;
       }
 
@@ -2854,3 +2922,4 @@ declare global {
     "merchello-product-detail": MerchelloProductDetailElement;
   }
 }
+

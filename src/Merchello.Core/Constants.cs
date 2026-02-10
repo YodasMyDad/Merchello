@@ -102,6 +102,7 @@ public static class Constants
         public const string ShippingQuotePrefix = "shipping-quote:";
         public const string LocalityPrefix = "merchello:locality:";
         public const string LocalityRegionsPrefix = "merchello:locality:regions:";
+        public const string GoogleShoppingTaxonomyPrefix = "merchello:products:google-shopping-taxonomy:";
         public const string CheckoutSessionPrefix = "MerchelloCheckout_";
         public const string BasketSessionKey = "Basket";
     }
@@ -111,6 +112,7 @@ public static class Constants
         public const string ExchangeRates = "merchello-exchange-rates";
         public const string ShippingQuotes = "shipping-quotes";
         public const string Locality = "merchello:locality:";
+        public const string GoogleShoppingTaxonomy = "merchello:products:google-shopping-taxonomy";
     }
 
     public static class PaymentProviders

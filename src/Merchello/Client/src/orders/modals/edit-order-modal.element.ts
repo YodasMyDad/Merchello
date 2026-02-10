@@ -13,6 +13,7 @@ import type {
   EditInvoiceDto,
   EditLineItemDto,
   AddCustomItemDto,
+  CustomItemAddonDto,
   LineItemDiscountDto,
   TaxGroupDto,
   RemoveLineItemDto,
@@ -47,11 +48,11 @@ interface EditableOrder extends OrderForEditDto {
 interface PendingCustomItem extends AddCustomItemDto {
   tempId: string;
   /** Warehouse ID for physical items */
-  warehouseId?: string;
+  warehouseId?: string | null;
   /** Warehouse name for display */
   warehouseName?: string;
   /** Shipping option ID for physical items */
-  shippingOptionId?: string;
+  shippingOptionId?: string | null;
   /** Shipping option name for display */
   shippingOptionName?: string;
 }
@@ -61,6 +62,12 @@ interface PendingOrderDiscount {
   value: number;
   reason: string | null;
   isVisibleToCustomer: boolean;
+  tempId: string;
+}
+
+interface PendingOrderDiscountCode {
+  code: string;
+  name?: string | null;
   tempId: string;
 }
 
@@ -110,6 +117,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
   // Order-level discounts (coupons, etc.)
   @state() private _removedOrderDiscounts: Set<string> = new Set();
   @state() private _pendingOrderDiscounts: PendingOrderDiscount[] = [];
+  @state() private _pendingOrderDiscountCodes: PendingOrderDiscountCode[] = [];
 
   // Preview state - Single source of truth from backend
   @state() private _previewResult: PreviewEditResultDto | null = null;
@@ -357,6 +365,34 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       ];
       this._refreshPreview();
     }
+
+    if (result?.discountCode) {
+      const code = result.discountCode.trim();
+      if (!code) return;
+
+      const alreadyPending = this._pendingOrderDiscountCodes.some(
+        (d) => d.code.toLowerCase() === code.toLowerCase()
+      );
+      if (alreadyPending) {
+        this.#notificationContext?.peek("warning", {
+          data: {
+            headline: "Discount Already Added",
+            message: `Discount code '${code}' is already pending.`,
+          },
+        });
+        return;
+      }
+
+      this._pendingOrderDiscountCodes = [
+        ...this._pendingOrderDiscountCodes,
+        {
+          code,
+          name: result.discountName ?? null,
+          tempId: `discount-code-${Date.now()}`,
+        },
+      ];
+      this._refreshPreview();
+    }
   }
 
   private _removeDiscount(lineItemId: string): void {
@@ -501,6 +537,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     this._refreshPreview();
   }
 
+  private _removePendingOrderDiscountCode(tempId: string): void {
+    this._pendingOrderDiscountCodes = this._pendingOrderDiscountCodes.filter((d) => d.tempId !== tempId);
+    this._refreshPreview();
+  }
+
   private _hasChanges(): boolean {
     if (!this._invoice) return false;
 
@@ -542,6 +583,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
     // Check for pending order discounts
     if (this._pendingOrderDiscounts.length > 0) return true;
+
+    // Check for pending order discount codes
+    if (this._pendingOrderDiscountCodes.length > 0) return true;
 
     return false;
   }
@@ -592,6 +636,13 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         quantity: item.quantity,
         taxGroupId: item.taxGroupId,
         isPhysicalProduct: item.isPhysicalProduct,
+        addons: (item.addons ?? []).map((addon) => ({
+          key: addon.key,
+          value: addon.value,
+          priceAdjustment: addon.priceAdjustment,
+          costAdjustment: addon.costAdjustment,
+          skuSuffix: addon.skuSuffix,
+        })),
         warehouseId: item.warehouseId ?? null,
         shippingOptionId: item.shippingOptionId ?? null,
       })),
@@ -615,6 +666,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         reason: d.reason,
         isVisibleToCustomer: d.isVisibleToCustomer,
       })),
+      orderDiscountCodes: this._pendingOrderDiscountCodes.map((d) => d.code),
       orderShippingUpdates: orderShippingUpdates,
       editReason: this._editReason || null,
       shouldRemoveTax: this._taxRemoved,
@@ -970,7 +1022,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       (d) => !this._removedOrderDiscounts.has(d.id)
     );
 
-    const hasPendingDiscounts = this._pendingOrderDiscounts.length > 0;
+    const hasPendingDiscounts = this._pendingOrderDiscounts.length > 0 || this._pendingOrderDiscountCodes.length > 0;
     const hasActiveDiscounts = activeDiscounts.length > 0;
 
     if (!hasActiveDiscounts && !hasPendingDiscounts) return nothing;
@@ -1032,6 +1084,28 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
             </div>
           `
         )}
+        ${this._pendingOrderDiscountCodes.map(
+          (discount) => html`
+            <div class="order-discount-row pending">
+              <div class="discount-info">
+                <span class="discount-name">${discount.name || "Discount code"}</span>
+                <span class="discount-value code">${discount.code}</span>
+                <span class="pending-badge">Code</span>
+              </div>
+              <div class="discount-amount-cell">
+                <uui-button
+                  compact
+                  look="secondary"
+                  color="danger"
+                  @click=${() => this._removePendingOrderDiscountCode(discount.tempId)}
+                  title="Remove discount code"
+                >
+                  <uui-icon name="icon-delete"></uui-icon>
+                </uui-button>
+              </div>
+            </div>
+          `
+        )}
       </div>
     `;
   }
@@ -1061,7 +1135,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
               </div>
               <div class="shipping-info">
                 <uui-icon name="icon-truck"></uui-icon>
-                ${item.shippingOptionName || "Standard"}
+                ${item.shippingOptionName || "No Shipping"}
               </div>
             ` : nothing}
           </div>
@@ -1089,6 +1163,43 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           >
             <uui-icon name="icon-delete"></uui-icon>
           </uui-button>
+        </div>
+      </div>
+      ${(item.addons ?? []).map((addon) =>
+        this._renderPendingCustomItemAddon(addon, item.quantity, currencySymbol))}
+    `;
+  }
+
+  private _renderPendingCustomItemAddon(addon: CustomItemAddonDto, quantity: number, currencySymbol: string) {
+    return html`
+      <div class="line-item child-item addon-item">
+        <div class="line-item-product">
+          <div class="addon-indicator">
+            <span class="addon-connector"></span>
+          </div>
+          <div class="line-item-details">
+            <div class="line-item-name">
+              <span class="addon-badge">Add-on</span>
+              ${addon.key}: ${addon.value}
+            </div>
+          </div>
+        </div>
+
+        <div class="line-item-price">
+          +${currencySymbol}${formatNumber(addon.priceAdjustment, 2)}
+        </div>
+
+        <div class="line-item-quantity">
+          ${quantity}
+        </div>
+
+        <div class="line-item-total">
+          <!-- Pending items: total included in preview summary -->
+          <span class="pending-total">-</span>
+        </div>
+
+        <div class="line-item-actions">
+          <!-- Add-ons follow parent quantity, no individual actions -->
         </div>
       </div>
     `;
@@ -2141,6 +2252,11 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       background: var(--uui-color-surface-alt);
       padding: 2px 8px;
       border-radius: 4px;
+    }
+
+    .order-discount-row .discount-value.code {
+      font-family: var(--uui-font-family-monospace);
+      letter-spacing: 0.02em;
     }
 
     .order-discount-row .discount-amount-cell {

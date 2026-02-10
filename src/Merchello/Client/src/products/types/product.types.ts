@@ -59,6 +59,13 @@ export interface ProductViewDto {
   virtualPath: string;
 }
 
+/** Autocomplete result for Google Shopping categories */
+export interface GoogleShoppingCategoryResultDto {
+  countryCode: string;
+  sourceUrl: string;
+  categories: string[];
+}
+
 /** Element type list item for pickers */
 export interface ElementTypeListItemDto {
   key: string;
@@ -320,6 +327,7 @@ export interface DescriptionEditorSettingsDto {
 // Request types
 export interface CreateProductRootDto {
   rootName: string;
+  googleShoppingFeedCategory?: string;
   taxGroupId: string;
   productTypeId: string;
   collectionIds?: string[];

@@ -4,14 +4,16 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { CreateProductModalData, CreateProductModalValue } from "@products/modals/create-product-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-import type { UmbInputDocumentTypeElement } from "@umbraco-cms/backoffice/document-type";
+import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
+import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
+import type { UmbPropertyEditorConfig } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/document-type";
 import type { CreateProductRootDto, ElementTypeListItemDto, ProductTypeDto } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseListDto } from "@warehouses/types/warehouses.types.js";
 
 interface FormData {
-  name: string;
+  rootName: string;
   sku: string;
   price: number;
   productTypeId: string;
@@ -21,7 +23,7 @@ interface FormData {
 }
 
 interface FormErrors {
-  name?: string;
+  rootName?: string;
   sku?: string;
   price?: string;
   productTypeId?: string;
@@ -43,7 +45,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
   @state() private _warehouses: WarehouseListDto[] = [];
   @state() private _elementTypes: ElementTypeListItemDto[] = [];
   @state() private _formData: FormData = {
-    name: "",
+    rootName: "",
     sku: "",
     price: 0,
     productTypeId: "",
@@ -52,6 +54,11 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     elementTypeAlias: null,
   };
   @state() private _errors: FormErrors = {};
+
+  private readonly _elementTypePickerConfig = new UmbPropertyEditorConfigCollection([
+    { alias: "validationLimit", value: { min: 0, max: 1 } },
+    { alias: "onlyPickElementTypes", value: true },
+  ]);
 
   constructor() {
     super();
@@ -117,8 +124,8 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
   private _validate(): boolean {
     const errors: FormErrors = {};
 
-    if (!this._formData.name.trim()) {
-      errors.name = "Product name is required";
+    if (!this._formData.rootName.trim()) {
+      errors.rootName = "Product name is required";
     }
 
     if (!this._formData.sku.trim()) {
@@ -153,7 +160,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     this._isSaving = true;
 
     const request: CreateProductRootDto = {
-      rootName: this._formData.name,
+      rootName: this._formData.rootName,
       productTypeId: this._formData.productTypeId,
       taxGroupId: this._formData.taxGroupId,
       warehouseIds: this._formData.warehouseIds,
@@ -182,7 +189,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     this.#notificationContext?.peek("positive", {
       data: {
         headline: "Product created",
-        message: `"${this._formData.name}" has been created successfully`,
+        message: `"${this._formData.rootName}" has been created successfully`,
       },
     });
 
@@ -195,60 +202,40 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  private _handleInputChange(field: keyof FormData, value: string | number): void {
-    this._formData = { ...this._formData, [field]: value };
-    // Clear error when user starts typing
-    if (this._errors[field as keyof FormErrors]) {
-      this._errors = { ...this._errors, [field]: undefined };
+  private _toPropertyValueMap(values: UmbPropertyValueData[]): Record<string, unknown> {
+    const map: Record<string, unknown> = {};
+    for (const value of values) {
+      map[value.alias] = value.value;
     }
+    return map;
   }
 
-  private _handleWarehouseToggle(warehouseId: string, checked: boolean): void {
-    const warehouseIds = this._formData.warehouseIds || [];
-    if (checked) {
-      this._formData = { ...this._formData, warehouseIds: [...warehouseIds, warehouseId] };
-    } else {
-      this._formData = { ...this._formData, warehouseIds: warehouseIds.filter((id) => id !== warehouseId) };
+  private _getStringFromPropertyValue(value: unknown): string {
+    return typeof value === "string" ? value : "";
+  }
+
+  private _getFirstDropdownValue(value: unknown): string {
+    if (Array.isArray(value)) {
+      const first = value.find((x) => typeof x === "string");
+      return typeof first === "string" ? first : "";
     }
-    // Clear warehouse error when toggled
-    if (this._errors.warehouseIds) {
-      this._errors = { ...this._errors, warehouseIds: undefined };
-    }
+    return typeof value === "string" ? value : "";
   }
 
-  private _getProductTypeOptions(): Array<{ name: string; value: string; selected?: boolean }> {
-    const options = [{ name: "Select product type...", value: "" }];
-    return options.concat(
-      this._productTypes.map((pt) => ({
-        name: pt.name,
-        value: pt.id,
-        selected: pt.id === this._formData.productTypeId,
-      }))
-    );
-  }
-
-  private _getTaxGroupOptions(): Array<{ name: string; value: string; selected?: boolean }> {
-    const options = [{ name: "Select tax group...", value: "" }];
-    return options.concat(
-      this._taxGroups.map((tg) => ({
-        name: tg.name,
-        value: tg.id,
-        selected: tg.id === this._formData.taxGroupId,
-      }))
-    );
-  }
-
-  private _getElementTypeSelection(): string[] {
+  private _getElementTypeSelectionKey(): string | undefined {
     const alias = this._formData.elementTypeAlias;
-    if (!alias) return [];
+    if (!alias) return undefined;
     const match = this._elementTypes.find((t) => t.alias.toLowerCase() === alias.toLowerCase());
-    return match ? [match.key] : [];
+    return match?.key;
   }
 
-  private async _handleElementTypeChange(e: Event): Promise<void> {
-    const picker = e.target as UmbInputDocumentTypeElement;
-    const selection = picker.selection ?? [];
-    const selectedKey = selection[0];
+  private async _setElementTypeAliasFromSelectionValue(value: unknown): Promise<void> {
+    const selectedRawValue = this._getFirstDropdownValue(value);
+    const selectedKey = selectedRawValue
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)[0];
+
     let selectedType = this._elementTypes.find((t) => t.key === selectedKey);
 
     if (selectedKey && !selectedType) {
@@ -260,6 +247,83 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     }
 
     this._formData = { ...this._formData, elementTypeAlias: selectedType?.alias ?? null };
+  }
+
+  private _handleWarehouseToggle(warehouseId: string, checked: boolean): void {
+    const warehouseIds = this._formData.warehouseIds;
+    this._formData = checked
+      ? { ...this._formData, warehouseIds: [...warehouseIds, warehouseId] }
+      : { ...this._formData, warehouseIds: warehouseIds.filter((id) => id !== warehouseId) };
+
+    if (this._errors.warehouseIds) {
+      this._errors = { ...this._errors, warehouseIds: undefined };
+    }
+  }
+
+  private _getProductTypePropertyConfig(): UmbPropertyEditorConfig {
+    return [
+      {
+        alias: "items",
+        value: [
+          { name: "Select product type...", value: "" },
+          ...this._productTypes.map((productType) => ({
+            name: productType.name,
+            value: productType.id,
+          })),
+        ],
+      },
+    ];
+  }
+
+  private _getTaxGroupPropertyConfig(): UmbPropertyEditorConfig {
+    return [
+      {
+        alias: "items",
+        value: [
+          { name: "Select tax group...", value: "" },
+          ...this._taxGroups.map((taxGroup) => ({
+            name: taxGroup.name,
+            value: taxGroup.id,
+          })),
+        ],
+      },
+    ];
+  }
+
+  private _getDatasetValue(): UmbPropertyValueData[] {
+    const elementTypeKey = this._getElementTypeSelectionKey();
+
+    return [
+      { alias: "rootName", value: this._formData.rootName },
+      { alias: "sku", value: this._formData.sku },
+      { alias: "price", value: this._formData.price },
+      { alias: "productTypeId", value: this._formData.productTypeId ? [this._formData.productTypeId] : [] },
+      { alias: "taxGroupId", value: this._formData.taxGroupId ? [this._formData.taxGroupId] : [] },
+      { alias: "elementTypeAlias", value: elementTypeKey },
+    ];
+  }
+
+  private _handleDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+    const priceValue = typeof values.price === "number"
+      ? values.price
+      : Number(this._getStringFromPropertyValue(values.price));
+
+    this._formData = {
+      ...this._formData,
+      rootName: this._getStringFromPropertyValue(values.rootName),
+      sku: this._getStringFromPropertyValue(values.sku),
+      price: Number.isFinite(priceValue) ? priceValue : 0,
+      productTypeId: this._getFirstDropdownValue(values.productTypeId),
+      taxGroupId: this._getFirstDropdownValue(values.taxGroupId),
+    };
+
+    if (Object.keys(this._errors).length > 0) {
+      this._errors = {};
+    }
+
+    void this._setElementTypeAliasFromSelectionValue(values.elementTypeAlias);
   }
 
   override render() {
@@ -292,99 +356,94 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     `;
   }
 
+  private _renderWarehouseSelector() {
+    const selectedWarehouseIds = this._formData.warehouseIds;
+
+    return html`
+      <div class="warehouse-toggle-list">
+        ${this._warehouses.map((warehouse) => html`
+          <div class="toggle-field">
+            <uui-toggle
+              label="${warehouse.name || "Unnamed Warehouse"}"
+              .checked=${selectedWarehouseIds.includes(warehouse.id)}
+              @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
+            </uui-toggle>
+            <label>${warehouse.name || "Unnamed Warehouse"}${warehouse.code ? ` (${warehouse.code})` : ""}</label>
+          </div>
+        `)}
+      </div>
+    `;
+  }
+
   private _renderForm() {
+    const errorMessages = Object.values(this._errors).filter((error): error is string => !!error);
+
     return html`
       <div class="form-content">
-        <umb-property-layout
-          label="Product Name"
-          description="The name that will be displayed to customers"
-          mandatory
-          ?invalid=${!!this._errors.name}>
-          <uui-input
-            slot="editor"
-            label="Product name"
-            .value=${this._formData.name}
-            @input=${(e: Event) => this._handleInputChange("name", (e.target as HTMLInputElement).value)}
-            placeholder="Enter product name"
-            ?invalid=${!!this._errors.name}>
-          </uui-input>
-          ${this._errors.name ? html`<span class="error-message">${this._errors.name}</span>` : nothing}
-        </umb-property-layout>
+        ${errorMessages.length > 0
+          ? html`
+              <div class="error-summary">
+                <strong>Please fix the following before creating the product:</strong>
+                ${errorMessages.map((message) => html`<div>${message}</div>`)}
+              </div>
+            `
+          : nothing}
 
-        <umb-property-layout
-          label="SKU"
-          description="Stock Keeping Unit - a unique identifier for this product"
-          mandatory
-          ?invalid=${!!this._errors.sku}>
-          <uui-input
-            slot="editor"
+        <umb-property-dataset
+          .value=${this._getDatasetValue()}
+          @change=${this._handleDatasetChange}>
+          <umb-property
+            alias="rootName"
+            label="Product Name"
+            description="The name that will be displayed to customers"
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+            .validation=${{ mandatory: true }}>
+          </umb-property>
+
+          <umb-property
+            alias="sku"
             label="SKU"
-            .value=${this._formData.sku}
-            @input=${(e: Event) => this._handleInputChange("sku", (e.target as HTMLInputElement).value)}
-            placeholder="e.g., PROD-001"
-            ?invalid=${!!this._errors.sku}>
-          </uui-input>
-          ${this._errors.sku ? html`<span class="error-message">${this._errors.sku}</span>` : nothing}
-        </umb-property-layout>
+            description="Stock Keeping Unit - a unique identifier for this product"
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+            .validation=${{ mandatory: true }}>
+          </umb-property>
 
-        <umb-property-layout
-          label="Price"
-          description="The base price for this product"
-          mandatory
-          ?invalid=${!!this._errors.price}>
-          <uui-input
-            slot="editor"
+          <umb-property
+            alias="price"
             label="Price"
-            type="number"
-            min="0"
-            step="0.01"
-            .value=${this._formData.price.toString()}
-            @input=${(e: Event) => this._handleInputChange("price", parseFloat((e.target as HTMLInputElement).value) || 0)}
-            placeholder="0.00"
-            ?invalid=${!!this._errors.price}>
-          </uui-input>
-          ${this._errors.price ? html`<span class="error-message">${this._errors.price}</span>` : nothing}
-        </umb-property-layout>
+            description="The base price for this product"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Decimal"
+            .config=${[{ alias: "min", value: 0 }, { alias: "step", value: 0.01 }]}
+            .validation=${{ mandatory: true }}>
+          </umb-property>
 
-        <umb-property-layout
-          label="Product Type"
-          description="Categorize this product for reporting and organization"
-          mandatory
-          ?invalid=${!!this._errors.productTypeId}>
-          <uui-select
-            slot="editor"
-            label="Product type"
-            .options=${this._getProductTypeOptions()}
-            @change=${(e: Event) => this._handleInputChange("productTypeId", (e.target as HTMLSelectElement).value)}>
-          </uui-select>
-          ${this._errors.productTypeId ? html`<span class="error-message">${this._errors.productTypeId}</span>` : nothing}
-        </umb-property-layout>
+          <umb-property
+            alias="productTypeId"
+            label="Product Type"
+            description="Categorize this product for reporting and organization"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+            .config=${this._getProductTypePropertyConfig()}
+            .validation=${{ mandatory: true }}>
+          </umb-property>
 
-        <umb-property-layout
-          label="Tax Group"
-          description="The tax rate that applies to this product"
-          mandatory
-          ?invalid=${!!this._errors.taxGroupId}>
-          <uui-select
-            slot="editor"
-            label="Tax group"
-            .options=${this._getTaxGroupOptions()}
-            @change=${(e: Event) => this._handleInputChange("taxGroupId", (e.target as HTMLSelectElement).value)}>
-          </uui-select>
-          ${this._errors.taxGroupId ? html`<span class="error-message">${this._errors.taxGroupId}</span>` : nothing}
-        </umb-property-layout>
+          <umb-property
+            alias="taxGroupId"
+            label="Tax Group"
+            description="The tax rate that applies to this product"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+            .config=${this._getTaxGroupPropertyConfig()}
+            .validation=${{ mandatory: true }}>
+          </umb-property>
 
-        <umb-property-layout
-          label="Element Type"
-          description="Optional: select an Element Type to add custom properties to this product">
-          <umb-input-document-type
-            slot="editor"
-            .selection=${this._getElementTypeSelection()}
-            .max=${1}
-            .elementTypesOnly=${true}
-            @change=${this._handleElementTypeChange}>
-          </umb-input-document-type>
-        </umb-property-layout>
+          <umb-property
+            alias="elementTypeAlias"
+            label="Element Type"
+            description="Optional: select an Element Type to add custom properties to this product"
+            property-editor-ui-alias="Umb.PropertyEditorUi.DocumentTypePicker"
+            .config=${this._elementTypePickerConfig}>
+          </umb-property>
+
+        </umb-property-dataset>
 
         <umb-property-layout
           label="Warehouses"
@@ -396,27 +455,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
           </div>
           ${this._errors.warehouseIds ? html`<span class="error-message">${this._errors.warehouseIds}</span>` : nothing}
         </umb-property-layout>
-      </div>
-    `;
-  }
 
-  private _renderWarehouseSelector() {
-    const selectedWarehouseIds = this._formData.warehouseIds || [];
-
-    return html`
-      <div class="warehouse-toggle-list">
-        ${this._warehouses.map(
-          (warehouse) => html`
-            <div class="toggle-field">
-              <uui-toggle
-                label="${warehouse.name || "Unnamed Warehouse"}"
-                .checked=${selectedWarehouseIds.includes(warehouse.id)}
-                @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
-              </uui-toggle>
-              <label>${warehouse.name || "Unnamed Warehouse"} ${warehouse.code ? `(${warehouse.code})` : ""}</label>
-            </div>
-          `
-        )}
         ${this._warehouses.length === 0
           ? html`<p class="hint">No warehouses available. Create a warehouse first.</p>`
           : nothing}
@@ -440,11 +479,12 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       padding: var(--uui-size-layout-1);
     }
 
-    uui-input {
-      width: 100%;
-    }
-
-    uui-select {
+    umb-property uui-input,
+    umb-property uui-select,
+    umb-property uui-textarea,
+    umb-property-layout uui-input,
+    umb-property-layout uui-select,
+    umb-property-layout uui-textarea {
       width: 100%;
     }
 
@@ -461,8 +501,8 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     }
 
     .warehouse-toggle-list label {
-      font-weight: normal;
       color: var(--uui-color-text);
+      font-weight: normal;
     }
 
     .hint {
@@ -471,11 +511,20 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       margin: 0;
     }
 
-    .error-message {
+    .error-summary {
       color: var(--uui-color-danger);
       font-size: var(--uui-type-small-size);
-      margin-top: var(--uui-size-space-1);
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
+    }
+
+    .error-message {
+      color: var(--uui-color-danger);
       display: block;
+      font-size: var(--uui-type-small-size);
+      margin-top: var(--uui-size-space-1);
     }
 
     [slot="actions"] {

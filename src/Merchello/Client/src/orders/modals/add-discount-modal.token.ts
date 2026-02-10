@@ -19,8 +19,12 @@ export interface AddDiscountModalData {
 }
 
 export interface AddDiscountModalValue {
-  /** The discount to apply, or undefined if cancelled */
+  /** Manual discount to apply, or undefined if cancelled */
   discount?: LineItemDiscountDto;
+  /** Promotional discount code to apply using checkout discount logic */
+  discountCode?: string;
+  /** Display name of the selected discount (optional, for UI display only) */
+  discountName?: string | null;
 }
 
 export const MERCHELLO_ADD_DISCOUNT_MODAL = new UmbModalToken<
