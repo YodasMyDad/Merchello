@@ -24,8 +24,7 @@ public class LineItemService(
         }
 
         var sameLineItem =
-            currentLineItems.FirstOrDefault(x =>
-                x.Sku == newLineItem.Sku && newLineItem.LineItemType == x.LineItemType);
+            currentLineItems.FirstOrDefault(x => AreEquivalentForMerge(x, newLineItem));
 
         if (sameLineItem != null)
         {
@@ -46,6 +45,43 @@ public class LineItemService(
         }
 
         return errors;
+    }
+
+    private static bool AreEquivalentForMerge(LineItem existingLineItem, LineItem newLineItem)
+    {
+        if (existingLineItem.LineItemType != newLineItem.LineItemType)
+        {
+            return false;
+        }
+
+        if (!string.Equals(existingLineItem.Sku, newLineItem.Sku, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (newLineItem.LineItemType == LineItemType.Addon)
+        {
+            var existingParentId = existingLineItem.GetParentLineItemId();
+            var newParentId = newLineItem.GetParentLineItemId();
+            if (existingParentId.HasValue || newParentId.HasValue)
+            {
+                return existingParentId == newParentId;
+            }
+
+            return string.Equals(
+                existingLineItem.DependantLineItemSku,
+                newLineItem.DependantLineItemSku,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (newLineItem.LineItemType is LineItemType.Product or LineItemType.Custom)
+        {
+            var existingSignature = existingLineItem.GetAddonSelectionSignature() ?? string.Empty;
+            var newSignature = newLineItem.GetAddonSelectionSignature() ?? string.Empty;
+            return string.Equals(existingSignature, newSignature, StringComparison.Ordinal);
+        }
+
+        return true;
     }
 
     public CalculateLineItemsResult CalculateFromLineItems(CalculateLineItemsParameters parameters)

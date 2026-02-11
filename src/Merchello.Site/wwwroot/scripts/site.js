@@ -634,10 +634,18 @@ document.addEventListener('alpine:init', () => {
             return this.items.filter(item => item.lineItemType === 'Product');
         },
 
-        getAddonsForProduct(productSku) {
-            return this.items.filter(item =>
-                item.lineItemType === 'Addon' && item.dependantLineItemSku === productSku
-            );
+        getAddonsForProduct(productLineItemId, productSku) {
+            return this.items.filter(item => {
+                if (item.lineItemType !== 'Addon') {
+                    return false;
+                }
+
+                if (item.parentLineItemId && productLineItemId) {
+                    return item.parentLineItemId === productLineItemId;
+                }
+
+                return !!productSku && item.dependantLineItemSku === productSku;
+            });
         },
 
         isItemAvailable(lineItemId) {

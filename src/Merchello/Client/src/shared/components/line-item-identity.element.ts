@@ -49,11 +49,13 @@ export class MerchelloLineItemIdentityElement extends UmbElementMixin(LitElement
   size: ImageSize = "medium";
 
   override render() {
+    const mediaKey = typeof this.mediaKey === "string" ? this.mediaKey.trim() : "";
+
     return html`
       <merchello-product-image
-        media-key=${this.mediaKey || nothing}
-        size=${this.size}
-        alt=${this.name}>
+        .mediaKey=${mediaKey || null}
+        .size=${this.size}
+        .alt=${this.name}>
       </merchello-product-image>
       <div class="details">
         <div class="name">${this.name || "Unknown item"}</div>

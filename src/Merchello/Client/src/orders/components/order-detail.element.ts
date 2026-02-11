@@ -11,7 +11,7 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { UMB_CURRENT_USER_CONTEXT, type UmbCurrentUserModel } from "@umbraco-cms/backoffice/current-user";
-import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoiceNoteDto } from "@orders/types/order.types.js";
+import type { OrderDetailDto, AddressDto, FulfillmentOrderDto, InvoiceNoteDto, LineItemDto } from "@orders/types/order.types.js";
 import type { MerchelloOrdersWorkspaceContext } from "@orders/contexts/orders-workspace.context.js";
 import { MERCHELLO_FULFILLMENT_MODAL } from "@orders/modals/fulfillment-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
@@ -518,6 +518,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     const canFulfill = this._order?.canFulfill ?? false;
     const currencyCode = this._order?.currencyCode;
     const currencySymbol = this._order?.currencySymbol;
+    const lineItemRows = this._getFulfillmentLineItemRows(fulfillmentOrder.lineItems ?? []);
 
     return html`
       <div class="card fulfillment-card">
@@ -553,25 +554,13 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           </div>
         </div>
         <div class="fulfillment-line-items">
-          ${fulfillmentOrder.lineItems.map(
-            (item) => html`
-              <div class="fulfillment-line-item">
-                <merchello-line-item-identity
-                  media-key=${item.imageUrl || nothing}
-                  name=${item.productRootName || item.name || ""}
-                  .selectedOptions=${item.selectedOptions ?? []}
-                  sku=${item.sku || ""}
-                  size="large">
-                </merchello-line-item-identity>
-                <div class="fulfillment-item-pricing">
-                  <span class="fulfillment-item-price">${formatCurrency(item.amount, currencyCode, currencySymbol)}</span>
-                  <span class="fulfillment-item-multiply">×</span>
-                  <span class="fulfillment-item-qty">${item.quantity}</span>
-                </div>
-                <div class="fulfillment-item-total">${formatCurrency(item.calculatedTotal, currencyCode, currencySymbol)}</div>
-              </div>
-            `
-          )}
+          ${lineItemRows.map((lineItemRow) =>
+            this._renderFulfillmentLineItem(
+              lineItemRow.item,
+              lineItemRow.isChild,
+              currencyCode,
+              currencySymbol
+            ))}
         </div>
         <div class="fulfillment-footer">
           <div class="fulfillment-actions">
@@ -585,6 +574,122 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             </uui-button>
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  private _isAddonLineItem(lineItem: LineItemDto): boolean {
+    return lineItem.isAddon || lineItem.lineItemType === "Addon" || Boolean(lineItem.parentLineItemId) || Boolean(lineItem.parentLineItemSku);
+  }
+
+  private _isCustomLineItem(lineItem: LineItemDto): boolean {
+    return lineItem.lineItemType === "Custom";
+  }
+
+  private _getFulfillmentLineItemRows(lineItems: LineItemDto[]): Array<{ item: LineItemDto; isChild: boolean }> {
+    const addonItems = lineItems.filter((lineItem) => this._isAddonLineItem(lineItem));
+    const parentItems = lineItems.filter((lineItem) => !this._isAddonLineItem(lineItem));
+
+    const addonsByParentId = new Map<string, LineItemDto[]>();
+    const addonsByParentSku = new Map<string, LineItemDto[]>();
+    addonItems.forEach((addon) => {
+      const parentId = addon.parentLineItemId?.trim();
+      if (parentId) {
+        const currentItemsById = addonsByParentId.get(parentId);
+        if (currentItemsById) {
+          currentItemsById.push(addon);
+        } else {
+          addonsByParentId.set(parentId, [addon]);
+        }
+        return;
+      }
+
+      const parentSku = addon.parentLineItemSku?.trim();
+      if (!parentSku) return;
+
+      const currentItems = addonsByParentSku.get(parentSku);
+      if (currentItems) {
+        currentItems.push(addon);
+      } else {
+        addonsByParentSku.set(parentSku, [addon]);
+      }
+    });
+
+    const rows: Array<{ item: LineItemDto; isChild: boolean }> = [];
+    const renderedAddonIds = new Set<string>();
+
+    parentItems.forEach((parent) => {
+      rows.push({ item: parent, isChild: false });
+
+      const inlineChildren = (parent.childLineItems ?? []).filter((child) => this._isAddonLineItem(child));
+      const parentId = parent.id?.trim();
+      const parentSku = parent.sku?.trim();
+      const childrenById = parentId ? (addonsByParentId.get(parentId) ?? []) : [];
+      const childrenBySku = parentSku ? (addonsByParentSku.get(parentSku) ?? []) : [];
+      const children = [...inlineChildren, ...childrenById, ...childrenBySku]
+        .filter((child, index, allChildren) => allChildren.findIndex((x) => x.id === child.id) === index);
+
+      children.forEach((child) => {
+        rows.push({ item: child, isChild: true });
+        renderedAddonIds.add(child.id);
+      });
+    });
+
+    addonItems.forEach((addon) => {
+      if (!renderedAddonIds.has(addon.id)) {
+        rows.push({ item: addon, isChild: false });
+      }
+    });
+
+    return rows;
+  }
+
+  private _resolveFulfillmentMediaKey(lineItem: LineItemDto, isChild: boolean): string | null {
+    if (isChild || this._isAddonLineItem(lineItem) || this._isCustomLineItem(lineItem)) {
+      return null;
+    }
+
+    const mediaKey = lineItem.imageUrl?.trim();
+    return mediaKey ? mediaKey : null;
+  }
+
+  private _renderFulfillmentLineItem(
+    lineItem: LineItemDto,
+    isChild: boolean,
+    currencyCode: string | undefined,
+    currencySymbol: string | undefined
+  ): unknown {
+    const isAddon = isChild || this._isAddonLineItem(lineItem);
+    const mediaKey = this._resolveFulfillmentMediaKey(lineItem, isChild);
+    const selectedOptions = isAddon ? [] : (lineItem.selectedOptions ?? []);
+    const lineItemName = isAddon
+      ? lineItem.name || lineItem.productRootName || "Add-on"
+      : lineItem.productRootName || lineItem.name || "Unknown item";
+    const amountPrefix = isAddon ? "+" : "";
+
+    return html`
+      <div class="fulfillment-line-item ${isAddon ? "is-addon" : ""}">
+        <div class="fulfillment-item-main">
+          ${isAddon ? html`
+            <div class="addon-indicator">
+              <span class="addon-connector"></span>
+              <span class="addon-badge">Add-on</span>
+            </div>
+          ` : nothing}
+          <merchello-line-item-identity
+            .mediaKey=${mediaKey ?? null}
+            name=${lineItemName}
+            .selectedOptions=${selectedOptions}
+            sku=${lineItem.sku || ""}
+            size="large">
+          </merchello-line-item-identity>
+        </div>
+        <div class="fulfillment-item-pricing">
+          <span class="fulfillment-item-price">${amountPrefix}${formatCurrency(lineItem.amount, currencyCode, currencySymbol)}</span>
+          <span class="fulfillment-item-multiply">x</span>
+          <span class="fulfillment-item-qty">${lineItem.quantity}</span>
+        </div>
+        <div class="fulfillment-item-total">${amountPrefix}${formatCurrency(lineItem.calculatedTotal, currencyCode, currencySymbol)}</div>
       </div>
     `;
   }
@@ -1439,12 +1544,58 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-bottom: 1px solid var(--uui-color-border);
     }
 
+    .fulfillment-item-main {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      min-width: 0;
+    }
+
+    .fulfillment-line-item.is-addon {
+      background: var(--uui-color-surface-alt);
+      padding-top: var(--uui-size-space-3);
+      padding-bottom: var(--uui-size-space-3);
+    }
+
+    .fulfillment-line-item.is-addon .fulfillment-item-main {
+      padding-left: var(--uui-size-space-2);
+    }
+
     .fulfillment-line-item:last-child {
       border-bottom: none;
     }
 
     .fulfillment-line-item merchello-line-item-identity {
       min-width: 0;
+    }
+
+    .addon-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-1);
+      flex-shrink: 0;
+    }
+
+    .addon-connector {
+      width: 14px;
+      height: 1px;
+      background: var(--uui-color-border-emphasis);
+    }
+
+    .addon-badge {
+      display: inline-flex;
+      align-items: center;
+      height: 18px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      color: var(--uui-color-text-alt);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      line-height: 1;
     }
 
     .fulfillment-item-pricing {
@@ -2010,3 +2161,4 @@ declare global {
     "merchello-order-detail": MerchelloOrderDetailElement;
   }
 }
+

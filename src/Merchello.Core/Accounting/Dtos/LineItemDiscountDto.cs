@@ -8,6 +8,11 @@ namespace Merchello.Core.Accounting.Dtos;
 public class LineItemDiscountDto
 {
     /// <summary>
+    /// Display name shown in order summaries and discount rows.
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
     /// Type of discount value (FixedAmount, Percentage, or Free)
     /// </summary>
     public DiscountValueType Type { get; set; }
@@ -18,7 +23,7 @@ public class LineItemDiscountDto
     public decimal Value { get; set; }
 
     /// <summary>
-    /// Reason for the discount (shown on invoice)
+    /// Optional reason for the discount (staff/audit context).
     /// </summary>
     public string? Reason { get; set; }
 

@@ -1,9 +1,11 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
 import type { AddCustomItemModalData, AddCustomItemModalValue } from "@orders/modals/add-custom-item-modal.token.js";
 import type { CustomItemAddonDto, OrderProductAutocompleteDto } from "@orders/types/order.types.js";
 import { formatNumber } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { WarehouseListDto, WarehouseShippingOptionDto } from "@warehouses/types/warehouses.types.js";
 
@@ -15,6 +17,7 @@ const PRODUCT_AUTOCOMPLETE_MIN_QUERY_LENGTH = 2;
 const PRODUCT_AUTOCOMPLETE_DEBOUNCE_MS = 250;
 
 interface CustomItemAddonFormRow {
+  id: string;
   key: string;
   value: string;
   priceAdjustment: number;
@@ -49,9 +52,20 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   @state() private _showProductAutocomplete: boolean = false;
   @state() private _autocompleteField: AutocompleteField = "name";
   @state() private _selectedAutocompleteProduct: OrderProductAutocompleteDto | null = null;
-  @state() private _draggedAddonIndex: number | null = null;
   private _productSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private _productAutocompleteHideTimer: ReturnType<typeof setTimeout> | null = null;
+  private _addonSortSequence = 0;
+
+  #addonSorter = new UmbSorterController<CustomItemAddonFormRow>(this, {
+    getUniqueOfElement: (element) => element.getAttribute("data-addon-id") ?? "",
+    getUniqueOfModel: (model) => model.id,
+    identifier: "Merchello.AddCustomItem.Addons.Sorter",
+    itemSelector: ".addon-row",
+    containerSelector: ".addons-list",
+    handleSelector: ".addon-drag-handle",
+    placeholderClass: "--umb-sorter-placeholder",
+    onChange: ({ model }) => this._handleAddonSort(model),
+  });
 
   // Multi-step state
   @state() private _step: ModalStep = "details";
@@ -340,29 +354,37 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     return rootName || variantName;
   }
 
-  private _addAddonRow(): void {
-    this._addons = [
-      ...this._addons,
-      {
-        key: "",
-        value: "",
-        priceAdjustment: 0,
-        costAdjustment: 0,
-        skuSuffix: "",
-      },
-    ];
+  private _createAddonRow(): CustomItemAddonFormRow {
+    this._addonSortSequence += 1;
+    return {
+      id: `addon-${this._addonSortSequence}`,
+      key: "",
+      value: "",
+      priceAdjustment: 0,
+      costAdjustment: 0,
+      skuSuffix: "",
+    };
   }
 
-  private _moveAddon(fromIndex: number, toIndex: number): void {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-    if (fromIndex >= this._addons.length || toIndex >= this._addons.length) return;
+  private _setAddons(
+    addons: CustomItemAddonFormRow[],
+    options: { refreshTaxPreview?: boolean; syncSorter?: boolean } = {}
+  ): void {
+    this._addons = addons;
 
-    const reorderedAddons = [...this._addons];
-    const [movedAddon] = reorderedAddons.splice(fromIndex, 1);
-    reorderedAddons.splice(toIndex, 0, movedAddon);
-    this._addons = reorderedAddons;
+    if (options.syncSorter ?? true) {
+      this.#addonSorter.setModel(addons);
+    }
 
+    if (options.refreshTaxPreview === true) {
+      this._refreshTaxPreview();
+    }
+  }
+
+  private _reindexAddonErrors(previousOrder: string[], nextOrder: string[]): void {
+    const nextIndexById = new Map(nextOrder.map((id, index) => [id, index]));
     const nextErrors: Record<string, string> = {};
+
     for (const [key, value] of Object.entries(this._errors)) {
       if (!key.startsWith("addon-key-") && !key.startsWith("addon-value-")) {
         nextErrors[key] = value;
@@ -370,98 +392,51 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
       }
 
       const parts = key.split("-");
-      const parsedIndex = Number.parseInt(parts[2], 10);
-      if (!Number.isFinite(parsedIndex)) {
+      const previousIndex = Number.parseInt(parts[2], 10);
+      if (!Number.isFinite(previousIndex)) {
         continue;
       }
 
-      let nextIndex = parsedIndex;
-      if (parsedIndex === fromIndex) {
-        nextIndex = toIndex;
-      } else if (fromIndex < toIndex && parsedIndex > fromIndex && parsedIndex <= toIndex) {
-        nextIndex = parsedIndex - 1;
-      } else if (fromIndex > toIndex && parsedIndex >= toIndex && parsedIndex < fromIndex) {
-        nextIndex = parsedIndex + 1;
+      const addonId = previousOrder[previousIndex];
+      if (!addonId) {
+        continue;
+      }
+
+      const nextIndex = nextIndexById.get(addonId);
+      if (nextIndex === undefined) {
+        continue;
       }
 
       nextErrors[`${parts[0]}-${parts[1]}-${nextIndex}`] = value;
     }
 
     this._errors = nextErrors;
-    this._refreshTaxPreview();
   }
 
-  private _moveAddonUp(index: number): void {
-    if (index <= 0) return;
-    this._moveAddon(index, index - 1);
+  private _handleAddonSort(sortedAddons: CustomItemAddonFormRow[]): void {
+    const previousOrder = this._addons.map((addon) => addon.id);
+    const nextOrder = sortedAddons.map((addon) => addon.id);
+
+    this._setAddons(sortedAddons, { syncSorter: false });
+    this._reindexAddonErrors(previousOrder, nextOrder);
   }
 
-  private _moveAddonDown(index: number): void {
-    if (index >= this._addons.length - 1) return;
-    this._moveAddon(index, index + 1);
-  }
-
-  private _handleAddonDragStart(index: number, event: DragEvent): void {
-    this._draggedAddonIndex = index;
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", index.toString());
-    }
-  }
-
-  private _handleAddonDragOver(event: DragEvent): void {
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move";
-    }
-  }
-
-  private _handleAddonDrop(targetIndex: number, event: DragEvent): void {
-    event.preventDefault();
-    const sourceIndex = this._draggedAddonIndex;
-    if (sourceIndex === null) {
-      this._handleAddonDragEnd();
-      return;
-    }
-
-    this._moveAddon(sourceIndex, targetIndex);
-    this._handleAddonDragEnd();
-  }
-
-  private _handleAddonDragEnd(): void {
-    this._draggedAddonIndex = null;
+  private _addAddonRow(): void {
+    this._setAddons([...this._addons, this._createAddonRow()]);
   }
 
   private _removeAddonRow(index: number): void {
-    this._addons = this._addons.filter((_, currentIndex) => currentIndex !== index);
-    const nextErrors: Record<string, string> = {};
-    for (const [key, value] of Object.entries(this._errors)) {
-      if (!key.startsWith("addon-key-") && !key.startsWith("addon-value-")) {
-        nextErrors[key] = value;
-        continue;
-      }
-
-      const parts = key.split("-");
-      const parsedIndex = Number.parseInt(parts[2], 10);
-      if (!Number.isFinite(parsedIndex) || parsedIndex === index) {
-        continue;
-      }
-
-      if (parsedIndex > index) {
-        nextErrors[`${parts[0]}-${parts[1]}-${parsedIndex - 1}`] = value;
-      } else {
-        nextErrors[key] = value;
-      }
-    }
-
-    this._errors = nextErrors;
-    this._refreshTaxPreview();
+    const previousOrder = this._addons.map((addon) => addon.id);
+    const nextAddons = this._addons.filter((_, currentIndex) => currentIndex !== index);
+    const nextOrder = nextAddons.map((addon) => addon.id);
+    this._setAddons(nextAddons, { refreshTaxPreview: true });
+    this._reindexAddonErrors(previousOrder, nextOrder);
   }
 
   private _updateAddonStringField(index: number, field: "key" | "value" | "skuSuffix", value: string): void {
-    this._addons = this._addons.map((addon, currentIndex) =>
+    this._setAddons(this._addons.map((addon, currentIndex) =>
       currentIndex === index ? { ...addon, [field]: value } : addon
-    );
+    ));
 
     if (field === "key" || field === "value") {
       this._clearFieldError(`addon-${field}-${index}`);
@@ -472,13 +447,9 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     const parsedValue = parseFloat(rawValue);
     const value = Number.isFinite(parsedValue) ? parsedValue : 0;
 
-    this._addons = this._addons.map((addon, currentIndex) =>
+    this._setAddons(this._addons.map((addon, currentIndex) =>
       currentIndex === index ? { ...addon, [field]: value } : addon
-    );
-
-    if (field === "priceAdjustment") {
-      this._refreshTaxPreview();
-    }
+    ), { refreshTaxPreview: field === "priceAdjustment" });
   }
 
   private _toCustomItemAddons(): CustomItemAddonDto[] {
@@ -818,123 +789,109 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
           </uui-button>
         </div>
 
-        ${this._addons.length === 0 ? html`
-          <div class="addons-empty">
-            Add key/value rows such as "Drawers: Left side", with optional price, cost, and SKU suffix.
-          </div>
-        ` : this._addons.map((addon, index) => html`
-          <div
-            class="addon-row ${this._draggedAddonIndex === index ? "dragging" : ""}"
-            draggable="true"
-            @dragstart=${(event: DragEvent) => this._handleAddonDragStart(index, event)}
-            @dragover=${this._handleAddonDragOver}
-            @drop=${(event: DragEvent) => this._handleAddonDrop(index, event)}
-            @dragend=${this._handleAddonDragEnd}
-          >
-            <div class="addon-fields-top">
-              <div class="form-row">
-                <label for=${`addon-key-${index}`}>Key</label>
-                <uui-input
-                  id=${`addon-key-${index}`}
-                  .value=${addon.key}
-                  @input=${(e: Event) =>
-                    this._updateAddonStringField(index, "key", (e.target as HTMLInputElement).value)}
-                  placeholder="e.g. Drawers"
-                ></uui-input>
-                ${this._errors[`addon-key-${index}`]
-                  ? html`<span class="error">${this._errors[`addon-key-${index}`]}</span>`
-                  : nothing}
-              </div>
-
-              <div class="form-row">
-                <label for=${`addon-value-${index}`}>Value</label>
-                <uui-input
-                  id=${`addon-value-${index}`}
-                  .value=${addon.value}
-                  @input=${(e: Event) =>
-                    this._updateAddonStringField(index, "value", (e.target as HTMLInputElement).value)}
-                  placeholder="e.g. Left side"
-                ></uui-input>
-                ${this._errors[`addon-value-${index}`]
-                  ? html`<span class="error">${this._errors[`addon-value-${index}`]}</span>`
-                  : nothing}
-              </div>
-
-              <div class="addon-remove">
-                <uui-button
-                  compact
-                  look="secondary"
-                  @click=${() => this._moveAddonUp(index)}
-                  ?disabled=${index === 0}
-                  title="Move add-on up"
-                >
-                  Up
-                </uui-button>
-                <uui-button
-                  compact
-                  look="secondary"
-                  @click=${() => this._moveAddonDown(index)}
-                  ?disabled=${index === this._addons.length - 1}
-                  title="Move add-on down"
-                >
-                  Down
-                </uui-button>
-                <uui-button
-                  compact
-                  look="secondary"
-                  color="danger"
-                  @click=${() => this._removeAddonRow(index)}
-                  title="Remove add-on"
-                >
-                  <uui-icon name="icon-delete"></uui-icon>
-                </uui-button>
-              </div>
+        <!-- Always render container for sorter -->
+        <div class="addons-list">
+          ${this._addons.length === 0 ? html`
+            <div class="addons-empty">
+              Add key/value rows such as "Drawers: Left side", with optional price, cost, and SKU suffix.
             </div>
-
-            <div class="addon-fields-bottom">
-              <div class="form-row">
-                <label for=${`addon-price-${index}`}>Price adjustment</label>
-                <div class="input-with-prefix">
-                  <span class="prefix">${currencySymbol}</span>
+          ` : this._addons.map((addon, index) => html`
+            <div class="addon-row" data-addon-id=${addon.id}>
+              <div class="addon-fields-top">
+                <div class="form-row">
+                  <label for=${`addon-key-${index}`}>Key</label>
                   <uui-input
-                    id=${`addon-price-${index}`}
-                    type="number"
-                    .value=${addon.priceAdjustment.toString()}
+                    id=${`addon-key-${index}`}
+                    .value=${addon.key}
                     @input=${(e: Event) =>
-                      this._updateAddonNumberField(index, "priceAdjustment", (e.target as HTMLInputElement).value)}
-                    step="0.01"
+                      this._updateAddonStringField(index, "key", (e.target as HTMLInputElement).value)}
+                    placeholder="e.g. Drawers"
                   ></uui-input>
+                  ${this._errors[`addon-key-${index}`]
+                    ? html`<span class="error">${this._errors[`addon-key-${index}`]}</span>`
+                    : nothing}
+                </div>
+
+                <div class="form-row">
+                  <label for=${`addon-value-${index}`}>Value</label>
+                  <uui-input
+                    id=${`addon-value-${index}`}
+                    .value=${addon.value}
+                    @input=${(e: Event) =>
+                      this._updateAddonStringField(index, "value", (e.target as HTMLInputElement).value)}
+                    placeholder="e.g. Left side"
+                  ></uui-input>
+                  ${this._errors[`addon-value-${index}`]
+                    ? html`<span class="error">${this._errors[`addon-value-${index}`]}</span>`
+                    : nothing}
+                </div>
+
+                <div class="addon-row-actions">
+                  <button
+                    type="button"
+                    class="addon-drag-handle"
+                    title="Reorder add-on"
+                    aria-label="Reorder add-on"
+                  >
+                    <uui-icon name="icon-navigation"></uui-icon>
+                  </button>
+                  <uui-button
+                    compact
+                    look="secondary"
+                    color="danger"
+                    @click=${() => this._removeAddonRow(index)}
+                    title="Remove add-on"
+                  >
+                    <uui-icon name="icon-delete"></uui-icon>
+                  </uui-button>
                 </div>
               </div>
 
-              <div class="form-row">
-                <label for=${`addon-cost-${index}`}>Cost adjustment</label>
-                <div class="input-with-prefix">
-                  <span class="prefix">${currencySymbol}</span>
+              <div class="addon-fields-bottom">
+                <div class="form-row">
+                  <label for=${`addon-price-${index}`}>Price adjustment</label>
+                  <div class="input-with-prefix">
+                    <span class="prefix">${currencySymbol}</span>
+                    <uui-input
+                      id=${`addon-price-${index}`}
+                      type="number"
+                      .value=${addon.priceAdjustment.toString()}
+                      @input=${(e: Event) =>
+                        this._updateAddonNumberField(index, "priceAdjustment", (e.target as HTMLInputElement).value)}
+                      step="0.01"
+                    ></uui-input>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label for=${`addon-cost-${index}`}>Cost adjustment</label>
+                  <div class="input-with-prefix">
+                    <span class="prefix">${currencySymbol}</span>
+                    <uui-input
+                      id=${`addon-cost-${index}`}
+                      type="number"
+                      .value=${addon.costAdjustment.toString()}
+                      @input=${(e: Event) =>
+                        this._updateAddonNumberField(index, "costAdjustment", (e.target as HTMLInputElement).value)}
+                      step="0.01"
+                    ></uui-input>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label for=${`addon-sku-${index}`}>SKU suffix</label>
                   <uui-input
-                    id=${`addon-cost-${index}`}
-                    type="number"
-                    .value=${addon.costAdjustment.toString()}
+                    id=${`addon-sku-${index}`}
+                    .value=${addon.skuSuffix}
                     @input=${(e: Event) =>
-                      this._updateAddonNumberField(index, "costAdjustment", (e.target as HTMLInputElement).value)}
-                    step="0.01"
+                      this._updateAddonStringField(index, "skuSuffix", (e.target as HTMLInputElement).value)}
+                    placeholder="e.g. DRAWER-L"
                   ></uui-input>
                 </div>
               </div>
-
-              <div class="form-row">
-                <label for=${`addon-sku-${index}`}>SKU suffix</label>
-                <uui-input
-                  id=${`addon-sku-${index}`}
-                  .value=${addon.skuSuffix}
-                  @input=${(e: Event) =>
-                    this._updateAddonStringField(index, "skuSuffix", (e.target as HTMLInputElement).value)}
-                  placeholder="e.g. DRAWER-L"
-                ></uui-input>
-              </div>
             </div>
-          </div>
-        `)}
+          `)}
+        </div>
       </div>
 
       <div class="form-row checkbox-row">
@@ -1160,29 +1117,9 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
-    :host {
-      display: block;
-    }
-
-    #main {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-4);
-    }
-
-    .form-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    .form-row-group {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--uui-size-space-4);
-    }
-
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     .autocomplete-group {
       position: relative;
     }
@@ -1278,6 +1215,12 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
       font-size: 0.875rem;
     }
 
+    .addons-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
     .addons-empty {
       font-size: 0.813rem;
       color: var(--uui-color-text-alt);
@@ -1294,32 +1237,65 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
       background: var(--uui-color-surface-alt);
-      cursor: grab;
     }
 
-    .addon-row.dragging {
-      opacity: 0.6;
-      border-color: var(--uui-color-current);
+    .addon-row.--umb-sorter-placeholder,
+    .addon-row[drag-placeholder] {
+      visibility: hidden;
+      position: relative;
+    }
+
+    .addon-row.--umb-sorter-placeholder::after,
+    .addon-row[drag-placeholder]::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border: 2px dashed var(--uui-color-divider-emphasis);
+      border-radius: var(--uui-border-radius);
+      visibility: visible;
       background: rgba(var(--uui-color-current-rgb), 0.08);
     }
 
     .addon-fields-top {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
       gap: var(--uui-size-space-3);
       align-items: end;
     }
 
-    .addon-remove {
+    .addon-row-actions {
       display: flex;
       gap: var(--uui-size-space-1);
       justify-content: flex-end;
       padding-bottom: 2px;
     }
 
+    .addon-drag-handle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface);
+      color: var(--uui-color-text-alt);
+      cursor: grab;
+      padding: 0;
+    }
+
+    .addon-drag-handle:hover {
+      color: var(--uui-color-text);
+      border-color: var(--uui-color-border-emphasis);
+    }
+
+    .addon-drag-handle:active {
+      cursor: grabbing;
+    }
+
     .addon-fields-bottom {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: var(--uui-size-space-3);
     }
 
@@ -1351,10 +1327,6 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
 
     .input-with-prefix uui-input::part(input) {
       border-radius: 0 var(--uui-border-radius) var(--uui-border-radius) 0;
-    }
-
-    uui-select {
-      width: 100%;
     }
 
     .tax-info {
@@ -1410,12 +1382,6 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     .error {
       color: var(--uui-color-danger);
       font-size: 0.75rem;
-    }
-
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
     }
 
     /* Shipping step styles */
@@ -1510,10 +1476,6 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     }
 
     @media (max-width: 900px) {
-      .form-row-group {
-        grid-template-columns: 1fr;
-      }
-
       .addon-fields-top,
       .addon-fields-bottom {
         grid-template-columns: 1fr;
@@ -1524,7 +1486,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         align-items: flex-start;
       }
 
-      .addon-remove {
+      .addon-row-actions {
         justify-content: flex-start;
       }
 
@@ -1533,7 +1495,8 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
         gap: var(--uui-size-space-1);
       }
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloAddCustomItemModalElement;

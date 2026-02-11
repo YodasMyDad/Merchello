@@ -58,6 +58,7 @@ interface PendingCustomItem extends AddCustomItemDto {
 }
 
 interface PendingOrderDiscount {
+  displayName: string | null;
   type: DiscountValueType;
   value: number;
   reason: string | null;
@@ -184,6 +185,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           const hasExistingDiscount = li.discounts.length > 0;
           const existingDiscount = hasExistingDiscount
             ? {
+                displayName: li.discounts[0].name,
                 type: li.discounts[0].type,
                 value: li.discounts[0].value,
                 reason: li.discounts[0].reason,
@@ -356,6 +358,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       this._pendingOrderDiscounts = [
         ...this._pendingOrderDiscounts,
         {
+          displayName: result.discount.displayName,
           type: result.discount.type,
           value: result.discount.value,
           reason: result.discount.reason,
@@ -563,6 +566,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       const original = li.discounts[0];
       return li.discount.type !== original.type ||
              li.discount.value !== original.value ||
+             (li.discount.displayName ?? "").trim() !== (original.name ?? "").trim() ||
+             (li.discount.reason ?? "").trim() !== (original.reason ?? "").trim() ||
              li.discount.isVisibleToCustomer !== original.isVisibleToCustomer;
     })) return true;
 
@@ -661,6 +666,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         })),
       })),
       orderDiscounts: this._pendingOrderDiscounts.map((d) => ({
+        displayName: d.displayName,
         type: d.type,
         value: d.value,
         reason: d.reason,
@@ -849,7 +855,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       <div class="line-item ${hasInsufficientStock ? 'has-error' : ''} ${childAddons.length > 0 ? 'has-addons' : ''}">
         <div class="line-item-product">
           <merchello-line-item-identity
-            media-key=${lineItem.imageUrl || nothing}
+            .mediaKey=${lineItem.imageUrl ?? null}
             name=${lineItem.productRootName || lineItem.name || ""}
             .selectedOptions=${lineItem.selectedOptions ?? []}
             sku=${lineItem.sku || ""}
@@ -1062,7 +1068,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
           (discount) => html`
             <div class="order-discount-row pending">
               <div class="discount-info">
-                <span class="discount-name">${discount.reason || "New Discount"}</span>
+                <span class="discount-name">${discount.displayName || discount.reason || "New Discount"}</span>
                 <span class="discount-value">
                   ${discount.type === DiscountValueType.Percentage
                     ? `${discount.value}%`
@@ -1212,7 +1218,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       <div class="line-item pending-product">
         <div class="line-item-product">
           <merchello-line-item-identity
-            media-key=${product.imageUrl || nothing}
+            .mediaKey=${product.imageUrl ?? null}
             name=${product.name || ""}
             sku=${product.sku || ""}
             size="medium">

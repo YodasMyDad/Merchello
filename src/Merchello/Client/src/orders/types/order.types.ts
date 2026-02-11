@@ -349,6 +349,16 @@ export interface LineItemDto {
   imageUrl: string | null;
   /** Backend-calculated total for this line item */
   calculatedTotal: number;
+  /** The line item type (e.g., "Product", "Custom", "Addon"). */
+  lineItemType: string;
+  /** Child add-on line items linked to this parent product/custom item. */
+  childLineItems: LineItemDto[];
+  /** The parent line item SKU if this is a child add-on item. */
+  parentLineItemSku: string | null;
+  /** The parent line item ID if this is a child add-on item. */
+  parentLineItemId: string | null;
+  /** Whether this line item represents an add-on (non-variant option value). */
+  isAddon: boolean;
 }
 
 export interface ShipmentDto {
@@ -789,6 +799,8 @@ export interface EditLineItemDto {
 
 /** Discount to apply to a line item */
 export interface LineItemDiscountDto {
+  /** Display label shown in order summaries and discount rows */
+  displayName: string | null;
   type: DiscountValueType;
   value: number;
   reason: string | null;

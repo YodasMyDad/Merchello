@@ -1,4 +1,4 @@
-import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
+import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -135,7 +135,7 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
               (item) => html`
                 <div class="item-row">
                   <merchello-line-item-identity
-                    media-key=${item.imageUrl || nothing}
+                    .mediaKey=${item.imageUrl ?? null}
                     name=${item.productRootName || item.name || ""}
                     .selectedOptions=${item.selectedOptions ?? []}
                     sku=${item.sku || ""}

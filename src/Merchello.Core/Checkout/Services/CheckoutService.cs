@@ -529,6 +529,11 @@ public class CheckoutService(
 
         // Create the main product line item
         var productLineItem = CreateLineItem(product, parameters.Quantity);
+        var addonSelectionSignature = BuildAddonSelectionSignature(parameters.Addons);
+        if (!string.IsNullOrEmpty(addonSelectionSignature))
+        {
+            productLineItem.ExtendedData[Constants.ExtendedDataKeys.AddonSelectionSignature] = addonSelectionSignature;
+        }
 
         // Add main product to basket
         await AddToBasket(new AddToBasketParameters
@@ -536,6 +541,33 @@ public class CheckoutService(
             ItemToAdd = productLineItem,
             CustomerId = parameters.CustomerId
         }, cancellationToken);
+
+        // Resolve the persisted parent line item that now exists in the basket.
+        // This matters when a matching line merges, because the merged line keeps the existing ID.
+        var basketAfterProductAdd = await GetBasket(
+            new GetBasketParameters { CustomerId = parameters.CustomerId },
+            cancellationToken);
+        if (basketAfterProductAdd == null)
+        {
+            return AddProductWithAddonsResult.Failed("Failed to retrieve basket after adding product");
+        }
+
+        var persistedProductLineItem = basketAfterProductAdd.LineItems
+            .Where(li =>
+                li.LineItemType == LineItemType.Product &&
+                li.ProductId == product.Id &&
+                string.Equals(li.Sku, productLineItem.Sku, StringComparison.Ordinal) &&
+                string.Equals(
+                    li.GetAddonSelectionSignature() ?? string.Empty,
+                    addonSelectionSignature ?? string.Empty,
+                    StringComparison.Ordinal))
+            .OrderByDescending(li => li.DateUpdated)
+            .FirstOrDefault();
+
+        if (persistedProductLineItem != null)
+        {
+            productLineItem = persistedProductLineItem;
+        }
 
         // Handle add-ons if any
         var addonLineItems = new List<LineItem>();
@@ -556,7 +588,12 @@ public class CheckoutService(
                     continue;
 
                 var addonLineItem = lineItemFactory.CreateAddonForBasket(
-                    product, ov.Option, ov.Value, productLineItem.Sku!, parameters.Quantity);
+                    product,
+                    ov.Option,
+                    ov.Value,
+                    productLineItem.Sku ?? string.Empty,
+                    productLineItem.Id,
+                    parameters.Quantity);
 
                 await AddToBasket(new AddToBasketParameters
                 {
@@ -2184,6 +2221,7 @@ public class CheckoutService(
                         IsTaxable = li.IsTaxable,
                         LineItemType = li.LineItemType,
                         DependantLineItemSku = li.DependantLineItemSku,
+                        ParentLineItemId = li.GetParentLineItemId()?.ToString(),
                         ImageUrl = imageUrl
                     });
                 }
@@ -2888,6 +2926,19 @@ public class CheckoutService(
         "cheapest-then-fastest" => ShippingAutoSelectStrategy.CheapestThenFastest,
         _ => ShippingAutoSelectStrategy.Cheapest
     };
+
+    private static string? BuildAddonSelectionSignature(IReadOnlyList<Merchello.Core.Shared.Dtos.AddonSelectionDto> addons)
+    {
+        if (addons.Count == 0)
+        {
+            return null;
+        }
+
+        return string.Join("|", addons
+            .OrderBy(x => x.OptionId)
+            .ThenBy(x => x.ValueId)
+            .Select(x => $"{x.OptionId:N}:{x.ValueId:N}"));
+    }
 
     private IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket, string currencyCode)
     {

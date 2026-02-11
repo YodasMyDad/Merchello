@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
@@ -9,6 +10,7 @@ using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -116,6 +118,100 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         // Assert
         basket.LineItems.Count.ShouldBe(1);
         basket.LineItems.First().Quantity.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task AddProductWithAddonsAsync_SameSkuDifferentAddonSelections_KeepsSeparateParentsAndLinkedAddons()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Classic Zip Hoodie", taxGroup);
+        var product = dataBuilder.CreateProduct("Classic Zip Hoodie - Black - M", productRoot, price: 64.99m);
+        product.Sku = "CLASSIC-ZIP-HOODIE-BLACK-M";
+
+        var optionFactory = new ProductOptionFactory();
+        var addonOption = optionFactory.CreateEmpty();
+        addonOption.Name = "Add-ons";
+        addonOption.Alias = "addons";
+        addonOption.IsVariant = false;
+        addonOption.IsMultiSelect = true;
+
+        var addonLeftSide = optionFactory.CreateEmptyValue();
+        addonLeftSide.Name = "Left Side";
+        addonLeftSide.PriceAdjustment = 30m;
+        addonLeftSide.SkuSuffix = null;
+
+        var addonSomethingElse = optionFactory.CreateEmptyValue();
+        addonSomethingElse.Name = "Something Else";
+        addonSomethingElse.PriceAdjustment = 60m;
+        addonSomethingElse.SkuSuffix = null;
+
+        addonOption.ProductOptionValues = [addonLeftSide, addonSomethingElse];
+        productRoot.ProductOptions = [addonOption];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var firstAddResult = await _checkoutService.AddProductWithAddonsAsync(new AddProductWithAddonsParameters
+        {
+            ProductId = product.Id,
+            Quantity = 1,
+            Addons =
+            [
+                new AddonSelectionDto
+                {
+                    OptionId = addonOption.Id,
+                    ValueId = addonLeftSide.Id
+                }
+            ]
+        });
+
+        var secondAddResult = await _checkoutService.AddProductWithAddonsAsync(new AddProductWithAddonsParameters
+        {
+            ProductId = product.Id,
+            Quantity = 1,
+            Addons =
+            [
+                new AddonSelectionDto
+                {
+                    OptionId = addonOption.Id,
+                    ValueId = addonSomethingElse.Id
+                }
+            ]
+        });
+
+        // Assert
+        firstAddResult.Success.ShouldBeTrue();
+        secondAddResult.Success.ShouldBeTrue();
+        firstAddResult.ProductLineItem.ShouldNotBeNull();
+        secondAddResult.ProductLineItem.ShouldNotBeNull();
+
+        var basket = await _checkoutService.GetBasket(new GetBasketParameters());
+        basket.ShouldNotBeNull();
+
+        var parentLineItems = basket!.LineItems
+            .Where(li => li.LineItemType == LineItemType.Product && li.Sku == product.Sku)
+            .ToList();
+        parentLineItems.Count.ShouldBe(2);
+
+        var addonLineItems = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Addon)
+            .ToList();
+        addonLineItems.Count.ShouldBe(2);
+
+        var leftSideAddon = addonLineItems.Single(li => li.Name?.Contains("Left Side", StringComparison.OrdinalIgnoreCase) == true);
+        var somethingElseAddon = addonLineItems.Single(li => li.Name?.Contains("Something Else", StringComparison.OrdinalIgnoreCase) == true);
+
+        leftSideAddon.GetParentLineItemId().ShouldBe(firstAddResult.ProductLineItem!.Id);
+        somethingElseAddon.GetParentLineItemId().ShouldBe(secondAddResult.ProductLineItem!.Id);
+        leftSideAddon.GetParentLineItemId().ShouldNotBe(somethingElseAddon.GetParentLineItemId());
+
+        leftSideAddon.IsAddonLinkedToParent(firstAddResult.ProductLineItem!).ShouldBeTrue();
+        leftSideAddon.IsAddonLinkedToParent(secondAddResult.ProductLineItem!).ShouldBeFalse();
+        somethingElseAddon.IsAddonLinkedToParent(secondAddResult.ProductLineItem!).ShouldBeTrue();
+        somethingElseAddon.IsAddonLinkedToParent(firstAddResult.ProductLineItem!).ShouldBeFalse();
     }
 
     [Fact]

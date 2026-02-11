@@ -1440,6 +1440,7 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
                 CustomItems = [],
                 OrderDiscounts = [new LineItemDiscountDto
                 {
+                    DisplayName = "Manual goodwill",
                     Type = DiscountValueType.FixedAmount,
                     Value = 20m,
                     Reason = "Customer compensation",
@@ -1466,8 +1467,66 @@ public class InvoiceDiscountCalculationTests : IClassFixture<ServiceTestFixture>
         updatedResult.AdjustedSubTotal.ShouldBe(80m);
         updatedResult.Tax.ShouldBe(16m); // 20% of 80
         updatedResult.OrderDiscounts.Count.ShouldBe(1);
+        updatedResult.OrderDiscounts[0].Name.ShouldBe("Manual goodwill");
+        updatedResult.OrderDiscounts[0].Reason.ShouldBe("Customer compensation");
         updatedResult.OrderDiscounts[0].Value.ShouldBe(20m);
         updatedResult.OrderDiscounts[0].Type.ShouldBe(DiscountValueType.FixedAmount);
+    }
+
+    [Fact]
+    public async Task EditInvoice_AddLineItemDiscount_PersistsDisplayNameAndReason()
+    {
+        // Arrange
+        var builder = _fixture.CreateDataBuilder();
+        var invoice = builder.CreateInvoice(total: 0);
+        var warehouse = builder.CreateWarehouse();
+        var order = builder.CreateOrder(invoice, warehouse, status: OrderStatus.Pending);
+        var lineItem = builder.CreateLineItem(order, name: "Product", quantity: 1, amount: 100m, taxRate: 20m);
+        await builder.SaveChangesAsync();
+
+        // Act
+        var editResult = await _invoiceEditService.EditInvoiceAsync(new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
+            {
+                LineItems = [new EditLineItemDto
+                {
+                    Id = lineItem.Id,
+                    Discount = new LineItemDiscountDto
+                    {
+                        DisplayName = "Manager adjustment",
+                        Type = DiscountValueType.FixedAmount,
+                        Value = 10m,
+                        Reason = "Damaged packaging",
+                        IsVisibleToCustomer = true
+                    }
+                }],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                OrderDiscounts = [],
+                OrderShippingUpdates = [],
+                EditReason = "Add manual line discount",
+                ShouldRemoveTax = false
+            },
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        });
+
+        // Assert
+        editResult.Success.ShouldBeTrue();
+
+        var updatedResult = await _invoiceEditService.GetInvoiceForEditAsync(invoice.Id);
+        updatedResult.ShouldNotBeNull();
+        var updatedLineItem = updatedResult.Orders
+            .SelectMany(o => o.LineItems)
+            .First(li => li.Id == lineItem.Id);
+
+        updatedLineItem.Discounts.Count.ShouldBe(1);
+        updatedLineItem.Discounts[0].Name.ShouldBe("Manager adjustment");
+        updatedLineItem.Discounts[0].Reason.ShouldBe("Damaged packaging");
+        updatedLineItem.Discounts[0].IsVisibleToCustomer.ShouldBeTrue();
     }
 
     [Fact]

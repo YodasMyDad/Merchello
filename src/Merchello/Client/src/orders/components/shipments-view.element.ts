@@ -352,7 +352,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
             (item) => html`
               <div class="item-row">
                 <merchello-line-item-identity
-                  media-key=${item.imageUrl || nothing}
+                  .mediaKey=${item.imageUrl ?? null}
                   name=${item.productRootName || item.name || ""}
                   .selectedOptions=${item.selectedOptions ?? []}
                   sku=${item.sku || ""}

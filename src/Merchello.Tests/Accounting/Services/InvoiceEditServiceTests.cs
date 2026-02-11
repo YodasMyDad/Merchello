@@ -1,11 +1,16 @@
 using Merchello.Core.Accounting.Dtos;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core;
 using Merchello.Core.Discounts.Models;
+using Merchello.Core.Locality.Services.Interfaces;
+using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
+using Merchello.Services;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.EntityFrameworkCore;
 using Shouldly;
@@ -395,6 +400,141 @@ public class InvoiceEditServiceTests : IClassFixture<ServiceTestFixture>
             .FirstOrDefaultAsync(u => u.InvoiceId == invoice.Id && u.DiscountId == discount.Id);
         usage.ShouldNotBeNull();
         usage.Amount.ShouldBe(10m);
+    }
+
+    [Fact]
+    public async Task EditInvoiceAsync_CustomItemWithDuplicateSku_LinksAddonsOnlyToCustomParent()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "CA");
+        var shippingOption = dataBuilder.CreateShippingOption("Ground", warehouse, fixedCost: 0m);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Pending);
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard Tax", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Classic Zip Hoodie", taxGroup);
+        var product = dataBuilder.CreateProduct("Classic Zip Hoodie", productRoot, price: 64.99m);
+        product.Sku = "CLASSIC-ZIP-HOODIE-BLACK-M";
+        dataBuilder.CreateLineItem(
+            order,
+            product,
+            quantity: 1,
+            amount: 64.99m,
+            isTaxable: true,
+            taxRate: 20m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var parameters = new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                ProductsToAdd = [],
+                OrderDiscounts = [],
+                OrderDiscountCodes = [],
+                OrderShippingUpdates = [],
+                EditReason = "Add custom item with duplicate SKU and add-ons",
+                ShouldRemoveTax = false,
+                CustomItems =
+                [
+                    new AddCustomItemDto
+                    {
+                        Name = "Custom Hoodie",
+                        Sku = "CLASSIC-ZIP-HOODIE-BLACK-M",
+                        Price = 64.99m,
+                        Cost = 30m,
+                        Quantity = 1,
+                        TaxGroupId = taxGroup.Id,
+                        IsPhysicalProduct = true,
+                        WarehouseId = warehouse.Id,
+                        ShippingOptionId = shippingOption.Id,
+                        Addons =
+                        [
+                            new CustomItemAddonDto
+                            {
+                                Key = "Drawers",
+                                Value = "Left Side",
+                                PriceAdjustment = 30m,
+                                CostAdjustment = 12m,
+                                SkuSuffix = null
+                            },
+                            new CustomItemAddonDto
+                            {
+                                Key = "Something",
+                                Value = "Else",
+                                PriceAdjustment = 60m,
+                                CostAdjustment = 25m,
+                                SkuSuffix = null
+                            }
+                        ]
+                    }
+                ]
+            },
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        };
+
+        // Act
+        var editResult = await _invoiceEditService.EditInvoiceAsync(parameters);
+
+        // Assert
+        editResult.Success.ShouldBeTrue();
+        editResult.Data.ShouldNotBeNull();
+        editResult.Data.IsSuccessful.ShouldBeTrue();
+
+        await using var db = _fixture.CreateDbContext();
+        var persistedInvoice = await db.Invoices
+            .Include(i => i.Orders!)
+                .ThenInclude(o => o.LineItems)
+            .Include(i => i.Payments)
+            .FirstAsync(i => i.Id == invoice.Id);
+
+        var persistedOrder = persistedInvoice.Orders!.Single();
+
+        var productLineItem = persistedOrder.LineItems!
+            .Single(li => li.LineItemType == LineItemType.Product && li.Sku == "CLASSIC-ZIP-HOODIE-BLACK-M");
+
+        var customLineItem = persistedOrder.LineItems!
+            .Single(li =>
+                li.LineItemType == LineItemType.Custom &&
+                li.Name == "Custom Hoodie" &&
+                li.Sku == "CLASSIC-ZIP-HOODIE-BLACK-M");
+
+        var addonLineItems = persistedOrder.LineItems!
+            .Where(li => li.LineItemType == LineItemType.Addon)
+            .ToList();
+
+        addonLineItems.Count.ShouldBe(2);
+        addonLineItems.All(addon => addon.GetParentLineItemId() == customLineItem.Id).ShouldBeTrue();
+        addonLineItems.All(addon => addon.IsAddonLinkedToParent(customLineItem)).ShouldBeTrue();
+        addonLineItems.Any(addon => addon.IsAddonLinkedToParent(productLineItem)).ShouldBeFalse();
+
+        // Also verify order detail mapping (used by order details UI) nests add-ons under the custom parent only.
+        var ordersDtoMapper = new OrdersDtoMapper(
+            _fixture.GetService<IPaymentService>(),
+            _fixture.GetService<ICurrencyService>(),
+            _fixture.GetService<ILocalityCatalog>());
+
+        var orderDetailDto = await ordersDtoMapper.MapToDetailAsync(
+            persistedInvoice,
+            new Dictionary<Guid, string> { [shippingOption.Id] = shippingOption.Name ?? "Ground" },
+            new Dictionary<Guid, string?> { [product.Id] = null });
+
+        var mappedOrder = orderDetailDto.Orders.Single();
+        var mappedProductLine = mappedOrder.LineItems
+            .Single(li => li.LineItemType == nameof(LineItemType.Product) && li.Sku == "CLASSIC-ZIP-HOODIE-BLACK-M");
+        var mappedCustomLine = mappedOrder.LineItems
+            .Single(li => li.LineItemType == nameof(LineItemType.Custom) && li.Name == "Custom Hoodie");
+
+        mappedProductLine.ChildLineItems.ShouldBeEmpty();
+        mappedCustomLine.ChildLineItems.Count.ShouldBe(2);
+        mappedCustomLine.ChildLineItems.All(li => li.ParentLineItemId == mappedCustomLine.Id).ShouldBeTrue();
     }
 
     private async Task<Invoice> CreateInvoiceWithDuplicateSkuProductsAsync()

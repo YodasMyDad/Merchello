@@ -432,7 +432,7 @@ public class InvoiceService(
 
                     // Attach any add-on (custom) items dependent on this product SKU
                     var dependentAddons = basket.LineItems
-                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == basketLineItem.Sku)
+                        .Where(li => li.IsAddonLinkedToParent(basketLineItem))
                         .ToList();
 
                     foreach (var addon in dependentAddons)
@@ -442,6 +442,7 @@ public class InvoiceService(
                             addon,
                             shippingLineItem.Quantity,
                             ConvertToPresentmentCurrency(addon.Amount, pricingQuote, presentmentCurrency));
+                        addonOrderLine.SetParentLineItemId(orderLineItem.Id);
                         orderLineItems.Add(addonOrderLine);
                     }
 
@@ -539,7 +540,7 @@ public class InvoiceService(
                     targetOrder.LineItems!.Add(orderLineItem);
 
                     var dependentAddons = basket.LineItems
-                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == basketLineItem.Sku)
+                        .Where(li => li.IsAddonLinkedToParent(basketLineItem))
                         .ToList();
 
                     foreach (var addon in dependentAddons)
@@ -548,6 +549,7 @@ public class InvoiceService(
                             addon,
                             basketLineItem.Quantity,
                             ConvertToPresentmentCurrency(addon.Amount, pricingQuote, presentmentCurrency));
+                        addonOrderLine.SetParentLineItemId(orderLineItem.Id);
                         targetOrder.LineItems.Add(addonOrderLine);
                     }
 
@@ -2325,6 +2327,7 @@ public class InvoiceService(
                     var addonLineItems = CreateCustomAddonLineItems(
                         order.Id,
                         lineItem.Sku ?? string.Empty,
+                        lineItem.Id,
                         customItem,
                         lineItem.IsTaxable,
                         lineItem.TaxRate);
@@ -2397,6 +2400,7 @@ public class InvoiceService(
     private static List<LineItem> CreateCustomAddonLineItems(
         Guid orderId,
         string parentSku,
+        Guid parentLineItemId,
         AddCustomItemDto customItem,
         bool isTaxable,
         decimal taxRate)
@@ -2420,6 +2424,7 @@ public class InvoiceService(
             var addonLineItem = LineItemFactory.CreateAddonForOrderEdit(
                 orderId: orderId,
                 parentSku: safeParentSku,
+                parentLineItemId: parentLineItemId,
                 name: addonName,
                 sku: addonSku,
                 priceAdjustment: addon.PriceAdjustment,

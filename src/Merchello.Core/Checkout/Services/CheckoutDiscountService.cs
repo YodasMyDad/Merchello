@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
@@ -10,6 +11,7 @@ using Merchello.Core.Discounts.Services;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
@@ -400,17 +402,25 @@ public class CheckoutDiscountService(
             AppliedDiscountIds = basket.LineItems
                 .Where(li => li.LineItemType == LineItemType.Discount)
                 .Select(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id) &&
-                              Guid.TryParse(id as string, out var parsedId)
+                              Guid.TryParse(id.UnwrapJsonElement()?.ToString(), out var parsedId)
                     ? parsedId
                     : Guid.Empty)
                 .Where(id => id != Guid.Empty)
                 .ToList()
         };
 
-        // Build lookup of product line items by SKU for add-on parent linking
-        var productLineItemsBySku = basket.LineItems
+        // Build lookups of product line items for add-on parent linking.
+        // ParentLineItemId is authoritative; SKU is fallback for legacy rows.
+        var productLineItems = basket.LineItems
             .Where(li => li.LineItemType == LineItemType.Product && !string.IsNullOrEmpty(li.Sku))
-            .ToDictionary(li => li.Sku!, li => li);
+            .ToList();
+
+        var productLineItemsById = productLineItems
+            .ToDictionary(li => li.Id, li => li);
+
+        var productLineItemsBySku = productLineItems
+            .GroupBy(li => li.Sku!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         // Convert basket line items to discount context line items (products and add-ons)
         foreach (var lineItem in basket.LineItems.Where(li =>
@@ -419,10 +429,19 @@ public class CheckoutDiscountService(
             var isAddon = lineItem.LineItemType == LineItemType.Addon;
             LineItem? parentLineItem = null;
 
-            // For add-ons, find the parent product line item
-            if (isAddon && !string.IsNullOrEmpty(lineItem.DependantLineItemSku))
+            // For add-ons, resolve parent by line item ID first, then SKU fallback for legacy rows.
+            if (isAddon)
             {
-                productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+                var parentLineItemId = lineItem.GetParentLineItemId();
+                if (parentLineItemId.HasValue)
+                {
+                    productLineItemsById.TryGetValue(parentLineItemId.Value, out parentLineItem);
+                }
+
+                if (parentLineItem == null && !string.IsNullOrEmpty(lineItem.DependantLineItemSku))
+                {
+                    productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+                }
             }
 
             var ctxLineItem = new DiscountContextLineItem

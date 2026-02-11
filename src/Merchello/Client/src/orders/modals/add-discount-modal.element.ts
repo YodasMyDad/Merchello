@@ -5,6 +5,7 @@ import { DiscountValueType } from "@orders/types/order.types.js";
 import type { AddDiscountModalData, AddDiscountModalValue } from "@orders/modals/add-discount-modal.token.js";
 import { DiscountMethod, DiscountStatus, type DiscountListItemDto } from "@discounts/types/discount.types.js";
 import { formatNumber } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
 type OrderDiscountMode = "manual" | "code";
@@ -16,6 +17,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
 > {
   @state() private _discountType: DiscountValueType = DiscountValueType.FixedAmount;
   @state() private _discountValue: number = 0;
+  @state() private _discountDisplayName: string = "";
   @state() private _discountReason: string = "";
   @state() private _isVisibleToCustomer: boolean = false;
   @state() private _errors: Record<string, string> = {};
@@ -44,6 +46,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
       this._orderDiscountMode = "manual";
       this._discountType = this.data.existingDiscount.type;
       this._discountValue = this.data.existingDiscount.value;
+      this._discountDisplayName = this.data.existingDiscount.displayName ?? this.data.existingDiscount.reason ?? "";
       this._discountReason = this.data.existingDiscount.reason ?? "";
       this._isVisibleToCustomer = this.data.existingDiscount.isVisibleToCustomer;
       this._refreshDiscountPreview();
@@ -96,6 +99,10 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
       errors.value = "Please enter a discount value";
     }
 
+    if (!this._discountDisplayName.trim()) {
+      errors.displayName = "Please enter a display name";
+    }
+
     this._errors = errors;
     return Object.keys(errors).length === 0;
   }
@@ -118,6 +125,7 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
 
     this.value = {
       discount: {
+        displayName: this._discountDisplayName.trim() || null,
         type: this._discountType,
         value: this._discountValue,
         reason: this._discountReason.trim() || null,
@@ -247,22 +255,22 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
           ` : nothing}
 
           ${isOrderDiscount && !isEditing ? html`
-            <div class="mode-switch">
-              <uui-button
-                look=${this._orderDiscountMode === "code" ? "primary" : "secondary"}
-                compact
+            <uui-tab-group class="mode-tabs">
+              <uui-tab
+                label="Apply code"
+                ?active=${this._orderDiscountMode === "code"}
                 @click=${() => this._switchOrderDiscountMode("code")}
-                label="Apply code">
+              >
                 Apply code
-              </uui-button>
-              <uui-button
-                look=${this._orderDiscountMode === "manual" ? "primary" : "secondary"}
-                compact
+              </uui-tab>
+              <uui-tab
+                label="Manual discount"
+                ?active=${this._orderDiscountMode === "manual"}
                 @click=${() => this._switchOrderDiscountMode("manual")}
-                label="Manual discount">
+              >
                 Manual discount
-              </uui-button>
-            </div>
+              </uui-tab>
+            </uui-tab-group>
           ` : nothing}
 
           ${useCodeMode ? html`
@@ -327,6 +335,17 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
             </div>
 
             <div class="form-row">
+              <label for="discount-display-name">Display name</label>
+              <uui-input
+                id="discount-display-name"
+                .value=${this._discountDisplayName}
+                @input=${(e: Event) => (this._discountDisplayName = (e.target as HTMLInputElement).value)}
+                placeholder="Shown in order summaries"
+              ></uui-input>
+              ${this._errors.displayName ? html`<span class="error">${this._errors.displayName}</span>` : nothing}
+            </div>
+
+            <div class="form-row">
               <label for="discount-reason">Reason for discount</label>
               <uui-input
                 id="discount-reason"
@@ -373,21 +392,15 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
-    :host {
-      display: block;
-    }
-
-    #main {
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
+    .mode-tabs {
       display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-4);
-    }
-
-    .mode-switch {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      flex-wrap: wrap;
+      width: 100%;
+      --uui-tab-group-background: transparent;
+      --uui-tab-background: transparent;
+      --uui-tab-text-transform: none;
     }
 
     .context-info {
@@ -411,12 +424,6 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
     .context-info .item-price {
       font-size: 0.875rem;
       color: var(--uui-color-text-alt);
-    }
-
-    .form-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
     }
 
     .checkbox-row {
@@ -508,13 +515,8 @@ export class MerchelloAddDiscountModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger);
       font-size: 0.75rem;
     }
-
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
-    }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloAddDiscountModalElement;

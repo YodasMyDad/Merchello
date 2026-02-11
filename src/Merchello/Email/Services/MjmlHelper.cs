@@ -200,7 +200,7 @@ public class MjmlHelper : IMjmlHelper
             foreach (var item in parentLineItems)
             {
                 var itemAddons = allLineItems
-                    .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                    .Where(li => li.IsAddonLinkedToParent(item))
                     .ToList();
 
                 var itemTotal = item.Amount * item.Quantity;
@@ -346,7 +346,7 @@ public class MjmlHelper : IMjmlHelper
         foreach (var item in parentLineItems)
         {
             var itemAddons = allLineItems
-                .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                .Where(li => li.IsAddonLinkedToParent(item))
                 .ToList();
 
             var itemTotal = item.Amount * item.Quantity;

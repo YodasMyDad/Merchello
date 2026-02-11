@@ -1,6 +1,7 @@
 @model CheckoutViewModel
 @using System.Text.Json
 @using System.Text.Encodings.Web
+@using Merchello.Core.Accounting.Extensions
 @using Merchello.Extensions
 @inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @{
@@ -76,6 +77,7 @@
                 isTaxable = li.IsTaxable,
                 lineItemType = li.LineItemType.ToString(),
                 dependantLineItemSku = li.DependantLineItemSku,
+                parentLineItemId = li.GetParentLineItemId()?.ToString(),
                 imageUrl = li.ExtendedData?.GetValueOrDefault("ImageUrl")?.ToString()
             };
         }),
