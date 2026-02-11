@@ -124,6 +124,12 @@ export interface PickerAddonOption {
   /** UI display type (dropdown, radio, etc.) */
   optionUiAlias: string | null;
 
+  /** Whether multiple values can be selected for this option */
+  isMultiSelect: boolean;
+
+  /** Whether this option requires at least one selection */
+  isRequired: boolean;
+
   /** Available values */
   values: PickerAddonValue[];
 }

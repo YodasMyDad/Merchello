@@ -4,6 +4,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core;
+using Merchello.Core.Products.Factories;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -324,6 +325,65 @@ public class InvoiceEditServiceTests : IClassFixture<ServiceTestFixture>
         result.ShouldNotBeNull();
         result.DiscountTotal.ShouldBe(10m);
         result.AdjustedSubTotal.ShouldBe(90m);
+    }
+
+    [Fact]
+    public async Task PreviewInvoiceEditAsync_ProductWithMissingRequiredAddon_AddsWarning()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "CA");
+        var shippingOption = dataBuilder.CreateShippingOption("Ground", warehouse, fixedCost: 0m);
+        dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Pending);
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard Tax", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Required Addon Product", taxGroup);
+        var product = dataBuilder.CreateProduct("Required Addon Product - Default", productRoot, price: 100m);
+
+        var optionFactory = new ProductOptionFactory();
+        var requiredAddonOption = optionFactory.CreateEmpty();
+        requiredAddonOption.Name = "Frame";
+        requiredAddonOption.IsVariant = false;
+        requiredAddonOption.IsMultiSelect = false;
+        requiredAddonOption.IsRequired = true;
+
+        var requiredAddonValue = optionFactory.CreateEmptyValue();
+        requiredAddonValue.Name = "Oak";
+        requiredAddonValue.PriceAdjustment = 10m;
+        requiredAddonOption.ProductOptionValues = [requiredAddonValue];
+        productRoot.ProductOptions = [requiredAddonOption];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var request = new EditInvoiceDto
+        {
+            LineItems = [],
+            RemovedLineItems = [],
+            RemovedOrderDiscounts = [],
+            CustomItems = [],
+            ProductsToAdd =
+            [
+                new AddProductToOrderDto
+                {
+                    ProductId = product.Id,
+                    Quantity = 1,
+                    WarehouseId = warehouse.Id,
+                    ShippingOptionId = shippingOption.Id,
+                    Addons = []
+                }
+            ],
+            OrderDiscounts = [],
+            OrderDiscountCodes = [],
+            OrderShippingUpdates = [],
+            EditReason = "Preview missing required add-on",
+            ShouldRemoveTax = false
+        };
+
+        var result = await _invoiceEditService.PreviewInvoiceEditAsync(invoice.Id, request);
+
+        result.ShouldNotBeNull();
+        result.Warnings.ShouldContain(w => w.Contains("required add-on", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
