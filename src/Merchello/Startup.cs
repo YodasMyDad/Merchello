@@ -85,7 +85,6 @@ using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Developer.Services;
 using Merchello.Core.Developer.Services.Interfaces;
-using Merchello.Core.Tax.Handlers;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Services;
@@ -605,9 +604,6 @@ public static class Startup
         // 4. Initialize Merchello DataTypes (Product Description TipTap editor)
         builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
-
-        // 5. Seed US shipping tax overrides (states where shipping is not taxable)
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureShippingTaxOverridesHandler>();
 
         // =====================================================
         // Content Finders
