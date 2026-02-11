@@ -1330,6 +1330,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     const hasChanges = this._hasChanges();
     const removedItems = this._lineItems.filter((li) => li.isRemoved);
     const hasDiscounts = discountTotal > 0;
+    const previewWarnings = this._previewResult?.warnings ?? [];
 
     return html`
       <umb-body-layout headline="Edit Order">
@@ -1402,6 +1403,15 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
 
           <!-- Order Discounts Section (coupons, etc.) -->
           ${this._renderOrderDiscounts()}
+
+          ${previewWarnings.length > 0 ? html`
+            <div class="preview-warnings">
+              <h4>Preview Warnings</h4>
+              <ul>
+                ${previewWarnings.map((warning) => html`<li>${warning}</li>`)}
+              </ul>
+            </div>
+          ` : nothing}
 
           <!-- Payment Summary -->
           <div class="payment-section">
@@ -2207,6 +2217,27 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
+    }
+
+    .preview-warnings {
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+    }
+
+    .preview-warnings h4 {
+      margin: 0 0 var(--uui-size-space-2) 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .preview-warnings ul {
+      margin: 0;
+      padding-left: var(--uui-size-space-4);
+      display: grid;
+      gap: var(--uui-size-space-1);
+      font-size: 0.875rem;
     }
 
     [slot="actions"] {

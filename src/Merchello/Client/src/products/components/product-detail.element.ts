@@ -1977,6 +1977,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             ${!option.isVariant
               ? html` <span class="badge badge-default">${option.isMultiSelect ? "Multi-select" : "Single-select"}</span> `
               : nothing}
+            ${!option.isVariant
+              ? html` <span class="badge badge-default">${option.isRequired ? "Required" : "Optional"}</span> `
+              : nothing}
             ${option.optionUiAlias
               ? html` <span class="badge badge-default">${option.optionUiAlias}</span> `
               : nothing}
@@ -2250,6 +2253,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         optionUiAlias: opt.optionUiAlias ?? undefined,
         isVariant: opt.isVariant,
         isMultiSelect: opt.isVariant ? false : (opt.isMultiSelect ?? true),
+        isRequired: opt.isVariant ? false : (opt.isRequired ?? false),
         values: opt.values.map((val, valIndex) => ({
           id: val.id,
           name: val.name,

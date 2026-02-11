@@ -323,6 +323,19 @@ public class InvoiceEditService(
                     continue;
                 }
 
+                var (normalizedAddons, addonValidationError) = ValidateOrderAddons(
+                    product.ProductRoot?.ProductOptions ?? [],
+                    productDto.Addons);
+                if (!string.IsNullOrWhiteSpace(addonValidationError))
+                {
+                    var productName = !string.IsNullOrWhiteSpace(product.Name)
+                        ? product.Name
+                        : !string.IsNullOrWhiteSpace(product.ProductRoot?.RootName)
+                            ? product.ProductRoot!.RootName
+                            : productDto.ProductId.ToString();
+                    warnings.Add($"{productName}: {addonValidationError}");
+                }
+
                 var warehouseId = productDto.WarehouseId;
                 var isTracked = false;
                 var available = 0;
@@ -377,7 +390,7 @@ public class InvoiceEditService(
                     HadOriginalDiscount = false
                 });
 
-                foreach (var addon in productDto.Addons)
+                foreach (var addon in normalizedAddons)
                 {
                     var addonPrice = ConvertStoreToPresentmentCurrency(invoice, addon.PriceAdjustment, currencyCode);
                     var parentSku = product.Sku ?? $"PROD-{product.Id:N}"[..20];
@@ -2617,6 +2630,14 @@ public class InvoiceEditService(
             return (true, null); // Skip missing products, don't fail the whole operation
         }
 
+        var (normalizedAddons, addonValidationError) = ValidateOrderAddons(
+            product.ProductRoot?.ProductOptions ?? [],
+            productDto.Addons);
+        if (!string.IsNullOrWhiteSpace(addonValidationError))
+        {
+            return (false, addonValidationError);
+        }
+
         var warehouseId = productDto.WarehouseId;
 
         // Validate and reserve stock
@@ -2690,7 +2711,7 @@ public class InvoiceEditService(
         changes.Add($"Added {productDto.Quantity}x {parentLineItem.Name}");
 
         // Create child add-on line items
-        foreach (var addon in productDto.Addons)
+        foreach (var addon in normalizedAddons)
         {
             var addonSku = $"{parentSku}{addon.SkuSuffix ?? $"-ADDON-{addon.OptionValueId:N}"[..15]}";
             var addonPrice = ConvertStoreToPresentmentCurrency(invoice, addon.PriceAdjustment, currencyCode);
@@ -2722,6 +2743,81 @@ public class InvoiceEditService(
         }
 
         return (true, null);
+    }
+
+    private static (List<OrderAddonDto> NormalizedAddons, string? ErrorMessage) ValidateOrderAddons(
+        IReadOnlyCollection<ProductOption> productOptions,
+        IReadOnlyList<OrderAddonDto> selectedAddons)
+    {
+        var addonOptions = productOptions
+            .Where(o => !o.IsVariant)
+            .ToList();
+
+        var normalizedAddons = selectedAddons
+            .GroupBy(a => new { a.OptionId, a.OptionValueId })
+            .Select(g => g.First())
+            .ToList();
+
+        if (normalizedAddons.Count == 0)
+        {
+            var missingRequiredWithoutSelections = addonOptions
+                .Where(o => o.IsRequired)
+                .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+                .ToList();
+
+            if (missingRequiredWithoutSelections.Count > 0)
+            {
+                return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredWithoutSelections)}.");
+            }
+
+            return ([], null);
+        }
+
+        if (addonOptions.Count == 0)
+        {
+            return ([], "This product does not support add-ons.");
+        }
+
+        var optionLookup = addonOptions.ToDictionary(o => o.Id);
+        var selectedByOption = normalizedAddons
+            .GroupBy(a => a.OptionId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var missingRequiredOptions = addonOptions
+            .Where(o => o.IsRequired && !selectedByOption.ContainsKey(o.Id))
+            .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+            .ToList();
+
+        if (missingRequiredOptions.Count > 0)
+        {
+            return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredOptions)}.");
+        }
+
+        foreach (var (optionId, addonsForOption) in selectedByOption)
+        {
+            if (!optionLookup.TryGetValue(optionId, out var option))
+            {
+                return ([], "One or more selected add-ons are invalid for this product.");
+            }
+
+            if (!option.IsMultiSelect && addonsForOption.Count > 1)
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "This add-on option" : option.Name;
+                return ([], $"{optionName} only allows one selection.");
+            }
+
+            var validValueIds = option.ProductOptionValues
+                .Select(v => v.Id)
+                .ToHashSet();
+
+            if (addonsForOption.Any(addon => !validValueIds.Contains(addon.OptionValueId)))
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "An add-on option" : option.Name;
+                return ([], $"One or more selected values are invalid for {optionName}.");
+            }
+        }
+
+        return (normalizedAddons, null);
     }
 
     /// <summary>

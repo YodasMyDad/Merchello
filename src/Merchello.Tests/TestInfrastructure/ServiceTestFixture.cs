@@ -805,6 +805,10 @@ public class ServiceTestFixture : IDisposable
                     .Returns((Func<MerchelloDbContext, Task<ProductVariantDto?>> func) => func(dbContext));
 
                 scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<AddonPricePreviewDto?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<AddonPricePreviewDto?>> func) => func(dbContext));
+
+                scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductOption?>>>()))
                     .Returns((Func<MerchelloDbContext, Task<ProductOption?>> func) => func(dbContext));
 

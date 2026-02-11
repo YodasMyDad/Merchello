@@ -215,6 +215,93 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
+    public async Task AddProductWithAddonsAsync_MissingRequiredAddon_ReturnsFailedResult()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var productRoot = dataBuilder.CreateProductRoot("Canvas Print");
+        var product = dataBuilder.CreateProduct("Canvas Print - Standard", productRoot, price: 49.99m);
+
+        var optionFactory = new ProductOptionFactory();
+        var requiredAddonOption = optionFactory.CreateEmpty();
+        requiredAddonOption.Name = "Frame";
+        requiredAddonOption.IsVariant = false;
+        requiredAddonOption.IsMultiSelect = false;
+        requiredAddonOption.IsRequired = true;
+
+        var frameValue = optionFactory.CreateEmptyValue();
+        frameValue.Name = "Oak Frame";
+        frameValue.PriceAdjustment = 15m;
+
+        requiredAddonOption.ProductOptionValues = [frameValue];
+        productRoot.ProductOptions = [requiredAddonOption];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var result = await _checkoutService.AddProductWithAddonsAsync(new AddProductWithAddonsParameters
+        {
+            ProductId = product.Id,
+            Quantity = 1,
+            Addons = []
+        });
+
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage.ShouldContain("required add-on");
+    }
+
+    [Fact]
+    public async Task AddProductWithAddonsAsync_SingleSelectAddonWithMultipleValues_ReturnsFailedResult()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var productRoot = dataBuilder.CreateProductRoot("Print Package");
+        var product = dataBuilder.CreateProduct("Print Package - Basic", productRoot, price: 39.99m);
+
+        var optionFactory = new ProductOptionFactory();
+        var addonOption = optionFactory.CreateEmpty();
+        addonOption.Name = "Mounting";
+        addonOption.IsVariant = false;
+        addonOption.IsMultiSelect = false;
+
+        var valueOne = optionFactory.CreateEmptyValue();
+        valueOne.Name = "Hanger";
+        valueOne.PriceAdjustment = 5m;
+
+        var valueTwo = optionFactory.CreateEmptyValue();
+        valueTwo.Name = "Adhesive";
+        valueTwo.PriceAdjustment = 3m;
+
+        addonOption.ProductOptionValues = [valueOne, valueTwo];
+        productRoot.ProductOptions = [addonOption];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var result = await _checkoutService.AddProductWithAddonsAsync(new AddProductWithAddonsParameters
+        {
+            ProductId = product.Id,
+            Quantity = 1,
+            Addons =
+            [
+                new AddonSelectionDto
+                {
+                    OptionId = addonOption.Id,
+                    ValueId = valueOne.Id
+                },
+                new AddonSelectionDto
+                {
+                    OptionId = addonOption.Id,
+                    ValueId = valueTwo.Id
+                }
+            ]
+        });
+
+        result.Success.ShouldBeFalse();
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage.ShouldContain("only allows one selection");
+    }
+
+    [Fact]
     public async Task AddToBasketAsync_CalculatesSubtotal()
     {
         // Arrange

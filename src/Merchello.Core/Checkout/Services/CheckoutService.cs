@@ -527,9 +527,18 @@ public class CheckoutService(
             return AddProductWithAddonsResult.Failed("This product is currently out of stock");
         }
 
+        var addonOptions = product.ProductRoot?.ProductOptions
+            .Where(po => !po.IsVariant)
+            .ToList() ?? [];
+        var (normalizedAddons, addonValidationError) = ValidateAddonSelections(addonOptions, parameters.Addons);
+        if (!string.IsNullOrWhiteSpace(addonValidationError))
+        {
+            return AddProductWithAddonsResult.Failed(addonValidationError);
+        }
+
         // Create the main product line item
         var productLineItem = CreateLineItem(product, parameters.Quantity);
-        var addonSelectionSignature = BuildAddonSelectionSignature(parameters.Addons);
+        var addonSelectionSignature = BuildAddonSelectionSignature(normalizedAddons);
         if (!string.IsNullOrEmpty(addonSelectionSignature))
         {
             productLineItem.ExtendedData[Constants.ExtendedDataKeys.AddonSelectionSignature] = addonSelectionSignature;
@@ -572,17 +581,13 @@ public class CheckoutService(
         // Handle add-ons if any
         var addonLineItems = new List<LineItem>();
 
-        if (parameters.Addons.Count > 0 && product.ProductRoot?.ProductOptions != null)
+        if (normalizedAddons.Count > 0 && product.ProductRoot?.ProductOptions != null)
         {
-            var addonOptions = product.ProductRoot.ProductOptions
-                .Where(po => !po.IsVariant)
-                .ToList();
-
             var valueLookup = addonOptions
                 .SelectMany(o => o.ProductOptionValues.Select(v => (Option: o, Value: v)))
                 .ToDictionary(x => x.Value.Id, x => x);
 
-            foreach (var addon in parameters.Addons)
+            foreach (var addon in normalizedAddons)
             {
                 if (!valueLookup.TryGetValue(addon.ValueId, out var ov))
                     continue;
@@ -2938,6 +2943,77 @@ public class CheckoutService(
             .OrderBy(x => x.OptionId)
             .ThenBy(x => x.ValueId)
             .Select(x => $"{x.OptionId:N}:{x.ValueId:N}"));
+    }
+
+    private static (List<Merchello.Core.Shared.Dtos.AddonSelectionDto> NormalizedSelections, string? ErrorMessage) ValidateAddonSelections(
+        IReadOnlyCollection<Merchello.Core.Products.Models.ProductOption> addonOptions,
+        IReadOnlyList<Merchello.Core.Shared.Dtos.AddonSelectionDto> selectedAddons)
+    {
+        var normalizedSelections = selectedAddons
+            .GroupBy(a => new { a.OptionId, a.ValueId })
+            .Select(g => g.First())
+            .ToList();
+
+        if (normalizedSelections.Count == 0)
+        {
+            var missingRequiredWithoutSelections = addonOptions
+                .Where(o => o.IsRequired)
+                .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+                .ToList();
+
+            if (missingRequiredWithoutSelections.Count > 0)
+            {
+                return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredWithoutSelections)}.");
+            }
+
+            return ([], null);
+        }
+
+        if (addonOptions.Count == 0)
+        {
+            return ([], "This product does not support add-ons.");
+        }
+
+        var optionLookup = addonOptions.ToDictionary(o => o.Id);
+        var selectedByOption = normalizedSelections
+            .GroupBy(s => s.OptionId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var missingRequiredOptions = addonOptions
+            .Where(o => o.IsRequired && !selectedByOption.ContainsKey(o.Id))
+            .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+            .ToList();
+
+        if (missingRequiredOptions.Count > 0)
+        {
+            return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredOptions)}.");
+        }
+
+        foreach (var (optionId, selectionsForOption) in selectedByOption)
+        {
+            if (!optionLookup.TryGetValue(optionId, out var option))
+            {
+                return ([], "One or more selected add-ons are invalid for this product.");
+            }
+
+            if (!option.IsMultiSelect && selectionsForOption.Count > 1)
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "This add-on option" : option.Name;
+                return ([], $"{optionName} only allows one selection.");
+            }
+
+            var validValueIds = option.ProductOptionValues
+                .Select(v => v.Id)
+                .ToHashSet();
+
+            if (selectionsForOption.Any(selection => !validValueIds.Contains(selection.ValueId)))
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "An add-on option" : option.Name;
+                return ([], $"One or more selected values are invalid for {optionName}.");
+            }
+        }
+
+        return (normalizedSelections, null);
     }
 
     private IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket, string currencyCode)
