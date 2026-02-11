@@ -124,18 +124,16 @@ public class AbandonedCheckoutApiController(
         var recoveryLink = await abandonedCheckoutService.GenerateRecoveryLinkAsync(id, ct);
 
         // Publish notification to trigger email
-        var notification = new CheckoutAbandonedFirstNotification
-        {
-            AbandonedCheckoutId = checkout.Id,
-            BasketId = checkout.BasketId,
-            CustomerEmail = checkout.Email,
-            CustomerName = checkout.CustomerName,
-            BasketTotal = checkout.BasketTotal,
-            CurrencyCode = checkout.CurrencyCode,
-            FormattedTotal = $"{checkout.CurrencySymbol}{checkout.BasketTotal:N2}",
-            RecoveryLink = recoveryLink,
-            EmailSequenceNumber = checkout.RecoveryEmailsSent + 1
-        };
+        var notification = CreateResendNotification(checkout);
+        notification.AbandonedCheckoutId = checkout.Id;
+        notification.BasketId = checkout.BasketId;
+        notification.CustomerEmail = checkout.Email;
+        notification.CustomerName = checkout.CustomerName;
+        notification.BasketTotal = checkout.BasketTotal;
+        notification.CurrencyCode = checkout.CurrencyCode;
+        notification.FormattedTotal = $"{checkout.CurrencySymbol}{checkout.BasketTotal:N2}";
+        notification.RecoveryLink = recoveryLink;
+        notification.EmailSequenceNumber = Math.Min(checkout.RecoveryEmailsSent + 1, 3);
 
         await notificationPublisher.PublishAsync(notification, ct);
         await abandonedCheckoutService.MarkRecoveryEmailSentAsync(checkout.Id, DateTime.UtcNow, ct);
@@ -171,6 +169,16 @@ public class AbandonedCheckoutApiController(
             "total" => AbandonedCheckoutOrderBy.Total,
             "email" => AbandonedCheckoutOrderBy.Email,
             _ => AbandonedCheckoutOrderBy.DateAbandoned
+        };
+    }
+
+    private static CheckoutAbandonedNotificationBase CreateResendNotification(AbandonedCheckout checkout)
+    {
+        return checkout.RecoveryEmailsSent switch
+        {
+            0 => new CheckoutAbandonedFirstNotification(),
+            1 => new CheckoutAbandonedReminderNotification(),
+            _ => new CheckoutAbandonedFinalNotification()
         };
     }
 

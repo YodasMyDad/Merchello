@@ -79,8 +79,7 @@ public class InvoiceService(
     LineItemFactory lineItemFactory,
     AddressFactory addressFactory,
     IOptions<MerchelloSettings> settings,
-    ILogger<InvoiceService> logger,
-    IAbandonedCheckoutService? abandonedCheckoutService = null) : IInvoiceService
+    ILogger<InvoiceService> logger) : IInvoiceService
 {
     private readonly MerchelloSettings _settings = settings.Value;
 
@@ -769,22 +768,9 @@ public class InvoiceService(
                 invoice.Id);
         }
 
-        // Track abandoned cart conversion (if this checkout was tracked for abandonment)
-        // We mark as converted for Active, Abandoned, or Recovered statuses:
-        // - Active: User was tracked but completed before being marked as abandoned
-        // - Abandoned: User was marked as abandoned but returned and completed
-        // - Recovered: User clicked recovery link and completed
-        // We skip Converted (already done) and Expired (historical record)
-        if (abandonedCheckoutService != null)
-        {
-            var abandonedCheckout = await abandonedCheckoutService.GetByBasketIdAsync(basket.Id);
-            if (abandonedCheckout != null &&
-                abandonedCheckout.Status != AbandonedCheckoutStatus.Converted &&
-                abandonedCheckout.Status != AbandonedCheckoutStatus.Expired)
-            {
-                await abandonedCheckoutService.MarkAsConvertedAsync(abandonedCheckout.Id, invoice.Id);
-            }
-        }
+        // Note: Abandoned checkout conversion is now handled on successful payment
+        // via AbandonedCheckoutConversionHandler (PaymentCreatedNotification).
+        // We intentionally do not mark conversion at invoice creation time.
 
         // Record discount usage after invoice creation (soft enforcement).
         // If limits are exceeded or a duplicate record exists, log but do not fail the order.

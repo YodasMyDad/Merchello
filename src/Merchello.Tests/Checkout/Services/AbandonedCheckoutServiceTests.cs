@@ -245,6 +245,104 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
 
     #endregion
 
+    #region SendScheduledRecoveryEmailsAsync
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_FirstEmailDue_IncrementsCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddHours(-2),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 0
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(1);
+        record.LastRecoveryEmailSentUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_ReminderDue_IncrementsCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddDays(-2),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 1,
+            LastRecoveryEmailSentUtc = DateTime.UtcNow.AddHours(-25)
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(2);
+        record.LastRecoveryEmailSentUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_NotDue_DoesNotIncrementCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddMinutes(-10),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 0
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(0);
+        record.LastRecoveryEmailSentUtc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_FinalEmailDue_IncrementsCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddDays(-4),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 2,
+            LastRecoveryEmailSentUtc = DateTime.UtcNow.AddHours(-49)
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(3);
+        record.LastRecoveryEmailSentUtc.ShouldNotBeNull();
+    }
+
+    #endregion
+
     #region ExpireOldRecoveriesAsync
 
     [Fact]

@@ -247,6 +247,58 @@ public class ShippingServiceTests
 
     #endregion
 
+    #region Fulfillment Option Tests
+
+    [Fact]
+    public async Task GetFulfillmentOptionsForProductAsync_NoProductWarehouseStockRecord_ReturnsCannotAddToOrder()
+    {
+        // Arrange
+        var warehouse = _dataBuilder.CreateWarehouse("North America Warehouse", "US");
+        _dataBuilder.AddServiceRegion(warehouse, "CA");
+        _dataBuilder.CreateShippingOption("International Standard", warehouse, fixedCost: 12m);
+
+        var product = _dataBuilder.CreateProduct("Stocked By Mapping Only");
+        _dataBuilder.AddWarehouseToProductRoot(product.ProductRoot!, warehouse);
+        // Intentionally no ProductWarehouse row for this variant + warehouse.
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _shippingService.GetFulfillmentOptionsForProductAsync(product.Id, "CA");
+
+        // Assert
+        result.CanAddToOrder.ShouldBeFalse();
+        result.HasAvailableStock.ShouldBeFalse();
+        result.AvailableStock.ShouldBe(0);
+        result.FulfillingWarehouse.ShouldBeNull();
+        result.BlockedReason.ShouldBe("Out of stock");
+    }
+
+    [Fact]
+    public async Task GetDefaultFulfillingWarehouseAsync_NoProductWarehouseStockRecord_ReturnsCannotAddToOrder()
+    {
+        // Arrange
+        var warehouse = _dataBuilder.CreateWarehouse("Fallback Warehouse", "GB");
+        _dataBuilder.CreateShippingOption("Standard", warehouse, fixedCost: 5m);
+
+        var product = _dataBuilder.CreateProduct("Missing Variant Stock");
+        _dataBuilder.AddWarehouseToProductRoot(product.ProductRoot!, warehouse);
+        // Intentionally no ProductWarehouse row for this variant + warehouse.
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var result = await _shippingService.GetDefaultFulfillingWarehouseAsync(product.Id);
+
+        // Assert
+        result.CanAddToOrder.ShouldBeFalse();
+        result.HasAvailableStock.ShouldBeFalse();
+        result.AvailableStock.ShouldBe(0);
+        result.BlockedReason.ShouldBe("Out of stock");
+    }
+
+    #endregion
+
     #region GetShippingOptionsForBasket Tests
 
     [Fact]

@@ -1197,6 +1197,11 @@ public class CheckoutApiController(
             return Ok(new { valid = false, message = "This recovery link has expired." });
         }
 
+        if (abandonedCheckout.Status == AbandonedCheckoutStatus.Expired)
+        {
+            return Ok(new { valid = false, message = "This recovery link has expired." });
+        }
+
         if (abandonedCheckout.Status == AbandonedCheckoutStatus.Converted)
         {
             return Ok(new { valid = false, message = "This checkout has already been completed." });

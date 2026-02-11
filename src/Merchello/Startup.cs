@@ -10,6 +10,7 @@ using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Checkout.Handlers;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -473,6 +474,7 @@ public static class Startup
         // Payments
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<PaymentRefundedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, AbandonedCheckoutConversionHandler>();
         // Products
         builder.AddNotificationAsyncHandler<ProductCreatedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<ProductSavedNotification, WebhookNotificationHandler>();

@@ -294,4 +294,67 @@ public class AbandonedCheckoutRecoveryTests : IClassFixture<ServiceTestFixture>
         result.Success.ShouldBeFalse();
         result.Messages.Select(m => m.Message).ShouldContain(m => m != null && m.Contains("Invalid"));
     }
+
+    [Fact]
+    public async Task RestoreBasketFromRecoveryAsync_WithExpiredStatus_ReturnsError()
+    {
+        var basket = await CreateBasketWithAddressesAsync("GBP");
+
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        var abandonedCheckout = _fixture.DbContext.AbandonedCheckouts.First(ac => ac.BasketId == basket.Id);
+        abandonedCheckout.Status = AbandonedCheckoutStatus.Expired;
+        abandonedCheckout.DateExpired = DateTime.UtcNow;
+        abandonedCheckout.RecoveryToken = "expired-status-token";
+        abandonedCheckout.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(7);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var result = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("expired-status-token");
+
+        result.Success.ShouldBeFalse();
+        result.Messages.Select(m => m.Message).ShouldContain(m => m != null && m.Contains("expired"));
+    }
+
+    [Fact]
+    public async Task RestoreBasketFromRecoveryAsync_ReopeningValidLink_IsIdempotent()
+    {
+        var basket = await CreateBasketWithAddressesAsync("GBP");
+
+        _fixture.DbContext.Baskets.Add(basket);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        await _abandonedCheckoutService.TrackCheckoutActivityAsync(basket, "john@example.com");
+
+        var abandonedCheckout = _fixture.DbContext.AbandonedCheckouts.First(ac => ac.BasketId == basket.Id);
+        abandonedCheckout.Status = AbandonedCheckoutStatus.Abandoned;
+        abandonedCheckout.DateAbandoned = DateTime.UtcNow;
+        abandonedCheckout.RecoveryToken = "idempotent-token";
+        abandonedCheckout.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(7);
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var firstRestore = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("idempotent-token");
+        firstRestore.Success.ShouldBeTrue();
+
+        var afterFirst = await _abandonedCheckoutService.GetByRecoveryTokenAsync("idempotent-token");
+        afterFirst.ShouldNotBeNull();
+        afterFirst.Status.ShouldBe(AbandonedCheckoutStatus.Recovered);
+        var firstRecoveredDate = afterFirst.DateRecovered;
+        firstRecoveredDate.ShouldNotBeNull();
+
+        await Task.Delay(50);
+        var secondRestore = await _abandonedCheckoutService.RestoreBasketFromRecoveryAsync("idempotent-token");
+        secondRestore.Success.ShouldBeTrue();
+
+        var afterSecond = await _abandonedCheckoutService.GetByRecoveryTokenAsync("idempotent-token");
+        afterSecond.ShouldNotBeNull();
+        afterSecond.Status.ShouldBe(AbandonedCheckoutStatus.Recovered);
+        afterSecond.DateRecovered.ShouldBe(firstRecoveredDate.Value);
+    }
 }

@@ -364,6 +364,7 @@ public class AbandonedCheckoutService(
     public async Task<CrudResult<Basket>> RestoreBasketFromRecoveryAsync(string token, CancellationToken ct = default)
     {
         var result = new CrudResult<Basket>();
+        var shouldPublishRecoveredNotification = false;
 
         using var scope = efCoreScopeProvider.CreateScope();
         var basket = await scope.ExecuteWithContextAsync(async db =>
@@ -404,6 +405,16 @@ public class AbandonedCheckoutService(
                 return null;
             }
 
+            if (abandoned.Status == AbandonedCheckoutStatus.Expired)
+            {
+                result.Messages.Add(new ResultMessage
+                {
+                    Message = "This recovery link has expired",
+                    ResultMessageType = ResultMessageType.Error
+                });
+                return null;
+            }
+
             // Find the basket
             var existingBasket = await db.Baskets
                 .FirstOrDefaultAsync(b => b.Id == abandoned.BasketId, ct);
@@ -422,9 +433,13 @@ public class AbandonedCheckoutService(
             // This is critical because HTTP session may have expired or user may be on a different device
             RestoreAddressAndCurrencySnapshots(abandoned, existingBasket);
 
-            // Mark as recovered (status update + notification)
-            abandoned.Status = AbandonedCheckoutStatus.Recovered;
-            abandoned.DateRecovered = DateTime.UtcNow;
+            // Mark as recovered once (idempotent when link is reopened)
+            if (abandoned.Status != AbandonedCheckoutStatus.Recovered)
+            {
+                abandoned.Status = AbandonedCheckoutStatus.Recovered;
+                abandoned.DateRecovered = DateTime.UtcNow;
+                shouldPublishRecoveredNotification = true;
+            }
 
             // Save the basket with restored addresses
             db.Baskets.Update(existingBasket);
@@ -439,17 +454,20 @@ public class AbandonedCheckoutService(
             result.ResultObject = basket;
 
             // Publish recovered notification (outside of scope to avoid transaction issues)
-            var abandoned = await GetByRecoveryTokenAsync(token, ct);
-            if (abandoned != null)
+            if (shouldPublishRecoveredNotification)
             {
-                await notificationPublisher.PublishAsync(
-                    new CheckoutRecoveredNotification(
-                        abandoned.Id,
-                        abandoned.BasketId,
-                        abandoned.Email,
-                        abandoned.BasketTotal,
-                        abandoned.DateAbandoned ?? abandoned.DateCreated),
-                    ct);
+                var abandoned = await GetByRecoveryTokenAsync(token, ct);
+                if (abandoned != null)
+                {
+                    await notificationPublisher.PublishAsync(
+                        new CheckoutRecoveredNotification(
+                            abandoned.Id,
+                            abandoned.BasketId,
+                            abandoned.Email,
+                            abandoned.BasketTotal,
+                            abandoned.DateAbandoned ?? abandoned.DateCreated),
+                        ct);
+                }
             }
         }
 

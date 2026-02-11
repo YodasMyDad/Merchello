@@ -23,6 +23,7 @@ using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Checkout.Handlers;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -311,6 +312,7 @@ public class ServiceTestFixture : IDisposable
         RegisterNotificationHandler<DigitalProductPaymentHandler>(services);
         RegisterNotificationHandler<FulfilmentOrderSubmissionHandler>(services);
         RegisterNotificationHandler<FulfilmentCancellationHandler>(services);
+        RegisterNotificationHandler<AbandonedCheckoutConversionHandler>(services);
         RegisterNotificationHandler<UcpOrderWebhookHandler>(services);
         RegisterNotificationHandler<UpsellEmailEnrichmentHandler>(services);
         RegisterNotificationHandler<UpsellConversionHandler>(services);
