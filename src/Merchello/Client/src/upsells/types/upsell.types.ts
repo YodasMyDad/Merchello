@@ -144,6 +144,7 @@ export interface UpsellDetailDto {
   startsAt: string;
   endsAt?: string;
   timezone?: string;
+  displayStyles?: UpsellDisplayStylesDto;
   dateCreated: string;
   dateUpdated: string;
   triggerRules: UpsellTriggerRuleDto[];
@@ -151,10 +152,47 @@ export interface UpsellDetailDto {
   eligibilityRules: UpsellEligibilityRuleDto[];
 }
 
+export interface UpsellElementStyleDto {
+  textColor?: string;
+  backgroundColor?: string;
+  borderColor?: string;
+  borderStyle?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+}
+
+export interface UpsellSurfaceStyleDto {
+  container?: UpsellElementStyleDto;
+  heading?: UpsellElementStyleDto;
+  message?: UpsellElementStyleDto;
+  productCard?: UpsellElementStyleDto;
+  productName?: UpsellElementStyleDto;
+  productDescription?: UpsellElementStyleDto;
+  productPrice?: UpsellElementStyleDto;
+  badge?: UpsellElementStyleDto;
+  button?: UpsellElementStyleDto;
+  secondaryButton?: UpsellElementStyleDto;
+  variantSelector?: UpsellElementStyleDto;
+  statusText?: UpsellElementStyleDto;
+}
+
+export interface UpsellDisplayStylesDto {
+  checkoutInline?: UpsellSurfaceStyleDto;
+  checkoutInterstitial?: UpsellSurfaceStyleDto;
+  postPurchase?: UpsellSurfaceStyleDto;
+  basket?: UpsellSurfaceStyleDto;
+  productPage?: UpsellSurfaceStyleDto;
+  email?: UpsellSurfaceStyleDto;
+  confirmation?: UpsellSurfaceStyleDto;
+}
+
 export interface UpsellTriggerRuleDto {
   triggerType: UpsellTriggerType;
   triggerIds?: string[];
   triggerNames?: string[];
+  value?: number;
+  min?: number;
+  max?: number;
   extractFilterIds?: string[];
   extractFilterNames?: string[];
 }
@@ -188,6 +226,7 @@ export interface CreateUpsellDto {
   startsAt?: string;
   endsAt?: string;
   timezone?: string;
+  displayStyles?: UpsellDisplayStylesDto;
   triggerRules?: CreateUpsellTriggerRuleDto[];
   recommendationRules?: CreateUpsellRecommendationRuleDto[];
   eligibilityRules?: CreateUpsellEligibilityRuleDto[];
@@ -208,6 +247,8 @@ export interface UpdateUpsellDto {
   endsAt?: string;
   clearEndsAt?: boolean;
   timezone?: string;
+  displayStyles?: UpsellDisplayStylesDto | null;
+  clearDisplayStyles?: boolean;
   triggerRules?: CreateUpsellTriggerRuleDto[];
   recommendationRules?: CreateUpsellRecommendationRuleDto[];
   eligibilityRules?: CreateUpsellEligibilityRuleDto[];
@@ -216,6 +257,9 @@ export interface UpdateUpsellDto {
 export interface CreateUpsellTriggerRuleDto {
   triggerType: UpsellTriggerType;
   triggerIds?: string[];
+  value?: number;
+  min?: number;
+  max?: number;
   extractFilterIds?: string[];
 }
 
@@ -292,6 +336,7 @@ export interface UpsellSuggestionDto {
   heading: string;
   message?: string;
   checkoutMode: CheckoutUpsellMode;
+  displayStyles?: UpsellDisplayStylesDto;
   products: UpsellProductDto[];
 }
 

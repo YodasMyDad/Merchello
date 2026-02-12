@@ -1156,6 +1156,7 @@ public class PostPurchaseUpsellService(
         Heading = s.Heading,
         Message = s.Message,
         CheckoutMode = s.CheckoutMode,
+        DisplayStyles = s.DisplayStyles,
         Products = s.Products.Select(p => new UpsellProductDto
         {
             ProductId = p.ProductId,

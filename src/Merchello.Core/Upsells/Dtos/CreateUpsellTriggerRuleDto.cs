@@ -9,5 +9,8 @@ public class CreateUpsellTriggerRuleDto
 {
     public UpsellTriggerType TriggerType { get; set; }
     public List<Guid>? TriggerIds { get; set; }
+    public decimal? Value { get; set; }
+    public decimal? Min { get; set; }
+    public decimal? Max { get; set; }
     public List<Guid>? ExtractFilterIds { get; set; }
 }

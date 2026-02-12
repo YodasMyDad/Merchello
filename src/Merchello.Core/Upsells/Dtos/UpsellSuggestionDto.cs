@@ -12,5 +12,6 @@ public class UpsellSuggestionDto
     public string? Message { get; set; }
     public CheckoutUpsellMode CheckoutMode { get; set; }
     public bool DefaultChecked { get; set; }
+    public UpsellDisplayStyles? DisplayStyles { get; set; }
     public List<UpsellProductDto> Products { get; set; } = [];
 }

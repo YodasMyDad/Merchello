@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
@@ -101,6 +102,67 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
+    public async Task CreateAsync_WithMinimumCartValueTrigger_SerializesCartValueJson()
+    {
+        var parameters = new CreateUpsellParameters
+        {
+            Name = "Minimum cart value",
+            Heading = "Spend a little more",
+            TriggerRules =
+            [
+                new CreateUpsellTriggerRuleParameters
+                {
+                    TriggerType = UpsellTriggerType.MinimumCartValue,
+                    Value = 50m,
+                },
+            ],
+        };
+
+        var result = await _upsellService.CreateAsync(parameters);
+
+        result.Success.ShouldBeTrue();
+        var triggerRule = result.ResultObject!.TriggerRules.Single();
+        triggerRule.TriggerType.ShouldBe(UpsellTriggerType.MinimumCartValue);
+        triggerRule.TriggerIds.ShouldNotBeNull();
+
+        using var doc = JsonDocument.Parse(triggerRule.TriggerIds!);
+        doc.RootElement.TryGetProperty("value", out var valueProp).ShouldBeTrue();
+        valueProp.GetDecimal().ShouldBe(50m);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithCartValueBetweenTrigger_SerializesRangeJson()
+    {
+        var parameters = new CreateUpsellParameters
+        {
+            Name = "Cart value range",
+            Heading = "Range trigger",
+            TriggerRules =
+            [
+                new CreateUpsellTriggerRuleParameters
+                {
+                    TriggerType = UpsellTriggerType.CartValueBetween,
+                    Min = 25m,
+                    Max = 75m,
+                },
+            ],
+        };
+
+        var result = await _upsellService.CreateAsync(parameters);
+
+        result.Success.ShouldBeTrue();
+        var triggerRule = result.ResultObject!.TriggerRules.Single();
+        triggerRule.TriggerType.ShouldBe(UpsellTriggerType.CartValueBetween);
+        triggerRule.TriggerIds.ShouldNotBeNull();
+
+        using var doc = JsonDocument.Parse(triggerRule.TriggerIds!);
+        doc.RootElement.TryGetProperty("min", out var minProp).ShouldBeTrue();
+        doc.RootElement.TryGetProperty("max", out var maxProp).ShouldBeTrue();
+        minProp.GetDecimal().ShouldBe(25m);
+        maxProp.GetDecimal().ShouldBe(75m);
+    }
+
+    [Fact]
     public async Task CreateAsync_WithFutureStartsAt_SetsStatusToScheduled()
     {
         var parameters = new CreateUpsellParameters
@@ -131,6 +193,56 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
         result.Success.ShouldBeTrue();
         // Should be either Active or Draft depending on implementation
         result.ResultObject!.Status.ShouldBeOneOf(UpsellStatus.Active, UpsellStatus.Draft);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithDisplayStyles_PersistsSanitizedStyles()
+    {
+        var parameters = new CreateUpsellParameters
+        {
+            Name = "Styled upsell",
+            Heading = "Styled heading",
+            DisplayStyles = new UpsellDisplayStyles
+            {
+                CheckoutInline = new UpsellSurfaceStyle
+                {
+                    Heading = new UpsellElementStyle
+                    {
+                        TextColor = "#112233",
+                        BorderStyle = "solid",
+                        BorderWidth = 2
+                    },
+                    Message = new UpsellElementStyle
+                    {
+                        BackgroundColor = "rgb(12, 34, 56)"
+                    }
+                },
+                Email = new UpsellSurfaceStyle
+                {
+                    Button = new UpsellElementStyle
+                    {
+                        BackgroundColor = "red",
+                        BorderColor = "javascript:alert(1)"
+                    }
+                }
+            }
+        };
+
+        var result = await _upsellService.CreateAsync(parameters);
+
+        result.Success.ShouldBeTrue();
+        var rule = result.ResultObject!;
+        rule.DisplayStyles.ShouldNotBeNull();
+        rule.DisplayStyles!.CheckoutInline.ShouldNotBeNull();
+        rule.DisplayStyles.CheckoutInline!.Heading.ShouldNotBeNull();
+        rule.DisplayStyles.CheckoutInline.Heading!.TextColor.ShouldBe("#112233");
+        rule.DisplayStyles.CheckoutInline.Heading.BorderStyle.ShouldBe("solid");
+        rule.DisplayStyles.CheckoutInline.Heading.BorderWidth.ShouldBe(2);
+
+        rule.DisplayStyles.Email.ShouldNotBeNull();
+        rule.DisplayStyles.Email!.Button.ShouldNotBeNull();
+        rule.DisplayStyles.Email.Button!.BackgroundColor.ShouldBe("red");
+        rule.DisplayStyles.Email.Button.BorderColor.ShouldBeNull();
     }
 
     // =====================================================
@@ -171,6 +283,35 @@ public class UpsellServiceTests : IClassFixture<ServiceTestFixture>
     {
         var result = await _upsellService.UpdateAsync(Guid.NewGuid(), new UpdateUpsellParameters { Name = "X" });
         result.Success.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ClearDisplayStyles_RemovesStoredStyles()
+    {
+        var createResult = await _upsellService.CreateAsync(new CreateUpsellParameters
+        {
+            Name = "Clear styles",
+            Heading = "Clear styles heading",
+            DisplayStyles = new UpsellDisplayStyles
+            {
+                CheckoutInline = new UpsellSurfaceStyle
+                {
+                    Heading = new UpsellElementStyle { TextColor = "#123456" }
+                }
+            }
+        });
+
+        createResult.Success.ShouldBeTrue();
+        createResult.ResultObject!.DisplayStyles.ShouldNotBeNull();
+
+        var updateResult = await _upsellService.UpdateAsync(createResult.ResultObject.Id, new UpdateUpsellParameters
+        {
+            ClearDisplayStyles = true
+        });
+
+        updateResult.Success.ShouldBeTrue();
+        updateResult.ResultObject!.DisplayStyles.ShouldBeNull();
+        updateResult.ResultObject.DisplayStylesJson.ShouldBeNull();
     }
 
     // =====================================================

@@ -695,13 +695,13 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
       }
 
       .badge-warning {
-        background: var(--uui-color-warning-standalone);
-        color: var(--uui-color-warning-contrast);
+        background: var(--merchello-color-warning-status-background, #8a6500);
+        color: var(--merchello-color-warning-status-contrast, #fff);
       }
 
       .badge-default {
-        background: var(--uui-color-default);
-        color: var(--uui-color-text-alt);
+        background: var(--uui-color-text-alt);
+        color: #fff;
       }
 
       .status-code {

@@ -2912,6 +2912,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<int>("DisplayLocation")
                         .HasColumnType("int");
 
+                    b.Property<string>("DisplayStylesJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("EligibilityRulesJson")
                         .HasColumnType("nvarchar(max)");
 

@@ -23,6 +23,8 @@ public class UpdateUpsellParameters
     public DateTime? EndsAt { get; set; }
     public bool ClearEndsAt { get; set; }
     public string? Timezone { get; set; }
+    public UpsellDisplayStyles? DisplayStyles { get; set; }
+    public bool ClearDisplayStyles { get; set; }
     public List<CreateUpsellTriggerRuleParameters>? TriggerRules { get; set; }
     public List<CreateUpsellRecommendationRuleParameters>? RecommendationRules { get; set; }
     public List<CreateUpsellEligibilityRuleParameters>? EligibilityRules { get; set; }

@@ -23,6 +23,63 @@
 
     void loadUpsells();
 
+    function getSuggestionSurfaceStyle(suggestion) {
+        const styles = suggestion?.displayStyles;
+        if (!styles || typeof styles !== 'object') {
+            return null;
+        }
+
+        return styles.postPurchase || styles.confirmation || null;
+    }
+
+    function getElementStyle(surfaceStyle, elementKey) {
+        if (!surfaceStyle || typeof surfaceStyle !== 'object' || !elementKey) {
+            return null;
+        }
+
+        const elementStyle = surfaceStyle[elementKey];
+        return elementStyle && typeof elementStyle === 'object' ? elementStyle : null;
+    }
+
+    function applyElementStyle(element, elementStyle) {
+        if (!element || !elementStyle || typeof elementStyle !== 'object') {
+            return;
+        }
+
+        const hasTextColor = typeof elementStyle.textColor === 'string' && elementStyle.textColor.length > 0;
+        const hasBackgroundColor = typeof elementStyle.backgroundColor === 'string' && elementStyle.backgroundColor.length > 0;
+        const hasBorderColor = typeof elementStyle.borderColor === 'string' && elementStyle.borderColor.length > 0;
+        const hasBorderStyle = typeof elementStyle.borderStyle === 'string' && elementStyle.borderStyle.length > 0;
+        const hasBorderWidth = Number.isFinite(elementStyle.borderWidth);
+        const hasBorderRadius = Number.isFinite(elementStyle.borderRadius);
+
+        if (hasTextColor) {
+            element.style.color = elementStyle.textColor;
+        }
+
+        if (hasBackgroundColor) {
+            element.style.backgroundColor = elementStyle.backgroundColor;
+        }
+
+        if (hasBorderColor) {
+            element.style.borderColor = elementStyle.borderColor;
+        }
+
+        if (hasBorderStyle) {
+            element.style.borderStyle = elementStyle.borderStyle;
+        } else if (hasBorderColor || hasBorderWidth) {
+            element.style.borderStyle = 'solid';
+        }
+
+        if (hasBorderWidth) {
+            element.style.borderWidth = `${Math.max(0, Number(elementStyle.borderWidth))}px`;
+        }
+
+        if (hasBorderRadius) {
+            element.style.borderRadius = `${Math.max(0, Number(elementStyle.borderRadius))}px`;
+        }
+    }
+
     async function loadUpsells() {
         const response = await fetch(`/api/merchello/checkout/post-purchase/${invoiceId}`);
 
@@ -65,6 +122,10 @@
         updateSavedMethodText();
         startTimer(timeRemainingSeconds);
         const suggestions = data.suggestions || [];
+        if (suggestions.length > 0) {
+            const firstSurfaceStyle = getSuggestionSurfaceStyle(suggestions[0]);
+            applyElementStyle(skipButton, getElementStyle(firstSurfaceStyle, 'secondaryButton'));
+        }
         renderSuggestions(suggestions);
 
         emitEvent('checkout:post_purchase_view', {
@@ -147,18 +208,22 @@
         }
 
         suggestions.forEach((suggestion) => {
+            const surfaceStyle = getSuggestionSurfaceStyle(suggestion);
             const groupEl = document.createElement('section');
             groupEl.className = 'space-y-3';
+            applyElementStyle(groupEl, getElementStyle(surfaceStyle, 'container'));
 
             const heading = document.createElement('h2');
             heading.className = 'font-heading text-xl font-semibold text-gray-900';
             heading.textContent = suggestion.heading || 'Recommended';
+            applyElementStyle(heading, getElementStyle(surfaceStyle, 'heading'));
             groupEl.appendChild(heading);
 
             if (suggestion.message) {
                 const message = document.createElement('p');
                 message.className = 'text-gray-600';
                 message.textContent = suggestion.message;
+                applyElementStyle(message, getElementStyle(surfaceStyle, 'message'));
                 groupEl.appendChild(message);
             }
 
@@ -166,6 +231,7 @@
                 const info = document.createElement('div');
                 info.className = 'bg-blue-50 border border-blue-200 rounded-lg p-4 text-blue-800';
                 info.textContent = 'This offer does not include specific products.';
+                applyElementStyle(info, getElementStyle(surfaceStyle, 'productCard'));
                 groupEl.appendChild(info);
                 contentEl.appendChild(groupEl);
                 return;
@@ -175,7 +241,7 @@
             grid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4';
 
             suggestion.products.forEach((product) => {
-                const card = createProductCard(product, suggestion.upsellRuleId);
+                const card = createProductCard(product, suggestion.upsellRuleId, surfaceStyle);
                 grid.appendChild(card);
             });
 
@@ -184,9 +250,10 @@
         });
     }
 
-    function createProductCard(product, upsellRuleId) {
+    function createProductCard(product, upsellRuleId, surfaceStyle) {
         const card = document.createElement('div');
         card.className = 'border border-gray-200 rounded-lg p-4 bg-white flex flex-col gap-3 transition-all hover:bg-gray-50';
+        applyElementStyle(card, getElementStyle(surfaceStyle, 'productCard'));
 
         const image = document.createElement('div');
         image.className = 'w-full h-32 bg-gray-100 rounded-md overflow-hidden';
@@ -202,21 +269,22 @@
         const title = document.createElement('h3');
         title.className = 'font-medium text-gray-900';
         title.textContent = product.name || 'Product';
+        applyElementStyle(title, getElementStyle(surfaceStyle, 'productName'));
         card.appendChild(title);
 
         const meta = document.createElement('div');
         meta.className = 'flex flex-wrap gap-2 text-xs';
 
         if (product.productTypeName) {
-            meta.appendChild(createPill(product.productTypeName, 'bg-gray-100 text-gray-700'));
+            meta.appendChild(createPill(product.productTypeName, 'bg-gray-100 text-gray-700', surfaceStyle));
         }
 
         if (product.onSale) {
-            meta.appendChild(createPill('On sale', 'bg-amber-100 text-amber-700'));
+            meta.appendChild(createPill('On sale', 'bg-amber-100 text-amber-700', surfaceStyle));
         }
 
         if (product.priceIncludesTax) {
-            meta.appendChild(createPill('Tax included', 'bg-green-100 text-green-700'));
+            meta.appendChild(createPill('Tax included', 'bg-green-100 text-green-700', surfaceStyle));
         }
 
         if (meta.children.length > 0) {
@@ -227,6 +295,7 @@
             const desc = document.createElement('p');
             desc.className = 'text-sm text-gray-600 leading-relaxed';
             desc.textContent = product.description;
+            applyElementStyle(desc, getElementStyle(surfaceStyle, 'productDescription'));
             card.appendChild(desc);
         }
 
@@ -235,6 +304,7 @@
         const priceText = document.createElement('span');
         priceText.className = 'text-lg font-semibold text-gray-900';
         priceText.textContent = product.formattedPrice || '';
+        applyElementStyle(priceText, getElementStyle(surfaceStyle, 'productPrice'));
         price.appendChild(priceText);
 
         if (product.formattedPreviousPrice) {
@@ -261,6 +331,7 @@
         if (product.hasVariants && Array.isArray(product.variants) && product.variants.length > 0) {
             const select = document.createElement('select');
             select.className = 'checkout-input-compact';
+            applyElementStyle(select, getElementStyle(surfaceStyle, 'variantSelector'));
             const placeholder = document.createElement('option');
             placeholder.value = '';
             placeholder.textContent = 'Select option';
@@ -285,6 +356,8 @@
 
         const status = document.createElement('div');
         status.className = 'text-sm text-gray-600';
+        const statusStyle = getElementStyle(surfaceStyle, 'statusText');
+        applyElementStyle(status, statusStyle);
         card.appendChild(status);
 
         const button = document.createElement('button');
@@ -292,8 +365,9 @@
         button.className = 'checkout-button-primary w-full';
         button.textContent = product.availableForPurchase ? 'Add to order' : 'Unavailable';
         button.disabled = !product.availableForPurchase;
+        applyElementStyle(button, getElementStyle(surfaceStyle, 'button'));
         button.addEventListener('click', () => {
-            void handleAdd(product, upsellRuleId, selectedVariantId, button, status);
+            void handleAdd(product, upsellRuleId, selectedVariantId, button, status, statusStyle);
         });
         card.appendChild(button);
 
@@ -321,9 +395,9 @@
         button.textContent = 'Add to order';
     }
 
-    async function handleAdd(product, upsellRuleId, selectedVariantId, button, statusEl) {
+    async function handleAdd(product, upsellRuleId, selectedVariantId, button, statusEl, statusStyle) {
         if (!savedMethod || savedMethod.isExpired) {
-            setStatus(statusEl, 'Saved payment method unavailable.', 'error');
+            setStatus(statusEl, 'Saved payment method unavailable.', 'error', statusStyle);
             emitEvent('checkout:post_purchase_error', {
                 invoice_id: invoiceId,
                 error_type: 'saved_method_unavailable'
@@ -333,7 +407,7 @@
 
         const productId = selectedVariantId || product.productId;
         if (!productId) {
-            setStatus(statusEl, 'Select an option to continue.', 'error');
+            setStatus(statusEl, 'Select an option to continue.', 'error', statusStyle);
             emitEvent('checkout:post_purchase_error', {
                 invoice_id: invoiceId,
                 error_type: 'variant_required',
@@ -344,7 +418,7 @@
 
         button.disabled = true;
         button.textContent = 'Adding...';
-        setStatus(statusEl, 'Calculating total...', 'info');
+        setStatus(statusEl, 'Calculating total...', 'info', statusStyle);
 
         const preview = await postJson(
             `/api/merchello/checkout/post-purchase/${invoiceId}/preview`,
@@ -352,7 +426,7 @@
 
         if (!preview.ok || !preview.data || !preview.data.isAvailable) {
             const reason = preview.data?.unavailableReason || preview.error || 'Unable to add item.';
-            setStatus(statusEl, reason, 'error');
+            setStatus(statusEl, reason, 'error', statusStyle);
             emitEvent('checkout:post_purchase_error', {
                 invoice_id: invoiceId,
                 error_type: 'preview_failed',
@@ -365,7 +439,7 @@
 
         const previewData = preview.data;
         const amountLabel = previewData.formattedTotal || previewData.formattedSubTotal || '';
-        setStatus(statusEl, amountLabel ? `Charging ${amountLabel}...` : 'Charging...', 'info');
+        setStatus(statusEl, amountLabel ? `Charging ${amountLabel}...` : 'Charging...', 'info', statusStyle);
 
         const idempotencyKey = createIdempotencyKey();
         const addResult = await postJson(
@@ -380,7 +454,7 @@
 
         if (!addResult.ok || !addResult.data) {
             const message = addResult.error || 'Payment failed.';
-            setStatus(statusEl, message, 'error');
+            setStatus(statusEl, message, 'error', statusStyle);
             emitEvent('checkout:post_purchase_error', {
                 invoice_id: invoiceId,
                 error_type: 'payment_failed',
@@ -392,7 +466,7 @@
         }
 
         const charged = addResult.data.formattedAmountCharged || amountLabel || 'added';
-        setStatus(statusEl, `Added. Charged ${charged}.`, 'success');
+        setStatus(statusEl, `Added. Charged ${charged}.`, 'success', statusStyle);
         button.textContent = 'Added';
         button.disabled = true;
 
@@ -460,7 +534,7 @@
         contentEl.appendChild(wrapper);
     }
 
-    function setStatus(el, message, type) {
+    function setStatus(el, message, type, elementStyle) {
         if (!el) return;
         el.textContent = message || '';
         el.className = 'text-sm';
@@ -476,12 +550,15 @@
                 el.className += ' text-gray-600';
                 break;
         }
+
+        applyElementStyle(el, elementStyle);
     }
 
-    function createPill(text, classes) {
+    function createPill(text, classes, surfaceStyle) {
         const pill = document.createElement('span');
         pill.className = `inline-flex items-center rounded-full px-2 py-0.5 ${classes}`;
         pill.textContent = text;
+        applyElementStyle(pill, getElementStyle(surfaceStyle, 'badge'));
         return pill;
     }
 

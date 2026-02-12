@@ -130,6 +130,11 @@ public class UpsellRule
     /// </summary>
     public string? EligibilityRulesJson { get; set; }
 
+    /// <summary>
+    /// Serialized JSON for per-surface display style overrides.
+    /// </summary>
+    public string? DisplayStylesJson { get; set; }
+
     // =====================================================
     // Audit
     // =====================================================
@@ -168,6 +173,11 @@ public class UpsellRule
         string.IsNullOrEmpty(EligibilityRulesJson) ? [] :
         JsonSerializer.Deserialize<List<UpsellEligibilityRule>>(EligibilityRulesJson) ?? [];
 
+    [NotMapped]
+    public UpsellDisplayStyles? DisplayStyles =>
+        string.IsNullOrEmpty(DisplayStylesJson) ? null :
+        JsonSerializer.Deserialize<UpsellDisplayStyles>(DisplayStylesJson);
+
     // =====================================================
     // Setter Helpers
     // =====================================================
@@ -180,4 +190,7 @@ public class UpsellRule
 
     public void SetEligibilityRules(List<UpsellEligibilityRule>? rules) =>
         EligibilityRulesJson = rules is { Count: > 0 } ? JsonSerializer.Serialize(rules) : null;
+
+    public void SetDisplayStyles(UpsellDisplayStyles? displayStyles) =>
+        DisplayStylesJson = displayStyles != null ? JsonSerializer.Serialize(displayStyles) : null;
 }

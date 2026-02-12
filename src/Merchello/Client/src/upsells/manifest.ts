@@ -35,4 +35,10 @@ export const manifests: Array<UmbExtensionManifest> = [
     name: "Create Upsell Modal",
     js: () => import("@upsells/modals/create-upsell-modal.element.js"),
   },
+  {
+    type: "modal",
+    alias: "Merchello.UpsellStyle.Modal",
+    name: "Upsell Style Modal",
+    js: () => import("@upsells/modals/upsell-style-modal.element.js"),
+  },
 ];

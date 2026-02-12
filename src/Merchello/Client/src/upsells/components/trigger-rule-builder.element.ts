@@ -77,6 +77,9 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
       triggerType,
       triggerIds: [],
       triggerNames: [],
+      value: undefined,
+      min: undefined,
+      max: undefined,
       extractFilterIds: [],
       extractFilterNames: [],
     });
@@ -89,6 +92,14 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
       UpsellTriggerType.Collections,
       UpsellTriggerType.SpecificProducts,
       UpsellTriggerType.Suppliers,
+    ].includes(type);
+  }
+
+  private _isCartValueTrigger(type: UpsellTriggerType): boolean {
+    return [
+      UpsellTriggerType.MinimumCartValue,
+      UpsellTriggerType.MaximumCartValue,
+      UpsellTriggerType.CartValueBetween,
     ].includes(type);
   }
 
@@ -202,6 +213,20 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
     });
   }
 
+  private _handleCartValueChange(index: number, field: "value" | "min" | "max", rawValue: string): void {
+    if (!rawValue.trim()) {
+      this._handleUpdateRule(index, { [field]: undefined } as Partial<UpsellTriggerRuleDto>);
+      return;
+    }
+
+    const parsedValue = Number(rawValue);
+    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+      return;
+    }
+
+    this._handleUpdateRule(index, { [field]: parsedValue } as Partial<UpsellTriggerRuleDto>);
+  }
+
   private _getPickerLabel(type: UpsellTriggerType): string {
     switch (type) {
       case UpsellTriggerType.ProductTypes: return "Select product types";
@@ -275,7 +300,48 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
               `
               : nothing}
           `
-          : nothing}
+          : this._isCartValueTrigger(rule.triggerType)
+            ? this._renderCartValueRule(rule, index)
+            : nothing}
+      </div>
+    `;
+  }
+
+  private _renderCartValueRule(rule: UpsellTriggerRuleDto, index: number): unknown {
+    return html`
+      <div class="rule-body cart-value-body">
+        ${rule.triggerType === UpsellTriggerType.CartValueBetween
+          ? html`
+            <div class="cart-value-grid">
+              <uui-input
+                type="number"
+                step="0.01"
+                min="0"
+                label="Minimum cart value"
+                .value=${rule.min != null ? String(rule.min) : ""}
+                @input=${(e: Event) => this._handleCartValueChange(index, "min", (e.target as HTMLInputElement).value)}
+              ></uui-input>
+              <uui-input
+                type="number"
+                step="0.01"
+                min="0"
+                label="Maximum cart value"
+                .value=${rule.max != null ? String(rule.max) : ""}
+                @input=${(e: Event) => this._handleCartValueChange(index, "max", (e.target as HTMLInputElement).value)}
+              ></uui-input>
+            </div>
+          `
+          : html`
+            <uui-input
+              type="number"
+              step="0.01"
+              min="0"
+              label=${rule.triggerType === UpsellTriggerType.MinimumCartValue ? "Minimum cart value" : "Maximum cart value"}
+              .value=${rule.value != null ? String(rule.value) : ""}
+              @input=${(e: Event) => this._handleCartValueChange(index, "value", (e.target as HTMLInputElement).value)}
+            ></uui-input>
+          `}
+        <div class="cart-value-help">Amount uses store currency.</div>
       </div>
     `;
   }
@@ -325,6 +391,22 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
       font-size: 0.85em;
       color: var(--uui-color-text-alt);
       margin-bottom: var(--uui-size-space-2);
+    }
+
+    .cart-value-body uui-input {
+      width: 100%;
+    }
+
+    .cart-value-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--uui-size-space-3);
+    }
+
+    .cart-value-help {
+      margin-top: var(--uui-size-space-2);
+      color: var(--uui-color-text-alt);
+      font-size: 0.85em;
     }
 
     uui-button[look="placeholder"] {
