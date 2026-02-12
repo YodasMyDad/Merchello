@@ -116,7 +116,6 @@ public class GoogleShoppingCategoryServiceTests
     {
         var categorySettings = Options.Create(new GoogleShoppingCategorySettings
         {
-            FallbackCountryCode = "US",
             CacheHours = 24,
             TaxonomyUrls = taxonomyUrls
         });

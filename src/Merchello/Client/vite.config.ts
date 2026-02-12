@@ -27,6 +27,7 @@ export default defineConfig({
       "@product-types": resolve(__dirname, "src/product-types"),
       "@products": resolve(__dirname, "src/products"),
       "@providers": resolve(__dirname, "src/providers"),
+      "@seed-data": resolve(__dirname, "src/seed-data"),
       "@section": resolve(__dirname, "src/section"),
       "@settings": resolve(__dirname, "src/settings"),
       "@shared": resolve(__dirname, "src/shared"),

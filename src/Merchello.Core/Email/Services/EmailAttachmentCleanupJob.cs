@@ -1,8 +1,10 @@
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Email.Services;
 
@@ -13,6 +15,7 @@ namespace Merchello.Core.Email.Services;
 public class EmailAttachmentCleanupJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<EmailSettings> settings,
+    IRuntimeState runtimeState,
     ILogger<EmailAttachmentCleanupJob> logger) : BackgroundService
 {
     private readonly EmailSettings _settings = settings.Value;
@@ -21,6 +24,15 @@ public class EmailAttachmentCleanupJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(EmailAttachmentCleanupJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation(
             "EmailAttachmentCleanupJob started with {Interval} hour cleanup interval, {Retention} hour retention",
             _cleanupInterval.TotalHours, _settings.AttachmentRetentionHours);

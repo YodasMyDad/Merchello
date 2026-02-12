@@ -46,14 +46,10 @@ export const badgeStyles = css`
     color: var(--uui-color-positive-contrast);
   }
 
-  .badge.unfulfilled {
-    background: var(--uui-color-warning-standalone);
-    color: var(--uui-color-warning-contrast);
-  }
-
+  .badge.unfulfilled,
   .badge.partially-fulfilled {
-    background: var(--uui-color-warning-standalone);
-    color: var(--uui-color-warning-contrast);
+    background: var(--merchello-color-warning-status-background, #8a6500);
+    color: var(--merchello-color-warning-status-contrast, #fff);
   }
 
   /* Cancellation status badge */

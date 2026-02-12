@@ -190,6 +190,39 @@ describe("merchello api client", () => {
     );
   });
 
+  it("calls manual seed-data endpoints with expected HTTP methods", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        createMockResponse({
+          jsonData: {
+            isEnabled: true,
+            isInstalled: false,
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        createMockResponse({
+          jsonData: {
+            success: true,
+            isInstalled: true,
+            message: "Seed data installed successfully.",
+          },
+        })
+      );
+
+    await MerchelloApi.getSeedDataStatus();
+    await MerchelloApi.installSeedData();
+
+    const [statusUrl, statusInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [installUrl, installInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+
+    expect(statusUrl).toBe("/umbraco/api/v1/seed-data/status");
+    expect(statusInit.method).toBe("GET");
+
+    expect(installUrl).toBe("/umbraco/api/v1/seed-data/install");
+    expect(installInit.method).toBe("POST");
+  });
+
   it("sends JSON bodies for POST endpoints and parses JSON responses", async () => {
     fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: { id: "discount-1" } }));
 

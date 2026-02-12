@@ -162,24 +162,33 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
     `;
   }
 
+  private _getSegmentBadgeClass(segmentType: CustomerSegmentBadgeDto["segmentType"]): string {
+    return segmentType === "Automated" ? "segment-badge--automated" : "segment-badge--manual";
+  }
+
   private _renderSegmentBadges(): unknown {
     if (this._segments.length === 0) {
       return nothing;
     }
 
     return html`
-      <div class="segment-badges">
+      <section class="segment-strip" aria-label="Customer segments">
+        <span class="segment-strip__label">
+          <uui-icon name="icon-users"></uui-icon>
+          Customer segments
+        </span>
+        <div class="segment-badges">
         ${this._segments.map(
           (segment) => html`
-            <uui-tag
-              look="secondary"
-              class="segment-badge segment-badge--${segment.segmentType.toLowerCase()}"
+            <span
+              class="segment-badge ${this._getSegmentBadgeClass(segment.segmentType)}"
             >
               ${segment.name}
-            </uui-tag>
+            </span>
           `
         )}
-      </div>
+        </div>
+      </section>
     `;
   }
 
@@ -332,23 +341,59 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
       justify-content: flex-end;
     }
 
+    .segment-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-4);
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
+    }
+
+    .segment-strip__label {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--uui-color-text-alt);
+    }
+
+    .segment-strip__label uui-icon {
+      font-size: 0.875rem;
+    }
+
     .segment-badges {
       display: flex;
       flex-wrap: wrap;
       gap: var(--uui-size-space-2);
-      margin-bottom: var(--uui-size-space-4);
     }
 
     .segment-badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 2px 10px;
       font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1.4;
     }
 
     .segment-badge--manual {
-      --uui-tag-slot-color: var(--uui-color-default-emphasis);
+      background: var(--uui-color-surface);
+      color: var(--uui-color-text);
+      border-color: var(--uui-color-border);
     }
 
     .segment-badge--automated {
-      --uui-tag-slot-color: var(--uui-color-positive-emphasis);
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .account-summary {

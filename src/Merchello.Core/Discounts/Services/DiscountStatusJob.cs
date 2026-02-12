@@ -1,7 +1,9 @@
 using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Discounts.Services;
 
@@ -11,6 +13,7 @@ namespace Merchello.Core.Discounts.Services;
 /// </summary>
 public class DiscountStatusJob(
     IServiceScopeFactory serviceScopeFactory,
+    IRuntimeState runtimeState,
     ILogger<DiscountStatusJob> logger) : BackgroundService
 {
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
@@ -18,6 +21,15 @@ public class DiscountStatusJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(DiscountStatusJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation("DiscountStatusJob started, waiting for database to be ready...");
 
         // Wait for migrations to complete before first check
