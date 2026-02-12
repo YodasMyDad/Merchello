@@ -37,7 +37,9 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
     /// Creates a PaymentService with a custom provider manager for tests needing specific provider behaviour.
     /// All other dependencies use real implementations from the fixture.
     /// </summary>
-    private PaymentService CreateServiceWithCustomProvider(IPaymentProviderManager providerManager) =>
+    private PaymentService CreateServiceWithCustomProvider(
+        IPaymentProviderManager providerManager,
+        IPaymentIdempotencyService? idempotencyService = null) =>
         new(
             providerManager,
             _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
@@ -45,9 +47,46 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
             _fixture.GetService<ICurrencyService>(),
             _fixture.GetService<IMerchelloNotificationPublisher>(),
             _fixture.GetService<IRateLimiter>(),
-            _fixture.GetService<IPaymentIdempotencyService>(),
+            idempotencyService ?? _fixture.GetService<IPaymentIdempotencyService>(),
             _fixture.GetService<IOptions<MerchelloSettings>>(),
             NullLogger<PaymentService>.Instance);
+
+    #region RecordPaymentAsync Tests
+
+    [Fact]
+    public async Task RecordPaymentAsync_ClearsIdempotencyMarker_AfterDurableWrite()
+    {
+        // Arrange
+        const string idempotencyKey = "record-payment-idem-123";
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var idempotencyMock = new Mock<IPaymentIdempotencyService>();
+        var service = CreateServiceWithCustomProvider(_fixture.PaymentProviderManagerMock.Object, idempotencyMock.Object);
+
+        // Act
+        var result = await service.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid():N}",
+            IdempotencyKey = idempotencyKey,
+            Amount = 100m
+        });
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        idempotencyMock.Verify(
+            x => x.CachePaymentResult(
+                idempotencyKey,
+                It.Is<PaymentResult>(r => r.Success)),
+            Times.Once);
+    }
+
+    #endregion
 
     #region ProcessRefundAsync Tests
 
