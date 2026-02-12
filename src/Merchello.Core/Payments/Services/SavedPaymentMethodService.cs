@@ -504,10 +504,11 @@ public class SavedPaymentMethodService(
                 // Update last used date
                 await UpdateLastUsedAsync(savedMethod.Id, cancellationToken);
             }
-
-            if (!string.IsNullOrEmpty(parameters.IdempotencyKey))
+            else if (!string.IsNullOrEmpty(parameters.IdempotencyKey))
             {
-                idempotencyService.CachePaymentResult(parameters.IdempotencyKey, paymentResult);
+                // Failed charges are not durably recorded, so release the in-flight marker
+                // to allow a retry with the same key.
+                idempotencyService.ClearProcessingMarker(parameters.IdempotencyKey);
             }
 
             result.ResultObject = paymentResult;

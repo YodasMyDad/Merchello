@@ -39,7 +39,8 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
     /// </summary>
     private SavedPaymentMethodService CreateServiceWithMocks(
         IPaymentProviderManager? providerManager = null,
-        ICustomerService? customerService = null)
+        ICustomerService? customerService = null,
+        IPaymentIdempotencyService? idempotencyService = null)
     {
         return new SavedPaymentMethodService(
             _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
@@ -47,7 +48,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
             customerService ?? _fixture.GetService<ICustomerService>(),
             new SavedPaymentMethodFactory(),
             _fixture.GetService<IMerchelloNotificationPublisher>(),
-            _fixture.GetService<IPaymentIdempotencyService>(),
+            idempotencyService ?? _fixture.GetService<IPaymentIdempotencyService>(),
             NullLogger<SavedPaymentMethodService>.Instance);
     }
 
@@ -369,6 +370,133 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
         // Assert
         result.Success.ShouldBeFalse();
         result.Messages.ShouldContain(m => m.Message!.Contains("Invoice not found"));
+    }
+
+    [Fact]
+    public async Task ChargeAsync_DoesNotClearIdempotencyMarker_WhenChargeSucceeds()
+    {
+        // Arrange
+        const string providerAlias = "vault-test";
+        const string idempotencyKey = "saved-charge-success-idem";
+
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+        var invoice = dataBuilder.CreateInvoice(total: 42m);
+        var method = dataBuilder.CreateSavedPaymentMethod(customer, providerAlias: providerAlias);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var idempotencyMock = new Mock<IPaymentIdempotencyService>();
+        idempotencyMock
+            .Setup(x => x.GetCachedPaymentResultAsync(idempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PaymentResult?)null);
+        idempotencyMock
+            .Setup(x => x.TryMarkAsProcessingAsync(idempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var providerMock = new Mock<IPaymentProvider>();
+        providerMock.SetupGet(x => x.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = providerAlias,
+            DisplayName = "Vaulted Test Provider",
+            SupportsVaultedPayments = true
+        });
+        providerMock
+            .Setup(x => x.ChargeVaultedMethodAsync(It.IsAny<ChargeVaultedMethodRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PaymentResult.Completed($"txn-{Guid.NewGuid():N}", 42m));
+
+        var providerManagerMock = new Mock<IPaymentProviderManager>();
+        providerManagerMock
+            .Setup(x => x.GetProviderAsync(providerAlias, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RegisteredPaymentProvider(providerMock.Object, new PaymentProviderSetting
+            {
+                ProviderAlias = providerAlias,
+                DisplayName = "Vaulted Test Provider",
+                IsEnabled = true,
+                IsVaultingEnabled = true
+            }));
+
+        var service = CreateServiceWithMocks(
+            providerManager: providerManagerMock.Object,
+            idempotencyService: idempotencyMock.Object);
+
+        // Act
+        var result = await service.ChargeAsync(new ChargeSavedMethodParameters
+        {
+            InvoiceId = invoice.Id,
+            SavedPaymentMethodId = method.Id,
+            IdempotencyKey = idempotencyKey
+        });
+
+        // Assert
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.Success.ShouldBeTrue();
+        idempotencyMock.Verify(x => x.TryMarkAsProcessingAsync(idempotencyKey, It.IsAny<CancellationToken>()), Times.Once);
+        idempotencyMock.Verify(x => x.CachePaymentResult(It.IsAny<string>(), It.IsAny<PaymentResult>()), Times.Never);
+        idempotencyMock.Verify(x => x.ClearProcessingMarker(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ChargeAsync_ClearsIdempotencyMarker_WhenChargeFails()
+    {
+        // Arrange
+        const string providerAlias = "vault-test";
+        const string idempotencyKey = "saved-charge-failed-idem";
+
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer();
+        var invoice = dataBuilder.CreateInvoice(total: 42m);
+        var method = dataBuilder.CreateSavedPaymentMethod(customer, providerAlias: providerAlias);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var idempotencyMock = new Mock<IPaymentIdempotencyService>();
+        idempotencyMock
+            .Setup(x => x.GetCachedPaymentResultAsync(idempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((PaymentResult?)null);
+        idempotencyMock
+            .Setup(x => x.TryMarkAsProcessingAsync(idempotencyKey, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var providerMock = new Mock<IPaymentProvider>();
+        providerMock.SetupGet(x => x.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = providerAlias,
+            DisplayName = "Vaulted Test Provider",
+            SupportsVaultedPayments = true
+        });
+        providerMock
+            .Setup(x => x.ChargeVaultedMethodAsync(It.IsAny<ChargeVaultedMethodRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(PaymentResult.Failed("Card declined."));
+
+        var providerManagerMock = new Mock<IPaymentProviderManager>();
+        providerManagerMock
+            .Setup(x => x.GetProviderAsync(providerAlias, true, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RegisteredPaymentProvider(providerMock.Object, new PaymentProviderSetting
+            {
+                ProviderAlias = providerAlias,
+                DisplayName = "Vaulted Test Provider",
+                IsEnabled = true,
+                IsVaultingEnabled = true
+            }));
+
+        var service = CreateServiceWithMocks(
+            providerManager: providerManagerMock.Object,
+            idempotencyService: idempotencyMock.Object);
+
+        // Act
+        var result = await service.ChargeAsync(new ChargeSavedMethodParameters
+        {
+            InvoiceId = invoice.Id,
+            SavedPaymentMethodId = method.Id,
+            IdempotencyKey = idempotencyKey
+        });
+
+        // Assert
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.Success.ShouldBeFalse();
+        idempotencyMock.Verify(x => x.CachePaymentResult(It.IsAny<string>(), It.IsAny<PaymentResult>()), Times.Never);
+        idempotencyMock.Verify(x => x.ClearProcessingMarker(idempotencyKey), Times.Once);
     }
 
     #endregion

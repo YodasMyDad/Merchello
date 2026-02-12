@@ -467,6 +467,17 @@ public class PaymentService(
             await notificationPublisher.PublishAsync(new PaymentCreatedNotification(createdPayment), cancellationToken);
         }
 
+        // Clear in-flight idempotency marker only after the payment is durably recorded.
+        if (!string.IsNullOrEmpty(parameters.IdempotencyKey) && result.Success && result.ResultObject != null)
+        {
+            idempotencyService.CachePaymentResult(
+                parameters.IdempotencyKey,
+                new PaymentResult
+                {
+                    Success = result.ResultObject.PaymentSuccess
+                });
+        }
+
         return result;
     }
 
