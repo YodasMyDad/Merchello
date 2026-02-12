@@ -731,6 +731,8 @@ document.addEventListener('alpine:init', () => {
 
             // Also refresh estimated shipping when location changes
             await this.fetchEstimatedShipping();
+            // Refresh upsells so region/tax filtered prices stay in sync
+            await this.loadUpsells();
         },
 
         async fetchEstimatedShipping() {
@@ -898,10 +900,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         async loadUpsells() {
-            if (this.isEmpty) return;
+            const countryCode = Alpine.store('country').code;
+            if (!countryCode || this.isEmpty) return;
             this.upsellsLoading = true;
             try {
-                const result = await MerchelloApi.upsells.getSuggestions('Basket');
+                const result = await MerchelloApi.upsells.getSuggestions('Basket', {
+                    countryCode,
+                    regionCode: this.selectedRegion || undefined
+                });
                 if (result.success) {
                     this.upsellSuggestions = result.data || [];
                     this.trackUpsellImpressions();

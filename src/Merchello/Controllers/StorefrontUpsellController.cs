@@ -35,6 +35,8 @@ public class StorefrontUpsellController(
     [HttpGet]
     public async Task<IActionResult> GetSuggestions(
         [FromQuery] UpsellDisplayLocation location,
+        [FromQuery] string? countryCode,
+        [FromQuery] string? regionCode,
         CancellationToken ct)
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
@@ -46,22 +48,27 @@ public class StorefrontUpsellController(
             return Ok(Array.Empty<UpsellSuggestionDto>());
 
         var displayContext = await storefrontContextService.GetDisplayContextAsync(ct);
-        var countryCode = basket.ShippingAddress?.CountryCode;
-        var regionCode = basket.ShippingAddress?.CountyState?.RegionCode;
-        if (string.IsNullOrWhiteSpace(countryCode))
+        var resolvedCountryCode = ResolveCountryCode(
+            countryCode,
+            basket.ShippingAddress?.CountryCode,
+            displayContext.TaxCountryCode);
+        var resolvedRegionCode = ResolveRegionCode(
+            regionCode,
+            basket.ShippingAddress?.CountyState?.RegionCode,
+            displayContext.TaxRegionCode);
+        displayContext = displayContext with
         {
-            // DisplayContext already resolved the shipping location — reuse it
-            countryCode = displayContext.TaxCountryCode;
-            regionCode = displayContext.TaxRegionCode;
-        }
+            TaxCountryCode = resolvedCountryCode,
+            TaxRegionCode = resolvedRegionCode
+        };
 
         var context = new UpsellContext
         {
             CustomerId = basket.CustomerId,
             BasketId = basket.Id,
             Location = location,
-            CountryCode = countryCode,
-            RegionCode = regionCode,
+            CountryCode = resolvedCountryCode,
+            RegionCode = resolvedRegionCode,
             DisplayContext = displayContext,
             LineItems = lineItems,
         };
@@ -103,7 +110,11 @@ public class StorefrontUpsellController(
     /// Get upsell suggestions for a specific product page.
     /// </summary>
     [HttpGet("product/{productId:guid}")]
-    public async Task<IActionResult> GetProductSuggestions(Guid productId, CancellationToken ct)
+    public async Task<IActionResult> GetProductSuggestions(
+        Guid productId,
+        [FromQuery] string? countryCode,
+        [FromQuery] string? regionCode,
+        CancellationToken ct)
     {
         var lineItem = await upsellContextBuilder.BuildLineItemAsync(productId, 1, 0m, ct);
         if (lineItem == null)
@@ -111,13 +122,27 @@ public class StorefrontUpsellController(
 
         var displayContext = await storefrontContextService.GetDisplayContextAsync(ct);
         var locationContext = await storefrontContextService.GetShippingLocationAsync(ct);
+        var resolvedCountryCode = ResolveCountryCode(
+            countryCode,
+            locationContext.CountryCode,
+            displayContext.TaxCountryCode);
+        var resolvedRegionCode = ResolveRegionCode(
+            regionCode,
+            locationContext.RegionCode,
+            displayContext.TaxRegionCode);
+
+        displayContext = displayContext with
+        {
+            TaxCountryCode = resolvedCountryCode,
+            TaxRegionCode = resolvedRegionCode
+        };
 
         var context = new UpsellContext
         {
             LineItems = [lineItem],
             Location = UpsellDisplayLocation.ProductPage,
-            CountryCode = locationContext.CountryCode,
-            RegionCode = locationContext.RegionCode,
+            CountryCode = resolvedCountryCode,
+            RegionCode = resolvedRegionCode,
             DisplayContext = displayContext
         };
 
@@ -211,6 +236,37 @@ public class StorefrontUpsellController(
         FormattedPrice = variant.FormattedPrice,
         AvailableForPurchase = variant.AvailableForPurchase
     };
+
+    private static string ResolveCountryCode(
+        string? queryCountryCode,
+        string? sourceCountryCode,
+        string fallbackCountryCode)
+    {
+        if (!string.IsNullOrWhiteSpace(queryCountryCode))
+            return queryCountryCode.Trim().ToUpperInvariant();
+
+        if (!string.IsNullOrWhiteSpace(sourceCountryCode))
+            return sourceCountryCode.Trim().ToUpperInvariant();
+
+        return fallbackCountryCode;
+    }
+
+    private static string? ResolveRegionCode(
+        string? queryRegionCode,
+        string? sourceRegionCode,
+        string? fallbackRegionCode)
+    {
+        if (!string.IsNullOrWhiteSpace(queryRegionCode))
+            return queryRegionCode.Trim().ToUpperInvariant();
+
+        if (!string.IsNullOrWhiteSpace(sourceRegionCode))
+            return sourceRegionCode.Trim().ToUpperInvariant();
+
+        if (!string.IsNullOrWhiteSpace(fallbackRegionCode))
+            return fallbackRegionCode.Trim().ToUpperInvariant();
+
+        return null;
+    }
 
     private string? ResolveFirstImageUrl(List<string> images)
     {

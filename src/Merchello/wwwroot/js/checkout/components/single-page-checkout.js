@@ -195,6 +195,8 @@ export function initSinglePageCheckout() {
             _paymentReinitTimeout: null,
             /** @type {boolean} Whether shipping has been calculated at least once */
             _shippingCalculated: false,
+            /** @type {string|null} Last country/region key used to fetch checkout upsells */
+            _lastUpsellLoadLocationKey: null,
             /** @type {boolean} True while captureAddress request is in-flight */
             _captureAddressInFlight: false,
             /** @type {boolean} Set when address capture should run after shipping/capture completes */
@@ -345,6 +347,7 @@ export function initSinglePageCheckout() {
                 // Sync local state from store
                 this.shippingSameAsBilling = this.$store.checkout?.form?.sameAsBilling ?? true;
                 this._shippingCalculated = (this.$store.checkout?.shippingGroups?.length ?? 0) > 0;
+                const hadPreCalculatedShipping = this._shippingCalculated;
 
                 // Force account creation section open for digital products
                 const store = this.$store.checkout;
@@ -389,8 +392,8 @@ export function initSinglePageCheckout() {
                 }
 
                 // Load upsell suggestions after shipping is calculated
-                if (this._shippingCalculated) {
-                    this.loadCheckoutUpsells();
+                if (hadPreCalculatedShipping && this._shippingCalculated) {
+                    void this.loadCheckoutUpsells();
                 }
 
                 // CROSS-COMPONENT COORDINATION: Other components (e.g., discount code input,
@@ -1093,6 +1096,7 @@ export function initSinglePageCheckout() {
                         }
 
                         this._shippingCalculated = true;
+                        await this.loadCheckoutUpsells();
                         this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items cannot be shipped to this location');
                     } else {
                         store?.setShippingError(data.message || 'Unable to calculate shipping.');
@@ -1611,19 +1615,28 @@ export function initSinglePageCheckout() {
             // Upsell Methods
             // ============================================
 
-            async loadCheckoutUpsells() {
+            async loadCheckoutUpsells(forceReload = false) {
                 const store = this.$store.checkout;
                 if (!this.form.shipping.countryCode) return;
+                const locationKey = `${this.form.shipping.countryCode}|${this.form.shipping.regionCode || ''}`;
+                if (!forceReload && this._lastUpsellLoadLocationKey === locationKey) {
+                    return;
+                }
 
                 store?.setUpsellsLoading(true);
                 store?.setUpsellsError(null);
 
                 try {
                     const params = new URLSearchParams({ location: 'Checkout' });
+                    params.append('countryCode', this.form.shipping.countryCode);
+                    if (this.form.shipping.regionCode) {
+                        params.append('regionCode', this.form.shipping.regionCode);
+                    }
                     const result = await checkoutApi.request(`/upsells?${params}`);
 
                     if (result.success) {
                         store?.setUpsellSuggestions(result.data || []);
+                        this._lastUpsellLoadLocationKey = locationKey;
                         if (result.data?.length > 0) {
                             this.trackUpsellImpressions(result.data);
                         }
@@ -1688,8 +1701,9 @@ export function initSinglePageCheckout() {
                 const store = this.$store.checkout;
                 if (store?.upsellAddingToCart) return;
 
+                const selectedVariantId = this.selectedUpsellVariant[product.productRootId];
                 const productIdToAdd = product.hasVariants
-                    ? (this.selectedUpsellVariant[product.productRootId] || product.variants?.[0]?.productId)
+                    ? selectedVariantId
                     : product.productId;
 
                 if (!productIdToAdd) {
@@ -1722,7 +1736,7 @@ export function initSinglePageCheckout() {
                     }
 
                     // Refresh upsells (added product should be suppressed if SuppressIfInCart)
-                    await this.loadCheckoutUpsells();
+                    await this.loadCheckoutUpsells(true);
 
                     this.announce(`${product.name} added to your order`);
                 } catch (error) {
@@ -1739,6 +1753,50 @@ export function initSinglePageCheckout() {
                     ...this.selectedUpsellVariant,
                     [productRootId]: variantProductId
                 };
+            },
+
+            getSelectedUpsellVariant(product) {
+                if (!product?.hasVariants || !Array.isArray(product.variants)) {
+                    return null;
+                }
+
+                const selectedVariantId = this.selectedUpsellVariant[product.productRootId];
+                if (!selectedVariantId) {
+                    return null;
+                }
+
+                return product.variants.find(v => String(v.productId) === String(selectedVariantId)) ?? null;
+            },
+
+            getUpsellDisplayPrice(product) {
+                const selectedVariant = this.getSelectedUpsellVariant(product);
+                return selectedVariant?.formattedPrice || product?.formattedPrice || '';
+            },
+
+            getUpsellVariantLabel(variant) {
+                if (!variant) {
+                    return '';
+                }
+
+                const baseLabel = variant.formattedPrice
+                    ? `${variant.name} - ${variant.formattedPrice}`
+                    : variant.name;
+
+                return variant.availableForPurchase
+                    ? baseLabel
+                    : `${baseLabel} (Out of stock)`;
+            },
+
+            canAddUpsell(product) {
+                if (!product?.availableForPurchase) {
+                    return false;
+                }
+
+                if (!product.hasVariants) {
+                    return true;
+                }
+
+                return !!this.selectedUpsellVariant[product.productRootId];
             },
 
             dismissInterstitial() {

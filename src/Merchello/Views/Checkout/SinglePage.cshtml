@@ -185,7 +185,7 @@
                                     <div class="flex-1 min-w-0">
                                         <h3 class="text-sm font-medium text-gray-900" x-text="product.name"></h3>
                                         <p x-show="product.description" x-html="product.description" class="text-xs text-gray-500 mt-1"></p>
-                                        <span class="text-sm font-semibold text-gray-900 mt-1 inline-block" x-text="product.formattedPrice"></span>
+                                        <span class="text-sm font-semibold text-gray-900 mt-1 inline-block" x-text="getUpsellDisplayPrice(product)"></span>
                                     </div>
 
                                     <!-- Variant selector -->
@@ -196,7 +196,7 @@
                                             <template x-for="variant in product.variants" :key="variant.productId">
                                                 <option :value="variant.productId"
                                                         :disabled="!variant.availableForPurchase"
-                                                        x-text="variant.name + (variant.availableForPurchase ? '' : ' (Out of stock)')">
+                                                        x-text="getUpsellVariantLabel(variant)">
                                                 </option>
                                             </template>
                                         </select>
@@ -205,7 +205,7 @@
                                     <button type="button"
                                             class="checkout-button-primary text-sm py-1.5 px-3 mt-2 w-full"
                                             @@click="addUpsellToCart(product, suggestion.upsellRuleId)"
-                                            :disabled="upsellAddingToCart || !product.availableForPurchase || wasUpsellAdded(product.productRootId)">
+                                            :disabled="upsellAddingToCart || !canAddUpsell(product) || wasUpsellAdded(product.productRootId)">
                                         <span x-show="wasUpsellAdded(product.productRootId)">Added</span>
                                         <span x-show="!wasUpsellAdded(product.productRootId) && !isAddingUpsellProduct(product.productId)">Add to Order</span>
                                         <span x-show="isAddingUpsellProduct(product.productId)">Adding...</span>
@@ -265,7 +265,7 @@
                                              class="w-12 h-12 rounded object-cover flex-shrink-0" />
                                         <div class="flex-1 min-w-0">
                                             <h4 class="text-sm font-medium text-gray-900 truncate" x-text="product.name"></h4>
-                                            <span class="text-sm text-gray-700" x-text="product.formattedPrice"></span>
+                                            <span class="text-sm text-gray-700" x-text="getUpsellDisplayPrice(product)"></span>
                                         </div>
 
                                         <!-- Variant selector -->
@@ -276,7 +276,7 @@
                                                 <template x-for="variant in product.variants" :key="variant.productId">
                                                     <option :value="variant.productId"
                                                             :disabled="!variant.availableForPurchase"
-                                                            x-text="variant.name">
+                                                            x-text="getUpsellVariantLabel(variant)">
                                                     </option>
                                                 </template>
                                             </select>
@@ -285,7 +285,7 @@
                                         <button type="button"
                                                 class="checkout-button-secondary text-xs py-1 px-3 flex-shrink-0"
                                                 @@click="addUpsellToCart(product, suggestion.upsellRuleId)"
-                                                :disabled="upsellAddingToCart || !product.availableForPurchase || wasUpsellAdded(product.productRootId)">
+                                                :disabled="upsellAddingToCart || !canAddUpsell(product) || wasUpsellAdded(product.productRootId)">
                                             <span x-show="wasUpsellAdded(product.productRootId)">Added</span>
                                             <span x-show="!wasUpsellAdded(product.productRootId) && !isAddingUpsellProduct(product.productId)">Add</span>
                                             <span x-show="isAddingUpsellProduct(product.productId)">Adding...</span>
