@@ -437,6 +437,10 @@ import type {
   RegenerateRecoveryLinkResultDto,
   ResendRecoveryEmailResultDto,
 } from '@abandoned-checkouts/types/abandoned-checkout.types.js';
+import type {
+  InstallSeedDataResultDto,
+  SeedDataStatusDto,
+} from '@seed-data/types/seed-data.types.js';
 
 // Import notifications discovery types (developer tools)
 import type { NotificationDiscoveryResultDto } from '@notifications/types/notifications.types.js';
@@ -505,6 +509,10 @@ export const MerchelloApi = {
   // Store Settings
   getSettings: () => apiGet<StoreSettingsDto>('settings'),
   getCountries: () => apiGet<CountryDto[]>('countries'),
+
+  // Seed Data
+  getSeedDataStatus: () => apiGet<SeedDataStatusDto>('seed-data/status'),
+  installSeedData: () => apiPost<InstallSeedDataResultDto>('seed-data/install'),
 
   // ============================================
   // Tax Groups API

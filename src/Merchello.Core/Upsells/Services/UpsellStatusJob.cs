@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Upsells.Services;
@@ -17,6 +19,7 @@ namespace Merchello.Core.Upsells.Services;
 public class UpsellStatusJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<UpsellSettings> upsellSettings,
+    IRuntimeState runtimeState,
     ILogger<UpsellStatusJob> logger) : BackgroundService
 {
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
@@ -26,6 +29,15 @@ public class UpsellStatusJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(UpsellStatusJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation("UpsellStatusJob started, waiting for database to be ready...");
 
         try

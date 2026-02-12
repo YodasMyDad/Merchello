@@ -6,10 +6,12 @@ using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.Notifications;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.ExchangeRates.Services;
 
@@ -17,6 +19,7 @@ public class ExchangeRateRefreshJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<MerchelloSettings> merchelloSettings,
     IOptions<ExchangeRateOptions> options,
+    IRuntimeState runtimeState,
     ILogger<ExchangeRateRefreshJob> logger) : BackgroundService
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
@@ -25,6 +28,15 @@ public class ExchangeRateRefreshJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(ExchangeRateRefreshJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         var interval = TimeSpan.FromMinutes(Math.Max(1, _options.RefreshIntervalMinutes));
         using var timer = new PeriodicTimer(interval);
 
