@@ -59,6 +59,7 @@ public class UpsellRuleDbMapping : IEntityTypeConfiguration<UpsellRule>
         builder.Property(x => x.TriggerRulesJson);
         builder.Property(x => x.RecommendationRulesJson);
         builder.Property(x => x.EligibilityRulesJson);
+        builder.Property(x => x.DisplayStylesJson);
 
         // Audit
         builder.Property(x => x.DateCreated);
@@ -69,5 +70,6 @@ public class UpsellRuleDbMapping : IEntityTypeConfiguration<UpsellRule>
         builder.Ignore(x => x.TriggerRules);
         builder.Ignore(x => x.RecommendationRules);
         builder.Ignore(x => x.EligibilityRules);
+        builder.Ignore(x => x.DisplayStyles);
     }
 }

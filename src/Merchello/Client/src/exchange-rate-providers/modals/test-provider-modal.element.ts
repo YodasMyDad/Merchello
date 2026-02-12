@@ -402,10 +402,11 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
     .badge {
       display: inline-block;
       padding: 2px 8px;
-      background: var(--uui-color-surface-alt);
+      background: var(--uui-color-text-alt);
       border-radius: 12px;
       font-size: 0.875rem;
       font-weight: 600;
+      color: #fff;
     }
 
     .rates-table {

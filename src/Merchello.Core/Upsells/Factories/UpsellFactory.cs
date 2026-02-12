@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Upsells.Extensions;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Parameters;
 
@@ -45,6 +46,8 @@ public class UpsellFactory
             DateUpdated = now,
         };
 
+        rule.SetDisplayStyles(UpsellDisplayStylesSanitizer.Sanitize(parameters.DisplayStyles));
+
         if (parameters.TriggerRules is { Count: > 0 })
         {
             var triggerRules = parameters.TriggerRules
@@ -77,15 +80,38 @@ public class UpsellFactory
     /// </summary>
     public UpsellTriggerRule CreateTriggerRule(CreateUpsellTriggerRuleParameters parameters)
     {
+        var triggerIds = IsCartValueTrigger(parameters.TriggerType)
+            ? SerializeCartValueTrigger(parameters)
+            : parameters.TriggerIds is { Count: > 0 }
+                ? JsonSerializer.Serialize(parameters.TriggerIds)
+                : null;
+
         return new UpsellTriggerRule
         {
             TriggerType = parameters.TriggerType,
-            TriggerIds = parameters.TriggerIds is { Count: > 0 }
-                ? JsonSerializer.Serialize(parameters.TriggerIds)
-                : null,
+            TriggerIds = triggerIds,
             ExtractFilterIds = parameters.ExtractFilterIds is { Count: > 0 }
                 ? JsonSerializer.Serialize(parameters.ExtractFilterIds)
                 : null,
+        };
+    }
+
+    private static bool IsCartValueTrigger(UpsellTriggerType triggerType) =>
+        triggerType is UpsellTriggerType.MinimumCartValue
+            or UpsellTriggerType.MaximumCartValue
+            or UpsellTriggerType.CartValueBetween;
+
+    private static string? SerializeCartValueTrigger(CreateUpsellTriggerRuleParameters parameters)
+    {
+        return parameters.TriggerType switch
+        {
+            UpsellTriggerType.MinimumCartValue or UpsellTriggerType.MaximumCartValue
+                when parameters.Value.HasValue
+                => JsonSerializer.Serialize(new { value = parameters.Value.Value }),
+            UpsellTriggerType.CartValueBetween
+                when parameters.Min.HasValue && parameters.Max.HasValue
+                => JsonSerializer.Serialize(new { min = parameters.Min.Value, max = parameters.Max.Value }),
+            _ => null
         };
     }
 

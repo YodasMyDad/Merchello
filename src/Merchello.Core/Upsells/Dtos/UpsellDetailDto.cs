@@ -26,6 +26,7 @@ public class UpsellDetailDto
     public DateTime StartsAt { get; set; }
     public DateTime? EndsAt { get; set; }
     public string? Timezone { get; set; }
+    public UpsellDisplayStyles? DisplayStyles { get; set; }
     public DateTime DateCreated { get; set; }
     public DateTime DateUpdated { get; set; }
     public List<UpsellTriggerRuleDto> TriggerRules { get; set; } = [];

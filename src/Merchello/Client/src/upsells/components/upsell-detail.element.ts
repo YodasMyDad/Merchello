@@ -16,6 +16,7 @@ import type {
   UpsellRecommendationRuleDto,
   UpsellEligibilityRuleDto,
   UpsellPerformanceDto,
+  UpsellDisplayStylesDto,
 } from "@upsells/types/upsell.types.js";
 import {
   UpsellStatus,
@@ -33,6 +34,7 @@ import {
 import "@upsells/components/trigger-rule-builder.element.js";
 import "@upsells/components/recommendation-rule-builder.element.js";
 import "@upsells/components/eligibility-rule-builder.element.js";
+import { MERCHELLO_UPSELL_STYLE_MODAL } from "@upsells/modals/upsell-style-modal.token.js";
 
 @customElement("merchello-upsell-detail")
 export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
@@ -175,9 +177,13 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
         startsAt: this._upsell.startsAt,
         endsAt: this._upsell.endsAt,
         timezone: this._upsell.timezone,
+        displayStyles: this._upsell.displayStyles,
         triggerRules: this._triggerRules.map((r) => ({
           triggerType: r.triggerType,
           triggerIds: r.triggerIds,
+          value: r.value,
+          min: r.min,
+          max: r.max,
           extractFilterIds: r.extractFilterIds,
         })),
         recommendationRules: this._recommendationRules.map((r) => ({
@@ -225,9 +231,14 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
         startsAt: this._upsell.startsAt,
         endsAt: this._upsell.endsAt,
         timezone: this._upsell.timezone,
+        displayStyles: this._upsell.displayStyles ?? null,
+        clearDisplayStyles: !this._upsell.displayStyles,
         triggerRules: this._triggerRules.map((r) => ({
           triggerType: r.triggerType,
           triggerIds: r.triggerIds,
+          value: r.value,
+          min: r.min,
+          max: r.max,
           extractFilterIds: r.extractFilterIds,
         })),
         recommendationRules: this._recommendationRules.map((r) => ({
@@ -495,6 +506,25 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
         `
         : nothing}
 
+      <uui-box headline="Style Customization">
+        <div class="style-config">
+          <p class="rule-description">
+            Customize colors, borders, and backgrounds for each upsell surface and element.
+            Default storefront styles are used when no overrides are set.
+          </p>
+          <div class="style-actions">
+            <uui-button look="secondary" label="Customize styles" @click=${this._openStyleModal}>
+              Customize styles
+            </uui-button>
+            ${this._countStyledSurfaces(this._upsell?.displayStyles) > 0
+              ? html`<uui-tag look="secondary" color="positive">
+                  ${this._countStyledSurfaces(this._upsell?.displayStyles)} surfaces customized
+                </uui-tag>`
+              : html`<uui-tag look="secondary">Using defaults</uui-tag>`}
+          </div>
+        </div>
+      </uui-box>
+
       <uui-box headline="Product Display">
         <div class="form-grid">
           <umb-property-layout label="Sort by" description="How recommended products are ordered">
@@ -542,6 +572,39 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
     const current = this._upsell?.displayLocation ?? 0;
     const newValue = checked ? (current | flag) : (current & ~flag);
     this._handleInputChange("displayLocation", newValue);
+  }
+
+  private _countStyledSurfaces(displayStyles?: UpsellDisplayStylesDto): number {
+    if (!displayStyles) return 0;
+
+    const surfaces: Array<keyof UpsellDisplayStylesDto> = [
+      "checkoutInline",
+      "checkoutInterstitial",
+      "postPurchase",
+      "basket",
+      "productPage",
+      "email",
+      "confirmation",
+    ];
+
+    return surfaces.filter((surface) => !!displayStyles[surface]).length;
+  }
+
+  private async _openStyleModal(): Promise<void> {
+    if (!this.#modalManager || !this._upsell) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_UPSELL_STYLE_MODAL, {
+      data: {
+        styles: this._upsell.displayStyles,
+        heading: this._upsell.heading,
+        message: this._upsell.message,
+      },
+    });
+
+    const result = await modal.onSubmit().catch(() => undefined);
+    if (!result) return;
+
+    this._handleInputChange("displayStyles", result.styles ?? undefined);
   }
 
   private _renderEligibilityTab(): unknown {
@@ -887,6 +950,18 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
       display: flex;
       flex-wrap: wrap;
       gap: var(--uui-size-space-4);
+    }
+
+    .style-config {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
+    .style-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
     }
 
     .rule-description {

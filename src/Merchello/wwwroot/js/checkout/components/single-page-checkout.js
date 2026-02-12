@@ -547,6 +547,70 @@ export function initSinglePageCheckout() {
                 return getPaymentMethodStyle(method, isSelected);
             },
 
+            /**
+             * Get inline style object for a specific upsell element.
+             * @param {any} suggestion
+             * @param {string} surfaceKey
+             * @param {string} elementKey
+             * @returns {Record<string, string>}
+             */
+            getUpsellElementStyle(suggestion, surfaceKey, elementKey) {
+                const surface = suggestion?.displayStyles?.[surfaceKey];
+                if (!surface || !elementKey) {
+                    return {};
+                }
+
+                return this._toUpsellInlineStyle(surface[elementKey]);
+            },
+
+            /**
+             * Convert an upsell element style DTO into an Alpine inline style object.
+             * @param {any} elementStyle
+             * @returns {Record<string, string>}
+             */
+            _toUpsellInlineStyle(elementStyle) {
+                if (!elementStyle || typeof elementStyle !== 'object') {
+                    return {};
+                }
+
+                /** @type {Record<string, string>} */
+                const inlineStyle = {};
+                const hasTextColor = typeof elementStyle.textColor === 'string' && elementStyle.textColor.length > 0;
+                const hasBackgroundColor = typeof elementStyle.backgroundColor === 'string' && elementStyle.backgroundColor.length > 0;
+                const hasBorderColor = typeof elementStyle.borderColor === 'string' && elementStyle.borderColor.length > 0;
+                const hasBorderStyle = typeof elementStyle.borderStyle === 'string' && elementStyle.borderStyle.length > 0;
+                const hasBorderWidth = Number.isFinite(elementStyle.borderWidth);
+                const hasBorderRadius = Number.isFinite(elementStyle.borderRadius);
+
+                if (hasTextColor) {
+                    inlineStyle.color = elementStyle.textColor;
+                }
+
+                if (hasBackgroundColor) {
+                    inlineStyle.backgroundColor = elementStyle.backgroundColor;
+                }
+
+                if (hasBorderColor) {
+                    inlineStyle.borderColor = elementStyle.borderColor;
+                }
+
+                if (hasBorderStyle) {
+                    inlineStyle.borderStyle = elementStyle.borderStyle;
+                } else if (hasBorderColor || hasBorderWidth) {
+                    inlineStyle.borderStyle = 'solid';
+                }
+
+                if (hasBorderWidth) {
+                    inlineStyle.borderWidth = `${Math.max(0, Number(elementStyle.borderWidth))}px`;
+                }
+
+                if (hasBorderRadius) {
+                    inlineStyle.borderRadius = `${Math.max(0, Number(elementStyle.borderRadius))}px`;
+                }
+
+                return inlineStyle;
+            },
+
             // Check if a payment method is selected
             isPaymentMethodSelected(method) {
                 return this.selectedPaymentMethod?.providerAlias === method.providerAlias &&
