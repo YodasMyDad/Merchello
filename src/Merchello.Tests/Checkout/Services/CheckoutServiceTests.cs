@@ -617,7 +617,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         // Act
         var result = await _checkoutService.InitializeCheckoutAsync(new InitializeCheckoutParameters
@@ -643,7 +643,7 @@ public class CheckoutServiceTests : IClassFixture<ServiceTestFixture>
         basket.LineItems.Add(CreateLineItem("Persisted Product", "PERSIST-001", 1, 25m));
 
         // Save basket to session
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         // Act
         var retrieved = await _checkoutService.GetBasket(new GetBasketParameters());

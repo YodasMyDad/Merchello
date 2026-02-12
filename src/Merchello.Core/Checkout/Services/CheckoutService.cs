@@ -80,11 +80,7 @@ public class CheckoutService(
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
     private readonly MerchelloSettings _settings = settings.Value;
 
-    // JSON serialization options - must match CheckoutSessionService for session interop
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private const string BasketCacheKey = "merchello:Basket";
 
     /// <summary>
     /// Add line item to the basket
@@ -320,13 +316,9 @@ public class CheckoutService(
         Basket? basket;
         var httpContext = httpContextAccessor.HttpContext;
 
-        // Check in the session first
-        var basketInSession = httpContext?.Session.GetString("Basket");
-        if (!string.IsNullOrEmpty(basketInSession))
-        {
-            basket = JsonSerializer.Deserialize<Basket>(basketInSession, JsonOptions);
-            if (basket != null) return basket;
-        }
+        // Check per-request cache first (avoids redundant DB queries within the same request)
+        if (httpContext?.Items.TryGetValue(BasketCacheKey, out var cached) == true && cached is Basket cachedBasket)
+            return cachedBasket;
 
         Basket? anonBasket = null;
         Basket? userBasket = null;
@@ -392,10 +384,10 @@ public class CheckoutService(
 
         scope.Complete();
 
-        // If we retrieved a basket, cache it in the session for subsequent requests
-        if (basket != null)
+        // Cache for subsequent calls within this request
+        if (basket != null && httpContext != null)
         {
-            httpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+            httpContext.Items[BasketCacheKey] = basket;
         }
 
         return basket;
@@ -491,7 +483,7 @@ public class CheckoutService(
         // 6. Update the basket stored in the session for immediate reflection on the UI
         if (basket != null)
         {
-            httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+            if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;
         }
     }
 
@@ -805,7 +797,7 @@ public class CheckoutService(
                     return null;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;
                 return basket;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -1110,7 +1102,7 @@ public class CheckoutService(
                     return result;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                 // Publish "After" notification (rate provided for notification handlers that need it)
                 await notificationPublisher.PublishAsync(
@@ -1189,7 +1181,7 @@ public class CheckoutService(
 
                     if (updatedBasket != null)
                     {
-                        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                        if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
                         return updatedBasket;
                     }
 
@@ -1501,7 +1493,7 @@ public class CheckoutService(
                         return result;
                     }
 
-                    httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                    if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                     var session = await checkoutSessionService.GetSessionAsync(updatedBasket.Id, cancellationToken);
                     await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -1700,7 +1692,7 @@ public class CheckoutService(
                     return result;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(fullUpdatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = fullUpdatedBasket;
 
                 // Update checkout session
                 await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -1853,8 +1845,8 @@ public class CheckoutService(
                 });
                 scope.Complete();
 
-                // Update HTTP session to keep in sync
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+                // Update per-request cache
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;
                 return;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -2111,7 +2103,7 @@ public class CheckoutService(
                     return earlyResult;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                 // Persist shipping selections and quoted costs to checkout session
                 await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
@@ -2561,7 +2553,7 @@ public class CheckoutService(
                     return result;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                 if (groupingResult.Groups.Count > 0)
                 {

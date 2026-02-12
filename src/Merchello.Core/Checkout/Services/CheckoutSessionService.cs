@@ -21,7 +21,6 @@ public class CheckoutSessionService(
     private readonly CheckoutSettings _settings = checkoutSettings.Value;
 
     private const string SessionKeyPrefix = "MerchelloCheckout_";
-    private const string BasketSessionKey = "Basket";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -243,24 +242,21 @@ public class CheckoutSessionService(
         }
     }
 
+    private const string BasketCacheKey = "merchello:Basket";
+
     /// <inheritdoc />
-    public void SaveBasketToSession(Basket basket)
+    public void CacheBasket(Basket basket)
     {
-        var session = GetHttpSession();
-        var json = JsonSerializer.Serialize(basket, JsonOptions);
-        session.SetString(BasketSessionKey, json);
+        if (httpContextAccessor.HttpContext != null)
+            httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;
     }
 
     /// <inheritdoc />
-    public Basket? GetBasketFromSession()
+    public Basket? GetCachedBasket()
     {
-        var session = GetHttpSession();
-        var json = session.GetString(BasketSessionKey);
-        if (string.IsNullOrEmpty(json))
-        {
-            return null;
-        }
-        return JsonSerializer.Deserialize<Basket>(json, JsonOptions);
+        if (httpContextAccessor.HttpContext?.Items.TryGetValue(BasketCacheKey, out var cached) == true && cached is Basket basket)
+            return basket;
+        return null;
     }
 
     private ISession GetHttpSession()

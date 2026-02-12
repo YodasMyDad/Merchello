@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -39,11 +38,6 @@ namespace Merchello.Tests.Checkout;
 [Collection("Integration Tests")]
 public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<ServiceTestFixture>
 {
-    private static readonly JsonSerializerOptions SessionJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     private readonly ServiceTestFixture _fixture;
     private readonly ICheckoutService _checkoutService;
     private readonly ICheckoutSessionService _checkoutSessionService;
@@ -128,10 +122,131 @@ public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<Servic
         invoiceCount.ShouldBe(1);
     }
 
-    private CheckoutPaymentsOrchestrationService CreateService()
+    [Fact]
+    public async Task ProcessExpressCheckoutAsync_WhenProviderOmitsTransactionId_UsesDeterministicFallbackEverywhere()
+    {
+        const string providerAlias = "express-test";
+        const string methodAlias = "express-wallet";
+        const string paymentToken = "wallet-token-123";
+
+        ConfigureExpressProviderWithoutTransactionId(providerAlias, methodAlias);
+        var service = CreateService();
+
+        var (basket, session) = await CreateCheckoutReadyBasketAsync();
+        await PersistBasketAndSessionAsync(basket, session);
+
+        var request = new ExpressCheckoutRequestDto
+        {
+            ProviderAlias = providerAlias,
+            MethodAlias = methodAlias,
+            PaymentToken = paymentToken,
+            CustomerData = new ExpressCheckoutCustomerDataDto
+            {
+                Email = session.BillingAddress.Email!,
+                FullName = session.BillingAddress.Name,
+                Phone = session.BillingAddress.Phone,
+                ShippingAddress = MapToExpressAddress(session.ShippingAddress),
+                BillingAddress = MapToExpressAddress(session.BillingAddress)
+            }
+        };
+
+        var result = await service.ProcessExpressCheckoutAsync(request);
+        result.StatusCode.ShouldBe(StatusCodes.Status200OK);
+
+        var payload = result.Payload.ShouldBeOfType<ExpressCheckoutResponseDto>();
+        payload.Success.ShouldBeTrue();
+        payload.InvoiceId.ShouldNotBeNull();
+
+        var expectedTransactionId = BuildDeterministicTransactionId(
+            "express_",
+            $"{payload.InvoiceId}:{providerAlias}:{methodAlias}:{paymentToken}");
+
+        payload.TransactionId.ShouldBe(expectedTransactionId);
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var payment = _fixture.DbContext.Payments.Single(p => p.InvoiceId == payload.InvoiceId.Value);
+        payment.TransactionId.ShouldBe(expectedTransactionId);
+    }
+
+    [Fact]
+    public async Task ProcessSavedPaymentAsync_RecordsPaymentAndReturnsRecordedTransactionId()
+    {
+        const string idempotencyKey = "saved-idempotency-123";
+
+        var memberKey = Guid.NewGuid();
+        var memberManagerMock = new Mock<IMemberManager>();
+        var member = MemberIdentityUser.CreateNew(
+            "checkout.member@example.com",
+            "checkout.member@example.com",
+            "Checkout Member",
+            true,
+            "member",
+            memberKey);
+
+        memberManagerMock
+            .Setup(x => x.GetCurrentMemberAsync())
+            .ReturnsAsync(member);
+
+        ConfigureStripeProviderForSavedPaymentCharge();
+        var service = CreateService(memberManagerMock.Object);
+
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var customer = dataBuilder.CreateCustomer("checkout@example.com", "Checkout", "Tester");
+        customer.MemberKey = memberKey;
+        var savedMethod = dataBuilder.CreateSavedPaymentMethod(
+            customer,
+            providerAlias: "stripe",
+            expiryYear: DateTime.UtcNow.Year + 2,
+            isDefault: true);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var (basket, session) = await CreateCheckoutReadyBasketAsync();
+        await PersistBasketAndSessionAsync(basket, session);
+
+        var createInvoiceResult = await _invoiceService.CreateOrderFromBasketAsync(
+            basket,
+            session,
+            source: null,
+            cancellationToken: CancellationToken.None);
+
+        createInvoiceResult.Success.ShouldBeTrue();
+        var invoice = createInvoiceResult.ResultObject.ShouldNotBeNull();
+        await _checkoutSessionService.SetInvoiceIdAsync(basket.Id, invoice.Id, CancellationToken.None);
+
+        var result = await service.ProcessSavedPaymentAsync(
+            new ProcessSavedPaymentMethodDto
+            {
+                InvoiceId = invoice.Id,
+                SavedPaymentMethodId = savedMethod.Id,
+                IdempotencyKey = idempotencyKey
+            });
+
+        result.StatusCode.ShouldBe(StatusCodes.Status200OK);
+
+        var payload = result.Payload.ShouldBeOfType<ProcessPaymentResultDto>();
+        payload.Success.ShouldBeTrue();
+        payload.TransactionId.ShouldNotBeNull();
+
+        var expectedTransactionId = BuildDeterministicTransactionId(
+            "saved_",
+            $"{invoice.Id}:{savedMethod.Id}:{idempotencyKey}");
+
+        payload.TransactionId.ShouldBe(expectedTransactionId);
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var payments = _fixture.DbContext.Payments
+            .Where(p => p.InvoiceId == invoice.Id)
+            .ToList();
+        payments.Count.ShouldBe(1);
+        payments[0].TransactionId.ShouldBe(expectedTransactionId);
+        payments[0].IdempotencyKey.ShouldBe(idempotencyKey);
+    }
+
+    private CheckoutPaymentsOrchestrationService CreateService(IMemberManager? memberManager = null)
     {
         var mediaUrlGenerators = new MediaUrlGeneratorCollection(() => []);
-        var memberManagerMock = new Mock<IMemberManager>();
+        memberManager ??= new Mock<IMemberManager>().Object;
 
         return new CheckoutPaymentsOrchestrationService(
             _fixture.PaymentProviderManagerMock.Object,
@@ -149,7 +264,7 @@ public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<Servic
             _postPurchaseUpsellService,
             _mediaService,
             mediaUrlGenerators,
-            memberManagerMock.Object,
+            memberManager,
             _addressFactory,
             _settings,
             _httpContextAccessor,
@@ -191,6 +306,84 @@ public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<Servic
 
         _fixture.PaymentProviderManagerMock
             .Setup(x => x.GetProviderAsync("manual", It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(registeredProvider);
+    }
+
+    private void ConfigureExpressProviderWithoutTransactionId(
+        string providerAlias = "express-test",
+        string methodAlias = "express-wallet")
+    {
+        var provider = new Mock<IPaymentProvider>();
+        provider.SetupGet(x => x.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = providerAlias,
+            DisplayName = "Express Test Provider"
+        });
+        provider.Setup(x => x.GetAvailablePaymentMethods())
+            .Returns([
+                new PaymentMethodDefinition
+                {
+                    Alias = methodAlias,
+                    DisplayName = "Express Wallet",
+                    IntegrationType = PaymentIntegrationType.HostedFields,
+                    IsExpressCheckout = true
+                }
+            ]);
+        provider.Setup(x => x.ProcessExpressCheckoutAsync(
+                It.IsAny<ExpressCheckoutRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ExpressCheckoutRequest request, CancellationToken _) => new ExpressCheckoutResult
+            {
+                Success = true,
+                Status = PaymentResultStatus.Completed,
+                TransactionId = null,
+                Amount = request.Amount
+            });
+
+        var setting = new PaymentProviderSetting
+        {
+            ProviderAlias = providerAlias,
+            DisplayName = "Express Test Provider",
+            IsEnabled = true
+        };
+
+        var registeredProvider = new RegisteredPaymentProvider(provider.Object, setting);
+        _fixture.PaymentProviderManagerMock
+            .Setup(x => x.GetProviderAsync(providerAlias, It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(registeredProvider);
+    }
+
+    private void ConfigureStripeProviderForSavedPaymentCharge(string? transactionId = null)
+    {
+        var provider = new Mock<IPaymentProvider>();
+        provider.SetupGet(x => x.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = "stripe",
+            DisplayName = "Stripe",
+            SupportsVaultedPayments = true
+        });
+        provider.Setup(x => x.ChargeVaultedMethodAsync(
+                It.IsAny<ChargeVaultedMethodRequest>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ChargeVaultedMethodRequest request, CancellationToken _) => new PaymentResult
+            {
+                Success = true,
+                Status = PaymentResultStatus.Completed,
+                TransactionId = transactionId,
+                Amount = request.Amount
+            });
+
+        var setting = new PaymentProviderSetting
+        {
+            ProviderAlias = "stripe",
+            DisplayName = "Stripe",
+            IsEnabled = true,
+            IsVaultingEnabled = true
+        };
+        var registeredProvider = new RegisteredPaymentProvider(provider.Object, setting);
+
+        _fixture.PaymentProviderManagerMock
+            .Setup(x => x.GetProviderAsync("stripe", It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(registeredProvider);
     }
 
@@ -294,7 +487,23 @@ public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<Servic
 
         await _checkoutSessionService.SetCurrentStepAsync(basket.Id, CheckoutStep.Payment);
 
-        var basketJson = JsonSerializer.Serialize(basket, SessionJsonOptions);
-        _fixture.MockHttpContext.Session.SetString("Basket", basketJson);
+        _fixture.MockHttpContext.HttpContext!.Items["merchello:Basket"] = basket;
+    }
+
+    private static ExpressCheckoutAddressDto MapToExpressAddress(Address address) => new()
+    {
+        AddressOne = address.AddressOne,
+        AddressTwo = address.AddressTwo,
+        TownCity = address.TownCity,
+        CountyState = address.CountyState.RegionCode,
+        PostalCode = address.PostalCode,
+        CountryCode = address.CountryCode
+    };
+
+    private static string BuildDeterministicTransactionId(string prefix, string seed)
+    {
+        var hashBytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(seed));
+        return prefix + Convert.ToHexString(hashBytes)[..16].ToLowerInvariant();
     }
 }

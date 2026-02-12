@@ -47,6 +47,7 @@ public class SavedPaymentMethodServiceTests : IClassFixture<ServiceTestFixture>
             customerService ?? _fixture.GetService<ICustomerService>(),
             new SavedPaymentMethodFactory(),
             _fixture.GetService<IMerchelloNotificationPublisher>(),
+            _fixture.GetService<IPaymentIdempotencyService>(),
             NullLogger<SavedPaymentMethodService>.Instance);
     }
 

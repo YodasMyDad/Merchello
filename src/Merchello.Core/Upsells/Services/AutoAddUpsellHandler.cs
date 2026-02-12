@@ -123,8 +123,8 @@ public class AutoAddUpsellHandler(
 
                 basket.DateUpdated = DateTime.UtcNow;
 
-                // Persist updated basket to session
-                checkoutSessionService.SaveBasketToSession(basket);
+                // Persist updated basket to per-request cache
+                checkoutSessionService.CacheBasket(basket);
             }
         }
         catch (Exception ex)

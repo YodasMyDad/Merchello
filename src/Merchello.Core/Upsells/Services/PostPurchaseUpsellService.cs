@@ -448,17 +448,32 @@ public class PostPurchaseUpsellService(
         }
 
         var paymentResult = chargeResult.ResultObject;
+        var transactionId = paymentResult.TransactionId ?? Guid.NewGuid().ToString();
 
         // Record the payment
-        await paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        var recordResult = await paymentService.RecordPaymentAsync(new RecordPaymentParameters
         {
             InvoiceId = parameters.InvoiceId,
             ProviderAlias = savedMethod.ProviderAlias,
-            TransactionId = paymentResult.TransactionId ?? Guid.NewGuid().ToString(),
+            TransactionId = transactionId,
             IdempotencyKey = parameters.IdempotencyKey,
             Amount = chargeAmount,
             Description = "Post-purchase upsell",
         }, ct);
+
+        if (!recordResult.Success || recordResult.ResultObject == null)
+        {
+            logger.LogCritical(
+                "Post-purchase payment captured but failed to record. InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}. Manual review required.",
+                parameters.InvoiceId,
+                chargeAmount,
+                transactionId);
+
+            await ReleaseHoldAsync(invoice, ct);
+
+            return OperationResult<PostPurchaseResultDto>.Fail(
+                "Payment captured but failed to record. Please contact support.");
+        }
 
         // Apply invoice changes
         var editResult = await invoiceEditService.EditInvoiceAsync(new EditInvoiceParameters
@@ -472,7 +487,7 @@ public class PostPurchaseUpsellService(
         var response = new PostPurchaseResultDto
         {
             Success = true,
-            PaymentTransactionId = paymentResult.TransactionId,
+            PaymentTransactionId = transactionId,
             AmountCharged = chargeAmount,
             FormattedAmountCharged = currencyService.FormatAmount(chargeAmount, invoice.CurrencyCode),
         };
@@ -481,7 +496,7 @@ public class PostPurchaseUpsellService(
         {
             logger.LogCritical(
                 "Invoice edit failed after successful payment charge. InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}. Manual review required.",
-                parameters.InvoiceId, chargeAmount, paymentResult.TransactionId);
+                parameters.InvoiceId, chargeAmount, transactionId);
             response.ErrorMessage = "Payment captured but order update failed. Please contact support.";
         }
 

@@ -408,11 +408,11 @@ public class CheckoutApiController(
             });
         }
 
-        // Update session with the updated basket (automatic discounts already refreshed in service)
+        // Update per-request cache with the updated basket (automatic discounts already refreshed in service)
         var updatedBasket = result.ResultObject;
         if (updatedBasket != null)
         {
-            checkoutSessionService.SaveBasketToSession(updatedBasket);
+            checkoutSessionService.CacheBasket(updatedBasket);
         }
 
         logger.LogInformation("Discount code {Code} applied to basket {BasketId}", request.Code, basket.Id);
@@ -735,11 +735,11 @@ public class CheckoutApiController(
             });
         }
 
-        // Update session with the updated basket (automatic discounts already refreshed in service)
+        // Update per-request cache with the updated basket (automatic discounts already refreshed in service)
         var updatedBasket = result.ResultObject;
         if (updatedBasket != null)
         {
-            checkoutSessionService.SaveBasketToSession(updatedBasket);
+            checkoutSessionService.CacheBasket(updatedBasket);
         }
 
         logger.LogInformation("Discount {DiscountId} removed from basket {BasketId}", discountId, basket.Id);

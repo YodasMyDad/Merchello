@@ -477,6 +477,18 @@ public class ServiceTestFixture : IDisposable
         paymentIdempotencyMock
             .Setup(x => x.GetCachedPaymentResultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((PaymentResult?)null);
+        paymentIdempotencyMock
+            .Setup(x => x.TryMarkAsProcessingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        paymentIdempotencyMock
+            .Setup(x => x.GetCachedRefundResultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RefundResult?)null);
+        paymentIdempotencyMock
+            .Setup(x => x.CachePaymentResult(It.IsAny<string>(), It.IsAny<PaymentResult>()));
+        paymentIdempotencyMock
+            .Setup(x => x.CacheRefundResult(It.IsAny<string>(), It.IsAny<RefundResult>()));
+        paymentIdempotencyMock
+            .Setup(x => x.ClearProcessingMarker(It.IsAny<string>()));
         services.AddSingleton(paymentIdempotencyMock.Object);
 
         // Payment services
