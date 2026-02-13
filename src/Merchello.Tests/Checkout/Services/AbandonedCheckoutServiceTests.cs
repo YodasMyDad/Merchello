@@ -10,11 +10,13 @@ using Merchello.Core.Data;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Moq;
 using Shouldly;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
@@ -268,6 +270,40 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
         record.ShouldNotBeNull();
         record.RecoveryEmailsSent.ShouldBe(1);
         record.LastRecoveryEmailSentUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_FirstEmailDue_PublishesConcreteNotificationType()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddHours(-2),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 0
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IMerchelloNotificationPublisher>();
+        publisherMock
+            .Setup(p => p.PublishAsync(It.IsAny<CheckoutAbandonedFirstNotification>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new AbandonedCheckoutService(
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
+            publisherMock.Object,
+            _fixture.GetService<IOptions<AbandonedCheckoutSettings>>(),
+            _fixture.GetService<IOptions<Merchello.Core.Shared.Models.MerchelloSettings>>(),
+            _fixture.GetService<ILogger<AbandonedCheckoutService>>());
+
+        await service.SendScheduledRecoveryEmailsAsync();
+
+        publisherMock.Verify(
+            p => p.PublishAsync(It.IsAny<CheckoutAbandonedFirstNotification>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
