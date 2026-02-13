@@ -121,6 +121,56 @@ public class ShippingOptionServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_FlatRateNormalizesNullFixedCostToZero()
+    {
+        // Arrange
+        var dto = new CreateShippingOptionDto
+        {
+            Name = "Free Standard",
+            WarehouseId = _warehouseId,
+            ProviderKey = "flat-rate",
+            FixedCost = null,
+            DaysFrom = 3,
+            DaysTo = 5
+        };
+
+        // Act
+        var result = await _service.CreateAsync(dto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.FixedCost.ShouldBe(0m);
+
+        var persisted = await _fixture.DbContext.ShippingOptions.FindAsync(result.ResultObject.Id);
+        persisted.ShouldNotBeNull();
+        persisted!.FixedCost.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task CreateAsync_FlatRateRejectsNegativeFixedCost()
+    {
+        // Arrange
+        var dto = new CreateShippingOptionDto
+        {
+            Name = "Invalid",
+            WarehouseId = _warehouseId,
+            ProviderKey = "flat-rate",
+            FixedCost = -1m,
+            DaysFrom = 3,
+            DaysTo = 5
+        };
+
+        // Act
+        var result = await _service.CreateAsync(dto);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.Messages.ShouldContain(m => m.Message == "Fixed cost cannot be negative for flat-rate shipping options");
+    }
+
+    [Fact]
     public async Task CreateAsync_PersistsToDatabase()
     {
         // Arrange
@@ -170,6 +220,7 @@ public class ShippingOptionServiceTests
         var persisted = await _fixture.DbContext.ShippingOptions.FindAsync(result.ResultObject!.Id);
         persisted.ShouldNotBeNull();
         persisted.ProviderSettings.ShouldNotBeNullOrEmpty();
+        persisted.FixedCost.ShouldBeNull();
         persisted.ProviderSettings.ShouldContain("markupPercent");
         persisted.ProviderSettings.ShouldContain("accountNumber");
     }
@@ -366,6 +417,121 @@ public class ShippingOptionServiceTests
         result.ResultObject.DaysTo.ShouldBe(2);
         result.ResultObject.IsNextDay.ShouldBeTrue();
         result.ResultObject.FixedCost.ShouldBe(12.99m);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_FlatRateNormalizesNullFixedCostToZero()
+    {
+        // Arrange
+        var createDto = new CreateShippingOptionDto
+        {
+            Name = "Original",
+            WarehouseId = _warehouseId,
+            ProviderKey = "flat-rate",
+            FixedCost = 7.5m,
+            DaysFrom = 3,
+            DaysTo = 5
+        };
+
+        var created = await _service.CreateAsync(createDto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var updateDto = new CreateShippingOptionDto
+        {
+            Name = "Updated",
+            WarehouseId = _warehouseId,
+            ProviderKey = "flat-rate",
+            FixedCost = null,
+            DaysFrom = 3,
+            DaysTo = 5
+        };
+
+        // Act
+        var result = await _service.UpdateAsync(created.ResultObject!.Id, updateDto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.FixedCost.ShouldBe(0m);
+
+        var persisted = await _fixture.DbContext.ShippingOptions.FindAsync(created.ResultObject.Id);
+        persisted.ShouldNotBeNull();
+        persisted!.FixedCost.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_FlatRateRejectsNegativeFixedCost()
+    {
+        // Arrange
+        var created = await _service.CreateAsync(new CreateShippingOptionDto
+        {
+            Name = "Original",
+            WarehouseId = _warehouseId,
+            ProviderKey = "flat-rate",
+            FixedCost = 5m,
+            DaysFrom = 3,
+            DaysTo = 5
+        });
+
+        var updateDto = new CreateShippingOptionDto
+        {
+            Name = "Invalid",
+            WarehouseId = _warehouseId,
+            ProviderKey = "flat-rate",
+            FixedCost = -0.01m,
+            DaysFrom = 3,
+            DaysTo = 5
+        };
+
+        // Act
+        var result = await _service.UpdateAsync(created.ResultObject!.Id, updateDto);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.Messages.ShouldContain(m => m.Message == "Fixed cost cannot be negative for flat-rate shipping options");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_NonFlatRateAllowsNullFixedCost()
+    {
+        // Arrange
+        var createDto = new CreateShippingOptionDto
+        {
+            Name = "FedEx Ground",
+            WarehouseId = _warehouseId,
+            ProviderKey = "fedex",
+            ServiceType = "FEDEX_GROUND",
+            FixedCost = null,
+            DaysFrom = 3,
+            DaysTo = 5
+        };
+        var created = await _service.CreateAsync(createDto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var updateDto = new CreateShippingOptionDto
+        {
+            Name = "FedEx 2 Day",
+            WarehouseId = _warehouseId,
+            ProviderKey = "fedex",
+            ServiceType = "FEDEX_2_DAY",
+            FixedCost = null,
+            DaysFrom = 2,
+            DaysTo = 2
+        };
+
+        // Act
+        var result = await _service.UpdateAsync(created.ResultObject!.Id, updateDto);
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.FixedCost.ShouldBeNull();
+
+        var persisted = await _fixture.DbContext.ShippingOptions.FindAsync(created.ResultObject.Id);
+        persisted.ShouldNotBeNull();
+        persisted!.FixedCost.ShouldBeNull();
     }
 
     [Fact]

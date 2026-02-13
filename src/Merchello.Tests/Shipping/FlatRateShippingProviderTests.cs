@@ -73,8 +73,15 @@ public class FlatRateShippingProviderTests
         List<ShippingCostSnapshot>? costs = null,
         List<ShippingWeightTierSnapshot>? tiers = null,
         List<ShippingPostcodeRuleSnapshot>? postcodeRules = null,
-        bool canShip = true)
+        bool canShip = true,
+        decimal? destinationCost = null)
     {
+        var resolvedDestinationCost = destinationCost;
+        if (!resolvedDestinationCost.HasValue && costs is { Count: > 0 })
+        {
+            resolvedDestinationCost = costs[0].Cost;
+        }
+
         return new ShippingOptionSnapshot
         {
             Id = id ?? Guid.NewGuid(),
@@ -82,6 +89,7 @@ public class FlatRateShippingProviderTests
             DaysFrom = 3,
             DaysTo = 5,
             CanShipToDestination = canShip,
+            DestinationCost = resolvedDestinationCost,
             Costs = costs ?? [],
             WeightTiers = tiers ?? [],
             PostcodeRules = postcodeRules ?? []
@@ -341,6 +349,24 @@ public class FlatRateShippingProviderTests
     }
 
     [Fact]
+    public async Task GetRates_UsesPreResolvedDestinationCost()
+    {
+        // Arrange
+        var option = CreateOption(
+            costs: [CreateCost("GB", 99m)],
+            destinationCost: 7.5m);
+        var request = CreateRequest(countryCode: "GB", options: [option]);
+
+        // Act
+        var quote = await _provider.GetRatesAsync(request);
+
+        // Assert
+        quote.ShouldNotBeNull();
+        quote.ServiceLevels.Count.ShouldBe(1);
+        quote.ServiceLevels.First().TotalCost.ShouldBe(7.5m);
+    }
+
+    [Fact]
     public async Task GetRates_ExactStateMatch_UsesStateCost()
     {
         // Arrange
@@ -348,7 +374,7 @@ public class FlatRateShippingProviderTests
         [
             CreateCost("US", 15m),           // Country level
             CreateCost("US", 12m, "CA")      // State level
-        ]);
+        ], destinationCost: 12m);
         var request = CreateRequest(countryCode: "US", stateCode: "CA", options: [option]);
 
         // Act
@@ -421,7 +447,7 @@ public class FlatRateShippingProviderTests
             CreateCost("*", 25m),            // Universal (priority 3)
             CreateCost("US", 20m),           // Country (priority 2)
             CreateCost("US", 15m, "CA")      // State (priority 1)
-        ]);
+        ], destinationCost: 15m);
         var request = CreateRequest(countryCode: "US", stateCode: "CA", options: [option]);
 
         // Act
@@ -653,8 +679,8 @@ public class FlatRateShippingProviderTests
                 CreateTier("*", 5m, 10m, 3m),    // 5-10kg: £3 surcharge
                 CreateTier("*", 10m, null, 8m),  // 10kg+: £8 surcharge
                 CreateTier("GB", 5m, 10m, 2m)    // UK-specific: 5-10kg only £2
-            ]);
-
+            ],
+            destinationCost: 3m);
         var request = CreateRequest(
             weightKg: 7.5m,
             countryCode: "GB",
@@ -979,3 +1005,4 @@ public class FlatRateShippingProviderTests
 
     #endregion
 }
+

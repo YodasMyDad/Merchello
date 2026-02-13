@@ -39,7 +39,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
   // Form fields
   @state() private _name = "";
   @state() private _warehouseId = "";
-  @state() private _fixedCost: number | null = null;
+  @state() private _fixedCost: number | null = 0;
   @state() private _daysFrom = 3;
   @state() private _daysTo = 5;
   @state() private _isNextDay = false;
@@ -58,6 +58,11 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
   /** Whether warehouse is pre-selected and should not show dropdown */
   private get _hasFixedWarehouse(): boolean {
     return !!this.data?.warehouseId;
+  }
+
+  private get _isFlatRateOption(): boolean {
+    const providerKey = this._detail?.providerKey ?? this.data?.option?.providerKey ?? "flat-rate";
+    return providerKey.toLowerCase() === "flat-rate";
   }
 
   constructor() {
@@ -142,7 +147,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
         if (!this._hasFixedWarehouse) {
           this._warehouseId = data.warehouseId;
         }
-        this._fixedCost = data.fixedCost ?? null;
+        this._fixedCost = this._isFlatRateOption ? (data.fixedCost ?? 0) : (data.fixedCost ?? null);
         this._daysFrom = data.daysFrom;
         this._daysTo = data.daysTo;
         this._isNextDay = data.isNextDay;
@@ -187,11 +192,12 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     }
 
     this._isSaving = true;
+    const isFlatRateOption = this._isFlatRateOption;
 
     const dto: CreateShippingOptionDto = {
       name: this._name,
       warehouseId: this._warehouseId,
-      fixedCost: this._fixedCost ?? undefined,
+      fixedCost: isFlatRateOption ? (this._fixedCost ?? 0) : (this._fixedCost ?? undefined),
       daysFrom: this._daysFrom,
       daysTo: this._daysTo,
       isNextDay: this._isNextDay,
@@ -226,6 +232,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       if (isCreating && result.data) {
         this._detail = result.data;
         this._warehouseId = result.data.warehouseId;
+        this._fixedCost = this._isFlatRateOption ? (result.data.fixedCost ?? 0) : (result.data.fixedCost ?? null);
         this._excludedRegions = result.data.excludedRegions ?? this._excludedRegions;
         this._activeTab = "pricing";
 
@@ -602,14 +609,22 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
               type="number"
               step="0.01"
               min="0"
-              .value=${this._fixedCost?.toString() ?? ""}
+              .value=${this._isFlatRateOption ? (this._fixedCost ?? 0).toString() : (this._fixedCost?.toString() ?? "")}
               @input=${(e: InputEvent) => {
                 const val = (e.target as HTMLInputElement).value;
-                this._fixedCost = val ? parseFloat(val) : null;
+                const parsed = Number.parseFloat(val);
+                const parsedValue = Number.isFinite(parsed) ? parsed : null;
+
+                if (this._isFlatRateOption) {
+                  this._fixedCost = parsedValue ?? 0;
+                  return;
+                }
+
+                this._fixedCost = parsedValue;
               }}
               placeholder="0.00"
             ></uui-input>
-            <span slot="description">Single price for all destinations, or leave empty to use destination rates</span>
+            <span slot="description">Destination rates are applied first. If no destination rate matches, this fixed cost is used.</span>
           </uui-form-layout-item>
 
           <div class="toggle-with-description">
@@ -824,7 +839,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
           </uui-button>
         </div>
         ${this._detail.costs.length === 0
-          ? html`<p class="no-items">No destination rates configured. Add rates or use the Fixed Cost above.</p>`
+          ? html`<p class="no-items">No destination rates configured. Fixed Cost will be used as fallback for all destinations.</p>`
           : html`
               <table class="data-table">
                 <thead>

@@ -604,9 +604,14 @@ Shipping Option Visibility Rules:
 
 | ProviderKey | Provider Status | Visibility |
 |-------------|-----------------|------------|
-| flat-rate | N/A (always available) | Always shown with configured FixedCost |
+| flat-rate | N/A (always available) | Shown when ShippingCostResolver resolves a destination cost (destination rates first, fixed-cost fallback) |
 | External (e.g., fedex) | Enabled & configured | Shown with live rates from carrier API |
 | External (e.g., fedex) | Not enabled | Hidden - options filtered out |
+
+Flat-rate cost resolution (single source of truth):
+1. `ShippingCostResolver` resolves in priority order: State -> Country -> Universal `*` -> FixedCost fallback.
+2. For flat-rate options, `FixedCost = null` is normalized to `0` (free fallback).
+3. `FlatRateShippingProvider` consumes pre-resolved `DestinationCost`; it does not duplicate base-cost matching logic.
 
 Important: External/dynamic providers (UsesLiveRates = true) cannot have fixed costs. They fetch rates from carrier APIs at runtime. If you need flat-rate options named after carriers (e.g., "FedEx Ground" with a fixed $8.99 cost), use ProviderKey = "flat-rate":
 

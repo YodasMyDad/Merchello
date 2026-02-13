@@ -213,6 +213,9 @@ public class ShippingOptionService(
     {
         var result = new CrudResult<ShippingOption>();
 
+        if (!TryNormalizeFixedCostForProvider(dto, result, out var normalizedFixedCost))
+            return result;
+
         if (!ValidateDeliveryDays(dto, result))
             return result;
 
@@ -230,7 +233,7 @@ public class ShippingOptionService(
             dto.ServiceType,
             providerSettingsJson,
             dto.IsEnabled,
-            dto.FixedCost,
+            normalizedFixedCost,
             dto.DaysFrom,
             dto.DaysTo,
             dto.IsNextDay,
@@ -274,6 +277,9 @@ public class ShippingOptionService(
     public async Task<CrudResult<ShippingOption>> UpdateAsync(Guid id, CreateShippingOptionDto dto, CancellationToken ct = default)
     {
         var result = new CrudResult<ShippingOption>();
+
+        if (!TryNormalizeFixedCostForProvider(dto, result, out var normalizedFixedCost))
+            return result;
 
         if (!ValidateDeliveryDays(dto, result))
             return result;
@@ -328,7 +334,7 @@ public class ShippingOptionService(
             option.ServiceType = dto.ServiceType;
             option.ProviderSettings = providerSettingsJson;
             option.IsEnabled = dto.IsEnabled;
-            option.FixedCost = dto.FixedCost;
+            option.FixedCost = normalizedFixedCost;
             option.DaysFrom = dto.DaysFrom;
             option.DaysTo = dto.DaysTo;
             option.IsNextDay = dto.IsNextDay;
@@ -1037,6 +1043,38 @@ public class ShippingOptionService(
     private static bool TryParseRuleAction(string value, out PostcodeRuleAction action)
     {
         return Enum.TryParse(value, ignoreCase: true, out action);
+    }
+
+    /// <summary>
+    /// For flat-rate options, fixed cost is required and defaults to 0 (free shipping fallback).
+    /// External/live-rate providers keep nullable fixed costs.
+    /// </summary>
+    private static bool TryNormalizeFixedCostForProvider(
+        CreateShippingOptionDto dto,
+        CrudResult<ShippingOption> result,
+        out decimal? fixedCost)
+    {
+        fixedCost = dto.FixedCost;
+
+        var providerKey = string.IsNullOrWhiteSpace(dto.ProviderKey) ? "flat-rate" : dto.ProviderKey;
+        var isFlatRate = string.Equals(providerKey, "flat-rate", StringComparison.OrdinalIgnoreCase);
+        if (!isFlatRate)
+        {
+            return true;
+        }
+
+        fixedCost ??= 0m;
+        if (fixedCost.Value < 0m)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Fixed cost cannot be negative for flat-rate shipping options",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>

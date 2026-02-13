@@ -607,7 +607,7 @@ public class ShippingQuoteService(
             .Select(option =>
             {
                 var isExcludedForDestination = option.IsDestinationExcluded(countryCode, regionCode);
-                var destinationCost = costResolver.ResolveBaseCost(option.ShippingCosts.ToList(), countryCode, regionCode, option.FixedCost);
+                var destinationCost = costResolver.GetTotalShippingCost(option, countryCode, regionCode);
 
                 // Use warehouse with ServiceRegions loaded - option.Warehouse might not have ServiceRegions populated
                 // when loaded via ProductRootWarehouses.Warehouse.ShippingOptions path (no cyclic includes allowed)
@@ -636,7 +636,7 @@ public class ShippingQuoteService(
                     FixedCost = option.FixedCost,
                     NextDayCutOffTime = option.NextDayCutOffTime,
                     CanShipToDestination = canShipToDestination,
-                    DestinationCost = isExcludedForDestination ? null : destinationCost,
+                    DestinationCost = destinationCost,
                     AllowsDeliveryDateSelection = option.AllowsDeliveryDateSelection,
                     MinDeliveryDays = option.MinDeliveryDays,
                     MaxDeliveryDays = option.MaxDeliveryDays,
