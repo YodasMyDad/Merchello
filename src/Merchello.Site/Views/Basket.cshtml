@@ -104,7 +104,7 @@
                                             </div>
 
                                             <!-- Add-ons for this product -->
-                                            <template x-for="addon in getAddonsForProduct(item.sku)" :key="addon.id">
+                                            <template x-for="addon in getAddonsForProduct(item.id, item.sku)" :key="addon.id">
                                                 <div class="mt-2 ps-3 border-start border-2 border-primary">
                                                     <small class="text-muted">
                                                         <span x-text="addon.name"></span>

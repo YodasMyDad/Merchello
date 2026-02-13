@@ -2011,6 +2011,7 @@ public class ProductService(
                 option.OptionUiAlias = optionRequest.OptionUiAlias;
                 option.IsVariant = optionRequest.IsVariant;
                 option.IsMultiSelect = optionRequest.IsVariant ? false : optionRequest.IsMultiSelect;
+                option.IsRequired = optionRequest.IsVariant ? false : optionRequest.IsRequired;
 
                 // Handle values
                 var requestValueIds = optionRequest.Values.Where(v => v.Id.HasValue).Select(v => v.Id!.Value).ToHashSet();
@@ -2456,6 +2457,7 @@ public class ProductService(
             OptionUiAlias = option.OptionUiAlias,
             IsVariant = option.IsVariant,
             IsMultiSelect = option.IsMultiSelect,
+            IsRequired = option.IsRequired,
             Values = option.ProductOptionValues.OrderBy(v => v.SortOrder).Select(MapToProductOptionValueDto).ToList()
         };
     }
@@ -2954,12 +2956,10 @@ public class ProductService(
 
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            // Get the variant with its product root and options
+            // ProductOptions are JSON-backed on ProductRoot, so only ProductRoot can be included.
             var variant = await db.Products
                 .AsNoTracking()
                 .Include(p => p.ProductRoot)
-                    .ThenInclude(pr => pr!.ProductOptions.Where(po => !po.IsVariant))
-                        .ThenInclude(po => po.ProductOptionValues)
                 .FirstOrDefaultAsync(p => p.Id == variantId, cancellationToken);
 
             if (variant == null)

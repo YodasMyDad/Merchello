@@ -392,13 +392,13 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
     }
 
     .badge-warning {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: var(--merchello-color-warning-status-contrast, #fff);
     }
 
     .badge-default {
-      background: var(--uui-color-border);
-      color: var(--uui-color-text);
+      background: var(--uui-color-text-alt);
+      color: #fff;
     }
 
     .status-success {

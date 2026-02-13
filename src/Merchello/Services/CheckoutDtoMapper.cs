@@ -74,6 +74,7 @@ public class CheckoutDtoMapper(
                     IsTaxable = li.IsTaxable,
                     LineItemType = li.LineItemType,
                     DependantLineItemSku = li.DependantLineItemSku,
+                    ParentLineItemId = li.GetParentLineItemId()?.ToString(),
                     ImageUrl = imageUrlObj?.ToString()
                 };
             })

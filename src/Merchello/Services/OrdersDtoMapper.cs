@@ -319,6 +319,79 @@ public class OrdersDtoMapper(
             ? name
             : "Unknown";
 
+        var lineItems = order.LineItems?
+            .Where(li => li.LineItemType == LineItemType.Product
+                      || li.LineItemType == LineItemType.Custom
+                      || li.LineItemType == LineItemType.Addon)
+            .ToList() ?? [];
+
+        var parentLineItems = lineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom)
+            .ToList();
+
+        var addonLineItems = lineItems
+            .Where(li => li.LineItemType == LineItemType.Addon)
+            .ToList();
+
+        var addonsByParentId = addonLineItems
+            .Select(addon => new { Addon = addon, ParentLineItemId = addon.GetParentLineItemId() })
+            .Where(x => x.ParentLineItemId.HasValue)
+            .GroupBy(x => x.ParentLineItemId!.Value)
+            .ToDictionary(group => group.Key, group => group.Select(x => x.Addon).ToList());
+
+        var addonsByParentSku = addonLineItems
+            .Where(addon =>
+                !addon.GetParentLineItemId().HasValue &&
+                !string.IsNullOrWhiteSpace(addon.DependantLineItemSku))
+            .GroupBy(addon => addon.DependantLineItemSku!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        var mappedLineItems = parentLineItems
+            .Select(parentLineItem =>
+            {
+                List<LineItem> linkedAddons = [];
+                if (addonsByParentId.TryGetValue(parentLineItem.Id, out var addonsById))
+                {
+                    linkedAddons.AddRange(addonsById);
+                }
+
+                if (!string.IsNullOrWhiteSpace(parentLineItem.Sku) &&
+                    addonsByParentSku.TryGetValue(parentLineItem.Sku, out var addonsBySku))
+                {
+                    linkedAddons.AddRange(addonsBySku);
+                }
+
+                var childAddons = linkedAddons
+                    .GroupBy(addon => addon.Id)
+                    .Select(group => group.First())
+                    .Select(addon => MapLineItem(addon, productImages, parentLineItem.Sku, parentLineItem.Id, true, []))
+                    .ToList();
+
+                return MapLineItem(parentLineItem, productImages, null, null, false, childAddons);
+            })
+            .ToList();
+
+        var mappedAddonIds = mappedLineItems
+            .SelectMany(lineItem => lineItem.ChildLineItems)
+            .Select(lineItem => lineItem.Id)
+            .ToHashSet();
+
+        var orphanAddons = addonLineItems
+            .Where(addon => !mappedAddonIds.Contains(addon.Id))
+            .Select(addon => MapLineItem(
+                addon,
+                productImages,
+                addon.DependantLineItemSku,
+                addon.GetParentLineItemId(),
+                true,
+                []))
+            .ToList();
+
+        if (orphanAddons.Count > 0)
+        {
+            mappedLineItems.AddRange(orphanAddons);
+        }
+
         return new FulfillmentOrderDto
         {
             Id = order.Id,
@@ -327,29 +400,7 @@ public class OrdersDtoMapper(
             StatusCssClass = order.Status.ToCssClass(),
             DeliveryMethod = deliveryMethod,
             ShippingCost = order.ShippingCost,
-            LineItems = order.LineItems?
-                .Where(li => li.LineItemType == LineItemType.Product
-                          || li.LineItemType == LineItemType.Custom
-                          || li.LineItemType == LineItemType.Addon)
-                .Select(li => new LineItemDto
-                {
-                    Id = li.Id,
-                    Sku = li.Sku,
-                    Name = li.Name,
-                    ProductRootName = li.GetProductRootName(),
-                    SelectedOptions = li.GetSelectedOptions()
-                        .Select(o => new SelectedOptionDto
-                        {
-                            OptionName = o.OptionName,
-                            ValueName = o.ValueName
-                        }).ToList(),
-                    Quantity = li.Quantity,
-                    Amount = li.Amount,
-                    OriginalAmount = li.OriginalAmount,
-                    ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
-                    // Backend is single source of truth for calculated total
-                    CalculatedTotal = li.Amount * li.Quantity
-                }).ToList() ?? [],
+            LineItems = mappedLineItems,
             Shipments = order.Shipments?.Select(s => new ShipmentDto
             {
                 Id = s.Id,
@@ -370,6 +421,51 @@ public class OrdersDtoMapper(
             FulfilmentSubmittedAt = order.FulfilmentSubmittedAt,
             FulfilmentErrorMessage = order.FulfilmentErrorMessage,
             FulfilmentRetryCount = order.FulfilmentRetryCount
+        };
+    }
+
+    private static LineItemDto MapLineItem(
+        LineItem lineItem,
+        Dictionary<Guid, string?> productImages,
+        string? parentLineItemSku,
+        Guid? parentLineItemId,
+        bool isAddon,
+        List<LineItemDto> childLineItems)
+    {
+        var resolvedParentLineItemSku = parentLineItemSku ?? lineItem.DependantLineItemSku;
+        var resolvedParentLineItemId = parentLineItemId ?? lineItem.GetParentLineItemId();
+        var isProductLineItem = lineItem.LineItemType == LineItemType.Product;
+        var imageUrl = isProductLineItem
+                       && lineItem.ProductId.HasValue
+                       && productImages.TryGetValue(lineItem.ProductId.Value, out var img)
+            ? img
+            : null;
+
+        return new LineItemDto
+        {
+            Id = lineItem.Id,
+            Sku = lineItem.Sku,
+            Name = lineItem.Name,
+            ProductRootName = isAddon ? lineItem.Name ?? string.Empty : lineItem.GetProductRootName(),
+            SelectedOptions = isAddon
+                ? []
+                : lineItem.GetSelectedOptions()
+                    .Select(o => new SelectedOptionDto
+                    {
+                        OptionName = o.OptionName,
+                        ValueName = o.ValueName
+                    }).ToList(),
+            Quantity = lineItem.Quantity,
+            Amount = lineItem.Amount,
+            OriginalAmount = lineItem.OriginalAmount,
+            ImageUrl = imageUrl,
+            // Backend is single source of truth for calculated total
+            CalculatedTotal = lineItem.Amount * lineItem.Quantity,
+            LineItemType = lineItem.LineItemType.ToString(),
+            ChildLineItems = childLineItems,
+            ParentLineItemSku = resolvedParentLineItemSku,
+            ParentLineItemId = resolvedParentLineItemId,
+            IsAddon = isAddon
         };
     }
 

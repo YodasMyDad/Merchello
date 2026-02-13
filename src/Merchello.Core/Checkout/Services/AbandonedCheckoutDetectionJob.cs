@@ -1,8 +1,10 @@
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Checkout.Services;
 
@@ -16,12 +18,22 @@ namespace Merchello.Core.Checkout.Services;
 public class AbandonedCheckoutDetectionJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<AbandonedCheckoutSettings> options,
+    IRuntimeState runtimeState,
     ILogger<AbandonedCheckoutDetectionJob> logger) : BackgroundService
 {
     private readonly AbandonedCheckoutSettings _settings = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(AbandonedCheckoutDetectionJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         // Ensure reasonable minimum values
         var checkInterval = TimeSpan.FromMinutes(Math.Max(5, _settings.CheckIntervalMinutes));
         var abandonmentThreshold = TimeSpan.FromHours(Math.Max(0.5, _settings.AbandonmentThresholdHours));

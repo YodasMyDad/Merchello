@@ -4,6 +4,7 @@ using Merchello.Core.Notifications.UpsellNotifications;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Upsells.Factories;
+using Merchello.Core.Upsells.Extensions;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
@@ -188,6 +189,10 @@ public class UpsellService(
         if (parameters.EndsAt.HasValue) rule.EndsAt = parameters.EndsAt.Value;
         if (parameters.ClearEndsAt) rule.EndsAt = null;
         if (parameters.Timezone != null) rule.Timezone = parameters.Timezone;
+        if (parameters.DisplayStyles != null)
+            rule.SetDisplayStyles(UpsellDisplayStylesSanitizer.Sanitize(parameters.DisplayStyles));
+        if (parameters.ClearDisplayStyles)
+            rule.SetDisplayStyles(null);
 
         if (parameters.TriggerRules != null)
         {

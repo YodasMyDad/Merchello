@@ -1,9 +1,11 @@
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Fulfilment.Services;
@@ -15,6 +17,7 @@ namespace Merchello.Core.Fulfilment.Services;
 public class FulfilmentCleanupJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<FulfilmentSettings> settings,
+    IRuntimeState runtimeState,
     ILogger<FulfilmentCleanupJob> logger) : BackgroundService
 {
     private readonly FulfilmentSettings _settings = settings.Value;
@@ -23,6 +26,15 @@ public class FulfilmentCleanupJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(FulfilmentCleanupJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation("FulfilmentCleanupJob started with {Interval} hour cleanup interval",
             _cleanupInterval.TotalHours);
 

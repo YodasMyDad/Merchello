@@ -48,16 +48,16 @@ public interface ICheckoutSessionService
     Task AddUpsellImpressionsAsync(AddUpsellImpressionsParameters parameters, CancellationToken ct = default);
 
     /// <summary>
-    /// Saves a basket to the HTTP session.
+    /// Caches a basket in the per-request cache (HttpContext.Items).
     /// </summary>
-    /// <param name="basket">The basket to save.</param>
-    void SaveBasketToSession(Basket basket);
+    /// <param name="basket">The basket to cache.</param>
+    void CacheBasket(Basket basket);
 
     /// <summary>
-    /// Gets a basket from the HTTP session.
+    /// Gets a basket from the per-request cache.
     /// </summary>
-    /// <returns>The basket, or null if not found in session.</returns>
-    Basket? GetBasketFromSession();
+    /// <returns>The basket, or null if not found in the cache.</returns>
+    Basket? GetCachedBasket();
 
     /// <summary>
     /// Sets the invoice ID created from this checkout session.

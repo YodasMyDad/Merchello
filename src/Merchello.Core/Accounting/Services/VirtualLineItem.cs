@@ -12,6 +12,7 @@ internal sealed class VirtualLineItem
     public Guid? ProductId { get; set; }
     public Guid? WarehouseId { get; set; }
     public string? Sku { get; set; }
+    public Guid? ParentLineItemId { get; set; }
     public string? ParentLineItemSku { get; set; }
     public LineItemType LineItemType { get; set; } = LineItemType.Product;
     public decimal Amount { get; set; }

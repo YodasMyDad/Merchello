@@ -1637,7 +1637,7 @@ public class CheckoutPaymentsOrchestrationService(
                 Success = true,
                 InvoiceId = invoice.Id,
                 PaymentId = payment.Id,
-                TransactionId = result.TransactionId,
+                TransactionId = transactionId,
                 RedirectUrl = redirectUrl,
                 Status = result.Status switch
                 {
@@ -2866,11 +2866,50 @@ public class CheckoutPaymentsOrchestrationService(
 
         var paymentResult = chargeResult.ResultObject;
 
+        // Record the payment. If provider doesn't return a transaction ID, generate
+        // a deterministic fallback to keep idempotent retries aligned.
+        var transactionId = paymentResult.TransactionId;
+        if (string.IsNullOrWhiteSpace(transactionId))
+        {
+            var idempotencyKey = request.InvoiceId + ":" + request.SavedPaymentMethodId + ":" +
+                (request.IdempotencyKey ?? string.Empty);
+            var hashBytes = System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(idempotencyKey));
+            transactionId = "saved_" + Convert.ToHexString(hashBytes)[..16].ToLowerInvariant();
+        }
+
+        var recordResult = await paymentService.RecordPaymentAsync(
+            new RecordPaymentParameters
+            {
+                InvoiceId = request.InvoiceId,
+                ProviderAlias = savedMethod.ProviderAlias,
+                TransactionId = transactionId,
+                IdempotencyKey = request.IdempotencyKey,
+                Amount = invoice.Total,
+                Description = $"Saved payment for Invoice #{invoice.InvoiceNumber}"
+            },
+            cancellationToken);
+
+        if (!recordResult.Success || recordResult.ResultObject == null)
+        {
+            logger.LogError(
+                "Saved payment succeeded but failed to record for invoice {InvoiceId}: {Error}",
+                request.InvoiceId,
+                recordResult.Messages.FirstOrDefault()?.Message ?? "Unknown error");
+
+            return CheckoutApiResult.Ok(new ProcessPaymentResultDto
+            {
+                Success = false,
+                InvoiceId = request.InvoiceId,
+                ErrorMessage = "Payment was processed but failed to record. Please contact support."
+            });
+        }
+
         logger.LogInformation(
             "Payment processed successfully using saved method {MethodId} for invoice {InvoiceId}, TransactionId: {TransactionId}",
             request.SavedPaymentMethodId,
             request.InvoiceId,
-            paymentResult.TransactionId);
+            transactionId);
 
         // Set confirmation token to authorize viewing the confirmation page
         SetConfirmationToken(request.InvoiceId);
@@ -2888,7 +2927,7 @@ public class CheckoutPaymentsOrchestrationService(
         {
             Success = true,
             InvoiceId = request.InvoiceId,
-            TransactionId = paymentResult.TransactionId,
+            TransactionId = transactionId,
             RedirectUrl = redirectUrl
         });
     }
@@ -2970,13 +3009,13 @@ public class CheckoutPaymentsOrchestrationService(
     }
 
     /// <summary>
-    /// Clears the basket cookie and session cache after successful payment.
+    /// Clears the basket cookie and per-request cache after successful payment.
     /// This prevents items from reappearing in the cart after order completion.
     /// </summary>
     private void ClearBasketCookieAndSession()
     {
         CurrentHttpContext.Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
-        CurrentHttpContext.Session.Remove("Basket");
+        CurrentHttpContext.Items.Remove("merchello:Basket");
     }
 }
 

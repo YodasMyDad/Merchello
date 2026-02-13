@@ -34,11 +34,26 @@ A system for securely storing customer payment methods at payment providers (Str
 | **Phase 4** | Provider Implementations | Complete |
 | **Phase 5** | API Endpoints | Complete |
 | **Phase 6** | Checkout Integration | Complete |
-| **Phase 7** | Documentation Updates | Complete |
-| **Phase 8** | Unit Tests | Complete |
+| **Phase 7** | Documentation Updates | Ongoing |
+| **Phase 8** | Unit Tests | Ongoing hardening |
 | **Phase 9** | Test UI Updates | Complete |
 
-**All phases implemented.** See files created:
+Core vaulted-payment architecture is implemented. This document also tracks runtime hardening updates.
+
+**Latest hardening update (February 12, 2026):**
+
+- `CheckoutPaymentsOrchestrationService.ProcessSavedPaymentAsync()` now always records successful saved-method charges via `RecordPaymentAsync()` and returns the recorded transaction ID.
+- Deterministic fallback transaction IDs are used when providers omit IDs:
+  - `saved_{hash}` for saved-method charges
+  - `express_{hash}` for express checkout charges
+- `SavedPaymentMethodService.ChargeAsync()` now applies shared idempotency guards for off-session vaulted charges (`IPaymentIdempotencyService`).
+- `PostPurchaseUpsellService.AddToOrderAsync()` now fails closed if payment capture succeeds but payment recording fails, and releases fulfillment hold.
+- `PostPurchaseUpsellController` now enforces confirmation-token cookie checks on all post-purchase endpoints.
+- Coverage added for these paths in:
+  - `src/Merchello.Tests/Checkout/CheckoutPaymentsOrchestrationGhostOrderTests.cs`
+  - `src/Merchello.Tests/Upsells/PostPurchaseUpsellServiceTests.cs`
+
+Original implementation files include:
 
 - Phase 6: `checkout.store.js`, `components/checkout-payment.js`, `components/single-page-checkout.js` updated with saved methods support
 - Phase 8: `SavedPaymentMethodServiceTests.cs`, `StripeVaultTests.cs`, `BraintreeVaultTests.cs`, `PayPalVaultTests.cs`
@@ -1963,7 +1978,10 @@ The checkout calls `GET /api/merchello/checkout/payment-options` to populate:
 - [x] Vault save failure doesn't fail the payment (logged, not thrown)
 - [x] Saved payment method checkout uses `/process-saved-payment` endpoint
 - [x] Saved payment method validates ownership (customer can only use own methods)
-- [x] Idempotency key prevents duplicate charges (standard payment flow)
+- [x] `process-saved-payment` records successful charges into payments ledger via `RecordPaymentAsync`
+- [x] Saved-payment deterministic fallback transaction IDs (`saved_{hash}`) are used when provider omits transaction ID
+- [x] Express deterministic fallback transaction IDs (`express_{hash}`) are used when provider omits transaction ID
+- [x] Idempotency key prevents duplicate vaulted charges (`SavedPaymentMethodService.ChargeAsync`)
 
 **Frontend:**
 
@@ -2395,61 +2413,22 @@ src/Merchello/Controllers/
 
 ## Post-Purchase Upsells Integration
 
-This architecture directly enables Phase 8 of the Upsells feature:
+This architecture directly powers the current post-purchase flow:
 
-```csharp
-// In post-purchase upsell controller:
-[HttpPost("orders/{orderId:guid}/upsell")]
-[Authorize]
-public async Task<IActionResult> AddUpsellToOrder(Guid orderId, AddUpsellDto request, CancellationToken ct)
-{
-    var customer = await GetCurrentCustomerAsync(ct);
-    var invoice = await _invoiceService.GetByOrderIdAsync(orderId, ct);
+- API routes:
+  - `GET /api/merchello/checkout/post-purchase/{invoiceId}`
+  - `POST /api/merchello/checkout/post-purchase/{invoiceId}/preview`
+  - `POST /api/merchello/checkout/post-purchase/{invoiceId}/add`
+  - `POST /api/merchello/checkout/post-purchase/{invoiceId}/skip`
+- All routes require a valid confirmation-token cookie matching the invoice ID.
 
-    // Get default saved payment method
-    var savedMethod = await _savedPaymentMethodService.GetDefaultPaymentMethodAsync(customer.Id, ct);
-    if (savedMethod == null)
-        return BadRequest("No saved payment method available for one-click purchase.");
+**Current Add-to-Order flow (`PostPurchaseUpsellService.AddToOrderAsync`):**
+1. Validate post-purchase window and saved-method ownership.
+2. Build invoice edit request and preview delta amount.
+3. Charge saved method (`ISavedPaymentMethodService.ChargeAsync`).
+4. Record payment (`IPaymentService.RecordPaymentAsync`) before applying invoice edits.
+5. If recording fails, fail closed and release fulfillment hold.
+6. If recording succeeds, apply invoice edits and release hold.
+7. Emit upsell conversion analytics.
 
-    // Calculate upsell amount
-    var upsellAmount = await _upsellService.CalculateUpsellTotalAsync(invoice.Id, request.ProductIds, ct);
-
-    // Add line items to invoice
-    await _invoiceEditService.AddLineItemsAsync(new AddLineItemsParameters
-    {
-        InvoiceId = invoice.Id,
-        LineItems = request.ProductIds.Select(pid => new NewLineItem { ProductId = pid, Quantity = 1 }).ToList()
-    }, ct);
-
-    // Charge saved method (no CVV required)
-    var chargeResult = await _savedPaymentMethodService.ChargeAsync(new ChargeSavedMethodParameters
-    {
-        InvoiceId = invoice.Id,
-        SavedPaymentMethodId = savedMethod.Id,
-        Amount = upsellAmount,
-        Description = "Post-purchase upsell",
-        IdempotencyKey = $"upsell-{orderId}-{Guid.NewGuid()}"
-    }, ct);
-
-    if (!chargeResult.Successful)
-    {
-        // Rollback line items
-        return BadRequest(chargeResult.Messages.FirstOrDefault()?.Message);
-    }
-
-    return Ok(new UpsellResultDto { Success = true, NewTotal = invoice.Total + upsellAmount });
-}
-```
-
-**Flow:**
-1. Customer completes purchase (payment method saved with consent)
-2. Post-purchase upsell screen shows recommended products
-3. Customer clicks "Add to Order" (one-click)
-4. System charges saved payment method via `ChargeVaultedMethodAsync`
-5. Line items added to existing invoice
-6. Customer sees confirmation
-
-**Requirements Met:**
-- Stripe: Off-session PaymentIntent with saved PaymentMethod
-- Braintree: Transaction.Sale with vault token
-- PayPal: Orders API with payment token
+This sequence guarantees ledger correctness first, then order mutation.

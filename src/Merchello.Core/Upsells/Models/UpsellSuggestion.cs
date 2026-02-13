@@ -11,5 +11,6 @@ public class UpsellSuggestion
     public int Priority { get; set; }
     public CheckoutUpsellMode CheckoutMode { get; set; }
     public bool DefaultChecked { get; set; }
+    public UpsellDisplayStyles? DisplayStyles { get; set; }
     public List<UpsellProduct> Products { get; set; } = [];
 }

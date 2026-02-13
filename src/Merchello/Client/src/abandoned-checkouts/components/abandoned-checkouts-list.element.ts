@@ -496,13 +496,13 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
     }
 
     .badge-default {
-      background: var(--uui-color-surface-alt);
-      color: var(--uui-color-text-alt);
+      background: var(--uui-color-text-alt);
+      color: #fff;
     }
 
     .badge-warning {
-      background: var(--uui-color-warning);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: var(--merchello-color-warning-status-contrast, #fff);
     }
 
     .badge-info {

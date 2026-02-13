@@ -132,7 +132,6 @@ public class GoogleShoppingCategoryService(
     {
         return NormalizeCountryCode(requestedCountryCode)
             ?? NormalizeCountryCode(_merchelloSettings.DefaultShippingCountry)
-            ?? NormalizeCountryCode(_categorySettings.FallbackCountryCode)
             ?? Constants.FallbackCountryCode;
     }
 
@@ -145,7 +144,7 @@ public class GoogleShoppingCategoryService(
             return (preferredCountryCode, preferredUrl);
         }
 
-        var fallbackCountryCode = NormalizeCountryCode(_categorySettings.FallbackCountryCode) ?? Constants.FallbackCountryCode;
+        var fallbackCountryCode = NormalizeCountryCode(_merchelloSettings.DefaultShippingCountry) ?? Constants.FallbackCountryCode;
         if (configuredUrls.TryGetValue(fallbackCountryCode, out var fallbackUrl))
         {
             return (fallbackCountryCode, fallbackUrl);

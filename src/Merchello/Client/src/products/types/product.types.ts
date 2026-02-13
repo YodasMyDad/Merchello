@@ -196,6 +196,7 @@ export interface ProductOptionDto {
   optionUiAlias: string | null;
   isVariant: boolean;
   isMultiSelect: boolean;
+  isRequired: boolean;
   values: ProductOptionValueDto[];
 }
 
@@ -425,6 +426,7 @@ export interface SaveProductOptionDto {
   optionUiAlias?: string;
   isVariant: boolean;
   isMultiSelect: boolean;
+  isRequired: boolean;
   values: SaveOptionValueDto[];
 }
 

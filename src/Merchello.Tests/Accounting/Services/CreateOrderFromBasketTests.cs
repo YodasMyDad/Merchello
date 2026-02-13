@@ -1,3 +1,6 @@
+using Merchello.Core;
+using Merchello.Core.Accounting.Extensions;
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Models;
@@ -378,6 +381,148 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         // Act & Assert - Should fail because no shipping option was selected
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
         result.Success.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task CreateOrderFromBasketAsync_DuplicateParentSkus_PreservesAddonParentLineItemIds()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "CA");
+        var shippingOption = dataBuilder.CreateShippingOption("Ground", warehouse, fixedCost: 12m);
+
+        shippingOption.SetShippingCosts(
+        [
+            new Core.Shipping.Models.ShippingCost
+            {
+                ShippingOptionId = shippingOption.Id,
+                CountryCode = "CA",
+                Cost = 12m
+            }
+        ]);
+
+        var regions = warehouse.ServiceRegions;
+        regions.Add(new WarehouseServiceRegion { CountryCode = "CA", IsExcluded = false });
+        warehouse.SetServiceRegions(regions);
+        warehouse.ShippingOptions.Add(shippingOption);
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard Tax", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Classic Zip Hoodie", taxGroup);
+        var product = dataBuilder.CreateProduct("Classic Zip Hoodie", productRoot, price: 64.99m);
+        product.Sku = "CLASSIC-ZIP-HOODIE-BLACK-M";
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var basket = _checkoutService.CreateBasket("CAD");
+
+        var firstParentLineItem = _checkoutService.CreateLineItem(product, 1);
+        firstParentLineItem.ExtendedData[Constants.ExtendedDataKeys.AddonSelectionSignature] = "addons:left-side";
+        await _checkoutService.AddToBasketAsync(basket, firstParentLineItem, "CA");
+
+        var firstAddonLineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Drawers: Left Side",
+            $"{product.Sku}-ADDON-1",
+            30m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: true,
+            taxRate: 20m,
+            extendedData: new Dictionary<string, object>
+            {
+                [Constants.ExtendedDataKeys.ParentLineItemId] = firstParentLineItem.Id.ToString(),
+                [Constants.ExtendedDataKeys.IsAddon] = true
+            });
+        firstAddonLineItem.LineItemType = LineItemType.Addon;
+        firstAddonLineItem.DependantLineItemSku = product.Sku;
+        await _checkoutService.AddToBasketAsync(basket, firstAddonLineItem, "CA");
+
+        var secondParentLineItem = _checkoutService.CreateLineItem(product, 1);
+        secondParentLineItem.ExtendedData[Constants.ExtendedDataKeys.AddonSelectionSignature] = "addons:something-else";
+        await _checkoutService.AddToBasketAsync(basket, secondParentLineItem, "CA");
+
+        var secondAddonLineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Something: Else",
+            $"{product.Sku}-ADDON-2",
+            60m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: true,
+            taxRate: 20m,
+            extendedData: new Dictionary<string, object>
+            {
+                [Constants.ExtendedDataKeys.ParentLineItemId] = secondParentLineItem.Id.ToString(),
+                [Constants.ExtendedDataKeys.IsAddon] = true
+            });
+        secondAddonLineItem.LineItemType = LineItemType.Addon;
+        secondAddonLineItem.DependantLineItemSku = product.Sku;
+        await _checkoutService.AddToBasketAsync(basket, secondAddonLineItem, "CA");
+
+        await _checkoutService.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = "CA"
+        });
+
+        var billingAddress = CreateAddress("CA", "customer@example.com");
+        var shippingAddress = CreateAddress("CA", "customer@example.com");
+
+        var shippingResult = await _shippingService.GetShippingOptionsForBasket(
+            new GetShippingOptionsParameters
+            {
+                Basket = basket,
+                ShippingAddress = shippingAddress
+            });
+
+        var group = shippingResult.WarehouseGroups.First();
+        var selectedOption = group.AvailableShippingOptions.First();
+        var checkoutSession = new CheckoutSession
+        {
+            BasketId = basket.Id,
+            BillingAddress = billingAddress,
+            ShippingAddress = shippingAddress,
+            SelectedShippingOptions = new Dictionary<Guid, string>
+            {
+                [group.GroupId] = SelectionKeyExtensions.ForShippingOption(selectedOption.ShippingOptionId)
+            }
+        };
+
+        // Act
+        var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+
+        var order = result.ResultObject!.Orders!.Single();
+        var orderParentLineItems = order.LineItems!
+            .Where(li => li.LineItemType == LineItemType.Product && li.Sku == product.Sku)
+            .ToList();
+        orderParentLineItems.Count.ShouldBe(2);
+
+        var orderAddonLineItems = order.LineItems!
+            .Where(li => li.LineItemType == LineItemType.Addon)
+            .ToList();
+        orderAddonLineItems.Count.ShouldBe(2);
+
+        orderAddonLineItems.All(li => li.GetParentLineItemId().HasValue).ShouldBeTrue();
+
+        var distinctParentIds = orderAddonLineItems
+            .Select(li => li.GetParentLineItemId())
+            .Distinct()
+            .ToList();
+        distinctParentIds.Count.ShouldBe(2);
+
+        foreach (var addonLineItem in orderAddonLineItems)
+        {
+            var linkedParentId = addonLineItem.GetParentLineItemId();
+            orderParentLineItems.Any(parentLineItem => parentLineItem.Id == linkedParentId).ShouldBeTrue();
+        }
     }
 
     private async Task<Basket> CreateBasketAsync(

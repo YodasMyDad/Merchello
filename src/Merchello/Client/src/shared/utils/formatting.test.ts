@@ -151,5 +151,53 @@ describe("formatting utilities", () => {
       expect(result).toMatch(/[A-Za-z]{3}\s+\d{1,2},\s+\d{4}/);
       expect(result).not.toContain(" at ");
     });
+
+    it("formats yesterday correctly when less than 24 hours ago", () => {
+      // Now is June 15 at 07:24 AM, event was June 14 at 4:04 PM (~15h ago)
+      vi.setSystemTime(new Date("2024-06-15T07:24:00Z"));
+      const result = formatRelativeDate("2024-06-14T16:04:00Z");
+      expect(result).toContain("Yesterday at ");
+    });
+
+    it("formats today correctly when more than 12 hours ago same day", () => {
+      // Now is June 15 at 8:00 PM UTC, event was June 15 at 8:00 AM UTC (~12h ago)
+      // Same calendar day in UTC through UTC+3
+      vi.setSystemTime(new Date("2024-06-15T20:00:00Z"));
+      const result = formatRelativeDate("2024-06-15T08:00:00Z");
+      expect(result).toContain("Today at ");
+    });
+
+    it("formats two days ago correctly when less than 48 hours elapsed", () => {
+      // Now is June 15 at noon UTC, event was June 13 at 2:00 PM UTC (~46h ago)
+      // 2 calendar days apart in UTC through UTC+3
+      vi.setSystemTime(new Date("2024-06-15T12:00:00Z"));
+      const result = formatRelativeDate("2024-06-13T14:00:00Z");
+      expect(result).not.toContain("Yesterday");
+      expect(result).not.toContain("Today");
+      expect(result).toContain(" at ");
+    });
+  });
+
+  describe("formatRelativeDate (UTC-aware inputs)", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-06-15T07:53:00Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("formats prior UTC calendar day as yesterday", () => {
+      const result = formatRelativeDate("2024-06-14T15:00:00Z");
+      expect(result).toContain("Yesterday at ");
+      expect(result).toMatch(/03:00\s?PM/);
+    });
+
+    it("formats same UTC calendar day as today", () => {
+      const result = formatRelativeDate("2024-06-15T03:00:00Z");
+      expect(result).toContain("Today at ");
+      expect(result).toMatch(/03:00\s?AM/);
+    });
   });
 });

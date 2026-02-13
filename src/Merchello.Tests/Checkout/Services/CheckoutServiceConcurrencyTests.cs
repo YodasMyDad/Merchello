@@ -42,7 +42,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         using (var concurrentContext = _fixture.CreateDbContext())
         {
@@ -75,7 +75,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         using (var concurrentContext = _fixture.CreateDbContext())
         {
@@ -108,7 +108,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         using (var concurrentContext = _fixture.CreateDbContext())
         {
@@ -141,7 +141,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         using (var concurrentContext = _fixture.CreateDbContext())
         {
@@ -210,7 +210,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         var session = await _checkoutSessionService.GetSessionAsync(basket.Id);
         var address = new Address { CountryCode = "GB", CountyState = new CountyState { RegionCode = "GB" }, Email = "test@example.com" };
@@ -274,7 +274,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         using (var concurrentContext = _fixture.CreateDbContext())
         {
@@ -312,7 +312,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         using (var concurrentContext = _fixture.CreateDbContext())
         {
@@ -350,7 +350,7 @@ public class CheckoutServiceConcurrencyTests : IClassFixture<ServiceTestFixture>
         _fixture.DbContext.Baskets.Add(basket);
         await _fixture.DbContext.SaveChangesAsync();
 
-        _checkoutSessionService.SaveBasketToSession(basket);
+        _checkoutSessionService.CacheBasket(basket);
 
         using (var concurrentContext = _fixture.CreateDbContext())
         {

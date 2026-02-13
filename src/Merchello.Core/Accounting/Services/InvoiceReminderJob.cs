@@ -1,8 +1,10 @@
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Accounting.Services;
 
@@ -13,6 +15,7 @@ namespace Merchello.Core.Accounting.Services;
 public class InvoiceReminderJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<InvoiceReminderSettings> settings,
+    IRuntimeState runtimeState,
     ILogger<InvoiceReminderJob> logger) : BackgroundService
 {
     private readonly InvoiceReminderSettings _settings = settings.Value;
@@ -20,6 +23,15 @@ public class InvoiceReminderJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(InvoiceReminderJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation("InvoiceReminderJob started, waiting for database to be ready...");
 
         // Wait for migrations to complete before first check

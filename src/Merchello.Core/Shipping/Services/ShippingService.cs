@@ -101,8 +101,15 @@ public class ShippingService(
 
             // Get stock info for this warehouse
             var stockInfo = warehouseStock.GetValueOrDefault(warehouse.Id);
-            var trackStock = stockInfo?.TrackStock ?? false;
-            var availableStock = stockInfo?.AvailableStock ?? 0;
+            if (stockInfo == null)
+            {
+                // No ProductWarehouse row means this variant is not stocked at this warehouse.
+                // Treat as unavailable to stay consistent with WarehouseService selection logic.
+                continue;
+            }
+
+            var trackStock = stockInfo.TrackStock;
+            var availableStock = stockInfo.AvailableStock;
 
             // Accumulate total available stock
             if (trackStock)

@@ -1,4 +1,5 @@
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ namespace Merchello.Core.Webhooks.Services;
 public class OutboundDeliveryJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<WebhookSettings> options,
+    Umbraco.Cms.Core.Services.IRuntimeState runtimeState,
     ILogger<OutboundDeliveryJob> logger) : BackgroundService
 {
     private readonly WebhookSettings _settings = options.Value;
@@ -22,6 +24,15 @@ public class OutboundDeliveryJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(OutboundDeliveryJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation("OutboundDeliveryJob started, waiting for database to be ready...");
 
         // Wait for migrations to complete before first run

@@ -447,7 +447,7 @@ IPostPurchaseUpsellService:
 - InitializePostPurchaseAsync() - Initialize post-purchase window after payment
 - GetAvailableUpsellsAsync() - Get available post-purchase upsells for invoice
 - PreviewAddToOrderAsync() - Preview adding item without committing
-- AddToOrderAsync() - Add item and charge saved payment method
+- AddToOrderAsync() - Add item, charge saved method, record payment, then apply invoice edit (fails closed if recording fails)
 - SkipUpsellsAsync() - Skip upsells and release fulfillment hold
 - IsPostPurchaseWindowValidAsync() - Check if post-purchase window is still valid
 
@@ -1584,7 +1584,7 @@ Payments:
 | /{providerAlias}/capture-order | POST | Capture widget-based payment order |
 | /process-payment | POST | Process payment result |
 | /process-direct-payment | POST | Process payment with direct card details |
-| /process-saved-payment | POST | Process payment with saved method |
+| /process-saved-payment | POST | Process payment with saved method (includes ownership checks, idempotency key support, and ledger recording) |
 | /worldpay/apple-pay-validate | POST | Validate Apple Pay merchant session (WorldPay) |
 | /return | GET | Payment return callback |
 | /cancel | GET | Payment cancel callback |
@@ -1623,10 +1623,10 @@ Recovery:
 Post-purchase Upsells:
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| /post-purchase/{invoiceId} | GET | Get post-purchase upsells for an invoice |
-| /post-purchase/{invoiceId}/preview | POST | Preview adding a post-purchase item |
-| /post-purchase/{invoiceId}/add | POST | Add post-purchase item and charge saved method |
-| /post-purchase/{invoiceId}/skip | POST | Skip post-purchase upsells |
+| /post-purchase/{invoiceId} | GET | Get post-purchase upsells for an invoice (requires confirmation-token cookie matching invoice ID) |
+| /post-purchase/{invoiceId}/preview | POST | Preview adding a post-purchase item (requires confirmation-token cookie) |
+| /post-purchase/{invoiceId}/add | POST | Add post-purchase item, charge saved method, and record payment (requires confirmation-token cookie) |
+| /post-purchase/{invoiceId}/skip | POST | Skip post-purchase upsells (requires confirmation-token cookie) |
 
 ### 13.3 Webhook API
 

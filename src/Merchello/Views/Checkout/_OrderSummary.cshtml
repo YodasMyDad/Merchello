@@ -1,4 +1,5 @@
 @using Merchello.Core.Accounting.Models
+@using Merchello.Core.Accounting.Extensions
 @using Merchello.Core.Checkout.Dtos
 @using System.Linq
 @inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
@@ -104,7 +105,9 @@
                 @foreach (var item in confirmation.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom))
                 {
                     var itemAddons = confirmation.LineItems
-                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                        .Where(li => li.LineItemType == LineItemType.Addon &&
+                                     ((li.ParentLineItemId == item.Id.ToString()) ||
+                                      (string.IsNullOrEmpty(li.ParentLineItemId) && li.DependantLineItemSku == item.Sku)))
                         .ToList();
 
                     <div class="flex gap-4 items-start">
@@ -205,9 +208,9 @@
                                 </div>
                             </template>
 
-                            <template x-if="(($store.checkout?.basketLineItems ?? []).filter(li => li && (li.lineItemType === 'Addon' || li.lineItemType === 4) && li.dependantLineItemSku === item.sku)).length > 0">
+                            <template x-if="(($store.checkout?.basketLineItems ?? []).filter(li => li && (li.lineItemType === 'Addon' || li.lineItemType === 4) && ((li.parentLineItemId && li.parentLineItemId === item.id) || (!li.parentLineItemId && li.dependantLineItemSku === item.sku)))).length > 0">
                                 <div>
-                                    <template x-for="addon in (($store.checkout?.basketLineItems ?? []).filter(li => li && (li.lineItemType === 'Addon' || li.lineItemType === 4) && li.dependantLineItemSku === item.sku))" :key="addon.id">
+                                    <template x-for="addon in (($store.checkout?.basketLineItems ?? []).filter(li => li && (li.lineItemType === 'Addon' || li.lineItemType === 4) && ((li.parentLineItemId && li.parentLineItemId === item.id) || (!li.parentLineItemId && li.dependantLineItemSku === item.sku))))" :key="addon.id">
                                         <p class="text-xs text-gray-500 mt-1 pl-3 border-l-2 border-gray-200">
                                             <span class="font-medium">Add-on:</span>
                                             <span x-text="addon.name || addon.productRootName"></span>
@@ -228,7 +231,9 @@
                 @foreach (var item in basket.LineItems.Where(li => li.LineItemType == LineItemType.Product || li.LineItemType == LineItemType.Custom))
                 {
                     var itemAddons = basket.LineItems
-                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                        .Where(li => li.LineItemType == LineItemType.Addon &&
+                                     (li.GetParentLineItemId() == item.Id ||
+                                      (!li.GetParentLineItemId().HasValue && li.DependantLineItemSku == item.Sku)))
                         .ToList();
 
                     <div class="flex gap-4 items-start">

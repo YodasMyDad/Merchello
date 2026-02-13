@@ -259,13 +259,59 @@ public class UpsellsApiController(
         }
     }
 
+    private static bool IsCartValueTrigger(UpsellTriggerType triggerType) =>
+        triggerType is UpsellTriggerType.MinimumCartValue
+            or UpsellTriggerType.MaximumCartValue
+            or UpsellTriggerType.CartValueBetween;
+
+    private static (decimal? Value, decimal? Min, decimal? Max) ParseCartValueTrigger(string? triggerIdsJson)
+    {
+        if (string.IsNullOrWhiteSpace(triggerIdsJson))
+            return (null, null, null);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(triggerIdsJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                return (null, null, null);
+
+            return (
+                Value: TryGetDecimalProperty(root, "value"),
+                Min: TryGetDecimalProperty(root, "min"),
+                Max: TryGetDecimalProperty(root, "max"));
+        }
+        catch (JsonException)
+        {
+            return (null, null, null);
+        }
+    }
+
+    private static decimal? TryGetDecimalProperty(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var property))
+            return null;
+        if (property.ValueKind != JsonValueKind.Number)
+            return null;
+
+        return property.TryGetDecimal(out var value) ? value : null;
+    }
+
     private async Task<UpsellDetailDto> MapToDetailDtoAsync(UpsellRule rule, CancellationToken ct)
     {
-        var triggerRules = rule.TriggerRules.Select(r => new UpsellTriggerRuleDto
+        var triggerRules = rule.TriggerRules.Select(r =>
         {
-            TriggerType = r.TriggerType,
-            TriggerIds = SafeDeserializeList<Guid>(r.TriggerIds),
-            ExtractFilterIds = SafeDeserializeList<Guid>(r.ExtractFilterIds)
+            var isCartValueTrigger = IsCartValueTrigger(r.TriggerType);
+            var cartValue = isCartValueTrigger ? ParseCartValueTrigger(r.TriggerIds) : (null, null, null);
+            return new UpsellTriggerRuleDto
+            {
+                TriggerType = r.TriggerType,
+                TriggerIds = isCartValueTrigger ? null : SafeDeserializeList<Guid>(r.TriggerIds),
+                Value = cartValue.Value,
+                Min = cartValue.Min,
+                Max = cartValue.Max,
+                ExtractFilterIds = SafeDeserializeList<Guid>(r.ExtractFilterIds)
+            };
         }).ToList();
 
         var recommendationRules = rule.RecommendationRules.Select(r => new UpsellRecommendationRuleDto
@@ -308,6 +354,7 @@ public class UpsellsApiController(
             StartsAt = rule.StartsAt,
             EndsAt = rule.EndsAt,
             Timezone = rule.Timezone,
+            DisplayStyles = rule.DisplayStyles,
             DateCreated = rule.DateCreated,
             DateUpdated = rule.DateUpdated,
             TriggerRules = triggerRules,
@@ -368,10 +415,14 @@ public class UpsellsApiController(
             StartsAt = dto.StartsAt,
             EndsAt = dto.EndsAt,
             Timezone = dto.Timezone,
+            DisplayStyles = dto.DisplayStyles,
             TriggerRules = dto.TriggerRules?.Select(t => new CreateUpsellTriggerRuleParameters
             {
                 TriggerType = t.TriggerType,
                 TriggerIds = t.TriggerIds,
+                Value = t.Value,
+                Min = t.Min,
+                Max = t.Max,
                 ExtractFilterIds = t.ExtractFilterIds
             }).ToList(),
             RecommendationRules = dto.RecommendationRules?.Select(r => new CreateUpsellRecommendationRuleParameters
@@ -409,10 +460,15 @@ public class UpsellsApiController(
             EndsAt = dto.EndsAt,
             ClearEndsAt = dto.ClearEndsAt,
             Timezone = dto.Timezone,
+            DisplayStyles = dto.DisplayStyles,
+            ClearDisplayStyles = dto.ClearDisplayStyles,
             TriggerRules = dto.TriggerRules?.Select(t => new CreateUpsellTriggerRuleParameters
             {
                 TriggerType = t.TriggerType,
                 TriggerIds = t.TriggerIds,
+                Value = t.Value,
+                Min = t.Min,
+                Max = t.Max,
                 ExtractFilterIds = t.ExtractFilterIds
             }).ToList(),
             RecommendationRules = dto.RecommendationRules?.Select(r => new CreateUpsellRecommendationRuleParameters

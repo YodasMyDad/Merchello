@@ -724,6 +724,7 @@ public class ProductsApiController(
             OptionUiAlias = option.OptionUiAlias,
             IsVariant = option.IsVariant,
             IsMultiSelect = option.IsMultiSelect,
+            IsRequired = option.IsRequired,
             Values = option.ProductOptionValues.OrderBy(v => v.SortOrder).Select(MapToOptionValueDto).ToList()
         };
     }

@@ -36,4 +36,29 @@ public class LineItemDto
     /// Backend is single source of truth for this value.
     /// </summary>
     public decimal CalculatedTotal { get; set; }
+
+    /// <summary>
+    /// The line item type ("Product", "Custom", "Addon", etc.).
+    /// </summary>
+    public string LineItemType { get; set; } = "Product";
+
+    /// <summary>
+    /// Child add-on line items linked to this parent product/custom item.
+    /// </summary>
+    public List<LineItemDto> ChildLineItems { get; set; } = [];
+
+    /// <summary>
+    /// The parent line item SKU if this is a child add-on item.
+    /// </summary>
+    public string? ParentLineItemSku { get; set; }
+
+    /// <summary>
+    /// The parent line item ID if this is a child add-on item.
+    /// </summary>
+    public Guid? ParentLineItemId { get; set; }
+
+    /// <summary>
+    /// Whether this line item represents an add-on (non-variant option value).
+    /// </summary>
+    public bool IsAddon { get; set; }
 }
