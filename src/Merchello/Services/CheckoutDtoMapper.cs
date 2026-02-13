@@ -75,7 +75,7 @@ public class CheckoutDtoMapper(
                     LineItemType = li.LineItemType,
                     DependantLineItemSku = li.DependantLineItemSku,
                     ParentLineItemId = li.GetParentLineItemId()?.ToString(),
-                    ImageUrl = imageUrlObj?.ToString()
+                    ImageUrl = imageUrlObj.UnwrapJsonElement()?.ToString()
                 };
             })
             .ToList();
@@ -92,17 +92,19 @@ public class CheckoutDtoMapper(
                     : null;
                 var linkedTaxRate = linkedItem is { IsTaxable: true } ? linkedItem.TaxRate : (decimal?)null;
                 var displayDiscountAmount = li.GetDisplayDiscountTotal(displayContext, currencyService, linkedTaxRate);
+                var parsedDiscountId = Guid.TryParse(discountIdObj.UnwrapJsonElement()?.ToString(), out var discountId)
+                    ? discountId
+                    : li.Id;
+                var parsedDiscountCode = discountCodeObj.UnwrapJsonElement()?.ToString();
 
                 return new AppliedDiscountDto
                 {
-                    Id = discountIdObj is string discountIdStr && Guid.TryParse(discountIdStr, out var discountId)
-                        ? discountId
-                        : li.Id,
+                    Id = parsedDiscountId,
                     Name = li.Name ?? "Discount",
-                    Code = discountCodeObj?.ToString(),
+                    Code = parsedDiscountCode,
                     Amount = displayDiscountAmount,
                     FormattedAmount = currencyConversion.Format(displayDiscountAmount, displayCurrencySymbol),
-                    IsAutomatic = discountCodeObj == null
+                    IsAutomatic = string.IsNullOrWhiteSpace(parsedDiscountCode)
                 };
             })
             .ToList();
@@ -150,6 +152,10 @@ public class CheckoutDtoMapper(
             DisplayCurrencyCode = displayCurrencyCode,
             DisplayCurrencySymbol = displayCurrencySymbol,
             ExchangeRate = exchangeRate,
+            DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
+            TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(displayAmounts.TaxInclusiveSubTotal, displayCurrencySymbol),
+            TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
 
             BillingAddress = MapAddressToDto(basket.BillingAddress),
             ShippingAddress = MapAddressToDto(basket.ShippingAddress),

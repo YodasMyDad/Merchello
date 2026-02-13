@@ -34,6 +34,7 @@ public static class Constants
         public const string ProductRootId = "ProductRootId";
         public const string ProductTypeId = "ProductTypeId";
         public const string SupplierId = "SupplierId";
+        public const string WarehouseId = "WarehouseId";
         public const string CollectionIds = "CollectionIds";
         public const string FilterIds = "FilterIds";
 

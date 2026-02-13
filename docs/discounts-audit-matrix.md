@@ -1,0 +1,33 @@
+# Discounts Audit Matrix (Code Truth)
+
+Date: February 13, 2026  
+Scope: Backoffice tabs in the discount editor (`Details`, `Applies To`, `Requirements`, `Eligibility`, `Combinations`, `Schedule`, `Performance`) and checkout runtime behavior.
+
+| UI Tab | Setting | Persisted Field(s) | Runtime Consumer(s) | Checkout Impact | Status | Test Coverage |
+|---|---|---|---|---|---|---|
+| Details | Name | `Discount.Name` | `DiscountsApiController`, `CheckoutDiscountService` line-item creation | Displayed in applied discounts and order summary | Operational | `src/Merchello.Tests/Checkout/Services/CheckoutDiscountIntegrationTests.cs` |
+| Details | Description | `Discount.Description` | Backoffice detail/read APIs | None at calculation time | Operational | `src/Merchello.Tests/Discounts/DiscountsApiControllerTests.cs` |
+| Details | Method (Automatic/Code) | `Discount.Method`, `Discount.Code` | `DiscountEngine.GetApplicableAutomaticDiscountsAsync`, `DiscountEngine.ValidateCodeAsync` | Determines auto-apply vs code-entry flow | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs`, `src/Merchello.Tests/Checkout/Services/CheckoutDiscountIntegrationTests.cs` |
+| Details | Value Type / Value | `Discount.ValueType`, `Discount.Value` | `DiscountEngine.CalculateAmountOffProducts`, `DiscountEngine.CalculateAmountOffOrder` | Discount amount math and line allocations | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Details | Show in feed | `Discount.ShowInFeed` | Backoffice read/write only | No checkout effect | MetadataOnly | `src/Merchello.Tests/Discounts/DiscountsApiControllerTests.cs` |
+| Details | Feed promotion name | `Discount.FeedPromotionName` | Backoffice read/write only | No checkout effect | MetadataOnly | `src/Merchello.Tests/Discounts/DiscountsApiControllerTests.cs` |
+| Applies To | Target rules include/exclude (Products, Collections, ProductFilters, ProductTypes, Suppliers, Warehouses) | `Discount.TargetRulesJson` | `DiscountTargetMatcher`, `CheckoutDiscountService.BuildDiscountContextAsync` | Determines which line items can be discounted | Operational | `src/Merchello.Tests/Checkout/Services/CheckoutDiscountIntegrationTests.cs`, `src/Merchello.Tests/Discounts/DiscountServiceIntegrationTests.cs` |
+| Requirements | Minimum requirement type/value | `Discount.RequirementType`, `Discount.RequirementValue` | `DiscountEngine.CheckMinimumRequirements` | Gating validation before discount is applied | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Requirements | Total usage limit | `Discount.TotalUsageLimit` | `DiscountEngine.ValidateDiscountAsync`, `DiscountService.GetUsageCountAsync` | Blocks discount once exhausted | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Requirements | Per customer limit | `Discount.PerCustomerUsageLimit` | `DiscountEngine.ValidateDiscountAsync`, `DiscountService.GetCustomerUsageCountAsync` | Blocks repeated use by same customer | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Eligibility | Customer eligibility rules | `Discount.EligibilityRulesJson` | `DiscountEngine.CheckCustomerEligibilityAsync` | Determines whether current customer can redeem | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Combinations | Combine with product/order/shipping discounts | `Discount.CanCombineWithProductDiscounts`, `Discount.CanCombineWithOrderDiscounts`, `Discount.CanCombineWithShippingDiscounts` | `DiscountEngine.FilterCombinableDiscounts`, `CheckoutDiscountService.RefreshPromotionalDiscountsAsync` | Controls stackability and removals | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs`, `src/Merchello.Tests/Checkout/Services/CheckoutDiscountIntegrationTests.cs` |
+| Combinations | Calculate discount on total including tax (`ApplyAfterTax`) | `Discount.ApplyAfterTax` | `DiscountEngine.CalculateAmountOffProducts`, `DiscountEngine.CalculateAmountOffOrder` | Uses after-tax base and reverse-calculates pre-tax discount | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Combinations | Priority | `Discount.Priority` | `DiscountEngine.FilterCombinableDiscounts`, sequential application in `CheckoutDiscountService.RefreshPromotionalDiscountsAsync` | Determines evaluation/apply order | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Schedule | Start date / End date | `Discount.StartsAt`, `Discount.EndsAt` | `DiscountEngine.ValidateDiscountAsync`, `DiscountService.UpdateAsync`, `DiscountStatusJob` | Determines validity window and status | Operational | `src/Merchello.Tests/Discounts/DiscountServiceIntegrationTests.cs` |
+| Schedule | Timezone | `Discount.Timezone` | Backoffice display/storage only | No runtime scheduling conversion (UTC execution) | MetadataOnly | `src/Merchello.Tests/Discounts/DiscountsApiControllerTests.cs` |
+| Performance | Usage / reporting metrics | Derived from line-item usage queries | `DiscountService.GetUsageCountAsync`, `GetUsageSummaryAsync`, `GetPerformanceAsync` | Read-only analytics, no checkout math | Operational | `src/Merchello.Tests/Discounts/DiscountsApiControllerTests.cs` |
+| Checkout runtime | Free-shipping allow-list with multi-group shipping | `Discount.FreeShippingConfigJson` (`AllowedShippingOptionIds`) + context `SelectedShippingOptionIds` | `DiscountEngine.CalculateFreeShipping` | Requires all selected group options to be in allow-list | Operational | `src/Merchello.Tests/Discounts/DiscountEngineTests.cs` |
+| Checkout runtime | Promotion refresh after basket changes | N/A (service orchestration behavior) | `CheckoutService` basket mutation/address/shipping flows call `ICheckoutDiscountService.RefreshPromotionalDiscountsAsync` | Keeps code + automatic discounts valid/reactive | Operational | `src/Merchello.Tests/Checkout/Services/CheckoutDiscountIntegrationTests.cs` |
+| Checkout runtime | Multi-currency + tax-inclusive display fields | `CheckoutBasketDto.Display*` + `TaxInclusive*` fields | `CheckoutDtoMapper`, checkout Alpine store/order summary | Display-only conversion; calculation stays in store currency | Operational | `src/Merchello/Client/src/checkout/order-summary.test.js`, `src/Merchello.Tests/Checkout/Extensions/DisplayCurrencyExtensionsTests.cs` |
+
+## Notes
+
+- Store-currency remains the source of truth for basket math; display currency uses exchange-rate projection only.
+- `ShowInFeed`, `FeedPromotionName`, and `Timezone` are explicitly metadata-only in this sprint.
+- Backoffice discount code validation endpoints support both canonical and compatibility routes: `GET discounts/validate-code` and `GET discounts/check-code`, with payload `{ isAvailable, available }`.

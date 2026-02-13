@@ -1,7 +1,9 @@
 using System.Text.Json;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Discounts.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
@@ -519,6 +521,66 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
 
         var afterClearResponse = await _adapter.GetSessionAsync(sessionId, agentIdentity);
         ExtractDiscountCodes(afterClearResponse.Data).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GetSessionStateAsync_MapsCanonicalDiscountMetadata()
+    {
+        // Arrange
+        var product = await CreateTestProduct();
+        var basket = _checkoutService.CreateBasket();
+        basket.LineItems.Add(_lineItemFactory.CreateFromProduct(product, 1));
+
+        var codeDiscountId = Guid.NewGuid();
+        basket.LineItems.Add(_lineItemFactory.CreateDiscountLineItem(
+            name: "Code Discount",
+            sku: $"DISC-{Guid.NewGuid():N}"[..12],
+            amount: -10m,
+            extendedData: new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountId] = codeDiscountId.ToString(),
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountCode] = "SAVE10",
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountCategory] = DiscountCategory.AmountOffOrder.ToString(),
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValueType] = DiscountValueType.Percentage.ToString(),
+                [Merchello.Core.Constants.ExtendedDataKeys.ApplyAfterTax] = true
+            }));
+
+        var automaticDiscountId = Guid.NewGuid();
+        basket.LineItems.Add(_lineItemFactory.CreateDiscountLineItem(
+            name: "Auto Shipping Discount",
+            sku: $"DISC-{Guid.NewGuid():N}"[..12],
+            amount: -5m,
+            extendedData: new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountId] = automaticDiscountId.ToString(),
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountCategory] = DiscountCategory.FreeShipping.ToString(),
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValueType] = DiscountValueType.FixedAmount.ToString()
+            }));
+
+        await _checkoutService.SaveBasketAsync(new SaveBasketParameters
+        {
+            Basket = basket
+        });
+
+        // Act
+        var state = await _checkoutService.GetSessionStateAsync(new GetSessionStateParameters
+        {
+            BasketId = basket.Id
+        });
+
+        // Assert
+        state.ShouldNotBeNull();
+        state!.Discounts.Count.ShouldBe(2);
+
+        var codeDiscount = state.Discounts.Single(d => d.DiscountId == codeDiscountId.ToString());
+        codeDiscount.Code.ShouldBe("SAVE10");
+        codeDiscount.Type.ShouldBe(ProtocolDiscountTypes.Percentage);
+        codeDiscount.IsAutomatic.ShouldBeFalse();
+
+        var automaticDiscount = state.Discounts.Single(d => d.DiscountId == automaticDiscountId.ToString());
+        automaticDiscount.Code.ShouldBeNull();
+        automaticDiscount.Type.ShouldBe(ProtocolDiscountTypes.FreeShipping);
+        automaticDiscount.IsAutomatic.ShouldBeTrue();
     }
 
     #endregion

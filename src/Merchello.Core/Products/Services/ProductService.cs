@@ -784,6 +784,13 @@ public class ProductService(
                 query = query.Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr!.Products);
 
+                if (parameters.IncludeProductFilters)
+                {
+                    query = query.Include(p => p.ProductRoot)
+                        .ThenInclude(pr => pr!.Products)
+                        .ThenInclude(p => p.Filters);
+                }
+
                 // If including variants and warehouses, need to include for all variants
                 if (parameters.IncludeProductWarehouses)
                 {
@@ -809,6 +816,11 @@ public class ProductService(
             }
 
             // Note: ProductOptions is a JSON column on ProductRoot, automatically loaded when ProductRoot is included
+
+            if (parameters.IncludeProductFilters)
+            {
+                query = query.Include(p => p.Filters);
+            }
 
             if (parameters.IncludeProductWarehouses)
             {
@@ -853,7 +865,10 @@ public class ProductService(
             }
 
             // Use split query when including multiple collection navigations to avoid Cartesian explosion
-            if (parameters.IncludeProductWarehouses || parameters.IncludeProductRootWarehouses || parameters.IncludeShippingRestrictions)
+            if (parameters.IncludeProductWarehouses ||
+                parameters.IncludeProductRootWarehouses ||
+                parameters.IncludeShippingRestrictions ||
+                parameters.IncludeProductFilters)
             {
                 query = query.AsSplitQuery();
             }

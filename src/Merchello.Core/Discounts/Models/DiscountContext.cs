@@ -43,6 +43,11 @@ public class DiscountContext
     public Guid? SelectedShippingOptionId { get; set; }
 
     /// <summary>
+    /// Selected shipping option IDs across all shipping groups.
+    /// </summary>
+    public List<Guid> SelectedShippingOptionIds { get; set; } = [];
+
+    /// <summary>
     /// The customer's segment IDs for eligibility checking.
     /// </summary>
     public List<Guid>? CustomerSegmentIds { get; set; }

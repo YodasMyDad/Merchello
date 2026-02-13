@@ -140,6 +140,7 @@ public class DiscountsApiController(
     /// Activate a discount
     /// </summary>
     [HttpPost("discounts/{id:guid}/activate")]
+    [HttpPut("discounts/{id:guid}/activate")]
     [ProducesResponseType<DiscountDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ActivateDiscount(Guid id, CancellationToken ct)
@@ -154,6 +155,7 @@ public class DiscountsApiController(
     /// Deactivate a discount
     /// </summary>
     [HttpPost("discounts/{id:guid}/deactivate")]
+    [HttpPut("discounts/{id:guid}/deactivate")]
     [ProducesResponseType<DiscountDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeactivateDiscount(Guid id, CancellationToken ct)
@@ -183,6 +185,7 @@ public class DiscountsApiController(
     /// Validate a discount code is available
     /// </summary>
     [HttpGet("discounts/validate-code")]
+    [HttpGet("discounts/check-code")]
     [ProducesResponseType<object>(StatusCodes.Status200OK)]
     public async Task<IActionResult> ValidateCode(
         [FromQuery] string code,
@@ -190,7 +193,7 @@ public class DiscountsApiController(
         CancellationToken ct)
     {
         var isAvailable = await discountService.IsCodeAvailableAsync(code, excludeId, ct);
-        return Ok(new { isAvailable });
+        return Ok(new { isAvailable, available = isAvailable });
     }
 
     #endregion

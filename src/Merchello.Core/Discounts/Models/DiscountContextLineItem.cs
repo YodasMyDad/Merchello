@@ -66,6 +66,16 @@ public class DiscountContextLineItem
     public decimal LineTotal { get; set; }
 
     /// <summary>
+    /// Whether this line item is taxable.
+    /// </summary>
+    public bool IsTaxable { get; set; }
+
+    /// <summary>
+    /// The tax rate percentage applied to this line item.
+    /// </summary>
+    public decimal TaxRate { get; set; }
+
+    /// <summary>
     /// Whether this line item is an add-on (non-variant option selection).
     /// </summary>
     public bool IsAddon { get; set; }

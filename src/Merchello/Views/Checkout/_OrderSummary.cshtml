@@ -402,7 +402,19 @@
             </div>
 
             <!-- Discount Total -->
-            @if (displayDiscount > 0)
+            @if (isSinglePage)
+            {
+                <div class="flex justify-between text-sm"
+                     x-show="discount > 0"
+                     x-transition:enter="transition ease-out duration-200"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100">
+                    <span class="text-gray-600">Discount</span>
+                    <span class="text-green-600 font-medium"
+                          x-text="'-' + formatCurrency(discount)"></span>
+                </div>
+            }
+            else if (displayDiscount > 0)
             {
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Discount</span>

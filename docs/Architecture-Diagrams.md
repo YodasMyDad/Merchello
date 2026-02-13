@@ -170,7 +170,8 @@ ICheckoutService:
 ICheckoutDiscountService:
 - ApplyDiscountCodeAsync() - Apply promotional discount codes
 - RemovePromotionalDiscountAsync() - Remove applied promotional discount
-- RefreshAutomaticDiscountsAsync() - Check and apply automatic discounts
+- RefreshPromotionalDiscountsAsync() - Recompute code + automatic discounts after basket changes
+- RefreshAutomaticDiscountsAsync() - Compatibility wrapper around promotional refresh
 - GetApplicableAutomaticDiscountsAsync() - Get applicable automatic discounts for basket
 - AddDiscountToBasketAsync() - Add a discount to the basket
 - RemoveDiscountFromBasketAsync() - Remove a discount from the basket
@@ -335,6 +336,12 @@ IDiscountEngine:
 - CalculateAsync() - Calculate discount amounts
 - ValidateCodeAsync() - Validate discount code
 - ApplyDiscountsAsync() - Apply discounts to basket
+
+Discount calculation notes:
+- `ApplyAfterTax` is operational for amount-off-product and amount-off-order calculations.
+- Free-shipping allow-lists validate all selected shipping groups (`DiscountContext.SelectedShippingOptionIds`).
+- Checkout context includes product targeting metadata (`ProductTypeId`, `CollectionIds`, `ProductFilterIds`, `SupplierId`, `WarehouseId`) and tax metadata (`IsTaxable`, `TaxRate`) for accurate rule matching and tax-aware discount math.
+- `ShowInFeed`, `FeedPromotionName`, and `Timezone` are currently metadata/display-only; scheduling execution uses UTC start/end fields.
 
 IBuyXGetYCalculator:
 - Calculate() - Calculate BOGO discounts

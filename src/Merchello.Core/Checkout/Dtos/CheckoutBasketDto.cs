@@ -47,6 +47,12 @@ public class CheckoutBasketDto
     public string DisplayCurrencySymbol { get; set; } = "";
     public decimal ExchangeRate { get; set; } = 1m;
 
+    // Tax-inclusive display (when DisplayPricesIncTax setting is enabled)
+    public bool DisplayPricesIncTax { get; set; }
+    public decimal TaxInclusiveDisplaySubTotal { get; set; }
+    public string FormattedTaxInclusiveDisplaySubTotal { get; set; } = "";
+    public string? TaxIncludedMessage { get; set; }
+
     public AddressDto? BillingAddress { get; set; }
     public AddressDto? ShippingAddress { get; set; }
     public List<AppliedDiscountDto> AppliedDiscounts { get; set; } = [];

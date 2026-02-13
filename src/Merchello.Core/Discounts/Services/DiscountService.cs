@@ -388,6 +388,24 @@ public class DiscountService(
         if (parameters.FeedPromotionName != null)
             discount.FeedPromotionName = parameters.FeedPromotionName.Trim();
 
+        var scheduleUpdated = parameters.StartsAt.HasValue || parameters.EndsAt.HasValue || parameters.ClearEndsAt;
+        if (scheduleUpdated && discount.Status != DiscountStatus.Disabled)
+        {
+            var now = DateTime.UtcNow;
+            if (discount.StartsAt > now)
+            {
+                discount.Status = DiscountStatus.Scheduled;
+            }
+            else if (discount.EndsAt.HasValue && discount.EndsAt.Value < now)
+            {
+                discount.Status = DiscountStatus.Expired;
+            }
+            else
+            {
+                discount.Status = DiscountStatus.Active;
+            }
+        }
+
         // Validate requirement value is non-negative
         if (parameters.RequirementValue.HasValue && parameters.RequirementValue.Value < 0)
         {
@@ -1289,6 +1307,62 @@ public class DiscountService(
                                 .ToListAsync(ct);
                             var missingIds = rule.TargetIds.Except(existingIds).ToList();
                             return $"Collection IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+
+                    case DiscountTargetType.ProductFilters:
+                        var filterCount = await db.ProductFilters
+                            .CountAsync(f => rule.TargetIds.Contains(f.Id), ct);
+                        if (filterCount != rule.TargetIds.Count)
+                        {
+                            var existingIds = await db.ProductFilters
+                                .Where(f => rule.TargetIds.Contains(f.Id))
+                                .Select(f => f.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.TargetIds.Except(existingIds).ToList();
+                            return $"Product filter IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+
+                    case DiscountTargetType.ProductTypes:
+                        var typeCount = await db.ProductTypes
+                            .CountAsync(pt => rule.TargetIds.Contains(pt.Id), ct);
+                        if (typeCount != rule.TargetIds.Count)
+                        {
+                            var existingIds = await db.ProductTypes
+                                .Where(pt => rule.TargetIds.Contains(pt.Id))
+                                .Select(pt => pt.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.TargetIds.Except(existingIds).ToList();
+                            return $"Product type IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+
+                    case DiscountTargetType.Suppliers:
+                        var supplierCount = await db.Suppliers
+                            .CountAsync(s => rule.TargetIds.Contains(s.Id), ct);
+                        if (supplierCount != rule.TargetIds.Count)
+                        {
+                            var existingIds = await db.Suppliers
+                                .Where(s => rule.TargetIds.Contains(s.Id))
+                                .Select(s => s.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.TargetIds.Except(existingIds).ToList();
+                            return $"Supplier IDs not found: {string.Join(", ", missingIds)}";
+                        }
+                        break;
+
+                    case DiscountTargetType.Warehouses:
+                        var warehouseCount = await db.Warehouses
+                            .CountAsync(w => rule.TargetIds.Contains(w.Id), ct);
+                        if (warehouseCount != rule.TargetIds.Count)
+                        {
+                            var existingIds = await db.Warehouses
+                                .Where(w => rule.TargetIds.Contains(w.Id))
+                                .Select(w => w.Id)
+                                .ToListAsync(ct);
+                            var missingIds = rule.TargetIds.Except(existingIds).ToList();
+                            return $"Warehouse IDs not found: {string.Join(", ", missingIds)}";
                         }
                         break;
                 }

@@ -119,6 +119,15 @@ public class CheckoutService(
         }
 
         await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+
+        if (checkoutDiscountService != null)
+        {
+            await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                basket,
+                countryCode,
+                cancellationToken);
+        }
+
         basket.DateUpdated = DateTime.UtcNow;
 
         // Publish added notification (informational) - only for product line items
@@ -153,6 +162,15 @@ public class CheckoutService(
 
             basket.LineItems.Remove(itemToRemove);
             await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+
+            if (checkoutDiscountService != null)
+            {
+                await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                    basket,
+                    countryCode,
+                    cancellationToken);
+            }
+
             basket.DateUpdated = DateTime.UtcNow;
 
             await notificationPublisher.PublishAsync(
@@ -502,6 +520,7 @@ public class CheckoutService(
         {
             ProductId = parameters.ProductId,
             IncludeProductRoot = true, // ProductOptions (JSON column) loads with ProductRoot for display name extraction
+            IncludeProductFilters = true,
             IncludeTaxGroup = true,
             NoTracking = true
         }, cancellationToken);
@@ -662,6 +681,15 @@ public class CheckoutService(
                                 CountryCode = countryCode
                             },
                             cancellationToken);
+
+                        if (checkoutDiscountService != null)
+                        {
+                            await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                                currentBasket,
+                                countryCode,
+                                cancellationToken);
+                        }
+
                         publishRemoved = true;
                     }
 
@@ -692,6 +720,14 @@ public class CheckoutService(
                         CountryCode = countryCode
                     },
                     cancellationToken);
+
+                if (checkoutDiscountService != null)
+                {
+                    await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                        currentBasket,
+                        countryCode,
+                        cancellationToken);
+                }
 
                 currentBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
                 await db.SaveChangesAsync(cancellationToken);
@@ -1275,6 +1311,12 @@ public class CheckoutService(
                 lineItem.ExtendedData[Constants.ExtendedDataKeys.CollectionIds] = JsonSerializer.Serialize(collectionIds);
             }
 
+            if (product.Filters is { Count: > 0 })
+            {
+                var filterIds = product.Filters.Select(f => f.Id).ToList();
+                lineItem.ExtendedData[Constants.ExtendedDataKeys.FilterIds] = JsonSerializer.Serialize(filterIds);
+            }
+
             // Store root name for display (e.g., "Premium V-Neck" instead of variant name "S-Grey")
             lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootName] = productRoot.RootName ?? "";
 
@@ -1653,11 +1695,16 @@ public class CheckoutService(
                         CountryCode = shippingAddress.CountryCode
                     }, cancellationToken);
 
-                    // Apply automatic discounts (e.g., "Free shipping in UK", "10% off orders over 100")
+                    // Refresh promotional discounts (automatic + code) after address changes.
                     if (checkoutDiscountService != null)
                     {
-                        fullUpdatedBasket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
-                            fullUpdatedBasket, shippingAddress.CountryCode, cancellationToken);
+                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                            fullUpdatedBasket,
+                            shippingAddress.CountryCode,
+                            cancellationToken);
+                        fullUpdatedBasket = refreshResult.ResultObject ?? fullUpdatedBasket;
+                        result.Messages.AddRange(refreshResult.Messages
+                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
                     }
 
                     // Update timestamp if addresses changed OR if totals changed after recalculation
@@ -2061,13 +2108,16 @@ public class CheckoutService(
                         ShippingAmountOverride = totalShipping
                     }, cancellationToken);
 
-                    // Refresh automatic discounts (shipping costs may affect free shipping thresholds)
+                    // Refresh promotional discounts (shipping changes can invalidate code/auto discounts).
                     if (checkoutDiscountService != null)
                     {
-                        updatedBasket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
+                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
                             updatedBasket,
                             session.ShippingAddress.CountryCode,
                             cancellationToken);
+                        updatedBasket = refreshResult.ResultObject ?? updatedBasket;
+                        earlyResult.Messages.AddRange(refreshResult.Messages
+                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
                     }
 
                     // Update timestamp if selections changed OR if totals changed after recalculation
@@ -2344,8 +2394,8 @@ public class CheckoutService(
             return result;
         }
 
-        var basketId = parameters.Basket?.Id ?? Guid.Empty;
-        if (basketId == Guid.Empty)
+        var requestBasket = parameters.Basket;
+        if (requestBasket == null || requestBasket.Id == Guid.Empty)
         {
             result.Messages.Add(new ResultMessage
             {
@@ -2355,12 +2405,14 @@ public class CheckoutService(
             return result;
         }
 
+        var basketId = requestBasket.Id;
+
         // Validate digital products require a customer account (reject early instead of at payment)
         var hasDigitalProducts = await BasketHasDigitalProductsAsync(
-            new BasketHasDigitalProductsParameters { Basket = parameters.Basket },
+            new BasketHasDigitalProductsParameters { Basket = requestBasket },
             cancellationToken);
 
-        if (hasDigitalProducts && !parameters.Basket.CustomerId.HasValue)
+        if (hasDigitalProducts && !requestBasket.CustomerId.HasValue)
         {
             result.Messages.Add(new ResultMessage
             {
@@ -2520,13 +2572,16 @@ public class CheckoutService(
                         }, cancellationToken);
                     }
 
-                    // Refresh automatic discounts (may include free shipping based on threshold)
+                    // Refresh promotional discounts (automatic + code) after initialization recalculation.
                     if (checkoutDiscountService != null)
                     {
-                        updatedBasket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
+                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
                             updatedBasket,
                             parameters.CountryCode,
                             cancellationToken);
+                        updatedBasket = refreshResult.ResultObject ?? updatedBasket;
+                        result.Messages.AddRange(refreshResult.Messages
+                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
                     }
 
                     updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
@@ -3101,29 +3156,49 @@ public class CheckoutService(
             .Where(li => li.LineItemType == LineItemType.Discount)
             .Select(li => new CheckoutDiscountState
             {
-                DiscountId = li.Id.ToString(),
-                Code = li.ExtendedData.TryGetValue("DiscountCode", out var code)
-                    ? code.UnwrapJsonElement()?.ToString()
+                DiscountId = li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj) &&
+                             Guid.TryParse(discountIdObj.UnwrapJsonElement()?.ToString(), out var parsedDiscountId)
+                    ? parsedDiscountId.ToString()
+                    : li.Id.ToString(),
+                Code = li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var codeObj)
+                    ? codeObj.UnwrapJsonElement()?.ToString()
                     : null,
                 Name = li.Name ?? "Discount",
-                Type = li.ExtendedData.TryGetValue("DiscountType", out var type)
-                    ? MapDiscountType(type.UnwrapJsonElement()?.ToString())
-                    : ProtocolDiscountTypes.FixedAmount,
+                Type = MapDiscountType(
+                    li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var valueTypeObj)
+                        ? valueTypeObj.UnwrapJsonElement()?.ToString()
+                        : null,
+                    li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCategory, out var categoryObj)
+                        ? categoryObj.UnwrapJsonElement()?.ToString()
+                        : null),
                 Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity), currencyCode),
-                IsAutomatic = li.ExtendedData.TryGetValue("IsAutomatic", out var auto) &&
-                    auto.UnwrapJsonElement() is true,
+                IsAutomatic = !(li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var codeValue) &&
+                                !string.IsNullOrWhiteSpace(codeValue.UnwrapJsonElement()?.ToString())),
                 Method = ProtocolDiscountAllocationMethods.Across
             })
             .ToList();
     }
 
-    private static string MapDiscountType(string? type) => type?.ToLowerInvariant() switch
+    private static string MapDiscountType(string? valueType, string? category)
     {
-        "percentage" => ProtocolDiscountTypes.Percentage,
-        "freeshipping" or "free_shipping" => ProtocolDiscountTypes.FreeShipping,
-        "buyxgety" or "buy_x_get_y" => ProtocolDiscountTypes.BuyXGetY,
-        _ => ProtocolDiscountTypes.FixedAmount
-    };
+        var normalizedCategory = category?.Replace("_", string.Empty, StringComparison.Ordinal)
+            .ToLowerInvariant();
+        if (normalizedCategory is "freeshipping")
+        {
+            return ProtocolDiscountTypes.FreeShipping;
+        }
+
+        if (normalizedCategory is "buyxgety")
+        {
+            return ProtocolDiscountTypes.BuyXGetY;
+        }
+
+        return valueType?.ToLowerInvariant() switch
+        {
+            "percentage" => ProtocolDiscountTypes.Percentage,
+            _ => ProtocolDiscountTypes.FixedAmount
+        };
+    }
 
     private CheckoutFulfillmentState? MapFulfillment(
         OrderGroupingResult? orderGroups,

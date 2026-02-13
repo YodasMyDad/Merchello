@@ -8,6 +8,7 @@ using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
@@ -383,6 +384,23 @@ public class DiscountsApiControllerTests
     }
 
     [Fact]
+    public void ActivateDiscount_HasPostAndPutRouteAttributes()
+    {
+        // Act
+        var method = typeof(DiscountsApiController).GetMethod(nameof(DiscountsApiController.ActivateDiscount));
+        var routeTemplates = method!
+            .GetCustomAttributes(typeof(HttpMethodAttribute), true)
+            .Cast<HttpMethodAttribute>()
+            .Select(a => a.Template)
+            .ToList();
+
+        // Assert
+        routeTemplates.ShouldContain("discounts/{id:guid}/activate");
+        method.GetCustomAttributes(typeof(HttpPostAttribute), true).Length.ShouldBe(1);
+        method.GetCustomAttributes(typeof(HttpPutAttribute), true).Length.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task ActivateDiscount_NonExistingId_ReturnsNotFound()
     {
         // Arrange
@@ -428,6 +446,23 @@ public class DiscountsApiControllerTests
         var okResult = result.ShouldBeOfType<OkObjectResult>();
         var dto = okResult.Value.ShouldBeOfType<DiscountDetailDto>();
         dto.Status.ShouldBe(DiscountStatus.Disabled);
+    }
+
+    [Fact]
+    public void DeactivateDiscount_HasPostAndPutRouteAttributes()
+    {
+        // Act
+        var method = typeof(DiscountsApiController).GetMethod(nameof(DiscountsApiController.DeactivateDiscount));
+        var routeTemplates = method!
+            .GetCustomAttributes(typeof(HttpMethodAttribute), true)
+            .Cast<HttpMethodAttribute>()
+            .Select(a => a.Template)
+            .ToList();
+
+        // Assert
+        routeTemplates.ShouldContain("discounts/{id:guid}/deactivate");
+        method.GetCustomAttributes(typeof(HttpPostAttribute), true).Length.ShouldBe(1);
+        method.GetCustomAttributes(typeof(HttpPutAttribute), true).Length.ShouldBe(1);
     }
 
     #endregion
@@ -481,6 +516,10 @@ public class DiscountsApiControllerTests
         // Assert
         var okResult = result.ShouldBeOfType<OkObjectResult>();
         okResult.Value.ShouldNotBeNull();
+
+        var payloadJson = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        payloadJson.ShouldContain("\"isAvailable\":true");
+        payloadJson.ShouldContain("\"available\":true");
     }
 
     [Fact]
@@ -496,6 +535,10 @@ public class DiscountsApiControllerTests
         // Assert
         var okResult = result.ShouldBeOfType<OkObjectResult>();
         okResult.Value.ShouldNotBeNull();
+
+        var payloadJson = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+        payloadJson.ShouldContain("\"isAvailable\":false");
+        payloadJson.ShouldContain("\"available\":false");
     }
 
     [Fact]
@@ -517,6 +560,22 @@ public class DiscountsApiControllerTests
 
         // Assert
         capturedExcludeId.ShouldBe(excludeId);
+    }
+
+    [Fact]
+    public void ValidateCode_HasValidateAndCheckCodeRoutes()
+    {
+        // Act
+        var method = typeof(DiscountsApiController).GetMethod(nameof(DiscountsApiController.ValidateCode));
+        var routeTemplates = method!
+            .GetCustomAttributes(typeof(HttpGetAttribute), true)
+            .Cast<HttpGetAttribute>()
+            .Select(a => a.Template)
+            .ToList();
+
+        // Assert
+        routeTemplates.ShouldContain("discounts/validate-code");
+        routeTemplates.ShouldContain("discounts/check-code");
     }
 
     #endregion
