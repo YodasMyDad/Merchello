@@ -352,7 +352,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
             (item) => html`
               <div class="item-row">
                 <merchello-line-item-identity
-                  media-key=${item.imageUrl || nothing}
+                  .mediaKey=${item.imageUrl ?? null}
                   name=${item.productRootName || item.name || ""}
                   .selectedOptions=${item.selectedOptions ?? []}
                   sku=${item.sku || ""}
@@ -690,8 +690,8 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
 
     .shipment-status-badge.preparing {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: var(--merchello-color-warning-status-contrast, #fff);
     }
 
     .shipment-status-badge.shipped {
@@ -715,8 +715,8 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       font-size: 0.75rem;
       font-weight: 600;
       text-transform: uppercase;
-      background: var(--uui-color-surface-alt);
-      color: var(--uui-color-text);
+      background: var(--uui-color-text-alt);
+      color: #fff;
     }
 
     .carrier-badge.ups {

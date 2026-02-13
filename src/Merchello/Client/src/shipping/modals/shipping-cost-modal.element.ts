@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { CreateShippingCostDto } from "@shipping/types/shipping.types.js";
 import type { ShippingCostModalData, ShippingCostModalValue } from "@shipping/modals/shipping-cost-modal.token.js";
 
@@ -28,6 +29,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
   @state() private _countryCode = "";
   @state() private _regionCode = "";
   @state() private _cost = 0;
+  @state() private _currencySymbol = getCurrencySymbol();
   @state() private _countries: CountryOption[] = [];
   @state() private _regions: RegionOption[] = [];
 
@@ -42,6 +44,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this._loadCurrencySymbol();
     this._loadCountries();
     
     if (this.data?.cost) {
@@ -53,6 +56,15 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
       if (this._countryCode && this._countryCode !== "*") {
         this._loadRegions(this._countryCode);
       }
+    }
+  }
+
+  private async _loadCurrencySymbol(): Promise<void> {
+    try {
+      await getStoreSettings();
+      this._currencySymbol = getCurrencySymbol();
+    } catch {
+      this._currencySymbol = getCurrencySymbol();
     }
   }
 
@@ -257,7 +269,7 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
           <uui-form-layout-item>
             <uui-label slot="label" for="cost" required>Shipping Rate</uui-label>
             <div class="cost-input-wrapper">
-              <span class="currency-symbol">$</span>
+              <span class="currency-symbol">${this._currencySymbol}</span>
               <uui-input
                 id="cost"
                 type="number"

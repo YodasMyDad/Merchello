@@ -80,11 +80,7 @@ public class CheckoutService(
     private readonly ILocationsService _locationsService = locationsService ?? new NoopLocationsService();
     private readonly MerchelloSettings _settings = settings.Value;
 
-    // JSON serialization options - must match CheckoutSessionService for session interop
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
+    private const string BasketCacheKey = "merchello:Basket";
 
     /// <summary>
     /// Add line item to the basket
@@ -320,13 +316,9 @@ public class CheckoutService(
         Basket? basket;
         var httpContext = httpContextAccessor.HttpContext;
 
-        // Check in the session first
-        var basketInSession = httpContext?.Session.GetString("Basket");
-        if (!string.IsNullOrEmpty(basketInSession))
-        {
-            basket = JsonSerializer.Deserialize<Basket>(basketInSession, JsonOptions);
-            if (basket != null) return basket;
-        }
+        // Check per-request cache first (avoids redundant DB queries within the same request)
+        if (httpContext?.Items.TryGetValue(BasketCacheKey, out var cached) == true && cached is Basket cachedBasket)
+            return cachedBasket;
 
         Basket? anonBasket = null;
         Basket? userBasket = null;
@@ -392,10 +384,10 @@ public class CheckoutService(
 
         scope.Complete();
 
-        // If we retrieved a basket, cache it in the session for subsequent requests
-        if (basket != null)
+        // Cache for subsequent calls within this request
+        if (basket != null && httpContext != null)
         {
-            httpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+            httpContext.Items[BasketCacheKey] = basket;
         }
 
         return basket;
@@ -491,7 +483,7 @@ public class CheckoutService(
         // 6. Update the basket stored in the session for immediate reflection on the UI
         if (basket != null)
         {
-            httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+            if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;
         }
     }
 
@@ -527,8 +519,22 @@ public class CheckoutService(
             return AddProductWithAddonsResult.Failed("This product is currently out of stock");
         }
 
+        var addonOptions = product.ProductRoot?.ProductOptions
+            .Where(po => !po.IsVariant)
+            .ToList() ?? [];
+        var (normalizedAddons, addonValidationError) = ValidateAddonSelections(addonOptions, parameters.Addons);
+        if (!string.IsNullOrWhiteSpace(addonValidationError))
+        {
+            return AddProductWithAddonsResult.Failed(addonValidationError);
+        }
+
         // Create the main product line item
         var productLineItem = CreateLineItem(product, parameters.Quantity);
+        var addonSelectionSignature = BuildAddonSelectionSignature(normalizedAddons);
+        if (!string.IsNullOrEmpty(addonSelectionSignature))
+        {
+            productLineItem.ExtendedData[Constants.ExtendedDataKeys.AddonSelectionSignature] = addonSelectionSignature;
+        }
 
         // Add main product to basket
         await AddToBasket(new AddToBasketParameters
@@ -537,26 +543,54 @@ public class CheckoutService(
             CustomerId = parameters.CustomerId
         }, cancellationToken);
 
+        // Resolve the persisted parent line item that now exists in the basket.
+        // This matters when a matching line merges, because the merged line keeps the existing ID.
+        var basketAfterProductAdd = await GetBasket(
+            new GetBasketParameters { CustomerId = parameters.CustomerId },
+            cancellationToken);
+        if (basketAfterProductAdd == null)
+        {
+            return AddProductWithAddonsResult.Failed("Failed to retrieve basket after adding product");
+        }
+
+        var persistedProductLineItem = basketAfterProductAdd.LineItems
+            .Where(li =>
+                li.LineItemType == LineItemType.Product &&
+                li.ProductId == product.Id &&
+                string.Equals(li.Sku, productLineItem.Sku, StringComparison.Ordinal) &&
+                string.Equals(
+                    li.GetAddonSelectionSignature() ?? string.Empty,
+                    addonSelectionSignature ?? string.Empty,
+                    StringComparison.Ordinal))
+            .OrderByDescending(li => li.DateUpdated)
+            .FirstOrDefault();
+
+        if (persistedProductLineItem != null)
+        {
+            productLineItem = persistedProductLineItem;
+        }
+
         // Handle add-ons if any
         var addonLineItems = new List<LineItem>();
 
-        if (parameters.Addons.Count > 0 && product.ProductRoot?.ProductOptions != null)
+        if (normalizedAddons.Count > 0 && product.ProductRoot?.ProductOptions != null)
         {
-            var addonOptions = product.ProductRoot.ProductOptions
-                .Where(po => !po.IsVariant)
-                .ToList();
-
             var valueLookup = addonOptions
                 .SelectMany(o => o.ProductOptionValues.Select(v => (Option: o, Value: v)))
                 .ToDictionary(x => x.Value.Id, x => x);
 
-            foreach (var addon in parameters.Addons)
+            foreach (var addon in normalizedAddons)
             {
                 if (!valueLookup.TryGetValue(addon.ValueId, out var ov))
                     continue;
 
                 var addonLineItem = lineItemFactory.CreateAddonForBasket(
-                    product, ov.Option, ov.Value, productLineItem.Sku!, parameters.Quantity);
+                    product,
+                    ov.Option,
+                    ov.Value,
+                    productLineItem.Sku ?? string.Empty,
+                    productLineItem.Id,
+                    parameters.Quantity);
 
                 await AddToBasket(new AddToBasketParameters
                 {
@@ -763,7 +797,7 @@ public class CheckoutService(
                     return null;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;
                 return basket;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -1068,7 +1102,7 @@ public class CheckoutService(
                     return result;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                 // Publish "After" notification (rate provided for notification handlers that need it)
                 await notificationPublisher.PublishAsync(
@@ -1147,7 +1181,7 @@ public class CheckoutService(
 
                     if (updatedBasket != null)
                     {
-                        httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                        if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
                         return updatedBasket;
                     }
 
@@ -1459,7 +1493,7 @@ public class CheckoutService(
                         return result;
                     }
 
-                    httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                    if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                     var session = await checkoutSessionService.GetSessionAsync(updatedBasket.Id, cancellationToken);
                     await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -1658,7 +1692,7 @@ public class CheckoutService(
                     return result;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(fullUpdatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = fullUpdatedBasket;
 
                 // Update checkout session
                 await checkoutSessionService.SaveAddressesAsync(new SaveSessionAddressesParameters
@@ -1811,8 +1845,8 @@ public class CheckoutService(
                 });
                 scope.Complete();
 
-                // Update HTTP session to keep in sync
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(basket, JsonOptions));
+                // Update per-request cache
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;
                 return;
             }
             catch (DbUpdateConcurrencyException ex)
@@ -2069,7 +2103,7 @@ public class CheckoutService(
                     return earlyResult;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                 // Persist shipping selections and quoted costs to checkout session
                 await checkoutSessionService.SaveShippingSelectionsAsync(new SaveSessionShippingSelectionsParameters
@@ -2184,6 +2218,7 @@ public class CheckoutService(
                         IsTaxable = li.IsTaxable,
                         LineItemType = li.LineItemType,
                         DependantLineItemSku = li.DependantLineItemSku,
+                        ParentLineItemId = li.GetParentLineItemId()?.ToString(),
                         ImageUrl = imageUrl
                     });
                 }
@@ -2518,7 +2553,7 @@ public class CheckoutService(
                     return result;
                 }
 
-                httpContextAccessor.HttpContext?.Session.SetString("Basket", JsonSerializer.Serialize(updatedBasket, JsonOptions));
+                if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
 
                 if (groupingResult.Groups.Count > 0)
                 {
@@ -2888,6 +2923,90 @@ public class CheckoutService(
         "cheapest-then-fastest" => ShippingAutoSelectStrategy.CheapestThenFastest,
         _ => ShippingAutoSelectStrategy.Cheapest
     };
+
+    private static string? BuildAddonSelectionSignature(IReadOnlyList<Merchello.Core.Shared.Dtos.AddonSelectionDto> addons)
+    {
+        if (addons.Count == 0)
+        {
+            return null;
+        }
+
+        return string.Join("|", addons
+            .OrderBy(x => x.OptionId)
+            .ThenBy(x => x.ValueId)
+            .Select(x => $"{x.OptionId:N}:{x.ValueId:N}"));
+    }
+
+    private static (List<Merchello.Core.Shared.Dtos.AddonSelectionDto> NormalizedSelections, string? ErrorMessage) ValidateAddonSelections(
+        IReadOnlyCollection<Merchello.Core.Products.Models.ProductOption> addonOptions,
+        IReadOnlyList<Merchello.Core.Shared.Dtos.AddonSelectionDto> selectedAddons)
+    {
+        var normalizedSelections = selectedAddons
+            .GroupBy(a => new { a.OptionId, a.ValueId })
+            .Select(g => g.First())
+            .ToList();
+
+        if (normalizedSelections.Count == 0)
+        {
+            var missingRequiredWithoutSelections = addonOptions
+                .Where(o => o.IsRequired)
+                .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+                .ToList();
+
+            if (missingRequiredWithoutSelections.Count > 0)
+            {
+                return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredWithoutSelections)}.");
+            }
+
+            return ([], null);
+        }
+
+        if (addonOptions.Count == 0)
+        {
+            return ([], "This product does not support add-ons.");
+        }
+
+        var optionLookup = addonOptions.ToDictionary(o => o.Id);
+        var selectedByOption = normalizedSelections
+            .GroupBy(s => s.OptionId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var missingRequiredOptions = addonOptions
+            .Where(o => o.IsRequired && !selectedByOption.ContainsKey(o.Id))
+            .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+            .ToList();
+
+        if (missingRequiredOptions.Count > 0)
+        {
+            return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredOptions)}.");
+        }
+
+        foreach (var (optionId, selectionsForOption) in selectedByOption)
+        {
+            if (!optionLookup.TryGetValue(optionId, out var option))
+            {
+                return ([], "One or more selected add-ons are invalid for this product.");
+            }
+
+            if (!option.IsMultiSelect && selectionsForOption.Count > 1)
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "This add-on option" : option.Name;
+                return ([], $"{optionName} only allows one selection.");
+            }
+
+            var validValueIds = option.ProductOptionValues
+                .Select(v => v.Id)
+                .ToHashSet();
+
+            if (selectionsForOption.Any(selection => !validValueIds.Contains(selection.ValueId)))
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "An add-on option" : option.Name;
+                return ([], $"One or more selected values are invalid for {optionName}.");
+            }
+        }
+
+        return (normalizedSelections, null);
+    }
 
     private IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket, string currencyCode)
     {

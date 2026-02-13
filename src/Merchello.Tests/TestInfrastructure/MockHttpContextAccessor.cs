@@ -26,9 +26,13 @@ public class MockHttpContextAccessor : IHttpContextAccessor
     }
 
     /// <summary>
-    /// Clears all session data. Call this in test setup for isolation.
+    /// Clears all session data and per-request items. Call this in test setup for isolation.
     /// </summary>
-    public void ClearSession() => _session.Clear();
+    public void ClearSession()
+    {
+        _session.Clear();
+        _httpContext.Items.Clear();
+    }
 
     /// <summary>
     /// Gets the mock session for direct access in tests.

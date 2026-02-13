@@ -1,5 +1,6 @@
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Models;
@@ -69,6 +70,7 @@ public class DefaultOrderGroupingStrategyTests
         _strategy = new DefaultOrderGroupingStrategy(
             _warehouseServiceMock.Object,
             _shippingOptionEligibilityService,
+            _shippingCostResolverMock.Object,
             _shippingQuoteServiceMock.Object,
             _shippingProviderManagerMock.Object,
             _warehouseProviderConfigServiceMock.Object,
@@ -513,6 +515,214 @@ public class DefaultOrderGroupingStrategyTests
         dynamicOption.ShouldNotBeNull();
         dynamicOption.DaysFrom.ShouldBe(3); // Ceiling of 3 days transit
         dynamicOption.DaysTo.ShouldBe(4);   // Ceiling of 3 days + 1
+    }
+
+    [Fact]
+    public async Task GroupItemsAsync_FlatRateCost_IncludesGroupedWeightFromPackagesAndAddons()
+    {
+        // Arrange
+        var warehouseId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var shippingOptionId = Guid.NewGuid();
+
+        var warehouse = CreateWarehouse(warehouseId, "Main Warehouse", shippingOptionId);
+        var product = CreateProduct(productId, warehouse);
+        product.PackageConfigurations =
+        [
+            new ProductPackage { Weight = 2m, LengthCm = 20m, WidthCm = 20m, HeightCm = 10m }
+        ];
+
+        var productLineItem = CreateLineItem(productId, quantity: 1, amount: 50m);
+        productLineItem.Sku = "TEST-SKU";
+
+        var addonLineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Gift Wrap",
+            "ADDON-GW",
+            amount: 2m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m);
+        addonLineItem.LineItemType = LineItemType.Addon;
+        addonLineItem.DependantLineItemSku = productLineItem.Sku;
+        addonLineItem.SetParentLineItemId(productLineItem.Id);
+        addonLineItem.ExtendedData["WeightKg"] = 1m;
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product> { [productId] = product },
+            warehouses: new Dictionary<Guid, Warehouse> { [warehouseId] = warehouse },
+            lineItems: [productLineItem, addonLineItem],
+            countryCode: "GB");
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.IsAny<SelectWarehouseForProductParameters>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult { Warehouse = warehouse });
+
+        // Base cost + surcharge when grouped weight reaches 3kg.
+        _shippingCostResolverMock
+            .Setup(x => x.GetTotalShippingCost(
+                It.IsAny<ShippingOption>(),
+                It.IsAny<string>(),
+                It.IsAny<string?>(),
+                It.IsAny<decimal?>()))
+            .Returns((ShippingOption so, string _, string? __, decimal? weightKg) =>
+            {
+                var baseCost = so.FixedCost ?? 0m;
+                if (!weightKg.HasValue || weightKg.Value < 3m)
+                {
+                    return baseCost;
+                }
+
+                return baseCost + 5m;
+            });
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Groups.Count.ShouldBe(1);
+        result.Groups[0].AvailableShippingOptions.Count.ShouldBe(1);
+        result.Groups[0].AvailableShippingOptions[0].Cost.ShouldBe(10.99m);
+    }
+
+    [Fact]
+    public async Task GroupItemsAsync_DynamicProvider_PackageBuild_IncludesAddonWeight()
+    {
+        // Arrange
+        var warehouseId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var shippingOptionId = Guid.NewGuid();
+
+        var warehouse = CreateWarehouse(warehouseId, "Main Warehouse", shippingOptionId);
+        var product = CreateProduct(productId, warehouse);
+        product.PackageConfigurations =
+        [
+            new ProductPackage { Weight = 2m, LengthCm = 20m, WidthCm = 20m, HeightCm = 10m }
+        ];
+        product.ProductRoot!.AllowExternalCarrierShipping = true;
+
+        var productLineItem = CreateLineItem(productId, quantity: 1, amount: 50m);
+        productLineItem.Sku = "TEST-SKU";
+
+        var addonLineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Gift Wrap",
+            "ADDON-GW",
+            amount: 2m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m);
+        addonLineItem.LineItemType = LineItemType.Addon;
+        addonLineItem.DependantLineItemSku = productLineItem.Sku;
+        addonLineItem.SetParentLineItemId(productLineItem.Id);
+        addonLineItem.ExtendedData["WeightKg"] = 1m;
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product> { [productId] = product },
+            warehouses: new Dictionary<Guid, Warehouse> { [warehouseId] = warehouse },
+            lineItems: [productLineItem, addonLineItem],
+            countryCode: "GB");
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.IsAny<SelectWarehouseForProductParameters>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult { Warehouse = warehouse });
+
+        IReadOnlyCollection<ShipmentPackage>? capturedPackages = null;
+
+        _shippingQuoteServiceMock
+            .Setup(x => x.GetQuotesForWarehouseAsync(
+                It.IsAny<GetWarehouseQuotesParameters>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<GetWarehouseQuotesParameters, CancellationToken>((parameters, _) =>
+            {
+                capturedPackages = parameters.Packages;
+            })
+            .ReturnsAsync([]);
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        capturedPackages.ShouldNotBeNull();
+        capturedPackages!.Count.ShouldBe(1);
+        capturedPackages.First().WeightKg.ShouldBe(3m);
+    }
+
+    [Fact]
+    public async Task GroupItemsAsync_DynamicProvider_PackageBuild_MergesAddonWeightIntoFirstConfiguredPackage()
+    {
+        // Arrange
+        var warehouseId = Guid.NewGuid();
+        var productId = Guid.NewGuid();
+        var shippingOptionId = Guid.NewGuid();
+
+        var warehouse = CreateWarehouse(warehouseId, "Main Warehouse", shippingOptionId);
+        var product = CreateProduct(productId, warehouse);
+        product.PackageConfigurations =
+        [
+            new ProductPackage { Weight = 2m, LengthCm = 20m, WidthCm = 20m, HeightCm = 10m },
+            new ProductPackage { Weight = 1m, LengthCm = 10m, WidthCm = 10m, HeightCm = 10m }
+        ];
+        product.ProductRoot!.AllowExternalCarrierShipping = true;
+
+        var productLineItem = CreateLineItem(productId, quantity: 1, amount: 50m);
+        productLineItem.Sku = "TEST-SKU";
+
+        var addonLineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.Empty,
+            "Gift Wrap",
+            "ADDON-GW",
+            amount: 2m,
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m);
+        addonLineItem.LineItemType = LineItemType.Addon;
+        addonLineItem.DependantLineItemSku = productLineItem.Sku;
+        addonLineItem.SetParentLineItemId(productLineItem.Id);
+        addonLineItem.ExtendedData["WeightKg"] = 0.5m;
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product> { [productId] = product },
+            warehouses: new Dictionary<Guid, Warehouse> { [warehouseId] = warehouse },
+            lineItems: [productLineItem, addonLineItem],
+            countryCode: "GB");
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.IsAny<SelectWarehouseForProductParameters>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult { Warehouse = warehouse });
+
+        IReadOnlyCollection<ShipmentPackage>? capturedPackages = null;
+
+        _shippingQuoteServiceMock
+            .Setup(x => x.GetQuotesForWarehouseAsync(
+                It.IsAny<GetWarehouseQuotesParameters>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<GetWarehouseQuotesParameters, CancellationToken>((parameters, _) =>
+            {
+                capturedPackages = parameters.Packages;
+            })
+            .ReturnsAsync([]);
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        capturedPackages.ShouldNotBeNull();
+        capturedPackages!.Count.ShouldBe(2);
+        capturedPackages.ElementAt(0).WeightKg.ShouldBe(2.5m);
+        capturedPackages.ElementAt(1).WeightKg.ShouldBe(1m);
     }
 
     private static OrderGroupingContext CreateContext(

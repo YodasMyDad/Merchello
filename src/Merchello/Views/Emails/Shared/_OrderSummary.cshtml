@@ -1,4 +1,5 @@
 @model Invoice
+@using Merchello.Core.Accounting.Extensions
 @{
     var currencySymbol = Model.CurrencySymbol ?? "\u00A3";
     var allLineItems = Model.Orders?
@@ -32,7 +33,7 @@
       @foreach (var item in parentLineItems)
       {
         var itemAddons = allLineItems
-            .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+            .Where(li => li.IsAddonLinkedToParent(item))
             .ToList();
         var itemTotal = item.Amount * item.Quantity;
         var addonTotal = itemAddons.Sum(addon => addon.Amount * addon.Quantity);

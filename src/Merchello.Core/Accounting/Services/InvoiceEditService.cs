@@ -280,7 +280,10 @@ public class InvoiceEditService(
                                 "Free" => DiscountValueType.Free,
                                 _ => DiscountValueType.FixedAmount
                             },
-                            Value = discountValue
+                            Value = discountValue,
+                            DisplayName = existingDiscount.Name,
+                            Reason = GetDiscountReason(existingDiscount),
+                            IsVisibleToCustomer = GetDiscountVisibleToCustomer(existingDiscount)
                         };
                     }
 
@@ -293,6 +296,7 @@ public class InvoiceEditService(
                         ProductId = lineItem.ProductId,
                         WarehouseId = order.WarehouseId,
                         Sku = lineItem.Sku,
+                        ParentLineItemId = lineItem.GetParentLineItemId(),
                         ParentLineItemSku = lineItem.DependantLineItemSku,
                         LineItemType = lineItem.LineItemType,
                         Amount = lineItem.Amount,
@@ -317,6 +321,19 @@ public class InvoiceEditService(
                 {
                     warnings.Add($"Product {productDto.ProductId} not found.");
                     continue;
+                }
+
+                var (normalizedAddons, addonValidationError) = ValidateOrderAddons(
+                    product.ProductRoot?.ProductOptions ?? [],
+                    productDto.Addons);
+                if (!string.IsNullOrWhiteSpace(addonValidationError))
+                {
+                    var productName = !string.IsNullOrWhiteSpace(product.Name)
+                        ? product.Name
+                        : !string.IsNullOrWhiteSpace(product.ProductRoot?.RootName)
+                            ? product.ProductRoot!.RootName
+                            : productDto.ProductId.ToString();
+                    warnings.Add($"{productName}: {addonValidationError}");
                 }
 
                 var warehouseId = productDto.WarehouseId;
@@ -352,12 +369,14 @@ public class InvoiceEditService(
                     isTaxable = taxRate > 0;
                 }
 
+                var parentVirtualLineItemId = Guid.NewGuid();
                 virtualLineItems.Add(new VirtualLineItem
                 {
-                    Id = Guid.NewGuid(),
+                    Id = parentVirtualLineItemId,
                     ProductId = productDto.ProductId,
                     WarehouseId = productDto.WarehouseId,
                     Sku = product.Sku ?? $"PROD-{product.Id:N}"[..20],
+                    ParentLineItemId = null,
                     ParentLineItemSku = null,
                     LineItemType = LineItemType.Product,
                     Amount = unitPrice,
@@ -371,7 +390,7 @@ public class InvoiceEditService(
                     HadOriginalDiscount = false
                 });
 
-                foreach (var addon in productDto.Addons)
+                foreach (var addon in normalizedAddons)
                 {
                     var addonPrice = ConvertStoreToPresentmentCurrency(invoice, addon.PriceAdjustment, currencyCode);
                     var parentSku = product.Sku ?? $"PROD-{product.Id:N}"[..20];
@@ -384,6 +403,7 @@ public class InvoiceEditService(
                         ProductId = productDto.ProductId,
                         WarehouseId = productDto.WarehouseId,
                         Sku = addonSku,
+                        ParentLineItemId = parentVirtualLineItemId,
                         ParentLineItemSku = parentSku,
                         LineItemType = LineItemType.Addon,
                         Amount = addonPrice,
@@ -407,12 +427,14 @@ public class InvoiceEditService(
                     : 0m;
                 var isTaxable = customItem.TaxGroupId.HasValue;
 
+                var parentVirtualLineItemId = Guid.NewGuid();
                 virtualLineItems.Add(new VirtualLineItem
                 {
-                    Id = Guid.NewGuid(),
+                    Id = parentVirtualLineItemId,
                     ProductId = null,
                     WarehouseId = customItem.WarehouseId,
                     Sku = customItem.Sku,
+                    ParentLineItemId = null,
                     ParentLineItemSku = null,
                     LineItemType = LineItemType.Custom,
                     Amount = customItem.Price,
@@ -430,6 +452,7 @@ public class InvoiceEditService(
                         ProductId = null,
                         WarehouseId = customItem.WarehouseId,
                         Sku = $"{customItem.Sku ?? "CUSTOM"}-ADDON",
+                        ParentLineItemId = parentVirtualLineItemId,
                         ParentLineItemSku = customItem.Sku,
                         LineItemType = LineItemType.Addon,
                         Amount = addon.PriceAdjustment,
@@ -858,7 +881,7 @@ public class InvoiceEditService(
                         // Cascade quantity change to add-on children
                         var addonChildren = orders
                             .SelectMany(o => o.LineItems ?? [])
-                            .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == lineItem.Sku)
+                            .Where(li => li.IsAddonLinkedToParent(lineItem))
                             .ToList();
 
                         foreach (var addonChild in addonChildren)
@@ -889,8 +912,12 @@ public class InvoiceEditService(
 
                             // Create new discount line item
                             var order2 = orders.First(o => o.LineItems?.Contains(lineItem) == true);
+                            var discountDisplayName = string.IsNullOrWhiteSpace(editItem.Discount.DisplayName)
+                                ? editItem.Discount.Reason?.Trim()
+                                : editItem.Discount.DisplayName.Trim();
+
                             var discountLineItem = lineItemFactory.CreateDiscountLineItem(
-                                name: editItem.Discount.Reason ?? "Discount",
+                                name: discountDisplayName ?? "Discount",
                                 sku: $"DISCOUNT-{lineItem.Sku}",
                                 amount: -discountAmount,
                                 dependantLineItemSku: lineItem.Sku,
@@ -901,6 +928,11 @@ public class InvoiceEditService(
                                     [Constants.ExtendedDataKeys.DiscountValue] = editItem.Discount.Value,
                                     [Constants.ExtendedDataKeys.VisibleToCustomer] = editItem.Discount.IsVisibleToCustomer
                                 });
+
+                            if (!string.IsNullOrWhiteSpace(editItem.Discount.Reason))
+                            {
+                                discountLineItem.ExtendedData[Constants.ExtendedDataKeys.Reason] = editItem.Discount.Reason.Trim();
+                            }
 
                             order2.LineItems ??= [];
                             order2.LineItems.Add(discountLineItem);
@@ -953,8 +985,9 @@ public class InvoiceEditService(
                     // Remove any dependent discounts and add-ons
                     var dependentItems = orders
                         .SelectMany(o => o.LineItems ?? [])
-                        .Where(li => (li.LineItemType == LineItemType.Discount || li.LineItemType == LineItemType.Addon)
-                                     && li.DependantLineItemSku == lineItem.Sku)
+                        .Where(li =>
+                            (li.LineItemType == LineItemType.Discount && li.DependantLineItemSku == lineItem.Sku)
+                            || li.IsAddonLinkedToParent(lineItem))
                         .ToList();
 
                     foreach (var dependentItem in dependentItems)
@@ -1128,6 +1161,7 @@ public class InvoiceEditService(
                             var addonLineItems = CreateCustomAddonLineItems(
                                 targetOrder.Id,
                                 lineItem.Sku ?? string.Empty,
+                                lineItem.Id,
                                 customItem,
                                 lineItem.IsTaxable,
                                 lineItem.TaxRate);
@@ -1177,6 +1211,7 @@ public class InvoiceEditService(
                             var addonLineItems = CreateCustomAddonLineItems(
                                 targetOrder.Id,
                                 lineItem.Sku ?? string.Empty,
+                                lineItem.Id,
                                 customItem,
                                 lineItem.IsTaxable,
                                 lineItem.TaxRate);
@@ -1213,8 +1248,12 @@ public class InvoiceEditService(
                             ? currencyService.Round(currentSubTotal * (orderDiscount.Value / 100m), invoice.CurrencyCode)
                             : orderDiscount.Value;
 
+                        var discountDisplayName = string.IsNullOrWhiteSpace(orderDiscount.DisplayName)
+                            ? orderDiscount.Reason?.Trim()
+                            : orderDiscount.DisplayName.Trim();
+
                         var discountLineItem = lineItemFactory.CreateDiscountLineItem(
-                            name: orderDiscount.Reason ?? "Order Discount",
+                            name: discountDisplayName ?? "Order Discount",
                             sku: $"ORDERDISCOUNT-{DateTime.UtcNow.Ticks}",
                             amount: -discountAmount,
                             orderId: targetOrder.Id,
@@ -1225,6 +1264,11 @@ public class InvoiceEditService(
                                 [Constants.ExtendedDataKeys.VisibleToCustomer] = orderDiscount.IsVisibleToCustomer
                             });
 
+                        if (!string.IsNullOrWhiteSpace(orderDiscount.Reason))
+                        {
+                            discountLineItem.ExtendedData[Constants.ExtendedDataKeys.Reason] = orderDiscount.Reason.Trim();
+                        }
+
                         targetOrder.LineItems ??= [];
                         targetOrder.LineItems.Add(discountLineItem);
                         db.LineItems.Add(discountLineItem);
@@ -1232,7 +1276,7 @@ public class InvoiceEditService(
                         var discountDisplay = orderDiscount.Type == DiscountValueType.Percentage
                             ? $"{orderDiscount.Value}%"
                             : $"{invoice.CurrencySymbol}{orderDiscount.Value}";
-                        changes.Add($"Added order discount: {discountDisplay} off ({orderDiscount.Reason ?? "No reason specified"})");
+                        changes.Add($"Added order discount: {(discountDisplayName ?? "Order Discount")} ({discountDisplay} off)");
                     }
                 }
 
@@ -1650,6 +1694,7 @@ public class InvoiceEditService(
         var productLineItems = virtualLineItems
             .Where(li => li.LineItemType == LineItemType.Product && !string.IsNullOrWhiteSpace(li.Sku))
             .ToList();
+        var productLineItemsById = productLineItems.ToDictionary(li => li.Id);
         var productLineItemsByWarehouseAndSku = productLineItems
             .GroupBy(li => (li.WarehouseId, Sku: li.Sku!))
             .ToDictionary(g => g.Key, g => g.First());
@@ -1662,11 +1707,19 @@ public class InvoiceEditService(
         {
             var isAddon = lineItem.LineItemType == LineItemType.Addon;
             VirtualLineItem? parentLineItem = null;
-            if (isAddon && !string.IsNullOrWhiteSpace(lineItem.ParentLineItemSku))
+            if (isAddon)
             {
-                if (!productLineItemsByWarehouseAndSku.TryGetValue((lineItem.WarehouseId, lineItem.ParentLineItemSku), out parentLineItem))
+                if (lineItem.ParentLineItemId.HasValue)
                 {
-                    productLineItemsBySku.TryGetValue(lineItem.ParentLineItemSku, out parentLineItem);
+                    productLineItemsById.TryGetValue(lineItem.ParentLineItemId.Value, out parentLineItem);
+                }
+
+                if (parentLineItem == null && !string.IsNullOrWhiteSpace(lineItem.ParentLineItemSku))
+                {
+                    if (!productLineItemsByWarehouseAndSku.TryGetValue((lineItem.WarehouseId, lineItem.ParentLineItemSku), out parentLineItem))
+                    {
+                        productLineItemsBySku.TryGetValue(lineItem.ParentLineItemSku, out parentLineItem);
+                    }
                 }
             }
 
@@ -1732,6 +1785,7 @@ public class InvoiceEditService(
         var productLineItemEntries = editableLineItems
             .Where(x => x.LineItem.LineItemType == LineItemType.Product && !string.IsNullOrWhiteSpace(x.LineItem.Sku))
             .ToList();
+        var productLineItemsById = productLineItemEntries.ToDictionary(x => x.LineItem.Id, x => x.LineItem);
         var productLineItemsByOrderAndSku = productLineItemEntries
             .GroupBy(x => (x.Order.Id, Sku: x.LineItem.Sku!))
             .ToDictionary(g => g.Key, g => g.First().LineItem);
@@ -1745,11 +1799,20 @@ public class InvoiceEditService(
             var lineItem = entry.LineItem;
             var isAddon = lineItem.LineItemType == LineItemType.Addon;
             LineItem? parentLineItem = null;
-            if (isAddon && !string.IsNullOrWhiteSpace(lineItem.DependantLineItemSku))
+            if (isAddon)
             {
-                if (!productLineItemsByOrderAndSku.TryGetValue((entry.Order.Id, lineItem.DependantLineItemSku), out parentLineItem))
+                var parentLineItemId = lineItem.GetParentLineItemId();
+                if (parentLineItemId.HasValue)
                 {
-                    productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+                    productLineItemsById.TryGetValue(parentLineItemId.Value, out parentLineItem);
+                }
+
+                if (parentLineItem == null && !string.IsNullOrWhiteSpace(lineItem.DependantLineItemSku))
+                {
+                    if (!productLineItemsByOrderAndSku.TryGetValue((entry.Order.Id, lineItem.DependantLineItemSku), out parentLineItem))
+                    {
+                        productLineItemsBySku.TryGetValue(lineItem.DependantLineItemSku, out parentLineItem);
+                    }
                 }
             }
 
@@ -1861,12 +1924,6 @@ public class InvoiceEditService(
                     catch { /* keep default */ }
                 }
 
-                var visibleToCustomer = false;
-                if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.VisibleToCustomer, out var visibleObj) == true)
-                {
-                    visibleToCustomer = visibleObj.UnwrapJsonElement() is true;
-                }
-
                 return new DiscountLineItemDto
                 {
                     Id = d.Id,
@@ -1874,8 +1931,8 @@ public class InvoiceEditService(
                     Amount = Math.Abs(d.Amount),
                     Type = discountValueType,
                     Value = discountValue,
-                    Reason = d.Name,
-                    IsVisibleToCustomer = visibleToCustomer
+                    Reason = GetDiscountReason(d),
+                    IsVisibleToCustomer = GetDiscountVisibleToCustomer(d)
                 };
             })
             .ToList();
@@ -1885,7 +1942,7 @@ public class InvoiceEditService(
 
         // Get child add-on items linked to this parent
         var childAddons = allAddons
-            .Where(a => a.DependantLineItemSku == lineItem.Sku)
+            .Where(a => a.IsAddonLinkedToParent(lineItem))
             .Select(a => new LineItemForEditDto
             {
                 Id = a.Id,
@@ -1962,12 +2019,6 @@ public class InvoiceEditService(
             catch { /* keep default */ }
         }
 
-        var visibleToCustomer = false;
-        if (d.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.VisibleToCustomer, out var visibleObj) == true)
-        {
-            visibleToCustomer = visibleObj.UnwrapJsonElement() is true;
-        }
-
         return new DiscountLineItemDto
         {
             Id = d.Id,
@@ -1975,9 +2026,41 @@ public class InvoiceEditService(
             Amount = Math.Abs(d.Amount),
             Type = discountValueType,
             Value = discountValue,
-            Reason = d.Name,
-            IsVisibleToCustomer = visibleToCustomer
+            Reason = GetDiscountReason(d),
+            IsVisibleToCustomer = GetDiscountVisibleToCustomer(d)
         };
+    }
+
+    private static string? GetDiscountReason(LineItem discountLineItem)
+    {
+        if (discountLineItem.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.Reason, out var reasonObj) == true)
+        {
+            var reason = reasonObj.UnwrapJsonElement()?.ToString();
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                return reason;
+            }
+        }
+
+        // Backward compatibility for historical discounts where reason was stored in Name.
+        return discountLineItem.Name;
+    }
+
+    private static bool GetDiscountVisibleToCustomer(LineItem discountLineItem)
+    {
+        if (discountLineItem.ExtendedData?.TryGetValue(Constants.ExtendedDataKeys.VisibleToCustomer, out var visibleObj) != true)
+        {
+            return false;
+        }
+
+        try
+        {
+            return Convert.ToBoolean(visibleObj.UnwrapJsonElement());
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static decimal CalculateDiscountAmount(LineItemDiscountDto discount, decimal unitPrice, int quantity)
@@ -2346,6 +2429,7 @@ public class InvoiceEditService(
     private static List<LineItem> CreateCustomAddonLineItems(
         Guid orderId,
         string parentSku,
+        Guid parentLineItemId,
         AddCustomItemDto customItem,
         bool isTaxable,
         decimal taxRate)
@@ -2369,6 +2453,7 @@ public class InvoiceEditService(
             var addonLineItem = LineItemFactory.CreateAddonForOrderEdit(
                 orderId: orderId,
                 parentSku: safeParentSku,
+                parentLineItemId: parentLineItemId,
                 name: addonName,
                 sku: addonSku,
                 priceAdjustment: addon.PriceAdjustment,
@@ -2545,6 +2630,14 @@ public class InvoiceEditService(
             return (true, null); // Skip missing products, don't fail the whole operation
         }
 
+        var (normalizedAddons, addonValidationError) = ValidateOrderAddons(
+            product.ProductRoot?.ProductOptions ?? [],
+            productDto.Addons);
+        if (!string.IsNullOrWhiteSpace(addonValidationError))
+        {
+            return (false, addonValidationError);
+        }
+
         var warehouseId = productDto.WarehouseId;
 
         // Validate and reserve stock
@@ -2618,13 +2711,14 @@ public class InvoiceEditService(
         changes.Add($"Added {productDto.Quantity}x {parentLineItem.Name}");
 
         // Create child add-on line items
-        foreach (var addon in productDto.Addons)
+        foreach (var addon in normalizedAddons)
         {
             var addonSku = $"{parentSku}{addon.SkuSuffix ?? $"-ADDON-{addon.OptionValueId:N}"[..15]}";
             var addonPrice = ConvertStoreToPresentmentCurrency(invoice, addon.PriceAdjustment, currencyCode);
             var addonLineItem = LineItemFactory.CreateAddonForOrderEdit(
                 orderId: targetOrder.Id,
                 parentSku: parentSku,
+                parentLineItemId: parentLineItem.Id,
                 name: addon.Name,
                 sku: addonSku,
                 priceAdjustment: addonPrice,
@@ -2649,6 +2743,81 @@ public class InvoiceEditService(
         }
 
         return (true, null);
+    }
+
+    private static (List<OrderAddonDto> NormalizedAddons, string? ErrorMessage) ValidateOrderAddons(
+        IReadOnlyCollection<ProductOption> productOptions,
+        IReadOnlyList<OrderAddonDto> selectedAddons)
+    {
+        var addonOptions = productOptions
+            .Where(o => !o.IsVariant)
+            .ToList();
+
+        var normalizedAddons = selectedAddons
+            .GroupBy(a => new { a.OptionId, a.OptionValueId })
+            .Select(g => g.First())
+            .ToList();
+
+        if (normalizedAddons.Count == 0)
+        {
+            var missingRequiredWithoutSelections = addonOptions
+                .Where(o => o.IsRequired)
+                .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+                .ToList();
+
+            if (missingRequiredWithoutSelections.Count > 0)
+            {
+                return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredWithoutSelections)}.");
+            }
+
+            return ([], null);
+        }
+
+        if (addonOptions.Count == 0)
+        {
+            return ([], "This product does not support add-ons.");
+        }
+
+        var optionLookup = addonOptions.ToDictionary(o => o.Id);
+        var selectedByOption = normalizedAddons
+            .GroupBy(a => a.OptionId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var missingRequiredOptions = addonOptions
+            .Where(o => o.IsRequired && !selectedByOption.ContainsKey(o.Id))
+            .Select(o => string.IsNullOrWhiteSpace(o.Name) ? "Required add-on" : o.Name!.Trim())
+            .ToList();
+
+        if (missingRequiredOptions.Count > 0)
+        {
+            return ([], $"Please select required add-on(s): {string.Join(", ", missingRequiredOptions)}.");
+        }
+
+        foreach (var (optionId, addonsForOption) in selectedByOption)
+        {
+            if (!optionLookup.TryGetValue(optionId, out var option))
+            {
+                return ([], "One or more selected add-ons are invalid for this product.");
+            }
+
+            if (!option.IsMultiSelect && addonsForOption.Count > 1)
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "This add-on option" : option.Name;
+                return ([], $"{optionName} only allows one selection.");
+            }
+
+            var validValueIds = option.ProductOptionValues
+                .Select(v => v.Id)
+                .ToHashSet();
+
+            if (addonsForOption.Any(addon => !validValueIds.Contains(addon.OptionValueId)))
+            {
+                var optionName = string.IsNullOrWhiteSpace(option.Name) ? "An add-on option" : option.Name;
+                return ([], $"One or more selected values are invalid for {optionName}.");
+            }
+        }
+
+        return (normalizedAddons, null);
     }
 
     /// <summary>

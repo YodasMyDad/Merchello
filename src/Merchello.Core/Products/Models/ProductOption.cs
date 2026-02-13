@@ -51,6 +51,12 @@ public class ProductOption
     public bool IsMultiSelect { get; set; } = true;
 
     /// <summary>
+    /// Determines whether this add-on option requires at least one selected value.
+    /// Ignored for variant-generating options.
+    /// </summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>
     /// Represents the collection of possible values for a product option.
     /// These values define specific variations of a product option, such as different colors or sizes.
     /// </summary>

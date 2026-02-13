@@ -13,6 +13,11 @@ const SIZE_MAP: Record<ImageSize, number> = {
   large: 56,
 };
 
+const GUID_D_FORMAT_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const GUID_N_FORMAT_REGEX = /^[0-9a-f]{32}$/i;
+const MEDIA_UDI_REGEX = /^umb:\/\/media\/([0-9a-f]{32})$/i;
+
 /**
  * Reusable product image component that displays media from an Umbraco media GUID.
  * Shows a subtle placeholder when no image is available.
@@ -54,14 +59,54 @@ export class MerchelloProductImageElement extends UmbElementMixin(LitElement) {
     return SIZE_MAP[this.size] || SIZE_MAP.medium;
   }
 
+  private get _normalizedMediaKey(): string | null {
+    const key = typeof this.mediaKey === "string" ? this.mediaKey.trim() : "";
+    if (!key) return null;
+
+    const lowered = key.toLowerCase();
+    if (lowered === "null" || lowered === "undefined") {
+      return null;
+    }
+
+    if (key === "00000000-0000-0000-0000-000000000000") {
+      return null;
+    }
+
+    return this._normalizeMediaKeyToGuid(key);
+  }
+
+  private _normalizeMediaKeyToGuid(value: string): string | null {
+    const cleaned = value.replace(/[{}]/g, "").trim();
+    if (!cleaned) {
+      return null;
+    }
+
+    if (GUID_D_FORMAT_REGEX.test(cleaned)) {
+      return cleaned;
+    }
+
+    if (GUID_N_FORMAT_REGEX.test(cleaned)) {
+      return `${cleaned.slice(0, 8)}-${cleaned.slice(8, 12)}-${cleaned.slice(12, 16)}-${cleaned.slice(16, 20)}-${cleaned.slice(20)}`;
+    }
+
+    const udiMatch = MEDIA_UDI_REGEX.exec(cleaned);
+    if (udiMatch?.[1]) {
+      const guid = udiMatch[1];
+      return `${guid.slice(0, 8)}-${guid.slice(8, 12)}-${guid.slice(12, 16)}-${guid.slice(16, 20)}-${guid.slice(20)}`;
+    }
+
+    return null;
+  }
+
   override render() {
     const dimension = this._dimension;
+    const mediaKey = this._normalizedMediaKey;
 
-    if (this.mediaKey) {
+    if (mediaKey) {
       return html`
         <div class="image-container" style="width: ${dimension}px; height: ${dimension}px;">
           <umb-imaging-thumbnail
-            .unique=${this.mediaKey}
+            .unique=${mediaKey}
             .width=${dimension}
             .height=${dimension}
             .alt=${this.alt}
@@ -72,14 +117,17 @@ export class MerchelloProductImageElement extends UmbElementMixin(LitElement) {
       `;
     }
 
-    // Placeholder when no image
+    // Use Umbraco thumbnail fallback for consistent placeholder styling.
     return html`
-      <div
-        class="placeholder"
-        style="width: ${dimension}px; height: ${dimension}px;"
-        role="img"
-        aria-label=${this.alt || "No image available"}>
-        <uui-icon name="icon-picture"></uui-icon>
+      <div class="image-container" style="width: ${dimension}px; height: ${dimension}px;">
+        <umb-imaging-thumbnail
+          .unique=${""}
+          .width=${dimension}
+          .height=${dimension}
+          .alt=${this.alt || "No image available"}
+          icon="icon-picture"
+          loading="lazy">
+        </umb-imaging-thumbnail>
       </div>
     `;
   }
@@ -100,20 +148,6 @@ export class MerchelloProductImageElement extends UmbElementMixin(LitElement) {
       height: 100%;
     }
 
-    .placeholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background-color: var(--uui-color-surface-alt);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-    }
-
-    .placeholder uui-icon {
-      font-size: 50%;
-      opacity: 0.4;
-      color: var(--uui-color-text-alt);
-    }
   `;
 }
 

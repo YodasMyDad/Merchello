@@ -1,3 +1,4 @@
+using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Extensions;
@@ -61,6 +62,7 @@ public class LineItemFactory(ICurrencyService currencyService)
         ProductOption option,
         ProductOptionValue value,
         string dependantLineItemSku,
+        Guid? parentLineItemId,
         int quantity)
     {
         var taxRate = product.ProductRoot.TaxGroup?.TaxPercentage ?? 0m;
@@ -85,7 +87,8 @@ public class LineItemFactory(ICurrencyService currencyService)
                 ["AddonOptionId"] = option.Id.ToString(),
                 ["AddonValueId"] = value.Id.ToString(),
                 ["CostAdjustment"] = value.CostAdjustment,
-                ["WeightKg"] = value.WeightKg ?? 0m
+                ["WeightKg"] = value.WeightKg ?? 0m,
+                [Constants.ExtendedDataKeys.ParentLineItemId] = parentLineItemId?.ToString() ?? string.Empty
             }
         };
     }
@@ -369,6 +372,7 @@ public class LineItemFactory(ICurrencyService currencyService)
     public static LineItem CreateAddonForOrderEdit(
         Guid orderId,
         string parentSku,
+        Guid? parentLineItemId,
         string name,
         string sku,
         decimal priceAdjustment,
@@ -389,8 +393,21 @@ public class LineItemFactory(ICurrencyService currencyService)
             Quantity = quantity,
             IsTaxable = isTaxable,
             TaxRate = taxRate,
-            ExtendedData = extendedData ?? []
+            ExtendedData = BuildAddonExtendedData(extendedData, parentLineItemId)
         };
+    }
+
+    private static Dictionary<string, object> BuildAddonExtendedData(
+        Dictionary<string, object>? extendedData,
+        Guid? parentLineItemId)
+    {
+        var data = extendedData ?? [];
+        if (parentLineItemId.HasValue)
+        {
+            data[Constants.ExtendedDataKeys.ParentLineItemId] = parentLineItemId.Value.ToString();
+        }
+
+        return data;
     }
 
     /// <summary>

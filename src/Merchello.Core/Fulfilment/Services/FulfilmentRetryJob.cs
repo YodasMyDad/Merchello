@@ -1,10 +1,12 @@
 using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Fulfilment.Services;
 
@@ -15,6 +17,7 @@ namespace Merchello.Core.Fulfilment.Services;
 public class FulfilmentRetryJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<FulfilmentSettings> settings,
+    IRuntimeState runtimeState,
     ILogger<FulfilmentRetryJob> logger) : BackgroundService
 {
     private readonly FulfilmentSettings _settings = settings.Value;
@@ -23,6 +26,15 @@ public class FulfilmentRetryJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(FulfilmentRetryJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation("FulfilmentRetryJob started, waiting for database to be ready...");
 
         // Wait for migrations to complete before first check

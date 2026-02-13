@@ -145,16 +145,27 @@ export function initOrderSummary() {
         },
 
         /**
-         * Get addon line items for a parent product SKU.
-         * @param {string} productSku
+         * Get addon line items for a parent line item.
+         * Links by parentLineItemId first, then falls back to dependantLineItemSku for legacy data.
+         * @param {any} parentLineItem
          * @returns {Array}
          */
-        getAddonsForProduct(productSku) {
-            if (!productSku) return [];
+        getAddonsForProduct(parentLineItem) {
+            const parentLineItemId = parentLineItem?.id ?? null;
+            const parentSku = parentLineItem?.sku ?? null;
+            if (!parentLineItemId && !parentSku) return [];
+
             return this.basketLineItems.filter(li => {
                 const type = li?.lineItemType;
                 const isAddon = type === 'Addon' || type === 4;
-                return isAddon && li.dependantLineItemSku === productSku;
+                if (!isAddon) return false;
+
+                const addonParentLineItemId = li?.parentLineItemId ?? null;
+                if (addonParentLineItemId && parentLineItemId) {
+                    return addonParentLineItemId === parentLineItemId;
+                }
+
+                return !addonParentLineItemId && !!parentSku && li.dependantLineItemSku === parentSku;
             });
         },
 

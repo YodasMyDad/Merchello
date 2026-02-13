@@ -10,11 +10,13 @@ using Merchello.Core.Data;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Tests.TestInfrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Moq;
 using Shouldly;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
 using Xunit;
@@ -241,6 +243,138 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
         var record = await _service.GetByIdAsync(abandoned.Id);
         record.ShouldNotBeNull();
         record.DateAbandoned.ShouldBe(originalDate);
+    }
+
+    #endregion
+
+    #region SendScheduledRecoveryEmailsAsync
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_FirstEmailDue_IncrementsCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddHours(-2),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 0
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(1);
+        record.LastRecoveryEmailSentUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_FirstEmailDue_PublishesConcreteNotificationType()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddHours(-2),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 0
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        var publisherMock = new Mock<IMerchelloNotificationPublisher>();
+        publisherMock
+            .Setup(p => p.PublishAsync(It.IsAny<CheckoutAbandonedFirstNotification>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var service = new AbandonedCheckoutService(
+            _fixture.GetService<IEFCoreScopeProvider<MerchelloDbContext>>(),
+            publisherMock.Object,
+            _fixture.GetService<IOptions<AbandonedCheckoutSettings>>(),
+            _fixture.GetService<IOptions<Merchello.Core.Shared.Models.MerchelloSettings>>(),
+            _fixture.GetService<ILogger<AbandonedCheckoutService>>());
+
+        await service.SendScheduledRecoveryEmailsAsync();
+
+        publisherMock.Verify(
+            p => p.PublishAsync(It.IsAny<CheckoutAbandonedFirstNotification>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_ReminderDue_IncrementsCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddDays(-2),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 1,
+            LastRecoveryEmailSentUtc = DateTime.UtcNow.AddHours(-25)
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(2);
+        record.LastRecoveryEmailSentUtc.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_NotDue_DoesNotIncrementCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddMinutes(-10),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 0
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(0);
+        record.LastRecoveryEmailSentUtc.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task SendScheduledRecoveryEmails_FinalEmailDue_IncrementsCounter()
+    {
+        var abandoned = new AbandonedCheckout
+        {
+            BasketId = SeedBasket(),
+            Email = "customer@test.com",
+            Status = AbandonedCheckoutStatus.Abandoned,
+            DateAbandoned = DateTime.UtcNow.AddDays(-4),
+            BasketTotal = 100m,
+            RecoveryEmailsSent = 2,
+            LastRecoveryEmailSentUtc = DateTime.UtcNow.AddHours(-49)
+        };
+        _fixture.DbContext.AbandonedCheckouts.Add(abandoned);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _service.SendScheduledRecoveryEmailsAsync();
+
+        var record = await _service.GetByIdAsync(abandoned.Id);
+        record.ShouldNotBeNull();
+        record.RecoveryEmailsSent.ShouldBe(3);
+        record.LastRecoveryEmailSentUtc.ShouldNotBeNull();
     }
 
     #endregion

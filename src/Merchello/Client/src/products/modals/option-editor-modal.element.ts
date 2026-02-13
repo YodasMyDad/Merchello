@@ -24,6 +24,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     optionUiAlias: "dropdown",
     isVariant: false,
     isMultiSelect: true,
+    isRequired: false,
     values: [],
   };
   @state() private _isSaving = false;
@@ -51,6 +52,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       this._formData = {
         ...this.data.option,
         isMultiSelect: this.data.option.isMultiSelect ?? !this.data.option.isVariant,
+        isRequired: this.data.option.isVariant ? false : (this.data.option.isRequired ?? false),
       };
       this._originalIsVariant = this.data.option.isVariant;
     }
@@ -127,6 +129,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       { alias: "optionUiAlias", value: this._formData.optionUiAlias ? [this._formData.optionUiAlias] : [] },
       { alias: "isVariant", value: this._formData.isVariant ?? false },
       { alias: "isMultiSelect", value: this._formData.isMultiSelect ?? true },
+      { alias: "isRequired", value: this._formData.isRequired ?? false },
     ];
   }
 
@@ -143,6 +146,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       optionUiAlias: this._getFirstDropdownValue(values.optionUiAlias),
       isVariant,
       isMultiSelect: isVariant ? false : this._getBooleanFromPropertyValue(values.isMultiSelect, true),
+      isRequired: isVariant ? false : this._getBooleanFromPropertyValue(values.isRequired, false),
     };
   }
 
@@ -185,6 +189,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
         optionUiAlias: this._formData.optionUiAlias || null,
         isVariant: this._formData.isVariant || false,
         isMultiSelect: this._formData.isVariant ? false : this._formData.isMultiSelect ?? true,
+        isRequired: this._formData.isVariant ? false : this._formData.isRequired ?? false,
         values: this._formData.values || [],
       },
     };
@@ -497,6 +502,13 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                       alias="isMultiSelect"
                       label="Add-on Selection Mode"
                       description="Single-select allows one value. Multi-select allows multiple values for this add-on option."
+                      property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+                    </umb-property>
+
+                    <umb-property
+                      alias="isRequired"
+                      label="Required Add-on"
+                      description="If enabled, customers must select at least one value from this add-on option."
                       property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
                     </umb-property>
                   `

@@ -79,8 +79,7 @@ public class InvoiceService(
     LineItemFactory lineItemFactory,
     AddressFactory addressFactory,
     IOptions<MerchelloSettings> settings,
-    ILogger<InvoiceService> logger,
-    IAbandonedCheckoutService? abandonedCheckoutService = null) : IInvoiceService
+    ILogger<InvoiceService> logger) : IInvoiceService
 {
     private readonly MerchelloSettings _settings = settings.Value;
 
@@ -432,7 +431,7 @@ public class InvoiceService(
 
                     // Attach any add-on (custom) items dependent on this product SKU
                     var dependentAddons = basket.LineItems
-                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == basketLineItem.Sku)
+                        .Where(li => li.IsAddonLinkedToParent(basketLineItem))
                         .ToList();
 
                     foreach (var addon in dependentAddons)
@@ -442,6 +441,7 @@ public class InvoiceService(
                             addon,
                             shippingLineItem.Quantity,
                             ConvertToPresentmentCurrency(addon.Amount, pricingQuote, presentmentCurrency));
+                        addonOrderLine.SetParentLineItemId(orderLineItem.Id);
                         orderLineItems.Add(addonOrderLine);
                     }
 
@@ -539,7 +539,7 @@ public class InvoiceService(
                     targetOrder.LineItems!.Add(orderLineItem);
 
                     var dependentAddons = basket.LineItems
-                        .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == basketLineItem.Sku)
+                        .Where(li => li.IsAddonLinkedToParent(basketLineItem))
                         .ToList();
 
                     foreach (var addon in dependentAddons)
@@ -548,6 +548,7 @@ public class InvoiceService(
                             addon,
                             basketLineItem.Quantity,
                             ConvertToPresentmentCurrency(addon.Amount, pricingQuote, presentmentCurrency));
+                        addonOrderLine.SetParentLineItemId(orderLineItem.Id);
                         targetOrder.LineItems.Add(addonOrderLine);
                     }
 
@@ -767,22 +768,9 @@ public class InvoiceService(
                 invoice.Id);
         }
 
-        // Track abandoned cart conversion (if this checkout was tracked for abandonment)
-        // We mark as converted for Active, Abandoned, or Recovered statuses:
-        // - Active: User was tracked but completed before being marked as abandoned
-        // - Abandoned: User was marked as abandoned but returned and completed
-        // - Recovered: User clicked recovery link and completed
-        // We skip Converted (already done) and Expired (historical record)
-        if (abandonedCheckoutService != null)
-        {
-            var abandonedCheckout = await abandonedCheckoutService.GetByBasketIdAsync(basket.Id);
-            if (abandonedCheckout != null &&
-                abandonedCheckout.Status != AbandonedCheckoutStatus.Converted &&
-                abandonedCheckout.Status != AbandonedCheckoutStatus.Expired)
-            {
-                await abandonedCheckoutService.MarkAsConvertedAsync(abandonedCheckout.Id, invoice.Id);
-            }
-        }
+        // Note: Abandoned checkout conversion is now handled on successful payment
+        // via AbandonedCheckoutConversionHandler (PaymentCreatedNotification).
+        // We intentionally do not mark conversion at invoice creation time.
 
         // Record discount usage after invoice creation (soft enforcement).
         // If limits are exceeded or a duplicate record exists, log but do not fail the order.
@@ -2325,6 +2313,7 @@ public class InvoiceService(
                     var addonLineItems = CreateCustomAddonLineItems(
                         order.Id,
                         lineItem.Sku ?? string.Empty,
+                        lineItem.Id,
                         customItem,
                         lineItem.IsTaxable,
                         lineItem.TaxRate);
@@ -2397,6 +2386,7 @@ public class InvoiceService(
     private static List<LineItem> CreateCustomAddonLineItems(
         Guid orderId,
         string parentSku,
+        Guid parentLineItemId,
         AddCustomItemDto customItem,
         bool isTaxable,
         decimal taxRate)
@@ -2420,6 +2410,7 @@ public class InvoiceService(
             var addonLineItem = LineItemFactory.CreateAddonForOrderEdit(
                 orderId: orderId,
                 parentSku: safeParentSku,
+                parentLineItemId: parentLineItemId,
                 name: addonName,
                 sku: addonSku,
                 priceAdjustment: addon.PriceAdjustment,

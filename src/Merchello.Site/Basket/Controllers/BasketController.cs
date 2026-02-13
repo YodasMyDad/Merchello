@@ -93,7 +93,8 @@ public class BasketController(
                     TaxRate = li.TaxRate,
                     IsTaxable = li.IsTaxable,
                     LineItemType = li.LineItemType.ToString(),
-                    DependantLineItemSku = li.DependantLineItemSku
+                    DependantLineItemSku = li.DependantLineItemSku,
+                    ParentLineItemId = li.GetParentLineItemId()?.ToString()
                 };
             }).ToList();
 

@@ -91,6 +91,129 @@ public class UpsellEngineTests : IClassFixture<ServiceTestFixture>
         suggestion!.Products.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task GetSuggestionsAsync_IncludesConfiguredDisplayStyles()
+    {
+        var typeId = Guid.NewGuid();
+        var result = await _upsellService.CreateAsync(new CreateUpsellParameters
+        {
+            Name = "Styled Rule",
+            Heading = "Styled Heading",
+            TriggerRules =
+            [
+                new CreateUpsellTriggerRuleParameters
+                {
+                    TriggerType = UpsellTriggerType.ProductTypes,
+                    TriggerIds = [typeId],
+                },
+            ],
+            DisplayStyles = new UpsellDisplayStyles
+            {
+                CheckoutInline = new UpsellSurfaceStyle
+                {
+                    Heading = new UpsellElementStyle
+                    {
+                        TextColor = "#334455"
+                    }
+                }
+            }
+        });
+
+        await _upsellService.ActivateAsync(result.ResultObject!.Id);
+
+        var context = CreateContextWithProductType(typeId);
+        var suggestions = await _engine.GetSuggestionsAsync(context);
+
+        var suggestion = suggestions.FirstOrDefault(s => s.UpsellRuleId == result.ResultObject!.Id);
+        suggestion.ShouldNotBeNull();
+        suggestion!.DisplayStyles.ShouldNotBeNull();
+        suggestion.DisplayStyles!.CheckoutInline.ShouldNotBeNull();
+        suggestion.DisplayStyles.CheckoutInline!.Heading.ShouldNotBeNull();
+        suggestion.DisplayStyles.CheckoutInline.Heading!.TextColor.ShouldBe("#334455");
+    }
+
+    [Fact]
+    public async Task GetSuggestionsAsync_MinimumCartValueTrigger_MatchingTotal_ReturnsSuggestion()
+    {
+        var result = await _upsellService.CreateAsync(new CreateUpsellParameters
+        {
+            Name = "Minimum cart trigger",
+            Heading = "Spend threshold met",
+            TriggerRules =
+            [
+                new CreateUpsellTriggerRuleParameters
+                {
+                    TriggerType = UpsellTriggerType.MinimumCartValue,
+                    Value = 150m,
+                },
+            ],
+        });
+
+        await _upsellService.ActivateAsync(result.ResultObject!.Id);
+
+        var context = new UpsellContext
+        {
+            BasketId = Guid.NewGuid(),
+            LineItems =
+            [
+                new UpsellContextLineItem
+                {
+                    LineItemId = Guid.NewGuid(),
+                    ProductId = Guid.NewGuid(),
+                    ProductRootId = Guid.NewGuid(),
+                    Sku = "CART-001",
+                    Quantity = 2,
+                    UnitPrice = 100m,
+                },
+            ],
+        };
+
+        var suggestions = await _engine.GetSuggestionsAsync(context);
+
+        suggestions.ShouldContain(s => s.UpsellRuleId == result.ResultObject!.Id);
+    }
+
+    [Fact]
+    public async Task GetSuggestionsAsync_MinimumCartValueTrigger_BelowThreshold_DoesNotMatch()
+    {
+        var result = await _upsellService.CreateAsync(new CreateUpsellParameters
+        {
+            Name = "Minimum cart high threshold",
+            Heading = "Spend threshold not met",
+            TriggerRules =
+            [
+                new CreateUpsellTriggerRuleParameters
+                {
+                    TriggerType = UpsellTriggerType.MinimumCartValue,
+                    Value = 250m,
+                },
+            ],
+        });
+
+        await _upsellService.ActivateAsync(result.ResultObject!.Id);
+
+        var context = new UpsellContext
+        {
+            BasketId = Guid.NewGuid(),
+            LineItems =
+            [
+                new UpsellContextLineItem
+                {
+                    LineItemId = Guid.NewGuid(),
+                    ProductId = Guid.NewGuid(),
+                    ProductRootId = Guid.NewGuid(),
+                    Sku = "CART-002",
+                    Quantity = 2,
+                    UnitPrice = 100m,
+                },
+            ],
+        };
+
+        var suggestions = await _engine.GetSuggestionsAsync(context);
+
+        suggestions.ShouldNotContain(s => s.UpsellRuleId == result.ResultObject!.Id);
+    }
+
     // =====================================================
     // Sorting & Limits
     // =====================================================

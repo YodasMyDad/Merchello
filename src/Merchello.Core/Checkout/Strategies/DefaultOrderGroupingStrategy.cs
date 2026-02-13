@@ -14,6 +14,7 @@ using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.OrderGrouping;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Warehouses.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,6 +29,7 @@ namespace Merchello.Core.Checkout.Strategies;
 public class DefaultOrderGroupingStrategy(
     IWarehouseService warehouseService,
     IShippingOptionEligibilityService shippingOptionEligibilityService,
+    IShippingCostResolver shippingCostResolver,
     IShippingQuoteService shippingQuoteService,
     IShippingProviderManager shippingProviderManager,
     IWarehouseProviderConfigService warehouseProviderConfigService,
@@ -163,6 +165,10 @@ public class DefaultOrderGroupingStrategy(
                 context.Basket.Id,
                 string.Join("; ", errors));
         }
+
+        // Recompute flat-rate option costs using grouped package weight.
+        // This ensures weight tiers are applied from the final per-group package set.
+        ApplyFlatRateWeightPricing(orderGroups, context);
 
         // Populate dynamic provider rates for each group
         await PopulateDynamicProviderRatesAsync(orderGroups, context, cancellationToken);
@@ -377,6 +383,55 @@ public class DefaultOrderGroupingStrategy(
         return new Guid(hash);
     }
 
+    private void ApplyFlatRateWeightPricing(
+        List<OrderGroup> orderGroups,
+        OrderGroupingContext context)
+    {
+        if (orderGroups.Count == 0 || string.IsNullOrWhiteSpace(context.ShippingAddress.CountryCode))
+        {
+            return;
+        }
+
+        var countryCode = context.ShippingAddress.CountryCode!;
+        var regionCode = context.ShippingAddress.CountyState?.RegionCode;
+        var optionsById = BuildShippingOptionLookup(context);
+
+        foreach (var group in orderGroups)
+        {
+            if (group.AvailableShippingOptions.Count == 0)
+            {
+                continue;
+            }
+
+            var totalWeightKg = BuildPackagesForGroup(group, context).Sum(p => p.WeightKg);
+
+            foreach (var optionInfo in group.AvailableShippingOptions)
+            {
+                if (!string.Equals(optionInfo.ProviderKey, "flat-rate", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (optionInfo.ShippingOptionId == Guid.Empty ||
+                    !optionsById.TryGetValue(optionInfo.ShippingOptionId, out var shippingOption))
+                {
+                    continue;
+                }
+
+                var resolved = shippingCostResolver.GetTotalShippingCost(
+                    shippingOption,
+                    countryCode,
+                    regionCode,
+                    totalWeightKg);
+
+                if (resolved.HasValue)
+                {
+                    optionInfo.Cost = Math.Max(0m, resolved.Value);
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// Populates dynamic provider rates (FedEx, UPS, etc.) for each order group.
     /// This is the key integration between ShippingQuoteService and order grouping.
@@ -566,21 +621,57 @@ public class DefaultOrderGroupingStrategy(
             // Get package configurations (variant override or root default)
             var productPackages = GetEffectivePackages(product);
 
-            // Build packages for each configured package × quantity
-            for (var qty = 0; qty < Math.Max(lineItem.Quantity, 1); qty++)
-            {
-                foreach (var pkg in productPackages)
-                {
-                    packages.Add(new ShipmentPackage(
-                        pkg.Weight,
-                        pkg.LengthCm,
-                        pkg.WidthCm,
-                        pkg.HeightCm));
-                }
-            }
+            var dependentAddons = context.Basket.LineItems
+                .Where(li => li.IsAddonLinkedToParent(basketLineItem))
+                .ToList();
+            var addonWeightPerUnit = dependentAddons
+                .Select(addon => GetDecimalFromExtendedData(addon.ExtendedData, "WeightKg"))
+                .Where(weight => weight > 0m)
+                .Sum();
+            var quantity = Math.Max(lineItem.Quantity, 1);
+
+            // Merge add-on weight into the first package per unit so carriers receive real package counts.
+            AddPackagesForLineItem(packages, productPackages, quantity, addonWeightPerUnit);
         }
 
         return packages;
+    }
+
+    private static void AddPackagesForLineItem(
+        List<ShipmentPackage> packages,
+        List<ProductPackage> productPackages,
+        int quantity,
+        decimal addonWeightPerUnit)
+    {
+        for (var qty = 0; qty < quantity; qty++)
+        {
+            var unitPackages = productPackages
+                .Select(pkg => new ShipmentPackage(
+                    pkg.Weight,
+                    pkg.LengthCm,
+                    pkg.WidthCm,
+                    pkg.HeightCm))
+                .ToList();
+
+            if (addonWeightPerUnit > 0m)
+            {
+                if (unitPackages.Count > 0)
+                {
+                    var firstPackage = unitPackages[0];
+                    unitPackages[0] = new ShipmentPackage(
+                        firstPackage.WeightKg + addonWeightPerUnit,
+                        firstPackage.LengthCm,
+                        firstPackage.WidthCm,
+                        firstPackage.HeightCm);
+                }
+                else
+                {
+                    unitPackages.Add(new ShipmentPackage(addonWeightPerUnit));
+                }
+            }
+
+            packages.AddRange(unitPackages);
+        }
     }
 
     /// <summary>
@@ -596,6 +687,33 @@ public class DefaultOrderGroupingStrategy(
         }
 
         return product.ProductRoot?.DefaultPackageConfigurations ?? [];
+    }
+
+    private static Dictionary<Guid, ShippingOption> BuildShippingOptionLookup(OrderGroupingContext context)
+    {
+        return context.Products.Values
+            .SelectMany(product => product.GetAllowedShippingOptions())
+            .Concat(context.Warehouses.Values.SelectMany(warehouse => warehouse.ShippingOptions))
+            .Where(option => option.Id != Guid.Empty)
+            .GroupBy(option => option.Id)
+            .ToDictionary(group => group.Key, group => group.First());
+    }
+
+    private static decimal GetDecimalFromExtendedData(Dictionary<string, object> extendedData, string key)
+    {
+        if (!extendedData.TryGetValue(key, out var value))
+        {
+            return 0m;
+        }
+
+        try
+        {
+            return Convert.ToDecimal(value.UnwrapJsonElement());
+        }
+        catch
+        {
+            return 0m;
+        }
     }
 
     /// <summary>

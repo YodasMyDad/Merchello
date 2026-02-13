@@ -43,7 +43,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   // View state for multi-step flow
   @state() private _viewState: PickerViewState = "product-selection";
   @state() private _pendingAddonSelection: PendingAddonSelection | null = null;
-  @state() private _selectedAddons: Map<string, SelectedAddon> = new Map(); // optionId -> selected addon
+  @state() private _selectedAddons: Map<string, SelectedAddon[]> = new Map(); // optionId -> selected add-ons
 
   // Shipping selection state
   @state() private _pendingShippingSelection: PendingShippingSelection | null = null;
@@ -571,6 +571,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
         name: opt.name ?? "",
         alias: opt.alias,
         optionUiAlias: opt.optionUiAlias,
+        isMultiSelect: opt.isMultiSelect,
+        isRequired: opt.isRequired ?? false,
         values: opt.values.map((v) => ({
           id: v.id,
           name: v.name ?? "",
@@ -585,17 +587,38 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   // Add-on Selection Handlers
   // ============================================
 
-  private _handleAddonSelect(optionId: string, optionName: string, value: PickerAddonOption["values"][0]): void {
+  private _handleAddonSelect(option: PickerAddonOption, value: PickerAddonOption["values"][0]): void {
     const addon: SelectedAddon = {
-      optionId,
-      optionName,
+      optionId: option.id,
+      optionName: option.name,
       valueId: value.id,
       valueName: value.name,
       priceAdjustment: value.priceAdjustment,
       costAdjustment: value.costAdjustment,
       skuSuffix: value.skuSuffix,
     };
-    this._selectedAddons.set(optionId, addon);
+
+    const selectedForOption = this._selectedAddons.get(option.id) ?? [];
+    const isAlreadySelected = selectedForOption.some((selected) => selected.valueId === value.id);
+
+    if (option.isMultiSelect) {
+      const nextSelectedForOption = isAlreadySelected
+        ? selectedForOption.filter((selected) => selected.valueId !== value.id)
+        : [...selectedForOption, addon];
+
+      if (nextSelectedForOption.length === 0) {
+        this._selectedAddons.delete(option.id);
+      } else {
+        this._selectedAddons.set(option.id, nextSelectedForOption);
+      }
+    } else {
+      if (isAlreadySelected) {
+        this._selectedAddons.delete(option.id);
+      } else {
+        this._selectedAddons.set(option.id, [addon]);
+      }
+    }
+
     this._selectedAddons = new Map(this._selectedAddons);
     this._fetchAddonPricePreviewDebounced();
   }
@@ -604,6 +627,26 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     this._selectedAddons.delete(optionId);
     this._selectedAddons = new Map(this._selectedAddons);
     this._fetchAddonPricePreviewDebounced();
+  }
+
+  private _getSelectedAddons(): SelectedAddon[] {
+    return Array.from(this._selectedAddons.values()).flat();
+  }
+
+  private _getMissingRequiredAddonOptions(): PickerAddonOption[] {
+    const pending = this._pendingAddonSelection;
+    if (!pending) {
+      return [];
+    }
+
+    return pending.addonOptions.filter((option) => {
+      if (!option.isRequired) {
+        return false;
+      }
+
+      const selectedForOption = this._selectedAddons.get(option.id) ?? [];
+      return selectedForOption.length === 0;
+    });
   }
 
   /**
@@ -627,7 +670,8 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     this._addonPreviewError = null;
 
     // If no addons selected, just use the base price
-    if (this._selectedAddons.size === 0) {
+    const selectedAddons = this._getSelectedAddons();
+    if (selectedAddons.length === 0) {
       this._addonPricePreview = {
         basePrice: pending.variant.price,
         addonsTotal: 0,
@@ -640,7 +684,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     this._isLoadingAddonPreview = true;
 
     const request = {
-      selectedAddons: Array.from(this._selectedAddons.values()).map((addon) => ({
+      selectedAddons: selectedAddons.map((addon) => ({
         optionId: addon.optionId,
         valueId: addon.valueId,
       })),
@@ -680,6 +724,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
   private _handleSkipAddons(): void {
     if (!this._pendingAddonSelection) return;
+    if (this._getMissingRequiredAddonOptions().length > 0) return;
 
     // Transition to shipping selection with no add-ons
     this._transitionToShippingSelection(this._pendingAddonSelection.variant, []);
@@ -689,8 +734,9 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
 
   private _handleConfirmWithAddons(): void {
     if (!this._pendingAddonSelection) return;
+    if (this._getMissingRequiredAddonOptions().length > 0) return;
 
-    const addons = Array.from(this._selectedAddons.values());
+    const addons = this._getSelectedAddons();
     // Transition to shipping selection with selected add-ons
     this._transitionToShippingSelection(this._pendingAddonSelection.variant, addons);
     this._pendingAddonSelection = null;
@@ -966,12 +1012,15 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     const basePrice = preview?.basePrice ?? variant.price;
     const addonsTotal = preview?.addonsTotal ?? 0;
     const totalPrice = preview?.totalPrice ?? variant.price;
+    const missingRequiredOptions = this._getMissingRequiredAddonOptions();
+    const hasMissingRequired = missingRequiredOptions.length > 0;
+    const hasRequiredOptions = pending.addonOptions.some((option) => option.isRequired);
 
     // Disable continue if preview failed (backend is source of truth for pricing)
-    const canContinue = !hasPreviewError && !this._isLoadingAddonPreview;
+    const canContinue = !hasPreviewError && !this._isLoadingAddonPreview && !hasMissingRequired;
 
     return html`
-      <umb-body-layout headline="Select Add-ons (Optional)">
+      <umb-body-layout headline="${hasRequiredOptions ? "Select Add-ons" : "Select Add-ons (Optional)"}">
         <div id="main">
           ${hasPreviewError
             ? html`
@@ -985,6 +1034,18 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
                   >
                     Retry
                   </uui-button>
+                </div>
+              `
+            : nothing}
+
+          ${hasMissingRequired
+            ? html`
+                <div class="addon-error">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>
+                    Select required add-on${missingRequiredOptions.length === 1 ? "" : "s"}:
+                    ${missingRequiredOptions.map((option) => option.name).join(", ")}
+                  </span>
                 </div>
               `
             : nothing}
@@ -1018,9 +1079,13 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
             <uui-icon name="icon-arrow-left"></uui-icon>
             Back
           </uui-button>
-          <uui-button look="secondary" label="Skip Add-ons" @click=${this._handleSkipAddons}>
-            Skip Add-ons
-          </uui-button>
+          ${hasRequiredOptions
+            ? nothing
+            : html`
+                <uui-button look="secondary" label="Skip Add-ons" @click=${this._handleSkipAddons}>
+                  Skip Add-ons
+                </uui-button>
+              `}
           <uui-button
             look="primary"
             color="positive"
@@ -1036,14 +1101,17 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
   }
 
   private _renderAddonOption(option: PickerAddonOption) {
-    const selectedAddon = this._selectedAddons.get(option.id);
+    const selectedAddons = this._selectedAddons.get(option.id) ?? [];
+    const hasSelection = selectedAddons.length > 0;
+    const selectionMode = option.isMultiSelect ? "multi-select" : "single-select";
+    const requirement = option.isRequired ? "required" : "optional";
 
     return html`
       <div class="addon-option">
         <div class="addon-option-header">
           <span class="addon-option-name">${option.name}</span>
-          <span class="addon-optional">(optional)</span>
-          ${selectedAddon
+          <span class="addon-optional">(${requirement}, ${selectionMode})</span>
+          ${hasSelection
             ? html`
                 <uui-button compact look="secondary" label="Clear" @click=${() => this._handleAddonClear(option.id)}>
                   Clear
@@ -1052,7 +1120,9 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
             : nothing}
         </div>
         <div class="addon-values">
-          ${option.values.map((value) => this._renderAddonValue(option, value, selectedAddon?.valueId === value.id))}
+          ${option.values.map((value) =>
+            this._renderAddonValue(option, value, selectedAddons.some((selected) => selected.valueId === value.id))
+          )}
         </div>
       </div>
     `;
@@ -1063,7 +1133,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
       <button
         type="button"
         class="addon-value-button ${isSelected ? "selected" : ""}"
-        @click=${() => this._handleAddonSelect(option.id, option.name, value)}
+        @click=${() => this._handleAddonSelect(option, value)}
       >
         <span class="value-name">${value.name}</span>
         ${value.priceAdjustment !== 0

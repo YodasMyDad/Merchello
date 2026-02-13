@@ -209,6 +209,7 @@ public class UpsellEngine(
                     Priority = rule.Priority,
                     CheckoutMode = rule.CheckoutMode,
                     DefaultChecked = rule.DefaultChecked,
+                    DisplayStyles = rule.DisplayStyles,
                     Products = []
                 });
                 continue;
@@ -273,6 +274,7 @@ public class UpsellEngine(
                 Priority = rule.Priority,
                 CheckoutMode = rule.CheckoutMode,
                 DefaultChecked = rule.DefaultChecked,
+                DisplayStyles = rule.DisplayStyles,
                 Products = mappedProducts.ToList()
             });
         }

@@ -128,7 +128,8 @@ public class StorefrontApiController(
                 FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, symbol),
                 FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, symbol),
                 LineItemType = li.LineItemType.ToString(),
-                DependantLineItemSku = li.DependantLineItemSku
+                DependantLineItemSku = li.DependantLineItemSku,
+                ParentLineItemId = li.GetParentLineItemId()?.ToString()
             };
         }).ToList();
 

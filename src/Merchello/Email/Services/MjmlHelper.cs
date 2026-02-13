@@ -200,7 +200,7 @@ public class MjmlHelper : IMjmlHelper
             foreach (var item in parentLineItems)
             {
                 var itemAddons = allLineItems
-                    .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                    .Where(li => li.IsAddonLinkedToParent(item))
                     .ToList();
 
                 var itemTotal = item.Amount * item.Quantity;
@@ -346,7 +346,7 @@ public class MjmlHelper : IMjmlHelper
         foreach (var item in parentLineItems)
         {
             var itemAddons = allLineItems
-                .Where(li => li.LineItemType == LineItemType.Addon && li.DependantLineItemSku == item.Sku)
+                .Where(li => li.IsAddonLinkedToParent(item))
                 .ToList();
 
             var itemTotal = item.Amount * item.Quantity;
@@ -392,13 +392,17 @@ public class MjmlHelper : IMjmlHelper
 
         foreach (var suggestion in suggestions)
         {
+            var surfaceStyle = suggestion.DisplayStyles?.Email;
+            var containerAttributes = BuildMjmlAttributes(surfaceStyle?.Container, includeTextColor: false);
+
             // Heading section
-            sb.AppendLine("<mj-section>");
+            sb.AppendLine($"<mj-section{containerAttributes}>");
             sb.AppendLine("  <mj-column>");
-            sb.AppendLine($"    <mj-text font-size=\"20px\" font-weight=\"bold\">{HtmlEncode(suggestion.Heading)}</mj-text>");
+            sb.AppendLine(
+                $"    <mj-text font-size=\"20px\" font-weight=\"bold\"{BuildMjmlAttributes(surfaceStyle?.Heading)}>{HtmlEncode(suggestion.Heading)}</mj-text>");
             if (!string.IsNullOrEmpty(suggestion.Message))
             {
-                sb.AppendLine($"    <mj-text>{HtmlEncode(suggestion.Message)}</mj-text>");
+                sb.AppendLine($"    <mj-text{BuildMjmlAttributes(surfaceStyle?.Message)}>{HtmlEncode(suggestion.Message)}</mj-text>");
             }
             sb.AppendLine("  </mj-column>");
             sb.AppendLine("</mj-section>");
@@ -414,19 +418,22 @@ public class MjmlHelper : IMjmlHelper
                     _ => "33%"
                 };
 
-                sb.AppendLine("<mj-section>");
+                sb.AppendLine($"<mj-section{containerAttributes}>");
                 foreach (var product in products)
                 {
-                    sb.AppendLine($"  <mj-column width=\"{columnWidth}\">");
+                    sb.AppendLine($"  <mj-column width=\"{columnWidth}\"{BuildMjmlAttributes(surfaceStyle?.ProductCard, includeTextColor: false)}>");
                     if (product.Images.Count > 0)
                     {
                         sb.AppendLine($"    <mj-image src=\"{HtmlEncode(product.Images[0])}\" width=\"150px\" />");
                     }
-                    sb.AppendLine($"    <mj-text align=\"center\" font-weight=\"bold\">{HtmlEncode(product.Name)}</mj-text>");
-                    sb.AppendLine($"    <mj-text align=\"center\">{HtmlEncode(product.FormattedPrice)}</mj-text>");
+                    sb.AppendLine(
+                        $"    <mj-text align=\"center\" font-weight=\"bold\"{BuildMjmlAttributes(surfaceStyle?.ProductName)}>{HtmlEncode(product.Name)}</mj-text>");
+                    sb.AppendLine(
+                        $"    <mj-text align=\"center\"{BuildMjmlAttributes(surfaceStyle?.ProductPrice)}>{HtmlEncode(product.FormattedPrice)}</mj-text>");
                     if (!string.IsNullOrEmpty(product.Url))
                     {
-                        sb.AppendLine($"    <mj-button href=\"{HtmlEncode(product.Url)}\" background-color=\"{HtmlEncode(_theme.PrimaryColor)}\">View Product</mj-button>");
+                        sb.AppendLine(
+                            $"    <mj-button href=\"{HtmlEncode(product.Url)}\"{BuildMjmlAttributes(surfaceStyle?.Button, _theme.PrimaryColor, "#ffffff")}>View Product</mj-button>");
                     }
                     sb.AppendLine("  </mj-column>");
                 }
@@ -435,6 +442,72 @@ public class MjmlHelper : IMjmlHelper
         }
 
         return new HtmlString(sb.ToString());
+    }
+
+    private static string BuildMjmlAttributes(
+        UpsellElementStyle? style,
+        string? defaultBackgroundColor = null,
+        string? defaultTextColor = null,
+        bool includeTextColor = true)
+    {
+        var attributes = new List<string>();
+        var textColor = !string.IsNullOrWhiteSpace(style?.TextColor)
+            ? style!.TextColor
+            : defaultTextColor;
+        var backgroundColor = !string.IsNullOrWhiteSpace(style?.BackgroundColor)
+            ? style!.BackgroundColor
+            : defaultBackgroundColor;
+
+        if (includeTextColor && !string.IsNullOrWhiteSpace(textColor))
+        {
+            attributes.Add($"color=\"{HtmlEncode(textColor)}\"");
+        }
+
+        if (!string.IsNullOrWhiteSpace(backgroundColor))
+        {
+            attributes.Add($"background-color=\"{HtmlEncode(backgroundColor)}\"");
+        }
+
+        var border = BuildBorderValue(style);
+        if (!string.IsNullOrWhiteSpace(border))
+        {
+            attributes.Add($"border=\"{HtmlEncode(border)}\"");
+        }
+
+        if (style?.BorderRadius.HasValue == true)
+        {
+            attributes.Add($"border-radius=\"{style.BorderRadius.Value}px\"");
+        }
+
+        return attributes.Count == 0 ? string.Empty : $" {string.Join(" ", attributes)}";
+    }
+
+    private static string? BuildBorderValue(UpsellElementStyle? style)
+    {
+        if (style == null)
+        {
+            return null;
+        }
+
+        var hasBorderColor = !string.IsNullOrWhiteSpace(style.BorderColor);
+        var hasBorderStyle = !string.IsNullOrWhiteSpace(style.BorderStyle);
+        var hasBorderWidth = style.BorderWidth.HasValue;
+
+        if (!hasBorderColor && !hasBorderStyle && !hasBorderWidth)
+        {
+            return null;
+        }
+
+        if (string.Equals(style.BorderStyle, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return "none";
+        }
+
+        var width = style.BorderWidth.GetValueOrDefault(1);
+        var borderStyle = hasBorderStyle ? style.BorderStyle! : "solid";
+        var borderColor = hasBorderColor ? style.BorderColor! : "#d1d5db";
+
+        return $"{width}px {borderStyle} {borderColor}";
     }
 
     private static string HtmlEncode(string? value)

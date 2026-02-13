@@ -105,12 +105,12 @@ public class MerchelloCheckoutController(
 
             var confirmation = await checkoutService.GetOrderConfirmationAsync(checkoutPage.InvoiceId.Value, ct);
 
-            // Clear basket cookie and session cache after successful order
+            // Clear basket cookie and per-request cache after successful order
             // This must happen BEFORE any redirect to ensure basket is cleared
             if (confirmation != null)
             {
                 Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
-                HttpContext.Session.Remove("Basket");
+                HttpContext.Items.Remove("merchello:Basket");
             }
 
             // Check if we should redirect to custom confirmation URL

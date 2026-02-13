@@ -484,7 +484,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
           aria-label="Select ${item.name || 'item'}"
         ></uui-checkbox>
         <merchello-line-item-identity
-          media-key=${item.imageUrl || nothing}
+          .mediaKey=${item.imageUrl ?? null}
           name=${item.productRootName || item.name || ""}
           .selectedOptions=${item.selectedOptions ?? []}
           sku=${item.sku || ""}

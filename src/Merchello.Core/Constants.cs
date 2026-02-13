@@ -42,6 +42,8 @@ public static class Constants
         public const string OptionValueId = "OptionValueId";
         public const string CostAdjustment = "CostAdjustment";
         public const string IsAddon = "IsAddon";
+        public const string ParentLineItemId = "ParentLineItemId";
+        public const string AddonSelectionSignature = "AddonSelectionSignature";
         public const string ImageUrl = "ImageUrl";
 
         // Product display name data

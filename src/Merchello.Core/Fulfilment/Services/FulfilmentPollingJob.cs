@@ -1,10 +1,12 @@
 using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
+using Merchello.Core.Shared.Services;
 using Merchello.Core.Fulfilment.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Fulfilment.Services;
 
@@ -16,6 +18,7 @@ namespace Merchello.Core.Fulfilment.Services;
 public class FulfilmentPollingJob(
     IServiceScopeFactory serviceScopeFactory,
     IOptions<FulfilmentSettings> settings,
+    IRuntimeState runtimeState,
     ILogger<FulfilmentPollingJob> logger) : BackgroundService
 {
     private readonly FulfilmentSettings _settings = settings.Value;
@@ -23,6 +26,15 @@ public class FulfilmentPollingJob(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState,
+                logger,
+                nameof(FulfilmentPollingJob),
+                stoppingToken))
+        {
+            return;
+        }
+
         logger.LogInformation("FulfilmentPollingJob started with {Interval} minute polling interval",
             _settings.PollingIntervalMinutes);
 

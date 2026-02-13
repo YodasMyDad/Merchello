@@ -1,7 +1,9 @@
 using Merchello.Core.Upsells.Dtos;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core.Media;
 using Umbraco.Cms.Core.PropertyEditors;
 using Umbraco.Cms.Core.Services;
@@ -16,7 +18,8 @@ namespace Merchello.Controllers;
 public class PostPurchaseUpsellController(
     IPostPurchaseUpsellService postPurchaseService,
     IMediaService mediaService,
-    MediaUrlGeneratorCollection mediaUrlGenerators) : ControllerBase
+    MediaUrlGeneratorCollection mediaUrlGenerators,
+    ILogger<PostPurchaseUpsellController> logger) : ControllerBase
 {
     /// <summary>
     /// Get available post-purchase upsells for an invoice.
@@ -25,6 +28,9 @@ public class PostPurchaseUpsellController(
     public async Task<ActionResult<PostPurchaseUpsellsDto>> GetUpsells(
         Guid invoiceId, CancellationToken ct)
     {
+        if (!HasValidConfirmationToken(invoiceId))
+            return StatusCode(StatusCodes.Status403Forbidden, "You do not have permission to access this post-purchase session.");
+
         var result = await postPurchaseService.GetAvailableUpsellsAsync(invoiceId, ct);
         if (result == null) return NotFound();
 
@@ -39,6 +45,9 @@ public class PostPurchaseUpsellController(
     public async Task<ActionResult<PostPurchasePreviewDto>> Preview(
         Guid invoiceId, [FromBody] PreviewPostPurchaseDto request, CancellationToken ct)
     {
+        if (!HasValidConfirmationToken(invoiceId))
+            return StatusCode(StatusCodes.Status403Forbidden, "You do not have permission to access this post-purchase session.");
+
         var result = await postPurchaseService.PreviewAddToOrderAsync(
             new PreviewPostPurchaseParameters
             {
@@ -58,6 +67,9 @@ public class PostPurchaseUpsellController(
     public async Task<ActionResult<PostPurchaseResultDto>> AddToOrder(
         Guid invoiceId, [FromBody] AddPostPurchaseUpsellDto request, CancellationToken ct)
     {
+        if (!HasValidConfirmationToken(invoiceId))
+            return StatusCode(StatusCodes.Status403Forbidden, "You do not have permission to access this post-purchase session.");
+
         var result = await postPurchaseService.AddToOrderAsync(
             new AddPostPurchaseUpsellParameters
             {
@@ -79,8 +91,26 @@ public class PostPurchaseUpsellController(
     [HttpPost("{invoiceId:guid}/skip")]
     public async Task<ActionResult> Skip(Guid invoiceId, CancellationToken ct)
     {
+        if (!HasValidConfirmationToken(invoiceId))
+            return StatusCode(StatusCodes.Status403Forbidden, "You do not have permission to access this post-purchase session.");
+
         var result = await postPurchaseService.SkipUpsellsAsync(invoiceId, ct);
         return result.Success ? NoContent() : BadRequest(result.ErrorMessage);
+    }
+
+    private bool HasValidConfirmationToken(Guid invoiceId)
+    {
+        var confirmationToken = Request.Cookies[Core.Constants.Cookies.ConfirmationToken];
+        if (!Guid.TryParse(confirmationToken, out var tokenInvoiceId) || tokenInvoiceId != invoiceId)
+        {
+            logger.LogWarning(
+                "Unauthorized post-purchase API access attempt for invoice {InvoiceId}. Token: {Token}",
+                invoiceId,
+                confirmationToken ?? "missing");
+            return false;
+        }
+
+        return true;
     }
 
     private void ResolveProductImageUrls(List<UpsellSuggestionDto> suggestions)

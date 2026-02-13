@@ -22,6 +22,7 @@ public class CreateUpsellDto
     public DateTime? StartsAt { get; set; }
     public DateTime? EndsAt { get; set; }
     public string? Timezone { get; set; }
+    public UpsellDisplayStyles? DisplayStyles { get; set; }
     public List<CreateUpsellTriggerRuleDto>? TriggerRules { get; set; }
     public List<CreateUpsellRecommendationRuleDto>? RecommendationRules { get; set; }
     public List<CreateUpsellEligibilityRuleDto>? EligibilityRules { get; set; }

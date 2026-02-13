@@ -1,9 +1,11 @@
 using Merchello.Core.Data.Interfaces;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Configuration.Models;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
+using Umbraco.Cms.Core.Services;
 
 namespace Merchello.Core.Data.Handlers;
 
@@ -14,11 +16,18 @@ namespace Merchello.Core.Data.Handlers;
 public class RunMerchMigration(
     IEnumerable<IMerchelloMigrationProvider> migrationProviders,
     IOptions<ConnectionStrings> connectionStrings,
+    IRuntimeState runtimeState,
     ILogger<RunMerchMigration> logger)
     : INotificationAsyncHandler<UmbracoApplicationStartedNotification>
 {
     public async Task HandleAsync(UmbracoApplicationStartedNotification notification, CancellationToken cancellationToken)
     {
+        if (runtimeState.Level != RuntimeLevel.Run)
+        {
+            logger.LogDebug("Skipping Merchello migration - Umbraco runtime level is {Level}", runtimeState.Level);
+            return;
+        }
+
         var providerName = connectionStrings.Value.ProviderName;
         var providers = migrationProviders.ToList();
 

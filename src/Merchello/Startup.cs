@@ -10,6 +10,7 @@ using Merchello.Core.Accounting.Services;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Checkout.Handlers;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -20,6 +21,7 @@ using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
+using Merchello.Core.Data.Interfaces;
 using Merchello.Core.Data.Seeding;
 using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Services;
@@ -84,7 +86,6 @@ using Merchello.Core.Reporting.Services;
 using Merchello.Core.Reporting.Services.Interfaces;
 using Merchello.Core.Developer.Services;
 using Merchello.Core.Developer.Services.Interfaces;
-using Merchello.Core.Tax.Handlers;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Services;
@@ -172,7 +173,7 @@ public static class Startup
         // Register MerchelloDbContext with Umbraco's database provider (automatically uses same DB as Umbraco)
         builder.Services.AddUmbracoDbContext<MerchelloDbContext>((serviceProvider, options, connectionString, providerName) =>
         {
-            options.UseUmbracoDatabaseProvider(serviceProvider);
+            ConfigureMerchelloDbContext(serviceProvider, options, connectionString, providerName);
             options.ConfigureWarnings(w =>
             {
                 w.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
@@ -473,6 +474,7 @@ public static class Startup
         // Payments
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<PaymentRefundedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<PaymentCreatedNotification, AbandonedCheckoutConversionHandler>();
         // Products
         builder.AddNotificationAsyncHandler<ProductCreatedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<ProductSavedNotification, WebhookNotificationHandler>();
@@ -594,18 +596,12 @@ public static class Startup
         // 1. Run EF Core migrations to ensure database schema is up to date
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, RunMerchMigration>();
 
-        // 2. Seed initial data (countries, currencies, etc.) if database is empty
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, SeedDataNotificationHandler>();
-
-        // 3. Ensure built-in payment providers (Manual Payment) exist and are enabled
+        // 2. Ensure built-in payment providers (Manual Payment) exist and are enabled
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureBuiltInPaymentProvidersHandler>();
 
-        // 4. Initialize Merchello DataTypes (Product Description TipTap editor)
+        // 3. Initialize Merchello DataTypes (Product Description TipTap editor)
         builder.Services.AddSingleton<MerchelloDataTypeInitializer>();
         builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, InitializeMerchelloDataTypesHandler>();
-
-        // 5. Seed US shipping tax overrides (states where shipping is not taxable)
-        builder.AddNotificationAsyncHandler<UmbracoApplicationStartedNotification, EnsureShippingTaxOverridesHandler>();
 
         // =====================================================
         // Content Finders
@@ -691,5 +687,65 @@ public static class Startup
         }
 
         return discoveredAssemblies;
+    }
+
+    private static void ConfigureMerchelloDbContext(
+        IServiceProvider serviceProvider,
+        DbContextOptionsBuilder options,
+        string? connectionString,
+        string? providerName)
+    {
+        var (resolvedConnectionString, resolvedProviderName) = ResolveConnectionSettings(connectionString, providerName);
+        if (string.IsNullOrWhiteSpace(resolvedConnectionString) || string.IsNullOrWhiteSpace(resolvedProviderName))
+        {
+            options.UseUmbracoDatabaseProvider(serviceProvider);
+            return;
+        }
+
+        var providerSetup = serviceProvider
+            .GetServices<IMerchelloMigrationProviderSetup>()
+            .FirstOrDefault(x => ProviderNameMatches(x.ProviderName, resolvedProviderName));
+
+        if (providerSetup is not null)
+        {
+            providerSetup.Setup(options, resolvedConnectionString);
+            return;
+        }
+
+        options.UseDatabaseProvider(resolvedProviderName, resolvedConnectionString);
+    }
+
+    private static (string? ConnectionString, string? ProviderName) ResolveConnectionSettings(
+        string? connectionString,
+        string? providerName)
+    {
+        if (LooksLikeProviderName(connectionString) && !LooksLikeProviderName(providerName))
+        {
+            return (providerName, connectionString);
+        }
+
+        return (connectionString, providerName);
+    }
+
+    private static bool ProviderNameMatches(string configuredProviderName, string activeProviderName)
+    {
+        if (configuredProviderName.Equals(activeProviderName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return configuredProviderName == "Microsoft.Data.Sqlite" &&
+               activeProviderName is "Microsoft.Data.SQLite" or "Microsoft.Data.Sqlite";
+    }
+
+    private static bool LooksLikeProviderName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return value.StartsWith("Microsoft.Data.", StringComparison.OrdinalIgnoreCase) ||
+               value.StartsWith("Npgsql", StringComparison.OrdinalIgnoreCase);
     }
 }

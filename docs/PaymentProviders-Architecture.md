@@ -21,7 +21,7 @@ Methods can be individually enabled/disabled and have different integration type
 | **Methods** | `PaymentMethodDefinition` - checkout options per provider |
 | **Manager** | `PaymentProviderManager` - discovery via `ExtensionManager`, config loading, lifecycle |
 | **Service** | `PaymentService` - orchestrates payments, refunds, status |
-| **Storage** | `merchelloPaymentProviders` (provider config), `merchelloPaymentMethods` (method settings), `merchelloPayments` (transactions) |
+| **Storage** | `merchelloProviderConfigurations` (payment rows + method JSON), `merchelloSavedPaymentMethods` (vaulted methods), `merchelloPayments` (transactions) |
 
 ## Key Interfaces
 
@@ -265,8 +265,9 @@ PaymentProvider (Stripe)
 - Independent sort order per method
 
 ### Configuration Storage
-- Provider settings (API keys, secrets) stored as JSON in `Configuration` column
-- Method settings stored in separate `merchelloPaymentMethods` table
+- Provider settings (API keys, secrets) stored in `merchelloProviderConfigurations.SettingsJson` (`PaymentProviderSetting.Configuration` is a not-mapped alias).
+- Method settings stored in `merchelloProviderConfigurations.MethodSettingsJson` as JSON (`List<PaymentMethodSetting>`).
+- Payment provider rows are discriminated with `ProviderType = "payment"` in the shared provider table.
 - Each provider defines config fields via `GetConfigurationFieldsAsync()`
 
 ### Express Checkout
@@ -366,16 +367,18 @@ Providers can implement webhook testing to allow admins to simulate webhook even
 
 ## Database Schema
 
-**merchelloPaymentProviders**
-- `Id` (Guid), `ProviderAlias`, `DisplayName`, `IsEnabled`, `IsTestMode`, `Configuration` (JSON), `SortOrder`, timestamps
+**merchelloProviderConfigurations** (payment rows only)
+- Base provider columns: `Id`, `ProviderKey`, `DisplayName`, `IsEnabled`, `SortOrder`, `SettingsJson`, `CreateDate`, `UpdateDate`
+- Payment-specific columns: `IsTestMode`, `IsVaultingEnabled`, `MethodSettingsJson`
+- Discriminator: `ProviderType = "payment"`
+- Code aliases: `PaymentProviderSetting.ProviderAlias` maps to `ProviderKey`; `PaymentProviderSetting.Configuration` maps to `SettingsJson`
 
-**merchelloPaymentMethods**
-- `Id` (Guid), `PaymentProviderSettingId` (FK), `MethodAlias`, `DisplayNameOverride`, `IsEnabled`, `ShowInCheckout` (bool?), `SortOrder`, timestamps
-- Unique index on `(PaymentProviderSettingId, MethodAlias)`
-- `ShowInCheckout`: If null, uses provider's `ShowInCheckoutByDefault` value. False for backoffice-only methods like Manual Payment.
+**merchelloSavedPaymentMethods**
+- Vaulted method records keyed by customer/provider (`CustomerId`, `ProviderAlias`, `ProviderMethodId`)
 
-**merchelloPayments** (additions)
-- `PaymentProviderAlias`, `PaymentMethodAlias`, `PaymentType` (enum), `RefundReason`, `ParentPaymentId` (Guid?)
+**merchelloPayments**
+- Transaction records and refund lineage: `PaymentProviderAlias`, `PaymentType`, `RefundReason`, `ParentPaymentId`
+- Idempotency/deduplication columns: `IdempotencyKey`, `WebhookEventId`, unique `TransactionId`
 
 ## File Structure
 
@@ -433,9 +436,8 @@ src/Merchello.Core/Payments/
 │   └── EnsureBuiltInPaymentProvidersHandler.cs  # Startup handler
 ├── Dtos/
 │   └── PaymentMethodDto.cs
-└── Mapping/
-    ├── PaymentProviderSettingDbMapping.cs
-    └── PaymentMethodSettingDbMapping.cs    # NEW
+└── ../Shared/Providers/
+    └── ProviderConfigurationDbMapping.cs   # Shared TPH mapping (ProviderType discriminator)
 
 src/Merchello/Controllers/
 ├── PaymentProvidersApiController.cs
@@ -646,8 +648,9 @@ Task<bool> DeleteVaultedMethodAsync(
 2b. Saved Payment Method:
     → Customer selects saved method
     → POST /checkout/process-saved-payment
-    → { invoiceId, savedPaymentMethodId }
+    → { invoiceId, savedPaymentMethodId, idempotencyKey? }
     → Off-session charge via provider
+    → Record payment via `RecordPaymentAsync` (deterministic fallback transaction ID when provider omits one)
 ```
 
 ### Security Considerations
@@ -657,6 +660,8 @@ Task<bool> DeleteVaultedMethodAsync(
 - Consent tracking required for compliance
 - Customer ownership verified on all operations
 - Provider-side deletion when removing from Merchello
+- Saved-payment requests are idempotent-capable (`IdempotencyKey`) and must be persisted to the payments ledger before success is returned
+- Post-purchase upsell API endpoints require confirmation-token cookie authorization scoped to invoice ID
 
 ## Testing Checklist
 
@@ -677,3 +682,6 @@ Task<bool> DeleteVaultedMethodAsync(
 - [x] Webhook simulation generates provider-specific payloads
 - [x] Payment adapters support tokenize() for backoffice testing
 - [x] Widget flow endpoints work with any provider (genericized from PayPal-specific)
+- [x] Express checkout fallback transaction IDs are deterministic when providers omit a transaction ID
+- [x] Saved payment flow records payment and returns the recorded transaction ID
+- [x] Post-purchase add-to-order fails closed when charge succeeds but payment recording fails

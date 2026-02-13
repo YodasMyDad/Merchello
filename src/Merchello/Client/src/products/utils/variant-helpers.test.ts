@@ -29,6 +29,7 @@ function createOption(overrides: Partial<ProductOptionDto> = {}): ProductOptionD
     optionUiAlias: null,
     isVariant: true,
     isMultiSelect: false,
+    isRequired: false,
     values: [],
     ...overrides,
   };

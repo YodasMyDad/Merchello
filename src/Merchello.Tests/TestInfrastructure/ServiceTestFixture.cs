@@ -23,6 +23,7 @@ using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Checkout;
 using Merchello.Core.Checkout.Factories;
+using Merchello.Core.Checkout.Handlers;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -311,6 +312,7 @@ public class ServiceTestFixture : IDisposable
         RegisterNotificationHandler<DigitalProductPaymentHandler>(services);
         RegisterNotificationHandler<FulfilmentOrderSubmissionHandler>(services);
         RegisterNotificationHandler<FulfilmentCancellationHandler>(services);
+        RegisterNotificationHandler<AbandonedCheckoutConversionHandler>(services);
         RegisterNotificationHandler<UcpOrderWebhookHandler>(services);
         RegisterNotificationHandler<UpsellEmailEnrichmentHandler>(services);
         RegisterNotificationHandler<UpsellConversionHandler>(services);
@@ -475,6 +477,18 @@ public class ServiceTestFixture : IDisposable
         paymentIdempotencyMock
             .Setup(x => x.GetCachedPaymentResultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((PaymentResult?)null);
+        paymentIdempotencyMock
+            .Setup(x => x.TryMarkAsProcessingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        paymentIdempotencyMock
+            .Setup(x => x.GetCachedRefundResultAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RefundResult?)null);
+        paymentIdempotencyMock
+            .Setup(x => x.CachePaymentResult(It.IsAny<string>(), It.IsAny<PaymentResult>()));
+        paymentIdempotencyMock
+            .Setup(x => x.CacheRefundResult(It.IsAny<string>(), It.IsAny<RefundResult>()));
+        paymentIdempotencyMock
+            .Setup(x => x.ClearProcessingMarker(It.IsAny<string>()));
         services.AddSingleton(paymentIdempotencyMock.Object);
 
         // Payment services
@@ -803,6 +817,10 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductVariantDto?>>>()))
                     .Returns((Func<MerchelloDbContext, Task<ProductVariantDto?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<AddonPricePreviewDto?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<AddonPricePreviewDto?>> func) => func(dbContext));
 
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductOption?>>>()))

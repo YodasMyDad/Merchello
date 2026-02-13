@@ -27,6 +27,7 @@ public class CreateUpsellParameters
     public DateTime? StartsAt { get; set; }
     public DateTime? EndsAt { get; set; }
     public string? Timezone { get; set; }
+    public UpsellDisplayStyles? DisplayStyles { get; set; }
 
     // Audit
     public Guid? CreatedBy { get; set; }

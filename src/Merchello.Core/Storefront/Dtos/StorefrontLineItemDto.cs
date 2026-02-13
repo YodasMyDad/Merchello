@@ -46,4 +46,5 @@ public class StorefrontLineItemDto
 
     public string LineItemType { get; set; } = "";
     public string? DependantLineItemSku { get; set; }
+    public string? ParentLineItemId { get; set; }
 }

@@ -244,10 +244,17 @@ const MerchelloApi = {
         /**
          * Get upsell suggestions for the current basket at a specific display location.
          * @param {string} location - Display location: Checkout, Basket, ProductPage, Email, Confirmation
+         * @param {{countryCode?: string, regionCode?: string}} [options] - Optional location override
          * @returns {Promise<{success: boolean, data?: UpsellSuggestionDto[]}>}
          */
-        async getSuggestions(location) {
+        async getSuggestions(location, options = {}) {
             const params = new URLSearchParams({ location });
+            if (options.countryCode) {
+                params.append('countryCode', options.countryCode);
+            }
+            if (options.regionCode) {
+                params.append('regionCode', options.regionCode);
+            }
             return MerchelloApi.request(`/upsells?${params}`);
         },
 

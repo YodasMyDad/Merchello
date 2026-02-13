@@ -2905,6 +2905,9 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<int>("DisplayLocation")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("DisplayStylesJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EligibilityRulesJson")
                         .HasColumnType("TEXT");
 

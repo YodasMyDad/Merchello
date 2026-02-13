@@ -331,7 +331,7 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
     #region Basket Session Roundtrip Tests
 
     [Fact]
-    public void SaveBasketToSession_AndGetBasketFromSession_Roundtrips()
+    public void CacheBasket_AndGetCachedBasket_Roundtrips()
     {
         // Arrange
         var customerId = Guid.NewGuid();
@@ -339,8 +339,8 @@ public class CheckoutSessionServiceTests : IClassFixture<ServiceTestFixture>
         basket.LineItems = [];
 
         // Act
-        _sessionService.SaveBasketToSession(basket);
-        var retrieved = _sessionService.GetBasketFromSession();
+        _sessionService.CacheBasket(basket);
+        var retrieved = _sessionService.GetCachedBasket();
 
         // Assert
         retrieved.ShouldNotBeNull();

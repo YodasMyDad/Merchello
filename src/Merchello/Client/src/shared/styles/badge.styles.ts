@@ -25,13 +25,13 @@ export const badgeStyles = css`
   }
 
   .badge.partial {
-    background: var(--uui-color-warning-standalone);
-    color: var(--uui-color-warning-contrast);
+    background: var(--merchello-color-warning-status-background, #8a6500);
+    color: var(--merchello-color-warning-status-contrast, #fff);
   }
 
   .badge.awaiting {
-    background: var(--uui-color-warning-standalone);
-    color: var(--uui-color-warning-contrast);
+    background: var(--merchello-color-warning-status-background, #8a6500);
+    color: var(--merchello-color-warning-status-contrast, #fff);
   }
 
   .badge.refunded,
@@ -46,14 +46,10 @@ export const badgeStyles = css`
     color: var(--uui-color-positive-contrast);
   }
 
-  .badge.unfulfilled {
-    background: var(--uui-color-warning-standalone);
-    color: var(--uui-color-warning-contrast);
-  }
-
+  .badge.unfulfilled,
   .badge.partially-fulfilled {
-    background: var(--uui-color-warning-standalone);
-    color: var(--uui-color-warning-contrast);
+    background: var(--merchello-color-warning-status-background, #8a6500);
+    color: var(--merchello-color-warning-status-contrast, #fff);
   }
 
   /* Cancellation status badge */
@@ -74,12 +70,12 @@ export const badgeStyles = css`
   }
 
   .badge-warning {
-    background: var(--uui-color-warning-standalone);
-    color: var(--uui-color-warning-contrast);
+    background: var(--merchello-color-warning-status-background, #8a6500);
+    color: var(--merchello-color-warning-status-contrast, #fff);
   }
 
   .badge-default {
-    background: var(--uui-color-surface-alt);
-    color: var(--uui-color-text);
+    background: var(--uui-color-text-alt);
+    color: #fff;
   }
 `;

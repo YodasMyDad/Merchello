@@ -24,6 +24,7 @@ public class SavedPaymentMethodService(
     ICustomerService customerService,
     SavedPaymentMethodFactory factory,
     IMerchelloNotificationPublisher notificationPublisher,
+    IPaymentIdempotencyService idempotencyService,
     ILogger<SavedPaymentMethodService> logger) : ISavedPaymentMethodService
 {
     // =====================================================
@@ -456,7 +457,31 @@ public class SavedPaymentMethodService(
             return result;
         }
 
-        // Charge
+        // Apply idempotency guard for off-session/vaulted charges.
+        // This provides consistent duplicate protection across all providers.
+        if (!string.IsNullOrEmpty(parameters.IdempotencyKey))
+        {
+            var cachedResult = await idempotencyService.GetCachedPaymentResultAsync(
+                parameters.IdempotencyKey,
+                cancellationToken);
+
+            if (cachedResult != null)
+            {
+                result.ResultObject = cachedResult;
+                if (cachedResult.Success)
+                    result.AddSuccessMessage("Payment already processed (idempotent request).");
+                else
+                    result.AddErrorMessage(cachedResult.ErrorMessage ?? "Payment previously failed.");
+                return result;
+            }
+
+            if (!await idempotencyService.TryMarkAsProcessingAsync(parameters.IdempotencyKey, cancellationToken))
+            {
+                result.AddErrorMessage("Payment is already being processed. Please wait.");
+                return result;
+            }
+        }
+
         var chargeRequest = new ChargeVaultedMethodRequest
         {
             InvoiceId = parameters.InvoiceId,
@@ -469,17 +494,42 @@ public class SavedPaymentMethodService(
             IdempotencyKey = parameters.IdempotencyKey
         };
 
-        var paymentResult = await registeredProvider.Provider.ChargeVaultedMethodAsync(
-            chargeRequest, cancellationToken);
-
-        if (paymentResult.Success)
+        try
         {
-            // Update last used date
-            await UpdateLastUsedAsync(savedMethod.Id, cancellationToken);
-        }
+            var paymentResult = await registeredProvider.Provider.ChargeVaultedMethodAsync(
+                chargeRequest, cancellationToken);
 
-        result.ResultObject = paymentResult;
-        return result;
+            if (paymentResult.Success)
+            {
+                // Update last used date
+                await UpdateLastUsedAsync(savedMethod.Id, cancellationToken);
+            }
+            else if (!string.IsNullOrEmpty(parameters.IdempotencyKey))
+            {
+                // Failed charges are not durably recorded, so release the in-flight marker
+                // to allow a retry with the same key.
+                idempotencyService.ClearProcessingMarker(parameters.IdempotencyKey);
+            }
+
+            result.ResultObject = paymentResult;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            if (!string.IsNullOrEmpty(parameters.IdempotencyKey))
+            {
+                idempotencyService.ClearProcessingMarker(parameters.IdempotencyKey);
+            }
+
+            logger.LogError(
+                ex,
+                "Failed to charge saved payment method {SavedPaymentMethodId} for invoice {InvoiceId}",
+                parameters.SavedPaymentMethodId,
+                parameters.InvoiceId);
+
+            result.AddErrorMessage($"Payment processing failed: {ex.Message}");
+            return result;
+        }
     }
 
     /// <summary>
