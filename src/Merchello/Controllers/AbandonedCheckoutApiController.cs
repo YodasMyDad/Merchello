@@ -135,7 +135,7 @@ public class AbandonedCheckoutApiController(
         notification.RecoveryLink = recoveryLink;
         notification.EmailSequenceNumber = Math.Min(checkout.RecoveryEmailsSent + 1, 3);
 
-        await notificationPublisher.PublishAsync(notification, ct);
+        await PublishRecoveryNotificationAsync(notification, ct);
         await abandonedCheckoutService.MarkRecoveryEmailSentAsync(checkout.Id, DateTime.UtcNow, ct);
 
         return Ok(new { success = true, message = "Recovery email sent." });
@@ -179,6 +179,18 @@ public class AbandonedCheckoutApiController(
             0 => new CheckoutAbandonedFirstNotification(),
             1 => new CheckoutAbandonedReminderNotification(),
             _ => new CheckoutAbandonedFinalNotification()
+        };
+    }
+
+    private Task PublishRecoveryNotificationAsync(CheckoutAbandonedNotificationBase notification, CancellationToken ct)
+    {
+        return notification switch
+        {
+            CheckoutAbandonedFirstNotification first => notificationPublisher.PublishAsync(first, ct),
+            CheckoutAbandonedReminderNotification reminder => notificationPublisher.PublishAsync(reminder, ct),
+            CheckoutAbandonedFinalNotification final => notificationPublisher.PublishAsync(final, ct),
+            _ => throw new InvalidOperationException(
+                $"Unsupported recovery notification type: {notification.GetType().Name}")
         };
     }
 

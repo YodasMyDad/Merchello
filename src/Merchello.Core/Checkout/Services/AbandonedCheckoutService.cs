@@ -625,7 +625,7 @@ public class AbandonedCheckoutService(
                 {
                     try
                     {
-                        await notificationPublisher.PublishAsync(notification, ct);
+                        await PublishRecoveryNotificationAsync(notification, ct);
                         checkout.RecoveryEmailsSent++;
                         checkout.LastRecoveryEmailSentUtc = DateTime.UtcNow;
 
@@ -723,6 +723,20 @@ public class AbandonedCheckoutService(
             RecoveryLink = recoveryLink,
             EmailSequenceNumber = sequenceNumber,
             ItemCount = checkout.ItemCount
+        };
+    }
+
+    private Task PublishRecoveryNotificationAsync(
+        CheckoutAbandonedNotificationBase notification,
+        CancellationToken ct)
+    {
+        return notification switch
+        {
+            CheckoutAbandonedFirstNotification first => notificationPublisher.PublishAsync(first, ct),
+            CheckoutAbandonedReminderNotification reminder => notificationPublisher.PublishAsync(reminder, ct),
+            CheckoutAbandonedFinalNotification final => notificationPublisher.PublishAsync(final, ct),
+            _ => throw new InvalidOperationException(
+                $"Unsupported recovery notification type: {notification.GetType().Name}")
         };
     }
 

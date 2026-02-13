@@ -51,8 +51,9 @@ export function formatNumber(value: number, decimals: number = 0): string {
 export function formatRelativeDate(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today.getTime() - dateDay.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) {
     return `Today at ${formatTime(date)}`;
