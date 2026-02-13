@@ -23,6 +23,8 @@ public class CheckoutBasketDto
     public decimal Tax { get; set; }
     public decimal Shipping { get; set; }
     public decimal Total { get; set; }
+    public bool IsTaxEstimated { get; set; }
+    public string? TaxEstimationReason { get; set; }
     public string FormattedSubTotal { get; set; } = "";
     public string FormattedDiscount { get; set; } = "";
     public string FormattedAdjustedSubTotal { get; set; } = "";
@@ -59,3 +61,4 @@ public class CheckoutBasketDto
     public List<BasketErrorDto> Errors { get; set; } = [];
     public bool IsEmpty { get; set; }
 }
+

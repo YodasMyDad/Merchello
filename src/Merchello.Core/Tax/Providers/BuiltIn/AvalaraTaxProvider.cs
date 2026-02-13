@@ -23,6 +23,16 @@ public class AvalaraTaxProvider : TaxProviderBase
     /// </summary>
     private const string ShippingTaxCode = "FR020100";
 
+    /// <summary>
+    /// Avalara tax code for non-taxable goods/services.
+    /// </summary>
+    private const string NonTaxableTaxCode = "NT";
+
+    /// <summary>
+    /// Include line/detail payload so line mapping is deterministic.
+    /// </summary>
+    private const string TransactionResponseIncludes = "Lines,Details";
+
     public override TaxProviderMetadata Metadata => new(
         Alias: "avalara",
         DisplayName: "Avalara AvaTax",
@@ -119,11 +129,17 @@ public class AvalaraTaxProvider : TaxProviderBase
 
         if (configuration != null)
         {
-            var accountId = GetRequiredConfigValue("accountId");
+            var accountIdRaw = GetRequiredConfigValue("accountId");
             var licenseKey = GetRequiredConfigValue("licenseKey");
             _companyCode = GetRequiredConfigValue("companyCode");
             var environment = GetConfigValue("environment") ?? "sandbox";
             var enableLogging = GetConfigBool("enableLogging");
+
+            if (!int.TryParse(accountIdRaw, out var accountId))
+            {
+                throw new InvalidOperationException(
+                    "Avalara accountId must be numeric when using AccountId/LicenseKey authentication.");
+            }
 
             var avaTaxEnvironment = environment.Equals("production", StringComparison.OrdinalIgnoreCase)
                 ? AvaTaxEnvironment.Production
@@ -209,7 +225,7 @@ public class AvalaraTaxProvider : TaxProviderBase
             // Build the transaction model
             var transaction = new CreateTransactionModel
             {
-                type = DocumentType.SalesOrder, // Non-recording transaction for tax calculation
+                type = request.IsEstimate ? DocumentType.SalesOrder : DocumentType.SalesInvoice,
                 companyCode = _companyCode,
                 customerCode = request.CustomerId?.ToString() ?? request.CustomerEmail ?? "GUEST",
                 date = request.TransactionDate ?? DateTime.UtcNow,
@@ -233,7 +249,8 @@ public class AvalaraTaxProvider : TaxProviderBase
             foreach (var item in request.LineItems)
             {
                 // Use mapped tax code from TaxGroupId, fall back to explicit TaxCode, then default
-                var taxCode = GetTaxCodeForTaxGroup(item.TaxGroupId) ?? item.TaxCode ?? DefaultTaxCode;
+                var mappedTaxCode = GetTaxCodeForTaxGroup(item.TaxGroupId) ?? item.TaxCode ?? DefaultTaxCode;
+                var taxCode = item.IsTaxable ? mappedTaxCode : NonTaxableTaxCode;
 
                 transaction.lines.Add(new LineItemModel
                 {
@@ -265,11 +282,13 @@ public class AvalaraTaxProvider : TaxProviderBase
             }
 
             // Call Avalara API
-            var result = await _client.CreateTransactionAsync(null, transaction);
+            var result = await _client.CreateTransactionAsync(TransactionResponseIncludes, transaction);
 
             // Check for successful response
             if (result.status == DocumentStatus.Saved ||
+                result.status == DocumentStatus.Posted ||
                 result.status == DocumentStatus.Committed ||
+                result.status == DocumentStatus.PendingApproval ||
                 result.status == DocumentStatus.Temporary)
             {
                 return MapTransactionResult(request, result);
@@ -348,10 +367,11 @@ public class AvalaraTaxProvider : TaxProviderBase
 
             lineResults.Add(new LineTaxResult
             {
+                LineItemId = item.LineItemId,
                 Sku = item.Sku,
                 TaxRate = Math.Round(taxRate, 4),
                 TaxAmount = taxAmount,
-                IsTaxable = taxAmount > 0,
+                IsTaxable = item.IsTaxable,
                 TaxJurisdiction = jurisdiction
             });
 

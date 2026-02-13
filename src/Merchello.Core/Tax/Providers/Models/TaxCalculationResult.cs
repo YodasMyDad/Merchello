@@ -33,9 +33,24 @@ public class TaxCalculationResult : IResult
     public List<LineTaxResult> LineResults { get; init; } = [];
 
     /// <summary>
-    /// Provider-specific transaction ID for audit/reference.
+    /// Provider-specific transaction id for audit/reference.
     /// </summary>
     public string? TransactionId { get; init; }
+
+    /// <summary>
+    /// Whether this result is an estimate.
+    /// </summary>
+    public bool IsEstimated { get; init; }
+
+    /// <summary>
+    /// Reason for estimated tax, if any.
+    /// </summary>
+    public string? EstimationReason { get; init; }
+
+    /// <summary>
+    /// Non-fatal warnings for estimate/preview scenarios.
+    /// </summary>
+    public List<string> Warnings { get; init; } = [];
 
     /// <summary>
     /// Creates a successful result.
@@ -44,13 +59,19 @@ public class TaxCalculationResult : IResult
         decimal totalTax,
         List<LineTaxResult> lineResults,
         decimal shippingTax = 0,
-        string? transactionId = null) => new()
+        string? transactionId = null,
+        bool isEstimated = false,
+        string? estimationReason = null,
+        List<string>? warnings = null) => new()
     {
         Success = true,
         TotalTax = totalTax,
         LineResults = lineResults,
         ShippingTax = shippingTax,
-        TransactionId = transactionId
+        TransactionId = transactionId,
+        IsEstimated = isEstimated,
+        EstimationReason = estimationReason,
+        Warnings = warnings ?? []
     };
 
     /// <summary>
@@ -63,7 +84,7 @@ public class TaxCalculationResult : IResult
     };
 
     /// <summary>
-    /// Creates a zero-tax result (e.g., tax-exempt or no rates configured).
+    /// Creates a zero-tax result (for example, tax-exempt or no rates configured).
     /// </summary>
     public static TaxCalculationResult ZeroTax(List<TaxableLineItem> lineItems) => new()
     {
@@ -71,10 +92,11 @@ public class TaxCalculationResult : IResult
         TotalTax = 0,
         LineResults = lineItems.Select(li => new LineTaxResult
         {
+            LineItemId = li.LineItemId,
             Sku = li.Sku,
             TaxRate = 0,
             TaxAmount = 0,
-            IsTaxable = false
+            IsTaxable = li.IsTaxable
         }).ToList()
     };
 }

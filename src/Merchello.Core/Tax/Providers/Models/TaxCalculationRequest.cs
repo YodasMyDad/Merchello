@@ -63,6 +63,11 @@ public class TaxCalculationRequest
     public string? ReferenceNumber { get; init; }
 
     /// <summary>
+    /// Whether this request is an estimate (for example checkout preview) rather than a finalized order.
+    /// </summary>
+    public bool IsEstimate { get; init; } = true;
+
+    /// <summary>
     /// Extended data for provider-specific requirements.
     /// </summary>
     public Dictionary<string, string>? ExtendedData { get; init; }

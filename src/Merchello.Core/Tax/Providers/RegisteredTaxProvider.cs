@@ -9,10 +9,14 @@ namespace Merchello.Core.Tax.Providers;
 /// </summary>
 public sealed class RegisteredTaxProvider
 {
-    public RegisteredTaxProvider(ITaxProvider provider, TaxProviderSetting? setting)
+    public RegisteredTaxProvider(
+        ITaxProvider provider,
+        TaxProviderSetting? setting,
+        TaxProviderConfiguration? configuration)
     {
         Provider = provider ?? throw new ArgumentNullException(nameof(provider));
         Setting = setting;
+        Configuration = configuration;
     }
 
     /// <summary>
@@ -24,6 +28,11 @@ public sealed class RegisteredTaxProvider
     /// The persisted settings for this provider.
     /// </summary>
     public TaxProviderSetting? Setting { get; }
+
+    /// <summary>
+    /// Decrypted provider configuration.
+    /// </summary>
+    public TaxProviderConfiguration? Configuration { get; }
 
     /// <summary>
     /// Provider metadata.

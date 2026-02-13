@@ -93,7 +93,8 @@ public class StorefrontApiController(
                 DisplayCurrencyCode = displayContext.CurrencyCode,
                 DisplayCurrencySymbol = symbol,
                 ExchangeRate = rate,
-                DisplayPricesIncTax = displayContext.DisplayPricesIncTax
+                DisplayPricesIncTax = displayContext.DisplayPricesIncTax,
+                IsTaxEstimated = false
             });
         }
 
@@ -141,6 +142,8 @@ public class StorefrontApiController(
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
+            IsTaxEstimated = basket.IsTaxEstimated,
+            TaxEstimationReason = basket.TaxEstimationReason,
             FormattedSubTotal = currencyConversion.Format(basket.SubTotal, _settings.CurrencySymbol),
             FormattedDiscount = currencyConversion.Format(basket.Discount, _settings.CurrencySymbol),
             FormattedTax = currencyConversion.Format(basket.Tax, _settings.CurrencySymbol),

@@ -20,6 +20,8 @@ public class StorefrontBasketDto
     public decimal Tax { get; set; }
     public decimal Shipping { get; set; }
     public decimal Total { get; set; }
+    public bool IsTaxEstimated { get; set; }
+    public string? TaxEstimationReason { get; set; }
     public string FormattedSubTotal { get; set; } = "";
     public string FormattedDiscount { get; set; } = "";
     public string FormattedTax { get; set; } = "";
@@ -60,3 +62,4 @@ public class StorefrontBasketDto
     public bool AllItemsAvailable { get; set; } = true;
     public Dictionary<string, BasketItemAvailabilityDto> ItemAvailability { get; set; } = [];
 }
+

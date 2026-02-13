@@ -210,7 +210,7 @@ public class AvalaraTaxProviderTests
         result.TotalTax.ShouldBe(0m);
         result.LineResults.ShouldHaveSingleItem();
         result.LineResults[0].TaxAmount.ShouldBe(0m);
-        result.LineResults[0].IsTaxable.ShouldBeFalse();
+        result.LineResults[0].IsTaxable.ShouldBeTrue();
     }
 
     [Fact]
@@ -275,6 +275,34 @@ public class AvalaraTaxProviderTests
         result.Success.ShouldBeFalse();
         result.ErrorMessage.ShouldNotBeNull();
         result.ErrorMessage.ShouldContain("not configured");
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WithNonNumericAccountId_ThrowsInvalidOperationException()
+    {
+        var config = new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            ["accountId"] = "acct-id",
+            ["licenseKey"] = "license-key",
+            ["companyCode"] = "DEFAULT",
+            ["environment"] = "sandbox"
+        });
+
+        await Should.ThrowAsync<InvalidOperationException>(async () => await _provider.ConfigureAsync(config));
+    }
+
+    [Fact]
+    public async Task ConfigureAsync_WithNumericAccountId_DoesNotThrow()
+    {
+        var config = new TaxProviderConfiguration(new Dictionary<string, string>
+        {
+            ["accountId"] = "2000000000",
+            ["licenseKey"] = "license-key",
+            ["companyCode"] = "DEFAULT",
+            ["environment"] = "sandbox"
+        });
+
+        await _provider.ConfigureAsync(config);
     }
 
     [Fact]

@@ -1,6 +1,5 @@
 using Merchello.Core.Data;
 using Merchello.Core.Tax.Models;
-using Merchello.Core.Tax.Providers.BuiltIn;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Shared.Reflection;
@@ -15,6 +14,7 @@ public class TaxProviderManager(
     ExtensionManager extensionManager,
     IServiceScopeFactory serviceScopeFactory,
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
+    IProviderSettingsProtector providerSettingsProtector,
     ILogger<TaxProviderManager> logger) : ITaxProviderManager, IDisposable
 {
     private readonly SemaphoreSlim _cacheLock = new(1, 1);
@@ -40,7 +40,6 @@ public class TaxProviderManager(
                 return cached;
             }
 
-            // Create a scope that lives as long as the cached providers
             _providerScope?.Dispose();
             _providerScope = serviceScopeFactory.CreateScope();
 
@@ -78,7 +77,8 @@ public class TaxProviderManager(
                 {
                     logger.LogWarning(
                         "Duplicate tax provider alias '{Alias}' detected. Provider {ProviderType} will be skipped.",
-                        metadata.Alias, provider.GetType().FullName);
+                        metadata.Alias,
+                        provider.GetType().FullName);
                     continue;
                 }
 
@@ -90,10 +90,12 @@ public class TaxProviderManager(
                     TaxProviderConfiguration? configuration = null;
                     if (setting != null && !string.IsNullOrWhiteSpace(setting.SettingsJson))
                     {
-                        configuration = new TaxProviderConfiguration(setting.SettingsJson);
+                        var settingsJson = DecryptSettingsJson(setting.SettingsJson);
+                        configuration = new TaxProviderConfiguration(settingsJson);
                     }
 
                     await provider.ConfigureAsync(configuration, cancellationToken);
+                    registeredProviders.Add(new RegisteredTaxProvider(provider, setting, configuration));
                 }
                 catch (Exception ex)
                 {
@@ -101,10 +103,7 @@ public class TaxProviderManager(
                         ex,
                         "Failed to configure tax provider '{Alias}'. Provider will be skipped.",
                         metadata.Alias);
-                    continue;
                 }
-
-                registeredProviders.Add(new RegisteredTaxProvider(provider, setting));
             }
 
             _cachedProviders = registeredProviders;
@@ -126,7 +125,6 @@ public class TaxProviderManager(
             return active;
         }
 
-        // Default to manual provider if no active provider is set
         var defaultProvider = providers
             .OrderBy(p => !string.Equals(p.Metadata.Alias, "manual", StringComparison.OrdinalIgnoreCase))
             .FirstOrDefault();
@@ -165,7 +163,6 @@ public class TaxProviderManager(
                 .OfType<TaxProviderSetting>()
                 .ToListAsync(cancellationToken);
 
-            // Deactivate all providers
             foreach (var setting in allSettings.Where(s => s.IsEnabled))
             {
                 setting.IsEnabled = false;
@@ -223,13 +220,14 @@ public class TaxProviderManager(
                 .FirstOrDefaultAsync(s => s.ProviderKey == alias, cancellationToken);
 
             var json = new TaxProviderConfiguration(settings).ToJson();
+            var protectedJson = providerSettingsProtector.Protect(json);
 
             if (existing == null)
             {
                 db.ProviderConfigurations.Add(new TaxProviderSetting
                 {
                     ProviderKey = alias,
-                    SettingsJson = json,
+                    SettingsJson = protectedJson,
                     IsEnabled = false,
                     CreateDate = DateTime.UtcNow,
                     UpdateDate = DateTime.UtcNow
@@ -237,7 +235,7 @@ public class TaxProviderManager(
             }
             else
             {
-                existing.SettingsJson = json;
+                existing.SettingsJson = protectedJson;
                 existing.UpdateDate = DateTime.UtcNow;
             }
 
@@ -254,37 +252,41 @@ public class TaxProviderManager(
         return success;
     }
 
-    public async Task<bool> IsShippingTaxedForLocationAsync(
-        string countryCode,
-        string? stateCode,
-        CancellationToken cancellationToken = default)
-    {
-        var activeProvider = await GetActiveProviderAsync(cancellationToken);
-        if (activeProvider == null)
-            return false; // No active provider = no tax
-
-        // For ManualTaxProvider, use its specific implementation
-        if (activeProvider.Provider is ManualTaxProvider manualProvider)
-        {
-            return await manualProvider.IsShippingTaxedForLocationAsync(countryCode, stateCode, cancellationToken);
-        }
-
-        // For other providers (Avalara, etc.), assume shipping is taxed if provider is active
-        // Each provider can implement its own logic if needed
-        return true;
-    }
-
-    public async Task<decimal?> GetShippingTaxRateForLocationAsync(
+    public async Task<ShippingTaxConfigurationResult> GetShippingTaxConfigurationAsync(
         string countryCode,
         string? stateCode,
         CancellationToken cancellationToken = default)
     {
         var activeProvider = await GetActiveProviderAsync(cancellationToken);
         if (activeProvider?.Provider == null)
-            return null;
+        {
+            return ShippingTaxConfigurationResult.NotTaxed();
+        }
 
-        return await activeProvider.Provider.GetShippingTaxRateForLocationAsync(
-            countryCode, stateCode, cancellationToken);
+        var configuration = await activeProvider.Provider.GetShippingTaxConfigurationAsync(
+            countryCode,
+            stateCode,
+            cancellationToken);
+
+        return configuration ?? ShippingTaxConfigurationResult.NotTaxed();
+    }
+
+    private string DecryptSettingsJson(string settingsJson)
+    {
+        if (!providerSettingsProtector.IsProtected(settingsJson))
+        {
+            return settingsJson;
+        }
+
+        try
+        {
+            return providerSettingsProtector.Unprotect(settingsJson);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to decrypt tax provider settings payload.");
+            throw;
+        }
     }
 
     private void RefreshCache()
@@ -298,27 +300,36 @@ public class TaxProviderManager(
     private void DisposeProviders()
     {
         var providers = _cachedProviders;
-        if (providers == null) return;
+        if (providers == null)
+        {
+            return;
+        }
 
         foreach (var registered in providers)
         {
-            if (registered.Provider is IDisposable disposable)
+            if (registered.Provider is not IDisposable disposable)
             {
-                try
-                {
-                    disposable.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning(ex, "Error disposing tax provider {ProviderAlias}", registered.Metadata.Alias);
-                }
+                continue;
+            }
+
+            try
+            {
+                disposable.Dispose();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Error disposing tax provider {ProviderAlias}", registered.Metadata.Alias);
             }
         }
     }
 
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
 
         DisposeProviders();

@@ -129,6 +129,8 @@ public class CheckoutDtoMapper(
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
+            IsTaxEstimated = basket.IsTaxEstimated,
+            TaxEstimationReason = basket.TaxEstimationReason,
             FormattedSubTotal = basket.SubTotal.FormatWithSymbol(storeCurrencySymbol),
             FormattedDiscount = basket.Discount.FormatWithSymbol(storeCurrencySymbol),
             FormattedAdjustedSubTotal = basket.AdjustedSubTotal.FormatWithSymbol(storeCurrencySymbol),
