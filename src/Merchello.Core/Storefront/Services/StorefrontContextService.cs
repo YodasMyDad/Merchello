@@ -419,17 +419,14 @@ public class StorefrontContextService(
         var currencyContext = await GetCurrencyContextAsync(ct);
         var shippingLocation = await GetShippingLocationAsync(ct);
 
-        // Query actual shipping tax configuration from the active tax provider
-        var isShippingTaxed = await taxProviderManager.IsShippingTaxedForLocationAsync(
+        var shippingTaxConfiguration = await taxProviderManager.GetShippingTaxConfigurationAsync(
             shippingLocation.CountryCode,
             shippingLocation.RegionCode,
-            ct);
-
-        // Get the actual shipping tax rate from the provider
-        var shippingTaxRate = await taxProviderManager.GetShippingTaxRateForLocationAsync(
-            shippingLocation.CountryCode,
-            shippingLocation.RegionCode,
-            ct);
+            ct) ?? Tax.Providers.Models.ShippingTaxConfigurationResult.NotTaxed();
+        var isShippingTaxed = shippingTaxConfiguration.Mode != Tax.Providers.Models.ShippingTaxMode.NotTaxed;
+        var shippingTaxRate = shippingTaxConfiguration.Mode == Tax.Providers.Models.ShippingTaxMode.FixedRate
+            ? shippingTaxConfiguration.Rate
+            : null;
 
         var displayContext = new StorefrontDisplayContext(
             currencyContext.CurrencyCode,
@@ -441,7 +438,8 @@ public class StorefrontContextService(
             shippingLocation.CountryCode,
             shippingLocation.RegionCode,
             IsShippingTaxable: isShippingTaxed,
-            ShippingTaxRate: shippingTaxRate);
+            ShippingTaxRate: shippingTaxRate,
+            ShippingTaxMode: shippingTaxConfiguration.Mode);
         httpContext?.Items[cacheKey] = displayContext;
         return displayContext;
     }

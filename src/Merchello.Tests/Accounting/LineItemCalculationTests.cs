@@ -595,6 +595,23 @@ public class LineItemCalculationTests
     }
 
     [Fact]
+    public void CalculateFromLineItems_WithMixedZeroAndStandardRates_ProportionalShippingIncludesZeroRateLines()
+    {
+        // Arrange - 0% category remains taxable and must participate in proportional denominator.
+        List<LineItem> lineItems =
+        [
+            CreateProductLineItem("ZERO-RATE", 100m, 1, taxRate: 0m, isTaxable: true),
+            CreateProductLineItem("STANDARD", 100m, 1, taxRate: 20m, isTaxable: true)
+        ];
+
+        // Act - proportional shipping mode (ShippingTaxRate = null)
+        var (_, _, _, tax, _, _) = Calculate(lineItems, 10m, _currencyCode, isShippingTaxable: true);
+
+        // Assert - line tax = 20, weighted shipping rate = 10%, shipping tax = 1 => total tax = 21
+        tax.ShouldBe(21m);
+    }
+
+    [Fact]
     public void CalculateFromLineItems_WithVerySmallAmounts_RoundsCorrectly()
     {
         // Arrange: Test currency rounding

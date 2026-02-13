@@ -6,12 +6,17 @@ namespace Merchello.Core.Tax.Providers.Models;
 public class TaxableLineItem
 {
     /// <summary>
+    /// Optional source line item id for deterministic mapping.
+    /// </summary>
+    public Guid? LineItemId { get; init; }
+
+    /// <summary>
     /// Product SKU.
     /// </summary>
     public required string Sku { get; init; }
 
     /// <summary>
-    /// Product/line item name.
+    /// Product or line item name.
     /// </summary>
     public required string Name { get; init; }
 
@@ -26,17 +31,18 @@ public class TaxableLineItem
     public required int Quantity { get; init; }
 
     /// <summary>
-    /// Tax group/category ID for rate lookup.
+    /// Tax group/category id for rate lookup.
     /// </summary>
     public Guid? TaxGroupId { get; init; }
 
     /// <summary>
-    /// Provider-specific tax code (e.g., Avalara tax code).
+    /// Provider-specific tax code (for example, Avalara tax code).
     /// </summary>
     public string? TaxCode { get; init; }
 
     /// <summary>
-    /// Whether this item is taxable.
+    /// Whether this line belongs to a taxable category.
+    /// A zero tax rate can still be taxable for proportional shipping rules.
     /// </summary>
     public bool IsTaxable { get; init; } = true;
 

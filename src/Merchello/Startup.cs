@@ -127,6 +127,7 @@ using Merchello.Email.Services;
 using Merchello.Factories;
 using Merchello.Routing;
 using Merchello.Services;
+using Merchello.Tax.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -212,6 +213,7 @@ public static class Startup
         // =====================================================
 
         builder.Services.AddMemoryCache();
+        builder.Services.AddDataProtection();
         builder.Services.AddHttpClient();
 
         // Register Merchello cache refresher for distributed cache invalidation
@@ -347,7 +349,9 @@ public static class Startup
         // Tax
         builder.Services.AddScoped<ITaxService, TaxService>();
         builder.Services.AddScoped<ITaxProviderManager, TaxProviderManager>();
+        builder.Services.AddScoped<ITaxOrchestrationService, TaxOrchestrationService>();
         builder.Services.AddSingleton<ITaxCalculationService, TaxCalculationService>();
+        builder.Services.AddSingleton<IProviderSettingsProtector, DataProtectionProviderSettingsProtector>();
 
         // Address Lookup
         builder.Services.AddScoped<IAddressLookupProviderManager, AddressLookupProviderManager>();

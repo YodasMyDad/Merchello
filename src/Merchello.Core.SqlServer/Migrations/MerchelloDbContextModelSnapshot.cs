@@ -854,6 +854,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
 
+                    b.Property<bool>("IsTaxEstimated")
+                        .HasColumnType("bit");
+
                     b.Property<string>("LineItems")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -874,6 +877,9 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<decimal>("Tax")
                         .HasPrecision(18, 4)
                         .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("TaxEstimationReason")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("Total")
                         .HasPrecision(18, 4)

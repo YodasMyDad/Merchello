@@ -24,7 +24,7 @@ public class LineItemFactory(ICurrencyService currencyService)
             Amount = product.Price,
             Cost = product.CostOfGoods,
             LineItemType = LineItemType.Product,
-            IsTaxable = taxRate > 0,
+            IsTaxable = product.ProductRoot.TaxGroupId != Guid.Empty,
             TaxRate = taxRate,
             TaxGroupId = product.ProductRoot.TaxGroupId
         };
@@ -79,7 +79,7 @@ public class LineItemFactory(ICurrencyService currencyService)
             Quantity = quantity,
             Amount = value.PriceAdjustment,
             LineItemType = LineItemType.Addon,
-            IsTaxable = taxRate > 0,
+            IsTaxable = product.ProductRoot.TaxGroupId != Guid.Empty,
             TaxRate = taxRate,
             TaxGroupId = product.ProductRoot.TaxGroupId,
             ExtendedData = new Dictionary<string, object>
