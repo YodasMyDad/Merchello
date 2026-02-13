@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { CreateShippingPostcodeRuleDto, PostcodeMatchType, PostcodeRuleAction } from "@shipping/types/shipping.types.js";
 import type { ShippingPostcodeRuleModalData, ShippingPostcodeRuleModalValue } from "@shipping/modals/shipping-postcode-rule-modal.token.js";
 
@@ -24,6 +25,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
   @state() private _matchType: PostcodeMatchType = "Prefix";
   @state() private _action: PostcodeRuleAction = "Block";
   @state() private _surcharge = 0;
+  @state() private _currencySymbol = getCurrencySymbol();
   @state() private _description = "";
   @state() private _countries: CountryOption[] = [];
 
@@ -38,6 +40,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
 
   override connectedCallback(): void {
     super.connectedCallback();
+    this._loadCurrencySymbol();
     this._loadCountries();
 
     if (this.data?.rule) {
@@ -47,6 +50,15 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
       this._action = this.data.rule.action;
       this._surcharge = this.data.rule.surcharge;
       this._description = this.data.rule.description ?? "";
+    }
+  }
+
+  private async _loadCurrencySymbol(): Promise<void> {
+    try {
+      await getStoreSettings();
+      this._currencySymbol = getCurrencySymbol();
+    } catch {
+      this._currencySymbol = getCurrencySymbol();
     }
   }
 
@@ -259,7 +271,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
                 <uui-form-layout-item>
                   <uui-label slot="label" for="surcharge" required>Surcharge Amount</uui-label>
                   <div class="cost-input-wrapper">
-                    <span class="currency-symbol">$</span>
+                    <span class="currency-symbol">${this._currencySymbol}</span>
                     <uui-input
                       id="surcharge"
                       type="number"

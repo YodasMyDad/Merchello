@@ -22,6 +22,42 @@ public class AbandonedCheckoutDbMapping : IEntityTypeConfiguration<AbandonedChec
         builder.Property(x => x.BasketTotal).HasPrecision(18, 4);
         builder.Property(x => x.ExtendedData).ToJsonConversion(null);
 
+        builder.Property(x => x.DateCreated)
+            .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        builder.Property(x => x.LastActivityUtc)
+            .HasConversion(v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+
+        builder.Property(x => x.DateAbandoned)
+            .HasConversion(
+                v => v,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
+
+        builder.Property(x => x.DateRecovered)
+            .HasConversion(
+                v => v,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
+
+        builder.Property(x => x.DateConverted)
+            .HasConversion(
+                v => v,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
+
+        builder.Property(x => x.DateExpired)
+            .HasConversion(
+                v => v,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
+
+        builder.Property(x => x.RecoveryTokenExpiresUtc)
+            .HasConversion(
+                v => v,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
+
+        builder.Property(x => x.LastRecoveryEmailSentUtc)
+            .HasConversion(
+                v => v,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : null);
+
         // Indexes for common query patterns
         builder.HasIndex(x => x.BasketId)
             .IsUnique()

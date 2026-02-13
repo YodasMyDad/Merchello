@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Data;
@@ -443,10 +444,6 @@ public class ShippingQuoteService(
         var lineItems = basket.LineItems
             .Where(item => item.LineItemType == LineItemType.Product && item.ProductId.HasValue && !IsDigitalLineItem(item))
             .ToList();
-        var shippableSkus = lineItems
-            .Where(li => !string.IsNullOrEmpty(li.Sku))
-            .Select(li => li.Sku!)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (!lineItems.Any())
         {
@@ -510,7 +507,13 @@ public class ShippingQuoteService(
 
             // Get effective packages (variant override or root default)
             var productPackages = GetEffectivePackages(product);
-            var totalWeightForItem = productPackages.Sum(p => p.Weight) * Math.Max(lineItem.Quantity, 1);
+            var addonWeightPerUnit = basket.LineItems
+                .Where(li => li.IsAddonLinkedToParent(lineItem))
+                .Select(li => GetDecimalFromExtendedData(li.ExtendedData, "WeightKg"))
+                .Where(weight => weight > 0m)
+                .Sum();
+            var quantity = Math.Max(lineItem.Quantity, 1);
+            var totalWeightForItem = (productPackages.Sum(p => p.Weight) + addonWeightPerUnit) * quantity;
 
             items.Add(new ShippingQuoteItem
             {
@@ -523,45 +526,9 @@ public class ShippingQuoteService(
                 ProductSnapshot = snapshot
             });
 
-            // Build shipment packages for each configured package × quantity
-            for (var qty = 0; qty < Math.Max(lineItem.Quantity, 1); qty++)
-            {
-                foreach (var pkg in productPackages)
-                {
-                    packages.Add(new ShipmentPackage(
-                        pkg.Weight,
-                        pkg.LengthCm,
-                        pkg.WidthCm,
-                        pkg.HeightCm));
-                }
-            }
-        }
-
-        // Add weight from add-on line items (non-variant options)
-        // Add-ons contribute additional weight to shipping calculations
-        var addonLineItems = basket.LineItems
-            .Where(li => li.LineItemType == LineItemType.Addon)
-            .ToList();
-
-        foreach (var addon in addonLineItems)
-        {
-            if (!string.IsNullOrEmpty(addon.DependantLineItemSku) &&
-                !shippableSkus.Contains(addon.DependantLineItemSku))
-            {
-                continue;
-            }
-
-            // Extract weight from ExtendedData (stored when add-on was added to basket)
-            var weightKg = GetDecimalFromExtendedData(addon.ExtendedData, "WeightKg");
-
-            // Only add package if there's actual weight
-            if (weightKg > 0)
-            {
-                for (var qty = 0; qty < Math.Max(addon.Quantity, 1); qty++)
-                {
-                    packages.Add(new ShipmentPackage(weightKg));
-                }
-            }
+            // Add-on weight is merged into the first physical package for each unit,
+            // so carrier requests don't include synthetic extra packages.
+            AddPackagesForLineItem(packages, productPackages, quantity, addonWeightPerUnit);
         }
 
         var subtotal = lineItems.Sum(item => item.Amount * item.Quantity);
@@ -578,6 +545,43 @@ public class ShippingQuoteService(
         };
 
         return (request, errors);
+    }
+
+    private static void AddPackagesForLineItem(
+        List<ShipmentPackage> packages,
+        List<ProductPackage> productPackages,
+        int quantity,
+        decimal addonWeightPerUnit)
+    {
+        for (var qty = 0; qty < quantity; qty++)
+        {
+            var unitPackages = productPackages
+                .Select(pkg => new ShipmentPackage(
+                    pkg.Weight,
+                    pkg.LengthCm,
+                    pkg.WidthCm,
+                    pkg.HeightCm))
+                .ToList();
+
+            if (addonWeightPerUnit > 0m)
+            {
+                if (unitPackages.Count > 0)
+                {
+                    var firstPackage = unitPackages[0];
+                    unitPackages[0] = new ShipmentPackage(
+                        firstPackage.WeightKg + addonWeightPerUnit,
+                        firstPackage.LengthCm,
+                        firstPackage.WidthCm,
+                        firstPackage.HeightCm);
+                }
+                else
+                {
+                    unitPackages.Add(new ShipmentPackage(addonWeightPerUnit));
+                }
+            }
+
+            packages.AddRange(unitPackages);
+        }
     }
 
     private static ShippingProductSnapshot BuildProductSnapshot(
@@ -724,6 +728,3 @@ public class ShippingQuoteService(
         };
     }
 }
-
-
-

@@ -1,5 +1,8 @@
 import { getCurrencySymbol, getCurrencyCode } from "@api/store-settings.js";
 
+const MILLISECONDS_IN_DAY = 1000 * 60 * 60 * 24;
+const UTC_SUFFIX_REGEX = /(?:[zZ]|[+-]\d{2}:\d{2})$/;
+
 /**
  * Format a number as currency using store settings.
  * Always includes thousand separators for consistency.
@@ -50,19 +53,37 @@ export function formatNumber(value: number, decimals: number = 0): string {
  */
 export function formatRelativeDate(dateString: string): string {
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) {
+    return dateString;
+  }
+
+  const useUtc = UTC_SUFFIX_REGEX.test(dateString);
   const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.round((today.getTime() - dateDay.getTime()) / (1000 * 60 * 60 * 24));
+  const diffDays = useUtc
+    ? Math.round(
+        (Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) -
+          Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())) /
+          MILLISECONDS_IN_DAY
+      )
+    : Math.round(
+        (new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() -
+          new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()) /
+          MILLISECONDS_IN_DAY
+      );
 
   if (diffDays === 0) {
-    return `Today at ${formatTime(date)}`;
+    return `Today at ${formatTime(date, useUtc ? "UTC" : undefined)}`;
   } else if (diffDays === 1) {
-    return `Yesterday at ${formatTime(date)}`;
+    return `Yesterday at ${formatTime(date, useUtc ? "UTC" : undefined)}`;
   } else if (diffDays < 7) {
-    return `${date.toLocaleDateString("en-US", { weekday: "long" })} at ${formatTime(date)}`;
+    return `${date.toLocaleDateString("en-US", { weekday: "long", timeZone: useUtc ? "UTC" : undefined })} at ${formatTime(date, useUtc ? "UTC" : undefined)}`;
   } else {
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: useUtc ? "UTC" : undefined,
+    });
   }
 }
 
@@ -111,8 +132,8 @@ export function formatDate(dateString: string): string {
  * @param date - Date object to format
  * @returns Formatted time string
  */
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+function formatTime(date: Date, timeZone?: string): string {
+  return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone });
 }
 
 /**

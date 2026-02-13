@@ -177,4 +177,27 @@ describe("formatting utilities", () => {
       expect(result).toContain(" at ");
     });
   });
+
+  describe("formatRelativeDate (UTC-aware inputs)", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-06-15T07:53:00Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("formats prior UTC calendar day as yesterday", () => {
+      const result = formatRelativeDate("2024-06-14T15:00:00Z");
+      expect(result).toContain("Yesterday at ");
+      expect(result).toMatch(/03:00\s?PM/);
+    });
+
+    it("formats same UTC calendar day as today", () => {
+      const result = formatRelativeDate("2024-06-15T03:00:00Z");
+      expect(result).toContain("Today at ");
+      expect(result).toMatch(/03:00\s?AM/);
+    });
+  });
 });
