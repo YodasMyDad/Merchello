@@ -37,6 +37,10 @@ public class CheckoutLineItemDto
     public decimal DisplayLineTotal { get; set; }
     public string FormattedDisplayUnitPrice { get; set; } = "";
     public string FormattedDisplayLineTotal { get; set; } = "";
+    public decimal DisplayUnitPriceWithAddons { get; set; }
+    public decimal DisplayLineTotalWithAddons { get; set; }
+    public string FormattedDisplayUnitPriceWithAddons { get; set; } = "";
+    public string FormattedDisplayLineTotalWithAddons { get; set; } = "";
 
     // Tax info (for tax-inclusive display calculations)
     public decimal TaxRate { get; set; }

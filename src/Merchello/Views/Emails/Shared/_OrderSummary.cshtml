@@ -60,8 +60,8 @@
               {
                 var addonAmountPrefix = addon.Amount >= 0 ? "+" : "-";
                 var addonAmount = Math.Abs(addon.Amount);
-                <div style="font-size: 12px; color: #666; margin-top: 3px; padding-left: 10px; border-left: 2px solid #ddd;">
-                  Add-on: @(string.IsNullOrWhiteSpace(addon.Name) ? addon.Sku : addon.Name) (@addonAmountPrefix@currencySymbol@addonAmount.ToString("N2"))
+                <div style="font-size: 12px; color: #666; margin-top: 3px;">
+                  @(string.IsNullOrWhiteSpace(addon.Name) ? addon.Sku : addon.Name) (@addonAmountPrefix@currencySymbol@addonAmount.ToString("N2"))
                 </div>
               }
             }

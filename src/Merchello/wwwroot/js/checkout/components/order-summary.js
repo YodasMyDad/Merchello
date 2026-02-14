@@ -187,6 +187,20 @@ export function initOrderSummary() {
          * @returns {string}
          */
         formatLineItemTotal(item) {
+            const formattedWithAddons = item?.formattedDisplayLineTotalWithAddons;
+            if (typeof formattedWithAddons === 'string' && formattedWithAddons.trim().length > 0) {
+                return formattedWithAddons;
+            }
+
+            const formattedLegacy = item?.formattedDisplayLineTotal;
+            if (typeof formattedLegacy === 'string' && formattedLegacy.trim().length > 0) {
+                return formattedLegacy;
+            }
+
+            if (item?.displayLineTotalWithAddons !== undefined && item?.displayLineTotalWithAddons !== null) {
+                return this.formatCurrency(Number(item.displayLineTotalWithAddons));
+            }
+
             const base = Number(item?.displayLineTotal ?? item?.lineTotal ?? 0);
             const taxRate = Number(item?.taxRate ?? 0);
             const isTaxable = item?.isTaxable === true;
@@ -202,6 +216,20 @@ export function initOrderSummary() {
          * @returns {string}
          */
         formatAddonUnitPrice(addon) {
+            const formattedWithAddons = addon?.formattedDisplayUnitPriceWithAddons;
+            if (typeof formattedWithAddons === 'string' && formattedWithAddons.trim().length > 0) {
+                return formattedWithAddons;
+            }
+
+            const formattedLegacy = addon?.formattedDisplayUnitPrice;
+            if (typeof formattedLegacy === 'string' && formattedLegacy.trim().length > 0) {
+                return formattedLegacy;
+            }
+
+            if (addon?.displayUnitPriceWithAddons !== undefined && addon?.displayUnitPriceWithAddons !== null) {
+                return this.formatCurrency(Number(addon.displayUnitPriceWithAddons));
+            }
+
             const base = Number(addon?.displayUnitPrice ?? addon?.unitPrice ?? 0);
             const taxRate = Number(addon?.taxRate ?? 0);
             const isTaxable = addon?.isTaxable === true;
