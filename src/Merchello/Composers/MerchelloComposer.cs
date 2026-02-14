@@ -84,6 +84,8 @@ namespace Merchello.Composers
                 // Email template locations
                 options.ViewLocationFormats.Add("/Views/Emails/{0}.cshtml");
                 options.ViewLocationFormats.Add("/Views/Emails/Shared/{0}.cshtml");
+                options.ViewLocationFormats.Add("/App_Plugins/Merchello/Views/Emails/{0}.cshtml");
+                options.ViewLocationFormats.Add("/App_Plugins/Merchello/Views/Emails/Shared/{0}.cshtml");
             });
 
             // =====================================================

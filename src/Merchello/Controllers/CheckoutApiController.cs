@@ -747,7 +747,7 @@ public class CheckoutApiController(
 
     /// <summary>
     /// Render a terms/policy Razor view by key.
-    /// The key maps to ~/Views/Checkout/{Key}.cshtml (PascalCase).
+    /// The key maps to ~/App_Plugins/Merchello/Views/Checkout/{Key}.cshtml (PascalCase).
     /// </summary>
     [HttpGet("terms/{key}")]
     public async Task<IActionResult> GetTermsContent(
@@ -765,7 +765,7 @@ public class CheckoutApiController(
 
         // PascalCase the key
         var viewName = char.ToUpperInvariant(sanitized[0]) + sanitized[1..].ToLowerInvariant();
-        var viewPath = $"~/Views/Checkout/{viewName}.cshtml";
+        var viewPath = $"~/App_Plugins/Merchello/Views/Checkout/{viewName}.cshtml";
 
         var viewResult = razorViewEngine.GetView(null, viewPath, false);
         if (viewResult.View == null)

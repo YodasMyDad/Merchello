@@ -1,4 +1,4 @@
-# Digital Products Feature Implementation Plan
+﻿# Digital Products Feature Implementation Plan
 
 ## Overview
 Implement complete digital product functionality including file storage, secure download links, delivery methods, and email notifications.
@@ -551,8 +551,8 @@ For mixed orders:
 
 | Method | Confirmation Page | Email | Notes |
 |--------|------------------|-------|-------|
-| **InstantDownload** | ✅ Shows download links | ✅ Sends email | Customer sees links immediately + gets email backup |
-| **EmailDelivered** | ❌ Hidden | ✅ Sends email only | For license keys, time-sensitive content, etc. |
+| **InstantDownload** | âœ… Shows download links | âœ… Sends email | Customer sees links immediately + gets email backup |
+| **EmailDelivered** | âŒ Hidden | âœ… Sends email only | For license keys, time-sensitive content, etc. |
 
 ### 3.4 Checkout Account Requirement for Digital Products
 
@@ -601,14 +601,14 @@ var viewModel = new CheckoutViewModel
 
 #### Frontend Changes
 
-**File:** `src/Merchello/Views/Checkout/SinglePage.cshtml`
+**File:** `src/Merchello/App_Plugins/Merchello/Views/Checkout/SinglePage.cshtml`
 
 Add to initial data JSON:
 ```csharp
 hasDigitalProducts = Model.HasDigitalProducts,
 ```
 
-**File:** `src/Merchello/wwwroot/js/checkout/stores/checkout.store.js`
+**File:** `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/stores/checkout.store.js`
 
 Add to store state:
 ```javascript
@@ -616,7 +616,7 @@ Add to store state:
 hasDigitalProducts: initialData.hasDigitalProducts ?? false,
 ```
 
-**File:** `src/Merchello/wwwroot/js/checkout/components/single-page-checkout.js`
+**File:** `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/components/single-page-checkout.js`
 
 Modify `init()`:
 ```javascript
@@ -666,7 +666,7 @@ get canSubmit() {
 }
 ```
 
-**File:** `src/Merchello/Views/Checkout/SinglePage.cshtml`
+**File:** `src/Merchello/App_Plugins/Merchello/Views/Checkout/SinglePage.cshtml`
 
 Add message explaining why account is required:
 ```html
@@ -1028,7 +1028,7 @@ Add `DownloadLinks` property to checkout completion response.
 
 Display for each download link:
 - Product name, File name
-- Download count / Max downloads (e.g., "3 / 10" or "3 / ∞")
+- Download count / Max downloads (e.g., "3 / 10" or "3 / âˆž")
 - Last download date
 - Expiry date and status
 - "Regenerate Links" button (invalidates old links, creates new ones with fresh expiry and reset download counts)
@@ -1095,31 +1095,31 @@ if (string.IsNullOrEmpty(settings?.DownloadTokenSecret) || settings.DownloadToke
 ### Module Structure
 ```
 DigitalProducts/
-├── Dtos/
-│   └── DownloadLinkDto.cs
-├── Extensions/
-│   └── ProductRootDigitalExtensions.cs
-├── Factories/
-│   └── DownloadLinkFactory.cs
-├── Handlers/
-│   └── DigitalProductPaymentHandler.cs
-├── Mapping/
-│   └── DownloadLinkDbMapping.cs
-├── Models/
-│   ├── DigitalDeliveryMethod.cs
-│   └── DownloadLink.cs
-├── Notifications/
-│   └── DigitalProductDeliveredNotification.cs
-└── Services/
-    ├── Interfaces/
-    │   └── IDigitalProductService.cs
-    ├── Parameters/
-    │   ├── CreateDownloadLinksParameters.cs
-    │   ├── CreateDownloadLinkParameters.cs
-    │   ├── GetCustomerDownloadsParameters.cs
-    │   ├── RegenerateDownloadLinksParameters.cs
-    │   └── ValidateDownloadTokenParameters.cs
-    └── DigitalProductService.cs
+â”œâ”€â”€ Dtos/
+â”‚   â””â”€â”€ DownloadLinkDto.cs
+â”œâ”€â”€ Extensions/
+â”‚   â””â”€â”€ ProductRootDigitalExtensions.cs
+â”œâ”€â”€ Factories/
+â”‚   â””â”€â”€ DownloadLinkFactory.cs
+â”œâ”€â”€ Handlers/
+â”‚   â””â”€â”€ DigitalProductPaymentHandler.cs
+â”œâ”€â”€ Mapping/
+â”‚   â””â”€â”€ DownloadLinkDbMapping.cs
+â”œâ”€â”€ Models/
+â”‚   â”œâ”€â”€ DigitalDeliveryMethod.cs
+â”‚   â””â”€â”€ DownloadLink.cs
+â”œâ”€â”€ Notifications/
+â”‚   â””â”€â”€ DigitalProductDeliveredNotification.cs
+â””â”€â”€ Services/
+    â”œâ”€â”€ Interfaces/
+    â”‚   â””â”€â”€ IDigitalProductService.cs
+    â”œâ”€â”€ Parameters/
+    â”‚   â”œâ”€â”€ CreateDownloadLinksParameters.cs
+    â”‚   â”œâ”€â”€ CreateDownloadLinkParameters.cs
+    â”‚   â”œâ”€â”€ GetCustomerDownloadsParameters.cs
+    â”‚   â”œâ”€â”€ RegenerateDownloadLinksParameters.cs
+    â”‚   â””â”€â”€ ValidateDownloadTokenParameters.cs
+    â””â”€â”€ DigitalProductService.cs
 ```
 
 ### New Files
@@ -1169,8 +1169,8 @@ DigitalProducts/
 | `Models/CheckoutViewModel.cs` | Add `HasDigitalProducts` property |
 | `Controllers/CheckoutController.cs` | Set `HasDigitalProducts` flag |
 | `Views/Checkout/SinglePage.cshtml` | Add `hasDigitalProducts` to initial data, account required message |
-| `wwwroot/js/checkout/stores/checkout.store.js` | Add `hasDigitalProducts` state |
-| `wwwroot/js/checkout/components/single-page-checkout.js` | Force account section, update `canSubmit` |
+| `wwwroot/App_Plugins/Merchello/js/checkout/stores/checkout.store.js` | Add `hasDigitalProducts` state |
+| `wwwroot/App_Plugins/Merchello/js/checkout/components/single-page-checkout.js` | Force account section, update `canSubmit` |
 
 ---
 
@@ -1324,3 +1324,5 @@ options.AddPolicy("customer-downloads", context =>
     });
 });
 ```
+
+

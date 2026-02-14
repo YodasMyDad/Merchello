@@ -1,6 +1,6 @@
 @model CheckoutViewModel
 @{
-    Layout = "~/Views/Checkout/_Layout.cshtml";
+    Layout = "~/App_Plugins/Merchello/Views/Checkout/_Layout.cshtml";
     var confirmation = Model.Confirmation;
 
     // Get customer name for personalization
@@ -294,7 +294,7 @@ else
         <div class="relative lg:border-l lg:border-gray-200">
             <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
             <div class="pt-6 lg:pl-8 lg:pt-6 lg:pr-8 lg:sticky lg:top-0">
-                @await Html.PartialAsync("~/Views/Checkout/_OrderSummary.cshtml", Model, new ViewDataDictionary(ViewData) {
+                @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_OrderSummary.cshtml", Model, new ViewDataDictionary(ViewData) {
                     { "Mode", "readonly" },
                     { "Confirmation", confirmation }
                 })
@@ -305,7 +305,7 @@ else
 
 @section Scripts {
     <!-- Confirmation page protection (back button, cleanup) -->
-    <script src="~/js/checkout/confirmation.js"></script>
+    <script src="~/App_Plugins/Merchello/js/checkout/confirmation.js"></script>
 
     @if (confirmation != null && !confirmation.IsCancelled && !confirmation.IsRefunded)
     {

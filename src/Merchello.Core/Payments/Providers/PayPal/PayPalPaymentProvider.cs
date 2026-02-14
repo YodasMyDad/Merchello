@@ -42,12 +42,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     /// <summary>
     /// URL to the PayPal unified adapter script (handles both standard and express checkout).
     /// </summary>
-    private const string PayPalPaymentAdapterUrl = "/js/checkout/adapters/paypal-unified-adapter.js";
-
-    /// <summary>
-    /// SVG icon for PayPal (PP logo symbol only).
-    /// </summary>
-    private const string PayPalIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106z" fill="#003087"/><path d="M23.048 7.667c-.028.179-.06.362-.096.55-1.237 6.351-5.469 8.545-10.874 8.545H9.326c-.661 0-1.218.48-1.321 1.132l-1.41 8.95a.568.568 0 0 0 .562.655h3.94c.578 0 1.069-.42 1.16-.99l.045-.24.92-5.815.059-.32c.09-.572.582-.992 1.16-.992h.73c4.729 0 8.431-1.92 9.513-7.476.452-2.321.218-4.259-.978-5.622a4.667 4.667 0 0 0-1.658-1.377z" fill="#0070E0"/></svg>""";
+    private const string PayPalPaymentAdapterUrl = "/App_Plugins/Merchello/js/checkout/adapters/paypal-unified-adapter.js";
 
     /// <summary>
     /// SVG icon for Pay Later (clock with currency symbol).
@@ -60,7 +55,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
         Alias = "paypal",
         DisplayName = "PayPal",
         Icon = "icon-paypal",
-        IconHtml = PayPalIconSvg,
+        IconHtml = ProviderBrandLogoCatalog.PayPal,
         Description = "Accept payments via PayPal. Supports PayPal Checkout and Pay Later options.",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
@@ -142,7 +137,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
             Alias = "paypal",
             DisplayName = "PayPal",
             Icon = "icon-paypal",
-            IconHtml = PayPalIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.PayPal,
             Description = "Pay securely with your PayPal account or credit/debit card.",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
@@ -510,7 +505,7 @@ public class PayPalPaymentProvider(IHttpClientFactory httpClientFactory) : Payme
     /// URL to the PayPal unified adapter script for express checkout.
     /// Uses the same adapter as standard checkout for consistency.
     /// </summary>
-    private const string PayPalExpressAdapterUrl = "/js/checkout/adapters/paypal-unified-adapter.js";
+    private const string PayPalExpressAdapterUrl = "/App_Plugins/Merchello/js/checkout/adapters/paypal-unified-adapter.js";
 
     /// <inheritdoc />
     /// <remarks>

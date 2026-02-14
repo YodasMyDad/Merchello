@@ -38,7 +38,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
         DisplayName = "ShipBob",
         Description = "Enterprise 3PL fulfilment with global distribution network. Supports order submission, real-time tracking via webhooks, inventory sync, and product catalog management.",
         Icon = "icon-truck",
-        IconSvg = ShipBobIcon.Svg,
+        IconSvg = ProviderBrandLogoCatalog.ShipBob,
         SetupInstructions = """
             ## ShipBob Setup
 

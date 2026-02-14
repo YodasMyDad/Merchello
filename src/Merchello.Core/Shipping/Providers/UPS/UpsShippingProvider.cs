@@ -32,6 +32,7 @@ public class UpsShippingProvider(
         Key = "ups",
         DisplayName = "UPS",
         Icon = Constants.ShippingProviders.Icons.Truck,
+        IconSvg = ProviderBrandLogoCatalog.Ups,
         Description = "Real-time UPS shipping rates via UPS REST API",
         SupportsRealTimeRates = true,
         SupportsTracking = true,

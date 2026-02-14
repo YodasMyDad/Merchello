@@ -5,7 +5,7 @@
 @using Merchello.Extensions
 @inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @{
-    Layout = "~/Views/Checkout/_Layout.cshtml";
+    Layout = "~/App_Plugins/Merchello/Views/Checkout/_Layout.cshtml";
     var basket = Model.Basket;
     var session = Model.Session;
 
@@ -300,7 +300,7 @@
         {
             <!-- Express Checkout Section with Skeleton -->
             <div class="mb-6">
-                @await Html.PartialAsync("~/Views/Checkout/_ExpressCheckout.cshtml")
+                @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_ExpressCheckout.cshtml")
             </div>
         }
 
@@ -518,7 +518,7 @@
             <!-- Billing Address Section -->
             <div class="checkout-section" :class="{ 'border-b-0 pb-0 mb-0': shippingSameAsBilling }">
                 <h2 class="font-heading text-lg font-normal mb-3">Billing address</h2>
-                @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
+                @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
                     { "Prefix", "billing" },
                     { "OnBlurCallback", "onBillingFieldChange()" },
                     { "ShowRequired", true }
@@ -538,7 +538,7 @@
 
                 <div x-show="!shippingSameAsBilling" x-cloak x-transition class="mt-3">
                     <h3 class="font-heading text-base font-normal mb-2">Shipping address</h3>
-                    @await Html.PartialAsync("~/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
+                    @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
                         { "Prefix", "shipping" },
                         { "OnBlurCallback", "debouncedCalculateShipping()" },
                         { "ShowRequired", true }
@@ -850,7 +850,7 @@
     <div class="relative lg:border-l lg:border-gray-200">
         <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
         <div class="lg:pl-8 lg:pt-6 lg:pr-8 lg:sticky lg:top-0">
-            @await Html.PartialAsync("~/Views/Checkout/_OrderSummary.cshtml")
+            @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_OrderSummary.cshtml")
         </div>
     </div>
 
@@ -1035,7 +1035,7 @@
 
 @section Scripts {
     <!-- Single-page checkout analytics helper -->
-    <script src="/js/checkout/single-page-analytics.js"></script>
+    <script src="/App_Plugins/Merchello/js/checkout/single-page-analytics.js"></script>
 
     <!-- Checkout modules (including payment.js) are loaded from _Layout.cshtml via index.js -->
     <!-- The singlePageCheckout component reads initial data from #checkout-initial-data JSON block above -->

@@ -1,4 +1,4 @@
-# Payment Provider Development Guide
+﻿# Payment Provider Development Guide
 
 Guide for third-party developers creating custom payment providers.
 
@@ -328,7 +328,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
         return PaymentSessionResult.HostedFields(
             providerAlias: "braintree",
             methodAlias: methodAlias,
-            adapterUrl: "/js/checkout/adapters/braintree-payment-adapter.js",
+            adapterUrl: "/App_Plugins/Merchello/js/checkout/adapters/braintree-payment-adapter.js",
             jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
             sdkConfig: new Dictionary<string, object>
             {
@@ -348,7 +348,7 @@ public class BraintreePaymentProvider : PaymentProviderBase
         return PaymentSessionResult.Widget(
             providerAlias: "braintree",
             methodAlias: methodAlias,
-            adapterUrl: "/js/checkout/adapters/braintree-local-payment-adapter.js",
+            adapterUrl: "/App_Plugins/Merchello/js/checkout/adapters/braintree-local-payment-adapter.js",
             jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
             sdkConfig: new Dictionary<string, object>
             {
@@ -807,10 +807,10 @@ Place adapters in your RCL's `wwwroot/` folder:
 
 ```
 MyCompany.Merchello.MyProvider/
-├── wwwroot/
-│   └── adapters/
-│       └── myprovider-payment-adapter.js
-└── MyProviderPaymentProvider.cs
+â”œâ”€â”€ wwwroot/
+â”‚   â””â”€â”€ adapters/
+â”‚       â””â”€â”€ myprovider-payment-adapter.js
+â””â”€â”€ MyProviderPaymentProvider.cs
 ```
 
 Reference using the `/_content/{AssemblyName}/` pattern:
@@ -823,10 +823,10 @@ private const string MyProviderAdapterUrl = "/_content/MyCompany.Merchello.MyPro
 **Built-in providers** (Stripe, Braintree, PayPal) use relative paths (served from wwwroot):
 ```csharp
 // Built-in adapter URLs (relative paths)
-"/js/checkout/adapters/stripe-payment-adapter.js"
-"/js/checkout/adapters/stripe-card-elements-adapter.js"  // Individual card fields
-"/js/checkout/adapters/braintree-payment-adapter.js"
-"/js/checkout/adapters/paypal-unified-adapter.js"  // Handles both standard and express
+"/App_Plugins/Merchello/js/checkout/adapters/stripe-payment-adapter.js"
+"/App_Plugins/Merchello/js/checkout/adapters/stripe-card-elements-adapter.js"  // Individual card fields
+"/App_Plugins/Merchello/js/checkout/adapters/braintree-payment-adapter.js"
+"/App_Plugins/Merchello/js/checkout/adapters/paypal-unified-adapter.js"  // Handles both standard and express
 ```
 
 ### Adapter Structure
@@ -1081,3 +1081,5 @@ const paypalAdapter = {
 - Set `SupportsPaymentLinks = true` in `PaymentProviderMetadata` if your provider supports payment links
 - Implement `CreatePaymentLinkAsync()` and `DeactivatePaymentLinkAsync()`
 - Payment links allow admins to generate shareable URLs for invoice payment
+
+

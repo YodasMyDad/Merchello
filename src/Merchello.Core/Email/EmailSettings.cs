@@ -7,9 +7,13 @@ public class EmailSettings
 {
     /// <summary>
     /// View locations for email templates (supports format string with {0} placeholder).
-    /// Example: "/Views/Emails/{0}.cshtml"
+    /// Examples: "/App_Plugins/Merchello/Views/Emails/{0}.cshtml", "/Views/Emails/{0}.cshtml"
     /// </summary>
-    public string[] TemplateViewLocations { get; set; } = ["/Views/Emails/{0}.cshtml"];
+    public string[] TemplateViewLocations { get; set; } =
+    [
+        "/App_Plugins/Merchello/Views/Emails/{0}.cshtml",
+        "/Views/Emails/{0}.cshtml"
+    ];
 
     /// <summary>
     /// Default from email address. Used when no FromExpression is specified

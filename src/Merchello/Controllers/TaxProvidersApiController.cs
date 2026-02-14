@@ -199,6 +199,7 @@ public class TaxProvidersApiController(
         CancellationToken cancellationToken)
     {
         var meta = registered.Metadata;
+        var iconSvg = meta.IconSvg ?? ProviderBrandLogoCatalog.GetTaxProviderIconSvg(meta.Alias);
         Dictionary<string, string>? config = null;
 
         var configurationValues = registered.Configuration?.GetAll();
@@ -226,7 +227,7 @@ public class TaxProvidersApiController(
             Alias = meta.Alias,
             DisplayName = meta.DisplayName,
             Icon = meta.Icon,
-            IconSvg = meta.IconSvg,
+            IconSvg = iconSvg,
             Description = meta.Description,
             SupportsRealTimeCalculation = meta.SupportsRealTimeCalculation,
             RequiresApiCredentials = meta.RequiresApiCredentials,
