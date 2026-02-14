@@ -3,11 +3,17 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductVariantDto, UpdateVariantDto } from "@products/types/product.types.js";
+import type { SelectOption } from "@shared/types/index.js";
 import type {
   VariantBatchEditableField,
   VariantBatchUpdateModalData,
   VariantBatchUpdateModalValue,
 } from "@products/modals/variant-batch-update-modal.token.js";
+import {
+  applyVariantBatchBulkValue,
+  isVariantBatchBulkFieldSupported,
+  parseVariantBatchBulkValue,
+} from "@products/utils/variant-batch-bulk.js";
 
 interface BatchFieldOption {
   key: VariantBatchEditableField;
@@ -46,6 +52,7 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
   @state() private _variants: ProductVariantDto[] = [];
   @state() private _selectedFields: VariantBatchEditableField[] = [];
   @state() private _warehouseOptions: WarehouseOption[] = [];
+  @state() private _bulkFieldValues: Partial<Record<VariantBatchEditableField, string>> = {};
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
   @state() private _rowErrors: Record<string, string> = {};
@@ -180,6 +187,75 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
   private _parseNumber(value: string, fallback: number): number {
     const parsed = Number.parseFloat(value);
     return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  private _getDefaultBulkFieldValue(field: VariantBatchEditableField): string {
+    const firstVariant = this._variants[0];
+    if (!firstVariant) {
+      return "";
+    }
+
+    switch (field) {
+      case "sku":
+        return firstVariant.sku ?? "";
+      case "gtin":
+        return firstVariant.gtin ?? "";
+      case "supplierSku":
+        return firstVariant.supplierSku ?? "";
+      case "hsCode":
+        return firstVariant.hsCode ?? "";
+      case "price":
+        return String(firstVariant.price);
+      case "costOfGoods":
+        return String(firstVariant.costOfGoods);
+      case "onSale":
+        return String(firstVariant.onSale);
+      case "availableForPurchase":
+        return String(firstVariant.availableForPurchase);
+      case "canPurchase":
+        return String(firstVariant.canPurchase);
+      case "trackStock":
+        return "";
+      default:
+        return "";
+    }
+  }
+
+  private _getBulkFieldValue(field: VariantBatchEditableField): string {
+    return this._bulkFieldValues[field] ?? this._getDefaultBulkFieldValue(field);
+  }
+
+  private _updateBulkFieldValue(field: VariantBatchEditableField, value: string): void {
+    this._bulkFieldValues = {
+      ...this._bulkFieldValues,
+      [field]: value,
+    };
+    this._errorMessage = null;
+  }
+
+  private _getBooleanBulkOptions(field: "onSale" | "availableForPurchase" | "canPurchase"): SelectOption[] {
+    const selectedValue = this._getBulkFieldValue(field);
+    return [
+      { name: "True", value: "true", selected: selectedValue === "true" },
+      { name: "False", value: "false", selected: selectedValue === "false" },
+    ];
+  }
+
+  private _applyBulkFieldValue(field: VariantBatchEditableField): void {
+    if (!isVariantBatchBulkFieldSupported(field)) {
+      return;
+    }
+
+    const parseResult = parseVariantBatchBulkValue(field, this._getBulkFieldValue(field));
+    if (parseResult.error || parseResult.value === undefined) {
+      this._errorMessage =
+        parseResult.error ?? `Unable to apply ${this._getFieldLabel(field)} to all variants.`;
+      return;
+    }
+
+    this._variants = applyVariantBatchBulkValue(this._variants, field, parseResult.value);
+    this._rowErrors = {};
+    this._errorMessage = null;
   }
 
   private _validateBeforeSave(): boolean {
@@ -554,20 +630,104 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
     return BATCH_FIELD_OPTIONS.find((option) => option.key === field)?.label ?? field;
   }
 
+  private _renderBulkHeaderControl(field: VariantBatchEditableField): unknown {
+    if (!isVariantBatchBulkFieldSupported(field)) {
+      return html`<span class="bulk-hint">Per-row only</span>`;
+    }
+
+    if (field === "onSale" || field === "availableForPurchase" || field === "canPurchase") {
+      return html`
+        <div class="bulk-control">
+          <uui-select
+            class="bulk-select"
+            label="Set all values"
+            .options=${this._getBooleanBulkOptions(field)}
+            @change=${(event: Event) =>
+              this._updateBulkFieldValue(field, (event.target as HTMLSelectElement).value)}
+            ?disabled=${this._isSaving}>
+          </uui-select>
+          <uui-button
+            look="secondary"
+            compact
+            label="Apply to all"
+            @click=${() => this._applyBulkFieldValue(field)}
+            ?disabled=${this._isSaving}>
+            Apply to all
+          </uui-button>
+        </div>
+      `;
+    }
+
+    if (field === "price" || field === "costOfGoods") {
+      return html`
+        <div class="bulk-control">
+          <uui-input
+            class="bulk-input"
+            type="number"
+            step="0.01"
+            label="Set all values"
+            .value=${this._getBulkFieldValue(field)}
+            @input=${(event: Event) =>
+              this._updateBulkFieldValue(field, (event.target as HTMLInputElement).value)}
+            ?disabled=${this._isSaving}>
+          </uui-input>
+          <uui-button
+            look="secondary"
+            compact
+            label="Apply to all"
+            @click=${() => this._applyBulkFieldValue(field)}
+            ?disabled=${this._isSaving}>
+            Apply to all
+          </uui-button>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="bulk-control">
+        <uui-input
+          class="bulk-input"
+          label="Set all values"
+          .value=${this._getBulkFieldValue(field)}
+          @input=${(event: Event) =>
+            this._updateBulkFieldValue(field, (event.target as HTMLInputElement).value)}
+          ?disabled=${this._isSaving}>
+        </uui-input>
+        <uui-button
+          look="secondary"
+          compact
+          label="Apply to all"
+          @click=${() => this._applyBulkFieldValue(field)}
+          ?disabled=${this._isSaving}>
+          Apply to all
+        </uui-button>
+      </div>
+    `;
+  }
+
+  private _renderEditorHeaderCell(field: VariantBatchEditableField): unknown {
+    return html`
+      <uui-table-head-cell>
+        <div class="bulk-header-cell">
+          <span class="bulk-header-label">${this._getFieldLabel(field)}</span>
+          ${this._renderBulkHeaderControl(field)}
+        </div>
+      </uui-table-head-cell>
+    `;
+  }
+
   private _renderEditorStep(): unknown {
     return html`
       <div class="intro">
         <strong>Edit selected fields for ${this._variants.length} variants</strong>
-        <p>Update values per row and save once to apply all changes.</p>
+        <p>Use each column header to apply values to all rows, then fine-tune individual variants if needed.</p>
       </div>
 
       <div class="table-container">
         <uui-table class="editor-table">
           <uui-table-head>
             <uui-table-head-cell class="variant-column">Variant</uui-table-head-cell>
-            ${this._selectedFields.map(
-              (field) => html`<uui-table-head-cell>${this._getFieldLabel(field)}</uui-table-head-cell>`,
-            )}
+            ${this._selectedFields.map((field) => this._renderEditorHeaderCell(field))}
           </uui-table-head>
           ${this._variants.map(
             (variant) => html`
@@ -722,6 +882,35 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
       min-width: 220px;
     }
 
+    .bulk-header-cell {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+      min-width: 190px;
+    }
+
+    .bulk-header-label {
+      font-weight: 600;
+    }
+
+    .bulk-control {
+      display: flex;
+      align-items: flex-end;
+      gap: var(--uui-size-space-2);
+    }
+
+    .bulk-input,
+    .bulk-select {
+      min-width: 120px;
+      flex: 1;
+    }
+
+    .bulk-hint {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+      font-style: italic;
+    }
+
     .variant-name-cell {
       display: flex;
       flex-direction: column;
@@ -773,6 +962,13 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
       display: flex;
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
+    }
+
+    @media (max-width: 960px) {
+      .bulk-control {
+        flex-direction: column;
+        align-items: stretch;
+      }
     }
   `;
 }
