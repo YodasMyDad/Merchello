@@ -329,9 +329,9 @@ public class CheckoutService(
             cancellationToken);
 
         var isShippingTaxable = parameters.IsShippingTaxable
-            ?? shippingTaxConfiguration?.Mode != ShippingTaxMode.NotTaxed;
+            ?? shippingTaxConfiguration.Mode != ShippingTaxMode.NotTaxed;
 
-        var shippingTaxRate = shippingTaxConfiguration?.Mode == ShippingTaxMode.FixedRate
+        var shippingTaxRate = shippingTaxConfiguration.Mode == ShippingTaxMode.FixedRate
             ? shippingTaxConfiguration.Rate
             : null;
 
@@ -396,20 +396,21 @@ public class CheckoutService(
         }
     }
 
-    private async Task<ShippingTaxConfigurationResult?> ResolveShippingTaxConfigurationAsync(
+    private async Task<ShippingTaxConfigurationResult> ResolveShippingTaxConfigurationAsync(
         string countryCode,
         string? stateCode,
         CancellationToken cancellationToken)
     {
         if (taxProviderManager == null)
         {
-            return null;
+            return ShippingTaxConfigurationResult.NotTaxed();
         }
 
         return await taxProviderManager.GetShippingTaxConfigurationAsync(
             countryCode,
             stateCode,
-            cancellationToken);
+            cancellationToken)
+            ?? ShippingTaxConfigurationResult.NotTaxed();
     }
 
     private static Address BuildTaxAddressForBasket(Basket basket, string? countryCode, string? regionCode)

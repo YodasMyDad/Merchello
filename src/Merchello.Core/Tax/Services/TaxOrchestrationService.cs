@@ -28,20 +28,15 @@ public class TaxOrchestrationService(
 
         if (string.IsNullOrWhiteSpace(request.ShippingAddress.CountryCode))
         {
-            if (!request.AllowEstimate)
-            {
-                return TaxOrchestrationResult.Failure(
-                    "Shipping address with country code is required for authoritative tax calculation.",
-                    providerAlias);
-            }
-
             return TaxOrchestrationResult.Centralized(
                 providerAlias: providerAlias,
-                isEstimated: true,
-                estimationReason: "ShippingAddressMissing",
+                isEstimated: request.AllowEstimate,
+                estimationReason: request.AllowEstimate ? "ShippingAddressMissing" : null,
                 warnings:
                 [
-                    "Tax is estimated because shipping address is incomplete."
+                    request.AllowEstimate
+                        ? "Tax is estimated because shipping address is incomplete."
+                        : "Shipping address is incomplete. Falling back to centralized tax calculation."
                 ]);
         }
 

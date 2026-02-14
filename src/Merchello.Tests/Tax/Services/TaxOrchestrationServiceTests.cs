@@ -65,4 +65,80 @@ public class TaxOrchestrationServiceTests
         provider.LastRequest.ShouldNotBeNull();
         provider.LastRequest!.IsEstimate.ShouldBe(allowEstimate);
     }
+
+    [Fact]
+    public async Task CalculateAsync_MissingShippingCountry_AllowEstimateFalse_UsesCentralizedWithoutFailure()
+    {
+        var provider = new CapturingTaxProvider();
+        var providerManager = new Mock<ITaxProviderManager>();
+        providerManager
+            .Setup(x => x.GetActiveProviderAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RegisteredTaxProvider(
+                provider,
+                new TaxProviderSetting
+                {
+                    ProviderKey = "capturing-provider",
+                    IsEnabled = true,
+                    CreateDate = DateTime.UtcNow,
+                    UpdateDate = DateTime.UtcNow
+                },
+                configuration: null));
+
+        var service = new TaxOrchestrationService(
+            providerManager.Object,
+            NullLogger<TaxOrchestrationService>.Instance);
+
+        var result = await service.CalculateAsync(
+            new TaxOrchestrationRequest
+            {
+                ShippingAddress = new Address { CountryCode = string.Empty },
+                CurrencyCode = "USD",
+                LineItems = [],
+                AllowEstimate = false
+            });
+
+        result.Success.ShouldBeTrue();
+        result.UseCentralizedCalculation.ShouldBeTrue();
+        result.IsEstimated.ShouldBeFalse();
+        result.EstimationReason.ShouldBeNull();
+        provider.LastRequest.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task CalculateAsync_MissingShippingCountry_AllowEstimateTrue_ReturnsEstimatedCentralized()
+    {
+        var provider = new CapturingTaxProvider();
+        var providerManager = new Mock<ITaxProviderManager>();
+        providerManager
+            .Setup(x => x.GetActiveProviderAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RegisteredTaxProvider(
+                provider,
+                new TaxProviderSetting
+                {
+                    ProviderKey = "capturing-provider",
+                    IsEnabled = true,
+                    CreateDate = DateTime.UtcNow,
+                    UpdateDate = DateTime.UtcNow
+                },
+                configuration: null));
+
+        var service = new TaxOrchestrationService(
+            providerManager.Object,
+            NullLogger<TaxOrchestrationService>.Instance);
+
+        var result = await service.CalculateAsync(
+            new TaxOrchestrationRequest
+            {
+                ShippingAddress = new Address { CountryCode = string.Empty },
+                CurrencyCode = "USD",
+                LineItems = [],
+                AllowEstimate = true
+            });
+
+        result.Success.ShouldBeTrue();
+        result.UseCentralizedCalculation.ShouldBeTrue();
+        result.IsEstimated.ShouldBeTrue();
+        result.EstimationReason.ShouldBe("ShippingAddressMissing");
+        provider.LastRequest.ShouldBeNull();
+    }
 }
