@@ -500,15 +500,15 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                 ? html`
                     <umb-property
                       alias="isMultiSelect"
-                      label="Add-on Selection Mode"
-                      description="Single-select allows one value. Multi-select allows multiple values for this add-on option."
+                      label="Allow Multiple Selections"
+                      description="Enabled = multi-select. Disabled = single-select (one value only)."
                       property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
                     </umb-property>
 
                     <umb-property
                       alias="isRequired"
                       label="Required Add-on"
-                      description="If enabled, customers must select at least one value from this add-on option."
+                      description="If enabled, customers must select at least one value from this add-on option before adding to basket."
                       property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
                     </umb-property>
                   `

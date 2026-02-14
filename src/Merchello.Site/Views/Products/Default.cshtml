@@ -173,6 +173,7 @@
             alias = o.Alias,
             uiType = o.OptionUiAlias ?? "checkbox",
             isMultiSelect = o.IsMultiSelect,
+            isRequired = o.IsRequired,
             values = o.ProductOptionValues.Select(v =>
             {
                 var addonDisplayPrice = CalculateDisplayPrice(v.PriceAdjustment);

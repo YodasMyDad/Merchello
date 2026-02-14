@@ -157,6 +157,7 @@ document.addEventListener('alpine:init', () => {
         selectedVariantId: config.selectedVariantId,
         selectedOptions: config.selectedOptions || {},
         selectedAddons: [],
+        addonValidationErrors: {},
         quantity: 1,
         isLoading: false,
         productId: config.productId || null,
@@ -386,42 +387,91 @@ document.addEventListener('alpine:init', () => {
         },
 
         toggleAddon(optionId, valueId, price, displayPrice, isChecked, isMultiSelect = true) {
+            const nextAddon = { optionId, valueId, price, displayPrice };
             if (!isMultiSelect) {
                 if (isChecked) {
-                    this.selectedAddons = this.selectedAddons.filter(a => a.optionId !== optionId);
-                    this.selectedAddons.push({ optionId, valueId, price, displayPrice });
+                    // Single-select add-ons replace any existing selection for the same option.
+                    this.selectedAddons = [
+                        ...this.selectedAddons.filter(a => a.optionId !== optionId),
+                        nextAddon
+                    ];
                 } else {
                     this.selectedAddons = this.selectedAddons.filter(
                         a => !(a.optionId === optionId && a.valueId === valueId)
                     );
                 }
+
+                if (this.getSelectedAddonsForOption(optionId).length > 0) {
+                    this.clearAddonValidationError(optionId);
+                }
                 return;
             }
 
             if (isChecked) {
-                // Add addon
                 if (!this.selectedAddons.find(a => a.optionId === optionId && a.valueId === valueId)) {
-                    this.selectedAddons.push({ optionId, valueId, price, displayPrice });
+                    this.selectedAddons = [...this.selectedAddons, nextAddon];
                 }
             } else {
-                // Remove addon
                 this.selectedAddons = this.selectedAddons.filter(
                     a => !(a.optionId === optionId && a.valueId === valueId)
                 );
+            }
+
+            if (this.getSelectedAddonsForOption(optionId).length > 0) {
+                this.clearAddonValidationError(optionId);
             }
         },
 
         selectAddonRadio(optionId, valueId, price, displayPrice) {
             // Remove any existing selection for this option
-            this.selectedAddons = this.selectedAddons.filter(a => a.optionId !== optionId);
-            // Add new selection if value is provided
+            const remainingSelections = this.selectedAddons.filter(a => a.optionId !== optionId);
             if (valueId) {
-                this.selectedAddons.push({ optionId, valueId, price, displayPrice });
+                this.selectedAddons = [...remainingSelections, { optionId, valueId, price, displayPrice }];
+            } else {
+                this.selectedAddons = remainingSelections;
+            }
+
+            if (this.getSelectedAddonsForOption(optionId).length > 0) {
+                this.clearAddonValidationError(optionId);
             }
         },
 
         isAddonSelected(optionId, valueId) {
             return this.selectedAddons.some(a => a.optionId === optionId && a.valueId === valueId);
+        },
+
+        getSelectedAddonsForOption(optionId) {
+            return this.selectedAddons.filter(a => a.optionId === optionId);
+        },
+
+        validateRequiredAddons() {
+            const validationErrors = {};
+            const requiredOptions = this.addonOptions.filter(option => option.isRequired === true);
+
+            for (const option of requiredOptions) {
+                const hasSelection = this.getSelectedAddonsForOption(option.id).length > 0;
+                if (!hasSelection) {
+                    const optionName = option.name || 'required add-on';
+                    validationErrors[option.id] = `Please select at least one value for ${optionName}.`;
+                }
+            }
+
+            this.addonValidationErrors = validationErrors;
+            return Object.keys(validationErrors).length === 0;
+        },
+
+        getAddonValidationError(optionId) {
+            return this.addonValidationErrors[optionId] || '';
+        },
+
+        clearAddonValidationError(optionId) {
+            if (!this.addonValidationErrors[optionId]) {
+                return;
+            }
+
+            const nextErrors = { ...this.addonValidationErrors };
+            delete nextErrors[optionId];
+            this.addonValidationErrors = nextErrors;
         },
 
         updateVariant() {
@@ -483,6 +533,11 @@ document.addEventListener('alpine:init', () => {
 
         async addToCart() {
             if (!this.inStock || this.isLoading) return;
+
+            if (!this.validateRequiredAddons()) {
+                Alpine.store('toast').show('Please select all required add-ons before adding to basket.', 'danger');
+                return;
+            }
 
             this.isLoading = true;
 

@@ -132,6 +132,50 @@ public class StorefrontApiControllerBasketCountIntegrationTests : IClassFixture<
         countDto.ItemCount.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task AddToBasket_MissingRequiredAddon_ReturnsBadRequest()
+    {
+        var product = await SeedProductWithRequiredSingleSelectAddonAsync();
+        var controller = CreateController();
+
+        var result = await controller.AddToBasket(new AddToBasketDto
+        {
+            ProductId = product.ProductId,
+            Quantity = 1,
+            Addons = []
+        }, CancellationToken.None);
+
+        var badRequest = result.ShouldBeOfType<BadRequestObjectResult>();
+        var dto = badRequest.Value.ShouldBeOfType<BasketOperationResultDto>();
+        dto.Success.ShouldBeFalse();
+        dto.Message.ShouldNotBeNull();
+        dto.Message.ShouldContain("required add-on");
+    }
+
+    [Fact]
+    public async Task AddToBasket_SingleSelectAddonMultipleValues_ReturnsBadRequest()
+    {
+        var product = await SeedProductWithRequiredSingleSelectAddonAsync();
+        var controller = CreateController();
+
+        var result = await controller.AddToBasket(new AddToBasketDto
+        {
+            ProductId = product.ProductId,
+            Quantity = 1,
+            Addons =
+            [
+                new AddonSelectionDto { OptionId = product.OptionId, ValueId = product.FirstAddonValueId },
+                new AddonSelectionDto { OptionId = product.OptionId, ValueId = product.SecondAddonValueId }
+            ]
+        }, CancellationToken.None);
+
+        var badRequest = result.ShouldBeOfType<BadRequestObjectResult>();
+        var dto = badRequest.Value.ShouldBeOfType<BasketOperationResultDto>();
+        dto.Success.ShouldBeFalse();
+        dto.Message.ShouldNotBeNull();
+        dto.Message.ShouldContain("only allows one selection");
+    }
+
     private StorefrontApiController CreateController()
     {
         return new StorefrontApiController(
@@ -166,6 +210,39 @@ public class StorefrontApiControllerBasketCountIntegrationTests : IClassFixture<
         var secondAddon = optionFactory.CreateEmptyValue();
         secondAddon.Name = "Choose Storage Option: Four Drawers";
         secondAddon.PriceAdjustment = 96m;
+
+        addonOption.ProductOptionValues = [firstAddon, secondAddon];
+        productRoot.ProductOptions = [addonOption];
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        return (product.Id, addonOption.Id, firstAddon.Id, secondAddon.Id);
+    }
+
+    private async Task<(Guid ProductId, Guid OptionId, Guid FirstAddonValueId, Guid SecondAddonValueId)> SeedProductWithRequiredSingleSelectAddonAsync()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var taxGroup = dataBuilder.CreateTaxGroup("Reduced VAT", 5m);
+        var productRoot = dataBuilder.CreateProductRoot("Poster Print", taxGroup);
+        var product = dataBuilder.CreateProduct("Poster Print - Standard", productRoot, price: 39.99m);
+        product.Sku = "POSTER-PRINT-STANDARD";
+
+        var optionFactory = new ProductOptionFactory();
+        var addonOption = optionFactory.CreateEmpty();
+        addonOption.Name = "Frame";
+        addonOption.Alias = "frame";
+        addonOption.IsVariant = false;
+        addonOption.IsMultiSelect = false;
+        addonOption.IsRequired = true;
+
+        var firstAddon = optionFactory.CreateEmptyValue();
+        firstAddon.Name = "Black Frame";
+        firstAddon.PriceAdjustment = 10m;
+
+        var secondAddon = optionFactory.CreateEmptyValue();
+        secondAddon.Name = "White Frame";
+        secondAddon.PriceAdjustment = 12m;
 
         addonOption.ProductOptionValues = [firstAddon, secondAddon];
         productRoot.ProductOptions = [addonOption];
