@@ -54,8 +54,7 @@ public class ShipBobFulfilmentProviderTests
     [Fact]
     public void Metadata_HasIconSvg()
     {
-        _provider.Metadata.IconSvg.ShouldNotBeNullOrWhiteSpace();
-        _provider.Metadata.IconSvg.ShouldContain("<svg");
+        _provider.Metadata.IconSvg.ShouldBe(ProviderBrandLogoCatalog.ShipBob);
     }
 
     [Fact]

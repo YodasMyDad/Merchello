@@ -24,11 +24,11 @@
         </script>
 
         <!-- Merchello Checkout Module - imports Alpine, registers components, then starts Alpine -->
-        <script type="module" src="/js/checkout/index.js"></script>
+        <script type="module" src="/App_Plugins/Merchello/js/checkout/index.js"></script>
     }
 
     <!-- Checkout component styles (built from Styles/checkout.css) -->
-    <link rel="stylesheet" href="/css/checkout.css" />
+    <link rel="stylesheet" href="/App_Plugins/Merchello/css/checkout.css" />
 
     <style>
         :root {
@@ -84,7 +84,7 @@
                 {
                     <!-- Merchello logo fallback when no custom logo or company name is configured -->
                     <a href="/" class="block">
-                        <img src="/img/merchello-tag.png"
+                        <img src="/App_Plugins/Merchello/img/merchello-tag.png"
                              alt="Powered by Merchello"
                              class="h-8 w-auto" />
                     </a>
@@ -190,7 +190,7 @@
     </footer>
 
     <!-- Merchello Checkout Analytics (event emitter with helper methods) -->
-    <script src="/js/checkout/analytics.js"></script>
+    <script src="/App_Plugins/Merchello/js/checkout/analytics.js"></script>
 
     <!-- Checkout data for analytics -->
     @if (Model.Basket != null)

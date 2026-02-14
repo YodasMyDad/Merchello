@@ -1,8 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "../Views/Checkout/**/*.cshtml",
-    "../wwwroot/js/checkout/**/*.js"
+    "../App_Plugins/Merchello/Views/Checkout/**/*.cshtml",
+    "../wwwroot/App_Plugins/Merchello/js/checkout/**/*.js"
   ],
   theme: {
     extend: {

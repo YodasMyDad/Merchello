@@ -30,12 +30,12 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
     /// <summary>
     /// URL to the Braintree payment adapter script (cards).
     /// </summary>
-    private const string BraintreePaymentAdapterUrl = "/js/checkout/adapters/braintree-payment-adapter.js";
+    private const string BraintreePaymentAdapterUrl = "/App_Plugins/Merchello/js/checkout/adapters/braintree-payment-adapter.js";
 
     /// <summary>
     /// URL to the Braintree local payment adapter script.
     /// </summary>
-    private const string BraintreeLocalPaymentAdapterUrl = "/js/checkout/adapters/braintree-local-payment-adapter.js";
+    private const string BraintreeLocalPaymentAdapterUrl = "/App_Plugins/Merchello/js/checkout/adapters/braintree-local-payment-adapter.js";
 
     /// <summary>
     /// Local payment method aliases that use the local payment SDK.
@@ -50,57 +50,13 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
     /// </summary>
     private const string CardIconSvg = """<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="5" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 9h20" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="13" width="5" height="2" rx="0.5" fill="currentColor" opacity="0.5"/></svg>""";
 
-    /// <summary>
-    /// SVG icon for PayPal (PP logo symbol only).
-    /// </summary>
-    private const string PayPalIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106z" fill="#003087"/><path d="M23.048 7.667c-.028.179-.06.362-.096.55-1.237 6.351-5.469 8.545-10.874 8.545H9.326c-.661 0-1.218.48-1.321 1.132l-1.41 8.95a.568.568 0 0 0 .562.655h3.94c.578 0 1.069-.42 1.16-.99l.045-.24.92-5.815.059-.32c.09-.572.582-.992 1.16-.992h.73c4.729 0 8.431-1.92 9.513-7.476.452-2.321.218-4.259-.978-5.622a4.667 4.667 0 0 0-1.658-1.377z" fill="#0070E0"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for Apple Pay (Apple logo only).
-    /// </summary>
-    private const string ApplePayIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.53 4.08M12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" fill="currentColor"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for Google Pay (colored G logo only).
-    /// </summary>
-    private const string GooglePayIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for Venmo (V symbol only).
-    /// </summary>
-    private const string VenmoIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19.5 1c.87 1.44 1.26 2.92 1.26 4.8 0 5.98-5.1 13.75-9.24 19.2H4.2L1 2.85l6.24-.6 1.86 14.9C11.04 13.5 13.2 8.18 13.2 5.08c0-1.74-.3-2.92-.78-3.9L19.5 1z" fill="#3D95CE"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for iDEAL (Netherlands - stylized bank symbol).
-    /// </summary>
-    private const string IdealIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#CC0066"/><path d="M12 8v8M8 12h8" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for Bancontact (Belgium - interlocking circles).
-    /// </summary>
-    private const string BancontactIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#005498"/><circle cx="9" cy="12" r="4" fill="none" stroke="#FFD800" stroke-width="1.5"/><circle cx="15" cy="12" r="4" fill="none" stroke="#FFD800" stroke-width="1.5"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for SEPA (EU - euro stars symbol).
-    /// </summary>
-    private const string SepaIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#003399"/><circle cx="12" cy="12" r="5" fill="none" stroke="#FFCC00" stroke-width="1.5"/><path d="M7 12h10" stroke="#FFCC00" stroke-width="1"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for EPS (Austria - bank symbol).
-    /// </summary>
-    private const string EpsIconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#C8202F"/><path d="M6 16V10l6-4 6 4v6" stroke="white" stroke-width="1.5" fill="none"/><rect x="10" y="12" width="4" height="4" fill="white"/></svg>""";
-
-    /// <summary>
-    /// SVG icon for P24 (Poland - stylized P symbol).
-    /// </summary>
-    private const string P24IconSvg = """<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="16" rx="2" fill="#D13239"/><path d="M8 8h4a3 3 0 0 1 0 6H8V8zm0 6v4" stroke="white" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>""";
-
     /// <inheritdoc />
     public override PaymentProviderMetadata Metadata => new()
     {
         Alias = "braintree",
         DisplayName = "Braintree",
         Icon = "icon-credit-card",
+        IconHtml = ProviderBrandLogoCatalog.Braintree,
         Description = "Accept payments via Braintree. Supports credit cards, PayPal, Apple Pay, Google Pay, and Venmo.",
         SupportsRefunds = true,
         SupportsPartialRefunds = true,
@@ -238,7 +194,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "paypal",
             DisplayName = "PayPal",
             Icon = "icon-paypal",
-            IconHtml = PayPalIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.PayPal,
             Description = "Fast, secure checkout with your PayPal account.",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
@@ -250,7 +206,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "applepay",
             DisplayName = "Apple Pay",
             Icon = "icon-apple",
-            IconHtml = ApplePayIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.ApplePay,
             Description = "Fast, secure checkout with Apple Pay.",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
@@ -262,7 +218,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "googlepay",
             DisplayName = "Google Pay",
             Icon = "icon-google",
-            IconHtml = GooglePayIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.GooglePay,
             Description = "Fast, secure checkout with Google Pay.",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
@@ -274,7 +230,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "venmo",
             DisplayName = "Venmo",
             Icon = "icon-venmo",
-            IconHtml = VenmoIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.Venmo,
             Description = "Pay with your Venmo account (US only).",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = true,
@@ -290,7 +246,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "ideal",
             DisplayName = "iDEAL",
             Icon = "icon-bank",
-            IconHtml = IdealIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.Ideal,
             Description = "Pay with iDEAL (Netherlands).",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
@@ -303,7 +259,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "bancontact",
             DisplayName = "Bancontact",
             Icon = "icon-bank",
-            IconHtml = BancontactIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.Bancontact,
             Description = "Pay with Bancontact (Belgium).",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
@@ -316,7 +272,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "sepa",
             DisplayName = "SEPA Direct Debit",
             Icon = "icon-bank",
-            IconHtml = SepaIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.Sepa,
             Description = "Pay with SEPA Direct Debit (EU).",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
@@ -329,7 +285,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "eps",
             DisplayName = "eps",
             Icon = "icon-bank",
-            IconHtml = EpsIconSvg,
+            IconHtml = ProviderBrandLogoCatalog.Eps,
             Description = "Pay with eps (Austria).",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
@@ -342,7 +298,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             Alias = "p24",
             DisplayName = "Przelewy24",
             Icon = "icon-bank",
-            IconHtml = P24IconSvg,
+            IconHtml = ProviderBrandLogoCatalog.P24,
             Description = "Pay with Przelewy24 (Poland).",
             IntegrationType = PaymentIntegrationType.Widget,
             IsExpressCheckout = false,
@@ -742,7 +698,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
     /// <summary>
     /// URL to the Braintree express checkout adapter script.
     /// </summary>
-    private const string BraintreeExpressAdapterUrl = "/js/checkout/adapters/braintree-express-adapter.js";
+    private const string BraintreeExpressAdapterUrl = "/App_Plugins/Merchello/js/checkout/adapters/braintree-express-adapter.js";
 
     /// <inheritdoc />
     /// <remarks>

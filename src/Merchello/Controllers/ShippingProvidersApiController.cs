@@ -288,7 +288,7 @@ public class ShippingProvidersApiController(
             Key = p.Metadata.Key,
             DisplayName = p.Metadata.DisplayName,
             Icon = p.Metadata.Icon,
-            IconSvg = p.Metadata.IconSvg,
+            IconSvg = p.Metadata.IconSvg ?? ProviderBrandLogoCatalog.GetShippingProviderIconSvg(p.Metadata.Key),
             Description = p.Metadata.Description,
             IsAvailable = !p.Metadata.ConfigCapabilities.RequiresGlobalConfig || p.Configuration != null,
             RequiresSetup = p.Metadata.ConfigCapabilities.RequiresGlobalConfig && p.Configuration == null,
@@ -471,12 +471,13 @@ public class ShippingProvidersApiController(
     private static ShippingProviderDto MapToProviderDto(RegisteredShippingProvider registered)
     {
         var meta = registered.Metadata;
+        var iconSvg = meta.IconSvg ?? ProviderBrandLogoCatalog.GetShippingProviderIconSvg(meta.Key);
         return new ShippingProviderDto
         {
             Key = meta.Key,
             DisplayName = registered.DisplayName,
             Icon = meta.Icon,
-            IconSvg = meta.IconSvg,
+            IconSvg = iconSvg,
             Description = meta.Description,
             SupportsRealTimeRates = meta.SupportsRealTimeRates,
             SupportsTracking = meta.SupportsTracking,

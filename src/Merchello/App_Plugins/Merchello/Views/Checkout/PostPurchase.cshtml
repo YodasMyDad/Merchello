@@ -1,6 +1,6 @@
 @model CheckoutViewModel
 @{
-    Layout = "~/Views/Checkout/_Layout.cshtml";
+    Layout = "~/App_Plugins/Merchello/Views/Checkout/_Layout.cshtml";
     var invoiceId = ViewData["InvoiceId"] as Guid?;
     var confirmationUrl = ViewData["ConfirmationUrl"] as string ?? "/";
 }
@@ -77,5 +77,5 @@ else
 }
 
 @section Scripts {
-    <script src="~/js/checkout/post-purchase.js"></script>
+    <script src="~/App_Plugins/Merchello/js/checkout/post-purchase.js"></script>
 }

@@ -100,7 +100,7 @@ public class MerchelloCheckoutController(
                     shippingGroups: null,
                     confirmation: null);
 
-                return View("~/Views/Checkout/Confirmation.cshtml", unauthorizedViewModel);
+                return View("~/App_Plugins/Merchello/Views/Checkout/Confirmation.cshtml", unauthorizedViewModel);
             }
 
             var confirmation = await checkoutService.GetOrderConfirmationAsync(checkoutPage.InvoiceId.Value, ct);
@@ -306,7 +306,7 @@ public class MerchelloCheckoutController(
                 LineItemsJson = lineItemsJson
             };
 
-            return View("~/Views/Checkout/Confirmation.cshtml", confirmationViewModel);
+            return View("~/App_Plugins/Merchello/Views/Checkout/Confirmation.cshtml", confirmationViewModel);
         }
 
         // Handle post-purchase upsell step
@@ -324,7 +324,7 @@ public class MerchelloCheckoutController(
 
             if (!checkoutPage.InvoiceId.HasValue)
             {
-                return View("~/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
+                return View("~/App_Plugins/Merchello/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
             }
 
             // Security: Verify the user has permission to view this post-purchase flow
@@ -338,24 +338,24 @@ public class MerchelloCheckoutController(
                     checkoutPage.InvoiceId.Value,
                     confirmationToken ?? "missing");
 
-                return View("~/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
+                return View("~/App_Plugins/Merchello/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
             }
 
             ViewData["InvoiceId"] = checkoutPage.InvoiceId.Value;
             ViewData["ConfirmationUrl"] = $"/checkout/confirmation/{checkoutPage.InvoiceId.Value}";
 
-            return View("~/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
+            return View("~/App_Plugins/Merchello/Views/Checkout/PostPurchase.cshtml", postPurchaseViewModel);
         }
 
         // Handle payment return/cancel steps
         if (checkoutPage.Step == CheckoutStep.PaymentReturn)
         {
-            return View("~/Views/Checkout/Return.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
+            return View("~/App_Plugins/Merchello/Views/Checkout/Return.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
         }
 
         if (checkoutPage.Step == CheckoutStep.PaymentCancelled)
         {
-            return View("~/Views/Checkout/Cancel.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
+            return View("~/App_Plugins/Merchello/Views/Checkout/Cancel.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
         }
 
         // For all other steps (Information, Shipping, Payment), render single-page checkout
@@ -491,7 +491,7 @@ public class MerchelloCheckoutController(
             AddressLookup = addressLookupConfig
         };
 
-        return View("~/Views/Checkout/SinglePage.cshtml", viewModel);
+        return View("~/App_Plugins/Merchello/Views/Checkout/SinglePage.cshtml", viewModel);
     }
 
     private bool TryGetRecoveryTokenFromPath(out string token)

@@ -5,6 +5,7 @@ using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
+using Merchello.Core.Shared.Providers;
 using Merchello.Core.Shared.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -445,13 +446,19 @@ public class PaymentProviderManager(
                     }
                     : null;
 
+                var iconHtml = methodDef.IconHtml
+                    ?? ProviderBrandLogoCatalog.GetPaymentMethodIconHtml(
+                        methodDef.Alias,
+                        registered.Metadata.Alias,
+                        methodDef.MethodType);
+
                 methods.Add(new PaymentMethodDto
                 {
                     ProviderAlias = registered.Metadata.Alias,
                     MethodAlias = methodDef.Alias,
                     DisplayName = methodSetting?.DisplayNameOverride ?? methodDef.DisplayName,
                     Icon = methodDef.Icon,
-                    IconHtml = methodDef.IconHtml,
+                    IconHtml = iconHtml,
                     CheckoutIconHtml = methodDef.CheckoutIconHtml,
                     IconMediaKey = methodSetting?.IconMediaKey,
                     CheckoutStyle = checkoutStyle,
@@ -537,6 +544,12 @@ public class PaymentProviderManager(
                     continue;
                 }
 
+                var iconHtml = methodDef.IconHtml
+                    ?? ProviderBrandLogoCatalog.GetPaymentMethodIconHtml(
+                        methodDef.Alias,
+                        registered.Metadata.Alias,
+                        methodDef.MethodType);
+
                 allMethods.Add(new CheckoutMethodPreviewDto
                 {
                     ProviderAlias = registered.Metadata.Alias,
@@ -545,7 +558,7 @@ public class PaymentProviderManager(
                     MethodAlias = methodDef.Alias,
                     DisplayName = methodSetting?.DisplayNameOverride ?? methodDef.DisplayName,
                     Icon = methodDef.Icon,
-                    IconHtml = methodDef.IconHtml,
+                    IconHtml = iconHtml,
                     MethodType = methodDef.MethodType,
                     SortOrder = methodSetting?.SortOrder ?? methodDef.DefaultSortOrder,
                     IsActive = true, // Will be updated during deduplication

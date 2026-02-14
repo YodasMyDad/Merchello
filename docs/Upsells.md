@@ -4619,7 +4619,7 @@ src/Merchello/Controllers/
 â”œâ”€â”€ UpsellsApiController.cs              # Admin API
 â”œâ”€â”€ PostPurchaseUpsellController.cs      # Post-purchase storefront API (Phase 8)
 
-src/Merchello/Views/Emails/Shared/
+src/Merchello/App_Plugins/Merchello/Views/Emails/Shared/
 â””â”€â”€ _UpsellSuggestions.cshtml            # Reusable MJML partial
 
 # Phase 8 Additions (Post-Purchase)
@@ -4707,6 +4707,7 @@ src/YourStorefront/                      # Your storefront project
   }
 }
 ```
+
 
 
 

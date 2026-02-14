@@ -41,6 +41,6 @@ public class CheckoutPasswordResetController(
             viewModel.ErrorMessage = "Invalid reset link. Please request a new password reset.";
         }
 
-        return View("~/Views/Checkout/ResetPassword.cshtml", viewModel);
+        return View("~/App_Plugins/Merchello/Views/Checkout/ResetPassword.cshtml", viewModel);
     }
 }
