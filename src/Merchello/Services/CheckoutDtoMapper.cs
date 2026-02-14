@@ -47,6 +47,14 @@ public class CheckoutDtoMapper(
                 var storeLineTotal = li.Amount * li.Quantity;
                 var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
                 var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
+                var displayUnitPriceWithAddons = li.GetDisplayLineItemUnitPriceWithAddons(
+                    basket.LineItems,
+                    displayContext,
+                    currencyService);
+                var displayLineTotalWithAddons = li.GetDisplayLineItemTotalWithAddons(
+                    basket.LineItems,
+                    displayContext,
+                    currencyService);
                 li.ExtendedData.TryGetValue("ImageUrl", out var imageUrlObj);
 
                 return new CheckoutLineItemDto
@@ -70,6 +78,10 @@ public class CheckoutDtoMapper(
                     DisplayLineTotal = displayLineTotal,
                     FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, displayCurrencySymbol),
                     FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, displayCurrencySymbol),
+                    DisplayUnitPriceWithAddons = displayUnitPriceWithAddons,
+                    DisplayLineTotalWithAddons = displayLineTotalWithAddons,
+                    FormattedDisplayUnitPriceWithAddons = currencyConversion.Format(displayUnitPriceWithAddons, displayCurrencySymbol),
+                    FormattedDisplayLineTotalWithAddons = currencyConversion.Format(displayLineTotalWithAddons, displayCurrencySymbol),
                     TaxRate = li.TaxRate,
                     IsTaxable = li.IsTaxable,
                     LineItemType = li.LineItemType,

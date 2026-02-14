@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -234,6 +235,90 @@ public static class DisplayCurrencyExtensions
     }
 
     /// <summary>
+    /// Get line item unit price for display, including linked add-ons for parent product/custom lines.
+    /// </summary>
+    public static decimal GetDisplayLineItemUnitPriceWithAddons(
+        this LineItem lineItem,
+        IEnumerable<LineItem> allLineItems,
+        StorefrontDisplayContext displayContext,
+        ICurrencyService currencyService)
+    {
+        var unitPrice = lineItem.GetDisplayLineItemUnitPrice(displayContext, currencyService);
+        if (lineItem.LineItemType is not (LineItemType.Product or LineItemType.Custom))
+        {
+            return unitPrice;
+        }
+
+        var addonsUnitPrice = allLineItems
+            .Where(addon => addon.IsAddonLinkedToParent(lineItem))
+            .Sum(addon => addon.GetDisplayLineItemUnitPrice(displayContext, currencyService));
+
+        return unitPrice + addonsUnitPrice;
+    }
+
+    /// <summary>
+    /// Get line item total for display, including linked add-ons for parent product/custom lines.
+    /// </summary>
+    public static decimal GetDisplayLineItemTotalWithAddons(
+        this LineItem lineItem,
+        IEnumerable<LineItem> allLineItems,
+        StorefrontDisplayContext displayContext,
+        ICurrencyService currencyService)
+    {
+        var lineTotal = lineItem.GetDisplayLineItemTotal(displayContext, currencyService);
+        if (lineItem.LineItemType is not (LineItemType.Product or LineItemType.Custom))
+        {
+            return lineTotal;
+        }
+
+        var addonsLineTotal = allLineItems
+            .Where(addon => addon.IsAddonLinkedToParent(lineItem))
+            .Sum(addon => addon.GetDisplayLineItemTotal(displayContext, currencyService));
+
+        return lineTotal + addonsLineTotal;
+    }
+
+    /// <summary>
+    /// Get checkout line item unit price including linked add-ons for parent product/custom lines.
+    /// </summary>
+    public static decimal GetDisplayLineItemUnitPriceWithAddons(
+        this CheckoutLineItemDto lineItem,
+        IEnumerable<CheckoutLineItemDto> allLineItems)
+    {
+        var unitPrice = lineItem.DisplayUnitPrice;
+        if (lineItem.LineItemType is not (LineItemType.Product or LineItemType.Custom))
+        {
+            return unitPrice;
+        }
+
+        var addonsUnitPrice = allLineItems
+            .Where(addon => IsAddonLinkedToParent(addon, lineItem))
+            .Sum(addon => addon.DisplayUnitPrice);
+
+        return unitPrice + addonsUnitPrice;
+    }
+
+    /// <summary>
+    /// Get checkout line item total including linked add-ons for parent product/custom lines.
+    /// </summary>
+    public static decimal GetDisplayLineItemTotalWithAddons(
+        this CheckoutLineItemDto lineItem,
+        IEnumerable<CheckoutLineItemDto> allLineItems)
+    {
+        var lineTotal = lineItem.DisplayLineTotal;
+        if (lineItem.LineItemType is not (LineItemType.Product or LineItemType.Custom))
+        {
+            return lineTotal;
+        }
+
+        var addonsLineTotal = allLineItems
+            .Where(addon => IsAddonLinkedToParent(addon, lineItem))
+            .Sum(addon => addon.DisplayLineTotal);
+
+        return lineTotal + addonsLineTotal;
+    }
+
+    /// <summary>
     /// Get discount amount converted to display currency.
     /// </summary>
     public static decimal GetDisplayDiscountAmount(
@@ -352,5 +437,32 @@ public static class DisplayCurrencyExtensions
         });
 
         return (rawSubTotal, productItems.Count);
+    }
+
+    private static bool IsAddonLinkedToParent(CheckoutLineItemDto addonLineItem, CheckoutLineItemDto parentLineItem)
+    {
+        if (addonLineItem.LineItemType != LineItemType.Addon)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(addonLineItem.ParentLineItemId) &&
+            !string.IsNullOrWhiteSpace(parentLineItem.Id.ToString()))
+        {
+            return string.Equals(
+                addonLineItem.ParentLineItemId,
+                parentLineItem.Id.ToString(),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.IsNullOrWhiteSpace(addonLineItem.DependantLineItemSku) || string.IsNullOrWhiteSpace(parentLineItem.Sku))
+        {
+            return false;
+        }
+
+        return string.Equals(
+            addonLineItem.DependantLineItemSku,
+            parentLineItem.Sku,
+            StringComparison.OrdinalIgnoreCase);
     }
 }

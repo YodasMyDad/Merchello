@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -2398,7 +2399,9 @@ public class CheckoutService(
                 if (order.LineItems == null) continue;
 
                 foreach (var li in order.LineItems.Where(l =>
-                    l.LineItemType == LineItemType.Product || l.LineItemType == LineItemType.Addon))
+                    l.LineItemType == LineItemType.Product ||
+                    l.LineItemType == LineItemType.Custom ||
+                    l.LineItemType == LineItemType.Addon))
                 {
                     var lineTotal = li.Quantity * li.Amount;
 
@@ -2429,6 +2432,10 @@ public class CheckoutService(
                         DisplayLineTotal = lineTotal,
                         FormattedDisplayUnitPrice = currencyService.FormatAmount(li.Amount, currencyCode),
                         FormattedDisplayLineTotal = currencyService.FormatAmount(lineTotal, currencyCode),
+                        DisplayUnitPriceWithAddons = li.Amount,
+                        DisplayLineTotalWithAddons = lineTotal,
+                        FormattedDisplayUnitPriceWithAddons = currencyService.FormatAmount(li.Amount, currencyCode),
+                        FormattedDisplayLineTotalWithAddons = currencyService.FormatAmount(lineTotal, currencyCode),
                         // Tax info for tax-inclusive display
                         TaxRate = li.TaxRate,
                         IsTaxable = li.IsTaxable,
@@ -2439,6 +2446,16 @@ public class CheckoutService(
                     });
                 }
             }
+        }
+
+        foreach (var lineItem in lineItems)
+        {
+            var displayUnitPriceWithAddons = lineItem.GetDisplayLineItemUnitPriceWithAddons(lineItems);
+            var displayLineTotalWithAddons = lineItem.GetDisplayLineItemTotalWithAddons(lineItems);
+            lineItem.DisplayUnitPriceWithAddons = displayUnitPriceWithAddons;
+            lineItem.DisplayLineTotalWithAddons = displayLineTotalWithAddons;
+            lineItem.FormattedDisplayUnitPriceWithAddons = currencyService.FormatAmount(displayUnitPriceWithAddons, currencyCode);
+            lineItem.FormattedDisplayLineTotalWithAddons = currencyService.FormatAmount(displayLineTotalWithAddons, currencyCode);
         }
 
         // Get shipping method names

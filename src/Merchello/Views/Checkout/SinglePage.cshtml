@@ -34,6 +34,34 @@
     var discountLineItems = basket?.LineItems?
         .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)
         .ToList() ?? [];
+
+    var basketLineItems = (basket?.LineItems ?? []).Where(li =>
+        li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product
+        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Custom
+        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon)
+        .ToList();
+
+    decimal GetDisplayUnitPrice(Merchello.Core.Accounting.Models.LineItem lineItem)
+    {
+        var amount = lineItem.Amount;
+        if (Model.DisplayPricesIncTax && lineItem.IsTaxable && lineItem.TaxRate > 0)
+        {
+            amount *= 1 + (lineItem.TaxRate / 100m);
+        }
+
+        return CurrencyService.Round(amount * exchangeRate, displayCurrencyCode);
+    }
+
+    decimal GetDisplayLineTotal(Merchello.Core.Accounting.Models.LineItem lineItem)
+    {
+        var amount = lineItem.Amount * lineItem.Quantity;
+        if (Model.DisplayPricesIncTax && lineItem.IsTaxable && lineItem.TaxRate > 0)
+        {
+            amount *= 1 + (lineItem.TaxRate / 100m);
+        }
+
+        return CurrencyService.Round(amount * exchangeRate, displayCurrencyCode);
+    }
 }
 
 <script id="checkout-initial-data" type="application/json">
@@ -46,11 +74,7 @@
         discount = displayDiscount
     },
     basketId = basket?.Id.ToString(),
-    basketLineItems = (basket?.LineItems ?? []).Where(li =>
-        li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product
-        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Custom
-        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon)
-        .Select(li =>
+    basketLineItems = basketLineItems.Select(li =>
         {
             var selectedOptions = li.GetSelectedOptions()
                 .Select(o => new
@@ -58,8 +82,19 @@
                     optionName = o.OptionName,
                     valueName = o.ValueName
                 });
-            var displayUnitPrice = CurrencyService.Round(li.Amount * exchangeRate, displayCurrencyCode);
-            var displayLineTotal = CurrencyService.Round(li.Amount * li.Quantity * exchangeRate, displayCurrencyCode);
+            var displayUnitPrice = GetDisplayUnitPrice(li);
+            var displayLineTotal = GetDisplayLineTotal(li);
+            var displayUnitPriceWithAddons = displayUnitPrice;
+            var displayLineTotalWithAddons = displayLineTotal;
+
+            if (li.LineItemType is Merchello.Core.Accounting.Models.LineItemType.Product or Merchello.Core.Accounting.Models.LineItemType.Custom)
+            {
+                var linkedAddons = basketLineItems
+                    .Where(addon => addon.IsAddonLinkedToParent(li))
+                    .ToList();
+                displayUnitPriceWithAddons += linkedAddons.Sum(GetDisplayUnitPrice);
+                displayLineTotalWithAddons += linkedAddons.Sum(GetDisplayLineTotal);
+            }
 
             return new
             {
@@ -73,6 +108,12 @@
                 lineTotal = li.Amount * li.Quantity,
                 displayUnitPrice,
                 displayLineTotal,
+                formattedDisplayUnitPrice = $"{displayCurrencySymbol}{displayUnitPrice.ToString($"N{decimalPlaces}")}",
+                formattedDisplayLineTotal = $"{displayCurrencySymbol}{displayLineTotal.ToString($"N{decimalPlaces}")}",
+                displayUnitPriceWithAddons,
+                displayLineTotalWithAddons,
+                formattedDisplayUnitPriceWithAddons = $"{displayCurrencySymbol}{displayUnitPriceWithAddons.ToString($"N{decimalPlaces}")}",
+                formattedDisplayLineTotalWithAddons = $"{displayCurrencySymbol}{displayLineTotalWithAddons.ToString($"N{decimalPlaces}")}",
                 taxRate = li.TaxRate,
                 isTaxable = li.IsTaxable,
                 lineItemType = li.LineItemType.ToString(),

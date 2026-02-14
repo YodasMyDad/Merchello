@@ -631,7 +631,7 @@ document.addEventListener('alpine:init', () => {
 
         // Computed
         get productItems() {
-            return this.items.filter(item => item.lineItemType === 'Product');
+            return this.items.filter(item => item.lineItemType === 'Product' || item.lineItemType === 'Custom');
         },
 
         getAddonsForProduct(productLineItemId, productSku) {

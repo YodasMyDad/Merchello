@@ -217,6 +217,16 @@ public class MerchelloCheckoutController(
                     }
                 }
 
+                foreach (var li in confirmation.LineItems)
+                {
+                    var displayUnitPriceWithAddons = li.GetDisplayLineItemUnitPriceWithAddons(confirmation.LineItems);
+                    var displayLineTotalWithAddons = li.GetDisplayLineItemTotalWithAddons(confirmation.LineItems);
+                    li.DisplayUnitPriceWithAddons = displayUnitPriceWithAddons;
+                    li.DisplayLineTotalWithAddons = displayLineTotalWithAddons;
+                    li.FormattedDisplayUnitPriceWithAddons = $"{symbol}{displayUnitPriceWithAddons.ToString(format)}";
+                    li.FormattedDisplayLineTotalWithAddons = $"{symbol}{displayLineTotalWithAddons.ToString(format)}";
+                }
+
                 // Calculate tax-inclusive subtotal from line items
                 var (rawTaxInclusiveSubTotal, productItemCount) = confirmation.LineItems
                     .GetRawTaxInclusiveSubTotal(displayContext.DisplayPricesIncTax, currencyService, currency);
