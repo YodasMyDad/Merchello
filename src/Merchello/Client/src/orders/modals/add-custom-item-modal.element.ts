@@ -664,7 +664,7 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
     const total = this._taxPreview?.total;
 
     return html`
-      <div class="form-row-group">
+      <div class="form-row-group identity-fields">
         <div class="form-row autocomplete-group">
           <label for="item-name">Item name</label>
           <div class="autocomplete-field">
@@ -1120,6 +1120,10 @@ export class MerchelloAddCustomItemModalElement extends UmbModalBaseElement<
   static override readonly styles = [
     modalLayoutStyles,
     css`
+    .identity-fields {
+      grid-template-columns: 1fr;
+    }
+
     .autocomplete-group {
       position: relative;
     }

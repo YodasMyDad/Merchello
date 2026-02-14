@@ -521,18 +521,6 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               <span>Option Values</span>
               <span class="value-count">${valueCount}/${maxValues}</span>
             </div>
-            <div class="section-header-actions" slot="header-actions">
-              <uui-button
-                compact
-                look="primary"
-                color="positive"
-                @click=${this._addValue}
-                label="Add Value"
-                ?disabled=${this._isAtMaxValues()}>
-                <uui-icon name="icon-add"></uui-icon>
-                Add Value
-              </uui-button>
-            </div>
 
             ${this._formData.values && this._formData.values.length > 0
               ? html`
@@ -544,9 +532,22 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
                   <div class="empty-state">
                     <uui-icon name="icon-list"></uui-icon>
                     <p>No values added yet</p>
-                    <p class="hint">Use the <strong>Add Value</strong> button above to add options like Small, Medium, Large</p>
+                    <p class="hint">Use the <strong>Add Value</strong> button below to add options like Small, Medium, Large</p>
                   </div>
                 `}
+
+            <div class="values-footer">
+              <uui-button
+                compact
+                look="primary"
+                color="positive"
+                @click=${this._addValue}
+                label="Add Value"
+                ?disabled=${this._isAtMaxValues()}>
+                <uui-icon name="icon-add"></uui-icon>
+                Add Value
+              </uui-button>
+            </div>
           </uui-box>
         </div>
 
@@ -645,6 +646,14 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-3);
+    }
+
+    .values-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: var(--uui-size-space-4);
+      padding-top: var(--uui-size-space-3);
+      border-top: 1px solid var(--uui-color-border);
     }
 
     .value-row {
