@@ -17,6 +17,7 @@ using Merchello.Core.Shipping.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
 using Microsoft.AspNetCore.Mvc.Razor.Compilation;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -1842,114 +1843,185 @@ public class ProductService(
     /// </summary>
     public async Task<CrudResult<Product>> UpdateVariant(Guid productRootId, Guid variantId, UpdateVariantDto request, CancellationToken cancellationToken = default)
     {
-        var result = new CrudResult<Product>();
-        Product? variant = null;
-        using var scope = efCoreScopeProvider.CreateScope();
+        const int maxRetryAttempts = 3;
 
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        for (var attempt = 1; attempt <= maxRetryAttempts; attempt++)
         {
-            variant = await db.Products
-                .FirstOrDefaultAsync(p => p.ProductRootId == productRootId && p.Id == variantId, cancellationToken);
+            var result = new CrudResult<Product>();
+            Product? variant = null;
+            using var scope = efCoreScopeProvider.CreateScope();
 
-            if (variant == null)
+            try
             {
-                result.AddErrorMessage("Variant not found");
-                return false;
-            }
-
-            // Validate SKU uniqueness if being updated
-            if (request.Sku != null && request.Sku != variant.Sku)
-            {
-                var skuExists = await db.Products.AnyAsync(p => p.Sku == request.Sku && p.Id != variantId, cancellationToken);
-                if (skuExists)
+                var saveCompleted = await scope.ExecuteWithContextAsync<bool>(async db =>
                 {
-                    result.AddErrorMessage($"SKU '{request.Sku}' already exists");
-                    return false;
-                }
-            }
+                    variant = await db.Products
+                        .FirstOrDefaultAsync(p => p.ProductRootId == productRootId && p.Id == variantId, cancellationToken);
 
-            // Update properties if provided
-            if (request.Name != null) variant.Name = request.Name;
-            if (request.Sku != null) variant.Sku = request.Sku;
-            if (request.Gtin != null) variant.Gtin = request.Gtin;
-            if (request.SupplierSku != null) variant.SupplierSku = request.SupplierSku;
-            if (request.Price.HasValue) variant.Price = request.Price.Value;
-            if (request.CostOfGoods.HasValue) variant.CostOfGoods = request.CostOfGoods.Value;
-            if (request.OnSale.HasValue) variant.OnSale = request.OnSale.Value;
-            if (request.PreviousPrice.HasValue) variant.PreviousPrice = request.PreviousPrice.Value;
-            if (request.AvailableForPurchase.HasValue) variant.AvailableForPurchase = request.AvailableForPurchase.Value;
-            if (request.CanPurchase.HasValue) variant.CanPurchase = request.CanPurchase.Value;
-            if (request.ExcludeRootProductImages.HasValue) variant.ExcludeRootProductImages = request.ExcludeRootProductImages.Value;
-            if (request.Url != null) variant.Url = request.Url;
-            if (request.Images != null) variant.Images = request.Images.Select(g => g.ToString()).ToList();
-
-            // HS Code
-            if (request.HsCode != null) variant.HsCode = request.HsCode;
-
-            // Package configurations (overrides root if provided)
-            if (request.PackageConfigurations != null)
-            {
-                variant.PackageConfigurations = request.PackageConfigurations
-                    .Select(p => new ProductPackage
+                    if (variant == null)
                     {
-                        Weight = p.Weight,
-                        LengthCm = p.LengthCm,
-                        WidthCm = p.WidthCm,
-                        HeightCm = p.HeightCm
-                    }).ToList();
-            }
-
-            // Shopping Feed
-            if (request.ShoppingFeedTitle != null) variant.ShoppingFeedTitle = request.ShoppingFeedTitle;
-            if (request.ShoppingFeedDescription != null) variant.ShoppingFeedDescription = request.ShoppingFeedDescription;
-            if (request.ShoppingFeedColour != null) variant.ShoppingFeedColour = request.ShoppingFeedColour;
-            if (request.ShoppingFeedMaterial != null) variant.ShoppingFeedMaterial = request.ShoppingFeedMaterial;
-            if (request.ShoppingFeedSize != null) variant.ShoppingFeedSize = request.ShoppingFeedSize;
-            if (request.ShoppingFeedWidth != null) variant.ShoppingFeedWidth = request.ShoppingFeedWidth;
-            if (request.ShoppingFeedHeight != null) variant.ShoppingFeedHeight = request.ShoppingFeedHeight;
-            if (request.RemoveFromFeed.HasValue) variant.RemoveFromFeed = request.RemoveFromFeed.Value;
-
-            // Warehouse stock settings
-            if (request.WarehouseStock != null)
-            {
-                foreach (var stockRequest in request.WarehouseStock)
-                {
-                    var existingStock = await db.ProductWarehouses
-                        .FirstOrDefaultAsync(pw => pw.ProductId == variantId && pw.WarehouseId == stockRequest.WarehouseId, cancellationToken);
-
-                    if (existingStock != null)
-                    {
-                        // Update existing record
-                        existingStock.Stock = stockRequest.Stock;
-                        existingStock.ReorderPoint = stockRequest.ReorderPoint;
-                        existingStock.ReorderQuantity = stockRequest.ReorderQuantity;
-                        existingStock.TrackStock = stockRequest.TrackStock;
+                        result.AddErrorMessage("Variant not found");
+                        return false;
                     }
-                    else
+
+                    // Validate SKU uniqueness if being updated
+                    if (request.Sku != null && request.Sku != variant.Sku)
                     {
-                        // Create new record with default stock of 0
-                        db.ProductWarehouses.Add(new ProductWarehouse
+                        var skuExists = await db.Products.AnyAsync(p => p.Sku == request.Sku && p.Id != variantId, cancellationToken);
+                        if (skuExists)
                         {
-                            ProductId = variantId,
-                            WarehouseId = stockRequest.WarehouseId,
-                            Stock = stockRequest.Stock,
-                            ReorderPoint = stockRequest.ReorderPoint,
-                            ReorderQuantity = stockRequest.ReorderQuantity,
-                            TrackStock = stockRequest.TrackStock
-                        });
+                            result.AddErrorMessage($"SKU '{request.Sku}' already exists");
+                            return false;
+                        }
                     }
+
+                    // Update properties if provided
+                    if (request.Name != null) variant.Name = request.Name;
+                    if (request.Sku != null) variant.Sku = request.Sku;
+                    if (request.Gtin != null) variant.Gtin = request.Gtin;
+                    if (request.SupplierSku != null) variant.SupplierSku = request.SupplierSku;
+                    if (request.Price.HasValue) variant.Price = request.Price.Value;
+                    if (request.CostOfGoods.HasValue) variant.CostOfGoods = request.CostOfGoods.Value;
+                    if (request.OnSale.HasValue) variant.OnSale = request.OnSale.Value;
+                    if (request.PreviousPrice.HasValue) variant.PreviousPrice = request.PreviousPrice.Value;
+                    if (request.AvailableForPurchase.HasValue) variant.AvailableForPurchase = request.AvailableForPurchase.Value;
+                    if (request.CanPurchase.HasValue) variant.CanPurchase = request.CanPurchase.Value;
+                    if (request.ExcludeRootProductImages.HasValue) variant.ExcludeRootProductImages = request.ExcludeRootProductImages.Value;
+                    if (request.Url != null) variant.Url = request.Url;
+                    if (request.Images != null) variant.Images = request.Images.Select(g => g.ToString()).ToList();
+
+                    // HS Code
+                    if (request.HsCode != null) variant.HsCode = request.HsCode;
+
+                    // Package configurations (overrides root if provided)
+                    if (request.PackageConfigurations != null)
+                    {
+                        variant.PackageConfigurations = request.PackageConfigurations
+                            .Select(p => new ProductPackage
+                            {
+                                Weight = p.Weight,
+                                LengthCm = p.LengthCm,
+                                WidthCm = p.WidthCm,
+                                HeightCm = p.HeightCm
+                            }).ToList();
+                    }
+
+                    // Shopping Feed
+                    if (request.ShoppingFeedTitle != null) variant.ShoppingFeedTitle = request.ShoppingFeedTitle;
+                    if (request.ShoppingFeedDescription != null) variant.ShoppingFeedDescription = request.ShoppingFeedDescription;
+                    if (request.ShoppingFeedColour != null) variant.ShoppingFeedColour = request.ShoppingFeedColour;
+                    if (request.ShoppingFeedMaterial != null) variant.ShoppingFeedMaterial = request.ShoppingFeedMaterial;
+                    if (request.ShoppingFeedSize != null) variant.ShoppingFeedSize = request.ShoppingFeedSize;
+                    if (request.ShoppingFeedWidth != null) variant.ShoppingFeedWidth = request.ShoppingFeedWidth;
+                    if (request.ShoppingFeedHeight != null) variant.ShoppingFeedHeight = request.ShoppingFeedHeight;
+                    if (request.RemoveFromFeed.HasValue) variant.RemoveFromFeed = request.RemoveFromFeed.Value;
+
+                    // Warehouse stock settings
+                    if (request.WarehouseStock != null)
+                    {
+                        foreach (var stockRequest in request.WarehouseStock)
+                        {
+                            var existingStock = await db.ProductWarehouses
+                                .FirstOrDefaultAsync(pw => pw.ProductId == variantId && pw.WarehouseId == stockRequest.WarehouseId, cancellationToken);
+
+                            if (existingStock != null)
+                            {
+                                // Update existing record
+                                existingStock.Stock = stockRequest.Stock;
+                                existingStock.ReorderPoint = stockRequest.ReorderPoint;
+                                existingStock.ReorderQuantity = stockRequest.ReorderQuantity;
+                                existingStock.TrackStock = stockRequest.TrackStock;
+                            }
+                            else
+                            {
+                                // Create new record with default stock of 0
+                                db.ProductWarehouses.Add(new ProductWarehouse
+                                {
+                                    ProductId = variantId,
+                                    WarehouseId = stockRequest.WarehouseId,
+                                    Stock = stockRequest.Stock,
+                                    ReorderPoint = stockRequest.ReorderPoint,
+                                    ReorderQuantity = stockRequest.ReorderQuantity,
+                                    TrackStock = stockRequest.TrackStock
+                                });
+                            }
+                        }
+                    }
+
+                    variant.DateUpdated = DateTime.Now;
+
+                    await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+                    return true;
+                });
+
+                if (!saveCompleted)
+                {
+                    return result;
                 }
+
+                scope.Complete();
+                result.ResultObject = variant;
+                return result;
             }
+            catch (Exception ex) when (IsTransientSqliteLockException(ex) && attempt < maxRetryAttempts)
+            {
+                var delay = GetSqliteLockRetryDelay(attempt);
+                logger.LogWarning(
+                    ex,
+                    "Transient SQLite lock while updating variant {VariantId} for product {ProductRootId}. Attempt {Attempt}/{MaxAttempts}. Retrying in {DelayMs}ms.",
+                    variantId,
+                    productRootId,
+                    attempt,
+                    maxRetryAttempts,
+                    (int)delay.TotalMilliseconds);
 
-            variant.DateUpdated = DateTime.Now;
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch (Exception ex) when (IsTransientSqliteLockException(ex))
+            {
+                logger.LogError(
+                    ex,
+                    "SQLite lock persisted while updating variant {VariantId} for product {ProductRootId} after {MaxAttempts} attempts.",
+                    variantId,
+                    productRootId,
+                    maxRetryAttempts);
 
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            return true;
-        });
+                result.Messages.Clear();
+                result.AddErrorMessage("The database is busy. Please try saving the variants again.");
+                return result;
+            }
+        }
 
-        scope.Complete();
-        result.ResultObject = variant;
-        return result;
+        var fallbackResult = new CrudResult<Product>();
+        fallbackResult.AddErrorMessage("The database is busy. Please try saving the variants again.");
+        return fallbackResult;
+    }
+
+    private static bool IsTransientSqliteLockException(Exception exception)
+    {
+        if (exception is DbUpdateException dbUpdateException &&
+            dbUpdateException.InnerException is SqliteException dbUpdateSqliteException)
+        {
+            return dbUpdateSqliteException.SqliteErrorCode is 5 or 6 ||
+                   dbUpdateSqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   dbUpdateSqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (exception is SqliteException sqliteException)
+        {
+            return sqliteException.SqliteErrorCode is 5 or 6 ||
+                   sqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   sqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private static TimeSpan GetSqliteLockRetryDelay(int attempt)
+    {
+        var baseDelayMs = 100 * (1 << Math.Clamp(attempt, 0, 5));
+        var jitterMs = Random.Shared.Next(25, 100);
+        return TimeSpan.FromMilliseconds(baseDelayMs + jitterMs);
     }
 
     /// <summary>

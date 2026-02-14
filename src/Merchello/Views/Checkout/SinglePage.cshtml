@@ -581,6 +581,12 @@
                             <p class="text-sm text-red-700 mt-2">Please change your shipping address or remove unavailable items to continue.</p>
                         </div>
 
+                        <!-- Missing shipping methods warning -->
+                        <div x-show="!shippingLoading && !shippingError && shippingGroups.some(group => !group.shippingOptions?.length)" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg mb-3" role="alert">
+                            <p class="text-sm font-medium text-red-800">No shipping methods are currently available for part of your order.</p>
+                            <p class="text-sm text-red-700 mt-1">Please contact support before completing checkout.</p>
+                        </div>
+
                         <!-- Shipping options -->
                         <div x-show="!shippingError && shippingGroups.length > 0" x-cloak class="space-y-3">
                             <template x-for="group in shippingGroups" :key="group.groupId">
@@ -602,6 +608,13 @@
 
                                     <!-- Shipping options for this group -->
                                     <div class="p-2 space-y-2">
+                                        <template x-if="!group.shippingOptions || group.shippingOptions.length === 0">
+                                            <div class="p-3 bg-red-50 border border-red-200 rounded-lg" role="alert">
+                                                <p class="text-sm font-medium text-red-800">No shipping methods are available for this shipment.</p>
+                                                <p class="text-xs text-red-700 mt-1">Please contact support before placing your order.</p>
+                                            </div>
+                                        </template>
+
                                         <template x-for="option in group.shippingOptions" :key="option.selectionKey">
                                             <label class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
                                                    :class="{ 'border-accent bg-accent/5': shippingSelections[group.groupId] === option.selectionKey }">

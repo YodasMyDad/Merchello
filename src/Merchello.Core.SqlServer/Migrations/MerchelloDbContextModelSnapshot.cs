@@ -1812,8 +1812,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ShoppingFeedDescription")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("ShoppingFeedHeight")
                         .HasMaxLength(100)
@@ -1828,8 +1828,8 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("ShoppingFeedTitle")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("ShoppingFeedWidth")
                         .HasMaxLength(100)

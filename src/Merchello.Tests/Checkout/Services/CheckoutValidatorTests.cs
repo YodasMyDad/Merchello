@@ -1,7 +1,9 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Shipping.Models;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
@@ -290,6 +292,88 @@ public class CheckoutValidatorTests
         };
 
         var errors = _validator.ValidateAddressRequest(request);
+
+        errors.ShouldBeEmpty();
+    }
+
+    #endregion
+
+    #region Shipping Selection Validation
+
+    [Fact]
+    public void ValidateShippingSelections_GroupWithoutShippingOptions_ReturnsUnavailableError()
+    {
+        var groupId = Guid.NewGuid();
+        var groups = new List<OrderGroup>
+        {
+            new()
+            {
+                GroupId = groupId,
+                GroupName = "Shipment from Main Warehouse",
+                AvailableShippingOptions = []
+            }
+        };
+
+        var errors = _validator.ValidateShippingSelections(groups, []);
+
+        errors.ShouldContainKey(groupId.ToString());
+        errors[groupId.ToString()].ShouldContain("No shipping methods are available");
+    }
+
+    [Fact]
+    public void ValidateShippingSelections_MissingSelection_ReturnsSelectShippingError()
+    {
+        var option = new ShippingOptionInfo
+        {
+            ShippingOptionId = Guid.NewGuid(),
+            Name = "Standard Shipping",
+            Cost = 5m
+        };
+
+        var groupId = Guid.NewGuid();
+        var groups = new List<OrderGroup>
+        {
+            new()
+            {
+                GroupId = groupId,
+                GroupName = "Shipment from Main Warehouse",
+                AvailableShippingOptions = [option]
+            }
+        };
+
+        var errors = _validator.ValidateShippingSelections(groups, []);
+
+        errors.ShouldContainKey(groupId.ToString());
+        errors[groupId.ToString()].ShouldContain("Please select a shipping method");
+    }
+
+    [Fact]
+    public void ValidateShippingSelections_ValidSelection_ReturnsNoErrors()
+    {
+        var option = new ShippingOptionInfo
+        {
+            ShippingOptionId = Guid.NewGuid(),
+            Name = "Standard Shipping",
+            Cost = 5m
+        };
+
+        var groupId = Guid.NewGuid();
+        var groups = new List<OrderGroup>
+        {
+            new()
+            {
+                GroupId = groupId,
+                GroupName = "Shipment from Main Warehouse",
+                AvailableShippingOptions = [option]
+            }
+        };
+
+        var selections = new Dictionary<Guid, string>
+        {
+            [groupId] = option.SelectionKey
+        };
+
+        var errors = _validator.ValidateShippingSelections(groups, selections);
 
         errors.ShouldBeEmpty();
     }

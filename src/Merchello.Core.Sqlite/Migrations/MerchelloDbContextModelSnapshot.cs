@@ -1805,7 +1805,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedDescription")
-                        .HasMaxLength(100)
+                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedHeight")
@@ -1821,7 +1821,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedTitle")
-                        .HasMaxLength(200)
+                        .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedWidth")

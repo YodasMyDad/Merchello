@@ -36,8 +36,8 @@ public class ProductDbMapping : IEntityTypeConfiguration<Product>
         builder.Property(x => x.DateCreated).IsRequired();
         builder.Property(x => x.DateUpdated).IsRequired();
 
-        builder.Property(x => x.ShoppingFeedTitle).HasMaxLength(200);
-        builder.Property(x => x.ShoppingFeedDescription).HasMaxLength(100);
+        builder.Property(x => x.ShoppingFeedTitle).HasMaxLength(150);
+        builder.Property(x => x.ShoppingFeedDescription).HasMaxLength(1000);
         builder.Property(x => x.ShoppingFeedColour).HasMaxLength(100);
         builder.Property(x => x.ShoppingFeedMaterial).HasMaxLength(100);
         builder.Property(x => x.ShoppingFeedSize).HasMaxLength(100);

@@ -256,8 +256,12 @@ export function initSinglePageCheckout() {
             get allShippingSelected() {
                 if (this.shippingGroups.length === 0) return false;
                 return this.shippingGroups.every(g =>
-                    !g.shippingOptions?.length || this.shippingSelections[g.groupId]
+                    g.shippingOptions?.length > 0 && this.shippingSelections[g.groupId]
                 );
+            },
+
+            get hasUnavailableShippingGroups() {
+                return this.shippingGroups.some(g => !g.shippingOptions?.length);
             },
 
             get canSubmit() {
@@ -1663,7 +1667,11 @@ export function initSinglePageCheckout() {
                     this.validateField('shipping.phone');
                 }
 
-                if (!this.allShippingSelected) store?.setGeneralError('Please select a shipping method.');
+                if (this.hasUnavailableShippingGroups) {
+                    store?.setGeneralError('No shipping methods are available for one or more shipments. Please contact support.');
+                } else if (!this.allShippingSelected) {
+                    store?.setGeneralError('Please select a shipping method.');
+                }
                 if (!this.selectedPaymentMethod) store?.setGeneralError(this.generalError || 'Please select a payment method.');
 
                 // Order terms checkbox validation

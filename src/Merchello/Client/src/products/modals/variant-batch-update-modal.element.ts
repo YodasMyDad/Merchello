@@ -33,6 +33,10 @@ const BATCH_FIELD_OPTIONS: BatchFieldOption[] = [
   { key: "trackStock", label: "Track Stock", description: "Toggle stock tracking per warehouse." },
 ];
 
+const MAX_UPDATE_RETRY_ATTEMPTS = 3;
+const UPDATE_RETRY_DELAY_MS = 120;
+const MAX_PARALLEL_UPDATES = 3;
+
 @customElement("merchello-variant-batch-update-modal")
 export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement<
   VariantBatchUpdateModalData,
@@ -236,6 +240,70 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
     return request;
   }
 
+  private _isRetryableUpdateError(error: Error): boolean {
+    const message = error.message.toLowerCase();
+    return (
+      message.includes("database table is locked") ||
+      message.includes("database is locked") ||
+      message.includes("sqlite error 5") ||
+      message.includes("sqlite error 6") ||
+      message.startsWith("http 500")
+    );
+  }
+
+  private _delay(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, milliseconds);
+    });
+  }
+
+  private async _updateVariantWithRetry(
+    productRootId: string,
+    variantId: string,
+    request: UpdateVariantDto,
+  ): Promise<{ error?: Error }> {
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= MAX_UPDATE_RETRY_ATTEMPTS; attempt++) {
+      const { error } = await MerchelloApi.updateVariant(productRootId, variantId, request);
+      if (!error) {
+        return {};
+      }
+
+      lastError = error;
+      if (!this._isRetryableUpdateError(error) || attempt === MAX_UPDATE_RETRY_ATTEMPTS) {
+        return { error };
+      }
+
+      await this._delay(UPDATE_RETRY_DELAY_MS * attempt);
+    }
+
+    return { error: lastError };
+  }
+
+  private async _saveVariantsWithLimitedConcurrency(
+    productRootId: string,
+  ): Promise<Array<{ variant: ProductVariantDto; error?: Error }>> {
+    const results: Array<{ variant: ProductVariantDto; error?: Error }> = new Array(this._variants.length);
+    let nextIndex = 0;
+
+    const worker = async (): Promise<void> => {
+      while (nextIndex < this._variants.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+
+        const variant = this._variants[index];
+        const request = this._buildUpdateRequest(variant);
+        const updateResult = await this._updateVariantWithRetry(productRootId, variant.id, request);
+        results[index] = { variant, error: updateResult.error };
+      }
+    };
+
+    const workerCount = Math.min(MAX_PARALLEL_UPDATES, this._variants.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return results;
+  }
+
   private async _handleSave(): Promise<void> {
     if (!this.data?.productRootId || this._selectedFields.length === 0 || this._variants.length === 0) {
       return;
@@ -250,13 +318,7 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
     this._rowErrors = {};
 
     try {
-      const results = await Promise.all(
-        this._variants.map(async (variant) => {
-          const request = this._buildUpdateRequest(variant);
-          const { error } = await MerchelloApi.updateVariant(this.data!.productRootId, variant.id, request);
-          return { variant, error };
-        }),
-      );
+      const results = await this._saveVariantsWithLimitedConcurrency(this.data!.productRootId);
 
       const failed = results.filter((result) => result.error);
       if (failed.length > 0) {
@@ -722,4 +784,3 @@ declare global {
     "merchello-variant-batch-update-modal": MerchelloVariantBatchUpdateModalElement;
   }
 }
-

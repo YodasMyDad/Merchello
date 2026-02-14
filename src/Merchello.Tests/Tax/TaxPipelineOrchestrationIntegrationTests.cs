@@ -11,6 +11,7 @@ using Merchello.Core.Products.Models;
 using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Tax.Models;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Models;
@@ -126,7 +127,7 @@ public class TaxPipelineOrchestrationIntegrationTests : IClassFixture<ServiceTes
         invoice.Tax.ShouldBe(12.3m); // 100*12% + 6*5%
         invoice.ExtendedData[Constants.ExtendedDataKeys.TaxProviderAlias].ShouldBe("deterministic-external");
         invoice.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.TaxProviderTransactionId).ShouldBeTrue();
-        Convert.ToBoolean(invoice.ExtendedData[Constants.ExtendedDataKeys.TaxIsEstimated]).ShouldBeFalse();
+        Convert.ToBoolean(invoice.ExtendedData[Constants.ExtendedDataKeys.TaxIsEstimated].UnwrapJsonElement()).ShouldBeFalse();
         invoice.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.TaxEstimationReason).ShouldBeFalse();
         invoice.Orders.ShouldNotBeNull();
         invoice.Orders.ShouldContain(o => o.WarehouseId == warehouse.Id);

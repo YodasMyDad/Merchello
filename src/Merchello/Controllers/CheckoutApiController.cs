@@ -592,15 +592,6 @@ public class CheckoutApiController(
     [HttpPost("shipping")]
     public async Task<IActionResult> SaveShippingSelections([FromBody] SelectShippingRequestDto request, CancellationToken ct)
     {
-        if (request.Selections.Count == 0)
-        {
-            return BadRequest(new SelectShippingResponseDto
-            {
-                Success = false,
-                Message = "No shipping selections provided."
-            });
-        }
-
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null)
         {
@@ -633,8 +624,10 @@ public class CheckoutApiController(
             });
         }
 
+        var requestedSelections = request.Selections ?? [];
+
         // Validate that all groups have a valid shipping selection
-        var errors = checkoutValidator.ValidateShippingSelections(groupingResult.Groups, request.Selections);
+        var errors = checkoutValidator.ValidateShippingSelections(groupingResult.Groups, requestedSelections);
         if (errors.Count > 0)
         {
             return UnprocessableEntity(new SelectShippingResponseDto
@@ -646,7 +639,7 @@ public class CheckoutApiController(
         }
 
         // Augment selections with WarehouseId and GroupId keys for stable lookups
-        var augmentedSelections = checkoutValidator.AugmentShippingSelections(groupingResult.Groups, request.Selections);
+        var augmentedSelections = checkoutValidator.AugmentShippingSelections(groupingResult.Groups, requestedSelections);
 
         // Delegate to service (handles calculation, discounts, DB save, and session updates)
         var saveResult = await checkoutService.SaveShippingSelectionsAsync(new SaveShippingSelectionsParameters
