@@ -4,6 +4,8 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)Merchello.ArchitectureAnalyzers\Merchello.ArchitectureAnalyzers.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
+                      SetTargetFramework="TargetFramework=netstandard2.0"
+                      GlobalPropertiesToRemove="TargetFramework;TargetFrameworks"
                       PrivateAssets="all" />
   </ItemGroup>
 
