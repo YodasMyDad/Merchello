@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Factories;
+using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Models;
@@ -32,6 +33,65 @@ public class DisplayCurrencyExtensionsTests
     }
 
     #region GROSS Reconciliation Tests
+
+    [Fact]
+    public void GetDisplayLineItemTotalWithAddons_LinksByParentLineItemId()
+    {
+        var parent = CreateLineItem(100m, 1, 20m, LineItemType.Product, "PARENT-001");
+        var linkedAddon = CreateLineItem(15m, 1, 20m, LineItemType.Addon, "ADDON-LINKED", parent.Sku);
+        linkedAddon.SetParentLineItemId(parent.Id);
+
+        var unlinkedAddon = CreateLineItem(25m, 1, 20m, LineItemType.Addon, "ADDON-OTHER", parent.Sku);
+        unlinkedAddon.SetParentLineItemId(Guid.NewGuid());
+
+        var allLineItems = new List<LineItem> { parent, linkedAddon, unlinkedAddon };
+        var displayContext = CreateDisplayContext(exchangeRate: 1m, displayPricesIncTax: false);
+
+        var unitPriceWithAddons = parent.GetDisplayLineItemUnitPriceWithAddons(allLineItems, displayContext, _currencyService);
+        var lineTotalWithAddons = parent.GetDisplayLineItemTotalWithAddons(allLineItems, displayContext, _currencyService);
+
+        unitPriceWithAddons.ShouldBe(115m);
+        lineTotalWithAddons.ShouldBe(115m);
+    }
+
+    [Fact]
+    public void GetDisplayLineItemTotalWithAddons_UsesSkuFallbackWhenParentIdMissing()
+    {
+        var parent = CreateLineItem(80m, 1, 20m, LineItemType.Product, "PARENT-SKU");
+        var skuFallbackAddon = CreateLineItem(12m, 1, 20m, LineItemType.Addon, "ADDON-SKU", parent.Sku);
+
+        var parentIdWinsAddon = CreateLineItem(9m, 1, 20m, LineItemType.Addon, "ADDON-PARENT-ID", parent.Sku);
+        parentIdWinsAddon.SetParentLineItemId(Guid.NewGuid());
+
+        var allLineItems = new List<LineItem> { parent, skuFallbackAddon, parentIdWinsAddon };
+        var displayContext = CreateDisplayContext(exchangeRate: 1m, displayPricesIncTax: false);
+
+        var lineTotalWithAddons = parent.GetDisplayLineItemTotalWithAddons(allLineItems, displayContext, _currencyService);
+
+        lineTotalWithAddons.ShouldBe(92m);
+    }
+
+    [Fact]
+    public void GetDisplayLineItemTotalWithAddons_DisplayIncTaxAndExchangeRate_RoundsPerLineCorrectly()
+    {
+        var parent = CreateLineItem(48.35m, 2, 20m, LineItemType.Product, "PARENT-ROUND");
+        var addon = CreateLineItem(9.99m, 2, 20m, LineItemType.Addon, "ADDON-ROUND", parent.Sku);
+        addon.SetParentLineItemId(parent.Id);
+
+        var allLineItems = new List<LineItem> { parent, addon };
+        var displayContext = CreateDisplayContext(exchangeRate: 0.79m, displayPricesIncTax: true);
+
+        var expectedParentUnit = _currencyService.Round(48.35m * 1.20m * 0.79m, "GBP");
+        var expectedAddonUnit = _currencyService.Round(9.99m * 1.20m * 0.79m, "GBP");
+        var expectedParentLine = _currencyService.Round(48.35m * 2m * 1.20m * 0.79m, "GBP");
+        var expectedAddonLine = _currencyService.Round(9.99m * 2m * 1.20m * 0.79m, "GBP");
+
+        var unitPriceWithAddons = parent.GetDisplayLineItemUnitPriceWithAddons(allLineItems, displayContext, _currencyService);
+        var lineTotalWithAddons = parent.GetDisplayLineItemTotalWithAddons(allLineItems, displayContext, _currencyService);
+
+        unitPriceWithAddons.ShouldBe(expectedParentUnit + expectedAddonUnit);
+        lineTotalWithAddons.ShouldBe(expectedParentLine + expectedAddonLine);
+    }
 
     [Fact]
     public void GetDisplayAmounts_WithCurrencyAndTaxInclusive_GrossValuesSumToTotal()
@@ -480,18 +540,25 @@ public class DisplayCurrencyExtensionsTests
         return basket;
     }
 
-    private static LineItem CreateLineItem(decimal amount, int quantity, decimal taxRate)
+    private static LineItem CreateLineItem(
+        decimal amount,
+        int quantity,
+        decimal taxRate,
+        LineItemType lineItemType = LineItemType.Product,
+        string? sku = null,
+        string? dependantLineItemSku = null)
     {
         var lineItem = LineItemFactory.CreateCustomLineItem(
             Guid.NewGuid(),
             "Test Product",
-            $"SKU-{Guid.NewGuid():N}",
+            sku ?? $"SKU-{Guid.NewGuid():N}",
             amount,
             cost: 0m,
             quantity: quantity,
             isTaxable: taxRate > 0,
             taxRate: taxRate);
-        lineItem.LineItemType = LineItemType.Product;
+        lineItem.LineItemType = lineItemType;
+        lineItem.DependantLineItemSku = dependantLineItemSku;
         return lineItem;
     }
 

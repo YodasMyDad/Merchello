@@ -162,14 +162,28 @@ describe("merchello api client", () => {
   });
 
   it("encodes query values for discount code availability checks", async () => {
-    fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: { available: true } }));
+    fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: { isAvailable: true, available: true } }));
 
     await MerchelloApi.checkDiscountCodeAvailable("SAVE 10%", "disc/123");
 
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toContain("/umbraco/api/v1/discounts/check-code?");
+    expect(url).toContain("/umbraco/api/v1/discounts/validate-code?");
     expect(url).toContain("code=SAVE+10%25");
     expect(url).toContain("excludeId=disc%2F123");
+  });
+
+  it("uses POST for discount activate and deactivate endpoints", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { id: "discount-1" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { id: "discount-1" } }));
+
+    await MerchelloApi.activateDiscount("discount-1");
+    await MerchelloApi.deactivateDiscount("discount-1");
+
+    const [, activateInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [, deactivateInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(activateInit.method).toBe("POST");
+    expect(deactivateInit.method).toBe("POST");
   });
 
   it("encodes topic names for email metadata endpoints", async () => {

@@ -3,6 +3,7 @@ using Merchello.Core.Caching.Services.Interfaces;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Extensions;
+using System.Text.RegularExpressions;
 
 namespace Merchello.Core.Caching.Services;
 
@@ -16,6 +17,9 @@ namespace Merchello.Core.Caching.Services;
 public class CacheService(AppCaches appCaches, IOptions<CacheOptions> options) : ICacheService
 {
     private readonly CacheOptions _options = options.Value;
+    private readonly object _tagLock = new();
+    private readonly Dictionary<string, HashSet<string>> _tagToKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _keyToTags = new(StringComparer.Ordinal);
 
     /// <inheritdoc />
     public Task<T> GetOrCreateAsync<T>(
@@ -34,6 +38,8 @@ public class CacheService(AppCaches appCaches, IOptions<CacheOptions> options) :
             timeout,
             isSliding: false);
 
+        RegisterTags(key, tags);
+
         return Task.FromResult(result)!;
     }
 
@@ -41,14 +47,115 @@ public class CacheService(AppCaches appCaches, IOptions<CacheOptions> options) :
     public Task RemoveAsync(string key, CancellationToken cancellationToken = default)
     {
         appCaches.RuntimeCache.ClearByKey(key);
+        RemoveKeyMappings(key);
         return Task.CompletedTask;
     }
 
     /// <inheritdoc />
     public Task RemoveByTagAsync(string tag, CancellationToken cancellationToken = default)
     {
-        // Tags become regex patterns - clear all keys starting with the tag
-        appCaches.RuntimeCache.ClearByRegex($"^{System.Text.RegularExpressions.Regex.Escape(tag)}");
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return Task.CompletedTask;
+        }
+
+        var normalizedTag = tag.Trim();
+        List<string> keysToRemove;
+
+        lock (_tagLock)
+        {
+            if (!_tagToKeys.TryGetValue(normalizedTag, out var keysForTag))
+            {
+                keysToRemove = [];
+            }
+            else
+            {
+                keysToRemove = keysForTag.ToList();
+                _tagToKeys.Remove(normalizedTag);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            appCaches.RuntimeCache.ClearByKey(key);
+            RemoveKeyMappings(key);
+        }
+
+        // Backward-compatible fallback for legacy key schemes that treated tags as prefixes.
+        appCaches.RuntimeCache.ClearByRegex($"^{Regex.Escape(normalizedTag)}");
         return Task.CompletedTask;
+    }
+
+    private void RegisterTags(string key, IEnumerable<string>? tags)
+    {
+        if (string.IsNullOrWhiteSpace(key) || tags == null)
+        {
+            return;
+        }
+
+        var normalizedTags = tags
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (normalizedTags.Count == 0)
+        {
+            return;
+        }
+
+        lock (_tagLock)
+        {
+            if (!_keyToTags.TryGetValue(key, out var existingTags))
+            {
+                existingTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                _keyToTags[key] = existingTags;
+            }
+
+            foreach (var tag in normalizedTags)
+            {
+                existingTags.Add(tag);
+
+                if (!_tagToKeys.TryGetValue(tag, out var keysForTag))
+                {
+                    keysForTag = new HashSet<string>(StringComparer.Ordinal);
+                    _tagToKeys[tag] = keysForTag;
+                }
+
+                keysForTag.Add(key);
+            }
+        }
+    }
+
+    private void RemoveKeyMappings(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        lock (_tagLock)
+        {
+            if (!_keyToTags.TryGetValue(key, out var tagsForKey))
+            {
+                return;
+            }
+
+            foreach (var tag in tagsForKey)
+            {
+                if (!_tagToKeys.TryGetValue(tag, out var keysForTag))
+                {
+                    continue;
+                }
+
+                keysForTag.Remove(key);
+                if (keysForTag.Count == 0)
+                {
+                    _tagToKeys.Remove(tag);
+                }
+            }
+
+            _keyToTags.Remove(key);
+        }
     }
 }

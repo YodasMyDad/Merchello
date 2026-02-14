@@ -68,6 +68,14 @@ public class BasketController(
                 // Use centralized methods for line item display amounts
                 var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
                 var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
+                var displayUnitPriceWithAddons = li.GetDisplayLineItemUnitPriceWithAddons(
+                    basket.LineItems,
+                    displayContext,
+                    currencyService);
+                var displayLineTotalWithAddons = li.GetDisplayLineItemTotalWithAddons(
+                    basket.LineItems,
+                    displayContext,
+                    currencyService);
 
                 return new StorefrontLineItemDto
                 {
@@ -90,6 +98,10 @@ public class BasketController(
                     DisplayLineTotal = displayLineTotal,
                     FormattedDisplayUnitPrice = FormatDisplayPrice(displayUnitPrice, symbol),
                     FormattedDisplayLineTotal = FormatDisplayPrice(displayLineTotal, symbol),
+                    DisplayUnitPriceWithAddons = displayUnitPriceWithAddons,
+                    DisplayLineTotalWithAddons = displayLineTotalWithAddons,
+                    FormattedDisplayUnitPriceWithAddons = FormatDisplayPrice(displayUnitPriceWithAddons, symbol),
+                    FormattedDisplayLineTotalWithAddons = FormatDisplayPrice(displayLineTotalWithAddons, symbol),
                     TaxRate = li.TaxRate,
                     IsTaxable = li.IsTaxable,
                     LineItemType = li.LineItemType.ToString(),
@@ -144,7 +156,7 @@ public class BasketController(
                 TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
                 FormattedTaxInclusiveDisplayDiscount = FormatDisplayPrice(displayAmounts.TaxInclusiveDiscount, symbol),
                 TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
-                ItemCount = basket.LineItems.Sum(li => li.Quantity),
+                ItemCount = basket.GetStorefrontItemCount(),
                 IsEmpty = false,
                 AllItemsAvailable = availability.AllItemsAvailable,
                 ItemAvailability = itemAvailability

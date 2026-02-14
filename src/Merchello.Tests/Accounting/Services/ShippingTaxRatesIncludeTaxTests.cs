@@ -183,7 +183,7 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
             IsEnabled = true
         };
 
-        return new RegisteredTaxProvider(taxProviderMock.Object, setting);
+        return new RegisteredTaxProvider(taxProviderMock.Object, setting, configuration: null);
     }
 
     /// <summary>
@@ -546,12 +546,8 @@ public class ShippingTaxRatesIncludeTaxTests : IClassFixture<ServiceTestFixture>
         // Configure tax provider manager for PROPORTIONAL shipping tax (returns null for rate)
         var taxProviderManagerMock = new Mock<ITaxProviderManager>();
         taxProviderManagerMock
-            .Setup(x => x.IsShippingTaxedForLocationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true); // Shipping IS taxable
-
-        taxProviderManagerMock
-            .Setup(x => x.GetShippingTaxRateForLocationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((decimal?)null); // null = proportional calculation
+            .Setup(x => x.GetShippingTaxConfigurationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ShippingTaxConfigurationResult.Proportional());
 
         var logger = new Mock<ILogger<InvoiceService>>().Object;
 

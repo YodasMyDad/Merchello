@@ -221,7 +221,7 @@ public class MjmlHelper : IMjmlHelper
                     var addonAmountPrefix = addon.Amount >= 0 ? "+" : "-";
                     var addonAmount = Math.Abs(addon.Amount);
                     sb.AppendLine(
-                        $"          <div style=\"font-size: 12px; color: #666; margin-top: 3px; padding-left: 10px; border-left: 2px solid #ddd;\">Add-on: {HtmlEncode(addonName)} ({addonAmountPrefix}{currencySymbol}{addonAmount:N2})</div>");
+                        $"          <div style=\"font-size: 12px; color: #666; margin-top: 3px;\">{HtmlEncode(addonName)} ({addonAmountPrefix}{currencySymbol}{addonAmount:N2})</div>");
                 }
                 sb.AppendLine("        </td>");
                 sb.AppendLine($"        <td style=\"padding: 10px 0; text-align: center;\">{item.Quantity}</td>");
@@ -367,7 +367,7 @@ public class MjmlHelper : IMjmlHelper
                 var addonAmountPrefix = addon.Amount >= 0 ? "+" : "-";
                 var addonAmount = Math.Abs(addon.Amount);
                 sb.AppendLine(
-                    $"      <div style=\"font-size: 12px; color: #666; margin-top: 3px; padding-left: 10px; border-left: 2px solid #ddd;\">Add-on: {HtmlEncode(addonName)} ({addonAmountPrefix}{symbol}{addonAmount:N2})</div>");
+                    $"      <div style=\"font-size: 12px; color: #666; margin-top: 3px;\">{HtmlEncode(addonName)} ({addonAmountPrefix}{symbol}{addonAmount:N2})</div>");
             }
             sb.AppendLine("    </td>");
             sb.AppendLine($"    <td style=\"padding: 10px 0; text-align: center;\">{item.Quantity}</td>");

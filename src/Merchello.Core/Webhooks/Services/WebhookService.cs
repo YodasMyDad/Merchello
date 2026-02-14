@@ -667,7 +667,7 @@ public class WebhookService(
                     Abandoned = g.Count(d => d.Status == OutboundDeliveryStatus.Abandoned),
                     AvgDuration = g.Average(d => (double?)d.DurationMs) ?? 0
                 })
-                .FirstOrDefaultAsync(ct);
+                .SingleOrDefaultAsync(ct);
 
             var lastDelivery = await deliveryQuery
                 .OrderByDescending(d => d.DateCreated)

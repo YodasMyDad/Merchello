@@ -847,6 +847,9 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsTaxEstimated")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("LineItems")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -866,6 +869,9 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<decimal>("Tax")
                         .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaxEstimationReason")
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Total")
@@ -1799,7 +1805,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedDescription")
-                        .HasMaxLength(100)
+                        .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedHeight")
@@ -1815,7 +1821,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedTitle")
-                        .HasMaxLength(200)
+                        .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedWidth")

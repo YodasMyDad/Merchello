@@ -472,10 +472,23 @@ public class ShippingCostResolverTests
     }
 
     [Fact]
-    public void GetTotalShippingCost_ReturnsNull_WhenNoBaseCostResolvable()
+    public void GetTotalShippingCost_FlatRateDefaultsToZero_WhenFixedCostIsNull()
     {
         // Arrange
         var option = CreateShippingOption(fixedCost: null);
+
+        // Act
+        var result = _resolver.GetTotalShippingCost(option, "GB", null);
+
+        // Assert
+        result.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void GetTotalShippingCost_ReturnsNull_WhenNonFlatRateHasNoBaseCostResolvable()
+    {
+        // Arrange
+        var option = CreateShippingOption(fixedCost: null, providerKey: "ups");
 
         // Act
         var result = _resolver.GetTotalShippingCost(option, "GB", null);
@@ -506,10 +519,11 @@ public class ShippingCostResolverTests
         Surcharge = surcharge
     };
 
-    private static ShippingOption CreateShippingOption(decimal? fixedCost) => new()
+    private static ShippingOption CreateShippingOption(decimal? fixedCost, string providerKey = "flat-rate") => new()
     {
         Name = "Test Option",
-        FixedCost = fixedCost
+        FixedCost = fixedCost,
+        ProviderKey = providerKey
     };
 
     private static ShippingOptionExcludedRegion CreateExcludedRegion(string countryCode, string? regionCode = null) => new()

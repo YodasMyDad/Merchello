@@ -251,7 +251,7 @@ export const checkoutApi = {
     /**
      * Apply a discount code
      * @param {string} code
-     * @returns {Promise<{success: boolean, message?: string, discountAmount?: number, basket?: BasketTotals}>}
+     * @returns {Promise<{success: boolean, message?: string, basket?: BasketTotals}>}
      */
     applyDiscount(code) {
         return fetchJson(`${BASE_URL}/discount/apply`, {

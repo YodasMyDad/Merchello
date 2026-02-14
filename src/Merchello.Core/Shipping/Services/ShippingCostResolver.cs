@@ -123,11 +123,17 @@ public class ShippingCostResolver : IShippingCostResolver
         }
 
         var costs = shippingOption.ShippingCosts.ToList();
+        var fixedCostFallback = shippingOption.FixedCost;
+        if (IsFlatRateProvider(shippingOption.ProviderKey) && !fixedCostFallback.HasValue)
+        {
+            fixedCostFallback = 0m;
+        }
+
         var baseCost = ResolveBaseCost(
             costs,
             countryCode,
             regionCode,
-            shippingOption.FixedCost);
+            fixedCostFallback);
 
         if (baseCost == null)
         {
@@ -182,4 +188,8 @@ public class ShippingCostResolver : IShippingCostResolver
 
         return 0;
     }
+
+    private static bool IsFlatRateProvider(string? providerKey)
+        => string.IsNullOrWhiteSpace(providerKey) ||
+           string.Equals(providerKey, "flat-rate", StringComparison.OrdinalIgnoreCase);
 }

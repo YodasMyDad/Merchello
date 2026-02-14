@@ -22,6 +22,20 @@ indent_size = 4
 insert_final_newline = true
 trim_trailing_whitespace = true
 
+# Merchello architecture analyzers
+dotnet_diagnostic.MERCH001.severity = error
+dotnet_diagnostic.MERCH002.severity = error
+dotnet_diagnostic.MERCH003.severity = error
+dotnet_diagnostic.MERCH004.severity = error
+dotnet_diagnostic.MERCH005.severity = error
+dotnet_diagnostic.MERCH006.severity = error
+dotnet_diagnostic.MERCH007.severity = suggestion
+dotnet_diagnostic.MERCH008.severity = warning
+dotnet_diagnostic.MERCH009.severity = suggestion
+dotnet_diagnostic.MERCH010.severity = error
+dotnet_diagnostic.MERCH011.severity = warning
+dotnet_diagnostic.MERCH012.severity = warning
+
 ##########################################
 # File Extension Settings
 ##########################################

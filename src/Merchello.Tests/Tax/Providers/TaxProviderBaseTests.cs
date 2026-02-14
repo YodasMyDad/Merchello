@@ -127,4 +127,17 @@ public class TaxProviderBaseTests
     }
 
     #endregion
+
+    #region Shipping Tax Configuration Defaults
+
+    [Fact]
+    public async Task GetShippingTaxConfigurationAsync_DefaultBaseBehavior_ReturnsProviderCalculated()
+    {
+        var result = await _provider.GetShippingTaxConfigurationAsync("US", "CA");
+
+        result.Mode.ShouldBe(ShippingTaxMode.ProviderCalculated);
+        result.Rate.ShouldBeNull();
+    }
+
+    #endregion
 }

@@ -1625,11 +1625,11 @@ export const MerchelloApi = {
 
   /** Activate a discount */
   activateDiscount: (id: string) =>
-    apiPut<DiscountDetailDto>(`discounts/${id}/activate`),
+    apiPost<DiscountDetailDto>(`discounts/${id}/activate`),
 
   /** Deactivate a discount */
   deactivateDiscount: (id: string) =>
-    apiPut<DiscountDetailDto>(`discounts/${id}/deactivate`),
+    apiPost<DiscountDetailDto>(`discounts/${id}/deactivate`),
 
   /** Generate a unique discount code */
   generateDiscountCode: (length = 8) =>
@@ -1639,7 +1639,7 @@ export const MerchelloApi = {
   checkDiscountCodeAvailable: (code: string, excludeId?: string) => {
     const params = new URLSearchParams({ code });
     if (excludeId) params.set('excludeId', excludeId);
-    return apiGet<{ available: boolean }>(`discounts/check-code?${params.toString()}`);
+    return apiGet<{ isAvailable: boolean; available?: boolean }>(`discounts/validate-code?${params.toString()}`);
   },
 
   /** Apply a promotional discount to an invoice */

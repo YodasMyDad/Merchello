@@ -59,7 +59,7 @@
     <PackageReference Include="Mjml.Net" Version="4.11.0" />
 
     <!-- Provider dependencies -->
-    <PackageReference Include="Avalara.AvaTax" Version="25.12.0" />
+    <PackageReference Include="Avalara.AvaTax" Version="26.2.0" />
     <PackageReference Include="Amazon.Pay.API.SDK" Version="2.7.4" />
     <PackageReference Include="Braintree" Version="5.39.0" />
     <PackageReference Include="PayPalServerSDK" Version="2.2.0" />

@@ -32,7 +32,20 @@ public interface ICheckoutDiscountService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Refreshes promotional discounts on the basket (code and automatic) after basket-affecting changes.
+    /// </summary>
+    /// <param name="basket">The basket to refresh.</param>
+    /// <param name="countryCode">Country code for recalculation.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A result containing the updated basket and any user-facing warnings.</returns>
+    Task<CrudResult<Basket>> RefreshPromotionalDiscountsAsync(
+        Basket basket,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Refreshes automatic discounts on the basket, adding new ones and removing expired ones.
+    /// Compatibility wrapper around promotional refresh.
     /// </summary>
     /// <param name="basket">The basket to refresh.</param>
     /// <param name="countryCode">Country code for recalculation.</param>

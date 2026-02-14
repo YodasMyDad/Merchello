@@ -63,7 +63,7 @@ public class FlatRateShippingProvider(
                 Label = "Fixed Cost",
                 FieldType = ConfigurationFieldType.Currency,
                 IsRequired = false,
-                Description = "Leave empty to use location-based costs"
+                Description = "Fallback when no destination-specific rate matches (0 = free shipping)."
             },
             new ProviderConfigurationField
             {
@@ -264,8 +264,8 @@ public class FlatRateShippingProvider(
             return (null, true, errors);
         }
 
-        // 2. Get base cost from ShippingCost table
-        var baseCost = ResolveBaseCost(option.Costs, countryCode, regionCode);
+        // 2. Use pre-resolved destination cost from ShippingCostResolver
+        var baseCost = option.DestinationCost;
 
         if (!baseCost.HasValue)
         {
@@ -287,40 +287,6 @@ public class FlatRateShippingProvider(
         var totalCost = baseCost.Value + weightSurcharge + postcodeSurcharge;
 
         return (totalCost, false, errors);
-    }
-
-    /// <summary>
-    /// Resolve the base shipping cost with priority: State > Country > Universal (*).
-    /// </summary>
-    private static decimal? ResolveBaseCost(
-        IReadOnlyCollection<ShippingCostSnapshot> costs,
-        string countryCode,
-        string? regionCode)
-    {
-        var normalizedCountry = countryCode.ToUpperInvariant();
-        var normalizedState = regionCode?.ToUpperInvariant();
-
-        // Priority 1: Exact state match
-        if (!string.IsNullOrWhiteSpace(normalizedState))
-        {
-            var stateMatch = costs.FirstOrDefault(c =>
-                string.Equals(c.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(c.RegionCode, normalizedState, StringComparison.OrdinalIgnoreCase));
-            if (stateMatch != null)
-                return stateMatch.Cost;
-        }
-
-        // Priority 2: Country-level cost
-        var countryMatch = costs.FirstOrDefault(c =>
-            string.Equals(c.CountryCode, normalizedCountry, StringComparison.OrdinalIgnoreCase) &&
-            c.RegionCode == null);
-        if (countryMatch != null)
-            return countryMatch.Cost;
-
-        // Priority 3: Universal fallback
-        var universalMatch = costs.FirstOrDefault(c =>
-            c.CountryCode == "*" && c.RegionCode == null);
-        return universalMatch?.Cost;
     }
 
     /// <summary>

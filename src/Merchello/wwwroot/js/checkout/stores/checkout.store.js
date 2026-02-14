@@ -431,7 +431,7 @@ export function initCheckoutStore(initialData = {}) {
         allShippingSelected() {
             if (this.shippingGroups.length === 0) return false;
             return this.shippingGroups.every(g =>
-                g.shippingOptions.length === 0 || this.shippingSelections[g.groupId]
+                g.shippingOptions?.length > 0 && this.shippingSelections[g.groupId]
             );
         },
 

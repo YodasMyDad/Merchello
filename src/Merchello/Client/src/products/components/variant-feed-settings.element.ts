@@ -91,7 +91,7 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
                   label="Feed Title"
                   description="Title for shopping feed"
                   property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
-                  .config=${[{ alias: "maxChars", value: 200 }]}>
+                  .config=${[{ alias: "maxChars", value: 150 }]}>
                 </umb-property>
 
                 <umb-property
@@ -99,7 +99,7 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
                   label="Feed Description"
                   description="Description for shopping feed"
                   property-editor-ui-alias="Umb.PropertyEditorUi.TextArea"
-                  .config=${[{ alias: "maxChars", value: 100 }]}>
+                  .config=${[{ alias: "maxChars", value: 1000 }]}>
                 </umb-property>
 
                 <umb-property

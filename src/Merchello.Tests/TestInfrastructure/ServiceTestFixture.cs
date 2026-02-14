@@ -79,6 +79,7 @@ using Merchello.Core.Tax.Services;
 using Merchello.Core.Tax.Services.Interfaces;
 using Merchello.Core.Tax.Providers;
 using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Discounts.Services.Calculators;
@@ -159,6 +160,12 @@ public class ServiceTestFixture : IDisposable
     // Configurable payment provider manager mock for payment testing
     private Mock<IPaymentProviderManager> _paymentProviderManagerMock = null!;
 
+    // Configurable tax provider manager mock for tax orchestration testing
+    private Mock<ITaxProviderManager> _taxProviderManagerMock = null!;
+
+    // Cache service mock used by services that rely on tagged invalidation.
+    private Mock<ICacheService> _cacheServiceMock = null!;
+
     public MerchelloDbContext DbContext { get; private set; } = null!;
     public IServiceProvider ServiceProvider => _serviceProvider;
 
@@ -173,6 +180,16 @@ public class ServiceTestFixture : IDisposable
     /// Use this to configure payment provider behavior per-test.
     /// </summary>
     public Mock<IPaymentProviderManager> PaymentProviderManagerMock => _paymentProviderManagerMock;
+
+    /// <summary>
+    /// Gets the mock tax provider manager for tax orchestration test configuration.
+    /// </summary>
+    public Mock<ITaxProviderManager> TaxProviderManagerMock => _taxProviderManagerMock;
+
+    /// <summary>
+    /// Gets the cache service mock for cache-invalidation assertions.
+    /// </summary>
+    public Mock<ICacheService> CacheServiceMock => _cacheServiceMock;
 
     public ServiceTestFixture()
     {
@@ -454,11 +471,15 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton(rateLimiterMock.Object);
 
         // Mock tax provider manager (returns null to use default percentage-based tax)
-        var taxProviderManagerMock = new Mock<ITaxProviderManager>();
-        taxProviderManagerMock
+        _taxProviderManagerMock = new Mock<ITaxProviderManager>();
+        _taxProviderManagerMock
             .Setup(x => x.GetActiveProviderAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((RegisteredTaxProvider?)null);
-        services.AddSingleton(taxProviderManagerMock.Object);
+        _taxProviderManagerMock
+            .Setup(x => x.GetShippingTaxConfigurationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ShippingTaxConfigurationResult.Proportional());
+        services.AddSingleton(_taxProviderManagerMock.Object);
+        services.AddScoped<ITaxOrchestrationService, TaxOrchestrationService>();
 
         // Mock shipping provider manager (returns null by default - providers not configured)
         var shippingProviderManagerMock = new Mock<IShippingProviderManager>();
@@ -618,8 +639,8 @@ public class ServiceTestFixture : IDisposable
         services.AddSingleton(Options.Create(protocolSettings));
 
         // Mock ICacheService (simple pass-through for tests)
-        var cacheServiceMock = new Mock<ICacheService>();
-        cacheServiceMock
+        _cacheServiceMock = new Mock<ICacheService>();
+        _cacheServiceMock
             .Setup(x => x.GetOrCreateAsync(
                 It.IsAny<string>(),
                 It.IsAny<Func<CancellationToken, Task<object?>>>(),
@@ -627,7 +648,18 @@ public class ServiceTestFixture : IDisposable
                 It.IsAny<IEnumerable<string>?>(),
                 It.IsAny<CancellationToken>()))
             .Returns((string _, Func<CancellationToken, Task<object?>> factory, TimeSpan? _, IEnumerable<string>? _, CancellationToken ct) => factory(ct));
-        services.AddSingleton(cacheServiceMock.Object);
+        _cacheServiceMock
+            .Setup(x => x.GetOrCreateAsync(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task<decimal>>>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<IEnumerable<string>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string _, Func<CancellationToken, Task<decimal>> factory, TimeSpan? _, IEnumerable<string>? _, CancellationToken ct) => factory(ct));
+        _cacheServiceMock
+            .Setup(x => x.RemoveByTagAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        services.AddSingleton(_cacheServiceMock.Object);
 
         // Protocol infrastructure
         services.AddScoped<ISigningKeyStore, SigningKeyStore>();
@@ -1146,6 +1178,11 @@ public class ServiceTestFixture : IDisposable
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ShippingTaxOverride>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<ShippingTaxOverride>>> func) => func(dbContext));
 
+                // TaxProviderSetting return types (for real TaxProviderManager integration tests)
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Merchello.Core.Tax.Models.TaxProviderSetting>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<Merchello.Core.Tax.Models.TaxProviderSetting>>> func) => func(dbContext));
+
                 // ProductWarehouse return types (for FulfilmentSyncService inventory sync)
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductWarehouse?>>>()))
@@ -1338,6 +1375,36 @@ public class ServiceTestFixture : IDisposable
         // Reset payment provider manager to default manual provider
         _paymentProviderManagerMock.Reset();
         SetupDefaultPaymentProviderManager();
+
+        // Reset tax provider manager to default centralized/manual behavior.
+        _taxProviderManagerMock.Reset();
+        _taxProviderManagerMock
+            .Setup(x => x.GetActiveProviderAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RegisteredTaxProvider?)null);
+        _taxProviderManagerMock
+            .Setup(x => x.GetShippingTaxConfigurationAsync(It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ShippingTaxConfigurationResult.Proportional());
+
+        _cacheServiceMock.Reset();
+        _cacheServiceMock
+            .Setup(x => x.GetOrCreateAsync(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task<object?>>>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<IEnumerable<string>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string _, Func<CancellationToken, Task<object?>> factory, TimeSpan? _, IEnumerable<string>? _, CancellationToken ct) => factory(ct));
+        _cacheServiceMock
+            .Setup(x => x.GetOrCreateAsync(
+                It.IsAny<string>(),
+                It.IsAny<Func<CancellationToken, Task<decimal>>>(),
+                It.IsAny<TimeSpan?>(),
+                It.IsAny<IEnumerable<string>?>(),
+                It.IsAny<CancellationToken>()))
+            .Returns((string _, Func<CancellationToken, Task<decimal>> factory, TimeSpan? _, IEnumerable<string>? _, CancellationToken ct) => factory(ct));
+        _cacheServiceMock
+            .Setup(x => x.RemoveByTagAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         // Reset HTTP message handler (clear accumulated requests)
         var mockHandler = _serviceProvider.GetService<MockHttpMessageHandler>();

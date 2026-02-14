@@ -73,6 +73,16 @@ public class OrderConfirmationDto
     public string FormattedShipping { get; set; } = "";
 
     /// <summary>
+    /// Whether tax was estimated during checkout preview.
+    /// </summary>
+    public bool IsTaxEstimated { get; set; }
+
+    /// <summary>
+    /// Reason tax was estimated, when applicable.
+    /// </summary>
+    public string? TaxEstimationReason { get; set; }
+
+    /// <summary>
     /// Total tax amount.
     /// </summary>
     public decimal Tax { get; set; }
@@ -218,3 +228,4 @@ public class OrderConfirmationDto
     /// </summary>
     public bool IsRefunded { get; set; }
 }
+

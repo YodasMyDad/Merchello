@@ -19,6 +19,31 @@
 
 > **Note**: The `DiscountValueType` enum (in `src/Merchello.Core/Accounting/Models/DiscountValueType.cs`) supports `FixedAmount`, `Percentage`, and `Free` values. The existing manual discount feature in order editing uses this enum.
 
+## Current Runtime Alignment (February 2026)
+
+This document started as a sprint design spec. Current code behavior is tracked in:
+- `docs/discounts-audit-matrix.md`
+
+Key implemented updates:
+- Discount API compatibility and canonical routes:
+  - `POST`/`PUT discounts/{id}/activate`
+  - `POST`/`PUT discounts/{id}/deactivate`
+  - `GET discounts/validate-code` and compatibility `GET discounts/check-code`
+  - code availability payload: `{ isAvailable, available }`
+- Checkout discount orchestration refreshes both code and automatic discounts after basket-affecting changes through `ICheckoutDiscountService.RefreshPromotionalDiscountsAsync(...)`.
+- `ApplyAfterTax` is operational in `DiscountEngine` for `AmountOffProducts` and `AmountOffOrder` calculations, including after-tax fixed-value capping.
+- Free-shipping allow-list checks all selected shipping groups (`DiscountContext.SelectedShippingOptionIds`) when options are configured.
+- Checkout basket DTO includes tax-inclusive reactive fields used by integrated checkout:
+  - `DisplayPricesIncTax`
+  - `TaxInclusiveDisplaySubTotal`
+  - `FormattedTaxInclusiveDisplaySubTotal`
+  - `TaxIncludedMessage`
+
+Explicit metadata-only settings in this sprint:
+- `ShowInFeed`
+- `FeedPromotionName`
+- `Timezone` (runtime scheduling uses UTC dates)
+
 ---
 
 ## 1. Overview

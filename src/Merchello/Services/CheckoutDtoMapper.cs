@@ -47,6 +47,14 @@ public class CheckoutDtoMapper(
                 var storeLineTotal = li.Amount * li.Quantity;
                 var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
                 var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
+                var displayUnitPriceWithAddons = li.GetDisplayLineItemUnitPriceWithAddons(
+                    basket.LineItems,
+                    displayContext,
+                    currencyService);
+                var displayLineTotalWithAddons = li.GetDisplayLineItemTotalWithAddons(
+                    basket.LineItems,
+                    displayContext,
+                    currencyService);
                 li.ExtendedData.TryGetValue("ImageUrl", out var imageUrlObj);
 
                 return new CheckoutLineItemDto
@@ -70,12 +78,16 @@ public class CheckoutDtoMapper(
                     DisplayLineTotal = displayLineTotal,
                     FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, displayCurrencySymbol),
                     FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, displayCurrencySymbol),
+                    DisplayUnitPriceWithAddons = displayUnitPriceWithAddons,
+                    DisplayLineTotalWithAddons = displayLineTotalWithAddons,
+                    FormattedDisplayUnitPriceWithAddons = currencyConversion.Format(displayUnitPriceWithAddons, displayCurrencySymbol),
+                    FormattedDisplayLineTotalWithAddons = currencyConversion.Format(displayLineTotalWithAddons, displayCurrencySymbol),
                     TaxRate = li.TaxRate,
                     IsTaxable = li.IsTaxable,
                     LineItemType = li.LineItemType,
                     DependantLineItemSku = li.DependantLineItemSku,
                     ParentLineItemId = li.GetParentLineItemId()?.ToString(),
-                    ImageUrl = imageUrlObj?.ToString()
+                    ImageUrl = imageUrlObj.UnwrapJsonElement()?.ToString()
                 };
             })
             .ToList();
@@ -92,17 +104,19 @@ public class CheckoutDtoMapper(
                     : null;
                 var linkedTaxRate = linkedItem is { IsTaxable: true } ? linkedItem.TaxRate : (decimal?)null;
                 var displayDiscountAmount = li.GetDisplayDiscountTotal(displayContext, currencyService, linkedTaxRate);
+                var parsedDiscountId = Guid.TryParse(discountIdObj.UnwrapJsonElement()?.ToString(), out var discountId)
+                    ? discountId
+                    : li.Id;
+                var parsedDiscountCode = discountCodeObj.UnwrapJsonElement()?.ToString();
 
                 return new AppliedDiscountDto
                 {
-                    Id = discountIdObj is string discountIdStr && Guid.TryParse(discountIdStr, out var discountId)
-                        ? discountId
-                        : li.Id,
+                    Id = parsedDiscountId,
                     Name = li.Name ?? "Discount",
-                    Code = discountCodeObj?.ToString(),
+                    Code = parsedDiscountCode,
                     Amount = displayDiscountAmount,
                     FormattedAmount = currencyConversion.Format(displayDiscountAmount, displayCurrencySymbol),
-                    IsAutomatic = discountCodeObj == null
+                    IsAutomatic = string.IsNullOrWhiteSpace(parsedDiscountCode)
                 };
             })
             .ToList();
@@ -127,6 +141,8 @@ public class CheckoutDtoMapper(
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
+            IsTaxEstimated = basket.IsTaxEstimated,
+            TaxEstimationReason = basket.TaxEstimationReason,
             FormattedSubTotal = basket.SubTotal.FormatWithSymbol(storeCurrencySymbol),
             FormattedDiscount = basket.Discount.FormatWithSymbol(storeCurrencySymbol),
             FormattedAdjustedSubTotal = basket.AdjustedSubTotal.FormatWithSymbol(storeCurrencySymbol),
@@ -150,6 +166,10 @@ public class CheckoutDtoMapper(
             DisplayCurrencyCode = displayCurrencyCode,
             DisplayCurrencySymbol = displayCurrencySymbol,
             ExchangeRate = exchangeRate,
+            DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
+            TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
+            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(displayAmounts.TaxInclusiveSubTotal, displayCurrencySymbol),
+            TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
 
             BillingAddress = MapAddressToDto(basket.BillingAddress),
             ShippingAddress = MapAddressToDto(basket.ShippingAddress),

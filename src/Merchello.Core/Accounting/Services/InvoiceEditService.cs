@@ -25,6 +25,7 @@ using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Tax.Providers.Interfaces;
 using Merchello.Core.Tax.Providers.Models;
 using Merchello.Core.Tax.Services.Interfaces;
+using Merchello.Core.Tax.Services.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -48,7 +49,8 @@ public class InvoiceEditService(
     IOptions<MerchelloSettings> settings,
     ILogger<InvoiceEditService> logger,
     IDiscountEngine? discountEngine = null,
-    IDiscountService? discountService = null) : IInvoiceEditService
+    IDiscountService? discountService = null,
+    ITaxOrchestrationService? taxOrchestrationService = null) : IInvoiceEditService
 {
     private readonly MerchelloSettings _settings = settings.Value;
 
@@ -366,7 +368,7 @@ public class InvoiceEditService(
                         shippingAddress: invoice.ShippingAddress,
                         currencyCode: currencyCode,
                         cancellationToken: cancellationToken);
-                    isTaxable = taxRate > 0;
+                    isTaxable = taxGroupId.HasValue;
                 }
 
                 var parentVirtualLineItemId = Guid.NewGuid();
@@ -1330,7 +1332,11 @@ public class InvoiceEditService(
                 }
 
                 // Recalculate totals using stored line item tax rates (including shipping tax)
-                await RecalculateInvoiceTotalsAsync(invoice, orders, cancellationToken);
+                var recalcError = await RecalculateInvoiceTotalsAsync(invoice, orders, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(recalcError))
+                {
+                    return OperationResult<EditInvoiceResultDto>.Fail(recalcError);
+                }
                 ApplyPricingRateToStoreAmounts(invoice, orders);
 
                 // Add edit note to timeline
@@ -2074,67 +2080,229 @@ public class InvoiceEditService(
         };
     }
 
-    private async Task RecalculateInvoiceTotalsAsync(Invoice invoice, List<Order> orders, CancellationToken ct)
+    private async Task<string?> RecalculateInvoiceTotalsAsync(Invoice invoice, List<Order> orders, CancellationToken ct)
     {
         var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode) ? _settings.StoreCurrencyCode : invoice.CurrencyCode;
         var allLineItems = orders.SelectMany(o => o.LineItems ?? []).ToList();
         var shippingTotal = orders.Sum(o => o.ShippingCost);
+        var taxableShippingTotal = shippingTotal > 0
+            ? await GetTaxableShippingTotalAsync(invoice, shippingTotal, ct)
+            : 0m;
 
-        // Get shipping tax settings from provider (same approach as CheckoutService.CalculateBasketAsync)
-        // This ensures invoice tax calculation matches checkout display
-        var countryCode = invoice.ShippingAddress?.CountryCode;
-        var stateCode = invoice.ShippingAddress?.CountyState?.RegionCode;
+        var shippingAddress = invoice.ShippingAddress ?? new Address();
+        var countryCode = shippingAddress.CountryCode;
+        var stateCode = shippingAddress.CountyState?.RegionCode;
+        var taxableLineItems = BuildTaxableLineItemsForTaxCalculation(allLineItems);
+
+        var orchestrationResult = taxOrchestrationService != null
+            ? await taxOrchestrationService.CalculateAsync(
+                new TaxOrchestrationRequest
+                {
+                    ShippingAddress = shippingAddress,
+                    BillingAddress = invoice.BillingAddress,
+                    CurrencyCode = currencyCode,
+                    LineItems = taxableLineItems,
+                    ShippingAmount = taxableShippingTotal,
+                    CustomerId = invoice.CustomerId,
+                    CustomerEmail = invoice.BillingAddress.Email,
+                    IsTaxExempt = false,
+                    TransactionDate = DateTime.UtcNow,
+                    ReferenceNumber = invoice.InvoiceNumber,
+                    AllowEstimate = false
+                },
+                ct)
+            : TaxOrchestrationResult.Centralized();
+
+        if (!orchestrationResult.Success)
+        {
+            return orchestrationResult.ErrorMessage ?? "Authoritative tax calculation failed.";
+        }
+
+        if (!orchestrationResult.UseCentralizedCalculation && orchestrationResult.ProviderResult != null)
+        {
+            ApplyProviderLineResultsToLineItems(allLineItems, orchestrationResult.ProviderResult.LineResults);
+
+            var baseResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
+            {
+                LineItems = allLineItems,
+                ShippingAmount = taxableShippingTotal,
+                CurrencyCode = currencyCode,
+                IsShippingTaxable = false,
+                ShippingTaxRate = 0m
+            });
+
+            invoice.SubTotal = baseResult.SubTotal;
+            invoice.Discount = baseResult.Discount;
+            invoice.AdjustedSubTotal = baseResult.AdjustedSubTotal;
+            invoice.Tax = currencyService.Round(orchestrationResult.ProviderResult.TotalTax, currencyCode);
+            invoice.Total = currencyService.Round(
+                invoice.AdjustedSubTotal + invoice.Tax + shippingTotal,
+                currencyCode);
+
+            decimal? effectiveShippingTaxRate = taxableShippingTotal > 0
+                ? Math.Round((orchestrationResult.ProviderResult.ShippingTax / taxableShippingTotal) * 100m, 4)
+                : null;
+            SetEffectiveShippingTaxRate(invoice, effectiveShippingTaxRate);
+            SetInvoiceTaxMetadata(
+                invoice,
+                orchestrationResult.ProviderAlias,
+                orchestrationResult.ProviderResult.TransactionId,
+                orchestrationResult.ProviderResult.IsEstimated,
+                orchestrationResult.ProviderResult.EstimationReason);
+            return null;
+        }
 
         var isShippingTaxable = false;
         decimal? shippingTaxRate = null;
 
         if (!string.IsNullOrWhiteSpace(countryCode))
         {
-            isShippingTaxable = await taxProviderManager.IsShippingTaxedForLocationAsync(
-                countryCode, stateCode, ct);
+            var shippingTaxConfiguration = await taxProviderManager.GetShippingTaxConfigurationAsync(
+                countryCode,
+                stateCode,
+                ct) ?? ShippingTaxConfigurationResult.NotTaxed();
 
-            if (isShippingTaxable)
-            {
-                shippingTaxRate = await taxProviderManager.GetShippingTaxRateForLocationAsync(
-                    countryCode, stateCode, ct);
-            }
+            isShippingTaxable = shippingTaxConfiguration.Mode != ShippingTaxMode.NotTaxed;
+            shippingTaxRate = shippingTaxConfiguration.Mode == ShippingTaxMode.FixedRate
+                ? shippingTaxConfiguration.Rate
+                : null;
         }
 
-        // Get taxable shipping amount (excludes shipping from providers with RatesIncludeTax = true)
-        var taxableShippingTotal = shippingTotal > 0
-            ? await GetTaxableShippingTotalAsync(invoice, shippingTotal, ct)
-            : 0m;
-
-        // Use centralized calculation method with unified shipping tax handling
-        // IMPORTANT: We use the stored TaxRate on each line item, NOT the current TaxGroup rate.
-        // This ensures historical invoices are not affected by future TaxGroup rate changes.
-        // Shipping tax is now calculated in the same pass as line item tax (same as checkout)
         var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
         {
             LineItems = allLineItems,
             ShippingAmount = taxableShippingTotal,
             CurrencyCode = currencyCode,
             IsShippingTaxable = isShippingTaxable,
-            ShippingTaxRate = shippingTaxRate // null for proportional calculation
+            ShippingTaxRate = shippingTaxRate
         });
 
-        // Update invoice with calculated values
         invoice.SubTotal = calcResult.SubTotal;
         invoice.Discount = calcResult.Discount;
         invoice.AdjustedSubTotal = calcResult.AdjustedSubTotal;
         invoice.Tax = calcResult.Tax;
         invoice.Total = currencyService.Round(
-            calcResult.AdjustedSubTotal + invoice.Tax + shippingTotal, currencyCode);
+            calcResult.AdjustedSubTotal + invoice.Tax + shippingTotal,
+            currencyCode);
 
-        // Store effective shipping tax rate in ExtendedData (for proportional mode display)
-        if (calcResult.EffectiveShippingTaxRate.HasValue)
+        SetEffectiveShippingTaxRate(invoice, calcResult.EffectiveShippingTaxRate);
+        SetInvoiceTaxMetadata(
+            invoice,
+            orchestrationResult.ProviderAlias,
+            transactionId: null,
+            isEstimated: orchestrationResult.IsEstimated,
+            estimationReason: orchestrationResult.EstimationReason);
+
+        return null;
+    }
+
+    private static List<TaxableLineItem> BuildTaxableLineItemsForTaxCalculation(IEnumerable<LineItem> lineItems)
+    {
+        return lineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .Select(li => new TaxableLineItem
+            {
+                LineItemId = li.Id,
+                Sku = string.IsNullOrWhiteSpace(li.Sku) ? li.Id.ToString("N") : li.Sku!,
+                Name = li.Name ?? li.Sku ?? li.Id.ToString("N"),
+                Amount = li.Amount,
+                Quantity = li.Quantity,
+                TaxGroupId = li.TaxGroupId,
+                IsTaxable = li.IsTaxable
+            })
+            .ToList();
+    }
+
+    private static void ApplyProviderLineResultsToLineItems(
+        IReadOnlyCollection<LineItem> lineItems,
+        IReadOnlyCollection<LineTaxResult> lineResults)
+    {
+        if (lineResults.Count == 0)
         {
-            invoice.ExtendedData[Constants.ExtendedDataKeys.EffectiveShippingTaxRate] =
-                calcResult.EffectiveShippingTaxRate.Value;
+            return;
+        }
+
+        var taxableLineItems = lineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .ToList();
+
+        var byId = taxableLineItems.ToDictionary(li => li.Id);
+        var bySku = taxableLineItems
+            .Where(li => !string.IsNullOrWhiteSpace(li.Sku))
+            .GroupBy(li => li.Sku!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => new Queue<LineItem>(g), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var lineResult in lineResults)
+        {
+            LineItem? lineItem = null;
+
+            if (lineResult.LineItemId.HasValue && byId.TryGetValue(lineResult.LineItemId.Value, out var idMatch))
+            {
+                lineItem = idMatch;
+            }
+            else if (!string.IsNullOrWhiteSpace(lineResult.Sku)
+                     && bySku.TryGetValue(lineResult.Sku, out var skuMatches)
+                     && skuMatches.Count > 0)
+            {
+                lineItem = skuMatches.Dequeue();
+            }
+
+            if (lineItem == null)
+            {
+                continue;
+            }
+
+            lineItem.TaxRate = lineResult.TaxRate;
+            lineItem.IsTaxable = lineResult.IsTaxable;
+        }
+    }
+
+    private static void SetEffectiveShippingTaxRate(Invoice invoice, decimal? effectiveShippingTaxRate)
+    {
+        if (effectiveShippingTaxRate.HasValue)
+        {
+            invoice.ExtendedData[Constants.ExtendedDataKeys.EffectiveShippingTaxRate] = effectiveShippingTaxRate.Value;
         }
         else
         {
             invoice.ExtendedData.Remove(Constants.ExtendedDataKeys.EffectiveShippingTaxRate);
+        }
+    }
+
+    private static void SetInvoiceTaxMetadata(
+        Invoice invoice,
+        string? providerAlias,
+        string? transactionId,
+        bool isEstimated,
+        string? estimationReason)
+    {
+        if (!string.IsNullOrWhiteSpace(providerAlias))
+        {
+            invoice.ExtendedData[Constants.ExtendedDataKeys.TaxProviderAlias] = providerAlias;
+        }
+        else
+        {
+            invoice.ExtendedData.Remove(Constants.ExtendedDataKeys.TaxProviderAlias);
+        }
+
+        if (!string.IsNullOrWhiteSpace(transactionId))
+        {
+            invoice.ExtendedData[Constants.ExtendedDataKeys.TaxProviderTransactionId] = transactionId;
+        }
+        else
+        {
+            invoice.ExtendedData.Remove(Constants.ExtendedDataKeys.TaxProviderTransactionId);
+        }
+
+        invoice.ExtendedData[Constants.ExtendedDataKeys.TaxIsEstimated] = isEstimated;
+
+        if (!string.IsNullOrWhiteSpace(estimationReason))
+        {
+            invoice.ExtendedData[Constants.ExtendedDataKeys.TaxEstimationReason] = estimationReason;
+        }
+        else
+        {
+            invoice.ExtendedData.Remove(Constants.ExtendedDataKeys.TaxEstimationReason);
         }
     }
 
@@ -2682,7 +2850,7 @@ public class InvoiceEditService(
                 shippingAddress: shippingAddress,
                 currencyCode: currencyCode,
                 cancellationToken: cancellationToken);
-            isTaxable = taxRate > 0;
+            isTaxable = taxGroupId.HasValue;
         }
 
         // Get product image (use first available from variant or root)

@@ -9,6 +9,18 @@
 import { checkoutApi } from '../services/api.js';
 
 /**
+ * Calculates positive discount delta from basket state changes.
+ * @param {number} previousDiscount
+ * @param {number} currentDiscount
+ * @returns {number}
+ */
+export function calculateDiscountDelta(previousDiscount, currentDiscount) {
+    const previous = Number.isFinite(previousDiscount) ? previousDiscount : 0;
+    const current = Number.isFinite(currentDiscount) ? currentDiscount : 0;
+    return Math.max(0, current - previous);
+}
+
+/**
  * Initialize the order summary Alpine.data component
  */
 export function initOrderSummary() {
@@ -175,6 +187,20 @@ export function initOrderSummary() {
          * @returns {string}
          */
         formatLineItemTotal(item) {
+            const formattedWithAddons = item?.formattedDisplayLineTotalWithAddons;
+            if (typeof formattedWithAddons === 'string' && formattedWithAddons.trim().length > 0) {
+                return formattedWithAddons;
+            }
+
+            const formattedLegacy = item?.formattedDisplayLineTotal;
+            if (typeof formattedLegacy === 'string' && formattedLegacy.trim().length > 0) {
+                return formattedLegacy;
+            }
+
+            if (item?.displayLineTotalWithAddons !== undefined && item?.displayLineTotalWithAddons !== null) {
+                return this.formatCurrency(Number(item.displayLineTotalWithAddons));
+            }
+
             const base = Number(item?.displayLineTotal ?? item?.lineTotal ?? 0);
             const taxRate = Number(item?.taxRate ?? 0);
             const isTaxable = item?.isTaxable === true;
@@ -190,6 +216,20 @@ export function initOrderSummary() {
          * @returns {string}
          */
         formatAddonUnitPrice(addon) {
+            const formattedWithAddons = addon?.formattedDisplayUnitPriceWithAddons;
+            if (typeof formattedWithAddons === 'string' && formattedWithAddons.trim().length > 0) {
+                return formattedWithAddons;
+            }
+
+            const formattedLegacy = addon?.formattedDisplayUnitPrice;
+            if (typeof formattedLegacy === 'string' && formattedLegacy.trim().length > 0) {
+                return formattedLegacy;
+            }
+
+            if (addon?.displayUnitPriceWithAddons !== undefined && addon?.displayUnitPriceWithAddons !== null) {
+                return this.formatCurrency(Number(addon.displayUnitPriceWithAddons));
+            }
+
             const base = Number(addon?.displayUnitPrice ?? addon?.unitPrice ?? 0);
             const taxRate = Number(addon?.taxRate ?? 0);
             const isTaxable = addon?.isTaxable === true;
@@ -222,6 +262,7 @@ export function initOrderSummary() {
             this.applyingDiscount = true;
             this.discountError = '';
             this.discountSuccess = '';
+            const previousDiscount = Number(this.discount ?? 0);
 
             try {
                 const data = await checkoutApi.applyDiscount(appliedCode);
@@ -229,14 +270,6 @@ export function initOrderSummary() {
                 if (data.success) {
                     this.discountSuccess = 'Discount applied successfully!';
                     this.discountCode = '';
-
-                    // Track analytics with the saved code
-                    if (window.MerchelloCheckout) {
-                        window.MerchelloCheckout.emit('checkout:coupon_applied', {
-                            coupon: appliedCode,
-                            discount_amount: data.discountAmount || 0
-                        });
-                    }
 
                     // Update store with new basket data (reactive - no page reload needed)
                     // @ts-ignore - Alpine store
@@ -256,6 +289,16 @@ export function initOrderSummary() {
 
                         // Signal that hosted fields/direct form payment needs re-initialization
                         document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
+                    }
+
+                    // Track analytics with basket-state delta (response does not include discountAmount)
+                    if (window.MerchelloCheckout) {
+                        const currentDiscount = Number(this.discount ?? 0);
+                        const discountDelta = calculateDiscountDelta(previousDiscount, currentDiscount);
+                        window.MerchelloCheckout.emit('checkout:coupon_applied', {
+                            coupon: appliedCode,
+                            discount_amount: discountDelta
+                        });
                     }
 
                     // Notify parent components
@@ -282,19 +325,13 @@ export function initOrderSummary() {
             this.removingDiscount = discountId;
             this.discountError = '';
             this.discountSuccess = '';
+            const previousDiscount = Number(this.discount ?? 0);
 
             try {
                 const data = await checkoutApi.removeDiscount(discountId);
 
                 if (data.success) {
                     this.discountSuccess = 'Discount removed.';
-
-                    // Track analytics
-                    if (window.MerchelloCheckout) {
-                        window.MerchelloCheckout.emit('checkout:coupon_removed', {
-                            discount_id: discountId
-                        });
-                    }
 
                     // Update store with new basket data (reactive - no page reload needed)
                     // @ts-ignore - Alpine store
@@ -314,6 +351,16 @@ export function initOrderSummary() {
 
                         // Signal that hosted fields/direct form payment needs re-initialization
                         document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
+                    }
+
+                    // Track analytics with basket-state delta
+                    if (window.MerchelloCheckout) {
+                        const currentDiscount = Number(this.discount ?? 0);
+                        const removedDiscountAmount = calculateDiscountDelta(currentDiscount, previousDiscount);
+                        window.MerchelloCheckout.emit('checkout:coupon_removed', {
+                            discount_id: discountId,
+                            discount_amount: removedDiscountAmount
+                        });
                     }
 
                     // Notify parent components

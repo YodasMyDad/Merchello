@@ -114,6 +114,17 @@ public class ShippingOptionEligibilityServiceTests
     }
 
     [Fact]
+    public void GetEligibleOptions_FlatRateWithoutFixedCost_UsesZeroFallback()
+    {
+        var option = CreateOption("Standard", fixedCost: null);
+
+        var result = _service.GetEligibleOptions([option], "GB");
+
+        result.Count.ShouldBe(1);
+        result[0].Cost.ShouldBe(0m);
+    }
+
+    [Fact]
     public void GetEligibleOptions_AppliesEnabledProviderFilterForNonFlatRate()
     {
         var option = CreateOption("UPS Ground", providerKey: "ups", fixedCost: 11m);

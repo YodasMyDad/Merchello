@@ -105,11 +105,9 @@
 
                                             <!-- Add-ons for this product -->
                                             <template x-for="addon in getAddonsForProduct(item.id, item.sku)" :key="addon.id">
-                                                <div class="mt-2 ps-3 border-start border-2 border-primary">
-                                                    <small class="text-muted">
-                                                        <span x-text="addon.name"></span>
-                                                        <span class="ms-2" x-text="addon.formattedDisplayUnitPrice || addon.formattedUnitPrice"></span>
-                                                    </small>
+                                                <div class="text-muted small mt-1">
+                                                    <span x-text="addon.name"></span>
+                                                    <span class="ms-1" x-text="'(+' + (addon.formattedDisplayUnitPriceWithAddons || addon.formattedDisplayUnitPrice || addon.formattedUnitPrice || '') + ')'"></span>
                                                 </div>
                                             </template>
                                         </div>
@@ -149,8 +147,8 @@
 
                                         <!-- Price & Remove -->
                                         <div class="col-6 col-md-3 text-end">
-                                            <div class="fw-bold" x-text="item.formattedDisplayLineTotal"></div>
-                                            <small class="text-muted" x-show="item.quantity > 1" x-text="item.formattedDisplayUnitPrice + ' each'"></small>
+                                            <div class="fw-bold" x-text="item.formattedDisplayLineTotalWithAddons || item.formattedDisplayLineTotal"></div>
+                                            <small class="text-muted" x-show="item.quantity > 1" x-text="(item.formattedDisplayUnitPriceWithAddons || item.formattedDisplayUnitPrice) + ' each'"></small>
                                             <div class="mt-2">
                                                 <button type="button"
                                                         class="btn btn-link btn-sm text-danger p-0"

@@ -91,7 +91,7 @@ export function initCheckoutShipping() {
         get allSelected() {
             if (this.groups.length === 0) return false;
             return this.groups.every(g =>
-                !g.shippingOptions?.length || this.selections[g.groupId]
+                g.shippingOptions?.length > 0 && this.selections[g.groupId]
             );
         },
 
@@ -226,7 +226,7 @@ export function sortShippingOptions(options) {
 export function allShippingSelected(groups, selections) {
     if (groups.length === 0) return false;
     return groups.every(g =>
-        !g.shippingOptions?.length || selections[g.groupId]
+        g.shippingOptions?.length > 0 && selections[g.groupId]
     );
 }
 

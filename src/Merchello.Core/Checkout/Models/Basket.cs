@@ -75,6 +75,16 @@ public class Basket
     public decimal? EffectiveShippingTaxRate { get; set; }
 
     /// <summary>
+    /// Whether basket tax is currently estimated.
+    /// </summary>
+    public bool IsTaxEstimated { get; set; }
+
+    /// <summary>
+    /// Reason tax is estimated, when <see cref="IsTaxEstimated"/> is true.
+    /// </summary>
+    public string? TaxEstimationReason { get; set; }
+
+    /// <summary>
     /// Holds the Total of the basket
     /// </summary>
     public decimal Total { get; set; }

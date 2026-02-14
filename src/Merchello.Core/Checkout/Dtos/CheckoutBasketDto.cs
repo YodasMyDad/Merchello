@@ -23,6 +23,8 @@ public class CheckoutBasketDto
     public decimal Tax { get; set; }
     public decimal Shipping { get; set; }
     public decimal Total { get; set; }
+    public bool IsTaxEstimated { get; set; }
+    public string? TaxEstimationReason { get; set; }
     public string FormattedSubTotal { get; set; } = "";
     public string FormattedDiscount { get; set; } = "";
     public string FormattedAdjustedSubTotal { get; set; } = "";
@@ -47,9 +49,16 @@ public class CheckoutBasketDto
     public string DisplayCurrencySymbol { get; set; } = "";
     public decimal ExchangeRate { get; set; } = 1m;
 
+    // Tax-inclusive display (when DisplayPricesIncTax setting is enabled)
+    public bool DisplayPricesIncTax { get; set; }
+    public decimal TaxInclusiveDisplaySubTotal { get; set; }
+    public string FormattedTaxInclusiveDisplaySubTotal { get; set; } = "";
+    public string? TaxIncludedMessage { get; set; }
+
     public AddressDto? BillingAddress { get; set; }
     public AddressDto? ShippingAddress { get; set; }
     public List<AppliedDiscountDto> AppliedDiscounts { get; set; } = [];
     public List<BasketErrorDto> Errors { get; set; } = [];
     public bool IsEmpty { get; set; }
 }
+

@@ -414,6 +414,30 @@ public class DiscountEngineTests
     }
 
     [Fact]
+    public async Task CalculateAsync_AmountOffProducts_ApplyAfterTaxFixedAmount_ConvertsToPretax()
+    {
+        // Arrange: 12 after-tax discount on 100 item with 20% tax should be 10 pre-tax.
+        var productId = Guid.NewGuid();
+        var context = CreateBasicContext(
+            productId: productId,
+            unitPrice: 100m,
+            itemQuantity: 1,
+            isTaxable: true,
+            taxRate: 20m);
+        var discount = CreateDiscount(
+            category: DiscountCategory.AmountOffProducts,
+            valueType: DiscountValueType.FixedAmount,
+            value: 12m);
+        discount.ApplyAfterTax = true;
+        // Act
+        var result = await _engine.CalculateAsync(discount, context);
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.TotalDiscountAmount.ShouldBe(10m);
+        result.DiscountedLineItems[0].DiscountPerUnit.ShouldBe(10m);
+    }
+
+    [Fact]
     public async Task CalculateAsync_AmountOffProducts_NoMatchingItems_ZeroDiscount()
     {
         // Arrange: Discount targets different products
@@ -514,6 +538,29 @@ public class DiscountEngineTests
         result.TotalDiscountAmount.ShouldBe(0m);
     }
 
+    [Fact]
+    public async Task CalculateAsync_AmountOffOrder_ApplyAfterTaxFixedAmount_CapsAtAfterTaxBase()
+    {
+        // Arrange: 130 after-tax discount on 100 net with 20% tax caps at 120 gross => 100 net.
+        var context = CreateBasicContext(
+            subTotal: 100m,
+            unitPrice: 100m,
+            itemQuantity: 1,
+            isTaxable: true,
+            taxRate: 20m);
+        var discount = CreateDiscount(
+            category: DiscountCategory.AmountOffOrder,
+            valueType: DiscountValueType.FixedAmount,
+            value: 130m);
+        discount.ApplyAfterTax = true;
+        // Act
+        var result = await _engine.CalculateAsync(discount, context);
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.OrderDiscountAmount.ShouldBe(100m);
+        result.TotalDiscountAmount.ShouldBe(100m);
+    }
+
     #endregion
 
     #region D. CalculateAsync Tests - FreeShipping
@@ -547,6 +594,48 @@ public class DiscountEngineTests
         // Assert
         result.Success.ShouldBeTrue();
         result.TotalDiscountAmount.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_FreeShipping_AllowedOptions_RequiresAllSelectedGroupsToMatch()
+    {
+        // Arrange
+        var selectedAllowed = Guid.NewGuid();
+        var selectedDisallowed = Guid.NewGuid();
+        var context = CreateBasicContext(shippingTotal: 15m);
+        context.SelectedShippingOptionIds = [selectedAllowed, selectedDisallowed];
+        context.SelectedShippingOptionId = selectedAllowed;
+        var discount = CreateDiscount(category: DiscountCategory.FreeShipping);
+        discount.SetFreeShippingConfig(new DiscountFreeShippingConfig
+        {
+            AllowedShippingOptionIds = System.Text.Json.JsonSerializer.Serialize((Guid[])[selectedAllowed])
+        });
+        // Act
+        var result = await _engine.CalculateAsync(discount, context);
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.TotalDiscountAmount.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task CalculateAsync_FreeShipping_AllowedOptions_AppliesWhenAllSelectedGroupsMatch()
+    {
+        // Arrange
+        var selectedOptionOne = Guid.NewGuid();
+        var selectedOptionTwo = Guid.NewGuid();
+        var context = CreateBasicContext(shippingTotal: 18m);
+        context.SelectedShippingOptionIds = [selectedOptionOne, selectedOptionTwo];
+        context.SelectedShippingOptionId = selectedOptionOne;
+        var discount = CreateDiscount(category: DiscountCategory.FreeShipping);
+        discount.SetFreeShippingConfig(new DiscountFreeShippingConfig
+        {
+            AllowedShippingOptionIds = System.Text.Json.JsonSerializer.Serialize((Guid[])[selectedOptionOne, selectedOptionTwo])
+        });
+        // Act
+        var result = await _engine.CalculateAsync(discount, context);
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.TotalDiscountAmount.ShouldBe(18m);
     }
 
     #endregion
@@ -1034,6 +1123,8 @@ public class DiscountEngineTests
         Guid? productId = null,
         decimal unitPrice = 100m,
         int itemQuantity = 1,
+        bool isTaxable = false,
+        decimal taxRate = 0m,
         List<Guid>? appliedDiscountIds = null)
     {
         var lineItemId = Guid.NewGuid();
@@ -1055,7 +1146,9 @@ public class DiscountEngineTests
                     ProductRootId = actualProductId,
                     Quantity = itemQuantity,
                     UnitPrice = unitPrice,
-                    LineTotal = unitPrice * itemQuantity
+                    LineTotal = unitPrice * itemQuantity,
+                    IsTaxable = isTaxable,
+                    TaxRate = taxRate
                 }
             ]
         };
@@ -1063,3 +1156,4 @@ public class DiscountEngineTests
 
     #endregion
 }
+

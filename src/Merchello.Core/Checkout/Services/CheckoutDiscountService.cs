@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
@@ -15,6 +16,8 @@ using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
+using Merchello.Core.Shipping.Extensions;
+using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Checkout.Services;
@@ -25,6 +28,8 @@ public class CheckoutDiscountService(
     IOptions<MerchelloSettings> settings,
     IRateLimiter rateLimiter,
     Lazy<ICheckoutService> checkoutService,
+    ICheckoutSessionService? checkoutSessionService = null,
+    IWarehouseService? warehouseService = null,
     IDiscountEngine? discountEngine = null,
     IDiscountService? discountService = null,
     IAbandonedCheckoutService? abandonedCheckoutService = null) : ICheckoutDiscountService
@@ -93,7 +98,7 @@ public class CheckoutDiscountService(
         // Get the discount ID from ExtendedData to look up the discount for notification
         Discount? discount = null;
         if (discountLineItem.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj) &&
-            Guid.TryParse(discountIdObj.ToString(), out var discountId) &&
+            Guid.TryParse(discountIdObj.UnwrapJsonElement()?.ToString(), out var discountId) &&
             discountService != null)
         {
             discount = await discountService.GetByIdAsync(discountId, cancellationToken);
@@ -146,7 +151,7 @@ public class CheckoutDiscountService(
         }
 
         // Build discount context from basket
-        var context = BuildDiscountContext(basket);
+        var context = await BuildDiscountContextAsync(basket, cancellationToken);
 
         // Validate the code
         var validationResult = await discountEngine.ValidateCodeAsync(code, context, cancellationToken);
@@ -186,26 +191,12 @@ public class CheckoutDiscountService(
             return result;
         }
 
-        // Add discount as a line item
-        var currencyCode = _settings.StoreCurrencyCode;
-        var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
-        {
-            LineItems = basket.LineItems,
-            Amount = calculationResult.TotalDiscountAmount,
-            DiscountValueType = DiscountValueType.FixedAmount,
-            CurrencyCode = currencyCode,
-            LinkedSku = null,
-            Name = discount.Name,
-            Reason = discount.Code,
-            ExtendedData = new Dictionary<string, string>
-            {
-                [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
-                [Constants.ExtendedDataKeys.DiscountCode] = discount.Code ?? string.Empty,
-                [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
-                [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
-                [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
-            }
-        });
+        var errors = AddCalculatedDiscountLineItems(
+            basket,
+            discount,
+            calculationResult,
+            isAutomatic: false,
+            discountCode: discount.Code);
 
         if (errors.Count > 0)
         {
@@ -219,8 +210,10 @@ public class CheckoutDiscountService(
 
         await checkoutService.Value.CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
 
-        // Refresh automatic discounts - the applied code may conflict with existing automatic discounts
-        basket = await RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
+        // Recompute promotional discounts so combination/priority rules are respected after code application.
+        var refreshResult = await RefreshPromotionalDiscountsAsync(basket, countryCode, cancellationToken);
+        basket = refreshResult.ResultObject ?? basket;
+        result.Messages.AddRange(refreshResult.Messages);
         basket.DateUpdated = DateTime.UtcNow;
 
         // Publish "After" notification
@@ -246,8 +239,140 @@ public class CheckoutDiscountService(
             return [];
         }
 
-        var context = BuildDiscountContext(basket);
+        var context = await BuildDiscountContextAsync(basket, cancellationToken);
         return await discountEngine.GetApplicableAutomaticDiscountsAsync(context, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<CrudResult<Basket>> RefreshPromotionalDiscountsAsync(
+        Basket basket,
+        string? countryCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Basket>();
+
+        if (discountEngine == null)
+        {
+            result.ResultObject = basket;
+            return result;
+        }
+
+        var persistedCodeDiscounts = SnapshotPersistedCodeDiscounts(basket);
+
+        // Remove existing promotional discount lines before revalidation/reapplication.
+        var promotionalDiscountLineItems = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount &&
+                         li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.DiscountId))
+            .ToList();
+
+        foreach (var lineItem in promotionalDiscountLineItems)
+        {
+            basket.LineItems.Remove(lineItem);
+        }
+
+        await checkoutService.Value.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode,
+            ShippingAmountOverride = basket.Shipping
+        }, cancellationToken);
+
+        // Revalidate persisted code discounts.
+        var validCodeDiscounts = new List<Discount>();
+        var codeByDiscountId = new Dictionary<Guid, string>();
+        foreach (var persistedCode in persistedCodeDiscounts)
+        {
+            var currentContext = await BuildDiscountContextAsync(basket, cancellationToken);
+            var validationResult = await discountEngine.ValidateCodeAsync(
+                persistedCode.Code,
+                currentContext,
+                cancellationToken);
+
+            if (!validationResult.IsValid || validationResult.Discount == null)
+            {
+                result.AddWarningMessage(validationResult.ErrorMessage ??
+                    $"Discount code '{persistedCode.Code}' is no longer valid and was removed.");
+                continue;
+            }
+
+            if (codeByDiscountId.ContainsKey(validationResult.Discount.Id))
+            {
+                continue;
+            }
+
+            codeByDiscountId[validationResult.Discount.Id] = persistedCode.Code;
+            validCodeDiscounts.Add(validationResult.Discount);
+        }
+
+        // Gather currently applicable automatic discounts and resolve full combination filtering once.
+        var baseContext = await BuildDiscountContextAsync(basket, cancellationToken);
+        var automaticDiscounts = (await discountEngine.GetApplicableAutomaticDiscountsAsync(baseContext, cancellationToken))
+            .Select(x => x.Discount)
+            .ToList();
+
+        var candidateDiscounts = validCodeDiscounts
+            .Concat(automaticDiscounts)
+            .ToList();
+
+        var filteredDiscounts = discountEngine.FilterCombinableDiscounts(candidateDiscounts);
+        var filteredDiscountIds = filteredDiscounts.Select(d => d.Id).ToHashSet();
+
+        foreach (var removedCodeDiscount in validCodeDiscounts.Where(d => !filteredDiscountIds.Contains(d.Id)))
+        {
+            if (codeByDiscountId.TryGetValue(removedCodeDiscount.Id, out var code))
+            {
+                result.AddWarningMessage(
+                    $"Discount code '{code}' could not be combined with other discounts and was removed.");
+            }
+        }
+
+        // Apply selected discounts in priority order with running subtotal (matches engine semantics).
+        var runningSubTotal = baseContext.SubTotal;
+        foreach (var discount in filteredDiscounts)
+        {
+            var calculationContext = await BuildDiscountContextAsync(basket, cancellationToken);
+            calculationContext.SubTotal = runningSubTotal;
+
+            var calculationResult = await discountEngine.CalculateAsync(discount, calculationContext, cancellationToken);
+            if (!calculationResult.Success || calculationResult.TotalDiscountAmount <= 0)
+            {
+                continue;
+            }
+
+            var isAutomatic = !codeByDiscountId.ContainsKey(discount.Id);
+            codeByDiscountId.TryGetValue(discount.Id, out var code);
+            var addErrors = AddCalculatedDiscountLineItems(
+                basket,
+                discount,
+                calculationResult,
+                isAutomatic,
+                code);
+            if (addErrors.Count > 0)
+            {
+                result.AddWarningMessage(addErrors.First());
+                continue;
+            }
+
+            if (discount.Category == DiscountCategory.AmountOffOrder)
+            {
+                runningSubTotal = Math.Max(0, runningSubTotal - calculationResult.OrderDiscountAmount);
+            }
+            else if (discount.Category is DiscountCategory.AmountOffProducts or DiscountCategory.BuyXGetY)
+            {
+                runningSubTotal = Math.Max(0, runningSubTotal - calculationResult.ProductDiscountAmount);
+            }
+        }
+
+        await checkoutService.Value.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode,
+            ShippingAmountOverride = basket.Shipping
+        }, cancellationToken);
+        basket.DateUpdated = DateTime.UtcNow;
+
+        result.ResultObject = basket;
+        return result;
     }
 
     /// <inheritdoc />
@@ -256,97 +381,8 @@ public class CheckoutDiscountService(
         string? countryCode = null,
         CancellationToken cancellationToken = default)
     {
-        if (discountEngine == null)
-        {
-            return basket;
-        }
-
-        // Remove existing automatic discount line items
-        var automaticDiscountLineItems = basket.LineItems
-            .Where(li => li.LineItemType == LineItemType.Discount &&
-                         li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCategory, out var category) &&
-                         !li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.DiscountCode))
-            .ToList();
-
-        foreach (var lineItem in automaticDiscountLineItems)
-        {
-            basket.LineItems.Remove(lineItem);
-        }
-
-        // Get applicable automatic discounts
-        var context = BuildDiscountContext(basket);
-        var applicableDiscounts = await discountEngine.GetApplicableAutomaticDiscountsAsync(context, cancellationToken);
-
-        // Get existing code-based discounts from basket to consider in combination filtering
-        var existingCodeDiscountIds = basket.LineItems
-            .Where(li => li.LineItemType == LineItemType.Discount &&
-                         li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out _) &&
-                         li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.DiscountCode))
-            .Select(li => Guid.TryParse(li.ExtendedData[Constants.ExtendedDataKeys.DiscountId] as string, out var id) ? id : Guid.Empty)
-            .Where(id => id != Guid.Empty)
-            .ToList();
-
-        List<Discount> existingCodeDiscounts = [];
-        if (discountService != null)
-        {
-            foreach (var discountId in existingCodeDiscountIds)
-            {
-                var discount = await discountService.GetByIdAsync(discountId, cancellationToken);
-                if (discount != null)
-                {
-                    existingCodeDiscounts.Add(discount);
-                }
-            }
-        }
-
-        // Filter automatic discounts based on combination rules with both:
-        // - Each other (automatic discounts)
-        // - Existing code-based discounts in basket
-        var allDiscountsToConsider = existingCodeDiscounts
-            .Concat(applicableDiscounts.Select(ad => ad.Discount))
-            .ToList();
-
-        var filteredDiscounts = discountEngine.FilterCombinableDiscounts(allDiscountsToConsider);
-
-        // Only apply automatic discounts that made it through the filter
-        var discountsToApply = applicableDiscounts
-            .Where(ad => filteredDiscounts.Contains(ad.Discount))
-            .ToList();
-
-        // Apply each automatic discount that passed combination filtering
-        var currencyCode = _settings.StoreCurrencyCode;
-        foreach (var applicableDiscount in discountsToApply)
-        {
-            var discount = applicableDiscount.Discount;
-
-            lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
-            {
-                LineItems = basket.LineItems,
-                Amount = applicableDiscount.CalculatedAmount,
-                DiscountValueType = DiscountValueType.FixedAmount,
-                CurrencyCode = currencyCode,
-                LinkedSku = null,
-                Name = discount.Name,
-                Reason = "Automatic discount",
-                ExtendedData = new Dictionary<string, string>
-                {
-                    [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
-                    [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
-                    [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
-                    [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString()
-                }
-            });
-        }
-
-        await checkoutService.Value.CalculateBasketAsync(new CalculateBasketParameters
-        {
-            Basket = basket,
-            CountryCode = countryCode,
-            ShippingAmountOverride = basket.Shipping  // Preserve existing shipping amount
-        }, cancellationToken);
-        basket.DateUpdated = DateTime.UtcNow;
-
-        return basket;
+        var refreshResult = await RefreshPromotionalDiscountsAsync(basket, countryCode, cancellationToken);
+        return refreshResult.ResultObject ?? basket;
     }
 
     /// <inheritdoc />
@@ -362,7 +398,7 @@ public class CheckoutDiscountService(
         var discountLineItem = basket.LineItems
             .FirstOrDefault(li => li.LineItemType == LineItemType.Discount &&
                                   li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id) &&
-                                  Guid.TryParse(id?.ToString(), out var parsedId) &&
+                                  Guid.TryParse(id.UnwrapJsonElement()?.ToString(), out var parsedId) &&
                                   parsedId == discountId);
 
         if (discountLineItem == null)
@@ -377,10 +413,17 @@ public class CheckoutDiscountService(
 
         basket.LineItems.Remove(discountLineItem);
 
-        await checkoutService.Value.CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+        await checkoutService.Value.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = countryCode,
+            ShippingAmountOverride = basket.Shipping
+        }, cancellationToken);
 
-        // Refresh automatic discounts - a removed code may have been blocking automatic discounts
-        basket = await RefreshAutomaticDiscountsAsync(basket, countryCode, cancellationToken);
+        // Recompute the full promotional discount set after removing a code.
+        var refreshResult = await RefreshPromotionalDiscountsAsync(basket, countryCode, cancellationToken);
+        basket = refreshResult.ResultObject ?? basket;
+        result.Messages.AddRange(refreshResult.Messages);
         basket.DateUpdated = DateTime.UtcNow;
 
         result.ResultObject = basket;
@@ -390,8 +433,68 @@ public class CheckoutDiscountService(
     /// <summary>
     /// Builds a discount context from the basket for discount engine calculations.
     /// </summary>
-    private DiscountContext BuildDiscountContext(Basket basket)
+    private async Task<DiscountContext> BuildDiscountContextAsync(
+        Basket basket,
+        CancellationToken cancellationToken)
     {
+        var selectedShippingOptionIds = new HashSet<Guid>();
+        var selectedWarehouseByLineItemId = new Dictionary<Guid, Guid>();
+        var supplierByWarehouseId = new Dictionary<Guid, Guid?>();
+        var hasSelectedShippingContext = false;
+
+        if (checkoutSessionService != null)
+        {
+            var session = await checkoutSessionService.GetSessionAsync(basket.Id, cancellationToken);
+            hasSelectedShippingContext = session.SelectedShippingOptions.Count > 0;
+
+            foreach (var selection in session.SelectedShippingOptions.Values)
+            {
+                if (SelectionKeyExtensions.TryParse(selection, out var shippingOptionId, out _, out _) &&
+                    shippingOptionId.HasValue)
+                {
+                    selectedShippingOptionIds.Add(shippingOptionId.Value);
+                }
+            }
+
+            if (hasSelectedShippingContext && !string.IsNullOrWhiteSpace(session.ShippingAddress.CountryCode))
+            {
+                var groupingResult = await checkoutService.Value.GetOrderGroupsAsync(new GetOrderGroupsParameters
+                {
+                    Basket = basket,
+                    Session = session
+                }, cancellationToken);
+
+                if (groupingResult.Success)
+                {
+                    var selectedGroupKeys = session.SelectedShippingOptions.Keys.ToHashSet();
+
+                    foreach (var group in groupingResult.Groups.Where(g => g.WarehouseId.HasValue))
+                    {
+                        if (!selectedGroupKeys.Contains(group.GroupId) &&
+                            (!group.WarehouseId.HasValue || !selectedGroupKeys.Contains(group.WarehouseId.Value)))
+                        {
+                            continue;
+                        }
+
+                        foreach (var groupLineItem in group.LineItems)
+                        {
+                            selectedWarehouseByLineItemId.TryAdd(groupLineItem.LineItemId, group.WarehouseId!.Value);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (warehouseService != null && selectedWarehouseByLineItemId.Count > 0)
+        {
+            foreach (var warehouseId in selectedWarehouseByLineItemId.Values.Distinct())
+            {
+                var warehouse = await warehouseService.GetWarehouseByIdAsync(warehouseId, cancellationToken);
+                supplierByWarehouseId[warehouseId] = warehouse?.SupplierId;
+            }
+        }
+
+        var selectedShippingOptionsList = selectedShippingOptionIds.ToList();
         var context = new DiscountContext
         {
             CustomerId = basket.CustomerId,
@@ -399,13 +502,17 @@ public class CheckoutDiscountService(
             ShippingTotal = basket.Shipping,
             CurrencyCode = _settings.StoreCurrencyCode,
             ShippingAddress = basket.ShippingAddress,
+            SelectedShippingOptionId = selectedShippingOptionsList.Count > 0
+                ? selectedShippingOptionsList[0]
+                : null,
+            SelectedShippingOptionIds = selectedShippingOptionsList,
             AppliedDiscountIds = basket.LineItems
                 .Where(li => li.LineItemType == LineItemType.Discount)
-                .Select(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id) &&
-                              Guid.TryParse(id.UnwrapJsonElement()?.ToString(), out var parsedId)
-                    ? parsedId
-                    : Guid.Empty)
-                .Where(id => id != Guid.Empty)
+                .Select(li => li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var id)
+                    ? ParseGuid(id)
+                    : null)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
                 .ToList()
         };
 
@@ -444,53 +551,254 @@ public class CheckoutDiscountService(
                 }
             }
 
+            // Read product metadata from ExtendedData (for products) or parent (for add-ons).
+            var metadataSource = isAddon && parentLineItem != null ? parentLineItem : lineItem;
+
+            var resolvedWarehouseId = metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.WarehouseId, out var warehouseIdObj)
+                ? ParseGuid(warehouseIdObj)
+                : null;
+            var resolvedSupplierId = metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.SupplierId, out var supplierIdObj)
+                ? ParseGuid(supplierIdObj)
+                : null;
+
+            if (hasSelectedShippingContext)
+            {
+                var mappedWarehouseId = selectedWarehouseByLineItemId.TryGetValue(lineItem.Id, out var directWarehouseId)
+                    ? directWarehouseId
+                    : parentLineItem != null && selectedWarehouseByLineItemId.TryGetValue(parentLineItem.Id, out var parentWarehouseId)
+                        ? parentWarehouseId
+                        : (Guid?)null;
+
+                if (mappedWarehouseId.HasValue)
+                {
+                    resolvedWarehouseId = mappedWarehouseId.Value;
+                    resolvedSupplierId = supplierByWarehouseId.GetValueOrDefault(mappedWarehouseId.Value);
+                }
+                else
+                {
+                    // Selected shipping context is strict; do not infer supplier/warehouse for unassigned items.
+                    resolvedWarehouseId = null;
+                    resolvedSupplierId = null;
+                }
+            }
+
             var ctxLineItem = new DiscountContextLineItem
             {
                 LineItemId = lineItem.Id,
                 ProductId = lineItem.ProductId ?? parentLineItem?.ProductId ?? Guid.Empty,
+                ProductRootId = metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductRootId, out var rootIdObj)
+                    ? ParseGuid(rootIdObj) ?? Guid.Empty
+                    : Guid.Empty,
+                ProductTypeId = metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductTypeId, out var typeIdObj)
+                    ? ParseGuid(typeIdObj)
+                    : null,
+                SupplierId = resolvedSupplierId,
+                WarehouseId = resolvedWarehouseId,
+                CollectionIds = metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CollectionIds, out var collectionIdsObj)
+                    ? ParseGuidList(collectionIdsObj)
+                    : [],
+                ProductFilterIds = metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.FilterIds, out var filterIdsObj)
+                    ? ParseGuidList(filterIdsObj)
+                    : [],
                 Sku = lineItem.Sku ?? string.Empty,
                 Quantity = lineItem.Quantity,
                 UnitPrice = lineItem.Amount,
                 LineTotal = lineItem.Quantity * lineItem.Amount,
+                IsTaxable = lineItem.IsTaxable,
+                TaxRate = lineItem.TaxRate,
                 IsAddon = isAddon,
                 ParentLineItemId = parentLineItem?.Id
             };
-
-            // Read product metadata from ExtendedData (for products) or parent (for add-ons)
-            var metadataSource = isAddon && parentLineItem != null ? parentLineItem : lineItem;
-
-            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductRootId, out var rootIdObj) &&
-                rootIdObj is string rootIdStr &&
-                Guid.TryParse(rootIdStr, out var productRootId))
-            {
-                ctxLineItem.ProductRootId = productRootId;
-            }
-
-            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ProductTypeId, out var typeIdObj) &&
-                typeIdObj is string typeIdStr &&
-                Guid.TryParse(typeIdStr, out var productTypeId))
-            {
-                ctxLineItem.ProductTypeId = productTypeId;
-            }
-
-            if (metadataSource.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.CollectionIds, out var collectionIdsObj) &&
-                collectionIdsObj is string collectionIdsJson)
-            {
-                try
-                {
-                    ctxLineItem.CollectionIds = JsonSerializer.Deserialize<List<Guid>>(collectionIdsJson) ?? [];
-                }
-                catch (JsonException)
-                {
-                    // Invalid JSON format - continue with empty collection IDs
-                }
-            }
 
             context.LineItems.Add(ctxLineItem);
         }
 
         return context;
     }
+
+    private List<string> AddCalculatedDiscountLineItems(
+        Basket basket,
+        Discount discount,
+        DiscountCalculationResult calculationResult,
+        bool isAutomatic,
+        string? discountCode)
+    {
+        var lineItemsById = basket.LineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .ToDictionary(li => li.Id, li => li);
+
+        var lineItemDiscountType = discount.Category is DiscountCategory.BuyXGetY or DiscountCategory.FreeShipping
+            ? DiscountValueType.FixedAmount
+            : discount.ValueType;
+
+        var metadata = new Dictionary<string, string>
+        {
+            [Constants.ExtendedDataKeys.DiscountId] = discount.Id.ToString(),
+            [Constants.ExtendedDataKeys.DiscountName] = discount.Name,
+            [Constants.ExtendedDataKeys.DiscountCategory] = discount.Category.ToString(),
+            [Constants.ExtendedDataKeys.ApplyAfterTax] = discount.ApplyAfterTax.ToString(),
+            [Constants.ExtendedDataKeys.DiscountValueType] = discount.ValueType.ToString(),
+            [Constants.ExtendedDataKeys.DiscountValue] = discount.Value.ToString(CultureInfo.InvariantCulture)
+        };
+
+        if (!string.IsNullOrWhiteSpace(discountCode))
+        {
+            metadata[Constants.ExtendedDataKeys.DiscountCode] = discountCode;
+        }
+
+        var allErrors = new List<string>();
+        var appliedLinkedDiscount = false;
+        var hasItemAllocations = calculationResult.DiscountedLineItems.Count > 0 &&
+                                 discount.Category is DiscountCategory.AmountOffProducts or DiscountCategory.BuyXGetY;
+
+        if (hasItemAllocations)
+        {
+            foreach (var discountedLineItem in calculationResult.DiscountedLineItems.Where(x => x.TotalDiscount > 0))
+            {
+                if (!lineItemsById.TryGetValue(discountedLineItem.LineItemId, out var basketLineItem) ||
+                    string.IsNullOrWhiteSpace(basketLineItem.Sku))
+                {
+                    continue;
+                }
+
+                var amount = GetLineItemAmountForDiscount(
+                    lineItemDiscountType,
+                    discount,
+                    discountedLineItem.TotalDiscount);
+
+                var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
+                {
+                    LineItems = basket.LineItems,
+                    Amount = amount,
+                    DiscountValueType = lineItemDiscountType,
+                    CurrencyCode = _settings.StoreCurrencyCode,
+                    LinkedSku = basketLineItem.Sku,
+                    Name = discount.Name,
+                    Reason = isAutomatic ? "Automatic discount" : discountCode,
+                    ExtendedData = metadata
+                });
+
+                if (errors.Count == 0)
+                {
+                    appliedLinkedDiscount = true;
+                }
+
+                allErrors.AddRange(errors);
+            }
+        }
+
+        if (!hasItemAllocations || !appliedLinkedDiscount)
+        {
+            var amount = GetLineItemAmountForDiscount(
+                lineItemDiscountType,
+                discount,
+                calculationResult.TotalDiscountAmount);
+
+            var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
+            {
+                LineItems = basket.LineItems,
+                Amount = amount,
+                DiscountValueType = lineItemDiscountType,
+                CurrencyCode = _settings.StoreCurrencyCode,
+                LinkedSku = null,
+                Name = discount.Name,
+                Reason = isAutomatic ? "Automatic discount" : discountCode,
+                ExtendedData = metadata
+            });
+
+            allErrors.AddRange(errors);
+        }
+
+        return allErrors;
+    }
+
+    private static decimal GetLineItemAmountForDiscount(
+        DiscountValueType lineItemDiscountType,
+        Discount discount,
+        decimal calculatedAmount)
+    {
+        return lineItemDiscountType switch
+        {
+            DiscountValueType.Percentage => discount.Value,
+            DiscountValueType.Free => 100m,
+            _ => calculatedAmount
+        };
+    }
+
+    private static List<PersistedCodeDiscount> SnapshotPersistedCodeDiscounts(Basket basket)
+    {
+        return basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .Select(li =>
+            {
+                if (!li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var codeObj) ||
+                    !li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var idObj))
+                {
+                    return null;
+                }
+
+                var code = codeObj.UnwrapJsonElement()?.ToString()?.Trim();
+                var discountId = ParseGuid(idObj);
+                if (string.IsNullOrWhiteSpace(code) || !discountId.HasValue)
+                {
+                    return null;
+                }
+
+                return new PersistedCodeDiscount(discountId.Value, code);
+            })
+            .Where(x => x != null)
+            .Select(x => x!)
+            .ToList();
+    }
+
+    private static Guid? ParseGuid(object? value)
+    {
+        return Guid.TryParse(value.UnwrapJsonElement()?.ToString(), out var parsedId)
+            ? parsedId
+            : null;
+    }
+
+    private static List<Guid> ParseGuidList(object? value)
+    {
+        var unwrapped = value.UnwrapJsonElement();
+        if (unwrapped == null)
+        {
+            return [];
+        }
+
+        if (unwrapped is IEnumerable<Guid> enumerable)
+        {
+            return enumerable.Distinct().ToList();
+        }
+
+        var rawValue = unwrapped.ToString();
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return [];
+        }
+
+        try
+        {
+            if (rawValue.TrimStart().StartsWith("[", StringComparison.Ordinal))
+            {
+                return JsonSerializer.Deserialize<List<Guid>>(rawValue) ?? [];
+            }
+        }
+        catch (JsonException)
+        {
+            // Fallback to simple token parsing below.
+        }
+
+        return rawValue
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(token => Guid.TryParse(token, out var id) ? id : (Guid?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+    }
+
+    private sealed record PersistedCodeDiscount(Guid DiscountId, string Code);
 
     private Task<(bool Allowed, string? ErrorMessage)> CheckDiscountCodeRateLimitAsync(Guid basketId)
     {

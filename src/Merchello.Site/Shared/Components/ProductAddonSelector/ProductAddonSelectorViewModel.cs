@@ -31,6 +31,11 @@ public class ProductAddonSelectorViewModel
     public bool IsMultiSelect { get; set; } = true;
 
     /// <summary>
+    /// Whether this add-on option requires at least one selected value.
+    /// </summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>
     /// The currency symbol for price display.
     /// </summary>
     public string CurrencySymbol { get; set; } = "£";

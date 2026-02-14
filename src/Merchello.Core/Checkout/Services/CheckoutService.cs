@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Parameters;
@@ -35,6 +36,9 @@ using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Tax.Providers.Interfaces;
+using Merchello.Core.Tax.Providers.Models;
+using Merchello.Core.Tax.Services.Interfaces;
+using Merchello.Core.Tax.Services.Models;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Models;
@@ -74,6 +78,7 @@ public class CheckoutService(
     IAbandonedCheckoutService? abandonedCheckoutService = null,
     ITaxProviderManager? taxProviderManager = null,
     ITaxService? taxService = null,
+    ITaxOrchestrationService? taxOrchestrationService = null,
     Lazy<ICheckoutDiscountService>? checkoutDiscountService = null,
     ICountryCurrencyMappingService? countryCurrencyMappingService = null) : ICheckoutService
 {
@@ -119,6 +124,15 @@ public class CheckoutService(
         }
 
         await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+
+        if (checkoutDiscountService != null)
+        {
+            await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                basket,
+                countryCode,
+                cancellationToken);
+        }
+
         basket.DateUpdated = DateTime.UtcNow;
 
         // Publish added notification (informational) - only for product line items
@@ -153,6 +167,15 @@ public class CheckoutService(
 
             basket.LineItems.Remove(itemToRemove);
             await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
+
+            if (checkoutDiscountService != null)
+            {
+                await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                    basket,
+                    countryCode,
+                    cancellationToken);
+            }
+
             basket.DateUpdated = DateTime.UtcNow;
 
             await notificationPublisher.PublishAsync(
@@ -196,6 +219,8 @@ public class CheckoutService(
         // Resolve country code from settings if not provided
         var resolvedCountryCode = countryCode ?? _settings.DefaultShippingCountry ?? "US";
         var stateCode = basket.ShippingAddress.CountyState.RegionCode;
+        basket.IsTaxEstimated = false;
+        basket.TaxEstimationReason = null;
 
         // Resolve location-specific tax rates for basket line items
         if (taxService != null && !string.IsNullOrWhiteSpace(resolvedCountryCode))
@@ -203,18 +228,6 @@ public class CheckoutService(
             await ResolveLineItemTaxRatesAsync(
                 basket.LineItems, resolvedCountryCode, stateCode, cancellationToken);
         }
-
-        // Query tax provider for shipping taxability and rate if not explicitly provided
-        var isShippingTaxable = parameters.IsShippingTaxable
-            ?? (taxProviderManager != null
-                ? await taxProviderManager.IsShippingTaxedForLocationAsync(resolvedCountryCode, stateCode, cancellationToken)
-                : false);
-
-        // Get the shipping tax rate from the provider (respects regional overrides, global config, etc.)
-        // Returns: specific rate, 0m (not taxable), or null (use proportional calculation)
-        var shippingTaxRate = taxProviderManager != null
-            ? await taxProviderManager.GetShippingTaxRateForLocationAsync(resolvedCountryCode, stateCode, cancellationToken)
-            : null;
 
         basket.Errors = basket.Errors.Where(error => !error.IsShippingError).ToList();
 
@@ -248,6 +261,80 @@ public class CheckoutService(
 
         var currencyCode = _settings.StoreCurrencyCode;
 
+        var providerCountryCode = countryCode ?? basket.ShippingAddress.CountryCode;
+        var taxShippingAddress = BuildTaxAddressForBasket(basket, providerCountryCode, stateCode);
+        var taxableLineItems = BuildTaxableLineItemsForCalculation(basket.LineItems);
+
+        var orchestrationResult = taxOrchestrationService != null
+            ? await taxOrchestrationService.CalculateAsync(
+                new TaxOrchestrationRequest
+                {
+                    ShippingAddress = taxShippingAddress,
+                    BillingAddress = basket.BillingAddress,
+                    CurrencyCode = currencyCode,
+                    LineItems = taxableLineItems,
+                    ShippingAmount = shippingCost,
+                    CustomerId = basket.CustomerId,
+                    CustomerEmail = basket.BillingAddress.Email,
+                    IsTaxExempt = false,
+                    TransactionDate = DateTime.UtcNow,
+                    AllowEstimate = true
+                },
+                cancellationToken)
+            : TaxOrchestrationResult.Centralized();
+
+        if (!orchestrationResult.Success)
+        {
+            orchestrationResult = TaxOrchestrationResult.Centralized(
+                isEstimated: true,
+                estimationReason: "ProviderUnavailable",
+                warnings: [orchestrationResult.ErrorMessage ?? "Tax provider unavailable. Using estimated tax."]);
+        }
+
+        if (!orchestrationResult.UseCentralizedCalculation && orchestrationResult.ProviderResult != null)
+        {
+            ApplyProviderLineResultsToLineItems(basket.LineItems, orchestrationResult.ProviderResult.LineResults);
+
+            // Keep centralized discount/subtotal logic, but tax total is provider-authoritative.
+            var baseResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
+            {
+                LineItems = basket.LineItems,
+                ShippingAmount = shippingCost,
+                CurrencyCode = currencyCode,
+                IsShippingTaxable = false,
+                ShippingTaxRate = 0m
+            });
+
+            basket.SubTotal = baseResult.SubTotal;
+            basket.Discount = baseResult.Discount;
+            basket.AdjustedSubTotal = baseResult.AdjustedSubTotal;
+            basket.Tax = currencyService.Round(orchestrationResult.ProviderResult.TotalTax, currencyCode);
+            basket.Shipping = shippingCost;
+            basket.Total = currencyService.Round(
+                basket.AdjustedSubTotal + basket.Tax + basket.Shipping,
+                currencyCode);
+            basket.EffectiveShippingTaxRate = shippingCost > 0
+                ? Math.Round((orchestrationResult.ProviderResult.ShippingTax / shippingCost) * 100m, 4)
+                : null;
+            basket.IsTaxEstimated = orchestrationResult.ProviderResult.IsEstimated;
+            basket.TaxEstimationReason = orchestrationResult.ProviderResult.IsEstimated
+                ? orchestrationResult.ProviderResult.EstimationReason
+                : null;
+            return;
+        }
+
+        var shippingTaxConfiguration = await ResolveShippingTaxConfigurationAsync(
+            resolvedCountryCode,
+            stateCode,
+            cancellationToken);
+
+        var isShippingTaxable = parameters.IsShippingTaxable
+            ?? shippingTaxConfiguration.Mode != ShippingTaxMode.NotTaxed;
+
+        var shippingTaxRate = shippingTaxConfiguration.Mode == ShippingTaxMode.FixedRate
+            ? shippingTaxConfiguration.Rate
+            : null;
+
         // Use the unified calculation method that handles discount line items
         var calcResult = lineItemService.CalculateFromLineItems(new CalculateLineItemsParameters
         {
@@ -265,6 +352,10 @@ public class CheckoutService(
         basket.Total = calcResult.Total;
         basket.Shipping = calcResult.Shipping;
         basket.EffectiveShippingTaxRate = calcResult.EffectiveShippingTaxRate;
+        basket.IsTaxEstimated = orchestrationResult.IsEstimated;
+        basket.TaxEstimationReason = orchestrationResult.IsEstimated
+            ? orchestrationResult.EstimationReason
+            : null;
     }
 
     /// <summary>
@@ -300,8 +391,103 @@ public class CheckoutService(
             if (resolvedRates.TryGetValue(item.TaxGroupId!.Value, out var rate))
             {
                 item.TaxRate = rate;
-                item.IsTaxable = rate > 0;
+                item.IsTaxable = item.TaxGroupId.HasValue;
             }
+        }
+    }
+
+    private async Task<ShippingTaxConfigurationResult> ResolveShippingTaxConfigurationAsync(
+        string countryCode,
+        string? stateCode,
+        CancellationToken cancellationToken)
+    {
+        if (taxProviderManager == null)
+        {
+            return ShippingTaxConfigurationResult.NotTaxed();
+        }
+
+        return await taxProviderManager.GetShippingTaxConfigurationAsync(
+            countryCode,
+            stateCode,
+            cancellationToken)
+            ?? ShippingTaxConfigurationResult.NotTaxed();
+    }
+
+    private static Address BuildTaxAddressForBasket(Basket basket, string? countryCode, string? regionCode)
+    {
+        var shippingAddress = basket.ShippingAddress;
+        if (!string.IsNullOrWhiteSpace(countryCode) && string.IsNullOrWhiteSpace(shippingAddress.CountryCode))
+        {
+            shippingAddress.CountryCode = countryCode;
+        }
+
+        if (!string.IsNullOrWhiteSpace(regionCode))
+        {
+            shippingAddress.CountyState ??= new CountyState();
+            shippingAddress.CountyState.RegionCode = regionCode;
+        }
+
+        return shippingAddress;
+    }
+
+    private static List<TaxableLineItem> BuildTaxableLineItemsForCalculation(IEnumerable<LineItem> lineItems)
+    {
+        return lineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .Select(li => new TaxableLineItem
+            {
+                LineItemId = li.Id,
+                Sku = string.IsNullOrWhiteSpace(li.Sku) ? li.Id.ToString("N") : li.Sku!,
+                Name = li.Name ?? li.Sku ?? li.Id.ToString("N"),
+                Amount = li.Amount,
+                Quantity = li.Quantity,
+                TaxGroupId = li.TaxGroupId,
+                IsTaxable = li.IsTaxable
+            })
+            .ToList();
+    }
+
+    private static void ApplyProviderLineResultsToLineItems(
+        IReadOnlyCollection<LineItem> lineItems,
+        IReadOnlyCollection<LineTaxResult> lineResults)
+    {
+        if (lineResults.Count == 0)
+        {
+            return;
+        }
+
+        var taxableLineItems = lineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .ToList();
+
+        var byId = taxableLineItems.ToDictionary(li => li.Id);
+        var bySku = taxableLineItems
+            .Where(li => !string.IsNullOrWhiteSpace(li.Sku))
+            .GroupBy(li => li.Sku!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => new Queue<LineItem>(g), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var lineResult in lineResults)
+        {
+            LineItem? lineItem = null;
+
+            if (lineResult.LineItemId.HasValue && byId.TryGetValue(lineResult.LineItemId.Value, out var byIdItem))
+            {
+                lineItem = byIdItem;
+            }
+            else if (!string.IsNullOrWhiteSpace(lineResult.Sku)
+                     && bySku.TryGetValue(lineResult.Sku, out var bySkuItems)
+                     && bySkuItems.Count > 0)
+            {
+                lineItem = bySkuItems.Dequeue();
+            }
+
+            if (lineItem == null)
+            {
+                continue;
+            }
+
+            lineItem.TaxRate = lineResult.TaxRate;
+            lineItem.IsTaxable = lineResult.IsTaxable;
         }
     }
 
@@ -502,6 +688,7 @@ public class CheckoutService(
         {
             ProductId = parameters.ProductId,
             IncludeProductRoot = true, // ProductOptions (JSON column) loads with ProductRoot for display name extraction
+            IncludeProductFilters = true,
             IncludeTaxGroup = true,
             NoTracking = true
         }, cancellationToken);
@@ -662,6 +849,15 @@ public class CheckoutService(
                                 CountryCode = countryCode
                             },
                             cancellationToken);
+
+                        if (checkoutDiscountService != null)
+                        {
+                            await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                                currentBasket,
+                                countryCode,
+                                cancellationToken);
+                        }
+
                         publishRemoved = true;
                     }
 
@@ -692,6 +888,14 @@ public class CheckoutService(
                         CountryCode = countryCode
                     },
                     cancellationToken);
+
+                if (checkoutDiscountService != null)
+                {
+                    await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                        currentBasket,
+                        countryCode,
+                        cancellationToken);
+                }
 
                 currentBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
                 await db.SaveChangesAsync(cancellationToken);
@@ -1275,6 +1479,12 @@ public class CheckoutService(
                 lineItem.ExtendedData[Constants.ExtendedDataKeys.CollectionIds] = JsonSerializer.Serialize(collectionIds);
             }
 
+            if (product.Filters is { Count: > 0 })
+            {
+                var filterIds = product.Filters.Select(f => f.Id).ToList();
+                lineItem.ExtendedData[Constants.ExtendedDataKeys.FilterIds] = JsonSerializer.Serialize(filterIds);
+            }
+
             // Store root name for display (e.g., "Premium V-Neck" instead of variant name "S-Grey")
             lineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootName] = productRoot.RootName ?? "";
 
@@ -1653,11 +1863,16 @@ public class CheckoutService(
                         CountryCode = shippingAddress.CountryCode
                     }, cancellationToken);
 
-                    // Apply automatic discounts (e.g., "Free shipping in UK", "10% off orders over 100")
+                    // Refresh promotional discounts (automatic + code) after address changes.
                     if (checkoutDiscountService != null)
                     {
-                        fullUpdatedBasket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
-                            fullUpdatedBasket, shippingAddress.CountryCode, cancellationToken);
+                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                            fullUpdatedBasket,
+                            shippingAddress.CountryCode,
+                            cancellationToken);
+                        fullUpdatedBasket = refreshResult.ResultObject ?? fullUpdatedBasket;
+                        result.Messages.AddRange(refreshResult.Messages
+                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
                     }
 
                     // Update timestamp if addresses changed OR if totals changed after recalculation
@@ -2061,13 +2276,16 @@ public class CheckoutService(
                         ShippingAmountOverride = totalShipping
                     }, cancellationToken);
 
-                    // Refresh automatic discounts (shipping costs may affect free shipping thresholds)
+                    // Refresh promotional discounts (shipping changes can invalidate code/auto discounts).
                     if (checkoutDiscountService != null)
                     {
-                        updatedBasket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
+                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
                             updatedBasket,
                             session.ShippingAddress.CountryCode,
                             cancellationToken);
+                        updatedBasket = refreshResult.ResultObject ?? updatedBasket;
+                        earlyResult.Messages.AddRange(refreshResult.Messages
+                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
                     }
 
                     // Update timestamp if selections changed OR if totals changed after recalculation
@@ -2182,7 +2400,9 @@ public class CheckoutService(
                 if (order.LineItems == null) continue;
 
                 foreach (var li in order.LineItems.Where(l =>
-                    l.LineItemType == LineItemType.Product || l.LineItemType == LineItemType.Addon))
+                    l.LineItemType == LineItemType.Product ||
+                    l.LineItemType == LineItemType.Custom ||
+                    l.LineItemType == LineItemType.Addon))
                 {
                     var lineTotal = li.Quantity * li.Amount;
 
@@ -2213,6 +2433,10 @@ public class CheckoutService(
                         DisplayLineTotal = lineTotal,
                         FormattedDisplayUnitPrice = currencyService.FormatAmount(li.Amount, currencyCode),
                         FormattedDisplayLineTotal = currencyService.FormatAmount(lineTotal, currencyCode),
+                        DisplayUnitPriceWithAddons = li.Amount,
+                        DisplayLineTotalWithAddons = lineTotal,
+                        FormattedDisplayUnitPriceWithAddons = currencyService.FormatAmount(li.Amount, currencyCode),
+                        FormattedDisplayLineTotalWithAddons = currencyService.FormatAmount(lineTotal, currencyCode),
                         // Tax info for tax-inclusive display
                         TaxRate = li.TaxRate,
                         IsTaxable = li.IsTaxable,
@@ -2223,6 +2447,16 @@ public class CheckoutService(
                     });
                 }
             }
+        }
+
+        foreach (var lineItem in lineItems)
+        {
+            var displayUnitPriceWithAddons = lineItem.GetDisplayLineItemUnitPriceWithAddons(lineItems);
+            var displayLineTotalWithAddons = lineItem.GetDisplayLineItemTotalWithAddons(lineItems);
+            lineItem.DisplayUnitPriceWithAddons = displayUnitPriceWithAddons;
+            lineItem.DisplayLineTotalWithAddons = displayLineTotalWithAddons;
+            lineItem.FormattedDisplayUnitPriceWithAddons = currencyService.FormatAmount(displayUnitPriceWithAddons, currencyCode);
+            lineItem.FormattedDisplayLineTotalWithAddons = currencyService.FormatAmount(displayLineTotalWithAddons, currencyCode);
         }
 
         // Get shipping method names
@@ -2266,6 +2500,25 @@ public class CheckoutService(
             }
         }
 
+        var isTaxEstimated = false;
+        if (invoice.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.TaxIsEstimated, out var isTaxEstimatedValue))
+        {
+            var rawEstimated = isTaxEstimatedValue.UnwrapJsonElement();
+            if (rawEstimated is bool estimatedBool)
+            {
+                isTaxEstimated = estimatedBool;
+            }
+            else if (!string.IsNullOrWhiteSpace(rawEstimated?.ToString()) &&
+                     bool.TryParse(rawEstimated.ToString(), out var parsedEstimated))
+            {
+                isTaxEstimated = parsedEstimated;
+            }
+        }
+
+        var taxEstimationReason = invoice.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.TaxEstimationReason, out var reasonValue)
+            ? reasonValue.UnwrapJsonElement()?.ToString()
+            : null;
+
         return new OrderConfirmationDto
         {
             InvoiceId = invoice.Id,
@@ -2284,6 +2537,8 @@ public class CheckoutService(
             Shipping = totalShipping,
             FormattedShipping = currencyService.FormatAmount(totalShipping, currencyCode),
             Tax = invoice.Tax,
+            IsTaxEstimated = isTaxEstimated,
+            TaxEstimationReason = taxEstimationReason,
             FormattedTax = currencyService.FormatAmount(invoice.Tax, currencyCode),
             Total = invoice.Total,
             FormattedTotal = currencyService.FormatAmount(invoice.Total, currencyCode),
@@ -2344,8 +2599,8 @@ public class CheckoutService(
             return result;
         }
 
-        var basketId = parameters.Basket?.Id ?? Guid.Empty;
-        if (basketId == Guid.Empty)
+        var requestBasket = parameters.Basket;
+        if (requestBasket == null || requestBasket.Id == Guid.Empty)
         {
             result.Messages.Add(new ResultMessage
             {
@@ -2355,12 +2610,14 @@ public class CheckoutService(
             return result;
         }
 
+        var basketId = requestBasket.Id;
+
         // Validate digital products require a customer account (reject early instead of at payment)
         var hasDigitalProducts = await BasketHasDigitalProductsAsync(
-            new BasketHasDigitalProductsParameters { Basket = parameters.Basket },
+            new BasketHasDigitalProductsParameters { Basket = requestBasket },
             cancellationToken);
 
-        if (hasDigitalProducts && !parameters.Basket.CustomerId.HasValue)
+        if (hasDigitalProducts && !requestBasket.CustomerId.HasValue)
         {
             result.Messages.Add(new ResultMessage
             {
@@ -2520,13 +2777,16 @@ public class CheckoutService(
                         }, cancellationToken);
                     }
 
-                    // Refresh automatic discounts (may include free shipping based on threshold)
+                    // Refresh promotional discounts (automatic + code) after initialization recalculation.
                     if (checkoutDiscountService != null)
                     {
-                        updatedBasket = await checkoutDiscountService.Value.RefreshAutomaticDiscountsAsync(
+                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
                             updatedBasket,
                             parameters.CountryCode,
                             cancellationToken);
+                        updatedBasket = refreshResult.ResultObject ?? updatedBasket;
+                        result.Messages.AddRange(refreshResult.Messages
+                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
                     }
 
                     updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
@@ -3101,29 +3361,49 @@ public class CheckoutService(
             .Where(li => li.LineItemType == LineItemType.Discount)
             .Select(li => new CheckoutDiscountState
             {
-                DiscountId = li.Id.ToString(),
-                Code = li.ExtendedData.TryGetValue("DiscountCode", out var code)
-                    ? code.UnwrapJsonElement()?.ToString()
+                DiscountId = li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountId, out var discountIdObj) &&
+                             Guid.TryParse(discountIdObj.UnwrapJsonElement()?.ToString(), out var parsedDiscountId)
+                    ? parsedDiscountId.ToString()
+                    : li.Id.ToString(),
+                Code = li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var codeObj)
+                    ? codeObj.UnwrapJsonElement()?.ToString()
                     : null,
                 Name = li.Name ?? "Discount",
-                Type = li.ExtendedData.TryGetValue("DiscountType", out var type)
-                    ? MapDiscountType(type.UnwrapJsonElement()?.ToString())
-                    : ProtocolDiscountTypes.FixedAmount,
+                Type = MapDiscountType(
+                    li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountValueType, out var valueTypeObj)
+                        ? valueTypeObj.UnwrapJsonElement()?.ToString()
+                        : null,
+                    li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCategory, out var categoryObj)
+                        ? categoryObj.UnwrapJsonElement()?.ToString()
+                        : null),
                 Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity), currencyCode),
-                IsAutomatic = li.ExtendedData.TryGetValue("IsAutomatic", out var auto) &&
-                    auto.UnwrapJsonElement() is true,
+                IsAutomatic = !(li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var codeValue) &&
+                                !string.IsNullOrWhiteSpace(codeValue.UnwrapJsonElement()?.ToString())),
                 Method = ProtocolDiscountAllocationMethods.Across
             })
             .ToList();
     }
 
-    private static string MapDiscountType(string? type) => type?.ToLowerInvariant() switch
+    private static string MapDiscountType(string? valueType, string? category)
     {
-        "percentage" => ProtocolDiscountTypes.Percentage,
-        "freeshipping" or "free_shipping" => ProtocolDiscountTypes.FreeShipping,
-        "buyxgety" or "buy_x_get_y" => ProtocolDiscountTypes.BuyXGetY,
-        _ => ProtocolDiscountTypes.FixedAmount
-    };
+        var normalizedCategory = category?.Replace("_", string.Empty, StringComparison.Ordinal)
+            .ToLowerInvariant();
+        if (normalizedCategory is "freeshipping")
+        {
+            return ProtocolDiscountTypes.FreeShipping;
+        }
+
+        if (normalizedCategory is "buyxgety")
+        {
+            return ProtocolDiscountTypes.BuyXGetY;
+        }
+
+        return valueType?.ToLowerInvariant() switch
+        {
+            "percentage" => ProtocolDiscountTypes.Percentage,
+            _ => ProtocolDiscountTypes.FixedAmount
+        };
+    }
 
     private CheckoutFulfillmentState? MapFulfillment(
         OrderGroupingResult? orderGroups,

@@ -405,7 +405,24 @@ public class DiscountEngine(
         foreach (var item in matchingItems)
         {
             decimal discountPerUnit;
-            if (discount.ValueType == Accounting.Models.DiscountValueType.Percentage)
+            if (discount.ApplyAfterTax)
+            {
+                var taxMultiplier = GetTaxMultiplier(item);
+                var unitPriceIncludingTax = currencyService.Round(item.UnitPrice * taxMultiplier, context.CurrencyCode);
+
+                var discountPerUnitIncludingTax = discount.ValueType switch
+                {
+                    Accounting.Models.DiscountValueType.Percentage =>
+                        currencyService.Round(unitPriceIncludingTax * (discount.Value / 100m), context.CurrencyCode),
+                    Accounting.Models.DiscountValueType.FixedAmount =>
+                        Math.Min(discount.Value, unitPriceIncludingTax),
+                    _ => unitPriceIncludingTax
+                };
+
+                discountPerUnit = currencyService.Round(discountPerUnitIncludingTax / taxMultiplier, context.CurrencyCode);
+                discountPerUnit = Math.Min(discountPerUnit, item.UnitPrice);
+            }
+            else if (discount.ValueType == Accounting.Models.DiscountValueType.Percentage)
             {
                 discountPerUnit = currencyService.Round(item.UnitPrice * (discount.Value / 100m), context.CurrencyCode);
             }
@@ -428,7 +445,7 @@ public class DiscountEngine(
                 DiscountPerUnit = discountPerUnit,
                 TotalDiscount = totalDiscount,
                 OriginalUnitPrice = item.UnitPrice,
-                DiscountedUnitPrice = item.UnitPrice - discountPerUnit
+                DiscountedUnitPrice = Math.Max(0, item.UnitPrice - discountPerUnit)
             });
 
             result.ProductDiscountAmount += totalDiscount;
@@ -457,7 +474,36 @@ public class DiscountEngine(
         };
 
         decimal orderDiscount;
-        if (discount.ValueType == Accounting.Models.DiscountValueType.Percentage)
+        if (discount.ApplyAfterTax)
+        {
+            var eligibleItems = context.LineItems.Where(i => i.Quantity > 0).ToList();
+            if (eligibleItems.Count == 0)
+            {
+                orderDiscount = 0;
+            }
+            else
+            {
+                var afterTaxBase = currencyService.Round(
+                    eligibleItems.Sum(GetLineTotalIncludingTax),
+                    context.CurrencyCode);
+
+                decimal afterTaxDiscount = discount.ValueType switch
+                {
+                    Accounting.Models.DiscountValueType.Percentage =>
+                        currencyService.Round(afterTaxBase * (discount.Value / 100m), context.CurrencyCode),
+                    Accounting.Models.DiscountValueType.FixedAmount =>
+                        Math.Min(discount.Value, afterTaxBase),
+                    _ => 0m
+                };
+
+                orderDiscount = ConvertAfterTaxToPreTaxDiscount(
+                    afterTaxDiscount,
+                    eligibleItems,
+                    context.CurrencyCode);
+                orderDiscount = Math.Min(orderDiscount, context.SubTotal);
+            }
+        }
+        else if (discount.ValueType == Accounting.Models.DiscountValueType.Percentage)
         {
             orderDiscount = currencyService.Round(context.SubTotal * (discount.Value / 100m), context.CurrencyCode);
         }
@@ -511,13 +557,23 @@ public class DiscountEngine(
             }
         }
 
-        // Check if shipping option is allowed
-        if (context.SelectedShippingOptionId.HasValue)
+        // Check if selected shipping options are allowed (all selected groups must be allowed).
+        var allowedOptions = config.GetAllowedShippingOptionIdsList();
+        if (allowedOptions.Count > 0)
         {
-            var allowedOptions = config.GetAllowedShippingOptionIdsList();
-            if (allowedOptions.Count > 0 && !allowedOptions.Contains(context.SelectedShippingOptionId.Value))
+            var selectedOptionIds = context.SelectedShippingOptionIds?.Count > 0
+                ? context.SelectedShippingOptionIds
+                : context.SelectedShippingOptionId.HasValue
+                    ? [context.SelectedShippingOptionId.Value]
+                    : [];
+
+            if (selectedOptionIds.Count > 0)
             {
-                return result; // Shipping option not allowed
+                var allowedSet = allowedOptions.ToHashSet();
+                if (selectedOptionIds.Any(selectedId => !allowedSet.Contains(selectedId)))
+                {
+                    return result;
+                }
             }
         }
 
@@ -571,5 +627,66 @@ public class DiscountEngine(
         }
 
         return result;
+    }
+
+    private decimal ConvertAfterTaxToPreTaxDiscount(
+        decimal afterTaxDiscount,
+        IReadOnlyList<DiscountContextLineItem> items,
+        string currencyCode)
+    {
+        if (afterTaxDiscount <= 0 || items.Count == 0)
+        {
+            return 0m;
+        }
+
+        var totalAfterTax = currencyService.Round(items.Sum(GetLineTotalIncludingTax), currencyCode);
+        if (totalAfterTax <= 0)
+        {
+            return 0m;
+        }
+
+        var remainingAfterTax = afterTaxDiscount;
+        var preTaxDiscount = 0m;
+
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            var lineAfterTax = currencyService.Round(GetLineTotalIncludingTax(item), currencyCode);
+            if (lineAfterTax <= 0)
+            {
+                continue;
+            }
+
+            var lineAfterTaxDiscount = i == items.Count - 1
+                ? remainingAfterTax
+                : currencyService.Round(afterTaxDiscount * (lineAfterTax / totalAfterTax), currencyCode);
+
+            lineAfterTaxDiscount = Math.Min(lineAfterTaxDiscount, lineAfterTax);
+            remainingAfterTax = Math.Max(0, remainingAfterTax - lineAfterTaxDiscount);
+
+            var linePreTaxDiscount = currencyService.Round(
+                lineAfterTaxDiscount / GetTaxMultiplier(item),
+                currencyCode);
+
+            var linePreTaxCap = Math.Max(0, item.LineTotal);
+            preTaxDiscount += Math.Min(linePreTaxDiscount, linePreTaxCap);
+        }
+
+        return currencyService.Round(preTaxDiscount, currencyCode);
+    }
+
+    private static decimal GetLineTotalIncludingTax(DiscountContextLineItem item)
+    {
+        var lineTotal = Math.Max(0, item.LineTotal);
+        return item.IsTaxable && item.TaxRate > 0
+            ? lineTotal * (1 + (item.TaxRate / 100m))
+            : lineTotal;
+    }
+
+    private static decimal GetTaxMultiplier(DiscountContextLineItem item)
+    {
+        return item.IsTaxable && item.TaxRate > 0
+            ? 1 + (item.TaxRate / 100m)
+            : 1m;
     }
 }

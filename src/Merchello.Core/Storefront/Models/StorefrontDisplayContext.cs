@@ -14,6 +14,7 @@ namespace Merchello.Core.Storefront.Models;
 /// <param name="TaxRegionCode">Customer's region code for tax rate lookup (optional)</param>
 /// <param name="IsShippingTaxable">Whether shipping is taxable</param>
 /// <param name="ShippingTaxRate">Shipping tax rate percentage from provider, or null if rate requires full calculation</param>
+/// <param name="ShippingTaxMode">Shipping tax mode resolved by the active tax provider</param>
 public record StorefrontDisplayContext(
     string CurrencyCode,
     string CurrencySymbol,
@@ -24,4 +25,5 @@ public record StorefrontDisplayContext(
     string TaxCountryCode,
     string? TaxRegionCode,
     bool IsShippingTaxable = true,
-    decimal? ShippingTaxRate = null);
+    decimal? ShippingTaxRate = null,
+    Tax.Providers.Models.ShippingTaxMode ShippingTaxMode = Tax.Providers.Models.ShippingTaxMode.ProviderCalculated);

@@ -79,7 +79,7 @@ public class TaxCodeMappingIntegrationTests : IClassFixture<ServiceTestFixture>
         bookLine.TaxRate.ShouldBe(5m);
         clothingLine.TaxRate.ShouldBe(20m);
         digitalLine.TaxRate.ShouldBe(0m);
-        digitalLine.IsTaxable.ShouldBeFalse(); // 0% rate = not taxable
+        digitalLine.IsTaxable.ShouldBeTrue(); // 0% categories remain taxable for proportional shipping fairness
     }
 
     [Fact]

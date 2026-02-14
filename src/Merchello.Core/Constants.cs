@@ -34,6 +34,7 @@ public static class Constants
         public const string ProductRootId = "ProductRootId";
         public const string ProductTypeId = "ProductTypeId";
         public const string SupplierId = "SupplierId";
+        public const string WarehouseId = "WarehouseId";
         public const string CollectionIds = "CollectionIds";
         public const string FilterIds = "FilterIds";
 
@@ -55,6 +56,10 @@ public static class Constants
         public const string TaxGroupId = "TaxGroupId";
         public const string TaxGroupName = "TaxGroupName";
         public const string EffectiveShippingTaxRate = "EffectiveShippingTaxRate";
+        public const string TaxProviderAlias = "TaxProviderAlias";
+        public const string TaxProviderTransactionId = "TaxProviderTransactionId";
+        public const string TaxIsEstimated = "TaxIsEstimated";
+        public const string TaxEstimationReason = "TaxEstimationReason";
 
         // Physical dimensions
         public const string WeightKg = "WeightKg";
@@ -104,6 +109,7 @@ public static class Constants
         public const string ShippingQuotePrefix = "shipping-quote:";
         public const string LocalityPrefix = "merchello:locality:";
         public const string LocalityRegionsPrefix = "merchello:locality:regions:";
+        public const string TaxRatePrefix = "merchello:tax-rate:";
         public const string GoogleShoppingTaxonomyPrefix = "merchello:products:google-shopping-taxonomy:";
         public const string CheckoutSessionPrefix = "MerchelloCheckout_";
         public const string BasketSessionKey = "Basket";
@@ -114,6 +120,7 @@ public static class Constants
         public const string ExchangeRates = "merchello-exchange-rates";
         public const string ShippingQuotes = "shipping-quotes";
         public const string Locality = "merchello:locality:";
+        public const string Tax = "merchello:tax";
         public const string GoogleShoppingTaxonomy = "merchello:products:google-shopping-taxonomy";
     }
 

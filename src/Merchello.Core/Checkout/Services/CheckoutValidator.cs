@@ -111,6 +111,12 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
 
         foreach (var group in groups)
         {
+            if (!group.AvailableShippingOptions.Any())
+            {
+                errors[group.GroupId.ToString()] = $"No shipping methods are available for {group.GroupName}.";
+                continue;
+            }
+
             var selectionKey = ResolveSelectionKey(group, selections);
 
             if (string.IsNullOrEmpty(selectionKey))

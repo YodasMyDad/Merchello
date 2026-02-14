@@ -1,0 +1,10 @@
+<Project>
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Merchello.ArchitectureAnalyzers'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Merchello.ArchitectureAnalyzers\Merchello.ArchitectureAnalyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

@@ -23,12 +23,12 @@ public class CalculateLineItemsParameters
     public required string CurrencyCode { get; init; }
 
     /// <summary>
-    /// Whether shipping is taxable. Should come from ITaxProviderManager.IsShippingTaxedForLocationAsync().
+    /// Whether shipping is taxable. Should come from ITaxProviderManager.GetShippingTaxConfigurationAsync().
     /// </summary>
     public bool IsShippingTaxable { get; init; } = true;
 
     /// <summary>
-    /// The specific shipping tax rate to use. Should come from ITaxProviderManager.GetShippingTaxRateForLocationAsync().
+    /// The specific shipping tax rate to use. Should come from ITaxProviderManager.GetShippingTaxConfigurationAsync().
     /// - null = use proportional calculation (weighted average of line item rates, EU/UK VAT compliant)
     /// - 0m = shipping is explicitly not taxable
     /// - positive value = use this specific rate percentage (e.g., 20 for 20%)

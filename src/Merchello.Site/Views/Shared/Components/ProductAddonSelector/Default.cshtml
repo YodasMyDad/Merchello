@@ -6,7 +6,13 @@
 }
 
 <div class="addon-group mb-3">
-    <label class="form-label fw-semibold">@Model.Name</label>
+    <label class="form-label fw-semibold">
+        @Model.Name
+        @if (Model.IsRequired)
+        {
+            <span class="text-danger">*</span>
+        }
+    </label>
 
     @if (Model.UiType == "checkbox")
     {
@@ -168,4 +174,10 @@
             }
         </select>
     }
+
+    <div class="text-danger small mt-2"
+         x-show="getAddonValidationError('@Model.OptionId')"
+         x-text="getAddonValidationError('@Model.OptionId')"
+         role="alert">
+    </div>
 </div>

@@ -65,7 +65,7 @@ public class StorefrontApiController(
         {
             Success = true,
             Message = "Added to basket",
-            ItemCount = result.ItemCount,
+            ItemCount = result.Basket.GetStorefrontItemCount(),
             Total = result.Total,
             FormattedTotal = result.Total.FormatWithSymbol(_settings.CurrencySymbol)
         });
@@ -93,7 +93,8 @@ public class StorefrontApiController(
                 DisplayCurrencyCode = displayContext.CurrencyCode,
                 DisplayCurrencySymbol = symbol,
                 ExchangeRate = rate,
-                DisplayPricesIncTax = displayContext.DisplayPricesIncTax
+                DisplayPricesIncTax = displayContext.DisplayPricesIncTax,
+                IsTaxEstimated = false
             });
         }
 
@@ -105,6 +106,14 @@ public class StorefrontApiController(
         {
             var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
             var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
+            var displayUnitPriceWithAddons = li.GetDisplayLineItemUnitPriceWithAddons(
+                basket.LineItems,
+                displayContext,
+                currencyService);
+            var displayLineTotalWithAddons = li.GetDisplayLineItemTotalWithAddons(
+                basket.LineItems,
+                displayContext,
+                currencyService);
 
             return new StorefrontLineItemDto
             {
@@ -127,6 +136,10 @@ public class StorefrontApiController(
                 DisplayLineTotal = displayLineTotal,
                 FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, symbol),
                 FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, symbol),
+                DisplayUnitPriceWithAddons = displayUnitPriceWithAddons,
+                DisplayLineTotalWithAddons = displayLineTotalWithAddons,
+                FormattedDisplayUnitPriceWithAddons = currencyConversion.Format(displayUnitPriceWithAddons, symbol),
+                FormattedDisplayLineTotalWithAddons = currencyConversion.Format(displayLineTotalWithAddons, symbol),
                 LineItemType = li.LineItemType.ToString(),
                 DependantLineItemSku = li.DependantLineItemSku,
                 ParentLineItemId = li.GetParentLineItemId()?.ToString()
@@ -141,6 +154,8 @@ public class StorefrontApiController(
             Tax = basket.Tax,
             Shipping = basket.Shipping,
             Total = basket.Total,
+            IsTaxEstimated = basket.IsTaxEstimated,
+            TaxEstimationReason = basket.TaxEstimationReason,
             FormattedSubTotal = currencyConversion.Format(basket.SubTotal, _settings.CurrencySymbol),
             FormattedDiscount = currencyConversion.Format(basket.Discount, _settings.CurrencySymbol),
             FormattedTax = currencyConversion.Format(basket.Tax, _settings.CurrencySymbol),
@@ -168,7 +183,7 @@ public class StorefrontApiController(
             TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
             FormattedTaxInclusiveDisplayDiscount = currencyConversion.Format(displayAmounts.TaxInclusiveDiscount, symbol),
             TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
-            ItemCount = basket.ItemCount,
+            ItemCount = basket.GetStorefrontItemCount(),
             IsEmpty = false
         });
     }
@@ -180,7 +195,7 @@ public class StorefrontApiController(
     public async Task<IActionResult> GetBasketCount(CancellationToken ct)
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var itemCount = basket?.ItemCount ?? 0;
+        var itemCount = basket.GetStorefrontItemCount();
         var total = basket?.Total ?? 0;
 
         return Ok(new BasketCountDto
@@ -200,7 +215,7 @@ public class StorefrontApiController(
         await checkoutService.UpdateLineItemQuantity(request.LineItemId, request.Quantity, null, ct);
 
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var itemCount = basket?.ItemCount ?? 0;
+        var itemCount = basket.GetStorefrontItemCount();
         var total = basket?.Total ?? 0;
 
         return Ok(new BasketOperationResultDto
@@ -222,7 +237,7 @@ public class StorefrontApiController(
         await checkoutService.RemoveLineItem(lineItemId, null, ct);
 
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var itemCount = basket?.ItemCount ?? 0;
+        var itemCount = basket.GetStorefrontItemCount();
         var total = basket?.Total ?? 0;
 
         return Ok(new BasketOperationResultDto

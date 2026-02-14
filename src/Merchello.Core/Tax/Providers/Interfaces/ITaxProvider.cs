@@ -27,28 +27,22 @@ public interface ITaxProvider
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Calculates complete order tax including line items (products) AND shipping.
+    /// Calculates complete order tax including line items (products) and shipping.
     /// </summary>
     Task<TaxCalculationResult> CalculateOrderTaxAsync(
         TaxCalculationRequest request,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Validate configuration (e.g., test API credentials).
+    /// Validate configuration (for example, API credentials).
     /// </summary>
     Task<TaxProviderValidationResult> ValidateConfigurationAsync(
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the shipping tax rate for a location.
-    /// Returns the percentage (e.g., 20 for 20% VAT).
-    /// Returns null if rate cannot be determined without a full calculation (e.g., API-based providers).
+    /// Gets shipping tax configuration for a location.
     /// </summary>
-    /// <param name="countryCode">ISO 3166-1 country code (e.g., "US", "GB")</param>
-    /// <param name="stateCode">ISO 3166-2 state/province code (e.g., "CA", "TX") or null</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Tax rate percentage, or null if rate requires full calculation</returns>
-    Task<decimal?> GetShippingTaxRateForLocationAsync(
+    Task<ShippingTaxConfigurationResult> GetShippingTaxConfigurationAsync(
         string countryCode,
         string? stateCode,
         CancellationToken cancellationToken = default);

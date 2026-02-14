@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Models;
+using Merchello.Core;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Products.Models;
@@ -282,6 +283,146 @@ public class ShipmentServiceTests
         var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
         updatedOrder.Status.ShouldBe(OrderStatus.ReadyToFulfill);
         updatedOrder.ShippedDate.ShouldBeNull();
+    }
+
+    #endregion
+
+    #region GetFulfillmentSummaryAsync
+
+    [Fact]
+    public async Task GetFulfillmentSummaryAsync_CustomAndAddonLineItems_AreReturned()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var warehouse = dataBuilder.CreateWarehouse("Summary Warehouse", "GB");
+        var shippingOption = dataBuilder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 5.00m);
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.ReadyToFulfill);
+
+        var customLineItem = dataBuilder.CreateLineItem(
+            order,
+            product: null,
+            name: "Custom Headboard",
+            quantity: 2,
+            amount: 120m,
+            isTaxable: false,
+            taxRate: 0m,
+            lineItemType: LineItemType.Custom,
+            extendedData: new Dictionary<string, object>
+            {
+                [Constants.ExtendedDataKeys.IsPhysicalProduct] = true,
+                [Constants.ExtendedDataKeys.ProductRootName] = "Custom Headboard"
+            });
+
+        var addonLineItem = dataBuilder.CreateAddonLineItem(
+            order,
+            customLineItem,
+            name: "Trim: Brass Studs",
+            quantity: 2,
+            amount: 15m,
+            isTaxable: false,
+            taxRate: 0m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var summary = await _shipmentService.GetFulfillmentSummaryAsync(invoice.Id);
+
+        // Assert
+        summary.ShouldNotBeNull();
+
+        var orderSummary = summary.Orders.Single(o => o.OrderId == order.Id);
+        var mappedCustomLineItem = orderSummary.LineItems.Single(li => li.Id == customLineItem.Id);
+        var mappedAddonLineItem = orderSummary.LineItems.Single(li => li.Id == addonLineItem.Id);
+
+        mappedCustomLineItem.OrderedQuantity.ShouldBe(customLineItem.Quantity);
+        mappedCustomLineItem.ShippedQuantity.ShouldBe(0);
+        mappedCustomLineItem.RemainingQuantity.ShouldBe(customLineItem.Quantity);
+
+        mappedAddonLineItem.OrderedQuantity.ShouldBe(addonLineItem.Quantity);
+        mappedAddonLineItem.ShippedQuantity.ShouldBe(0);
+        mappedAddonLineItem.RemainingQuantity.ShouldBe(addonLineItem.Quantity);
+    }
+
+    [Fact]
+    public async Task GetFulfillmentSummaryAsync_MixedProductAndCustom_RemainingCustomStillShown()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var warehouse = dataBuilder.CreateWarehouse("Mixed Warehouse", "GB");
+        var shippingOption = dataBuilder.CreateShippingOption("Express Delivery", warehouse, fixedCost: 12.00m);
+        shippingOption.ShippingCosts.Add(new ShippingCost { CountryCode = "GB", Cost = 12.00m });
+        dataBuilder.AddServiceRegion(warehouse, "GB");
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Main Product Root", taxGroup);
+        var product = dataBuilder.CreateProduct("Main Product", productRoot, price: 80m);
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
+        product.ShippingOptions.Add(shippingOption);
+
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.ReadyToFulfill);
+
+        var productLineItem = dataBuilder.CreateLineItem(
+            order,
+            product,
+            quantity: 1,
+            amount: 80m,
+            isTaxable: true,
+            taxRate: 20m);
+        productLineItem.ExtendedData[Constants.ExtendedDataKeys.ProductRootName] = "Main Product Root";
+
+        var customLineItem = dataBuilder.CreateLineItem(
+            order,
+            product: null,
+            name: "Custom Fitting Service",
+            quantity: 1,
+            amount: 45m,
+            isTaxable: false,
+            taxRate: 0m,
+            lineItemType: LineItemType.Custom,
+            extendedData: new Dictionary<string, object>
+            {
+                [Constants.ExtendedDataKeys.IsPhysicalProduct] = true,
+                [Constants.ExtendedDataKeys.ProductRootName] = "Custom Fitting Service"
+            });
+
+        var addonLineItem = dataBuilder.CreateAddonLineItem(
+            order,
+            customLineItem,
+            name: "Service Add-on: Priority Slot",
+            quantity: 1,
+            amount: 10m,
+            isTaxable: false,
+            taxRate: 0m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var shipmentResult = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { productLineItem.Id, productLineItem.Quantity } }
+        });
+        shipmentResult.Success.ShouldBeTrue();
+
+        // Act
+        var summary = await _shipmentService.GetFulfillmentSummaryAsync(invoice.Id);
+
+        // Assert
+        summary.ShouldNotBeNull();
+
+        var orderSummary = summary.Orders.Single(o => o.OrderId == order.Id);
+        var mappedProductLineItem = orderSummary.LineItems.Single(li => li.Id == productLineItem.Id);
+        var mappedCustomLineItem = orderSummary.LineItems.Single(li => li.Id == customLineItem.Id);
+        var mappedAddonLineItem = orderSummary.LineItems.Single(li => li.Id == addonLineItem.Id);
+
+        mappedProductLineItem.RemainingQuantity.ShouldBe(0);
+        mappedCustomLineItem.RemainingQuantity.ShouldBeGreaterThan(0);
+        mappedAddonLineItem.RemainingQuantity.ShouldBeGreaterThan(0);
+        orderSummary.LineItems.Any(li => li.RemainingQuantity > 0).ShouldBeTrue();
     }
 
     #endregion

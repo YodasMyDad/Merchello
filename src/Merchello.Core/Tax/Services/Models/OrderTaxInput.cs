@@ -28,12 +28,12 @@ public class OrderTaxInput
     public decimal ShippingAmount { get; init; }
 
     /// <summary>
-    /// Whether shipping should be taxed. Should come from ITaxProviderManager.IsShippingTaxedForLocationAsync().
+    /// Whether shipping should be taxed. Should come from ITaxProviderManager.GetShippingTaxConfigurationAsync().
     /// </summary>
     public bool IsShippingTaxable { get; init; }
 
     /// <summary>
-    /// The specific shipping tax rate to use. Should come from ITaxProviderManager.GetShippingTaxRateForLocationAsync().
+    /// The specific shipping tax rate to use. Should come from ITaxProviderManager.GetShippingTaxConfigurationAsync().
     /// - null = use proportional calculation (weighted average of line item rates)
     /// - 0m = shipping is explicitly not taxable
     /// - positive value = use this specific rate percentage (e.g., 20 for 20%)

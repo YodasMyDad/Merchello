@@ -38,6 +38,7 @@ public class ProductAddonSelectorViewComponent(
             UiType = uiType,
             UseSwiper = option.ProductOptionValues.Count > 6,
             IsMultiSelect = option.IsMultiSelect,
+            IsRequired = option.IsRequired,
             CurrencySymbol = displayContext.CurrencySymbol,
             DecimalPlaces = displayContext.DecimalPlaces,
             IncludesTax = displayContext.DisplayPricesIncTax && taxRate > 0,

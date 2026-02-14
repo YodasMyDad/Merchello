@@ -754,10 +754,28 @@ public class ShipmentService(
         Dictionary<Guid, string> shippingOptionNames,
         Dictionary<Guid, string?> productImages)
     {
+        warehouseNames ??= [];
+        shippingOptionNames ??= [];
+        productImages ??= [];
+
+        if (order == null)
+        {
+            return new OrderFulfillmentDto
+            {
+                DeliveryMethod = "Unknown",
+                LineItems = [],
+                Shipments = []
+            };
+        }
+
         var lineItems = order.LineItems?
-            .Where(li => li.LineItemType == LineItemType.Product)
+            .Where(li => li != null && li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .Select(li => li!)
             .ToList() ?? [];
-        var shipments = order.Shipments?.ToList() ?? [];
+        var shipments = order.Shipments?
+            .Where(s => s != null)
+            .Select(s => s!)
+            .ToList() ?? [];
 
         // Calculate shipped quantities per line item
         Dictionary<Guid, int> shippedQuantities = [];
@@ -765,6 +783,11 @@ public class ShipmentService(
         {
             foreach (var li in shipment.LineItems ?? [])
             {
+                if (li == null)
+                {
+                    continue;
+                }
+
                 if (!shippedQuantities.ContainsKey(li.Id))
                 {
                     shippedQuantities[li.Id] = 0;
@@ -789,8 +812,10 @@ public class ShipmentService(
                 Id = li.Id,
                 Sku = li.Sku,
                 Name = li.Name,
-                ProductRootName = li.GetProductRootName(),
-                SelectedOptions = li.GetSelectedOptions()
+                ProductRootName = li.ExtendedData != null
+                    ? li.GetProductRootName()
+                    : li.Name ?? string.Empty,
+                SelectedOptions = (li.ExtendedData != null ? li.GetSelectedOptions() : [])
                     .Select(o => new SelectedOptionDto
                     {
                         OptionName = o.OptionName,

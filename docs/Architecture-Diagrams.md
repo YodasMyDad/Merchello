@@ -170,7 +170,8 @@ ICheckoutService:
 ICheckoutDiscountService:
 - ApplyDiscountCodeAsync() - Apply promotional discount codes
 - RemovePromotionalDiscountAsync() - Remove applied promotional discount
-- RefreshAutomaticDiscountsAsync() - Check and apply automatic discounts
+- RefreshPromotionalDiscountsAsync() - Recompute code + automatic discounts after basket changes
+- RefreshAutomaticDiscountsAsync() - Compatibility wrapper around promotional refresh
 - GetApplicableAutomaticDiscountsAsync() - Get applicable automatic discounts for basket
 - AddDiscountToBasketAsync() - Add a discount to the basket
 - RemoveDiscountFromBasketAsync() - Remove a discount from the basket
@@ -335,6 +336,12 @@ IDiscountEngine:
 - CalculateAsync() - Calculate discount amounts
 - ValidateCodeAsync() - Validate discount code
 - ApplyDiscountsAsync() - Apply discounts to basket
+
+Discount calculation notes:
+- `ApplyAfterTax` is operational for amount-off-product and amount-off-order calculations.
+- Free-shipping allow-lists validate all selected shipping groups (`DiscountContext.SelectedShippingOptionIds`).
+- Checkout context includes product targeting metadata (`ProductTypeId`, `CollectionIds`, `ProductFilterIds`, `SupplierId`, `WarehouseId`) and tax metadata (`IsTaxable`, `TaxRate`) for accurate rule matching and tax-aware discount math.
+- `ShowInFeed`, `FeedPromotionName`, and `Timezone` are currently metadata/display-only; scheduling execution uses UTC start/end fields.
 
 IBuyXGetYCalculator:
 - Calculate() - Calculate BOGO discounts
@@ -597,9 +604,14 @@ Shipping Option Visibility Rules:
 
 | ProviderKey | Provider Status | Visibility |
 |-------------|-----------------|------------|
-| flat-rate | N/A (always available) | Always shown with configured FixedCost |
+| flat-rate | N/A (always available) | Shown when ShippingCostResolver resolves a destination cost (destination rates first, fixed-cost fallback) |
 | External (e.g., fedex) | Enabled & configured | Shown with live rates from carrier API |
 | External (e.g., fedex) | Not enabled | Hidden - options filtered out |
+
+Flat-rate cost resolution (single source of truth):
+1. `ShippingCostResolver` resolves in priority order: State -> Country -> Universal `*` -> FixedCost fallback.
+2. For flat-rate options, `FixedCost = null` is normalized to `0` (free fallback).
+3. `FlatRateShippingProvider` consumes pre-resolved `DestinationCost`; it does not duplicate base-cost matching logic.
 
 Important: External/dynamic providers (UsesLiveRates = true) cannot have fixed costs. They fetch rates from carrier APIs at runtime. If you need flat-rate options named after carriers (e.g., "FedEx Ground" with a fixed $8.99 cost), use ProviderKey = "flat-rate":
 

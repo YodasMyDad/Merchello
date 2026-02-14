@@ -225,7 +225,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     );
 
     if (!error && data) {
-      this._codeAvailable = data.available;
+      this._codeAvailable = data.isAvailable ?? data.available ?? null;
     }
   }
 
