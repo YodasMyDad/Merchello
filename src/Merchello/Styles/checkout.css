@@ -3,7 +3,7 @@
  *
  * Source file for Tailwind CSS processing.
  * Build command: npm run build:checkout (from Client folder)
- * Output: wwwroot/css/checkout.css
+ * Output: wwwroot/App_Plugins/Merchello/css/checkout.css
  */
 
 @tailwind base;

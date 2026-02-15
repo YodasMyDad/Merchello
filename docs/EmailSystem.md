@@ -1,4 +1,4 @@
-# Email System & Email Builder
+﻿# Email System & Email Builder
 
 A comprehensive email automation system for Merchello that allows users to create email automations through a backoffice "Email Builder" UI. Emails are triggered by the existing notification system and rendered using Razor templates on the file system.
 
@@ -54,146 +54,146 @@ The Email System provides:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Notification Published (e.g., OrderCreatedNotification)            │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  EmailNotificationHandler (priority 2000, like WebhookHandler)      │
-│    - Looks up EmailConfigurations for topic                         │
-│    - For each enabled config: queue email delivery                  │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  IEmailService                                                       │
-│    - QueueDeliveryAsync() → creates OutboundDelivery record         │
-│    - RenderTemplateAsync() → Razor view → HTML string               │
-│    - ResolveTokensAsync() → {{path}} → actual values                │
-│    - SendAsync() → calls Umbraco IEmailSender                       │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  OutboundDeliveryJob (shared background service)                    │
-│    - Processes pending deliveries (webhooks AND emails)             │
-│    - Handles retry with exponential backoff                         │
-└─────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Umbraco IEmailSender                                               │
-│    - Uses SMTP config from Umbraco:CMS:Global:Smtp                  │
-│    - Handles actual email delivery via MailKit                      │
-└─────────────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  Notification Published (e.g., OrderCreatedNotification)            â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                    â”‚
+                                    â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  EmailNotificationHandler (priority 2000, like WebhookHandler)      â”‚
+â”‚    - Looks up EmailConfigurations for topic                         â”‚
+â”‚    - For each enabled config: queue email delivery                  â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                    â”‚
+                                    â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  IEmailService                                                       â”‚
+â”‚    - QueueDeliveryAsync() â†’ creates OutboundDelivery record         â”‚
+â”‚    - RenderTemplateAsync() â†’ Razor view â†’ HTML string               â”‚
+â”‚    - ResolveTokensAsync() â†’ {{path}} â†’ actual values                â”‚
+â”‚    - SendAsync() â†’ calls Umbraco IEmailSender                       â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                    â”‚
+                                    â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  OutboundDeliveryJob (shared background service)                    â”‚
+â”‚    - Processes pending deliveries (webhooks AND emails)             â”‚
+â”‚    - Handles retry with exponential backoff                         â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                    â”‚
+                                    â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  Umbraco IEmailSender                                               â”‚
+â”‚    - Uses SMTP config from Umbraco:CMS:Global:Smtp                  â”‚
+â”‚    - Handles actual email delivery via MailKit                      â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ---
 
 ## Implementation Progress
 
-### Phase 1: OutboundDelivery Refactoring ✅ COMPLETED
+### Phase 1: OutboundDelivery Refactoring âœ… COMPLETED
 
 | Task | Status | Files |
 |------|--------|-------|
-| Create `OutboundDeliveryType` enum | ✅ | `src/Merchello.Core/Shared/Models/Enums/OutboundDeliveryType.cs` |
-| Create `OutboundDeliveryStatus` enum | ✅ | `src/Merchello.Core/Shared/Models/Enums/OutboundDeliveryStatus.cs` |
-| Rename `WebhookDelivery` → `OutboundDelivery` | ✅ | `src/Merchello.Core/Webhooks/Models/WebhookDelivery.cs` |
-| Rename `WebhookDeliveryResult` → `OutboundDeliveryResult` | ✅ | `src/Merchello.Core/Webhooks/Models/OutboundDeliveryResult.cs` |
-| Rename `WebhookDeliveryQueryParameters` → `OutboundDeliveryQueryParameters` | ✅ | `src/Merchello.Core/Webhooks/Services/Parameters/OutboundDeliveryQueryParameters.cs` |
-| Update `IWebhookDispatcher` | ✅ | Uses `OutboundDelivery` and `OutboundDeliveryResult` |
-| Update `WebhookDispatcher` | ✅ | Uses `OutboundDelivery` and `OutboundDeliveryResult` |
-| Rename `WebhookDeliveryJob` → `OutboundDeliveryJob` | ✅ | `src/Merchello.Core/Webhooks/Services/OutboundDeliveryJob.cs` |
-| Update `WebhookSubscription` navigation property | ✅ | Uses `ICollection<OutboundDelivery>` |
-| Update `WebhooksApiController` | ✅ | Uses all new types |
-| Update `WebhookDeliveryDto` → `OutboundDeliveryDto` | ✅ | `src/Merchello.Core/Webhooks/Dtos/WebhookDeliveryDto.cs` |
-| Create `OutboundDeliveryDbMapping` | ✅ | `src/Merchello.Core/Webhooks/Mapping/OutboundDeliveryDbMapping.cs` |
-| Delete old files | ✅ | Removed obsolete WebhookDelivery* files |
+| Create `OutboundDeliveryType` enum | âœ… | `src/Merchello.Core/Shared/Models/Enums/OutboundDeliveryType.cs` |
+| Create `OutboundDeliveryStatus` enum | âœ… | `src/Merchello.Core/Shared/Models/Enums/OutboundDeliveryStatus.cs` |
+| Rename `WebhookDelivery` â†’ `OutboundDelivery` | âœ… | `src/Merchello.Core/Webhooks/Models/WebhookDelivery.cs` |
+| Rename `WebhookDeliveryResult` â†’ `OutboundDeliveryResult` | âœ… | `src/Merchello.Core/Webhooks/Models/OutboundDeliveryResult.cs` |
+| Rename `WebhookDeliveryQueryParameters` â†’ `OutboundDeliveryQueryParameters` | âœ… | `src/Merchello.Core/Webhooks/Services/Parameters/OutboundDeliveryQueryParameters.cs` |
+| Update `IWebhookDispatcher` | âœ… | Uses `OutboundDelivery` and `OutboundDeliveryResult` |
+| Update `WebhookDispatcher` | âœ… | Uses `OutboundDelivery` and `OutboundDeliveryResult` |
+| Rename `WebhookDeliveryJob` â†’ `OutboundDeliveryJob` | âœ… | `src/Merchello.Core/Webhooks/Services/OutboundDeliveryJob.cs` |
+| Update `WebhookSubscription` navigation property | âœ… | Uses `ICollection<OutboundDelivery>` |
+| Update `WebhooksApiController` | âœ… | Uses all new types |
+| Update `WebhookDeliveryDto` â†’ `OutboundDeliveryDto` | âœ… | `src/Merchello.Core/Webhooks/Dtos/WebhookDeliveryDto.cs` |
+| Create `OutboundDeliveryDbMapping` | âœ… | `src/Merchello.Core/Webhooks/Mapping/OutboundDeliveryDbMapping.cs` |
+| Delete old files | âœ… | Removed obsolete WebhookDelivery* files |
 
-### Phase 1: Email Infrastructure ✅ COMPLETED
-
-| Task | Status | Files |
-|------|--------|-------|
-| Create `EmailConfiguration` entity | ✅ | `src/Merchello.Core/Email/Models/EmailConfiguration.cs` |
-| Create `EmailModel<T>` wrapper | ✅ | `src/Merchello.Core/Email/Models/EmailModel.cs` |
-| Create `EmailStoreContext` | ✅ | `src/Merchello.Core/Email/Models/EmailStoreContext.cs` |
-| Create `EmailTopic` and `TokenInfo` | ✅ | `src/Merchello.Core/Email/Models/EmailTopic.cs` |
-| Create `EmailTemplateInfo` | ✅ | `src/Merchello.Core/Email/Models/EmailTemplateInfo.cs` |
-| Create `EmailSettings` | ✅ | `src/Merchello.Core/Email/EmailSettings.cs` |
-| Create `EmailConfigurationDbMapping` | ✅ | `src/Merchello.Core/Email/Mapping/EmailConfigurationDbMapping.cs` |
-| Add to `MerchelloDbContext` | ✅ | Added `EmailConfigurations` and `OutboundDeliveries` DbSets |
-| Update `appsettings.json` | ✅ | Added `Merchello:Email` section |
-| Register in `Startup.cs` | ✅ | Registered `EmailSettings` |
-
-### Phase 2: Email Services ✅ COMPLETED
+### Phase 1: Email Infrastructure âœ… COMPLETED
 
 | Task | Status | Files |
 |------|--------|-------|
-| Create `IEmailTopicRegistry` | ✅ | `src/Merchello.Core/Email/Services/Interfaces/IEmailTopicRegistry.cs` |
-| Create `EmailTopicRegistry` | ✅ | `src/Merchello.Core/Email/Services/EmailTopicRegistry.cs` |
-| Create `IEmailTokenResolver` | ✅ | `src/Merchello.Core/Email/Services/Interfaces/IEmailTokenResolver.cs` |
-| Create `EmailTokenResolver` | ✅ | `src/Merchello.Core/Email/Services/EmailTokenResolver.cs` |
-| Create `IEmailTemplateDiscoveryService` | ✅ | `src/Merchello.Core/Email/Services/Interfaces/IEmailTemplateDiscoveryService.cs` |
-| Create `EmailTemplateDiscoveryService` | ✅ | `src/Merchello.Core/Email/Services/EmailTemplateDiscoveryService.cs` |
-| Create `IEmailConfigurationService` | ✅ | `src/Merchello.Core/Email/Services/Interfaces/IEmailConfigurationService.cs` |
-| Create `EmailConfigurationService` | ✅ | `src/Merchello.Core/Email/Services/EmailConfigurationService.cs` |
-| Create `IEmailService` | ✅ | `src/Merchello.Core/Email/Services/Interfaces/IEmailService.cs` |
-| Create `EmailService` | ✅ | `src/Merchello.Core/Email/Services/EmailService.cs` |
-| Create `EmailRazorViewRenderer` | ✅ | `src/Merchello/Email/EmailRazorViewRenderer.cs` |
-| Create `EmailPreviewDto` | ✅ | `src/Merchello.Core/Email/Dtos/EmailPreviewDto.cs` |
-| Create `EmailSendTestResultDto` | ✅ | `src/Merchello.Core/Email/Dtos/EmailSendTestResultDto.cs` |
+| Create `EmailConfiguration` entity | âœ… | `src/Merchello.Core/Email/Models/EmailConfiguration.cs` |
+| Create `EmailModel<T>` wrapper | âœ… | `src/Merchello.Core/Email/Models/EmailModel.cs` |
+| Create `EmailStoreContext` | âœ… | `src/Merchello.Core/Email/Models/EmailStoreContext.cs` |
+| Create `EmailTopic` and `TokenInfo` | âœ… | `src/Merchello.Core/Email/Models/EmailTopic.cs` |
+| Create `EmailTemplateInfo` | âœ… | `src/Merchello.Core/Email/Models/EmailTemplateInfo.cs` |
+| Create `EmailSettings` | âœ… | `src/Merchello.Core/Email/EmailSettings.cs` |
+| Create `EmailConfigurationDbMapping` | âœ… | `src/Merchello.Core/Email/Mapping/EmailConfigurationDbMapping.cs` |
+| Add to `MerchelloDbContext` | âœ… | Added `EmailConfigurations` and `OutboundDeliveries` DbSets |
+| Update `appsettings.json` | âœ… | Added `Merchello:Email` section |
+| Register in `Startup.cs` | âœ… | Registered `EmailSettings` |
 
-### Phase 3: Notification Handler & New Notifications ✅ COMPLETED
+### Phase 2: Email Services âœ… COMPLETED
 
 | Task | Status | Files |
 |------|--------|-------|
-| Create `EmailNotificationHandler` | ✅ | `src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs` |
-| Create `CustomerPasswordResetRequestedNotification` | ✅ | `src/Merchello.Core/Notifications/CustomerNotifications/CustomerPasswordResetRequestedNotification.cs` |
-| Create `CheckoutAbandonedNotification` | ✅ | `src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotification.cs` |
-| Create `CheckoutRecoveredNotification` | ✅ | `src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutRecoveredNotification.cs` |
-| Create `CheckoutRecoveryConvertedNotification` | ✅ | `src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutRecoveryConvertedNotification.cs` |
-| Update `EmailTopicRegistry` with new topics | ✅ | Added customer.password_reset, checkout.abandoned, checkout.recovered, checkout.converted |
-| Register handlers in `Startup.cs` | ✅ | All 13 notification handlers registered (lines 313-331) |
+| Create `IEmailTopicRegistry` | âœ… | `src/Merchello.Core/Email/Services/Interfaces/IEmailTopicRegistry.cs` |
+| Create `EmailTopicRegistry` | âœ… | `src/Merchello.Core/Email/Services/EmailTopicRegistry.cs` |
+| Create `IEmailTokenResolver` | âœ… | `src/Merchello.Core/Email/Services/Interfaces/IEmailTokenResolver.cs` |
+| Create `EmailTokenResolver` | âœ… | `src/Merchello.Core/Email/Services/EmailTokenResolver.cs` |
+| Create `IEmailTemplateDiscoveryService` | âœ… | `src/Merchello.Core/Email/Services/Interfaces/IEmailTemplateDiscoveryService.cs` |
+| Create `EmailTemplateDiscoveryService` | âœ… | `src/Merchello.Core/Email/Services/EmailTemplateDiscoveryService.cs` |
+| Create `IEmailConfigurationService` | âœ… | `src/Merchello.Core/Email/Services/Interfaces/IEmailConfigurationService.cs` |
+| Create `EmailConfigurationService` | âœ… | `src/Merchello.Core/Email/Services/EmailConfigurationService.cs` |
+| Create `IEmailService` | âœ… | `src/Merchello.Core/Email/Services/Interfaces/IEmailService.cs` |
+| Create `EmailService` | âœ… | `src/Merchello.Core/Email/Services/EmailService.cs` |
+| Create `EmailRazorViewRenderer` | âœ… | `src/Merchello/Email/EmailRazorViewRenderer.cs` |
+| Create `EmailPreviewDto` | âœ… | `src/Merchello.Core/Email/Dtos/EmailPreviewDto.cs` |
+| Create `EmailSendTestResultDto` | âœ… | `src/Merchello.Core/Email/Dtos/EmailSendTestResultDto.cs` |
 
-### Phase 4: API Endpoints ✅ COMPLETED
-
-| Task | Status | Files |
-|------|--------|-------|
-| Create `EmailConfigurationApiController` | ✅ | `src/Merchello/Controllers/EmailConfigurationApiController.cs` |
-| Create `EmailMetadataApiController` | ✅ | `src/Merchello/Controllers/EmailMetadataApiController.cs` |
-| Create `EmailConfigurationDto` | ✅ | `src/Merchello.Core/Email/Dtos/EmailConfigurationDto.cs` |
-| Create `EmailTopicDto` | ✅ | `src/Merchello.Core/Email/Dtos/EmailTopicDto.cs` |
-
-### Phase 5: Backoffice UI ✅ COMPLETED
+### Phase 3: Notification Handler & New Notifications âœ… COMPLETED
 
 | Task | Status | Files |
 |------|--------|-------|
-| Create email workspace manifest | ✅ | `src/Merchello/Client/src/email/manifest.ts` |
-| Create email configuration list | ✅ | `src/Merchello/Client/src/email/components/email-list.element.ts` |
-| Create email configuration editor | ✅ | `src/Merchello/Client/src/email/components/email-editor.element.ts` |
-| Create token autocomplete component | ✅ | Expression builder with token support |
-| Create email preview modal | ✅ | `src/Merchello/Client/src/email/modals/email-preview-modal.element.ts` |
+| Create `EmailNotificationHandler` | âœ… | `src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs` |
+| Create `CustomerPasswordResetRequestedNotification` | âœ… | `src/Merchello.Core/Notifications/CustomerNotifications/CustomerPasswordResetRequestedNotification.cs` |
+| Create `CheckoutAbandonedNotification` | âœ… | `src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotification.cs` |
+| Create `CheckoutRecoveredNotification` | âœ… | `src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutRecoveredNotification.cs` |
+| Create `CheckoutRecoveryConvertedNotification` | âœ… | `src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutRecoveryConvertedNotification.cs` |
+| Update `EmailTopicRegistry` with new topics | âœ… | Added customer.password_reset, checkout.abandoned, checkout.recovered, checkout.converted |
+| Register handlers in `Startup.cs` | âœ… | All 13 notification handlers registered (lines 313-331) |
 
-### Phase 6: MJML Templates & Sample Templates ✅ COMPLETED
+### Phase 4: API Endpoints âœ… COMPLETED
 
 | Task | Status | Files |
 |------|--------|-------|
-| Add Mjml.Net NuGet package | ✅ | `src/Merchello.Core/Merchello.Core.csproj` |
-| Create `IMjmlCompiler` interface | ✅ | `src/Merchello.Core/Email/Services/Interfaces/IMjmlCompiler.cs` |
-| Create `MjmlCompiler` service | ✅ | `src/Merchello.Core/Email/Services/MjmlCompiler.cs` |
-| Add `EmailThemeSettings` | ✅ | `src/Merchello.Core/Email/EmailSettings.cs` |
-| Update `EmailRazorViewRenderer` for MJML | ✅ | `src/Merchello/Email/EmailRazorViewRenderer.cs` |
-| Create `MjmlHtmlHelperExtensions` | ✅ | `src/Merchello/Email/MjmlHtmlHelperExtensions.cs` |
-| Create `MjmlHelper` | ✅ | `src/Merchello/Email/MjmlHelper.cs` |
-| Create RCL shared views | ✅ | `src/Merchello/Views/Emails/` |
-| Create sample OrderConfirmation template | ✅ | `src/Merchello.Site/Views/Emails/OrderConfirmation.cshtml` |
+| Create `EmailConfigurationApiController` | âœ… | `src/Merchello/Controllers/EmailConfigurationApiController.cs` |
+| Create `EmailMetadataApiController` | âœ… | `src/Merchello/Controllers/EmailMetadataApiController.cs` |
+| Create `EmailConfigurationDto` | âœ… | `src/Merchello.Core/Email/Dtos/EmailConfigurationDto.cs` |
+| Create `EmailTopicDto` | âœ… | `src/Merchello.Core/Email/Dtos/EmailTopicDto.cs` |
 
-### Phase 7: Database Migration ⏳ PENDING
+### Phase 5: Backoffice UI âœ… COMPLETED
+
+| Task | Status | Files |
+|------|--------|-------|
+| Create email workspace manifest | âœ… | `src/Merchello/Client/src/email/manifest.ts` |
+| Create email configuration list | âœ… | `src/Merchello/Client/src/email/components/email-list.element.ts` |
+| Create email configuration editor | âœ… | `src/Merchello/Client/src/email/components/email-editor.element.ts` |
+| Create token autocomplete component | âœ… | Expression builder with token support |
+| Create email preview modal | âœ… | `src/Merchello/Client/src/email/modals/email-preview-modal.element.ts` |
+
+### Phase 6: MJML Templates & Sample Templates âœ… COMPLETED
+
+| Task | Status | Files |
+|------|--------|-------|
+| Add Mjml.Net NuGet package | âœ… | `src/Merchello.Core/Merchello.Core.csproj` |
+| Create `IMjmlCompiler` interface | âœ… | `src/Merchello.Core/Email/Services/Interfaces/IMjmlCompiler.cs` |
+| Create `MjmlCompiler` service | âœ… | `src/Merchello.Core/Email/Services/MjmlCompiler.cs` |
+| Add `EmailThemeSettings` | âœ… | `src/Merchello.Core/Email/EmailSettings.cs` |
+| Update `EmailRazorViewRenderer` for MJML | âœ… | `src/Merchello/Email/EmailRazorViewRenderer.cs` |
+| Create `MjmlHtmlHelperExtensions` | âœ… | `src/Merchello/Email/MjmlHtmlHelperExtensions.cs` |
+| Create `MjmlHelper` | âœ… | `src/Merchello/Email/MjmlHelper.cs` |
+| Create RCL shared views | âœ… | `src/Merchello/App_Plugins/Merchello/Views/Emails/` |
+| Create sample OrderConfirmation template | âœ… | `src/Merchello.Site/Views/Emails/OrderConfirmation.cshtml` |
+
+### Phase 7: Database Migration â³ PENDING
 
 | Task | Status |
 |------|--------|
-| Run database migration | ⏳ |
+| Run database migration | â³ |
 
 ---
 
@@ -360,7 +360,7 @@ public class TokenInfo
 
 ## Services
 
-### IEmailTopicRegistry ✅ IMPLEMENTED
+### IEmailTopicRegistry âœ… IMPLEMENTED
 
 ```csharp
 public interface IEmailTopicRegistry
@@ -394,7 +394,7 @@ public interface IEmailTopicRegistry
 | | `checkout.converted` | `CheckoutRecoveryConvertedNotification` | Conversion tracking |
 | **Inventory** | `inventory.low_stock` | `LowStockNotification` | Low stock alert |
 
-### IEmailTokenResolver ✅ IMPLEMENTED
+### IEmailTokenResolver âœ… IMPLEMENTED
 
 ```csharp
 public interface IEmailTokenResolver
@@ -407,7 +407,7 @@ public interface IEmailTokenResolver
 }
 ```
 
-### IEmailTemplateDiscoveryService ✅ IMPLEMENTED
+### IEmailTemplateDiscoveryService âœ… IMPLEMENTED
 
 ```csharp
 public interface IEmailTemplateDiscoveryService
@@ -419,7 +419,7 @@ public interface IEmailTemplateDiscoveryService
 }
 ```
 
-### IEmailConfigurationService ✅ IMPLEMENTED
+### IEmailConfigurationService âœ… IMPLEMENTED
 
 ```csharp
 public interface IEmailConfigurationService
@@ -438,7 +438,7 @@ public interface IEmailConfigurationService
 }
 ```
 
-### IEmailService ✅ IMPLEMENTED
+### IEmailService âœ… IMPLEMENTED
 
 ```csharp
 public interface IEmailService
@@ -526,7 +526,10 @@ The `EmailTokenResolver` uses reflection to:
   "Merchello": {
     "Email": {
       "Enabled": true,
-      "TemplateViewLocations": ["/Views/Emails/{0}.cshtml"],
+      "TemplateViewLocations": [
+        "/App_Plugins/Merchello/Views/Emails/{0}.cshtml",
+        "/Views/Emails/{0}.cshtml"
+      ],
       "DefaultFromAddress": null,
       "DefaultFromName": null,
       "MaxRetries": 3,
@@ -545,13 +548,17 @@ The `EmailTokenResolver` uses reflection to:
 }
 ```
 
-### EmailSettings.cs ✅ IMPLEMENTED
+### EmailSettings.cs âœ… IMPLEMENTED
 
 ```csharp
 public class EmailSettings
 {
     public bool Enabled { get; set; } = true;
-    public string[] TemplateViewLocations { get; set; } = ["/Views/Emails/{0}.cshtml"];
+    public string[] TemplateViewLocations { get; set; } =
+    [
+        "/App_Plugins/Merchello/Views/Emails/{0}.cshtml",
+        "/Views/Emails/{0}.cshtml"
+    ];
     public string? DefaultFromAddress { get; set; }
     public string? DefaultFromName { get; set; }
     public int MaxRetries { get; set; } = 3;
@@ -565,7 +572,7 @@ public class EmailSettings
 
 ## API Endpoints
 
-### EmailConfigurationApiController ✅ IMPLEMENTED
+### EmailConfigurationApiController âœ… IMPLEMENTED
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -578,7 +585,7 @@ public class EmailSettings
 | POST | `/api/v1/emails/{id}/test` | Send test email |
 | GET | `/api/v1/emails/{id}/preview` | Preview rendered email |
 
-### EmailMetadataApiController ✅ IMPLEMENTED
+### EmailMetadataApiController âœ… IMPLEMENTED
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -590,7 +597,7 @@ public class EmailSettings
 | GET | `/api/v1/emails/attachments` | List all available attachment types |
 | GET | `/api/v1/emails/attachments?topic={topic}` | List attachments compatible with topic |
 
-### Delivery Endpoints (via WebhooksApiController) ✅ IMPLEMENTED
+### Delivery Endpoints (via WebhooksApiController) âœ… IMPLEMENTED
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -604,7 +611,7 @@ Note: Delivery records are shared between webhooks and emails via the `OutboundD
 
 ## Backoffice UI
 
-### Email Builder Workspace ✅ IMPLEMENTED
+### Email Builder Workspace âœ… IMPLEMENTED
 
 **Location:** `src/Merchello/Client/src/email/`
 
@@ -644,117 +651,117 @@ Note: Delivery records are shared between webhooks and emails via the `OutboundD
 
 ```
 src/Merchello.Core/
-├── Email/
-│   ├── Attachments/                       # Pluggable attachment system
-│   │   ├── IEmailAttachment.cs            # Base + generic interfaces
-│   │   ├── EmailAttachmentResult.cs       # Attachment result model
-│   │   ├── EmailAttachmentInfo.cs         # Metadata for UI
-│   │   ├── IEmailAttachmentResolver.cs    # Resolver interface
-│   │   ├── EmailAttachmentResolver.cs     # Resolver implementation
-│   │   ├── InvoiceSavedPdfAttachment.cs   # Built-in PDF invoice
-│   │   ├── OrderInvoicePdfAttachment.cs   # Built-in order PDF
-│   │   ├── OrderLineItemsCsvAttachment.cs # Built-in CSV export
-│   │   ├── AttachmentIcons.cs             # Shared SVG icons
-│   │   └── Helpers/
-│   │       └── CsvAttachmentHelper.cs     # CSV generation utility
-│   ├── Dtos/                              # ✅ Complete
-│   │   ├── EmailConfigurationDto.cs
-│   │   ├── EmailPreviewDto.cs
-│   │   ├── EmailSendTestResultDto.cs
-│   │   ├── EmailAttachmentDto.cs          # Attachment metadata DTO
-│   │   ├── EmailAttachmentListDto.cs      # Attachment list response
-│   │   └── EmailTopicDto.cs
-│   ├── Models/                            # ✅ Complete
-│   │   ├── EmailConfiguration.cs
-│   │   ├── EmailModel.cs
-│   │   ├── EmailStoreContext.cs
-│   │   ├── EmailTopic.cs (includes TokenInfo)
-│   │   └── EmailTemplateInfo.cs
-│   ├── Mapping/                           # ✅ Complete
-│   │   └── EmailConfigurationDbMapping.cs
-│   ├── Services/
-│   │   ├── Interfaces/                    # ✅ Complete
-│   │   │   ├── IEmailTopicRegistry.cs     # ✅
-│   │   │   ├── IEmailTokenResolver.cs     # ✅
-│   │   │   ├── IEmailTemplateDiscoveryService.cs  # ✅
-│   │   │   ├── IEmailConfigurationService.cs      # ✅
-│   │   │   ├── IEmailService.cs           # ✅
-│   │   │   └── IMjmlCompiler.cs           # ✅ MJML compilation interface
-│   │   ├── EmailTopicRegistry.cs          # ✅
-│   │   ├── EmailTokenResolver.cs          # ✅
-│   │   ├── EmailTemplateDiscoveryService.cs  # ✅
-│   │   ├── EmailConfigurationService.cs   # ✅
-│   │   ├── EmailService.cs                # ✅
-│   │   ├── MjmlCompiler.cs                # ✅ Mjml.Net wrapper
-│   │   └── Parameters/                    # ✅
-│   │       ├── EmailConfigurationQueryParameters.cs
-│   │       ├── CreateEmailConfigurationParameters.cs
-│   │       └── UpdateEmailConfigurationParameters.cs
-│   ├── Handlers/                          # ✅ Complete
-│   │   └── EmailNotificationHandler.cs
-│   └── EmailSettings.cs                   # ✅ (includes EmailThemeSettings)
+â”œâ”€â”€ Email/
+â”‚   â”œâ”€â”€ Attachments/                       # Pluggable attachment system
+â”‚   â”‚   â”œâ”€â”€ IEmailAttachment.cs            # Base + generic interfaces
+â”‚   â”‚   â”œâ”€â”€ EmailAttachmentResult.cs       # Attachment result model
+â”‚   â”‚   â”œâ”€â”€ EmailAttachmentInfo.cs         # Metadata for UI
+â”‚   â”‚   â”œâ”€â”€ IEmailAttachmentResolver.cs    # Resolver interface
+â”‚   â”‚   â”œâ”€â”€ EmailAttachmentResolver.cs     # Resolver implementation
+â”‚   â”‚   â”œâ”€â”€ InvoiceSavedPdfAttachment.cs   # Built-in PDF invoice
+â”‚   â”‚   â”œâ”€â”€ OrderInvoicePdfAttachment.cs   # Built-in order PDF
+â”‚   â”‚   â”œâ”€â”€ OrderLineItemsCsvAttachment.cs # Built-in CSV export
+â”‚   â”‚   â”œâ”€â”€ AttachmentIcons.cs             # Shared SVG icons
+â”‚   â”‚   â””â”€â”€ Helpers/
+â”‚   â”‚       â””â”€â”€ CsvAttachmentHelper.cs     # CSV generation utility
+â”‚   â”œâ”€â”€ Dtos/                              # âœ… Complete
+â”‚   â”‚   â”œâ”€â”€ EmailConfigurationDto.cs
+â”‚   â”‚   â”œâ”€â”€ EmailPreviewDto.cs
+â”‚   â”‚   â”œâ”€â”€ EmailSendTestResultDto.cs
+â”‚   â”‚   â”œâ”€â”€ EmailAttachmentDto.cs          # Attachment metadata DTO
+â”‚   â”‚   â”œâ”€â”€ EmailAttachmentListDto.cs      # Attachment list response
+â”‚   â”‚   â””â”€â”€ EmailTopicDto.cs
+â”‚   â”œâ”€â”€ Models/                            # âœ… Complete
+â”‚   â”‚   â”œâ”€â”€ EmailConfiguration.cs
+â”‚   â”‚   â”œâ”€â”€ EmailModel.cs
+â”‚   â”‚   â”œâ”€â”€ EmailStoreContext.cs
+â”‚   â”‚   â”œâ”€â”€ EmailTopic.cs (includes TokenInfo)
+â”‚   â”‚   â””â”€â”€ EmailTemplateInfo.cs
+â”‚   â”œâ”€â”€ Mapping/                           # âœ… Complete
+â”‚   â”‚   â””â”€â”€ EmailConfigurationDbMapping.cs
+â”‚   â”œâ”€â”€ Services/
+â”‚   â”‚   â”œâ”€â”€ Interfaces/                    # âœ… Complete
+â”‚   â”‚   â”‚   â”œâ”€â”€ IEmailTopicRegistry.cs     # âœ…
+â”‚   â”‚   â”‚   â”œâ”€â”€ IEmailTokenResolver.cs     # âœ…
+â”‚   â”‚   â”‚   â”œâ”€â”€ IEmailTemplateDiscoveryService.cs  # âœ…
+â”‚   â”‚   â”‚   â”œâ”€â”€ IEmailConfigurationService.cs      # âœ…
+â”‚   â”‚   â”‚   â”œâ”€â”€ IEmailService.cs           # âœ…
+â”‚   â”‚   â”‚   â””â”€â”€ IMjmlCompiler.cs           # âœ… MJML compilation interface
+â”‚   â”‚   â”œâ”€â”€ EmailTopicRegistry.cs          # âœ…
+â”‚   â”‚   â”œâ”€â”€ EmailTokenResolver.cs          # âœ…
+â”‚   â”‚   â”œâ”€â”€ EmailTemplateDiscoveryService.cs  # âœ…
+â”‚   â”‚   â”œâ”€â”€ EmailConfigurationService.cs   # âœ…
+â”‚   â”‚   â”œâ”€â”€ EmailService.cs                # âœ…
+â”‚   â”‚   â”œâ”€â”€ MjmlCompiler.cs                # âœ… Mjml.Net wrapper
+â”‚   â”‚   â””â”€â”€ Parameters/                    # âœ…
+â”‚   â”‚       â”œâ”€â”€ EmailConfigurationQueryParameters.cs
+â”‚   â”‚       â”œâ”€â”€ CreateEmailConfigurationParameters.cs
+â”‚   â”‚       â””â”€â”€ UpdateEmailConfigurationParameters.cs
+â”‚   â”œâ”€â”€ Handlers/                          # âœ… Complete
+â”‚   â”‚   â””â”€â”€ EmailNotificationHandler.cs
+â”‚   â””â”€â”€ EmailSettings.cs                   # âœ… (includes EmailThemeSettings)
 
-├── Webhooks/
-│   ├── Models/
-│   │   ├── OutboundDelivery.cs            # ✅ (renamed from WebhookDelivery)
-│   │   └── OutboundDeliveryResult.cs      # ✅
-│   ├── Dtos/
-│   │   ├── OutboundDeliveryDto.cs         # ✅ (renamed)
-│   │   └── OutboundDeliveryResultDto.cs   # ✅
-│   ├── Mapping/
-│   │   └── OutboundDeliveryDbMapping.cs   # ✅
-│   └── Services/
-│       ├── OutboundDeliveryJob.cs         # ✅ (processes webhooks AND emails)
-│       └── Parameters/
-│           └── OutboundDeliveryQueryParameters.cs  # ✅
+â”œâ”€â”€ Webhooks/
+â”‚   â”œâ”€â”€ Models/
+â”‚   â”‚   â”œâ”€â”€ OutboundDelivery.cs            # âœ… (renamed from WebhookDelivery)
+â”‚   â”‚   â””â”€â”€ OutboundDeliveryResult.cs      # âœ…
+â”‚   â”œâ”€â”€ Dtos/
+â”‚   â”‚   â”œâ”€â”€ OutboundDeliveryDto.cs         # âœ… (renamed)
+â”‚   â”‚   â””â”€â”€ OutboundDeliveryResultDto.cs   # âœ…
+â”‚   â”œâ”€â”€ Mapping/
+â”‚   â”‚   â””â”€â”€ OutboundDeliveryDbMapping.cs   # âœ…
+â”‚   â””â”€â”€ Services/
+â”‚       â”œâ”€â”€ OutboundDeliveryJob.cs         # âœ… (processes webhooks AND emails)
+â”‚       â””â”€â”€ Parameters/
+â”‚           â””â”€â”€ OutboundDeliveryQueryParameters.cs  # âœ…
 
-├── Shared/Models/Enums/
-│   ├── OutboundDeliveryType.cs            # ✅
-│   └── OutboundDeliveryStatus.cs          # ✅
+â”œâ”€â”€ Shared/Models/Enums/
+â”‚   â”œâ”€â”€ OutboundDeliveryType.cs            # âœ…
+â”‚   â””â”€â”€ OutboundDeliveryStatus.cs          # âœ…
 
-├── Notifications/
-│   ├── CustomerNotifications/
-│   │   └── CustomerPasswordResetRequestedNotification.cs  # ✅
-│   └── CheckoutNotifications/
-│       ├── CheckoutAbandonedNotification.cs     # ✅
-│       ├── CheckoutRecoveredNotification.cs     # ✅
-│       └── CheckoutRecoveryConvertedNotification.cs  # ✅
+â”œâ”€â”€ Notifications/
+â”‚   â”œâ”€â”€ CustomerNotifications/
+â”‚   â”‚   â””â”€â”€ CustomerPasswordResetRequestedNotification.cs  # âœ…
+â”‚   â””â”€â”€ CheckoutNotifications/
+â”‚       â”œâ”€â”€ CheckoutAbandonedNotification.cs     # âœ…
+â”‚       â”œâ”€â”€ CheckoutRecoveredNotification.cs     # âœ…
+â”‚       â””â”€â”€ CheckoutRecoveryConvertedNotification.cs  # âœ…
 
 src/Merchello/
-├── Controllers/
-│   ├── EmailConfigurationApiController.cs      # ✅
-│   └── EmailMetadataApiController.cs           # ✅
-├── Email/
-│   ├── EmailRazorViewRenderer.cs               # ✅ (includes MJML compilation)
-│   ├── MjmlHtmlHelperExtensions.cs             # ✅ @Html.Mjml() extension
-│   └── MjmlHelper.cs                           # ✅ IMjmlHelper implementation
-├── Views/
-│   └── Emails/                                 # RCL embedded views (ships with package)
-│       ├── _ViewImports.cshtml                 # ✅ Shared imports
-│       ├── _EmailLayout.cshtml                 # ✅ Base MJML layout with theme
-│       └── Shared/
-│           ├── _EmailHeader.cshtml             # ✅ Header partial
-│           ├── _EmailFooter.cshtml             # ✅ Footer partial
-│           └── _OrderSummary.cshtml            # ✅ Order line items partial
+â”œâ”€â”€ Controllers/
+â”‚   â”œâ”€â”€ EmailConfigurationApiController.cs      # âœ…
+â”‚   â””â”€â”€ EmailMetadataApiController.cs           # âœ…
+â”œâ”€â”€ Email/
+â”‚   â”œâ”€â”€ EmailRazorViewRenderer.cs               # âœ… (includes MJML compilation)
+â”‚   â”œâ”€â”€ MjmlHtmlHelperExtensions.cs             # âœ… @Html.Mjml() extension
+â”‚   â””â”€â”€ MjmlHelper.cs                           # âœ… IMjmlHelper implementation
+â”œâ”€â”€ Views/
+â”‚   â””â”€â”€ Emails/                                 # RCL embedded views (ships with package)
+â”‚       â”œâ”€â”€ _ViewImports.cshtml                 # âœ… Shared imports
+â”‚       â”œâ”€â”€ _EmailLayout.cshtml                 # âœ… Base MJML layout with theme
+â”‚       â””â”€â”€ Shared/
+â”‚           â”œâ”€â”€ _EmailHeader.cshtml             # âœ… Header partial
+â”‚           â”œâ”€â”€ _EmailFooter.cshtml             # âœ… Footer partial
+â”‚           â””â”€â”€ _OrderSummary.cshtml            # âœ… Order line items partial
 
 src/Merchello/Client/src/
-├── email/                                 # ✅ Complete
-│   ├── components/
-│   │   ├── email-list.element.ts
-│   │   └── email-editor.element.ts
-│   ├── modals/
-│   │   ├── email-preview-modal.element.ts
-│   │   └── email-preview-modal.token.ts
-│   ├── contexts/
-│   │   └── email-workspace.context.ts
-│   ├── types/
-│   │   └── email.types.ts
-│   └── manifest.ts
+â”œâ”€â”€ email/                                 # âœ… Complete
+â”‚   â”œâ”€â”€ components/
+â”‚   â”‚   â”œâ”€â”€ email-list.element.ts
+â”‚   â”‚   â””â”€â”€ email-editor.element.ts
+â”‚   â”œâ”€â”€ modals/
+â”‚   â”‚   â”œâ”€â”€ email-preview-modal.element.ts
+â”‚   â”‚   â””â”€â”€ email-preview-modal.token.ts
+â”‚   â”œâ”€â”€ contexts/
+â”‚   â”‚   â””â”€â”€ email-workspace.context.ts
+â”‚   â”œâ”€â”€ types/
+â”‚   â”‚   â””â”€â”€ email.types.ts
+â”‚   â””â”€â”€ manifest.ts
 
 src/Merchello.Site/
-└── Views/
-    └── Emails/                                 # Example templates (developer reference)
-        └── OrderConfirmation.cshtml            # ✅ MJML example template
+â””â”€â”€ Views/
+    â””â”€â”€ Emails/                                 # Example templates (developer reference)
+        â””â”€â”€ OrderConfirmation.cshtml            # âœ… MJML example template
 ```
 
 ---
@@ -1251,7 +1258,7 @@ Alias convention: `{notification-context}-{attachment-type}` (e.g., `order-invoi
 
 ### Integration Tests
 
-- [ ] End-to-end: notification → handler → queue → delivery
+- [ ] End-to-end: notification â†’ handler â†’ queue â†’ delivery
 - [ ] Retry mechanism works with failed SMTP
 - [ ] Preview renders correctly with sample data
 
@@ -1261,23 +1268,24 @@ Alias convention: `{notification-context}-{attachment-type}` (e.g., `order-invoi
 
 ### Completed (Phases 1-6)
 
-- ✅ OutboundDelivery refactoring (unified webhook + email delivery infrastructure)
-- ✅ Email models, DTOs, and database mapping
-- ✅ All email services (TopicRegistry, TokenResolver, TemplateDiscovery, ConfigurationService, EmailService)
-- ✅ EmailNotificationHandler for 13 notification types
-- ✅ New checkout notifications (Abandoned, Recovered, Converted)
-- ✅ CustomerPasswordResetRequestedNotification
-- ✅ Service registration in Startup.cs
-- ✅ API controllers (EmailConfigurationApiController, EmailMetadataApiController)
-- ✅ Backoffice UI (Email Builder workspace, list, editor, preview modal)
-- ✅ OutboundDeliveryJob processes both webhooks AND emails
-- ✅ MJML email template system with Mjml.Net
-- ✅ `@Html.Mjml()` HtmlHelper extensions (Header, Footer, Button, Text, OrderSummary, etc.)
-- ✅ Shared RCL views (_EmailLayout, _EmailHeader, _EmailFooter, _OrderSummary)
-- ✅ Theme configuration via EmailThemeSettings
-- ✅ Example OrderConfirmation.cshtml template using MJML
+- âœ… OutboundDelivery refactoring (unified webhook + email delivery infrastructure)
+- âœ… Email models, DTOs, and database mapping
+- âœ… All email services (TopicRegistry, TokenResolver, TemplateDiscovery, ConfigurationService, EmailService)
+- âœ… EmailNotificationHandler for 13 notification types
+- âœ… New checkout notifications (Abandoned, Recovered, Converted)
+- âœ… CustomerPasswordResetRequestedNotification
+- âœ… Service registration in Startup.cs
+- âœ… API controllers (EmailConfigurationApiController, EmailMetadataApiController)
+- âœ… Backoffice UI (Email Builder workspace, list, editor, preview modal)
+- âœ… OutboundDeliveryJob processes both webhooks AND emails
+- âœ… MJML email template system with Mjml.Net
+- âœ… `@Html.Mjml()` HtmlHelper extensions (Header, Footer, Button, Text, OrderSummary, etc.)
+- âœ… Shared RCL views (_EmailLayout, _EmailHeader, _EmailFooter, _OrderSummary)
+- âœ… Theme configuration via EmailThemeSettings
+- âœ… Example OrderConfirmation.cshtml template using MJML
 
 ### Remaining (Phase 7)
 
 1. **Run database migration** - Create `merchelloEmailConfigurations` and update `merchelloOutboundDeliveries` tables
 2. **Additional sample templates** - Shipping notification, abandoned cart, password reset, etc. (optional)
+

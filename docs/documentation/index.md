@@ -808,7 +808,10 @@ Notification → EmailNotificationHandler (2000) → IEmailConfigurationService.
   "Merchello": {
     "Email": {
       "Enabled": true,
-      "TemplateViewLocations": ["/Views/Emails/{0}.cshtml"],
+      "TemplateViewLocations": [
+        "/App_Plugins/Merchello/Views/Emails/{0}.cshtml",
+        "/Views/Emails/{0}.cshtml"
+      ],
       "DefaultFromAddress": null,
       "MaxRetries": 3,
       "RetryDelaysSeconds": [60, 300, 900],

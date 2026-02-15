@@ -41,7 +41,8 @@ public class AvalaraTaxProvider : TaxProviderBase
         SupportsRealTimeCalculation: true,
         RequiresApiCredentials: true,
         SetupInstructions: "Get your Account ID and License Key from avalara.com/developer. " +
-                          "Use Sandbox environment for testing before switching to Production."
+                          "Use Sandbox environment for testing before switching to Production.",
+        IconSvg: ProviderBrandLogoCatalog.Avalara
     );
 
     public override ValueTask<IEnumerable<ProviderConfigurationField>> GetConfigurationFieldsAsync(

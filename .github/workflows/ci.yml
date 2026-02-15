@@ -58,3 +58,87 @@ jobs:
         with:
           name: test-results
           path: TestResults/*.trx
+
+  publish-nuget:
+    name: Publish NuGet
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [client-tests, dotnet-tests]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: nuget-release-main
+      cancel-in-progress: false
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Determine release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+          existing_tag="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          if [[ -n "${existing_tag}" ]]; then
+            echo "tag_already_exists=true" >> "$GITHUB_OUTPUT"
+            echo "tag=${existing_tag}" >> "$GITHUB_OUTPUT"
+            echo "version=${existing_tag#v}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_tag="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1 || true)"
+          if [[ -z "${latest_tag}" ]]; then
+            version="0.1.0"
+          else
+            base_version="${latest_tag#v}"
+            IFS='.' read -r major minor patch <<< "${base_version}"
+            version="${major}.${minor}.$((patch + 1))"
+          fi
+
+          tag="v${version}"
+          echo "tag_already_exists=false" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push release tag
+        if: steps.version.outputs.tag_already_exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Build and create NuGet packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build src/Merchello/Merchello.csproj -c Release /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Push packages to NuGet.org
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find src -type f -path "*/bin/Release/*.nupkg")
+          if [[ "${#packages[@]}" -eq 0 ]]; then
+            echo "No NuGet packages were created."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            dotnet nuget push "${package}" \
+              --api-key "${{ secrets.NUGET_API_KEY }}" \
+              --source "https://api.nuget.org/v3/index.json" \
+              --skip-duplicate
+          done

@@ -1,0 +1,1042 @@
+@model CheckoutViewModel
+@using System.Text.Json
+@using System.Text.Encodings.Web
+@using Merchello.Core.Accounting.Extensions
+@using Merchello.Extensions
+@inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
+@{
+    Layout = "~/App_Plugins/Merchello/Views/Checkout/_Layout.cshtml";
+    var basket = Model.Basket;
+    var session = Model.Session;
+
+    // Use display currency from ViewModel (customer's selected currency)
+    var displayCurrencySymbol = Model.DisplayCurrencySymbol ?? basket?.CurrencySymbol ?? "£";
+    var displayCurrencyCode = Model.DisplayCurrencyCode ?? basket?.Currency ?? "GBP";
+    var exchangeRate = Model.ExchangeRate;
+    var decimalPlaces = Model.CurrencyDecimalPlaces;
+
+    // Get default country/state from ViewModel (set by controller from basket or MerchelloSettings)
+    var defaultCountry = Model.DefaultCountryCode ?? "";
+    var defaultState = Model.DefaultStateCode ?? "";
+
+    // JSON serialization options for initial data
+    var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.Default };
+    var hasShippingGroups = Model.ShippingGroups?.Count > 0;
+
+    // Use pre-calculated display amounts from ViewModel (properly rounded via ICurrencyService)
+    var displayTotal = Model.DisplayTotal;
+    var displayShipping = Model.DisplayShipping;
+    var displayTax = Model.DisplayTax;
+    var displaySubtotal = Model.DisplaySubTotal;
+    var displayDiscount = Model.DisplayDiscount;
+
+    // Extract applied discounts for reactive display
+    var discountLineItems = basket?.LineItems?
+        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)
+        .ToList() ?? [];
+
+    var basketLineItems = (basket?.LineItems ?? []).Where(li =>
+        li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product
+        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Custom
+        || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon)
+        .ToList();
+
+    decimal GetDisplayUnitPrice(Merchello.Core.Accounting.Models.LineItem lineItem)
+    {
+        var amount = lineItem.Amount;
+        if (Model.DisplayPricesIncTax && lineItem.IsTaxable && lineItem.TaxRate > 0)
+        {
+            amount *= 1 + (lineItem.TaxRate / 100m);
+        }
+
+        return CurrencyService.Round(amount * exchangeRate, displayCurrencyCode);
+    }
+
+    decimal GetDisplayLineTotal(Merchello.Core.Accounting.Models.LineItem lineItem)
+    {
+        var amount = lineItem.Amount * lineItem.Quantity;
+        if (Model.DisplayPricesIncTax && lineItem.IsTaxable && lineItem.TaxRate > 0)
+        {
+            amount *= 1 + (lineItem.TaxRate / 100m);
+        }
+
+        return CurrencyService.Round(amount * exchangeRate, displayCurrencyCode);
+    }
+}
+
+<script id="checkout-initial-data" type="application/json">
+@Html.Raw(JsonSerializer.Serialize(new {
+    basket = new {
+        total = displayTotal,
+        shipping = displayShipping,
+        tax = displayTax,
+        subtotal = displaySubtotal,
+        discount = displayDiscount
+    },
+    basketId = basket?.Id.ToString(),
+    basketLineItems = basketLineItems.Select(li =>
+        {
+            var selectedOptions = li.GetSelectedOptions()
+                .Select(o => new
+                {
+                    optionName = o.OptionName,
+                    valueName = o.ValueName
+                });
+            var displayUnitPrice = GetDisplayUnitPrice(li);
+            var displayLineTotal = GetDisplayLineTotal(li);
+            var displayUnitPriceWithAddons = displayUnitPrice;
+            var displayLineTotalWithAddons = displayLineTotal;
+
+            if (li.LineItemType is Merchello.Core.Accounting.Models.LineItemType.Product or Merchello.Core.Accounting.Models.LineItemType.Custom)
+            {
+                var linkedAddons = basketLineItems
+                    .Where(addon => addon.IsAddonLinkedToParent(li))
+                    .ToList();
+                displayUnitPriceWithAddons += linkedAddons.Sum(GetDisplayUnitPrice);
+                displayLineTotalWithAddons += linkedAddons.Sum(GetDisplayLineTotal);
+            }
+
+            return new
+            {
+                id = li.Id.ToString(),
+                sku = li.Sku ?? "",
+                name = li.Name ?? "",
+                productRootName = li.GetProductRootName(),
+                selectedOptions,
+                quantity = li.Quantity,
+                unitPrice = li.Amount,
+                lineTotal = li.Amount * li.Quantity,
+                displayUnitPrice,
+                displayLineTotal,
+                formattedDisplayUnitPrice = $"{displayCurrencySymbol}{displayUnitPrice.ToString($"N{decimalPlaces}")}",
+                formattedDisplayLineTotal = $"{displayCurrencySymbol}{displayLineTotal.ToString($"N{decimalPlaces}")}",
+                displayUnitPriceWithAddons,
+                displayLineTotalWithAddons,
+                formattedDisplayUnitPriceWithAddons = $"{displayCurrencySymbol}{displayUnitPriceWithAddons.ToString($"N{decimalPlaces}")}",
+                formattedDisplayLineTotalWithAddons = $"{displayCurrencySymbol}{displayLineTotalWithAddons.ToString($"N{decimalPlaces}")}",
+                taxRate = li.TaxRate,
+                isTaxable = li.IsTaxable,
+                lineItemType = li.LineItemType.ToString(),
+                dependantLineItemSku = li.DependantLineItemSku,
+                parentLineItemId = li.GetParentLineItemId()?.ToString(),
+                imageUrl = li.ExtendedData?.GetValueOrDefault("ImageUrl")?.ToString()
+            };
+        }),
+    currency = new {
+        code = displayCurrencyCode,
+        symbol = displayCurrencySymbol
+    },
+    // Tax-inclusive display
+    displayPricesIncTax = Model.DisplayPricesIncTax,
+    taxInclusiveDisplaySubTotal = Model.TaxInclusiveDisplaySubTotal,
+    formattedTaxInclusiveDisplaySubTotal = Model.FormattedTaxInclusiveDisplaySubTotal ?? "",
+    taxIncludedMessage = Model.TaxIncludedMessage,
+    exchangeRate = exchangeRate,
+    currencyDecimalPlaces = decimalPlaces,
+    isLoggedIn = Model.IsLoggedIn,
+    hasDigitalProducts = Model.HasDigitalProducts,
+    email = basket?.BillingAddress?.Email ?? "",
+    billing = new {
+        name = basket?.BillingAddress?.Name ?? "",
+        company = basket?.BillingAddress?.Company ?? "",
+        addressOne = basket?.BillingAddress?.AddressOne ?? "",
+        addressTwo = basket?.BillingAddress?.AddressTwo ?? "",
+        townCity = basket?.BillingAddress?.TownCity ?? "",
+        countyState = basket?.BillingAddress?.CountyState?.Name ?? "",
+        regionCode = basket?.BillingAddress?.CountyState?.RegionCode ?? defaultState,
+        postalCode = basket?.BillingAddress?.PostalCode ?? "",
+        country = basket?.BillingAddress?.Country ?? "",
+        countryCode = basket?.BillingAddress?.CountryCode ?? defaultCountry,
+        phone = basket?.BillingAddress?.Phone ?? ""
+    },
+    shipping = new {
+        name = basket?.ShippingAddress?.Name ?? "",
+        company = basket?.ShippingAddress?.Company ?? "",
+        addressOne = basket?.ShippingAddress?.AddressOne ?? "",
+        addressTwo = basket?.ShippingAddress?.AddressTwo ?? "",
+        townCity = basket?.ShippingAddress?.TownCity ?? "",
+        countyState = basket?.ShippingAddress?.CountyState?.Name ?? "",
+        regionCode = basket?.ShippingAddress?.CountyState?.RegionCode ?? defaultState,
+        postalCode = basket?.ShippingAddress?.PostalCode ?? "",
+        country = basket?.ShippingAddress?.Country ?? "",
+        countryCode = basket?.ShippingAddress?.CountryCode ?? defaultCountry,
+        phone = basket?.ShippingAddress?.Phone ?? ""
+    },
+    shippingGroups = (Model.ShippingGroups ?? []).Select(g => new {
+        groupId = g.GroupId.ToString(),
+        groupName = g.GroupName,
+        lineItems = g.LineItems.Select(li => new { name = li.ProductRootName, quantity = li.Quantity, formattedAmount = li.FormattedAmount }),
+        shippingOptions = g.ShippingOptions.Select(o => new {
+            id = o.Id.ToString(),
+            name = o.Name,
+            deliveryDescription = o.DeliveryDescription,
+            formattedCost = o.FormattedCost,
+            cost = o.Cost,
+            isNextDay = o.IsNextDay,
+            selectionKey = o.SelectionKey,
+            providerKey = o.ProviderKey,
+            isFallbackRate = o.IsFallbackRate
+        }),
+        selectedOptionId = g.SelectedShippingOptionId?.ToString()
+    }),
+    hasShippingGroups = hasShippingGroups,
+    appliedDiscounts = discountLineItems.Select(d =>
+    {
+        var discountAmount = CurrencyService.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, displayCurrencyCode);
+        return new
+        {
+            id = d.ExtendedData?.TryGetValue("DiscountId", out var idObj) == true ? idObj?.ToString() : d.Id.ToString(),
+            name = d.Name,
+            code = d.ExtendedData?.TryGetValue("DiscountCode", out var codeObj) == true ? codeObj?.ToString() : (string?)null,
+            amount = discountAmount,
+            formattedAmount = $"{displayCurrencySymbol}{discountAmount.ToString($"N{decimalPlaces}")}",
+            isAutomatic = d.ExtendedData?.ContainsKey("DiscountCode") != true
+        };
+    }),
+    orderTerms = Model.Settings.OrderTerms != null ? new {
+        showCheckbox = Model.Settings.OrderTerms.ShowCheckbox,
+        checkboxText = Model.Settings.OrderTerms.CheckboxText,
+        checkboxRequired = Model.Settings.OrderTerms.CheckboxRequired
+    } : (object?)null,
+    addressLookup = Model.AddressLookup
+}, jsonOptions))
+</script>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-0 checkout-compact" x-data="singlePageCheckout">
+    <!-- Screen reader announcements -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only" x-text="announcement"></div>
+
+    <!-- Left Column: Form -->
+    <div class="pt-6 lg:pr-12 pb-32 lg:pb-8">
+
+        <!-- Interstitial Upsells (replaces checkout form until dismissed) -->
+        <template x-if="showInterstitial">
+            <div class="space-y-6">
+                <template x-for="suggestion in interstitialSuggestions" :key="suggestion.upsellRuleId">
+                    <div class="space-y-4" :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'container')">
+                        <h2 class="font-heading text-lg font-normal mb-2"
+                            x-text="suggestion.heading"
+                            :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'heading')"></h2>
+                        <p x-show="suggestion.message"
+                           x-text="suggestion.message"
+                           class="text-sm text-gray-600 mb-4"
+                           :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'message')"></p>
+
+                        <div class="space-y-3">
+                            <template x-for="product in suggestion.products" :key="product.productId">
+                                <div class="flex flex-col p-4 border border-gray-200 rounded-lg bg-white transition-colors"
+                                     :class="{ 'border-green-300 bg-green-50': wasUpsellAdded(product.productRootId) }"
+                                     :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'productCard')">
+                                    <img x-show="product.imageUrl" :src="product.imageUrl" :alt="product.name"
+                                         class="w-full h-32 object-cover rounded-md mb-3" />
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="text-sm font-medium text-gray-900"
+                                            x-text="product.name"
+                                            :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'productName')"></h3>
+                                        <p x-show="product.description"
+                                           x-html="product.description"
+                                           class="text-xs text-gray-500 mt-1"
+                                           :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'productDescription')"></p>
+                                        <span class="text-sm font-semibold text-gray-900 mt-1 inline-block"
+                                              x-text="getUpsellDisplayPrice(product)"
+                                              :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'productPrice')"></span>
+                                    </div>
+
+                                    <!-- Variant selector -->
+                                    <template x-if="product.hasVariants && product.variants?.length > 1">
+                                        <select @@change="selectUpsellVariant(product.productRootId, $event.target.value)"
+                                                class="checkout-input-compact w-full mt-2 text-xs"
+                                                :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'variantSelector')">
+                                            <option value="" disabled selected>Select option...</option>
+                                            <template x-for="variant in product.variants" :key="variant.productId">
+                                                <option :value="variant.productId"
+                                                        :disabled="!variant.availableForPurchase"
+                                                        x-text="getUpsellVariantLabel(variant)">
+                                                </option>
+                                            </template>
+                                        </select>
+                                    </template>
+
+                                    <button type="button"
+                                            class="checkout-button-primary text-sm py-1.5 px-3 mt-2 w-full"
+                                            @@click="addUpsellToCart(product, suggestion.upsellRuleId)"
+                                            :disabled="upsellAddingToCart || !canAddUpsell(product) || wasUpsellAdded(product.productRootId)"
+                                            :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'button')">
+                                        <span x-show="wasUpsellAdded(product.productRootId)"
+                                              :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'badge')">Added</span>
+                                        <span x-show="!wasUpsellAdded(product.productRootId) && !isAddingUpsellProduct(product.productId)"
+                                              :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'statusText')">Add to Order</span>
+                                        <span x-show="isAddingUpsellProduct(product.productId)"
+                                              :style="getUpsellElementStyle(suggestion, 'checkoutInterstitial', 'statusText')">Adding...</span>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="pt-4 border-t border-gray-200 mt-6">
+                    <button type="button"
+                            class="checkout-button-primary w-full"
+                            @@click="dismissInterstitial()"
+                            :style="getUpsellElementStyle(interstitialSuggestions[0], 'checkoutInterstitial', 'button')">
+                        Continue to Checkout
+                    </button>
+                    <button type="button"
+                            class="text-sm text-gray-500 hover:text-gray-700 text-center w-full mt-2"
+                            @@click="dismissInterstitial()"
+                            :style="getUpsellElementStyle(interstitialSuggestions[0], 'checkoutInterstitial', 'secondaryButton')">
+                        No thanks, skip
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- Regular Checkout (hidden during interstitial) -->
+        <template x-if="!showInterstitial">
+            <div>
+
+        @if (Model.Settings.ShowExpressCheckout)
+        {
+            <!-- Express Checkout Section with Skeleton -->
+            <div class="mb-6">
+                @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_ExpressCheckout.cshtml")
+            </div>
+        }
+
+        <!-- Inline Upsells Section (collapsible at top of form) -->
+        <template x-if="hasInlineUpsells">
+            <div class="checkout-upsells-inline mb-4">
+                <button type="button"
+                        class="flex items-center justify-between w-full text-left p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                        @@click="toggleInlineUpsells()"
+                        :aria-expanded="!inlineUpsellsCollapsed"
+                        :style="getUpsellElementStyle(inlineSuggestions[0], 'checkoutInline', 'container')">
+                    <span class="text-sm font-medium text-gray-900"
+                          x-text="inlineSuggestions[0]?.heading || 'You might also like...'"
+                          :style="getUpsellElementStyle(inlineSuggestions[0], 'checkoutInline', 'heading')"></span>
+                    <svg class="w-4 h-4 text-gray-500 transition-transform" :class="{ 'rotate-180': !inlineUpsellsCollapsed }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+
+                <div x-show="!inlineUpsellsCollapsed" x-cloak x-transition class="mt-2">
+                    <template x-for="suggestion in inlineSuggestions" :key="suggestion.upsellRuleId">
+                        <div class="mb-3" :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'container')">
+                            <p x-show="suggestion.message"
+                               x-text="suggestion.message"
+                               class="text-xs text-gray-600 mb-2 px-1"
+                               :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'message')"></p>
+
+                            <div class="space-y-2">
+                                <template x-for="product in suggestion.products" :key="product.productId">
+                                    <div class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg"
+                                         :class="{ 'border-green-300 bg-green-50': wasUpsellAdded(product.productRootId) }"
+                                         :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'productCard')">
+                                        <img x-show="product.imageUrl" :src="product.imageUrl" :alt="product.name"
+                                             class="w-12 h-12 rounded object-cover flex-shrink-0" />
+                                        <div class="flex-1 min-w-0">
+                                            <h4 class="text-sm font-medium text-gray-900 truncate"
+                                                x-text="product.name"
+                                                :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'productName')"></h4>
+                                            <span class="text-sm text-gray-700"
+                                                  x-text="getUpsellDisplayPrice(product)"
+                                                  :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'productPrice')"></span>
+                                        </div>
+
+                                        <!-- Variant selector -->
+                                        <template x-if="product.hasVariants && product.variants?.length > 1">
+                                            <select @@change="selectUpsellVariant(product.productRootId, $event.target.value)"
+                                                    class="checkout-input-compact text-xs w-auto"
+                                                    :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'variantSelector')">
+                                                <option value="" disabled selected>Select</option>
+                                                <template x-for="variant in product.variants" :key="variant.productId">
+                                                    <option :value="variant.productId"
+                                                            :disabled="!variant.availableForPurchase"
+                                                            x-text="getUpsellVariantLabel(variant)">
+                                                    </option>
+                                                </template>
+                                            </select>
+                                        </template>
+
+                                        <button type="button"
+                                                class="checkout-button-secondary text-xs py-1 px-3 flex-shrink-0"
+                                                @@click="addUpsellToCart(product, suggestion.upsellRuleId)"
+                                                :disabled="upsellAddingToCart || !canAddUpsell(product) || wasUpsellAdded(product.productRootId)"
+                                                :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'button')">
+                                            <span x-show="wasUpsellAdded(product.productRootId)"
+                                                  :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'badge')">Added</span>
+                                            <span x-show="!wasUpsellAdded(product.productRootId) && !isAddingUpsellProduct(product.productId)"
+                                                  :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'statusText')">Add</span>
+                                            <span x-show="isAddingUpsellProduct(product.productId)"
+                                                  :style="getUpsellElementStyle(suggestion, 'checkoutInline', 'statusText')">Adding...</span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- Main Checkout Form -->
+        <form x-on:submit.prevent="submitOrder" class="space-y-4" :aria-busy="isSubmitting">
+            <!-- General Error Message -->
+            <div x-show="generalError" x-cloak role="alert" class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                <p x-text="generalError"></p>
+            </div>
+
+            <!-- Contact Section -->
+            <div class="checkout-section">
+                <h2 class="font-heading text-lg font-normal mb-3">Contact</h2>
+                <div>
+                    <label for="email" class="block text-xs font-medium text-gray-700 mb-0.5">
+                        Email address <span class="text-red-500" aria-hidden="true">*</span>
+                    </label>
+                    <input type="email"
+                           id="email"
+                           name="email"
+                           x-model="form.email"
+                           required
+                           autocomplete="email"
+                           @@blur="validateField('email')"
+                           :aria-invalid="errors.email ? 'true' : 'false'"
+                           :class="errors.email ? 'checkout-input-error' : ''"
+                           class="checkout-input-compact w-full"
+                           placeholder="you@example.com" />
+                    <p x-show="errors.email" x-cloak class="checkout-error" x-text="errors.email"></p>
+
+                    <!-- Create Account Option -->
+                    <div class="mt-2">
+                        <!-- Toggle link (hidden for logged-in users, existing accounts, or when account section is shown) -->
+                        <button type="button"
+                                x-show="showCreateAccountButton"
+                                @@click="showAccountSection = true; checkEmailForAccount()"
+                                class="text-sm text-accent hover:underline">
+                            Create an account for faster checkout next time
+                        </button>
+
+                        <!-- Account Section (login or create) -->
+                        <div x-show="showAccountSection" x-cloak x-transition class="mt-2 space-y-2">
+                            <!-- Account required message for digital products -->
+                            <div x-show="$store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn && !isSignedIn"
+                                 class="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                                <strong>Account required:</strong> Digital products in your cart require an account to access your downloads.
+                            </div>
+
+                            <!-- Header with mode indicator -->
+                            <div class="flex items-center justify-between">
+                                <label for="password" class="block text-xs font-medium text-gray-700">
+                                    <span x-show="hasExistingAccount">Sign in to your account</span>
+                                    <span x-show="!hasExistingAccount">Create a password</span>
+                                </label>
+                                <button type="button"
+                                        x-show="!($store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn)"
+                                        @@click="cancelAccountSection()"
+                                        class="text-xs text-gray-500 hover:text-gray-700">
+                                    Cancel
+                                </button>
+                            </div>
+
+                            <!-- Existing account notice -->
+                            <p x-show="hasExistingAccount" class="text-xs text-blue-600">
+                                An account exists with this email. Enter your password to sign in.
+                            </p>
+
+                            <!-- Password input -->
+                            <input type="password"
+                                   id="password"
+                                   name="password"
+                                   x-model="form.password"
+                                   @@input.debounce.500ms="hasExistingAccount ? null : validatePassword()"
+                                   :class="passwordErrors.length > 0 ? 'checkout-input-error' : (passwordValid ? 'border-green-500' : '')"
+                                   class="checkout-input-compact w-full"
+                                   :placeholder="hasExistingAccount ? 'Enter your password' : 'Create a password'" />
+
+                            <!-- Loading state -->
+                            <div x-show="validatingPassword" class="text-xs text-gray-500">
+                                Checking password requirements...
+                            </div>
+
+                            <!-- Password validation errors (for new accounts) -->
+                            <template x-if="!hasExistingAccount">
+                                <div>
+                                    <template x-for="error in passwordErrors" :key="error">
+                                        <p class="checkout-error text-xs" x-text="error"></p>
+                                    </template>
+                                    <p x-show="passwordValid && form.password" x-cloak class="text-xs text-green-600">
+                                        Password meets requirements
+                                    </p>
+                                </div>
+                            </template>
+
+                            <!-- Sign-in error and forgot password (for existing accounts) -->
+                            <template x-if="hasExistingAccount">
+                                <div>
+                                    <p x-show="signInError" class="checkout-error text-xs" x-text="signInError"></p>
+                                    <!-- Always show forgot password link for better UX -->
+                                    <button type="button"
+                                            @@click="openForgotPassword()"
+                                            class="text-xs text-accent hover:underline mt-1"
+                                            :class="{ 'font-medium': showForgotPassword }">
+                                        Forgot your password?
+                                    </button>
+                                </div>
+                            </template>
+
+                            <!-- Sign-in button for existing accounts -->
+                            <button type="button"
+                                    x-show="hasExistingAccount && form.password"
+                                    @@click="attemptSignIn()"
+                                    :disabled="signingIn"
+                                    class="checkout-button-secondary text-sm py-1.5 px-3">
+                                <span x-show="!signingIn">Sign In</span>
+                                <span x-show="signingIn">Signing in...</span>
+                            </button>
+
+                            <!-- Signed in success -->
+                            <p x-show="isSignedIn" class="text-xs text-green-600">
+                                Signed in successfully
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Newsletter opt-in -->
+                    <div class="mt-3">
+                        <label class="inline-flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox"
+                                   id="accepts-marketing"
+                                   x-model="form.acceptsMarketing"
+                                   class="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent" />
+                            <span class="text-sm text-gray-700">Keep me updated with news and exclusive offers</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Address Section -->
+            <div class="checkout-section" :class="{ 'border-b-0 pb-0 mb-0': shippingSameAsBilling }">
+                <h2 class="font-heading text-lg font-normal mb-3">Billing address</h2>
+                @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
+                    { "Prefix", "billing" },
+                    { "OnBlurCallback", "onBillingFieldChange()" },
+                    { "ShowRequired", true }
+                })
+            </div>
+
+            <!-- Shipping Address Section (Same as billing by default) -->
+            <div class="checkout-section">
+                <label class="inline-flex items-center gap-2 cursor-pointer checkout-touch-target">
+                    <input type="checkbox"
+                           id="shipping-same-as-billing"
+                           x-model="shippingSameAsBilling"
+                           @@change="onShippingSameAsBillingChange()"
+                           class="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent" />
+                    <span class="text-sm text-gray-700">Shipping address same as billing</span>
+                </label>
+
+                <div x-show="!shippingSameAsBilling" x-cloak x-transition class="mt-3">
+                    <h3 class="font-heading text-base font-normal mb-2">Shipping address</h3>
+                    @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
+                        { "Prefix", "shipping" },
+                        { "OnBlurCallback", "debouncedCalculateShipping()" },
+                        { "ShowRequired", true }
+                    })
+                </div>
+            </div>
+
+            <!-- Shipping Options Section -->
+            <div class="checkout-section">
+                <h2 class="font-heading text-lg font-normal mb-3">Shipping method</h2>
+
+                <!-- Container with relative positioning for overlay -->
+                <div class="relative">
+
+                    <!-- Loading overlay (appears on top when updating existing options) -->
+                    <div x-show="shippingLoading && shippingGroups.length > 0"
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-lg"
+                         role="status"
+                         aria-label="Updating shipping options">
+                        <div class="flex items-center gap-2 text-sm text-gray-500">
+                            <svg class="animate-spin h-4 w-4 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Updating shipping options...</span>
+                        </div>
+                    </div>
+
+                    <!-- Initial skeleton (only shown on FIRST load when no options exist yet) -->
+                    <div x-show="shippingLoading && shippingGroups.length === 0 && canCalculateShipping"
+                         x-transition
+                         class="space-y-2">
+                        <div class="h-16 checkout-skeleton rounded-lg"></div>
+                        <div class="h-16 checkout-skeleton rounded-lg"></div>
+                    </div>
+
+                    <!-- Slow shipping message (shown after 8s timeout) -->
+                    <div x-show="shippingLoading && showSlowShippingMessage" x-cloak x-transition
+                         class="text-sm text-gray-500 text-center py-2">
+                        Taking longer than expected...
+                    </div>
+
+                    <!-- Content wrapper - dims during loading but stays visible -->
+                    <div :class="{ 'opacity-50 pointer-events-none select-none': shippingLoading && shippingGroups.length > 0 }"
+                         class="transition-opacity duration-200">
+
+                        <!-- No shipping address yet -->
+                        <div x-show="!shippingLoading && !canCalculateShipping && shippingGroups.length === 0" x-cloak class="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p class="text-sm text-gray-600">Enter your shipping address to see available shipping options.</p>
+                        </div>
+
+                        <!-- Shipping error -->
+                        <div x-show="!shippingLoading && shippingError" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p class="text-sm text-red-700" x-text="shippingError"></p>
+                            <button type="button"
+                                    @@click="calculateShipping()"
+                                    class="mt-2 text-sm text-red-700 underline hover:text-red-900">
+                                Try Again
+                            </button>
+                        </div>
+
+                        <!-- Multi-warehouse notification -->
+                        <div x-show="!shippingLoading && shippingGroups.length > 1" x-cloak x-transition class="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-3">
+                            <p class="text-sm text-blue-800">Your order will ship from multiple locations. You'll receive separate tracking for each shipment.</p>
+                        </div>
+
+                        <!-- Items cannot ship warning -->
+                        <div x-show="!shippingLoading && !allItemsShippable" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
+                            <p class="text-sm font-medium text-red-800 mb-2">Some items cannot be shipped to this location:</p>
+                            <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+                                <template x-for="error in itemAvailabilityErrors" :key="error.message">
+                                    <li x-text="error.message"></li>
+                                </template>
+                            </ul>
+                            <p class="text-sm text-red-700 mt-2">Please change your shipping address or remove unavailable items to continue.</p>
+                        </div>
+
+                        <!-- Missing shipping methods warning -->
+                        <div x-show="!shippingLoading && !shippingError && shippingGroups.some(group => !group.shippingOptions?.length)" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg mb-3" role="alert">
+                            <p class="text-sm font-medium text-red-800">No shipping methods are currently available for part of your order.</p>
+                            <p class="text-sm text-red-700 mt-1">Please contact support before completing checkout.</p>
+                        </div>
+
+                        <!-- Shipping options -->
+                        <div x-show="!shippingError && shippingGroups.length > 0" x-cloak class="space-y-3">
+                            <template x-for="group in shippingGroups" :key="group.groupId">
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <!-- Group header (only show if multiple groups) -->
+                                    <template x-if="shippingGroups.length > 1">
+                                        <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                                            <p class="text-sm font-medium text-gray-700" x-text="getSelectedShippingName(group)"></p>
+                                            <p class="text-xs text-gray-500 mt-1.5 flex flex-wrap gap-x-2 gap-y-1">
+                                                <template x-for="(item, idx) in group.lineItems" :key="idx">
+                                                    <span class="inline-flex items-center whitespace-nowrap">
+                                                        <span x-text="item.name"></span>
+                                                        <span x-show="item.quantity > 1" class="ml-1 text-gray-400" x-text="'(' + item.quantity + ')'"></span>
+                                                    </span>
+                                                </template>
+                                            </p>
+                                        </div>
+                                    </template>
+
+                                    <!-- Shipping options for this group -->
+                                    <div class="p-2 space-y-2">
+                                        <template x-if="!group.shippingOptions || group.shippingOptions.length === 0">
+                                            <div class="p-3 bg-red-50 border border-red-200 rounded-lg" role="alert">
+                                                <p class="text-sm font-medium text-red-800">No shipping methods are available for this shipment.</p>
+                                                <p class="text-xs text-red-700 mt-1">Please contact support before placing your order.</p>
+                                            </div>
+                                        </template>
+
+                                        <template x-for="option in group.shippingOptions" :key="option.selectionKey">
+                                            <label class="flex items-center gap-3 p-2 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                                   :class="{ 'border-accent bg-accent/5': shippingSelections[group.groupId] === option.selectionKey }">
+                                                <input type="radio"
+                                                       :name="'shipping-' + group.groupId"
+                                                       :value="option.selectionKey"
+                                                       x-model="shippingSelections[group.groupId]"
+                                                       @@change="onShippingOptionChange(group.groupId, option)"
+                                                       class="w-4 h-4 text-accent focus:ring-accent" />
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm font-medium text-gray-900">
+                                                        <span x-text="option.name"></span>
+                                                        <template x-if="option.isNextDay">
+                                                            <span class="ml-1 px-1.5 py-0.5 text-xs bg-green-100 text-green-800 rounded">Next Day</span>
+                                                        </template>
+                                                    </p>
+                                                    <p class="text-xs text-gray-500" x-text="option.deliveryDescription"></p>
+                                                    <template x-if="option.isFallbackRate">
+                                                        <p class="text-xs text-amber-600 mt-0.5">Estimated rate - final cost confirmed at payment</p>
+                                                    </template>
+                                                </div>
+                                                <template x-if="option.cost === 0">
+                                                    <span class="px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded-full">FREE</span>
+                                                </template>
+                                                <template x-if="option.cost > 0">
+                                                    <span class="text-sm font-medium text-gray-900" x-text="option.formattedCost"></span>
+                                                </template>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div><!-- end content wrapper -->
+                </div><!-- end relative container -->
+            </div>
+
+            <!-- Payment Section -->
+            <div class="checkout-section border-b-0 pb-0">
+                <h2 class="font-heading text-lg font-normal mb-3">Payment</h2>
+
+                <!-- Loading state -->
+                <div x-show="paymentLoading" class="space-y-2">
+                    <div class="h-12 checkout-skeleton rounded-lg"></div>
+                    <div class="h-32 checkout-skeleton rounded-lg"></div>
+                </div>
+
+                <!-- Payment methods -->
+                <div x-show="!paymentLoading && paymentMethods.length > 0" x-cloak>
+                    <!-- Single card payment method (selectable for when more options like pro-forma are added) -->
+                    <template x-if="cardPaymentMethods.length === 1">
+                        <div class="space-y-2 mb-4">
+                            <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                   :class="{ 'border-accent bg-accent/5': isPaymentMethodSelected(cardPaymentMethods[0]) }"
+                                   :style="getPaymentMethodStyle(cardPaymentMethods[0], isPaymentMethodSelected(cardPaymentMethods[0]))">
+                                <input type="radio"
+                                       name="payment-method"
+                                       :value="cardPaymentMethods[0].providerAlias + ':' + (cardPaymentMethods[0].methodAlias || '')"
+                                       x-model="selectedPaymentMethodKey"
+                                       @@click="onPaymentMethodChange(cardPaymentMethods[0])"
+                                       class="w-4 h-4 text-accent focus:ring-accent" />
+                                <div class="flex items-center gap-2 flex-1">
+                                    <span x-html="getPaymentMethodIcon(cardPaymentMethods[0])" class="flex-shrink-0"></span>
+                                    <span class="text-sm font-medium" x-text="cardPaymentMethods[0].displayName"></span>
+                                </div>
+                            </label>
+                        </div>
+                    </template>
+
+                    <!-- Card payment selector (if multiple card methods) -->
+                    <template x-if="cardPaymentMethods.length > 1">
+                        <div class="space-y-2 mb-4">
+                            <template x-for="method in cardPaymentMethods" :key="method.providerAlias + ':' + (method.methodAlias || '')">
+                                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-accent transition-colors"
+                                       :class="{ 'border-accent bg-accent/5': isPaymentMethodSelected(method) }"
+                                       :style="getPaymentMethodStyle(method, isPaymentMethodSelected(method))">
+                                    <input type="radio"
+                                           name="payment-method"
+                                           :value="method.providerAlias + ':' + (method.methodAlias || '')"
+                                           x-model="selectedPaymentMethodKey"
+                                           @@click="onPaymentMethodChange(method)"
+                                           class="w-4 h-4 text-accent focus:ring-accent" />
+                                    <div class="flex items-center gap-2 flex-1">
+                                        <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
+                                        <span class="text-sm font-medium" x-text="method.displayName"></span>
+                                    </div>
+                                </label>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- Payment form container (for hosted fields/widget integrations) -->
+                    <div id="payment-form-container" x-show="selectedPaymentMethod && (selectedPaymentMethod.integrationType === 10 || selectedPaymentMethod.integrationType === 30)" x-cloak>
+                        <!-- Skeleton loader while payment form initializes -->
+                        <div x-show="paymentFormInitializing" class="space-y-3">
+                            <div class="h-10 checkout-skeleton rounded-lg"></div>
+                            <div class="h-10 checkout-skeleton rounded-lg"></div>
+                            <div class="h-10 checkout-skeleton rounded-lg"></div>
+                        </div>
+                        <!-- Email required message for DirectForm payment methods -->
+                        <div x-show="!paymentFormInitializing && !form.email" x-cloak class="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                            <p class="text-sm text-amber-700">Please enter your email address above to continue with payment.</p>
+                        </div>
+                        <div x-show="!paymentFormInitializing" x-cloak id="hosted-fields-container"></div>
+                        <div x-show="!paymentFormInitializing" x-cloak id="widget-container"></div>
+                        <div x-show="!paymentFormInitializing" x-cloak id="direct-form-container"></div>
+                    </div>
+
+                    <!-- Redirect payment methods (shown as buttons below the form) -->
+                    <template x-if="redirectPaymentMethods.length > 0">
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <p class="text-xs text-gray-500 mb-3">Or pay with</p>
+                            <div class="space-y-2">
+                                <template x-for="method in redirectPaymentMethods" :key="method.providerAlias + ':' + (method.methodAlias || '')">
+                                    <button type="button"
+                                            @@click="onPaymentMethodChange(method); selectedPaymentMethodKey = method.providerAlias + ':' + (method.methodAlias || '')"
+                                            class="w-full flex items-center justify-center gap-2 p-3 border border-gray-200 rounded-lg hover:border-accent hover:bg-accent/5 transition-colors"
+                                            :class="{ 'border-accent bg-accent/5': isPaymentMethodSelected(method) }"
+                                            :style="getPaymentMethodStyle(method, isPaymentMethodSelected(method))">
+                                        <span x-html="getPaymentMethodIcon(method)" class="flex-shrink-0"></span>
+                                        <span class="text-sm font-medium" x-text="method.displayName"></span>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- No payment methods available -->
+                <div x-show="!paymentLoading && paymentMethods.length === 0" x-cloak class="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p class="text-sm text-gray-600">No payment methods available. Please contact support.</p>
+                </div>
+
+                <!-- Payment error -->
+                <div x-show="paymentError" x-cloak role="alert" class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p class="text-sm text-red-700" x-text="paymentError"></p>
+                </div>
+            </div>
+
+            @if (Model.Settings.OrderTerms is { ShowCheckbox: true })
+            {
+                <!-- Order Terms & Conditions -->
+                <div class="mt-6">
+                    <label class="inline-flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox"
+                               x-model="form.acceptedTerms"
+                               @@change="$store.checkout?.clearError('acceptedTerms')"
+                               class="w-4 h-4 mt-0.5 rounded border-gray-300 text-accent focus:ring-accent"
+                               :class="errors.acceptedTerms ? 'border-red-500' : ''" />
+                        <span class="text-sm text-gray-700">
+                            @if (!string.IsNullOrWhiteSpace(Model.Settings.OrderTerms.CheckboxText))
+                            {
+                                @OrderTermsHtmlExtensions.RenderOrderTermsText(Model.Settings.OrderTerms.CheckboxText)
+                            }
+                            else
+                            {
+                                @:I agree to the terms and conditions
+                            }
+                            @if (Model.Settings.OrderTerms.CheckboxRequired)
+                            {
+                                <span class="text-red-500" aria-hidden="true">*</span>
+                            }
+                        </span>
+                    </label>
+                    <p x-show="errors.acceptedTerms" x-cloak class="checkout-error text-xs mt-1" x-text="errors.acceptedTerms"></p>
+                </div>
+            }
+
+            <!-- Complete Order Button (Desktop) -->
+            <div class="mt-6 hidden lg:block">
+                <button type="submit"
+                        class="w-full checkout-button-primary"
+                        :disabled="!canSubmit || isSubmitting"
+                        :aria-busy="isSubmitting">
+                    <span x-show="!isSubmitting">Complete Order</span>
+                    <span x-show="isSubmitting" x-cloak class="flex items-center justify-center gap-2">
+                        <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Processing...</span>
+                    </span>
+                </button>
+            </div>
+        </form>
+
+            </div>
+        </template><!-- end !showInterstitial -->
+    </div>
+
+    <!-- Right Column: Order Summary (Sticky) -->
+    <div class="relative lg:border-l lg:border-gray-200">
+        <div class="hidden lg:block absolute inset-y-0 left-0 w-[200vw] bg-[#fafafa] -z-10"></div>
+        <div class="lg:pl-8 lg:pt-6 lg:pr-8 lg:sticky lg:top-0">
+            @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_OrderSummary.cshtml")
+        </div>
+    </div>
+
+    <!-- Mobile Sticky Action Bar -->
+    <div class="checkout-sticky-actions lg:hidden">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Total</span>
+            <span class="text-lg font-semibold" x-text="formattedTotal">@displayCurrencySymbol@(displayTotal.ToString("N2"))</span>
+        </div>
+        <button type="button"
+                @@click="submitOrder"
+                class="w-full checkout-button-primary"
+                :disabled="!canSubmit || isSubmitting"
+                :aria-busy="isSubmitting">
+            <span x-show="!isSubmitting">Complete Order</span>
+            <span x-show="isSubmitting" x-cloak class="flex items-center justify-center gap-2">
+                <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Processing...</span>
+            </span>
+        </button>
+    </div>
+
+    <!-- Terms Side-Pane Modal -->
+    <div x-show="showTermsModal"
+         x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex justify-end bg-black/50"
+         @@keydown.escape.window="showTermsModal && closeTermsModal()"
+         @@click.self="closeTermsModal()">
+        <div class="relative bg-white w-full max-w-lg h-full shadow-xl flex flex-col"
+             x-show="showTermsModal"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="translate-x-full"
+             x-transition:enter-end="translate-x-0"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="translate-x-0"
+             x-transition:leave-end="translate-x-full"
+             @@click.stop>
+
+            <!-- Sticky header -->
+            <div class="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
+                <h3 class="font-heading text-lg font-semibold" x-text="termsModalTitle"></h3>
+                <button type="button"
+                        @@click="closeTermsModal()"
+                        class="text-gray-400 hover:text-gray-600 p-1"
+                        aria-label="Close">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Scrollable content -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <!-- Loading spinner -->
+                <div x-show="termsLoading" class="flex items-center justify-center py-12">
+                    <svg class="animate-spin h-8 w-8 text-accent" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+
+                <!-- Content -->
+                <div x-show="!termsLoading" x-html="termsContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div x-show="showForgotPasswordModal"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+         @@click.self="closeForgotPasswordModal()">
+        <div class="relative bg-white rounded-lg p-6 max-w-sm w-full shadow-xl"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95"
+             x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100"
+             x-transition:leave-end="opacity-0 scale-95"
+             @@click.stop>
+
+            <!-- Close button -->
+            <button type="button"
+                    @@click="closeForgotPasswordModal()"
+                    class="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
+                    aria-label="Close">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+
+            <h3 class="font-heading text-lg font-semibold mb-4">Reset Password</h3>
+
+            <!-- Loading state -->
+            <div x-show="forgotPasswordLoading" class="text-center py-6">
+                <svg class="animate-spin h-8 w-8 mx-auto text-accent" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-sm text-gray-600 mt-3">Sending reset email...</p>
+            </div>
+
+            <!-- Success state -->
+            <div x-show="!forgotPasswordLoading && forgotPasswordSuccess" class="text-center py-4">
+                <div class="w-12 h-12 mx-auto mb-3 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <p class="text-sm text-gray-700 mb-1">Check your email</p>
+                <p class="text-xs text-gray-500 mb-4">
+                    If an account exists for <strong x-text="form.email" class="font-medium"></strong>,
+                    you will receive a password reset link shortly.
+                </p>
+                <button type="button"
+                        @@click="closeForgotPasswordModal()"
+                        class="checkout-button-secondary text-sm py-2 px-4">
+                    Close
+                </button>
+            </div>
+
+            <!-- Error state -->
+            <div x-show="!forgotPasswordLoading && forgotPasswordError" class="text-center py-4">
+                <div class="w-12 h-12 mx-auto mb-3 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </div>
+                <p class="text-sm text-red-600 mb-4" x-text="forgotPasswordError"></p>
+                <button type="button"
+                        @@click="sendForgotPasswordEmail()"
+                        class="checkout-button-secondary text-sm py-2 px-4">
+                    Try Again
+                </button>
+            </div>
+
+            <!-- Initial state - form -->
+            <div x-show="!forgotPasswordLoading && !forgotPasswordSuccess && !forgotPasswordError">
+                <p class="text-sm text-gray-600 mb-4">
+                    We'll send a password reset link to your email address.
+                </p>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email"
+                           :value="form.email"
+                           disabled
+                           class="checkout-input-compact w-full bg-gray-50 cursor-not-allowed" />
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="button"
+                            @@click="closeForgotPasswordModal()"
+                            class="flex-1 checkout-button-secondary text-sm py-2">
+                        Cancel
+                    </button>
+                    <button type="button"
+                            @@click="sendForgotPasswordEmail()"
+                            class="flex-1 checkout-button-primary text-sm py-2">
+                        Send Reset Link
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- Single-page checkout analytics helper -->
+    <script src="/App_Plugins/Merchello/js/checkout/single-page-analytics.js"></script>
+
+    <!-- Checkout modules (including payment.js) are loaded from _Layout.cshtml via index.js -->
+    <!-- The singlePageCheckout component reads initial data from #checkout-initial-data JSON block above -->
+}

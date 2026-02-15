@@ -467,12 +467,13 @@ public class FulfilmentProvidersApiController(
     private static FulfilmentProviderDto MapToProviderDto(RegisteredFulfilmentProvider registered)
     {
         var meta = registered.Metadata;
+        var iconSvg = meta.IconSvg ?? ProviderBrandLogoCatalog.GetFulfilmentProviderIconSvg(meta.Key);
         return new FulfilmentProviderDto
         {
             Key = meta.Key,
             DisplayName = registered.DisplayName,
             Icon = meta.Icon,
-            IconSvg = meta.IconSvg,
+            IconSvg = iconSvg,
             Description = meta.Description,
             SetupInstructions = meta.SetupInstructions,
             SupportsOrderSubmission = meta.SupportsOrderSubmission,
@@ -492,12 +493,13 @@ public class FulfilmentProvidersApiController(
     {
         var meta = registered.Metadata;
         var syncMode = registered.Configuration?.InventorySyncMode ?? InventorySyncMode.Full;
+        var iconSvg = meta.IconSvg ?? ProviderBrandLogoCatalog.GetFulfilmentProviderIconSvg(meta.Key);
         return new FulfilmentProviderListItemDto
         {
             Key = meta.Key,
             DisplayName = registered.DisplayName,
             Icon = meta.Icon,
-            IconSvg = meta.IconSvg,
+            IconSvg = iconSvg,
             Description = meta.Description,
             IsEnabled = registered.IsEnabled,
             ConfigurationId = registered.Configuration?.Id,
