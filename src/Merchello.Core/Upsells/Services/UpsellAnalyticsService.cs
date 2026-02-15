@@ -417,7 +417,7 @@ public class UpsellAnalyticsService(
     private List<UpsellEvent> DequeueBatch()
     {
         List<UpsellEvent> events = [];
-        while (_eventBuffer.TryDequeue(out var evt) && events.Count < MaxBufferSize)
+        while (events.Count < MaxBufferSize && _eventBuffer.TryDequeue(out var evt))
         {
             Interlocked.Decrement(ref _bufferedCount);
             events.Add(evt);
