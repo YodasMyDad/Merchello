@@ -1,0 +1,389 @@
+// @ts-check
+/**
+ * Merchello Checkout - Order Summary Component
+ *
+ * Displays order totals and handles discount code operations.
+ * Uses Alpine.store for reactive updates from other components.
+ */
+
+import { checkoutApi } from '../services/api.js';
+
+/**
+ * Calculates positive discount delta from basket state changes.
+ * @param {number} previousDiscount
+ * @param {number} currentDiscount
+ * @returns {number}
+ */
+export function calculateDiscountDelta(previousDiscount, currentDiscount) {
+    const previous = Number.isFinite(previousDiscount) ? previousDiscount : 0;
+    const current = Number.isFinite(currentDiscount) ? currentDiscount : 0;
+    return Math.max(0, current - previous);
+}
+
+/**
+ * Initialize the order summary Alpine.data component
+ */
+export function initOrderSummary() {
+    // @ts-ignore - Alpine is global
+    Alpine.data('orderSummary', () => {
+        console.log('[orderSummary] Creating component...');
+        try {
+            const componentData = {
+        // UI state
+        expanded: false,
+        discountCode: '',
+        applyingDiscount: false,
+        removingDiscount: null,
+        discountError: '',
+        discountSuccess: '',
+
+        /**
+         * Initialize the component
+         */
+        init() {
+            // The component reads totals from the store, which are updated
+            // by other components (shipping selector, discount operations, etc.)
+        },
+
+        /**
+         * Format a value as currency using store settings
+         * @param {number} value
+         * @returns {string}
+         */
+        formatCurrency(value) {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.formatCurrency?.(value) ?? String(value);
+        },
+
+        /**
+         * Get the shipping total
+         * @returns {number}
+         */
+        get shipping() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.basket?.shipping ?? 0;
+        },
+
+        /**
+         * Get the tax total
+         * @returns {number}
+         */
+        get tax() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.basket?.tax ?? 0;
+        },
+
+        /**
+         * Get the order total
+         * @returns {number}
+         */
+        get total() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.basket?.total ?? 0;
+        },
+
+        /**
+         * Get the subtotal
+         * @returns {number}
+         */
+        get subtotal() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.basket?.subtotal ?? 0;
+        },
+
+        /**
+         * Get the discount total
+         * @returns {number}
+         */
+        get discount() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.basket?.discount ?? 0;
+        },
+
+        /**
+         * Get whether prices should be displayed including tax
+         * @returns {boolean}
+         */
+        get displayPricesIncTax() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.displayPricesIncTax ?? false;
+        },
+
+        /**
+         * Get the tax-inclusive subtotal
+         * @returns {number}
+         */
+        get taxInclusiveDisplaySubTotal() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.taxInclusiveDisplaySubTotal ?? 0;
+        },
+
+        /**
+         * Get the formatted tax-inclusive subtotal
+         * @returns {string}
+         */
+        get formattedTaxInclusiveDisplaySubTotal() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.formattedTaxInclusiveDisplaySubTotal ?? '';
+        },
+
+        /**
+         * Get the tax included message (e.g., "Including £10.17 in taxes")
+         * @returns {string|null}
+         */
+        get taxIncludedMessage() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.taxIncludedMessage ?? null;
+        },
+
+        /**
+         * Reactive checkout line items (single-page mode).
+         * @returns {Array}
+         */
+        get basketLineItems() {
+            // @ts-ignore - Alpine store
+            return this.$store.checkout?.basketLineItems ?? [];
+        },
+
+        /**
+         * Product/custom parent line items for summary display.
+         * @returns {Array}
+         */
+        get productLineItems() {
+            return this.basketLineItems.filter(li => {
+                const type = li?.lineItemType;
+                return type === 'Product' || type === 'Custom' || type === 0 || type === 1;
+            });
+        },
+
+        /**
+         * Get addon line items for a parent line item.
+         * Links by parentLineItemId first, then falls back to dependantLineItemSku for legacy data.
+         * @param {any} parentLineItem
+         * @returns {Array}
+         */
+        getAddonsForProduct(parentLineItem) {
+            const parentLineItemId = parentLineItem?.id ?? null;
+            const parentSku = parentLineItem?.sku ?? null;
+            if (!parentLineItemId && !parentSku) return [];
+
+            return this.basketLineItems.filter(li => {
+                const type = li?.lineItemType;
+                const isAddon = type === 'Addon' || type === 4;
+                if (!isAddon) return false;
+
+                const addonParentLineItemId = li?.parentLineItemId ?? null;
+                if (addonParentLineItemId && parentLineItemId) {
+                    return addonParentLineItemId === parentLineItemId;
+                }
+
+                return !addonParentLineItemId && !!parentSku && li.dependantLineItemSku === parentSku;
+            });
+        },
+
+        /**
+         * Format a parent line item total, applying tax-inclusive display when enabled.
+         * @param {any} item
+         * @returns {string}
+         */
+        formatLineItemTotal(item) {
+            const formattedWithAddons = item?.formattedDisplayLineTotalWithAddons;
+            if (typeof formattedWithAddons === 'string' && formattedWithAddons.trim().length > 0) {
+                return formattedWithAddons;
+            }
+
+            const formattedLegacy = item?.formattedDisplayLineTotal;
+            if (typeof formattedLegacy === 'string' && formattedLegacy.trim().length > 0) {
+                return formattedLegacy;
+            }
+
+            if (item?.displayLineTotalWithAddons !== undefined && item?.displayLineTotalWithAddons !== null) {
+                return this.formatCurrency(Number(item.displayLineTotalWithAddons));
+            }
+
+            const base = Number(item?.displayLineTotal ?? item?.lineTotal ?? 0);
+            const taxRate = Number(item?.taxRate ?? 0);
+            const isTaxable = item?.isTaxable === true;
+            const total = this.displayPricesIncTax && isTaxable && taxRate > 0
+                ? base * (1 + (taxRate / 100))
+                : base;
+            return this.formatCurrency(total);
+        },
+
+        /**
+         * Format addon unit display amount, applying tax-inclusive display when enabled.
+         * @param {any} addon
+         * @returns {string}
+         */
+        formatAddonUnitPrice(addon) {
+            const formattedWithAddons = addon?.formattedDisplayUnitPriceWithAddons;
+            if (typeof formattedWithAddons === 'string' && formattedWithAddons.trim().length > 0) {
+                return formattedWithAddons;
+            }
+
+            const formattedLegacy = addon?.formattedDisplayUnitPrice;
+            if (typeof formattedLegacy === 'string' && formattedLegacy.trim().length > 0) {
+                return formattedLegacy;
+            }
+
+            if (addon?.displayUnitPriceWithAddons !== undefined && addon?.displayUnitPriceWithAddons !== null) {
+                return this.formatCurrency(Number(addon.displayUnitPriceWithAddons));
+            }
+
+            const base = Number(addon?.displayUnitPrice ?? addon?.unitPrice ?? 0);
+            const taxRate = Number(addon?.taxRate ?? 0);
+            const isTaxable = addon?.isTaxable === true;
+            const value = this.displayPricesIncTax && isTaxable && taxRate > 0
+                ? base * (1 + (taxRate / 100))
+                : base;
+            return this.formatCurrency(value);
+        },
+
+        /**
+         * Check if any discount operation is in progress
+         * @returns {boolean}
+         */
+        get isDiscountOperationInProgress() {
+            return this.applyingDiscount || this.removingDiscount !== null;
+        },
+
+        /**
+         * Apply a discount code
+         */
+        async applyDiscount() {
+            if (!this.discountCode.trim()) return;
+
+            // Prevent concurrent operations (mutex)
+            if (this.isDiscountOperationInProgress) return;
+
+            // Save the code before clearing for analytics
+            const appliedCode = this.discountCode.trim();
+
+            this.applyingDiscount = true;
+            this.discountError = '';
+            this.discountSuccess = '';
+            const previousDiscount = Number(this.discount ?? 0);
+
+            try {
+                const data = await checkoutApi.applyDiscount(appliedCode);
+
+                if (data.success) {
+                    this.discountSuccess = 'Discount applied successfully!';
+                    this.discountCode = '';
+
+                    // Update store with new basket data (reactive - no page reload needed)
+                    // @ts-ignore - Alpine store
+                    if (this.$store.checkout && data.basket) {
+                        this.$store.checkout.updateBasket(data.basket);
+
+                        // Dispatch basket-updated using store getters (ensures consistent property mapping)
+                        // Store normalizes API response (e.g., displayTotal → total)
+                        document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
+                            detail: {
+                                total: this.total,
+                                shipping: this.shipping,
+                                tax: this.tax,
+                                subTotal: this.subtotal
+                            }
+                        }));
+
+                        // Signal that hosted fields/direct form payment needs re-initialization
+                        document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
+                    }
+
+                    // Track analytics with basket-state delta (response does not include discountAmount)
+                    if (window.MerchelloCheckout) {
+                        const currentDiscount = Number(this.discount ?? 0);
+                        const discountDelta = calculateDiscountDelta(previousDiscount, currentDiscount);
+                        window.MerchelloCheckout.emit('checkout:coupon_applied', {
+                            coupon: appliedCode,
+                            discount_amount: discountDelta
+                        });
+                    }
+
+                    // Notify parent components
+                    this.$dispatch('discount-applied', { basket: data.basket });
+                } else {
+                    this.discountError = data.message || 'Failed to apply discount code.';
+                }
+            } catch (error) {
+                console.error('Failed to apply discount:', error);
+                this.discountError = 'An unexpected error occurred.';
+            } finally {
+                this.applyingDiscount = false;
+            }
+        },
+
+        /**
+         * Remove a discount
+         * @param {string} discountId
+         */
+        async removeDiscount(discountId) {
+            // Prevent concurrent operations (mutex)
+            if (this.isDiscountOperationInProgress) return;
+
+            this.removingDiscount = discountId;
+            this.discountError = '';
+            this.discountSuccess = '';
+            const previousDiscount = Number(this.discount ?? 0);
+
+            try {
+                const data = await checkoutApi.removeDiscount(discountId);
+
+                if (data.success) {
+                    this.discountSuccess = 'Discount removed.';
+
+                    // Update store with new basket data (reactive - no page reload needed)
+                    // @ts-ignore - Alpine store
+                    if (this.$store.checkout && data.basket) {
+                        this.$store.checkout.updateBasket(data.basket);
+
+                        // Dispatch basket-updated using store getters (ensures consistent property mapping)
+                        // Store normalizes API response (e.g., displayTotal → total)
+                        document.dispatchEvent(new CustomEvent('merchello:basket-updated', {
+                            detail: {
+                                total: this.total,
+                                shipping: this.shipping,
+                                tax: this.tax,
+                                subTotal: this.subtotal
+                            }
+                        }));
+
+                        // Signal that hosted fields/direct form payment needs re-initialization
+                        document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
+                    }
+
+                    // Track analytics with basket-state delta
+                    if (window.MerchelloCheckout) {
+                        const currentDiscount = Number(this.discount ?? 0);
+                        const removedDiscountAmount = calculateDiscountDelta(currentDiscount, previousDiscount);
+                        window.MerchelloCheckout.emit('checkout:coupon_removed', {
+                            discount_id: discountId,
+                            discount_amount: removedDiscountAmount
+                        });
+                    }
+
+                    // Notify parent components
+                    this.$dispatch('discount-removed', { basket: data.basket });
+                } else {
+                    this.discountError = data.message || 'Failed to remove discount.';
+                }
+            } catch (error) {
+                console.error('Failed to remove discount:', error);
+                this.discountError = 'An unexpected error occurred.';
+            } finally {
+                this.removingDiscount = null;
+            }
+        }
+            };
+
+            console.log('[orderSummary] Component created successfully');
+            return componentData;
+        } catch (e) {
+            console.error('[orderSummary] FATAL - Component initialization failed:', e);
+            throw e;
+        }
+    });
+}
+
+export default { initOrderSummary };

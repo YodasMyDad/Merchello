@@ -118,6 +118,7 @@ public class AbandonedCheckoutService(
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
             var query = db.AbandonedCheckouts.AsNoTracking().AsQueryable();
+            var isSqlite = db.Database.IsSqlite();
 
             // Apply filters
             if (parameters.Status.HasValue)
@@ -145,7 +146,17 @@ public class AbandonedCheckoutService(
 
             if (parameters.MinValue.HasValue)
             {
-                query = query.Where(ac => ac.BasketTotal >= parameters.MinValue.Value);
+                // SQLite decimal comparisons can translate to ef_compare, which may be unavailable
+                // in some runtime configurations. Cast to double for provider-safe translation.
+                if (isSqlite)
+                {
+                    var minValue = (double)parameters.MinValue.Value;
+                    query = query.Where(ac => (double)ac.BasketTotal >= minValue);
+                }
+                else
+                {
+                    query = query.Where(ac => ac.BasketTotal >= parameters.MinValue.Value);
+                }
             }
 
             // Count before paging
@@ -158,8 +169,12 @@ public class AbandonedCheckoutService(
                     ? query.OrderByDescending(ac => ac.LastActivityUtc)
                     : query.OrderBy(ac => ac.LastActivityUtc),
                 AbandonedCheckoutOrderBy.Total => parameters.Descending
-                    ? query.OrderByDescending(ac => ac.BasketTotal)
-                    : query.OrderBy(ac => ac.BasketTotal),
+                    ? (isSqlite
+                        ? query.OrderByDescending(ac => (double)ac.BasketTotal)
+                        : query.OrderByDescending(ac => ac.BasketTotal))
+                    : (isSqlite
+                        ? query.OrderBy(ac => (double)ac.BasketTotal)
+                        : query.OrderBy(ac => ac.BasketTotal)),
                 AbandonedCheckoutOrderBy.Email => parameters.Descending
                     ? query.OrderByDescending(ac => ac.Email)
                     : query.OrderBy(ac => ac.Email),

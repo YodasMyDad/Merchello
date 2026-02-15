@@ -1,8 +1,7 @@
 @model MerchelloProductViewModel
-@using Umbraco.Cms.Core.Models
-@using Umbraco.Cms.Core.Strings
-@using Merchello.Extensions
 @using System.Text.Json
+@using Merchello.Extensions
+@using Umbraco.Cms.Core.Strings
 @inject Umbraco.Cms.Core.PublishedCache.IPublishedMediaCache MediaCache
 @inject Microsoft.Extensions.Options.IOptions<Merchello.Core.Shared.Models.MerchelloSettings> Settings
 @inject Merchello.Services.IRichTextRenderer RichTextRenderer
@@ -14,46 +13,27 @@
     Layout = "~/Views/Website.cshtml";
 
     var viewModel = Model ?? throw new System.InvalidOperationException("MerchelloProductViewModel is required.");
-
     var productRoot = viewModel.ProductRoot ?? throw new System.InvalidOperationException("ProductRoot is required.");
-
     var settings = Settings.Value;
-
-    // Element Type properties (if configured)
-    var heroImage = viewModel.Content.Value<MediaWithCrops>("heroImage");
-    var productGallery = viewModel.Content.Value<IEnumerable<MediaWithCrops>>("productGallery");
-    var subtitle = viewModel.Content.Value<string>("subtitle");
-    var tagline = viewModel.Content.Value<string>("tagline");
     var description = viewModel.Content.Value<IHtmlEncodedString>("productDescription");
-    var features = viewModel.Content.Value<string[]>("usPs");
 
-    // Resolve Merchello images from GUIDs
     var resolvedImages = viewModel.Images.ToMedia(MediaCache).ToList();
+    var firstImageUrl = resolvedImages.FirstOrDefault()?.GetCropUrl(width: 1200) ?? "";
 
-    // Get first image URL for social meta
-    var firstImageUrl = heroImage?.GetCropUrl(width: 1200)
-        ?? resolvedImages.FirstOrDefault()?.GetCropUrl(width: 1200)
-        ?? "";
-
-    // Get customer's shipping location for location-aware stock display
-    var shippingLocation = await StorefrontContext.GetShippingLocationAsync();
-
-    // Get display context for prices (includes currency and tax settings)
     var displayContext = await StorefrontContext.GetDisplayContextAsync();
 
-    // Get applicable tax rate for this product
     decimal taxRate = 0m;
-    if (displayContext.DisplayPricesIncTax && productRoot?.TaxGroupId is Guid taxGroupId)
+    if (displayContext.DisplayPricesIncTax && productRoot.TaxGroupId is Guid taxGroupId)
     {
         taxRate = await TaxService.GetApplicableRateAsync(
             taxGroupId,
             displayContext.TaxCountryCode,
             displayContext.TaxRegionCode);
     }
+
     var taxMultiplier = displayContext.DisplayPricesIncTax ? 1 + (taxRate / 100m) : 1m;
     var includesTax = displayContext.DisplayPricesIncTax && taxRate > 0;
 
-    // Pre-calculate location-aware availability for all variants
     var variantAvailability = new Dictionary<Guid, Merchello.Core.Storefront.Models.ProductLocationAvailability>();
     foreach (var variant in viewModel.AllVariants)
     {
@@ -61,18 +41,13 @@
         variantAvailability[variant.Id] = availability;
     }
 
-    // Get availability for selected variant
     var selectedAvailability = variantAvailability.GetValueOrDefault(viewModel.SelectedVariant.Id);
-
-    // SSR stock calculation - now location-aware
     var ssrTrackStock = viewModel.SelectedVariant.ProductWarehouses.Any(pw => pw.TrackStock);
     var ssrTotalStock = selectedAvailability?.AvailableStock ?? 0;
     var ssrCanShipToLocation = selectedAvailability?.CanShipToLocation ?? false;
     var ssrIsLowStock = ssrTrackStock && ssrTotalStock > 0 && ssrTotalStock <= settings.LowStockThreshold;
     var ssrInStock = ssrCanShipToLocation && (selectedAvailability?.HasStock ?? false);
 
-    // Build selected options from current variant's VariantOptionsKey
-    // The key contains comma-separated value GUIDs
     var selectedOptions = new Dictionary<string, string>();
     if (!string.IsNullOrEmpty(viewModel.SelectedVariant.VariantOptionsKey))
     {
@@ -82,7 +57,6 @@
 
         foreach (var option in viewModel.VariantOptions)
         {
-            // Find which value ID is present in the selected variant key
             var matchingValue = option.ProductOptionValues
                 .FirstOrDefault(v => selectedValueIds.Contains(v.Id.ToString()));
             if (matchingValue != null)
@@ -92,23 +66,26 @@
         }
     }
 
-    // Helper function to calculate display price with tax
     decimal CalculateDisplayPrice(decimal netPrice)
     {
         var priceWithTax = netPrice * taxMultiplier;
         return CurrencyService.Round(priceWithTax * displayContext.ExchangeRate, displayContext.CurrencyCode);
     }
 
-    // Build config for Alpine.js
+    var ssrDisplayPrice = CalculateDisplayPrice(Model.Price);
+    var ssrDisplayPreviousPrice = Model.PreviousPrice.HasValue
+        ? CalculateDisplayPrice(Model.PreviousPrice.Value)
+        : (decimal?)null;
+    var priceFormat = $"N{displayContext.DecimalPlaces}";
+
     var config = new
     {
-        productId = productRoot!.Id.ToString(),
-        selectedVariantId = viewModel.SelectedVariant!.Id.ToString(),
+        productId = productRoot.Id.ToString(),
+        selectedVariantId = viewModel.SelectedVariant.Id.ToString(),
         selectedOptions = selectedOptions,
         productUrl = viewModel.ProductUrl,
         currencySymbol = displayContext.CurrencySymbol,
         lowStockThreshold = settings.LowStockThreshold,
-        // Tax display info
         includesTax = includesTax,
         taxRate = taxRate,
         variants = viewModel.AllVariants.Select(v =>
@@ -122,17 +99,14 @@
                 name = v.Name,
                 price = v.Price,
                 previousPrice = v.PreviousPrice,
-                // Display prices (with tax if applicable, in customer's currency)
                 displayPrice = variantDisplayPrice,
                 displayPreviousPrice = variantDisplayPreviousPrice,
                 formattedDisplayPrice = $"{displayContext.CurrencySymbol}{variantDisplayPrice.ToString($"N{displayContext.DecimalPlaces}")}",
                 formattedDisplayPreviousPrice = variantDisplayPreviousPrice.HasValue ? $"{displayContext.CurrencySymbol}{variantDisplayPreviousPrice.Value.ToString($"N{displayContext.DecimalPlaces}")}" : null,
                 onSale = v.OnSale,
-                // Location-aware: only available if can ship AND has stock at location
                 availableForPurchase = avail?.CanShipToLocation == true && avail?.HasStock == true,
                 canShipToLocation = avail?.CanShipToLocation ?? false,
                 trackStock = v.ProductWarehouses.Any(pw => pw.TrackStock),
-                // Location-aware stock (only from warehouses that can ship to customer)
                 totalStock = avail?.AvailableStock ?? 0,
                 showStockLevels = avail?.ShowStockLevels ?? false,
                 sku = v.Sku,
@@ -148,58 +122,57 @@
         variantOptions = viewModel.VariantOptions
             .OrderBy(o => o.SortOrder)
             .Select(o => new
-        {
-            id = o.Id.ToString(),
-            name = o.Name,
-            alias = o.Alias ?? o.Id.ToString(),
-            sortOrder = o.SortOrder,
-            uiType = o.OptionUiAlias ?? "dropdown",
-            values = o.ProductOptionValues.Select(v => new
             {
-                id = v.Id.ToString(),
-                name = v.Name,
-                hexValue = v.HexValue,
-                mediaUrl = v.MediaKey.HasValue
-                    ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 800)
-                    : null
-            }).ToList()
-        }).ToList(),
-        addonOptions = viewModel.AddOnOptions
-            .OrderBy(o => o.SortOrder)
-            .Select(o => new
-        {
-            id = o.Id.ToString(),
-            name = o.Name,
-            alias = o.Alias,
-            uiType = o.OptionUiAlias ?? "checkbox",
-            isMultiSelect = o.IsMultiSelect,
-            isRequired = o.IsRequired,
-            values = o.ProductOptionValues.Select(v =>
-            {
-                var addonDisplayPrice = CalculateDisplayPrice(v.PriceAdjustment);
-                return new
+                id = o.Id.ToString(),
+                name = o.Name,
+                alias = o.Alias ?? o.Id.ToString(),
+                sortOrder = o.SortOrder,
+                uiType = o.OptionUiAlias ?? "dropdown",
+                values = o.ProductOptionValues.Select(v => new
                 {
                     id = v.Id.ToString(),
                     name = v.Name,
-                    priceAdjustment = v.PriceAdjustment,
-                    // Display price adjustment (with tax if applicable, in customer's currency)
-                    displayPriceAdjustment = addonDisplayPrice,
-                    formattedDisplayPriceAdjustment = v.PriceAdjustment >= 0
-                        ? $"+{displayContext.CurrencySymbol}{addonDisplayPrice.ToString($"N{displayContext.DecimalPlaces}")}"
-                        : $"-{displayContext.CurrencySymbol}{Math.Abs(addonDisplayPrice).ToString($"N{displayContext.DecimalPlaces}")}",
                     hexValue = v.HexValue,
                     mediaUrl = v.MediaKey.HasValue
                         ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 800)
                         : null
-                };
+                }).ToList()
+            }).ToList(),
+        addonOptions = viewModel.AddOnOptions
+            .OrderBy(o => o.SortOrder)
+            .Select(o => new
+            {
+                id = o.Id.ToString(),
+                name = o.Name,
+                alias = o.Alias,
+                uiType = o.OptionUiAlias ?? "checkbox",
+                isMultiSelect = o.IsMultiSelect,
+                isRequired = o.IsRequired,
+                values = o.ProductOptionValues.Select(v =>
+                {
+                    var addonDisplayPrice = CalculateDisplayPrice(v.PriceAdjustment);
+                    return new
+                    {
+                        id = v.Id.ToString(),
+                        name = v.Name,
+                        priceAdjustment = v.PriceAdjustment,
+                        displayPriceAdjustment = addonDisplayPrice,
+                        formattedDisplayPriceAdjustment = v.PriceAdjustment >= 0
+                            ? $"+{displayContext.CurrencySymbol}{addonDisplayPrice.ToString($"N{displayContext.DecimalPlaces}")}"
+                            : $"-{displayContext.CurrencySymbol}{Math.Abs(addonDisplayPrice).ToString($"N{displayContext.DecimalPlaces}")}",
+                        hexValue = v.HexValue,
+                        mediaUrl = v.MediaKey.HasValue
+                            ? MediaCache.GetById(v.MediaKey.Value)?.GetCropUrl(width: 800)
+                            : null
+                    };
+                }).ToList()
             }).ToList()
-        }).ToList()
     };
+
     var configJson = JsonSerializer.Serialize(config, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 }
 
 @section Head {
-    <!-- SEO Meta -->
     @if (!string.IsNullOrEmpty(Model.MetaDescription))
     {
         <meta name="description" content="@Model.MetaDescription" />
@@ -209,7 +182,6 @@
         <link rel="canonical" href="@Model.CanonicalUrl" />
     }
 
-    <!-- OpenGraph -->
     <meta property="og:title" content="@Model.MetaTitle" />
     <meta property="og:description" content="@(Model.MetaDescription ?? "")" />
     <meta property="og:image" content="@firstImageUrl" />
@@ -226,7 +198,6 @@
         <meta property="product:availability" content="out of stock" />
     }
 
-    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="@Model.MetaTitle" />
     <meta name="twitter:description" content="@(Model.MetaDescription ?? "")" />
@@ -234,7 +205,6 @@
 
     <title>@Model.MetaTitle</title>
 
-    <!-- JSON-LD Product Schema -->
     @{
         var schemaAvailability = ssrInStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock";
         var schemaCondition = "https://schema.org/NewCondition";
@@ -258,7 +228,7 @@
         };
         var schemaJson = JsonSerializer.Serialize(productSchema, new JsonSerializerOptions
         {
-            PropertyNamingPolicy = null, // Keep property names as-is
+            PropertyNamingPolicy = null,
             WriteIndented = false
         });
     }
@@ -266,7 +236,6 @@
 }
 
 <div x-data='productPage(@Html.Raw(configJson))' class="product-detail">
-    <!-- Breadcrumbs -->
     <nav aria-label="breadcrumb" class="mb-4">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="/">Home</a></li>
@@ -275,265 +244,29 @@
     </nav>
 
     <div class="row">
-        <!-- Product Images -->
-        <div class="col-lg-6 mb-4">
-            <!-- Dynamic Image Gallery (Alpine.js) -->
-            <template x-if="images.length > 0">
-                <div>
-                    <!-- Main Image Swiper -->
-                    <div class="swiper product-gallery-main mb-3" x-ref="galleryMain">
-                        <div class="swiper-wrapper">
-                            <template x-for="(image, index) in images" :key="index">
-                                <div class="swiper-slide">
-                                    <img :src="image" alt="@Model.ProductRoot.RootName" class="img-fluid rounded" />
-                                </div>
-                            </template>
-                        </div>
-                        <div class="swiper-button-prev"></div>
-                        <div class="swiper-button-next"></div>
-                    </div>
-
-                    <!-- Thumbnail Swiper -->
-                    <template x-if="images.length > 1">
-                        <div class="swiper product-gallery-thumbs" x-ref="galleryThumbs">
-                            <div class="swiper-wrapper">
-                                <template x-for="(image, index) in images" :key="'thumb-' + index">
-                                    <div class="swiper-slide">
-                                        <img :src="image" alt="@Model.ProductRoot.RootName" class="img-fluid rounded" />
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </template>
-
-            <!-- Placeholder when no images -->
-            <template x-if="images.length === 0">
-                <div class="product-placeholder bg-light d-flex align-items-center justify-content-center rounded" style="aspect-ratio: 1;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" fill="currentColor" class="text-muted" viewBox="0 0 16 16">
-                        <path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0"/>
-                        <path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1z"/>
-                    </svg>
-                </div>
-            </template>
-        </div>
-
-        <!-- Product Info -->
-        <div class="col-lg-6">
-            <h1 class="h2 mb-2">@Model.ProductRoot.RootName</h1>
-
-            @if (!string.IsNullOrEmpty(subtitle))
+        @await Html.PartialAsync("~/Views/Products/Partials/_ProductGallery.cshtml", Model)
+        @await Html.PartialAsync(
+            "~/Views/Products/Partials/_ProductPurchasePanel.cshtml",
+            Model,
+            new ViewDataDictionary(ViewData)
             {
-                <p class="text-muted mb-2">@subtitle</p>
-            }
-
-            @if (!string.IsNullOrEmpty(tagline))
-            {
-                <p class="fst-italic text-secondary mb-3">@tagline</p>
-            }
-
-            <!-- SKU -->
-            <p class="text-muted small mb-3">
-                SKU: <span x-text="sku">@Model.SelectedVariant.Sku</span>
-            </p>
-
-            <!-- Pricing -->
-            @{
-                // Calculate display prices for SSR fallback (with tax if applicable)
-                var ssrDisplayPrice = CalculateDisplayPrice(Model.Price);
-                var ssrDisplayPreviousPrice = Model.PreviousPrice.HasValue
-                    ? CalculateDisplayPrice(Model.PreviousPrice.Value)
-                    : (decimal?)null;
-                var priceFormat = $"N{displayContext.DecimalPlaces}";
-            }
-            <div class="pricing mb-3">
-                <span class="h3 text-dark" x-text="formattedDisplayTotalPrice">@displayContext.CurrencySymbol@ssrDisplayPrice.ToString(priceFormat)</span>
-                @* SSR fallback for sale - x-cloak hides until Alpine loads, then Alpine controls visibility *@
-                <span class="text-decoration-line-through text-muted ms-2"
-                      x-show="onSale && displayPreviousPrice"
-                      x-text="formattedDisplayPreviousPrice"
-                      @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && ssrDisplayPreviousPrice.HasValue ? $"{displayContext.CurrencySymbol}{ssrDisplayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
-                <span class="badge bg-danger ms-2"
-                      x-show="onSale"
-                      @(Model.OnSale ? "" : "x-cloak")>Sale</span>
-                @* Tax indicator when prices include tax *@
-                @if (includesTax)
-                {
-                    <span class="text-muted small ms-2" x-show="includesTax">(inc. @taxRate% VAT)</span>
-                }
-            </div>
-
-            <!-- Stock Status - SSR fallback shown until Alpine takes over -->
-            <div class="stock-status mb-4">
-                @* SSR fallback for initial page load (visible to search engines) *@
-                <noscript>
-                    @if (ssrInStock && ssrIsLowStock && settings.ShowStockLevels)
-                    {
-                        <span class="text-warning">Low Stock - Only @ssrTotalStock left!</span>
-                    }
-                    else if (ssrInStock && ssrTrackStock && settings.ShowStockLevels)
-                    {
-                        <span class="text-success">In Stock (@ssrTotalStock available)</span>
-                    }
-                    else if (ssrInStock)
-                    {
-                        <span class="text-success">In Stock</span>
-                    }
-                    else
-                    {
-                        <span class="text-danger">Out of Stock</span>
-                    }
-                </noscript>
-
-                @* Low Stock (only show count if showStockLevels enabled) *@
-                <span class="text-warning"
-                      x-show="inStock && trackStock && showStockLevels && stockCount <= lowStockThreshold"
-                      @(ssrInStock && ssrIsLowStock && settings.ShowStockLevels ? "" : "x-cloak")>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-exclamation-triangle me-1" viewBox="0 0 16 16">
-                        <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.15.15 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.2.2 0 0 1-.054.06.1.1 0 0 1-.066.017H1.146a.1.1 0 0 1-.066-.017.2.2 0 0 1-.054-.06.18.18 0 0 1 .002-.183L7.884 2.073a.15.15 0 0 1 .054-.057m1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767z"/>
-                        <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z"/>
-                    </svg>
-                    Low Stock - Only <span x-text="stockCount">@ssrTotalStock</span> left!
-                </span>
-
-                @* In Stock with count (when showStockLevels enabled) *@
-                <span class="text-success"
-                      x-show="inStock && trackStock && showStockLevels && stockCount > lowStockThreshold"
-                      @(ssrInStock && ssrTrackStock && settings.ShowStockLevels && !ssrIsLowStock ? "" : "x-cloak")>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
-                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-                        <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
-                    </svg>
-                    In Stock (<span x-text="stockCount">@ssrTotalStock</span> available)
-                </span>
-
-                @* In Stock without count (when showStockLevels disabled OR untracked stock) *@
-                <span class="text-success"
-                      x-show="inStock && (!trackStock || !showStockLevels)"
-                      @(ssrInStock && (!ssrTrackStock || !settings.ShowStockLevels) ? "" : "x-cloak")>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
-                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-                        <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
-                    </svg>
-                    In Stock
-                </span>
-
-                @* Out of Stock (can ship to location but no stock) *@
-                <span class="text-danger"
-                      x-show="!inStock && canShipToLocation"
-                      @(!ssrInStock && ssrCanShipToLocation ? "" : "x-cloak")>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
-                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
-                    </svg>
-                    Out of Stock
-                </span>
-
-                @* Not available in customer's location *@
-                <span class="text-danger"
-                      x-show="!canShipToLocation"
-                      @(!ssrCanShipToLocation ? "" : "x-cloak")>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-geo-alt me-1" viewBox="0 0 16 16">
-                        <path d="M12.166 8.94c-.524 1.062-1.234 2.12-1.96 3.07A32 32 0 0 1 8 14.58a32 32 0 0 1-2.206-2.57c-.726-.95-1.436-2.008-1.96-3.07C3.304 7.867 3 6.862 3 6a5 5 0 0 1 10 0c0 .862-.305 1.867-.834 2.94M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10"/>
-                        <path d="M8 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4m0 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
-                    </svg>
-                    Not available in <span x-text="$store.country.name">your location</span>
-                </span>
-            </div>
-
-            <!-- Variant Options -->
-            @if (Model.AllVariants.Count > 1 && Model.VariantOptions.Any())
-            {
-                <div class="variant-options mb-4">
-                    @foreach (var option in Model.VariantOptions.OrderBy(o => o.SortOrder))
-                    {
-                        @await Component.InvokeAsync("ProductOptionSelector", new { option = option })
-                    }
-                </div>
-            }
-
-            <!-- Add-on Options -->
-            @if (Model.AddOnOptions.Any())
-            {
-                <div class="addon-options card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title mb-3">Customization Options</h5>
-
-                        @foreach (var option in Model.AddOnOptions.OrderBy(o => o.SortOrder))
-                        {
-                            @await Component.InvokeAsync("ProductAddonSelector", new { option = option, taxRate = taxRate })
-                        }
-                    </div>
-                </div>
-            }
-
-            <!-- Quantity & Add to Cart -->
-            <div class="add-to-cart-section">
-                <div class="row g-3 align-items-end">
-                    <div class="col-auto">
-                        <label class="form-label">Quantity</label>
-                        <div class="input-group quantity-selector">
-                            <button type="button"
-                                    class="btn btn-outline-secondary"
-                                    @@click="decrementQuantity()"
-                                    :disabled="quantity <= 1">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8"/>
-                                </svg>
-                            </button>
-                            <input type="number"
-                                   class="form-control text-center"
-                                   x-model.number="quantity"
-                                   min="1"
-                                   :max="maxQuantity"
-                                   style="width: 60px;" />
-                            <button type="button"
-                                    class="btn btn-outline-secondary"
-                                    @@click="incrementQuantity()"
-                                    :disabled="quantity >= maxQuantity">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="col">
-                        <button type="button"
-                                class="btn btn-lg w-100"
-                                :class="inStock ? 'btn-primary' : 'btn-secondary'"
-                                :disabled="!inStock || isLoading"
-                                @@click="addToCart()">
-                            <span x-show="!isLoading && inStock">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
-                                    <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5M3.102 4l1.313 7h8.17l1.313-7zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4m7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2m7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
-                                </svg>
-                                Add to Basket
-                            </span>
-                            <span x-show="!isLoading && !inStock"
-                                  @(!ssrInStock ? "" : "x-cloak")>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
-                                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
-                                    <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
-                                </svg>
-                                Out of Stock
-                            </span>
-                            <span x-show="isLoading" x-cloak>
-                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                Adding...
-                            </span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+                ["Settings"] = settings,
+                ["DisplayContext"] = displayContext,
+                ["IncludesTax"] = includesTax,
+                ["TaxRate"] = taxRate,
+                ["SsrTrackStock"] = ssrTrackStock,
+                ["SsrTotalStock"] = ssrTotalStock,
+                ["SsrCanShipToLocation"] = ssrCanShipToLocation,
+                ["SsrIsLowStock"] = ssrIsLowStock,
+                ["SsrInStock"] = ssrInStock,
+                ["SsrDisplayPrice"] = ssrDisplayPrice,
+                ["SsrDisplayPreviousPrice"] = ssrDisplayPreviousPrice,
+                ["PriceFormat"] = priceFormat
+            })
     </div>
 
-    <!-- Product Description -->
     @{
-        // Element type description (already rendered by Umbraco)
         var hasElementDescription = description != null;
-        // ProductRoot description (stored as TipTap JSON, needs rendering)
         var hasRootDescription = !string.IsNullOrEmpty(Model.ProductRoot.Description);
     }
     @if (hasElementDescription || hasRootDescription)
@@ -553,49 +286,5 @@
         </section>
     }
 
-    <!-- Features -->
-    @if (features?.Any() == true)
-    {
-        <section class="product-features mt-5 pt-4 border-top">
-            <h2 class="h4 mb-3">Features</h2>
-            @foreach (var feature in features)
-            {
-                @Html.Raw(feature)
-            }
-        </section>
-    }
-
-    <!-- Upsell Suggestions -->
-    <template x-if="upsellSuggestions.length > 0">
-        <div>
-            <template x-for="suggestion in upsellSuggestions" :key="suggestion.upsellRuleId">
-                <section class="product-upsells mt-5 pt-4 border-top">
-                    <h2 class="h4 mb-3" x-text="suggestion.heading"></h2>
-                    <template x-if="suggestion.message">
-                        <p class="text-muted mb-3" x-text="suggestion.message"></p>
-                    </template>
-                    <div class="row g-3">
-                        <template x-for="product in suggestion.products" :key="product.productId">
-                            <div class="col-6 col-md-3">
-                                <a :href="product.url || '#'"
-                                   class="card text-decoration-none h-100"
-                                   @@click="trackProductUpsellClick(suggestion.upsellRuleId, product.productId)">
-                                    <template x-if="product.imageUrl">
-                                        <img :src="product.imageUrl" :alt="product.name" class="card-img-top" style="height: 180px; object-fit: contain; padding: 1rem;">
-                                    </template>
-                                    <div class="card-body text-center">
-                                        <h6 class="card-title" x-text="product.name"></h6>
-                                        <div class="text-primary fw-bold" x-text="product.formattedPrice"></div>
-                                        <template x-if="product.onSale && product.formattedPreviousPrice">
-                                            <div class="text-muted text-decoration-line-through small" x-text="product.formattedPreviousPrice"></div>
-                                        </template>
-                                    </div>
-                                </a>
-                            </div>
-                        </template>
-                    </div>
-                </section>
-            </template>
-        </div>
-    </template>
+    @await Html.PartialAsync("~/Views/Products/Partials/_ProductUpsells.cshtml", Model)
 </div>

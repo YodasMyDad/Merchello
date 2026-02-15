@@ -1409,7 +1409,7 @@ public class InvoiceService(
             }
 
             // Apply ordering
-            query = ApplyOrdering(query, parameters.OrderBy);
+            query = ApplyOrdering(query, parameters.OrderBy, db.Database.IsSqlite());
 
             // Branch based on whether payment status filtering is needed
             if (hasPaymentFilter)
@@ -1496,14 +1496,20 @@ public class InvoiceService(
         return result;
     }
 
-    private static IQueryable<Invoice> ApplyOrdering(IQueryable<Invoice> query, InvoiceOrderBy orderBy)
+    private static IQueryable<Invoice> ApplyOrdering(IQueryable<Invoice> query, InvoiceOrderBy orderBy, bool isSqlite)
     {
         return orderBy switch
         {
             InvoiceOrderBy.DateAsc => query.OrderBy(i => i.DateCreated),
             InvoiceOrderBy.DateDesc => query.OrderByDescending(i => i.DateCreated),
-            InvoiceOrderBy.TotalAsc => query.OrderBy(i => i.TotalInStoreCurrency ?? i.Total),
-            InvoiceOrderBy.TotalDesc => query.OrderByDescending(i => i.TotalInStoreCurrency ?? i.Total),
+            // SQLite decimal ordering can translate to ef_compare, which may be unavailable
+            // in some runtime setups. Cast to double for provider-safe ordering.
+            InvoiceOrderBy.TotalAsc => isSqlite
+                ? query.OrderBy(i => (double)(i.TotalInStoreCurrency ?? i.Total))
+                : query.OrderBy(i => i.TotalInStoreCurrency ?? i.Total),
+            InvoiceOrderBy.TotalDesc => isSqlite
+                ? query.OrderByDescending(i => (double)(i.TotalInStoreCurrency ?? i.Total))
+                : query.OrderByDescending(i => i.TotalInStoreCurrency ?? i.Total),
             InvoiceOrderBy.CustomerAsc => query.OrderBy(i => i.BillingAddress.Name),
             InvoiceOrderBy.CustomerDesc => query.OrderByDescending(i => i.BillingAddress.Name),
             InvoiceOrderBy.InvoiceNumberAsc => query.OrderBy(i => i.InvoiceNumber),

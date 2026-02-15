@@ -1,4 +1,139 @@
 /* ==========================================================================
+   Site Layout
+   ========================================================================== */
+
+:root {
+    --site-ink: #101419;
+    --site-paper: #f7f6f2;
+    --site-accent: #d3482b;
+    --site-border: #d8d4cb;
+}
+
+body {
+    background-color: var(--site-paper);
+    color: var(--site-ink);
+}
+
+.site-header {
+    background: linear-gradient(135deg, #fff8ec 0%, #f5eee4 100%);
+}
+
+.site-footer {
+    background: linear-gradient(135deg, #fff8ec 0%, #f5eee4 100%);
+    color: var(--site-ink);
+    border-color: var(--site-border) !important;
+}
+
+.site-footer h5,
+.site-footer p {
+    color: inherit;
+}
+
+.site-footer-muted {
+    color: #5a646e !important;
+}
+
+.site-header-top {
+    min-height: 2.75rem;
+}
+
+.site-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    color: var(--site-ink);
+    font-weight: 700;
+}
+
+.site-brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1px solid var(--site-border);
+    background-color: #fff;
+}
+
+.site-brand-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.site-brand-text {
+    letter-spacing: 0.02em;
+}
+
+.site-header-nav {
+    border-top: 1px solid var(--site-border);
+    padding-top: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.site-nav-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.65rem;
+    border-radius: 999px;
+    color: #2c363f;
+    font-size: 0.9rem;
+    text-decoration: none;
+}
+
+.site-nav-link:hover {
+    background-color: rgba(0, 0, 0, 0.07);
+    color: var(--site-ink);
+}
+
+.site-header .dropdown-toggle::after {
+    margin-left: 0.35rem;
+}
+
+.site-header-utility .btn {
+    border-radius: 999px;
+}
+
+.site-header-utility .dropdown-menu {
+    min-width: 14rem;
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+.site-header .badge {
+    font-size: 0.68rem;
+}
+
+#siteNav .list-group-item {
+    border-left: 0;
+    border-right: 0;
+}
+
+#siteNav .list-group-item:first-child {
+    border-top: 0;
+}
+
+@media (max-width: 991.98px) {
+    .site-brand-text {
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .site-header-utility {
+        gap: 0.45rem !important;
+    }
+
+    .site-header-utility .btn {
+        padding-left: 0.6rem;
+        padding-right: 0.6rem;
+    }
+}
+
+/* ==========================================================================
    Category Page - Price Range Slider
    ========================================================================== */
 

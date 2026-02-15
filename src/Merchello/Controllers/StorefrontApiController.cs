@@ -1,22 +1,19 @@
 using Merchello.Core;
-using Merchello.Core.Accounting.Extensions;
-using Merchello.Core.Checkout.Dtos;
-using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
-using Merchello.Core.Warehouses.Services.Interfaces;
-using Merchello.Core.Warehouses.Services.Parameters;
-using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Dtos;
-using Merchello.Core.Shared.Dtos;
+using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Core.Storefront.Services.Parameters;
-using Merchello.Core.Shared.Providers;
+using Merchello.Core.Warehouses.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Parameters;
+using Merchello.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -33,7 +30,7 @@ public class StorefrontApiController(
     IProductService productService,
     ILocationsService locationsService,
     ICurrencyService currencyService,
-    ICurrencyConversionService currencyConversion,
+    IStorefrontDtoMapper storefrontDtoMapper,
     IOptions<MerchelloSettings> settings) : ControllerBase
 {
     private readonly MerchelloSettings _settings = settings.Value;
@@ -54,138 +51,47 @@ public class StorefrontApiController(
 
         if (!result.Success)
         {
-            return BadRequest(new BasketOperationResultDto
-            {
-                Success = false,
-                Message = result.ErrorMessage ?? "Failed to add item to basket"
-            });
+            return BadRequest(
+                storefrontDtoMapper.MapBasketOperationResult(
+                    false,
+                    result.ErrorMessage ?? "Failed to add item to basket",
+                    null,
+                    _settings.CurrencySymbol));
         }
 
-        return Ok(new BasketOperationResultDto
-        {
-            Success = true,
-            Message = "Added to basket",
-            ItemCount = result.Basket.GetStorefrontItemCount(),
-            Total = result.Total,
-            FormattedTotal = result.Total.FormatWithSymbol(_settings.CurrencySymbol)
-        });
+        return Ok(
+            storefrontDtoMapper.MapBasketOperationResult(
+                true,
+                "Added to basket",
+                result.Basket,
+                _settings.CurrencySymbol));
     }
 
     /// <summary>
     /// Get full basket with all line items
     /// </summary>
     [HttpGet("basket")]
-    public async Task<IActionResult> GetBasket(CancellationToken ct)
+    public async Task<IActionResult> GetBasket(
+        CancellationToken ct,
+        [FromQuery] bool includeAvailability = false,
+        [FromQuery] string? countryCode = null,
+        [FromQuery] string? regionCode = null)
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-
-        // Get full display context for currency conversion and tax-inclusive settings
         var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
-        var rate = displayContext.ExchangeRate;
-        var symbol = displayContext.CurrencySymbol;
 
-        if (basket == null || basket.LineItems.Count == 0)
+        if (!includeAvailability || basket == null || basket.LineItems.Count == 0)
         {
-            return Ok(new StorefrontBasketDto
-            {
-                IsEmpty = true,
-                CurrencySymbol = _settings.CurrencySymbol,
-                DisplayCurrencyCode = displayContext.CurrencyCode,
-                DisplayCurrencySymbol = symbol,
-                ExchangeRate = rate,
-                DisplayPricesIncTax = displayContext.DisplayPricesIncTax,
-                IsTaxEstimated = false
-            });
+            return Ok(storefrontDtoMapper.MapBasket(basket, displayContext, _settings.CurrencySymbol));
         }
 
-        // Use centralized method for basket totals (includes tax-inclusive calculations)
-        var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
+        var availability = await storefrontContext.GetBasketAvailabilityAsync(
+            basket.LineItems,
+            countryCode,
+            regionCode,
+            ct);
 
-        // Use centralized currency conversion service for line items
-        var items = basket.LineItems.Select(li =>
-        {
-            var displayUnitPrice = li.GetDisplayLineItemUnitPrice(displayContext, currencyService);
-            var displayLineTotal = li.GetDisplayLineItemTotal(displayContext, currencyService);
-            var displayUnitPriceWithAddons = li.GetDisplayLineItemUnitPriceWithAddons(
-                basket.LineItems,
-                displayContext,
-                currencyService);
-            var displayLineTotalWithAddons = li.GetDisplayLineItemTotalWithAddons(
-                basket.LineItems,
-                displayContext,
-                currencyService);
-
-            return new StorefrontLineItemDto
-            {
-                Id = li.Id,
-                Sku = li.Sku ?? "",
-                Name = li.Name ?? "",
-                ProductRootName = li.GetProductRootName(),
-                SelectedOptions = li.GetSelectedOptions()
-                    .Select(o => new SelectedOptionDto
-                    {
-                        OptionName = o.OptionName,
-                        ValueName = o.ValueName
-                    }).ToList(),
-                Quantity = li.Quantity,
-                UnitPrice = li.Amount,
-                LineTotal = li.Amount * li.Quantity,
-                FormattedUnitPrice = currencyConversion.Format(li.Amount, _settings.CurrencySymbol),
-                FormattedLineTotal = currencyConversion.Format(li.Amount * li.Quantity, _settings.CurrencySymbol),
-                DisplayUnitPrice = displayUnitPrice,
-                DisplayLineTotal = displayLineTotal,
-                FormattedDisplayUnitPrice = currencyConversion.Format(displayUnitPrice, symbol),
-                FormattedDisplayLineTotal = currencyConversion.Format(displayLineTotal, symbol),
-                DisplayUnitPriceWithAddons = displayUnitPriceWithAddons,
-                DisplayLineTotalWithAddons = displayLineTotalWithAddons,
-                FormattedDisplayUnitPriceWithAddons = currencyConversion.Format(displayUnitPriceWithAddons, symbol),
-                FormattedDisplayLineTotalWithAddons = currencyConversion.Format(displayLineTotalWithAddons, symbol),
-                LineItemType = li.LineItemType.ToString(),
-                DependantLineItemSku = li.DependantLineItemSku,
-                ParentLineItemId = li.GetParentLineItemId()?.ToString()
-            };
-        }).ToList();
-
-        return Ok(new StorefrontBasketDto
-        {
-            Items = items,
-            SubTotal = basket.SubTotal,
-            Discount = basket.Discount,
-            Tax = basket.Tax,
-            Shipping = basket.Shipping,
-            Total = basket.Total,
-            IsTaxEstimated = basket.IsTaxEstimated,
-            TaxEstimationReason = basket.TaxEstimationReason,
-            FormattedSubTotal = currencyConversion.Format(basket.SubTotal, _settings.CurrencySymbol),
-            FormattedDiscount = currencyConversion.Format(basket.Discount, _settings.CurrencySymbol),
-            FormattedTax = currencyConversion.Format(basket.Tax, _settings.CurrencySymbol),
-            FormattedTotal = currencyConversion.Format(basket.Total, _settings.CurrencySymbol),
-            CurrencySymbol = _settings.CurrencySymbol,
-            DisplaySubTotal = displayAmounts.SubTotal,
-            DisplayDiscount = displayAmounts.Discount,
-            DisplayTax = displayAmounts.Tax,
-            DisplayShipping = displayAmounts.Shipping,
-            DisplayTotal = displayAmounts.Total,
-            FormattedDisplaySubTotal = currencyConversion.Format(displayAmounts.SubTotal, symbol),
-            FormattedDisplayDiscount = currencyConversion.Format(displayAmounts.Discount, symbol),
-            FormattedDisplayTax = currencyConversion.Format(displayAmounts.Tax, symbol),
-            FormattedDisplayShipping = currencyConversion.Format(displayAmounts.Shipping, symbol),
-            FormattedDisplayTotal = currencyConversion.Format(displayAmounts.Total, symbol),
-            DisplayCurrencyCode = displayContext.CurrencyCode,
-            DisplayCurrencySymbol = symbol,
-            ExchangeRate = rate,
-            // Tax-inclusive display properties (use reconciled values from DisplayAmounts)
-            DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
-            TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
-            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(displayAmounts.TaxInclusiveSubTotal, symbol),
-            TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
-            FormattedTaxInclusiveDisplayShipping = currencyConversion.Format(displayAmounts.TaxInclusiveShipping, symbol),
-            TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
-            FormattedTaxInclusiveDisplayDiscount = currencyConversion.Format(displayAmounts.TaxInclusiveDiscount, symbol),
-            TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
-            ItemCount = basket.GetStorefrontItemCount(),
-            IsEmpty = false
-        });
+        return Ok(storefrontDtoMapper.MapBasket(basket, displayContext, _settings.CurrencySymbol, availability));
     }
 
     /// <summary>
@@ -195,15 +101,7 @@ public class StorefrontApiController(
     public async Task<IActionResult> GetBasketCount(CancellationToken ct)
     {
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var itemCount = basket.GetStorefrontItemCount();
-        var total = basket?.Total ?? 0;
-
-        return Ok(new BasketCountDto
-        {
-            ItemCount = itemCount,
-            Total = total,
-            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
-        });
+        return Ok(storefrontDtoMapper.MapBasketCount(basket, _settings.CurrencySymbol));
     }
 
     /// <summary>
@@ -215,17 +113,12 @@ public class StorefrontApiController(
         await checkoutService.UpdateLineItemQuantity(request.LineItemId, request.Quantity, null, ct);
 
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var itemCount = basket.GetStorefrontItemCount();
-        var total = basket?.Total ?? 0;
-
-        return Ok(new BasketOperationResultDto
-        {
-            Success = true,
-            Message = "Quantity updated",
-            ItemCount = itemCount,
-            Total = total,
-            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
-        });
+        return Ok(
+            storefrontDtoMapper.MapBasketOperationResult(
+                true,
+                "Quantity updated",
+                basket,
+                _settings.CurrencySymbol));
     }
 
     /// <summary>
@@ -237,17 +130,32 @@ public class StorefrontApiController(
         await checkoutService.RemoveLineItem(lineItemId, null, ct);
 
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var itemCount = basket.GetStorefrontItemCount();
-        var total = basket?.Total ?? 0;
+        return Ok(
+            storefrontDtoMapper.MapBasketOperationResult(
+                true,
+                "Item removed",
+                basket,
+                _settings.CurrencySymbol));
+    }
 
-        return Ok(new BasketOperationResultDto
+    /// <summary>
+    /// Clear the current basket (headless convenience endpoint).
+    /// </summary>
+    [HttpPost("basket/clear")]
+    public async Task<IActionResult> ClearBasket(CancellationToken ct)
+    {
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+        if (basket != null)
         {
-            Success = true,
-            Message = "Item removed",
-            ItemCount = itemCount,
-            Total = total,
-            FormattedTotal = total.FormatWithSymbol(_settings.CurrencySymbol)
-        });
+            await checkoutService.DeleteBasket(basket.Id, ct);
+        }
+
+        return Ok(
+            storefrontDtoMapper.MapBasketOperationResult(
+                true,
+                "Basket cleared",
+                null,
+                _settings.CurrencySymbol));
     }
 
 
@@ -265,27 +173,24 @@ public class StorefrontApiController(
         var current = await storefrontContext.GetShippingLocationAsync(ct);
         var currency = await storefrontContext.GetCurrencyAsync(ct);
 
-        return Ok(new ShippingCountriesDto
-        {
-            Countries = countries.Select(c => new CountryDto
-            {
-                Code = c.Code,
-                Name = c.Name
-            }).ToList(),
-            Current = new CountryDto
-            {
-                Code = current.CountryCode,
-                Name = current.CountryName
-            },
-            CurrentRegionCode = current.RegionCode,
-            CurrentRegionName = current.RegionName,
-            Currency = new StorefrontCurrencyDto
-            {
-                CurrencyCode = currency.CurrencyCode,
-                CurrencySymbol = currency.CurrencySymbol,
-                DecimalPlaces = currency.DecimalPlaces
-            }
-        });
+        return Ok(storefrontDtoMapper.MapShippingCountries(countries, current, currency));
+    }
+
+    /// <summary>
+    /// Headless bootstrap endpoint returning location, currency, and basket summary in one call.
+    /// </summary>
+    [HttpGet("context")]
+    public async Task<IActionResult> GetContext(CancellationToken ct)
+    {
+        var location = await storefrontContext.GetShippingLocationAsync(ct);
+        var currency = await storefrontContext.GetCurrencyAsync(ct);
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+
+        return Ok(storefrontDtoMapper.MapStorefrontContext(
+            location,
+            currency,
+            basket,
+            _settings.CurrencySymbol));
     }
 
     /// <summary>
@@ -337,13 +242,7 @@ public class StorefrontApiController(
             return BadRequest(new { message = conversionResult.Messages.FirstOrDefault()?.Message ?? "Currency change failed" });
         }
 
-        return Ok(new SetCountryResultDto
-        {
-            CountryCode = country.Code,
-            CountryName = country.Name,
-            CurrencyCode = currency.CurrencyCode,
-            CurrencySymbol = currency.CurrencySymbol
-        });
+        return Ok(storefrontDtoMapper.MapSetCountryResult(country, currency));
     }
 
     /// <summary>
@@ -353,13 +252,7 @@ public class StorefrontApiController(
     public async Task<IActionResult> GetCurrency(CancellationToken ct)
     {
         var currency = await storefrontContext.GetCurrencyAsync(ct);
-
-        return Ok(new StorefrontCurrencyDto
-        {
-            CurrencyCode = currency.CurrencyCode,
-            CurrencySymbol = currency.CurrencySymbol,
-            DecimalPlaces = currency.DecimalPlaces
-        });
+        return Ok(storefrontDtoMapper.MapCurrency(currency));
     }
 
     /// <summary>
@@ -383,12 +276,10 @@ public class StorefrontApiController(
 
         var currencyInfo = currencyService.GetCurrency(request.CurrencyCode);
 
-        return Ok(new StorefrontCurrencyDto
-        {
-            CurrencyCode = currencyInfo.Code,
-            CurrencySymbol = currencyInfo.Symbol,
-            DecimalPlaces = currencyInfo.DecimalPlaces
-        });
+        return Ok(storefrontDtoMapper.MapCurrency(new StorefrontCurrency(
+            currencyInfo.Code,
+            currencyInfo.Symbol,
+            currencyInfo.DecimalPlaces)));
     }
 
     /// <summary>
@@ -400,13 +291,7 @@ public class StorefrontApiController(
         var regions = await locationsService.GetAvailableRegionsAsync(
             new GetAvailableRegionsParameters { CountryCode = countryCode },
             ct);
-
-        return Ok(regions.Select(r => new RegionDto
-        {
-            CountryCode = countryCode,
-            RegionCode = r.RegionCode,
-            Name = r.Name
-        }).ToList());
+        return Ok(storefrontDtoMapper.MapRegions(countryCode, regions));
     }
 
     /// <summary>
@@ -443,14 +328,7 @@ public class StorefrontApiController(
                 Quantity = quantity
             }, ct);
 
-        return Ok(new ProductAvailabilityDto
-        {
-            CanShipToCountry = availability.CanShipToLocation,
-            HasStock = availability.HasStock,
-            AvailableStock = availability.AvailableStock,
-            Message = availability.StatusMessage,
-            ShowStockLevels = availability.ShowStockLevels
-        });
+        return Ok(storefrontDtoMapper.MapProductAvailability(availability));
     }
 
     /// <summary>
@@ -464,18 +342,7 @@ public class StorefrontApiController(
     {
         var availability = await storefrontContext.GetBasketAvailabilityAsync(countryCode, regionCode, ct);
 
-        return Ok(new BasketAvailabilityDto
-        {
-            AllItemsAvailable = availability.AllItemsAvailable,
-            Items = availability.Items.Select(item => new BasketItemAvailabilityDetailDto
-            {
-                LineItemId = item.LineItemId,
-                ProductId = item.ProductId,
-                CanShipToCountry = item.CanShipToLocation,
-                HasStock = item.HasStock,
-                Message = item.StatusMessage
-            }).ToList()
-        });
+        return Ok(storefrontDtoMapper.MapBasketAvailability(availability));
     }
 
     /// <summary>
@@ -498,21 +365,13 @@ public class StorefrontApiController(
 
         if (string.IsNullOrWhiteSpace(countryCode))
         {
-            return Ok(new EstimatedShippingDto
-            {
-                Success = false,
-                Message = "No shipping location available"
-            });
+            return Ok(storefrontDtoMapper.MapEstimatedShippingFailure("No shipping location available"));
         }
 
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
         if (basket == null)
         {
-            return Ok(new EstimatedShippingDto
-            {
-                Success = false,
-                Message = "Basket is empty"
-            });
+            return Ok(storefrontDtoMapper.MapEstimatedShippingFailure("Basket is empty"));
         }
 
         // Delegate to service for shipping estimation (business logic now centralized)
@@ -525,43 +384,15 @@ public class StorefrontApiController(
 
         if (!result.Success)
         {
-            return Ok(new EstimatedShippingDto
-            {
-                Success = false,
-                Message = result.ErrorMessage
-            });
+            return Ok(storefrontDtoMapper.MapEstimatedShippingFailure(result.ErrorMessage));
         }
 
-        // Get full display context for currency conversion and tax-inclusive settings
         var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
-        var symbol = displayContext.CurrencySymbol;
-
-        // Use centralized method for basket totals (includes tax-inclusive calculations)
-        var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
-        var displayEstimatedShipping = currencyConversion.Convert(result.EstimatedShipping, displayContext.ExchangeRate, displayContext.CurrencyCode);
-
-        return Ok(new EstimatedShippingDto
-        {
-            Success = true,
-            EstimatedShipping = result.EstimatedShipping,
-            FormattedEstimatedShipping = currencyConversion.Format(result.EstimatedShipping, _settings.CurrencySymbol),
-            DisplayEstimatedShipping = displayEstimatedShipping,
-            FormattedDisplayEstimatedShipping = currencyConversion.Format(displayEstimatedShipping, symbol),
-            DisplayTotal = displayAmounts.Total,
-            FormattedDisplayTotal = currencyConversion.Format(displayAmounts.Total, symbol),
-            DisplayTax = displayAmounts.Tax,
-            FormattedDisplayTax = currencyConversion.Format(displayAmounts.Tax, symbol),
-            // Tax-inclusive display properties (use reconciled values from DisplayAmounts)
-            DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
-            TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
-            FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(displayAmounts.TaxInclusiveSubTotal, symbol),
-            TaxInclusiveDisplayShipping = displayAmounts.TaxInclusiveShipping,
-            FormattedTaxInclusiveDisplayShipping = currencyConversion.Format(displayAmounts.TaxInclusiveShipping, symbol),
-            TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
-            FormattedTaxInclusiveDisplayDiscount = currencyConversion.Format(displayAmounts.TaxInclusiveDiscount, symbol),
-            TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
-            GroupCount = result.GroupCount
-        });
+        return Ok(storefrontDtoMapper.MapEstimatedShippingSuccess(
+            result,
+            basket,
+            displayContext,
+            _settings.CurrencySymbol));
     }
 
     #endregion

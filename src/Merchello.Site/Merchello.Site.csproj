@@ -23,6 +23,36 @@
 
   <ItemGroup>
     <_ContentIncludedByDefault Remove="Views\MerchelloProduct\Default.cshtml" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\accessories.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\accessories_huclsav2.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\accessories_ndwljhay.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\accessories_rhtjlj30.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\bags-totes.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\bags-totes_1fufjylk.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\bags-totes_soso5z1h.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\bags-totes_ugfn2vn3.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\basket.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\basket_1zwj2eww.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\basket_2xdfuhtd.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\basket_gelpdulk.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\clothing.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\clothing_3buh53fz.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\clothing_bcej210u.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\clothing_gaypqoto.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\digital-products.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\digital-products_5zjcnwsg.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\digital-products_aolhpjhn.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\digital-products_ficktjy2.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\drinkware.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\drinkware_awlimkrm.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\home.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\home_5fykinnw.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\home_dcam1hem.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\home_sxxpitdv.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\merchello.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\merchello_304a3gju.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\website.config" />
+    <_ContentIncludedByDefault Remove="uSync\v17\Content\website_gkgl3ycb.config" />
   </ItemGroup>
 
   <ItemGroup>

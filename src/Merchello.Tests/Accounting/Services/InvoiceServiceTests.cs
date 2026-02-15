@@ -123,6 +123,40 @@ public class InvoiceServiceTests : IClassFixture<ServiceTestFixture>
         result.Items.ElementAt(1).DateCreated.ShouldBeGreaterThan(result.Items.ElementAt(2).DateCreated);
     }
 
+    [Fact]
+    public async Task QueryInvoices_SortsByTotalAscending_WithoutSqliteCompareErrors()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice1 = dataBuilder.CreateInvoiceWithOrders(orderCount: 1);
+        var invoice2 = dataBuilder.CreateInvoiceWithOrders(orderCount: 1);
+        var invoice3 = dataBuilder.CreateInvoiceWithOrders(orderCount: 1);
+
+        invoice1.Total = 99.95m;
+        invoice1.TotalInStoreCurrency = 99.95m;
+
+        invoice2.Total = 19.99m;
+        invoice2.TotalInStoreCurrency = 19.99m;
+
+        invoice3.Total = 49.50m;
+        invoice3.TotalInStoreCurrency = 49.50m;
+
+        await dataBuilder.SaveChangesAsync();
+
+        var result = await _invoiceService.QueryInvoices(new InvoiceQueryParameters
+        {
+            OrderBy = InvoiceOrderBy.TotalAsc,
+            CurrentPage = 1,
+            AmountPerPage = 20
+        });
+
+        result.Items.Count().ShouldBe(3);
+
+        var ordered = result.Items.ToList();
+        ordered[0].Id.ShouldBe(invoice2.Id);
+        ordered[1].Id.ShouldBe(invoice3.Id);
+        ordered[2].Id.ShouldBe(invoice1.Id);
+    }
+
     #endregion
 
     #region Get Invoice Tests

@@ -408,6 +408,15 @@ src/
     manifest.ts
 ```
 
+### Checkout Asset Pipeline (CRITICAL)
+- Checkout runtime script URLs are stable and must remain `/App_Plugins/Merchello/js/checkout/*`.
+- Source of truth for checkout runtime JS is `src/Merchello/Client/public/js/checkout/*`.
+- Source of truth for plugin logo/image assets is `src/Merchello/Client/public/img/*`.
+- Build output is `src/Merchello/wwwroot/App_Plugins/Merchello/*` (Vite copies `Client/public` via `publicDir`).
+- Backoffice code uses `src/Merchello/Client/src/*` and is bundled/hashed by Vite into `wwwroot/App_Plugins/Merchello/`.
+- Do not point checkout views/provider adapter URLs at hashed bundle filenames.
+- If checkout JS or image paths 404, verify files exist in `Client/public` first, then rebuild frontend assets.
+
 ### Standards
 - Guard clauses first.
 - Typed errors include `code` and `message`.

@@ -1042,12 +1042,32 @@ public class ProductService(
 
         if (parameters.MinPrice.HasValue)
         {
-            baseQuery = baseQuery.Where(x => x.Price >= parameters.MinPrice.Value);
+            // SQLite decimal comparisons can translate to ef_compare, which is unavailable
+            // in some SQLite runtime setups. Cast to double for a provider-safe comparison.
+            if (db.Database.IsSqlite())
+            {
+                var minPrice = (double)parameters.MinPrice.Value;
+                baseQuery = baseQuery.Where(x => (double)x.Price >= minPrice);
+            }
+            else
+            {
+                baseQuery = baseQuery.Where(x => x.Price >= parameters.MinPrice.Value);
+            }
         }
 
         if (parameters.MaxPrice.HasValue)
         {
-            baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
+            // SQLite decimal comparisons can translate to ef_compare, which is unavailable
+            // in some SQLite runtime setups. Cast to double for a provider-safe comparison.
+            if (db.Database.IsSqlite())
+            {
+                var maxPrice = (double)parameters.MaxPrice.Value;
+                baseQuery = baseQuery.Where(x => (double)x.Price <= maxPrice);
+            }
+            else
+            {
+                baseQuery = baseQuery.Where(x => x.Price <= parameters.MaxPrice.Value);
+            }
         }
 
         if (parameters.WarehouseId.HasValue)
