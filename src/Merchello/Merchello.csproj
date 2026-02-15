@@ -9,8 +9,7 @@
 
   <PropertyGroup>
     <Product>Merchello</Product>
-    <PackageId>Merchello</PackageId>
-    <Version>1.0.0-alpha2</Version>
+    <PackageId>Umbraco.Community.Merchello</PackageId>
     <Title>Merchello</Title>
     <Description>Enterprise ecommerce for Umbraco - making enterprise ecommerce simple</Description>
     <PackageTags>umbraco;umbraco-marketplace;ecommerce;merchello</PackageTags>

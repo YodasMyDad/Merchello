@@ -1,5 +1,9 @@
 <Project>
 
+  <PropertyGroup>
+    <Version Condition="'$(Version)' == ''">0.1.0-dev</Version>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'Merchello.ArchitectureAnalyzers'">
     <ProjectReference Include="$(MSBuildThisFileDirectory)Merchello.ArchitectureAnalyzers\Merchello.ArchitectureAnalyzers.csproj"
                       OutputItemType="Analyzer"
