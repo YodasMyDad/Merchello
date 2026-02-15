@@ -10,6 +10,20 @@ namespace Merchello.Core.Shared.Services;
 public static class HostedServiceRuntimeGate
 {
     /// <summary>
+    /// Executes a hosted service loop with ambient execution-context flow suppressed.
+    /// This prevents AsyncLocal scope state from leaking across background workers.
+    /// </summary>
+    public static Task RunIsolatedAsync(
+        Func<CancellationToken, Task> run,
+        CancellationToken cancellationToken)
+    {
+        using (ExecutionContext.SuppressFlow())
+        {
+            return run(cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Waits until Umbraco runtime level is Run, or returns false if cancellation is requested first.
     /// </summary>
     public static async Task<bool> WaitForRunLevelAsync(

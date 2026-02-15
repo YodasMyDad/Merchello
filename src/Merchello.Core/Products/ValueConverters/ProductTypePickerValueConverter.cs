@@ -65,7 +65,11 @@ public class ProductTypePickerValueConverter(IServiceScopeFactory serviceScopeFa
 
         // Fetch product types using batch method to avoid N+1 queries
         // Use Task.Run to avoid sync-over-async deadlocks in ASP.NET contexts
-        var productTypes = Task.Run(() => productTypeService.GetProductTypesByIds(ids)).GetAwaiter().GetResult();
+        List<ProductType> productTypes;
+        using (System.Threading.ExecutionContext.SuppressFlow())
+        {
+            productTypes = Task.Run(() => productTypeService.GetProductTypesByIds(ids)).GetAwaiter().GetResult();
+        }
 
         // Preserve the original order from the stored value
         List<ProductType> orderedProductTypes = new(ids.Count);

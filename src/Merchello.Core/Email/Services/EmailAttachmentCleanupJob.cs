@@ -22,7 +22,10 @@ public class EmailAttachmentCleanupJob(
     private readonly TimeSpan _cleanupInterval = TimeSpan.FromHours(6);
     private readonly TimeSpan _initialDelay = TimeSpan.FromMinutes(15);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
+
+    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
     {
         if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
                 runtimeState,

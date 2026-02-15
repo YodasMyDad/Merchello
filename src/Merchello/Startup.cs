@@ -327,6 +327,7 @@ public static class Startup
 
         // Shared Services
         builder.Services.AddSingleton<IRateLimiter, AtomicRateLimiter>();
+        builder.Services.AddSingleton<ISeedDataInstallationState, SeedDataInstallationState>();
 
         // Shipping
         builder.Services.AddScoped<IShippingProviderManager, ShippingProviderManager>();

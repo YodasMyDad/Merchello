@@ -1,4 +1,5 @@
 using Merchello.Core.Discounts.Services.Interfaces;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -13,13 +14,17 @@ namespace Merchello.Core.Discounts.Services;
 /// </summary>
 public class DiscountStatusJob(
     IServiceScopeFactory serviceScopeFactory,
+    ISeedDataInstallationState seedDataInstallationState,
     IRuntimeState runtimeState,
     ILogger<DiscountStatusJob> logger) : BackgroundService
 {
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
     private readonly TimeSpan _initialDelay = TimeSpan.FromSeconds(30);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
+
+    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
     {
         if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
                 runtimeState,
@@ -48,7 +53,14 @@ public class DiscountStatusJob(
         {
             try
             {
-                await UpdateExpiredDiscountsAsync(stoppingToken);
+                if (seedDataInstallationState.IsInstalling)
+                {
+                    logger.LogDebug("Seed data installation in progress, skipping discount expiry check");
+                }
+                else
+                {
+                    await UpdateExpiredDiscountsAsync(stoppingToken);
+                }
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {

@@ -24,7 +24,10 @@ public class FulfilmentPollingJob(
     private readonly FulfilmentSettings _settings = settings.Value;
     private readonly TimeSpan _initialDelay = TimeSpan.FromMinutes(3);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
+
+    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
     {
         if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
                 runtimeState,

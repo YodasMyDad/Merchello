@@ -21,7 +21,10 @@ public class InvoiceReminderJob(
     private readonly InvoiceReminderSettings _settings = settings.Value;
     private readonly TimeSpan _initialDelay = TimeSpan.FromMinutes(5);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
+
+    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
     {
         if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
                 runtimeState,
