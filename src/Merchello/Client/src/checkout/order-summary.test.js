@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDiscountDelta } from "../../../wwwroot/App_Plugins/Merchello/js/checkout/components/order-summary.js";
+import { calculateDiscountDelta } from "./order-summary.js";
 
 describe("checkout order-summary analytics helpers", () => {
   it("returns the positive delta when discount increases", () => {
