@@ -1189,6 +1189,21 @@ At order creation, SelectionKey is parsed to populate Order.ShippingProviderKey,
 Basket → GroupItemsAsync() → Groups (flat-rate + dynamic quotes) → Customer selects shipping (SelectionKey) → Invoice (1) → Orders (/group) → Shipments (1+/order)
 ```
 
+### Checkout Frontend Asset Pipeline
+
+Checkout page scripts are served as static plugin assets, not hashed bundle chunks.
+
+| Concern | Source | Output (served path) |
+|--------|--------|----------------------|
+| Checkout runtime JS (`index.js`, `analytics.js`, adapters, components) | `src/Merchello/Client/public/js/checkout/*` | `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/*` |
+| Checkout/storefront plugin images | `src/Merchello/Client/public/img/*` | `src/Merchello/wwwroot/App_Plugins/Merchello/img/*` |
+| Backoffice extension code | `src/Merchello/Client/src/*` | `src/Merchello/wwwroot/App_Plugins/Merchello/*.js` (bundled/hashed) |
+
+Build behavior:
+- Vite writes to `src/Merchello/wwwroot/App_Plugins/Merchello` with `emptyOutDir: true`.
+- Vite copies everything in `Client/public` into that output (`publicDir`), preserving the `js/checkout/*` path contract.
+- Checkout views and provider adapter URLs must continue to target `/App_Plugins/Merchello/js/checkout/*`.
+
 ## 8. Notification System
 
 ### 8.1 Base Classes
