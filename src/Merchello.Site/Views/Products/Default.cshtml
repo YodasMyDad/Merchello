@@ -24,8 +24,9 @@
     var productGallery = viewModel.Content.Value<IEnumerable<MediaWithCrops>>("productGallery");
     var subtitle = viewModel.Content.Value<string>("subtitle");
     var tagline = viewModel.Content.Value<string>("tagline");
-    var description = viewModel.Content.Value<IHtmlEncodedString>("productDescription");
     var features = viewModel.Content.Value<string[]>("usPs");
+
+    var description = viewModel.Content.Value<IHtmlEncodedString>("productDescription");
 
     // Resolve Merchello images from GUIDs
     var resolvedImages = viewModel.Images.ToMedia(MediaCache).ToList();

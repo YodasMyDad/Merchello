@@ -881,18 +881,15 @@ let d = class extends O(C) {
       }
     ];
   }
-  _getViewPropertyConfig() {
+  _getViewOptions() {
+    const t = this._formData.viewAlias ?? "";
     return [
-      {
-        alias: "items",
-        value: [
-          { name: "", value: "" },
-          ...this._productViews.map((t) => ({
-            name: t.alias,
-            value: t.alias
-          }))
-        ]
-      }
+      { name: "", value: "", selected: t === "" },
+      ...this._productViews.map((e) => ({
+        name: e.alias,
+        value: e.alias,
+        selected: e.alias === t
+      }))
     ];
   }
   _getDetailsDatasetValue() {
@@ -900,7 +897,6 @@ let d = class extends O(C) {
     return [
       { alias: "rootName", value: this._formData.rootName ?? "" },
       { alias: "taxGroupId", value: this._formData.taxGroupId ? [this._formData.taxGroupId] : [] },
-      { alias: "viewAlias", value: this._formData.viewAlias ? [this._formData.viewAlias] : [] },
       { alias: "elementTypeAlias", value: t },
       { alias: "isDigitalProduct", value: this._formData.isDigitalProduct ?? !1 },
       { alias: "description", value: this._getDescriptionPropertyValue() }
@@ -944,10 +940,13 @@ let d = class extends O(C) {
       ...this._formData,
       rootName: this._getStringFromPropertyValue(i.rootName),
       taxGroupId: this._getFirstDropdownValue(i.taxGroupId),
-      viewAlias: this._getFirstDropdownValue(i.viewAlias) || null,
       isDigitalProduct: !!i.isDigitalProduct,
       description: this._serializeDescriptionPropertyValue(i.description)
     }, this._setElementTypeAliasFromSelectionValue(i.elementTypeAlias);
+  }
+  _handleViewAliasChange(t) {
+    const e = t.target.value;
+    this._formData = { ...this._formData, viewAlias: e || null };
   }
   _handleCategorisationDatasetChange(t) {
     const e = t.target, i = this._toPropertyValueMap(e.value ?? []);
@@ -1343,13 +1342,19 @@ let d = class extends O(C) {
               .validation=${{ mandatory: !0 }}>
             </umb-property>
 
-            <umb-property
+            <umb-property-layout
               alias="viewAlias"
               label="Product View"
-              description="Select the view template used to render this product on the front-end"
-              property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
-              .config=${this._getViewPropertyConfig()}>
-            </umb-property>
+              description="Select the view template used to render this product on the front-end">
+              <div slot="editor" class="view-select-editor">
+                <uui-select
+                  label="Product View"
+                  .options=${this._getViewOptions()}
+                  @change=${this._handleViewAliasChange}>
+                </uui-select>
+                ${this._productViews.length === 0 ? o`<p class="hint">No product views found. Add .cshtml files to ~/Views/Products/.</p>` : l}
+              </div>
+            </umb-property-layout>
 
             <umb-property
               alias="elementTypeAlias"
@@ -1374,8 +1379,6 @@ let d = class extends O(C) {
               .config=${this._descriptionEditorConfig}>
             </umb-property>
           </umb-property-dataset>
-
-          ${this._productViews.length === 0 ? o`<p class="hint">No product views found. Add .cshtml files to ~/Views/Products/.</p>` : l}
         </uui-box>
 
         <uui-box headline="Categorisation">
@@ -2342,8 +2345,17 @@ d.styles = [
 
       umb-property uui-select,
       umb-property uui-input,
-      umb-property uui-textarea {
+      umb-property uui-textarea,
+      umb-property-layout uui-select,
+      umb-property-layout uui-input,
+      umb-property-layout uui-textarea {
         width: 100%;
+      }
+
+      .view-select-editor {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-2);
       }
 
       /* Tab content */
