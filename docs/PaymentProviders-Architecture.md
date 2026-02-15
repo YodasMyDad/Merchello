@@ -1,15 +1,15 @@
-# Payment Provider System - Architecture
+﻿# Payment Provider System - Architecture
 
 ## Overview
 
 Pluggable payment provider system with built-in providers (Manual Payment, Stripe, PayPal, Braintree) and support for third-party providers as NuGet packages. All providers are auto-discovered and configurable via backoffice.
 
-**Key Concept: Provider → Methods**
+**Key Concept: Provider â†’ Methods**
 
 Each payment provider (gateway) can offer multiple payment methods:
-- **Stripe** → Cards, Apple Pay, Google Pay, Link
-- **Braintree** → Cards, PayPal, Apple Pay, Google Pay, Venmo, iDEAL, Bancontact, SEPA, EPS, P24
-- **PayPal** → PayPal, Pay Later
+- **Stripe** â†’ Cards, Apple Pay, Google Pay, Link
+- **Braintree** â†’ Cards, PayPal, Apple Pay, Google Pay, Venmo, iDEAL, Bancontact, SEPA, EPS, P24
+- **PayPal** â†’ PayPal, Pay Later
 
 Methods can be individually enabled/disabled and have different integration types.
 
@@ -84,16 +84,16 @@ The checkout uses a **dynamic adapter pattern** to support any payment provider 
 
 ```
 Provider.CreatePaymentSessionAsync()
-    ↓
+    â†“
 PaymentSessionResult (includes adapterUrl, providerAlias, methodAlias)
-    ↓
+    â†“
 payment.js loads adapter dynamically
-    ↓
+    â†“
 window.MerchelloPaymentAdapters[providerAlias].render()
-    ↓
+    â†“
 User completes payment
-    ↓
-adapter.submit() → POST /api/merchello/checkout/process-payment
+    â†“
+adapter.submit() â†’ POST /api/merchello/checkout/process-payment
 ```
 
 ### PaymentSessionResult Adapter Properties
@@ -163,13 +163,13 @@ Built-in adapters use relative paths (served from wwwroot). Third-party provider
 
 | Provider | Adapter URL | Purpose |
 |----------|-------------|---------|
-| Stripe | `/js/checkout/adapters/stripe-payment-adapter.js` | Cards (Payment Element) |
-| Stripe Card Elements | `/js/checkout/adapters/stripe-card-elements-adapter.js` | Cards (Individual fields) |
-| Stripe Express | `/js/checkout/adapters/stripe-express-adapter.js` | Apple Pay, Google Pay, Link |
-| Braintree | `/js/checkout/adapters/braintree-payment-adapter.js` | Cards (Hosted Fields) |
-| Braintree Express | `/js/checkout/adapters/braintree-express-adapter.js` | PayPal, Apple Pay, Google Pay, Venmo |
-| Braintree Local | `/js/checkout/adapters/braintree-local-payment-adapter.js` | iDEAL, Bancontact, SEPA, EPS, P24 |
-| PayPal | `/js/checkout/adapters/paypal-unified-adapter.js` | PayPal, Pay Later (standard + express) |
+| Stripe | `/App_Plugins/Merchello/js/checkout/adapters/stripe-payment-adapter.js` | Cards (Payment Element) |
+| Stripe Card Elements | `/App_Plugins/Merchello/js/checkout/adapters/stripe-card-elements-adapter.js` | Cards (Individual fields) |
+| Stripe Express | `/App_Plugins/Merchello/js/checkout/adapters/stripe-express-adapter.js` | Apple Pay, Google Pay, Link |
+| Braintree | `/App_Plugins/Merchello/js/checkout/adapters/braintree-payment-adapter.js` | Cards (Hosted Fields) |
+| Braintree Express | `/App_Plugins/Merchello/js/checkout/adapters/braintree-express-adapter.js` | PayPal, Apple Pay, Google Pay, Venmo |
+| Braintree Local | `/App_Plugins/Merchello/js/checkout/adapters/braintree-local-payment-adapter.js` | iDEAL, Bancontact, SEPA, EPS, P24 |
+| PayPal | `/App_Plugins/Merchello/js/checkout/adapters/paypal-unified-adapter.js` | PayPal, Pay Later (standard + express) |
 
 ### RCL Requirement for Third-Party Providers
 
@@ -186,16 +186,16 @@ Providers return `IconHtml` in `PaymentMethodDefinition` to provide custom SVG i
 
 ## Design Decisions
 
-### Provider → Methods Architecture
+### Provider â†’ Methods Architecture
 
 ```
 PaymentProvider (Stripe)
-├── Metadata (alias, refunds, webhooks)
-├── Configuration (API keys)
-└── PaymentMethods[]
-    ├── Cards (enabled, sortOrder: 10)
-    ├── Apple Pay (enabled, sortOrder: 0, isExpressCheckout: true)
-    └── Google Pay (disabled)
+â”œâ”€â”€ Metadata (alias, refunds, webhooks)
+â”œâ”€â”€ Configuration (API keys)
+â””â”€â”€ PaymentMethods[]
+    â”œâ”€â”€ Cards (enabled, sortOrder: 10)
+    â”œâ”€â”€ Apple Pay (enabled, sortOrder: 0, isExpressCheckout: true)
+    â””â”€â”€ Google Pay (disabled)
 ```
 
 - **Provider** = Gateway (Stripe, Braintree) - holds credentials, handles API calls
@@ -272,7 +272,7 @@ PaymentProvider (Stripe)
 
 ### Express Checkout
 - Methods with `IsExpressCheckout = true` appear at start of checkout
-- Customer clicks → Provider handles auth → Returns payment token + customer data
+- Customer clicks â†’ Provider handles auth â†’ Returns payment token + customer data
 - Order created immediately, skip to confirmation
 - Processed via `ProcessExpressCheckoutAsync()`
 
@@ -309,8 +309,8 @@ public static class PaymentMethodTypes
 - Adjust method sort order (lower = higher priority)
 
 **Example:** If both Stripe and Braintree have Apple Pay enabled:
-- Stripe Apple Pay: SortOrder = 5 → **Shown** (lower)
-- Braintree Apple Pay: SortOrder = 10 → Hidden
+- Stripe Apple Pay: SortOrder = 5 â†’ **Shown** (lower)
+- Braintree Apple Pay: SortOrder = 10 â†’ Hidden
 
 ### Refunds
 - Stored as `Payment` records with negative `Amount`
@@ -337,7 +337,7 @@ Providers can implement webhook testing to allow admins to simulate webhook even
 
 | Type | Value | Examples | Flow |
 |------|-------|----------|------|
-| `Redirect` | 0 | Stripe Checkout | Customer → external page |
+| `Redirect` | 0 | Stripe Checkout | Customer â†’ external page |
 | `HostedFields` | 10 | Braintree Hosted Fields | iframes on checkout |
 | `Widget` | 20 | Apple Pay, Google Pay, PayPal | Embedded provider UI |
 | `DirectForm` | 30 | Manual Payment | Custom form fields |
@@ -348,19 +348,19 @@ Providers can implement webhook testing to allow admins to simulate webhook even
 
 ### Standard Payment Flow
 ```
-1. GET /checkout/payment-methods → Returns enabled methods
-2. CreatePaymentSessionAsync(methodAlias) → Returns RedirectUrl/ClientToken/FormFields
+1. GET /checkout/payment-methods â†’ Returns enabled methods
+2. CreatePaymentSessionAsync(methodAlias) â†’ Returns RedirectUrl/ClientToken/FormFields
 3. Customer interaction (based on IntegrationType)
-4. ProcessPaymentAsync() → Process result
+4. ProcessPaymentAsync() â†’ Process result
 5. (Optional) Webhook confirms async payments
 ```
 
 ### Express Checkout Flow
 ```
-1. GET /checkout/express-methods → Returns express methods
+1. GET /checkout/express-methods â†’ Returns express methods
 2. Customer clicks express button (Apple Pay, etc.)
 3. Provider handles auth, collects customer data
-4. POST /checkout/express → ProcessExpressCheckoutAsync()
+4. POST /checkout/express â†’ ProcessExpressCheckoutAsync()
 5. Order created with provider-returned data
 6. Redirect to confirmation
 ```
@@ -384,66 +384,66 @@ Providers can implement webhook testing to allow admins to simulate webhook even
 
 ```
 src/Merchello.Core/Payments/
-├── Providers/
-│   ├── BuiltIn/
-│   │   └── ManualPaymentProvider.cs      # Built-in, auto-enabled on startup
-│   ├── Stripe/
-│   │   └── StripePaymentProvider.cs      # Built-in Stripe provider
-│   ├── PayPal/
-│   │   └── PayPalPaymentProvider.cs      # Built-in PayPal provider
-│   ├── Braintree/
-│   │   └── BraintreePaymentProvider.cs   # Built-in Braintree provider
-│   ├── IPaymentProvider.cs
-│   ├── PaymentProviderBase.cs
-│   ├── PaymentProviderMetadata.cs
-│   ├── PaymentProviderConfigurationField.cs
-│   ├── PaymentProviderConfiguration.cs
-│   ├── IPaymentProviderManager.cs
-│   ├── PaymentProviderManager.cs
-│   └── RegisteredPaymentProvider.cs
-├── Models/
-│   ├── PaymentMethodDefinition.cs          # Method definition with MethodType, icons, regions
-│   ├── PaymentMethodTypes.cs               # String constants for deduplication
-│   ├── PaymentMethodSetting.cs             # Persisted method settings
-│   ├── PaymentMethodRegion.cs              # Region availability for methods
-│   ├── PaymentMethodCheckoutStyle.cs       # Checkout styling options
-│   ├── ExpressCheckoutRequest.cs
-│   ├── ExpressCheckoutResult.cs
-│   ├── ExpressCheckoutCustomerData.cs
-│   ├── ExpressCheckoutAddress.cs
-│   ├── ExpressCheckoutClientConfig.cs      # SDK config for express buttons
-│   ├── PaymentType.cs
-│   ├── PaymentIntegrationType.cs
-│   ├── InvoicePaymentStatus.cs
-│   ├── PaymentProviderSetting.cs
-│   ├── PaymentRequest.cs
-│   ├── PaymentSessionResult.cs
-│   ├── ProcessPaymentRequest.cs            # Includes IdempotencyKey
-│   ├── PaymentResult.cs                    # Includes settlement data, risk score
-│   ├── PaymentCaptureResult.cs             # Auth-and-capture result
-│   ├── PaymentLinkRequest.cs               # Payment link creation
-│   ├── PaymentLinkResult.cs                # Payment link result
-│   ├── CheckoutFormField.cs
-│   ├── RefundRequest.cs
-│   ├── RefundResult.cs
-│   ├── WebhookProcessingResult.cs
-│   ├── WebhookEventTemplate.cs             # Webhook test templates
-│   └── TestWebhookParameters.cs            # Test webhook parameters
-├── Services/
-│   ├── Interfaces/IPaymentService.cs
-│   └── PaymentService.cs
-├── Handlers/
-│   └── EnsureBuiltInPaymentProvidersHandler.cs  # Startup handler
-├── Dtos/
-│   └── PaymentMethodDto.cs
-└── ../Shared/Providers/
-    └── ProviderConfigurationDbMapping.cs   # Shared TPH mapping (ProviderType discriminator)
+â”œâ”€â”€ Providers/
+â”‚   â”œâ”€â”€ BuiltIn/
+â”‚   â”‚   â””â”€â”€ ManualPaymentProvider.cs      # Built-in, auto-enabled on startup
+â”‚   â”œâ”€â”€ Stripe/
+â”‚   â”‚   â””â”€â”€ StripePaymentProvider.cs      # Built-in Stripe provider
+â”‚   â”œâ”€â”€ PayPal/
+â”‚   â”‚   â””â”€â”€ PayPalPaymentProvider.cs      # Built-in PayPal provider
+â”‚   â”œâ”€â”€ Braintree/
+â”‚   â”‚   â””â”€â”€ BraintreePaymentProvider.cs   # Built-in Braintree provider
+â”‚   â”œâ”€â”€ IPaymentProvider.cs
+â”‚   â”œâ”€â”€ PaymentProviderBase.cs
+â”‚   â”œâ”€â”€ PaymentProviderMetadata.cs
+â”‚   â”œâ”€â”€ PaymentProviderConfigurationField.cs
+â”‚   â”œâ”€â”€ PaymentProviderConfiguration.cs
+â”‚   â”œâ”€â”€ IPaymentProviderManager.cs
+â”‚   â”œâ”€â”€ PaymentProviderManager.cs
+â”‚   â””â”€â”€ RegisteredPaymentProvider.cs
+â”œâ”€â”€ Models/
+â”‚   â”œâ”€â”€ PaymentMethodDefinition.cs          # Method definition with MethodType, icons, regions
+â”‚   â”œâ”€â”€ PaymentMethodTypes.cs               # String constants for deduplication
+â”‚   â”œâ”€â”€ PaymentMethodSetting.cs             # Persisted method settings
+â”‚   â”œâ”€â”€ PaymentMethodRegion.cs              # Region availability for methods
+â”‚   â”œâ”€â”€ PaymentMethodCheckoutStyle.cs       # Checkout styling options
+â”‚   â”œâ”€â”€ ExpressCheckoutRequest.cs
+â”‚   â”œâ”€â”€ ExpressCheckoutResult.cs
+â”‚   â”œâ”€â”€ ExpressCheckoutCustomerData.cs
+â”‚   â”œâ”€â”€ ExpressCheckoutAddress.cs
+â”‚   â”œâ”€â”€ ExpressCheckoutClientConfig.cs      # SDK config for express buttons
+â”‚   â”œâ”€â”€ PaymentType.cs
+â”‚   â”œâ”€â”€ PaymentIntegrationType.cs
+â”‚   â”œâ”€â”€ InvoicePaymentStatus.cs
+â”‚   â”œâ”€â”€ PaymentProviderSetting.cs
+â”‚   â”œâ”€â”€ PaymentRequest.cs
+â”‚   â”œâ”€â”€ PaymentSessionResult.cs
+â”‚   â”œâ”€â”€ ProcessPaymentRequest.cs            # Includes IdempotencyKey
+â”‚   â”œâ”€â”€ PaymentResult.cs                    # Includes settlement data, risk score
+â”‚   â”œâ”€â”€ PaymentCaptureResult.cs             # Auth-and-capture result
+â”‚   â”œâ”€â”€ PaymentLinkRequest.cs               # Payment link creation
+â”‚   â”œâ”€â”€ PaymentLinkResult.cs                # Payment link result
+â”‚   â”œâ”€â”€ CheckoutFormField.cs
+â”‚   â”œâ”€â”€ RefundRequest.cs
+â”‚   â”œâ”€â”€ RefundResult.cs
+â”‚   â”œâ”€â”€ WebhookProcessingResult.cs
+â”‚   â”œâ”€â”€ WebhookEventTemplate.cs             # Webhook test templates
+â”‚   â””â”€â”€ TestWebhookParameters.cs            # Test webhook parameters
+â”œâ”€â”€ Services/
+â”‚   â”œâ”€â”€ Interfaces/IPaymentService.cs
+â”‚   â””â”€â”€ PaymentService.cs
+â”œâ”€â”€ Handlers/
+â”‚   â””â”€â”€ EnsureBuiltInPaymentProvidersHandler.cs  # Startup handler
+â”œâ”€â”€ Dtos/
+â”‚   â””â”€â”€ PaymentMethodDto.cs
+â””â”€â”€ ../Shared/Providers/
+    â””â”€â”€ ProviderConfigurationDbMapping.cs   # Shared TPH mapping (ProviderType discriminator)
 
 src/Merchello/Controllers/
-├── PaymentProvidersApiController.cs
-├── PaymentsApiController.cs
-├── PaymentWebhookController.cs
-└── CheckoutPaymentsApiController.cs
+â”œâ”€â”€ PaymentProvidersApiController.cs
+â”œâ”€â”€ PaymentsApiController.cs
+â”œâ”€â”€ PaymentWebhookController.cs
+â””â”€â”€ CheckoutPaymentsApiController.cs
 ```
 
 ## API Endpoints
@@ -465,7 +465,7 @@ src/Merchello/Controllers/
 | GET | `/api/merchello/checkout/return` | Handle return from payment gateway |
 | GET | `/api/merchello/checkout/cancel` | Handle cancel from payment gateway |
 
-**Widget Flow Note:** The `create-order` and `capture-order` endpoints support any provider implementing the widget payment pattern (create → approve → capture). Third-party providers can use these generic endpoints by passing their provider alias in the URL.
+**Widget Flow Note:** The `create-order` and `capture-order` endpoints support any provider implementing the widget payment pattern (create â†’ approve â†’ capture). Third-party providers can use these generic endpoints by passing their provider alias in the URL.
 
 ### Backoffice (Admin)
 | Method | Endpoint | Purpose |
@@ -639,18 +639,18 @@ Task<bool> DeleteVaultedMethodAsync(
 
 ```
 1. GET /checkout/payment-options
-   → Returns providers[] and savedPaymentMethods[]
+   â†’ Returns providers[] and savedPaymentMethods[]
 
 2a. New Payment Method:
-    → Standard payment flow + optional "Save for future"
-    → ProcessPaymentRequest.SavePaymentMethod = true
+    â†’ Standard payment flow + optional "Save for future"
+    â†’ ProcessPaymentRequest.SavePaymentMethod = true
 
 2b. Saved Payment Method:
-    → Customer selects saved method
-    → POST /checkout/process-saved-payment
-    → { invoiceId, savedPaymentMethodId, idempotencyKey? }
-    → Off-session charge via provider
-    → Record payment via `RecordPaymentAsync` (deterministic fallback transaction ID when provider omits one)
+    â†’ Customer selects saved method
+    â†’ POST /checkout/process-saved-payment
+    â†’ { invoiceId, savedPaymentMethodId, idempotencyKey? }
+    â†’ Off-session charge via provider
+    â†’ Record payment via `RecordPaymentAsync` (deterministic fallback transaction ID when provider omits one)
 ```
 
 ### Security Considerations
@@ -685,3 +685,5 @@ Task<bool> DeleteVaultedMethodAsync(
 - [x] Express checkout fallback transaction IDs are deterministic when providers omit a transaction ID
 - [x] Saved payment flow records payment and returns the recorded transaction ID
 - [x] Post-purchase add-to-order fails closed when charge succeeds but payment recording fails
+
+

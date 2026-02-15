@@ -7,7 +7,7 @@
     "watch": "tsc && vite build --watch",
     "build": "npm run test:run && npm run build:backoffice && npm run build:checkout",
     "build:backoffice": "tsc && vite build",
-    "build:checkout": "npx tailwindcss -c ../Styles/tailwind.config.js -i ../Styles/checkout.css -o ../wwwroot/css/checkout.css --minify",
+    "build:checkout": "npx tailwindcss -c ../Styles/tailwind.config.js -i ../Styles/checkout.css -o ../wwwroot/App_Plugins/Merchello/css/checkout.css --minify",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run"

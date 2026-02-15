@@ -3,38 +3,34 @@ import { BRAND_ICONS, getBrandIconSvg, getProviderIconSvg } from "@payment-provi
 
 describe("payment brand icon helpers", () => {
   describe("getBrandIconSvg", () => {
-    it("matches common payment aliases by substring", () => {
+    it("returns generic card icon for card aliases", () => {
       expect(getBrandIconSvg("cards")).toBe(BRAND_ICONS.card);
-      expect(getBrandIconSvg("paypal-express")).toBe(BRAND_ICONS.paypal);
-      expect(getBrandIconSvg("applepay")).toBe(BRAND_ICONS.apple);
-      expect(getBrandIconSvg("google-pay")).toBe(BRAND_ICONS.google);
+      expect(getBrandIconSvg("credit-card-hosted")).toBe(BRAND_ICONS.card);
+    });
+
+    it("returns generic manual icon for manual-style aliases", () => {
       expect(getBrandIconSvg("manual-payment")).toBe(BRAND_ICONS.manual);
+      expect(getBrandIconSvg("purchase-order")).toBe(BRAND_ICONS.manual);
     });
 
-    it("matches exact local payment aliases", () => {
-      expect(getBrandIconSvg("ideal")).toBe(BRAND_ICONS.ideal);
-      expect(getBrandIconSvg("bancontact")).toBe(BRAND_ICONS.bancontact);
-      expect(getBrandIconSvg("sepa")).toBe(BRAND_ICONS.sepa);
-      expect(getBrandIconSvg("eps")).toBe(BRAND_ICONS.eps);
-      expect(getBrandIconSvg("p24")).toBe(BRAND_ICONS.p24);
-    });
-
-    it("returns null when no icon can be resolved", () => {
-      expect(getBrandIconSvg("unknown-method")).toBeNull();
+    it("returns null for branded aliases when backend icon is expected", () => {
+      expect(getBrandIconSvg("paypal")).toBeNull();
+      expect(getBrandIconSvg("applepay")).toBeNull();
+      expect(getBrandIconSvg("amazonpay")).toBeNull();
+      expect(getBrandIconSvg("klarna")).toBeNull();
     });
   });
 
   describe("getProviderIconSvg", () => {
-    it("matches known provider aliases", () => {
-      expect(getProviderIconSvg("stripe")).toBe(BRAND_ICONS.stripe);
-      expect(getProviderIconSvg("braintree")).toBe(BRAND_ICONS.braintree);
-      expect(getProviderIconSvg("paypal")).toBe(BRAND_ICONS.paypal);
-      expect(getProviderIconSvg("worldpay")).toBe(BRAND_ICONS.worldpay);
+    it("returns manual icon for manual providers", () => {
       expect(getProviderIconSvg("manual")).toBe(BRAND_ICONS.manual);
     });
 
-    it("returns null for unknown providers", () => {
-      expect(getProviderIconSvg("custom-provider")).toBeNull();
+    it("returns generic card icon for unknown/branded providers", () => {
+      expect(getProviderIconSvg("stripe")).toBe(BRAND_ICONS.card);
+      expect(getProviderIconSvg("paypal")).toBe(BRAND_ICONS.card);
+      expect(getProviderIconSvg("worldpay")).toBe(BRAND_ICONS.card);
+      expect(getProviderIconSvg("custom-provider")).toBe(BRAND_ICONS.card);
     });
   });
 });

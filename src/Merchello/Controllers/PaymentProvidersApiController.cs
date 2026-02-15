@@ -941,6 +941,12 @@ public class PaymentProvidersApiController(
             var persisted = methodSettings.FirstOrDefault(ms =>
                 string.Equals(ms.MethodAlias, def.Alias, StringComparison.OrdinalIgnoreCase));
 
+            var iconHtml = def.IconHtml
+                ?? ProviderBrandLogoCatalog.GetPaymentMethodIconHtml(
+                    def.Alias,
+                    provider.Metadata.Alias,
+                    def.MethodType);
+
             // Resolve icon media URL if a custom icon is set
             string? iconMediaUrl = null;
             if (persisted?.IconMediaKey.HasValue == true)
@@ -955,7 +961,7 @@ public class PaymentProvidersApiController(
                 DefaultDisplayName = def.DisplayName,
                 DisplayNameOverride = persisted?.DisplayNameOverride,
                 Icon = def.Icon,
-                IconHtml = def.IconHtml,
+                IconHtml = iconHtml,
                 IconMediaKey = persisted?.IconMediaKey,
                 IconMediaUrl = iconMediaUrl,
                 CheckoutStyleOverride = persisted?.CheckoutStyleOverride != null
@@ -1059,6 +1065,7 @@ public class PaymentProvidersApiController(
     private static PaymentProviderDto MapToProviderDto(RegisteredPaymentProvider registered)
     {
         var meta = registered.Metadata;
+        var iconHtml = meta.IconHtml ?? ProviderBrandLogoCatalog.GetPaymentProviderIconHtml(meta.Alias);
         // Get integration type from first payment method (providers can support multiple methods with different types)
         var firstMethod = registered.Provider.GetAvailablePaymentMethods().FirstOrDefault();
         return new PaymentProviderDto
@@ -1066,7 +1073,7 @@ public class PaymentProvidersApiController(
             Alias = meta.Alias,
             DisplayName = registered.DisplayName,
             Icon = meta.Icon,
-            IconHtml = meta.IconHtml,
+            IconHtml = iconHtml,
             Description = meta.Description,
             SupportsRefunds = meta.SupportsRefunds,
             SupportsPartialRefunds = meta.SupportsPartialRefunds,

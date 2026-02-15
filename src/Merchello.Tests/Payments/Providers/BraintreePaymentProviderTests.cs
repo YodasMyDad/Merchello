@@ -1,6 +1,7 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers.Braintree;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Providers;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;
@@ -225,8 +226,25 @@ public class BraintreePaymentProviderTests
         // Assert
         _provider.Metadata.Alias.ShouldBe("braintree");
         _provider.Metadata.DisplayName.ShouldBe("Braintree");
+        _provider.Metadata.IconHtml.ShouldBe(ProviderBrandLogoCatalog.Braintree);
         _provider.Metadata.SupportsRefunds.ShouldBeTrue();
         _provider.Metadata.SupportsPartialRefunds.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void GetAvailablePaymentMethods_UsesCatalogIcons()
+    {
+        var methods = _provider.GetAvailablePaymentMethods().ToList();
+
+        methods.First(m => m.Alias == "paypal").IconHtml.ShouldBe(ProviderBrandLogoCatalog.PayPal);
+        methods.First(m => m.Alias == "applepay").IconHtml.ShouldBe(ProviderBrandLogoCatalog.ApplePay);
+        methods.First(m => m.Alias == "googlepay").IconHtml.ShouldBe(ProviderBrandLogoCatalog.GooglePay);
+        methods.First(m => m.Alias == "venmo").IconHtml.ShouldBe(ProviderBrandLogoCatalog.Venmo);
+        methods.First(m => m.Alias == "ideal").IconHtml.ShouldBe(ProviderBrandLogoCatalog.Ideal);
+        methods.First(m => m.Alias == "bancontact").IconHtml.ShouldBe(ProviderBrandLogoCatalog.Bancontact);
+        methods.First(m => m.Alias == "sepa").IconHtml.ShouldBe(ProviderBrandLogoCatalog.Sepa);
+        methods.First(m => m.Alias == "eps").IconHtml.ShouldBe(ProviderBrandLogoCatalog.Eps);
+        methods.First(m => m.Alias == "p24").IconHtml.ShouldBe(ProviderBrandLogoCatalog.P24);
     }
 
     [Fact]

@@ -1,0 +1,241 @@
+@model CheckoutViewModel
+@{
+    Layout = null;
+    var settings = Model.Settings;
+    var store = Model.Store;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>@(store.Name ?? "Checkout") - @Model.Step</title>
+
+    @if (Model.Step != CheckoutStep.Confirmation && Model.Step != CheckoutStep.PostPurchase)
+    {
+        <!-- Import map for ES module resolution - Alpine loaded as module for controlled startup -->
+        <script type="importmap">
+        {
+            "imports": {
+                "alpinejs": "https://cdn.jsdelivr.net/npm/alpinejs@@3/dist/module.esm.js",
+                "@@alpinejs/collapse": "https://cdn.jsdelivr.net/npm/@@alpinejs/collapse@@3/dist/module.esm.js"
+            }
+        }
+        </script>
+
+        <!-- Merchello Checkout Module - imports Alpine, registers components, then starts Alpine -->
+        <script type="module" src="/App_Plugins/Merchello/js/checkout/index.js"></script>
+    }
+
+    <!-- Checkout component styles (built from Styles/checkout.css) -->
+    <link rel="stylesheet" href="/App_Plugins/Merchello/css/checkout.css" />
+
+    <style>
+        :root {
+            --color-primary: @settings.PrimaryColor;
+            --color-accent: @settings.AccentColor;
+            --color-error: @settings.ErrorColor;
+            --font-heading: '@settings.HeadingFontFamily', system-ui, sans-serif;
+            --font-body: '@settings.BodyFontFamily', system-ui, sans-serif;
+        }
+
+        [x-cloak] { display: none !important; }
+
+        body {
+            background-color: @settings.BackgroundColor;
+            color: @settings.TextColor;
+        }
+
+        .checkout-header {
+            @if (!string.IsNullOrEmpty(settings.HeaderBackgroundImageUrl))
+            {
+                <text>background-image: url('@settings.HeaderBackgroundImageUrl');</text>
+                <text>background-size: cover;</text>
+                <text>background-position: center;</text>
+            }
+            else if (!string.IsNullOrEmpty(settings.HeaderBackgroundColor))
+            {
+                <text>background-color: @settings.HeaderBackgroundColor;</text>
+            }
+        }
+    </style>
+</head>
+<body class="font-body antialiased min-h-screen">
+    <!-- Header with Logo -->
+    <header class="checkout-header border-b border-gray-200">
+        <div class="max-w-6xl mx-auto px-4 py-4">
+            <div class="flex items-center @Model.LogoPositionClass">
+                @if (!string.IsNullOrEmpty(store.LogoUrl))
+                {
+                    <a href="/" class="block">
+                        <img src="@store.LogoUrl"
+                             alt="@(store.Name ?? "Store")"
+                             style="max-width: @(settings.LogoMaxWidth)px;"
+                             class="h-auto" />
+                    </a>
+                }
+                else if (!string.IsNullOrEmpty(store.Name))
+                {
+                    <a href="/" class="font-heading text-xl font-semibold text-gray-900 hover:text-gray-700">
+                        @store.Name
+                    </a>
+                }
+                else
+                {
+                    <!-- Merchello logo fallback when no custom logo or company name is configured -->
+                    <a href="/" class="block">
+                        <img src="/App_Plugins/Merchello/img/merchello-tag.png"
+                             alt="Powered by Merchello"
+                             class="h-8 w-auto" />
+                    </a>
+                }
+            </div>
+        </div>
+    </header>
+
+    @if (!Model.IsSinglePageCheckout && Model.Step != CheckoutStep.Confirmation && Model.Step != CheckoutStep.PostPurchase)
+    {
+        <!-- Breadcrumb Navigation (multi-page checkout only, not on confirmation) -->
+        <nav class="bg-gray-50 border-b border-gray-200">
+            <div class="max-w-6xl mx-auto px-4 py-3">
+                <ol class="flex items-center space-x-2 text-sm">
+                    @{
+                        var steps = new[] {
+                            (Step: CheckoutStep.Information, Label: "Information", Url: "/checkout/information"),
+                            (Step: CheckoutStep.Shipping, Label: "Shipping", Url: "/checkout/shipping"),
+                            (Step: CheckoutStep.Payment, Label: "Payment", Url: "/checkout/payment")
+                        };
+
+                        for (var i = 0; i < steps.Length; i++)
+                        {
+                            var step = steps[i];
+                            var isCurrentOrPast = Model.Step >= step.Step;
+                            var isCurrent = Model.Step == step.Step;
+
+                            if (i > 0)
+                            {
+                                <li class="text-gray-400">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </li>
+                            }
+
+                            <li>
+                                @if (isCurrent)
+                                {
+                                    <span class="font-medium text-primary">@step.Label</span>
+                                }
+                                else if (isCurrentOrPast)
+                                {
+                                    <a href="@step.Url" class="text-accent hover:underline">@step.Label</a>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">@step.Label</span>
+                                }
+                            </li>
+                        }
+                    }
+                </ol>
+            </div>
+        </nav>
+    }
+
+    <!-- Main Content -->
+    <main class="overflow-x-hidden">
+        <div class="max-w-6xl mx-auto px-4 lg:px-8">
+            @RenderBody()
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-200 bg-gray-50">
+        <div class="max-w-6xl mx-auto px-4 py-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 text-sm text-gray-600">
+                <div class="flex flex-wrap items-center gap-4">
+                    @if (!string.IsNullOrEmpty(store.TermsUrl))
+                    {
+                        <a href="@store.TermsUrl" class="hover:text-gray-900 hover:underline">Terms & Conditions</a>
+                    }
+                    @if (!string.IsNullOrEmpty(store.PrivacyUrl))
+                    {
+                        <a href="@store.PrivacyUrl" class="hover:text-gray-900 hover:underline">Privacy Policy</a>
+                    }
+                </div>
+                <div class="flex flex-wrap items-center gap-4">
+                    @if (!string.IsNullOrEmpty(store.SupportEmail))
+                    {
+                        <a href="mailto:@store.SupportEmail" class="hover:text-gray-900">
+                            <span class="sr-only">Email:</span>
+                            @store.SupportEmail
+                        </a>
+                    }
+                    @if (!string.IsNullOrEmpty(store.Phone))
+                    {
+                        <a href="tel:@store.Phone" class="hover:text-gray-900">
+                            <span class="sr-only">Phone:</span>
+                            @store.Phone
+                        </a>
+                    }
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(store.Name))
+            {
+                <p class="mt-4 text-xs text-gray-500">
+                    &copy; @DateTime.Now.Year @store.Name. All rights reserved.
+                </p>
+            }
+        </div>
+    </footer>
+
+    <!-- Merchello Checkout Analytics (event emitter with helper methods) -->
+    <script src="/App_Plugins/Merchello/js/checkout/analytics.js"></script>
+
+    <!-- Checkout data for analytics -->
+    @if (Model.Basket != null)
+    {
+        <script>
+            window.merchelloCheckoutData = {
+                currency: '@Model.Basket.Currency',
+                value: @Model.Basket.Total,
+                subtotal: @Model.Basket.SubTotal,
+                tax: @Model.Basket.Tax,
+                shipping: @Model.Basket.Shipping,
+                discount: @Model.Basket.Discount,
+                item_count: @(Model.Basket.LineItems?.Count(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon) ?? 0),
+                coupon: '@(Model.Basket.LineItems?.FirstOrDefault(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)?.ExtendedData?.GetValueOrDefault("DiscountCode")?.ToString() ?? "")',
+                items: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(
+                    Model.Basket.LineItems?
+                        .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Product || li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Addon)
+                        .Select(li => new {
+                            item_id = li.Sku ?? li.Id.ToString(),
+                            item_name = li.Name,
+                            price = li.Amount,
+                            quantity = li.Quantity,
+                            discount = li.OriginalAmount.HasValue ? li.OriginalAmount.Value - li.Amount : 0
+                        }) ?? Enumerable.Empty<object>()
+                ))
+            };
+
+            // Emit checkout:begin on page load (only on first checkout step)
+            document.addEventListener('DOMContentLoaded', function() {
+                if (window.MerchelloCheckout && window.merchelloCheckoutData) {
+                    @if (Model.Step == CheckoutStep.Information)
+                    {
+                        <text>window.MerchelloCheckout.emit('checkout:begin', window.merchelloCheckoutData);</text>
+                    }
+                }
+            });
+        </script>
+    }
+
+    @if (!string.IsNullOrEmpty(settings.CustomScriptUrl))
+    {
+        <!-- Custom analytics/tracking script -->
+        <script src="@settings.CustomScriptUrl"></script>
+    }
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

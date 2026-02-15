@@ -31,6 +31,7 @@ public class FedExShippingProvider(
         Key = "fedex",
         DisplayName = "FedEx",
         Icon = Constants.ShippingProviders.Icons.Truck,
+        IconSvg = ProviderBrandLogoCatalog.FedEx,
         Description = "Real-time FedEx shipping rates via FedEx REST API",
         SupportsRealTimeRates = true,
         SupportsTracking = true,

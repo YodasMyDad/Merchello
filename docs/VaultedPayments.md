@@ -1,4 +1,4 @@
-# Vaulted Payments Architecture
+﻿# Vaulted Payments Architecture
 
 A system for securely storing customer payment methods at payment providers (Stripe, Braintree, PayPal) and enabling off-session charges without CVV re-entry. This enables post-purchase upsells, repeat purchases, and subscription-like functionality.
 
@@ -108,7 +108,7 @@ Vaulted payments allow customers to save payment methods (cards, PayPal, bank ac
 - Best for high-frequency, low-AOV services
 - **API Endpoints**: `POST /v3/vault/setup-tokens`, `POST /v3/vault/payment-tokens`
 
-> ✅ **PayPal Implementation Note:** The current implementation uses direct REST calls via `HttpClient` against PayPal's Vault API (`/v3/vault/setup-tokens`, `/v3/vault/payment-tokens`, and delete). No SDK method verification is required.
+> âœ… **PayPal Implementation Note:** The current implementation uses direct REST calls via `HttpClient` against PayPal's Vault API (`/v3/vault/setup-tokens`, `/v3/vault/payment-tokens`, and delete). No SDK method verification is required.
 
 ---
 
@@ -1860,9 +1860,9 @@ async function processSavedPayment(params: {
 
 **Checkout UI (Alpine.js)** - Implemented in:
 
-- `wwwroot/js/checkout/components/checkout-payment.js` (payment selection + save/default toggles)
-- `wwwroot/js/checkout/components/single-page-checkout.js` (submit flow incl. saved method payments)
-- `wwwroot/js/checkout/stores/checkout.store.js` (saved methods + vault flags state)
+- `wwwroot/App_Plugins/Merchello/js/checkout/components/checkout-payment.js` (payment selection + save/default toggles)
+- `wwwroot/App_Plugins/Merchello/js/checkout/components/single-page-checkout.js` (submit flow incl. saved method payments)
+- `wwwroot/App_Plugins/Merchello/js/checkout/stores/checkout.store.js` (saved methods + vault flags state)
 
 The checkout calls `GET /api/merchello/checkout/payment-options` to populate:
 - `paymentMethods` (with `supportsVaulting`)
@@ -2292,42 +2292,42 @@ Add **6th tab: "Vault"** with:
 
 **Tab Layout:**
 ```
-┌─────────────────────────────────────────────────────────┐
-│  [Session] [Payment] [Express] [Webhooks] [Links] [Vault] │
-├─────────────────────────────────────────────────────────┤
-│  Vault Testing                                           │
-│                                                          │
-│  1. Setup                                                │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ [Create Vault Setup Session]                        │ │
-│  │                                                     │ │
-│  │ Session ID: seti_xxx                               │ │
-│  │ Client Secret: seti_xxx_secret_xxx                 │ │
-│  └────────────────────────────────────────────────────┘ │
-│                                                          │
-│  2. Confirm (Card Entry)                                │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ ┌──────────────────────────────────────────────┐   │ │
-│  │ │  [Card Number]  [MM/YY]  [CVC]               │   │ │
-│  │ └──────────────────────────────────────────────┘   │ │
-│  │ [Confirm & Save Payment Method]                    │ │
-│  └────────────────────────────────────────────────────┘ │
-│                                                          │
-│  3. Saved Method                                        │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ ✓ Visa ending in 4242 (exp 12/26)                  │ │
-│  │ Token: pm_xxx                                      │ │
-│  │                                                     │ │
-│  │ Amount: [10.00] USD                                │ │
-│  │ [Test Charge]  [Delete Method]                     │ │
-│  └────────────────────────────────────────────────────┘ │
-│                                                          │
-│  4. Charge Result                                       │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │ ✓ Payment successful                               │ │
-│  │ Transaction ID: pi_xxx                             │ │
-│  └────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  [Session] [Payment] [Express] [Webhooks] [Links] [Vault] â”‚
+â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
+â”‚  Vault Testing                                           â”‚
+â”‚                                                          â”‚
+â”‚  1. Setup                                                â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚ [Create Vault Setup Session]                        â”‚ â”‚
+â”‚  â”‚                                                     â”‚ â”‚
+â”‚  â”‚ Session ID: seti_xxx                               â”‚ â”‚
+â”‚  â”‚ Client Secret: seti_xxx_secret_xxx                 â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”‚                                                          â”‚
+â”‚  2. Confirm (Card Entry)                                â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚ â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”   â”‚ â”‚
+â”‚  â”‚ â”‚  [Card Number]  [MM/YY]  [CVC]               â”‚   â”‚ â”‚
+â”‚  â”‚ â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜   â”‚ â”‚
+â”‚  â”‚ [Confirm & Save Payment Method]                    â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”‚                                                          â”‚
+â”‚  3. Saved Method                                        â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚ âœ“ Visa ending in 4242 (exp 12/26)                  â”‚ â”‚
+â”‚  â”‚ Token: pm_xxx                                      â”‚ â”‚
+â”‚  â”‚                                                     â”‚ â”‚
+â”‚  â”‚ Amount: [10.00] USD                                â”‚ â”‚
+â”‚  â”‚ [Test Charge]  [Delete Method]                     â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â”‚                                                          â”‚
+â”‚  4. Charge Result                                       â”‚
+â”‚  â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â” â”‚
+â”‚  â”‚ âœ“ Payment successful                               â”‚ â”‚
+â”‚  â”‚ Transaction ID: pi_xxx                             â”‚ â”‚
+â”‚  â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜ â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 #### Phase 9 Verification
@@ -2432,3 +2432,5 @@ This architecture directly powers the current post-purchase flow:
 7. Emit upsell conversion analytics.
 
 This sequence guarantees ledger correctness first, then order mutation.
+
+

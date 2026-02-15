@@ -1,4 +1,4 @@
-# Checkout - Sprint Planning Document
+﻿# Checkout - Sprint Planning Document
 
 ## Overview
 
@@ -37,7 +37,7 @@ Key Shopify patterns to follow:
 ### Payment Provider Architecture
 The checkout is **provider-agnostic** - it works with any enabled payment provider via the existing `IPaymentProvider` interface. Each provider declares multiple **payment methods**, and the checkout UI adapts based on each method's `IntegrationType`:
 
-**Provider → Method Relationship:**
+**Provider â†’ Method Relationship:**
 - **Provider** = Payment gateway (Stripe, Braintree) - holds API credentials
 - **Method** = Checkout option (Cards, Apple Pay, PayPal) - customer-facing, individually enabled
 
@@ -104,20 +104,20 @@ The checkout automatically loads the customer's basket via cookie - **no explici
 
 **Data Flow:**
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│  1. Add to Basket (any page)                                       │
-│     └── ICheckoutService.AddToBasket()                             │
-│         └── Creates basket in DB + sets cookie "merchello_basket"  │
-│                                                                     │
-│  2. Link to Checkout                                               │
-│     └── <a href="/checkout/information">Proceed to Checkout</a>   │
-│         └── No data passed - just a navigation link                │
-│                                                                     │
-│  3. Checkout loads basket automatically                            │
-│     └── CheckoutController calls ICheckoutService.GetBasket()      │
-│         └── Reads basket ID from cookie → loads from database      │
-│         └── Creates CheckoutViewModel for Razor views              │
-└─────────────────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  1. Add to Basket (any page)                                       â”‚
+â”‚     â””â”€â”€ ICheckoutService.AddToBasket()                             â”‚
+â”‚         â””â”€â”€ Creates basket in DB + sets cookie "merchello_basket"  â”‚
+â”‚                                                                     â”‚
+â”‚  2. Link to Checkout                                               â”‚
+â”‚     â””â”€â”€ <a href="/checkout/information">Proceed to Checkout</a>   â”‚
+â”‚         â””â”€â”€ No data passed - just a navigation link                â”‚
+â”‚                                                                     â”‚
+â”‚  3. Checkout loads basket automatically                            â”‚
+â”‚     â””â”€â”€ CheckoutController calls ICheckoutService.GetBasket()      â”‚
+â”‚         â””â”€â”€ Reads basket ID from cookie â†’ loads from database      â”‚
+â”‚         â””â”€â”€ Creates CheckoutViewModel for Razor views              â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 **For Site Developers:**
@@ -185,9 +185,9 @@ Static files (JavaScript, CSS) in the RCL's `wwwroot/` folder are served via the
 
 | Source Location | Runtime URL |
 |-----------------|-------------|
-| `src/Merchello/wwwroot/js/checkout/payment.js` | `/_content/Merchello/js/checkout/payment.js` |
-| `src/Merchello/wwwroot/js/checkout/analytics.js` | `/_content/Merchello/js/checkout/analytics.js` |
-| `src/Merchello/wwwroot/js/checkout/adapters/*.js` | `/_content/Merchello/js/checkout/adapters/*.js` |
+| `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/payment.js` | `/App_Plugins/Merchello/js/checkout/payment.js` |
+| `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/analytics.js` | `/App_Plugins/Merchello/js/checkout/analytics.js` |
+| `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/adapters/*.js` | `/App_Plugins/Merchello/js/checkout/adapters/*.js` |
 
 This is handled automatically by ASP.NET Core's StaticWebAssets middleware. When referencing Merchello's static files in views, always use the `/_content/Merchello/` prefix.
 
@@ -200,40 +200,40 @@ The checkout uses a modular Alpine.js architecture following enterprise patterns
 #### Module Structure
 
 ```
-src/Merchello/wwwroot/js/checkout/
-├── index.js                    # Entry point - registers all Alpine components
-├── stores/
-│   └── checkout.store.js       # Alpine.store('checkout') for shared state
-├── services/
-│   ├── api.js                  # Centralized API calls with error handling
-│   └── validation.js           # Form validation rules
-├── utils/
-│   ├── debounce.js             # Debounce utility
-│   ├── formatters.js           # Currency/date formatting
-│   ├── announcer.js            # Screen reader announcements
-│   ├── regions.js              # Region/state loading for address forms
-│   ├── security.js             # URL validation and safe redirects
-│   ├── shipping-calculator.js  # Shipping cost calculation
-│   └── payment-errors.js       # Standardized payment error handling
-├── components/
-│   ├── single-page-checkout.js   # Main orchestrator (coordinates sub-components)
-│   ├── checkout-address-form.js  # Reusable address form (billing/shipping)
-│   ├── checkout-shipping.js      # Shipping method display and selection
-│   ├── checkout-payment.js       # Payment method display and selection
-│   ├── order-summary.js          # Order summary sidebar with discount handling
-│   └── express-checkout.js       # Express checkout buttons (Apple Pay, Google Pay, PayPal)
-├── payment.js                  # Payment adapter system - dynamic adapter loading
-├── analytics.js                # Event emitter for GTM/analytics integration
-├── single-page-analytics.js    # Analytics helper for single-page checkout
-├── confirmation.js             # Back-button protection for confirmation page
-└── adapters/                   # Payment provider adapters
-    ├── paypal-unified-adapter.js
-    ├── stripe-payment-adapter.js
-    ├── stripe-express-adapter.js
-    ├── stripe-card-elements-adapter.js
-    ├── braintree-payment-adapter.js
-    ├── braintree-express-adapter.js
-    └── braintree-local-payment-adapter.js
+src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/
+â”œâ”€â”€ index.js                    # Entry point - registers all Alpine components
+â”œâ”€â”€ stores/
+â”‚   â””â”€â”€ checkout.store.js       # Alpine.store('checkout') for shared state
+â”œâ”€â”€ services/
+â”‚   â”œâ”€â”€ api.js                  # Centralized API calls with error handling
+â”‚   â””â”€â”€ validation.js           # Form validation rules
+â”œâ”€â”€ utils/
+â”‚   â”œâ”€â”€ debounce.js             # Debounce utility
+â”‚   â”œâ”€â”€ formatters.js           # Currency/date formatting
+â”‚   â”œâ”€â”€ announcer.js            # Screen reader announcements
+â”‚   â”œâ”€â”€ regions.js              # Region/state loading for address forms
+â”‚   â”œâ”€â”€ security.js             # URL validation and safe redirects
+â”‚   â”œâ”€â”€ shipping-calculator.js  # Shipping cost calculation
+â”‚   â””â”€â”€ payment-errors.js       # Standardized payment error handling
+â”œâ”€â”€ components/
+â”‚   â”œâ”€â”€ single-page-checkout.js   # Main orchestrator (coordinates sub-components)
+â”‚   â”œâ”€â”€ checkout-address-form.js  # Reusable address form (billing/shipping)
+â”‚   â”œâ”€â”€ checkout-shipping.js      # Shipping method display and selection
+â”‚   â”œâ”€â”€ checkout-payment.js       # Payment method display and selection
+â”‚   â”œâ”€â”€ order-summary.js          # Order summary sidebar with discount handling
+â”‚   â””â”€â”€ express-checkout.js       # Express checkout buttons (Apple Pay, Google Pay, PayPal)
+â”œâ”€â”€ payment.js                  # Payment adapter system - dynamic adapter loading
+â”œâ”€â”€ analytics.js                # Event emitter for GTM/analytics integration
+â”œâ”€â”€ single-page-analytics.js    # Analytics helper for single-page checkout
+â”œâ”€â”€ confirmation.js             # Back-button protection for confirmation page
+â””â”€â”€ adapters/                   # Payment provider adapters
+    â”œâ”€â”€ paypal-unified-adapter.js
+    â”œâ”€â”€ stripe-payment-adapter.js
+    â”œâ”€â”€ stripe-express-adapter.js
+    â”œâ”€â”€ stripe-card-elements-adapter.js
+    â”œâ”€â”€ braintree-payment-adapter.js
+    â”œâ”€â”€ braintree-express-adapter.js
+    â””â”€â”€ braintree-local-payment-adapter.js
 ```
 
 #### Alpine.js Loading Strategy
@@ -250,7 +250,7 @@ Alpine is loaded as an ES module via importmap, giving us full control over init
     }
 }
 </script>
-<script type="module" src="/js/checkout/index.js"></script>
+<script type="module" src="/App_Plugins/Merchello/js/checkout/index.js"></script>
 ```
 
 #### Component Registration Pattern
@@ -290,7 +290,7 @@ Cross-component state is managed via `Alpine.store('checkout')`:
 Alpine.store('checkout', {
     // Basket state (updated by multiple components)
     basket: { total: 0, shipping: 0, tax: 0, subtotal: 0, discount: 0 },
-    currency: { code: 'GBP', symbol: '£' },
+    currency: { code: 'GBP', symbol: 'Â£' },
 
     // Shared form state
     email: '',
@@ -370,7 +370,7 @@ Server-side data is passed to Alpine components via a JSON script block:
 <script id="checkout-initial-data" type="application/json">
 @Html.Raw(JsonSerializer.Serialize(new {
     basket = new { total = basket?.Total ?? 0, shipping = basket?.Shipping ?? 0 },
-    currency = new { code = "GBP", symbol = "£" },
+    currency = new { code = "GBP", symbol = "Â£" },
     email = basket?.BillingAddress?.Email ?? "",
     billing = new { /* ... */ },
     shipping = new { /* ... */ },
@@ -417,7 +417,7 @@ When entering checkout, the following data is available from the basket system.
 | `CustomerId` | `Guid?` | Customer ID if logged in |
 | `LineItems` | `List<LineItem>` | All cart items (products, discounts, custom) |
 | `Currency` | `string` | ISO 4217 currency code |
-| `CurrencySymbol` | `string` | Display symbol (£, $, etc.) |
+| `CurrencySymbol` | `string` | Display symbol (Â£, $, etc.) |
 | `SubTotal` | `decimal` | Before discounts |
 | `Discount` | `decimal` | Total discount amount |
 | `AdjustedSubTotal` | `decimal` | After discounts, before tax |
@@ -478,13 +478,13 @@ Tracks checkout progress across steps:
 
 ```
 ICheckoutService.GetBasket()
-        ↓
+        â†“
     Basket (line items, totals, addresses)
-        ↓
+        â†“
     CheckoutSession (step state, selections)
-        ↓
+        â†“
     CheckoutController prepares CheckoutViewModel
-        ↓
+        â†“
     Razor Views in RCL render checkout UI
 ```
 
@@ -570,7 +570,7 @@ Shipping is stored in two places:
 
 | Storage | What's Stored | Persistence |
 |---------|--------------|-------------|
-| `CheckoutSession.SelectedShippingOptions` | GroupId → ShippingOptionId mapping | HTTP Session (volatile) |
+| `CheckoutSession.SelectedShippingOptions` | GroupId â†’ ShippingOptionId mapping | HTTP Session (volatile) |
 | `basket.Shipping` | Calculated decimal amount | Database |
 
 The session holds the **selection** (which option was chosen), while the basket holds the **calculated amount**. When recalculating, the system can either:
@@ -606,8 +606,8 @@ Shipping errors come from two places and are unified in `basket.Errors`:
 1. User changes billing country (with shipping same as billing)
 2. Frontend calls: POST /api/merchello/checkout/initialize
 3. Backend: InitializeCheckoutAsync()
-   a. CalculateBasketAsync() → adds quote errors to basket.Errors
-   b. GetOrderGroupsAsync() → returns grouping errors
+   a. CalculateBasketAsync() â†’ adds quote errors to basket.Errors
+   b. GetOrderGroupsAsync() â†’ returns grouping errors
    c. Grouping errors copied to basket.Errors (IsShippingError = true)
 4. API returns: { success: true/false, basket: { errors: [...] } }
 5. Frontend checks: data.basket.errors.filter(e => e.isShippingError)
@@ -652,7 +652,7 @@ The checkout integrates with the existing discount system (`@docs/Discounts.md`)
 |---------|---------|-------------|
 | Apply discount code | `ICheckoutService.ApplyDiscountCodeAsync()` | Validates code via `IDiscountEngine`, applies to basket |
 | Remove discount | `ICheckoutService.RemovePromotionalDiscountAsync()` | Removes promotional discount line item |
-| Automatic discounts | `ICheckoutService.RefreshAutomaticDiscountsAsync()` | Auto-applies eligible discounts (e.g., "10% off orders over £100") |
+| Automatic discounts | `ICheckoutService.RefreshAutomaticDiscountsAsync()` | Auto-applies eligible discounts (e.g., "10% off orders over Â£100") |
 | Validation | `IDiscountEngine.ValidateCodeAsync()` | Checks eligibility, limits, date range, customer segments |
 
 The order summary sidebar displays:
@@ -666,15 +666,15 @@ The order summary sidebar displays:
 ## User Flow Summary
 
 ```
-/checkout                → Single-page checkout with all sections:
+/checkout                â†’ Single-page checkout with all sections:
                            - Contact (email)
                            - Billing address
                            - Shipping address (or "same as billing")
                            - Shipping method selection
                            - Payment method & card entry
                            - Discount code input
-        ↓
-/checkout/confirmation   → Order summary, optional redirect to Umbraco content
+        â†“
+/checkout/confirmation   â†’ Order summary, optional redirect to Umbraco content
 ```
 
 ### Payment Callback Flow
@@ -715,7 +715,7 @@ Establish the core infrastructure - URL routing, controller, layout, and setting
 | CheckoutContentFinder | `src/Merchello/Routing/` |
 | MerchelloCheckoutPage | `src/Merchello/Models/` |
 | CheckoutController | `src/Merchello/Controllers/` |
-| Checkout views | `src/Merchello/Views/Checkout/` |
+| Checkout views | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` |
 | CheckoutSettings | `src/Merchello.Core/Checkout/Models/` |
 
 | Modified | Change |
@@ -749,9 +749,9 @@ Build the first checkout step - contact info, billing/shipping addresses, discou
 ### Key Files
 | New | Location |
 |-----|----------|
-| Information.cshtml | `src/Merchello/Views/Checkout/` |
-| _OrderSummary.cshtml | `src/Merchello/Views/Checkout/` |
-| _AddressForm.cshtml | `src/Merchello/Views/Checkout/` |
+| Information.cshtml | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` |
+| _OrderSummary.cshtml | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` |
+| _AddressForm.cshtml | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` |
 
 ### Key Services
 - `ICheckoutService.ApplyDiscountCodeAsync()` - wraps `IDiscountEngine.ValidateCodeAsync()`
@@ -783,12 +783,12 @@ Display warehouse groups with shipping options. User selects shipping method per
 - [x] Shipping options per group (radio buttons)
 - [x] API endpoint: select shipping option
 - [x] Real-time total updates when shipping selected
-- [x] Breadcrumb navigation (Information → Shipping → Payment)
+- [x] Breadcrumb navigation (Information â†’ Shipping â†’ Payment)
 
 ### Key Files
 | New | Location |
 |-----|----------|
-| Shipping.cshtml | `src/Merchello/Views/Checkout/` |
+| Shipping.cshtml | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` |
 
 ### Key Services
 - `IShippingQuoteService.GetQuotesAsync()` - gets available shipping options per warehouse group
@@ -808,7 +808,7 @@ Display warehouse groups with shipping options. User selects shipping method per
 
 ---
 
-## Phase 4: Payment Step UI ✅
+## Phase 4: Payment Step UI âœ…
 
 ### Goal
 Build the payment step UI that adapts to any payment method's integration type using a **dynamic adapter pattern**. The checkout has ZERO hard-coded provider logic.
@@ -824,16 +824,16 @@ The checkout uses a fully pluggable adapter pattern:
 
 ```
 Provider.CreatePaymentSessionAsync()
-    ↓
+    â†“
 PaymentSessionResult { AdapterUrl, ProviderAlias, MethodAlias, JsSdkUrl, ... }
-    ↓
+    â†“
 payment.js loads adapter dynamically
-    ↓
+    â†“
 window.MerchelloPaymentAdapters[providerAlias].render(container, session)
-    ↓
+    â†“
 User interacts with provider UI
-    ↓
-adapter.submit() → POST /api/merchello/checkout/process-payment
+    â†“
+adapter.submit() â†’ POST /api/merchello/checkout/process-payment
 ```
 
 ### Deliverables
@@ -844,16 +844,16 @@ adapter.submit() → POST /api/merchello/checkout/process-payment
 - [x] Error handling and retry logic
 - [x] Order creation on successful payment
 - [x] `payment.js` - dynamic adapter loading (no hard-coded providers)
-- [x] Provider adapters in `wwwroot/js/checkout/adapters/`
+- [x] Provider adapters in `wwwroot/App_Plugins/Merchello/js/checkout/adapters/`
 
 ### Key Files
 | File | Location | Purpose |
 |------|----------|---------|
-| Payment.cshtml | `src/Merchello/Views/Checkout/` | Payment step view |
-| payment.js | `src/Merchello/wwwroot/js/checkout/` | Dynamic adapter loading |
-| stripe-payment-adapter.js | `wwwroot/js/checkout/adapters/` | Stripe SDK integration |
-| braintree-payment-adapter.js | `wwwroot/js/checkout/adapters/` | Braintree SDK integration |
-| paypal-unified-adapter.js | `wwwroot/js/checkout/adapters/` | PayPal SDK integration (standard + express) |
+| Payment.cshtml | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` | Payment step view |
+| payment.js | `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/` | Dynamic adapter loading |
+| stripe-payment-adapter.js | `wwwroot/App_Plugins/Merchello/js/checkout/adapters/` | Stripe SDK integration |
+| braintree-payment-adapter.js | `wwwroot/App_Plugins/Merchello/js/checkout/adapters/` | Braintree SDK integration |
+| paypal-unified-adapter.js | `wwwroot/App_Plugins/Merchello/js/checkout/adapters/` | PayPal SDK integration (standard + express) |
 
 ### Key Services
 - `IPaymentProviderManager.GetStandardPaymentMethodsAsync()` - list non-express payment methods
@@ -935,7 +935,7 @@ Show order confirmation with details. Handle optional redirect to Umbraco conten
 ### Key Files
 | New | Location |
 |-----|----------|
-| Confirmation.cshtml | `src/Merchello/Views/Checkout/` |
+| Confirmation.cshtml | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` |
 
 ### Key Services
 - `IInvoiceService.GetAsync()`
@@ -952,7 +952,7 @@ Show order confirmation with details. Handle optional redirect to Umbraco conten
 ## Phase 6: Braintree Provider
 
 ### Goal
-Implement Braintree as a multi-method provider, demonstrating the Provider → Methods architecture with inline card entry and Apple Pay / Google Pay as separate methods.
+Implement Braintree as a multi-method provider, demonstrating the Provider â†’ Methods architecture with inline card entry and Apple Pay / Google Pay as separate methods.
 
 ### Deliverables
 - [x] `BraintreePaymentProvider` implementing `IPaymentProvider`
@@ -991,7 +991,7 @@ Implement Braintree as a multi-method provider, demonstrating the Provider → M
 ## Phase 7: Stripe Provider Update
 
 ### Goal
-Update the existing Stripe provider to add HostedFields (Stripe Elements) and express checkout methods (Link, Apple Pay, Google Pay) using the Provider → Methods architecture.
+Update the existing Stripe provider to add HostedFields (Stripe Elements) and express checkout methods (Link, Apple Pay, Google Pay) using the Provider â†’ Methods architecture.
 
 ### Deliverables
 - [x] Update `StripePaymentProvider.GetAvailablePaymentMethods()` to include:
@@ -1021,10 +1021,10 @@ Update the existing Stripe provider to add HostedFields (Stripe Elements) and ex
 
 ---
 
-## Phase 8: PayPal Provider ✅
+## Phase 8: PayPal Provider âœ…
 
 ### Goal
-Implement PayPal as a payment provider using the Provider → Methods architecture.
+Implement PayPal as a payment provider using the Provider â†’ Methods architecture.
 
 ### Deliverables
 - [x] `PayPalPaymentProvider` implementing `IPaymentProvider`
@@ -1068,7 +1068,7 @@ Implement PayPal as a payment provider using the Provider → Methods architectu
 
 ---
 
-## Phase 9: Express Checkout Integration ✅
+## Phase 9: Express Checkout Integration âœ…
 
 ### Goal
 Wire up express checkout buttons on the Information step, allowing customers to skip the checkout form entirely using Apple Pay, Google Pay, Link by Stripe, or PayPal One Touch.
@@ -1091,10 +1091,10 @@ Wire up express checkout buttons on the Information step, allowing customers to 
 ### Key Files
 | New | Location |
 |-----|----------|
-| _ExpressCheckout.cshtml | `src/Merchello/Views/Checkout/` |
-| stripe-express-adapter.js | `src/Merchello/wwwroot/js/checkout/adapters/` |
-| braintree-express-adapter.js | `src/Merchello/wwwroot/js/checkout/adapters/` |
-| paypal-unified-adapter.js | `src/Merchello/wwwroot/js/checkout/adapters/` |
+| _ExpressCheckout.cshtml | `src/Merchello/App_Plugins/Merchello/Views/Checkout/` |
+| stripe-express-adapter.js | `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/adapters/` |
+| braintree-express-adapter.js | `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/adapters/` |
+| paypal-unified-adapter.js | `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/adapters/` |
 | ExpressCheckoutClientConfig.cs | `src/Merchello.Core/Payments/Models/` |
 
 ### Pluggable Architecture
@@ -1122,7 +1122,7 @@ return new ExpressCheckoutClientConfig
     ProviderAlias = "myprovider",
     MethodAlias = "applepay",
     SdkUrl = "https://cdn.myprovider.com/sdk.js",
-    CustomAdapterUrl = "/js/checkout/adapters/myprovider-express-adapter.js",
+    CustomAdapterUrl = "/App_Plugins/Merchello/js/checkout/adapters/myprovider-express-adapter.js",
     SdkConfig = new Dictionary<string, object>
     {
         ["publicKey"] = _publicKey,
@@ -1133,7 +1133,7 @@ return new ExpressCheckoutClientConfig
 
 **Adapter Implementation** (static JS file):
 ```javascript
-// /js/checkout/adapters/myprovider-express-adapter.js
+// /App_Plugins/Merchello/js/checkout/adapters/myprovider-express-adapter.js
 (function() {
     window.MerchelloExpressAdapters = window.MerchelloExpressAdapters || {};
     window.MerchelloExpressAdapters['myprovider'] = {
@@ -1151,14 +1151,14 @@ Express checkout **skips the checkout form entirely** and goes straight to confi
 
 ```
 1. Customer on checkout Information step
-2. GET /api/merchello/checkout/express-methods → Render buttons
-3. Customer clicks Apple Pay → Wallet opens → Payment authorized
+2. GET /api/merchello/checkout/express-methods â†’ Render buttons
+3. Customer clicks Apple Pay â†’ Wallet opens â†’ Payment authorized
 4. Provider returns: payment token + customer data (email, shipping address)
 5. POST /api/merchello/checkout/express with:
    - basketId, providerAlias, methodAlias
    - paymentToken
    - customerData (email, address from provider)
-6. Backend: ProcessExpressCheckoutAsync() → creates order + records payment
+6. Backend: ProcessExpressCheckoutAsync() â†’ creates order + records payment
 7. Redirect to confirmation page
 ```
 
@@ -1217,11 +1217,11 @@ The checkout is **provider-agnostic** - it doesn't hardcode GTM or Facebook Pixe
 
 ```
 analytics.js (in RCL)
-    ↓
+    â†“
 Emits standardized events to window.MerchelloCheckout
-    ↓
+    â†“
 User's custom script (loaded via CustomScriptUrl)
-    ↓
+    â†“
 Pushes to GTM, Facebook, Segment, Plausible, etc.
 ```
 
@@ -1234,7 +1234,7 @@ Pushes to GTM, Facebook, Segment, Plausible, etc.
 ### Key Files
 | File | Location | Purpose |
 |------|----------|---------|
-| analytics.js | `src/Merchello/wwwroot/js/checkout/` | Event emitter + helpers |
+| analytics.js | `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/` | Event emitter + helpers |
 | checkout-analytics.js | `src/Merchello.Site/wwwroot/js/` | Example GTM + FB implementation |
 
 ### Event Emitter API
@@ -1479,76 +1479,76 @@ public class CheckoutController(IOptions<CheckoutSettings> settings) : Controlle
 ### File Structure
 ```
 src/Merchello/
-├── Routing/
-│   └── CheckoutContentFinder.cs
-├── Models/
-│   └── MerchelloCheckoutPage.cs
-├── Controllers/
-│   └── CheckoutController.cs
-├── Views/Checkout/
-│   ├── _Layout.cshtml              # Checkout layout (logo, custom scripts, styles)
-│   ├── _ViewImports.cshtml         # Razor imports
-│   ├── _OrderSummary.cshtml        # Order summary sidebar partial
-│   ├── _AddressForm.cshtml         # Address form partial (billing/shipping)
-│   ├── _ExpressCheckout.cshtml     # Express checkout buttons partial
-│   ├── SinglePage.cshtml           # Main single-page checkout view
-│   ├── Confirmation.cshtml         # Order confirmation page
-│   ├── Return.cshtml               # Payment return/callback handler
-│   └── Cancel.cshtml               # Payment cancellation handler
-├── Styles/
-│   ├── tailwind.config.js          # Tailwind configuration
-│   └── checkout.css                # Tailwind input file (@tailwind directives)
-└── wwwroot/
-    ├── css/checkout.css            # Generated Tailwind output - do not edit
-    └── js/checkout/
-        ├── index.js                # Entry point - registers all Alpine components
-        ├── stores/
-        │   └── checkout.store.js   # Alpine.store('checkout') for shared state
-        ├── services/
-        │   ├── api.js              # Centralized API calls with error handling
-        │   └── validation.js       # Form validation rules
-        ├── utils/
-        │   ├── debounce.js         # Debounce utility
-        │   ├── formatters.js       # Currency/date formatting
-        │   ├── announcer.js        # Screen reader announcements
-        │   ├── regions.js          # Region/state loading
-        │   ├── security.js         # URL validation and safe redirects
-        │   ├── shipping-calculator.js  # Shipping cost calculation
-        │   └── payment-errors.js   # Standardized payment error handling
-        ├── components/
-        │   ├── single-page-checkout.js   # Main orchestrator (coordinates sub-components)
-        │   ├── checkout-address-form.js  # Reusable address form (billing/shipping)
-        │   ├── checkout-shipping.js      # Shipping method display and selection
-        │   ├── checkout-payment.js       # Payment method display and selection
-        │   ├── order-summary.js          # Order summary with discount handling
-        │   └── express-checkout.js       # Express checkout buttons
-        ├── analytics.js            # Event emitter for GTM/analytics
-        ├── payment.js              # Dynamic adapter loading - no hard-coded providers
-        ├── single-page-analytics.js # Analytics helper for single-page checkout
-        ├── confirmation.js         # Back-button protection for confirmation
-        └── adapters/               # Provider-specific adapters
-            ├── paypal-unified-adapter.js
-            ├── stripe-payment-adapter.js
-            ├── stripe-express-adapter.js
-            ├── stripe-card-elements-adapter.js
-            ├── braintree-payment-adapter.js
-            ├── braintree-express-adapter.js
-            └── braintree-local-payment-adapter.js
+â”œâ”€â”€ Routing/
+â”‚   â””â”€â”€ CheckoutContentFinder.cs
+â”œâ”€â”€ Models/
+â”‚   â””â”€â”€ MerchelloCheckoutPage.cs
+â”œâ”€â”€ Controllers/
+â”‚   â””â”€â”€ CheckoutController.cs
+â”œâ”€â”€ Views/Checkout/
+â”‚   â”œâ”€â”€ _Layout.cshtml              # Checkout layout (logo, custom scripts, styles)
+â”‚   â”œâ”€â”€ _ViewImports.cshtml         # Razor imports
+â”‚   â”œâ”€â”€ _OrderSummary.cshtml        # Order summary sidebar partial
+â”‚   â”œâ”€â”€ _AddressForm.cshtml         # Address form partial (billing/shipping)
+â”‚   â”œâ”€â”€ _ExpressCheckout.cshtml     # Express checkout buttons partial
+â”‚   â”œâ”€â”€ SinglePage.cshtml           # Main single-page checkout view
+â”‚   â”œâ”€â”€ Confirmation.cshtml         # Order confirmation page
+â”‚   â”œâ”€â”€ Return.cshtml               # Payment return/callback handler
+â”‚   â””â”€â”€ Cancel.cshtml               # Payment cancellation handler
+â”œâ”€â”€ Styles/
+â”‚   â”œâ”€â”€ tailwind.config.js          # Tailwind configuration
+â”‚   â””â”€â”€ checkout.css                # Tailwind input file (@tailwind directives)
+â””â”€â”€ wwwroot/
+    â”œâ”€â”€ css/checkout.css            # Generated Tailwind output - do not edit
+    â””â”€â”€ js/checkout/
+        â”œâ”€â”€ index.js                # Entry point - registers all Alpine components
+        â”œâ”€â”€ stores/
+        â”‚   â””â”€â”€ checkout.store.js   # Alpine.store('checkout') for shared state
+        â”œâ”€â”€ services/
+        â”‚   â”œâ”€â”€ api.js              # Centralized API calls with error handling
+        â”‚   â””â”€â”€ validation.js       # Form validation rules
+        â”œâ”€â”€ utils/
+        â”‚   â”œâ”€â”€ debounce.js         # Debounce utility
+        â”‚   â”œâ”€â”€ formatters.js       # Currency/date formatting
+        â”‚   â”œâ”€â”€ announcer.js        # Screen reader announcements
+        â”‚   â”œâ”€â”€ regions.js          # Region/state loading
+        â”‚   â”œâ”€â”€ security.js         # URL validation and safe redirects
+        â”‚   â”œâ”€â”€ shipping-calculator.js  # Shipping cost calculation
+        â”‚   â””â”€â”€ payment-errors.js   # Standardized payment error handling
+        â”œâ”€â”€ components/
+        â”‚   â”œâ”€â”€ single-page-checkout.js   # Main orchestrator (coordinates sub-components)
+        â”‚   â”œâ”€â”€ checkout-address-form.js  # Reusable address form (billing/shipping)
+        â”‚   â”œâ”€â”€ checkout-shipping.js      # Shipping method display and selection
+        â”‚   â”œâ”€â”€ checkout-payment.js       # Payment method display and selection
+        â”‚   â”œâ”€â”€ order-summary.js          # Order summary with discount handling
+        â”‚   â””â”€â”€ express-checkout.js       # Express checkout buttons
+        â”œâ”€â”€ analytics.js            # Event emitter for GTM/analytics
+        â”œâ”€â”€ payment.js              # Dynamic adapter loading - no hard-coded providers
+        â”œâ”€â”€ single-page-analytics.js # Analytics helper for single-page checkout
+        â”œâ”€â”€ confirmation.js         # Back-button protection for confirmation
+        â””â”€â”€ adapters/               # Provider-specific adapters
+            â”œâ”€â”€ paypal-unified-adapter.js
+            â”œâ”€â”€ stripe-payment-adapter.js
+            â”œâ”€â”€ stripe-express-adapter.js
+            â”œâ”€â”€ stripe-card-elements-adapter.js
+            â”œâ”€â”€ braintree-payment-adapter.js
+            â”œâ”€â”€ braintree-express-adapter.js
+            â””â”€â”€ braintree-local-payment-adapter.js
 
 src/Merchello.Core/Checkout/Models/
-└── CheckoutSettings.cs
+â””â”€â”€ CheckoutSettings.cs
 
 # Payment providers are built-in to Merchello.Core
 # Each provider declares multiple methods via GetAvailablePaymentMethods()
 src/Merchello.Core/Payments/Providers/
-├── Stripe/
-│   └── StripePaymentProvider.cs      # Methods: Cards (Redirect), Apple Pay, Google Pay
-├── Braintree/
-│   └── BraintreePaymentProvider.cs   # Methods: Cards (HostedFields), PayPal, Apple Pay, Google Pay
-├── PayPal/
-│   └── PayPalPaymentProvider.cs      # Methods: PayPal (Widget), Pay Later
-└── BuiltIn/
-    └── ManualPaymentProvider.cs      # Manual/offline payments
+â”œâ”€â”€ Stripe/
+â”‚   â””â”€â”€ StripePaymentProvider.cs      # Methods: Cards (Redirect), Apple Pay, Google Pay
+â”œâ”€â”€ Braintree/
+â”‚   â””â”€â”€ BraintreePaymentProvider.cs   # Methods: Cards (HostedFields), PayPal, Apple Pay, Google Pay
+â”œâ”€â”€ PayPal/
+â”‚   â””â”€â”€ PayPalPaymentProvider.cs      # Methods: PayPal (Widget), Pay Later
+â””â”€â”€ BuiltIn/
+    â””â”€â”€ ManualPaymentProvider.cs      # Manual/offline payments
 ```
 
 ### Dependencies
@@ -1567,13 +1567,13 @@ Note: Each payment provider has its own NuGet dependency. The checkout itself on
 The checkout uses Tailwind CSS for utility-first styling, with Penguin UI components for common UI patterns:
 
 ```
-src/Merchello/Styles/checkout.css → wwwroot/css/checkout.css
+src/Merchello/Styles/checkout.css -> wwwroot/App_Plugins/Merchello/css/checkout.css
 ```
 
 Add to `.csproj`:
 ```xml
 <Target Name="CompileTailwind" BeforeTargets="Build">
-  <Exec Command="npx tailwindcss -i Styles/checkout.css -o wwwroot/css/checkout.css --minify" />
+  <Exec Command="npx tailwindcss -i Styles/checkout.css -o wwwroot/App_Plugins/Merchello/css/checkout.css --minify" />
 </Target>
 ```
 
@@ -1609,7 +1609,7 @@ Copy component markup from Penguin UI and adapt to Razor views. Components use A
 
 | Criteria | Measure |
 |----------|---------|
-| Functional | Complete checkout flow cart → confirmation |
+| Functional | Complete checkout flow cart â†’ confirmation |
 | Mobile | Fully responsive, touch-optimized |
 | Payments | Card payments via Braintree + Stripe working |
 | Express Checkout | Apple Pay, Google Pay, Link by Stripe, PayPal One Touch all working |
@@ -1633,3 +1633,5 @@ Copy component markup from Penguin UI and adapt to Razor views. Components use A
 | `@docs/Customer-Segments.md` | Customer segments used for discount eligibility |
 | `@docs/Developer-Guidelines.md` | Coding standards, service patterns |
 | `@docs/Typescript.md` | Frontend TypeScript patterns (if migrating from Alpine.JS later) |
+
+

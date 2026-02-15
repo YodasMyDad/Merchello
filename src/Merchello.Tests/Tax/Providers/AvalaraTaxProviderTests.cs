@@ -55,6 +55,12 @@ public class AvalaraTaxProviderTests
     }
 
     [Fact]
+    public void Metadata_UsesCatalogIconSvg()
+    {
+        _provider.Metadata.IconSvg.ShouldBe(ProviderBrandLogoCatalog.Avalara);
+    }
+
+    [Fact]
     public void Metadata_HasDescription()
     {
         _provider.Metadata.Description.ShouldNotBeNullOrWhiteSpace();
