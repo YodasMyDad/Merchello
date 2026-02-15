@@ -725,6 +725,52 @@ public class AbandonedCheckoutServiceTests : IClassFixture<ServiceTestFixture>, 
         result.Items[0].CustomerEmail.ShouldBe("john@example.com");
     }
 
+    [Fact]
+    public async Task GetPaged_MinValueAndTotalSort_FiltersAndSortsWithoutSqliteCompareErrors()
+    {
+        _fixture.DbContext.AbandonedCheckouts.AddRange(
+            new AbandonedCheckout
+            {
+                BasketId = SeedBasket(),
+                Email = "low@test.com",
+                Status = AbandonedCheckoutStatus.Abandoned,
+                DateAbandoned = DateTime.UtcNow,
+                BasketTotal = 9.99m
+            },
+            new AbandonedCheckout
+            {
+                BasketId = SeedBasket(),
+                Email = "mid@test.com",
+                Status = AbandonedCheckoutStatus.Abandoned,
+                DateAbandoned = DateTime.UtcNow,
+                BasketTotal = 19.99m
+            },
+            new AbandonedCheckout
+            {
+                BasketId = SeedBasket(),
+                Email = "high@test.com",
+                Status = AbandonedCheckoutStatus.Abandoned,
+                DateAbandoned = DateTime.UtcNow,
+                BasketTotal = 39.99m
+            });
+
+        await _fixture.DbContext.SaveChangesAsync();
+
+        var result = await _service.GetPagedAsync(new AbandonedCheckoutQueryParameters
+        {
+            MinValue = 10m,
+            OrderBy = AbandonedCheckoutOrderBy.Total,
+            Descending = false,
+            Page = 1,
+            PageSize = 10
+        });
+
+        result.TotalItems.ShouldBe(2);
+        result.Items.Count.ShouldBe(2);
+        result.Items[0].BasketTotal.ShouldBe(19.99m);
+        result.Items[1].BasketTotal.ShouldBe(39.99m);
+    }
+
     #endregion
 
     #region GetStatsAsync

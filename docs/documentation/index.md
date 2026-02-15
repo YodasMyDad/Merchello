@@ -211,6 +211,42 @@ For headless clients (React/Vue/Next/mobile), use this flow:
 - `GET /api/merchello/storefront/shipping/countries`
 - `GET /api/merchello/storefront/shipping/countries/{countryCode}/regions`
 
+### 8.3 Complete Storefront Endpoint Matrix (Headless)
+
+All routes are under `/api/merchello/storefront`.
+
+Basket:
+- `GET /basket`
+- `GET /basket?includeAvailability=true&countryCode={code}&regionCode={code}`
+- `GET /basket/count`
+- `POST /basket/add`
+- `POST /basket/update`
+- `DELETE /basket/{lineItemId}`
+- `POST /basket/clear`
+- `GET /basket/availability?countryCode={code}&regionCode={code}`
+- `GET /basket/estimated-shipping?countryCode={code}&regionCode={code}`
+
+Context:
+- `GET /context` (country + region + currency + basket summary)
+
+Shipping/location:
+- `GET /shipping/countries`
+- `GET /shipping/country`
+- `POST /shipping/country`
+- `GET /shipping/countries/{countryCode}/regions`
+
+Currency:
+- `GET /currency`
+- `POST /currency`
+
+Product availability:
+- `GET /products/{productId}/availability?countryCode={code}&regionCode={code}&quantity={n}`
+
+Upsells (optional advanced):
+- `GET /upsells?location={Basket|ProductPage|Checkout|Email|Confirmation}&countryCode={code}&regionCode={code}`
+- `GET /upsells/product/{productId}`
+- `POST /upsells/events`
+
 ## 9. Core-First vs Optional Features
 
 Core-first (recommended to launch with):

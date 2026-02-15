@@ -18,6 +18,21 @@ body {
     background: linear-gradient(135deg, #fff8ec 0%, #f5eee4 100%);
 }
 
+.site-footer {
+    background: linear-gradient(135deg, #fff8ec 0%, #f5eee4 100%);
+    color: var(--site-ink);
+    border-color: var(--site-border) !important;
+}
+
+.site-footer h5,
+.site-footer p {
+    color: inherit;
+}
+
+.site-footer-muted {
+    color: #5a646e !important;
+}
+
 .site-header-top {
     min-height: 2.75rem;
 }
@@ -37,10 +52,16 @@ body {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background-color: var(--site-ink);
-    color: #fff;
-    font-size: 0.9rem;
-    font-weight: 700;
+    overflow: hidden;
+    border: 1px solid var(--site-border);
+    background-color: #fff;
+}
+
+.site-brand-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
 }
 
 .site-brand-text {

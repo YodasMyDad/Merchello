@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 import { resolve } from "path";
 
 export default defineConfig({
+  // Keep legacy checkout JS and plugin images in Client/public so Vite copies
+  // them into ../wwwroot/App_Plugins/Merchello on each build.
+  publicDir: "public",
   resolve: {
     alias: {
       "@abandoned-checkouts": resolve(__dirname, "src/abandoned-checkouts"),

@@ -64,5 +64,9 @@
     <!-- However make the Umbraco-package.json included for dotnet pack or nuget package and visible to the solution -->
     <None Include="Client\public\umbraco-package.json" Pack="false" />
   </ItemGroup>
+  
+  <ItemGroup>
+    <Folder Include="wwwroot\App_Plugins\Merchello\img\" />
+  </ItemGroup>
 
 </Project>

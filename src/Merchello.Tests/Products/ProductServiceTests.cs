@@ -1,6 +1,7 @@
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
@@ -154,5 +155,33 @@ public class ProductServiceTests
         var persistedVariantOption = reloaded.ProductOptions.Single(o => o.IsVariant);
         persistedVariantOption.IsRequired.ShouldBeFalse();
         persistedVariantOption.IsMultiSelect.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task QueryProducts_WithMaxPriceFilter_FiltersWithoutSqliteCompareErrors()
+    {
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        var lowRoot = dataBuilder.CreateProductRoot("Filtered Low Price Root");
+        var lowVariant = dataBuilder.CreateProduct("Filtered Low Price Variant", lowRoot, price: 19.99m);
+
+        var highRoot = dataBuilder.CreateProductRoot("Filtered High Price Root");
+        dataBuilder.CreateProduct("Filtered High Price Variant", highRoot, price: 29.99m);
+
+        await dataBuilder.SaveChangesAsync();
+
+        var result = await _productService.QueryProducts(new ProductQueryParameters
+        {
+            ProductRootKeys = [lowRoot.Id, highRoot.Id],
+            MaxPrice = 19.99m,
+            OrderBy = ProductOrderBy.PriceAsc,
+            CurrentPage = 1,
+            AmountPerPage = 20,
+            NoTracking = true
+        });
+
+        result.TotalItems.ShouldBe(1);
+        result.Items.Count().ShouldBe(1);
+        result.Items.Single().Id.ShouldBe(lowVariant.Id);
     }
 }
