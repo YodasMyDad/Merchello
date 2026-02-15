@@ -65,7 +65,11 @@ public class CollectionPickerValueConverter(IServiceScopeFactory serviceScopeFac
 
         // Fetch collections using batch method to avoid N+1 queries
         // Use Task.Run to avoid sync-over-async deadlocks in ASP.NET contexts
-        var collections = Task.Run(() => productCollectionService.GetCollectionsByIds(ids)).GetAwaiter().GetResult();
+        List<ProductCollection> collections;
+        using (System.Threading.ExecutionContext.SuppressFlow())
+        {
+            collections = Task.Run(() => productCollectionService.GetCollectionsByIds(ids)).GetAwaiter().GetResult();
+        }
 
         // Preserve the original order from the stored value
         List<ProductCollection> orderedCollections = new(ids.Count);
