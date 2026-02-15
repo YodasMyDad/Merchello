@@ -1,4 +1,5 @@
 using Merchello.Core.Email.Services.Interfaces;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services.Interfaces;
@@ -15,6 +16,7 @@ namespace Merchello.Core.Webhooks.Services;
 /// </summary>
 public class OutboundDeliveryJob(
     IServiceScopeFactory serviceScopeFactory,
+    ISeedDataInstallationState seedDataInstallationState,
     IOptions<WebhookSettings> options,
     Umbraco.Cms.Core.Services.IRuntimeState runtimeState,
     ILogger<OutboundDeliveryJob> logger) : BackgroundService
@@ -22,7 +24,10 @@ public class OutboundDeliveryJob(
     private readonly WebhookSettings _settings = options.Value;
     private readonly TimeSpan _initialDelay = TimeSpan.FromSeconds(30);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
+
+    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
     {
         if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
                 runtimeState,
@@ -52,7 +57,14 @@ public class OutboundDeliveryJob(
         {
             try
             {
-                await ProcessPendingRetriesAsync(stoppingToken);
+                if (seedDataInstallationState.IsInstalling)
+                {
+                    logger.LogDebug("Seed data installation in progress, skipping outbound delivery retry processing");
+                }
+                else
+                {
+                    await ProcessPendingRetriesAsync(stoppingToken);
+                }
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {

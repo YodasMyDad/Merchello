@@ -20,10 +20,12 @@ public class UpsellAnalyticsService(
     ILogger<UpsellAnalyticsService> logger) : IUpsellAnalyticsService, IDisposable
 {
     private readonly ConcurrentQueue<UpsellEvent> _eventBuffer = new();
+    private readonly SemaphoreSlim _flushLock = new(1, 1);
     private Timer? _flushTimer;
     private const int FlushIntervalMs = 5000;
     private const int MaxBufferSize = 500;
     private bool _disposed;
+    private int _bufferedCount;
 
     // Start the flush timer on first use
     private int _timerStarted;
@@ -32,7 +34,26 @@ public class UpsellAnalyticsService(
     {
         if (Interlocked.CompareExchange(ref _timerStarted, 1, 0) == 0)
         {
-            _flushTimer = new Timer(_ => _ = FlushAsync(CancellationToken.None), null, FlushIntervalMs, FlushIntervalMs);
+            using (ExecutionContext.SuppressFlow())
+            {
+                _flushTimer = new Timer(
+                    static state => ((UpsellAnalyticsService)state!).OnFlushTimerTick(),
+                    this,
+                    FlushIntervalMs,
+                    FlushIntervalMs);
+            }
+        }
+    }
+
+    private void OnFlushTimerTick()
+    {
+        try
+        {
+            TryFlushAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Timer-triggered upsell analytics flush failed");
         }
     }
 
@@ -85,9 +106,10 @@ public class UpsellAnalyticsService(
     {
         EnsureTimerStarted();
         _eventBuffer.Enqueue(CreateEvent(parameters, eventType));
+        var bufferedCount = Interlocked.Increment(ref _bufferedCount);
 
-        if (_eventBuffer.Count >= MaxBufferSize)
-            _ = FlushAsync(ct);
+        if (bufferedCount >= MaxBufferSize)
+            return FlushAsync(ct);
 
         return Task.CompletedTask;
     }
@@ -335,27 +357,81 @@ public class UpsellAnalyticsService(
         };
 
     private async Task FlushAsync(CancellationToken ct)
-    {
-        var events = new List<UpsellEvent>();
-        while (_eventBuffer.TryDequeue(out var evt) && events.Count < MaxBufferSize)
-            events.Add(evt);
+        => await FlushCoreAsync(ct, waitForLock: true);
 
-        if (events.Count == 0) return;
+    private async Task TryFlushAsync(CancellationToken ct)
+        => await FlushCoreAsync(ct, waitForLock: false);
+
+    private async Task FlushRemainingAsync(CancellationToken ct)
+        => await FlushCoreAsync(ct, waitForLock: true);
+
+    private async Task FlushCoreAsync(CancellationToken ct, bool waitForLock)
+    {
+        var lockTaken = false;
+        if (waitForLock)
+        {
+            await _flushLock.WaitAsync(ct);
+            lockTaken = true;
+        }
+        else
+        {
+            lockTaken = await _flushLock.WaitAsync(0, ct);
+        }
+
+        if (!lockTaken)
+            return;
 
         try
         {
-            using var scope = efCoreScopeProvider.CreateScope();
-            await scope.ExecuteWithContextAsync<bool>(async db =>
+            while (true)
             {
-                db.UpsellEvents.AddRange(events);
-                await db.SaveChangesAsync(ct);
-                return true;
-            });
-            scope.Complete();
+                var events = DequeueBatch();
+                if (events.Count == 0)
+                    return;
+
+                try
+                {
+                    using var scope = efCoreScopeProvider.CreateScope();
+                    await scope.ExecuteWithContextAsync<bool>(async db =>
+                    {
+                        db.UpsellEvents.AddRange(events);
+                        await db.SaveChangesAsync(ct);
+                        return true;
+                    });
+                    scope.Complete();
+                }
+                catch (Exception ex)
+                {
+                    Requeue(events);
+                    logger.LogError(ex, "Failed to flush {Count} upsell analytics events", events.Count);
+                    return;
+                }
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            logger.LogError(ex, "Failed to flush {Count} upsell analytics events", events.Count);
+            _flushLock.Release();
+        }
+    }
+
+    private List<UpsellEvent> DequeueBatch()
+    {
+        List<UpsellEvent> events = [];
+        while (_eventBuffer.TryDequeue(out var evt) && events.Count < MaxBufferSize)
+        {
+            Interlocked.Decrement(ref _bufferedCount);
+            events.Add(evt);
+        }
+
+        return events;
+    }
+
+    private void Requeue(IEnumerable<UpsellEvent> events)
+    {
+        foreach (var evt in events)
+        {
+            _eventBuffer.Enqueue(evt);
+            Interlocked.Increment(ref _bufferedCount);
         }
     }
 
@@ -371,12 +447,14 @@ public class UpsellAnalyticsService(
         {
             try
             {
-                FlushAsync(CancellationToken.None).GetAwaiter().GetResult();
+                FlushRemainingAsync(CancellationToken.None).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to flush remaining upsell events on dispose");
             }
         }
+
+        _flushLock.Dispose();
     }
 }

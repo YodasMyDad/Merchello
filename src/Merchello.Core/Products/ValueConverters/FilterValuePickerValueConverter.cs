@@ -65,7 +65,11 @@ public class FilterValuePickerValueConverter(IServiceScopeFactory serviceScopeFa
 
         // Fetch filters using batch method to avoid N+1 queries
         // Use Task.Run to avoid sync-over-async deadlocks in ASP.NET contexts
-        var filters = Task.Run(() => productFilterService.GetFiltersByIds(ids)).GetAwaiter().GetResult();
+        List<ProductFilter> filters;
+        using (System.Threading.ExecutionContext.SuppressFlow())
+        {
+            filters = Task.Run(() => productFilterService.GetFiltersByIds(ids)).GetAwaiter().GetResult();
+        }
 
         // Preserve the original order from the stored value
         List<ProductFilter> orderedFilters = new(ids.Count);

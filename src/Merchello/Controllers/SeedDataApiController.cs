@@ -3,6 +3,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Settings.Dtos;
 using Merchello.Core.Shared.Models;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public class SeedDataApiController(
     IOptions<MerchelloSettings> settings,
     IProductService productService,
     DbSeeder dbSeeder,
+    ISeedDataInstallationState seedDataInstallationState,
     ILogger<SeedDataApiController> logger)
     : MerchelloApiControllerBase
 {
@@ -60,6 +62,16 @@ public class SeedDataApiController(
 
         try
         {
+            if (seedDataInstallationState.IsInstalling)
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new InstallSeedDataResultDto
+                {
+                    Success = false,
+                    IsInstalled = false,
+                    Message = "Seed data installation is already in progress."
+                });
+            }
+
             if (await productService.AnyProductsExistAsync(cancellationToken))
             {
                 return Ok(new InstallSeedDataResultDto
@@ -70,25 +82,42 @@ public class SeedDataApiController(
                 });
             }
 
-            await dbSeeder.SeedAsync(cancellationToken);
-            var isInstalled = await productService.AnyProductsExistAsync(cancellationToken);
-
-            if (!isInstalled)
+            if (!seedDataInstallationState.TryBeginInstallation())
             {
-                return StatusCode(StatusCodes.Status500InternalServerError, new InstallSeedDataResultDto
+                return StatusCode(StatusCodes.Status409Conflict, new InstallSeedDataResultDto
                 {
                     Success = false,
                     IsInstalled = false,
-                    Message = "Seed data installation did not complete. Check logs for details."
+                    Message = "Seed data installation is already in progress."
                 });
             }
 
-            return Ok(new InstallSeedDataResultDto
+            try
             {
-                Success = true,
-                IsInstalled = true,
-                Message = "Seed data installed successfully."
-            });
+                await dbSeeder.SeedAsync(cancellationToken);
+                var isInstalled = await productService.AnyProductsExistAsync(cancellationToken);
+
+                if (!isInstalled)
+                {
+                    return StatusCode(StatusCodes.Status500InternalServerError, new InstallSeedDataResultDto
+                    {
+                        Success = false,
+                        IsInstalled = false,
+                        Message = "Seed data installation did not complete. Check logs for details."
+                    });
+                }
+
+                return Ok(new InstallSeedDataResultDto
+                {
+                    Success = true,
+                    IsInstalled = true,
+                    Message = "Seed data installed successfully."
+                });
+            }
+            finally
+            {
+                seedDataInstallationState.EndInstallation();
+            }
         }
         catch (Exception ex)
         {

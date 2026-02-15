@@ -1,4 +1,5 @@
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Services;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
@@ -18,6 +19,7 @@ namespace Merchello.Core.Upsells.Services;
 /// </summary>
 public class UpsellStatusJob(
     IServiceScopeFactory serviceScopeFactory,
+    ISeedDataInstallationState seedDataInstallationState,
     IOptions<UpsellSettings> upsellSettings,
     IRuntimeState runtimeState,
     ILogger<UpsellStatusJob> logger) : BackgroundService
@@ -27,7 +29,10 @@ public class UpsellStatusJob(
     private readonly UpsellSettings _settings = upsellSettings.Value;
     private DateTime _lastCleanup = DateTime.MinValue;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
+
+    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
     {
         if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
                 runtimeState,
@@ -55,13 +60,20 @@ public class UpsellStatusJob(
         {
             try
             {
-                await UpdateExpiredUpsellsAsync(stoppingToken);
-
-                // Run event cleanup once per hour
-                if (DateTime.UtcNow - _lastCleanup > TimeSpan.FromHours(1))
+                if (seedDataInstallationState.IsInstalling)
                 {
-                    await CleanupOldEventsAsync(stoppingToken);
-                    _lastCleanup = DateTime.UtcNow;
+                    logger.LogDebug("Seed data installation in progress, skipping upsell status check");
+                }
+                else
+                {
+                    await UpdateExpiredUpsellsAsync(stoppingToken);
+
+                    // Run event cleanup once per hour
+                    if (DateTime.UtcNow - _lastCleanup > TimeSpan.FromHours(1))
+                    {
+                        await CleanupOldEventsAsync(stoppingToken);
+                        _lastCleanup = DateTime.UtcNow;
+                    }
                 }
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
