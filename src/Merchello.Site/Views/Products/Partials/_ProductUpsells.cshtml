@@ -1,0 +1,34 @@
+@model MerchelloProductViewModel
+
+<template x-if="upsellSuggestions.length > 0">
+    <div>
+        <template x-for="suggestion in upsellSuggestions" :key="suggestion.upsellRuleId">
+            <section class="product-upsells mt-5 pt-4 border-top">
+                <h2 class="h4 mb-3" x-text="suggestion.heading"></h2>
+                <template x-if="suggestion.message">
+                    <p class="text-muted mb-3" x-text="suggestion.message"></p>
+                </template>
+                <div class="row g-3">
+                    <template x-for="product in suggestion.products" :key="product.productId">
+                        <div class="col-6 col-md-3">
+                            <a :href="product.url || '#'"
+                               class="card text-decoration-none h-100"
+                               @@click="trackProductUpsellClick(suggestion.upsellRuleId, product.productId)">
+                                <template x-if="product.imageUrl">
+                                    <img :src="product.imageUrl" :alt="product.name" class="card-img-top" style="height: 180px; object-fit: contain; padding: 1rem;">
+                                </template>
+                                <div class="card-body text-center">
+                                    <h6 class="card-title" x-text="product.name"></h6>
+                                    <div class="text-primary fw-bold" x-text="product.formattedPrice"></div>
+                                    <template x-if="product.onSale && product.formattedPreviousPrice">
+                                        <div class="text-muted text-decoration-line-through small" x-text="product.formattedPreviousPrice"></div>
+                                    </template>
+                                </div>
+                            </a>
+                        </div>
+                    </template>
+                </div>
+            </section>
+        </template>
+    </div>
+</template>

@@ -5,7 +5,7 @@ namespace Merchello.Core.Storefront.Dtos;
 /// </summary>
 public class BasketItemAvailabilityDto
 {
-    public bool CanShipToCountry { get; set; }
+    public bool CanShipToLocation { get; set; }
     public bool HasStock { get; set; }
     public string? Message { get; set; }
 }

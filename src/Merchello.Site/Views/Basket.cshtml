@@ -50,7 +50,7 @@
                                     style="min-width: 180px;">
                                 <option value="">Select region...</option>
                                 <template x-for="region in regions" :key="region.regionCode">
-                                    <option :value="region.regionCode" x-text="region.regionName"></option>
+                                    <option :value="region.regionCode" x-text="region.name"></option>
                                 </template>
                             </select>
                         </div>

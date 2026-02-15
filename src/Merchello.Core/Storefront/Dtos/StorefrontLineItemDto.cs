@@ -49,6 +49,6 @@ public class StorefrontLineItemDto
     public bool IsTaxable { get; set; }
 
     public string LineItemType { get; set; } = "";
-    public string? DependantLineItemSku { get; set; }
+    public string? DependentLineItemSku { get; set; }
     public string? ParentLineItemId { get; set; }
 }

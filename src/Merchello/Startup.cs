@@ -420,6 +420,7 @@ public static class Startup
         // Checkout member service (requires IMemberSignInManager from Umbraco.Cms.Web.Common)
         builder.Services.AddScoped<ICheckoutMemberService, CheckoutMemberService>();
         builder.Services.AddScoped<ICheckoutDtoMapper, CheckoutDtoMapper>();
+        builder.Services.AddScoped<IStorefrontDtoMapper, StorefrontDtoMapper>();
         builder.Services.AddScoped<ICheckoutPaymentsOrchestrationService, CheckoutPaymentsOrchestrationService>();
         builder.Services.AddScoped<IOrdersDtoMapper, OrdersDtoMapper>();
         builder.Services.AddScoped<IOrdersRequestMapper, OrdersRequestMapper>();

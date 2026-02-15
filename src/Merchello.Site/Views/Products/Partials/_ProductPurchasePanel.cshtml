@@ -1,0 +1,191 @@
+@model MerchelloProductViewModel
+@{
+    var settings = (Merchello.Core.Shared.Models.MerchelloSettings)ViewData["Settings"]!;
+    var displayContext = (Merchello.Core.Storefront.Models.StorefrontDisplayContext)ViewData["DisplayContext"]!;
+    var includesTax = (bool)(ViewData["IncludesTax"] ?? false);
+    var taxRate = (decimal)(ViewData["TaxRate"] ?? 0m);
+    var ssrTrackStock = (bool)(ViewData["SsrTrackStock"] ?? false);
+    var ssrTotalStock = (int)(ViewData["SsrTotalStock"] ?? 0);
+    var ssrCanShipToLocation = (bool)(ViewData["SsrCanShipToLocation"] ?? false);
+    var ssrIsLowStock = (bool)(ViewData["SsrIsLowStock"] ?? false);
+    var ssrInStock = (bool)(ViewData["SsrInStock"] ?? false);
+    var ssrDisplayPrice = (decimal)(ViewData["SsrDisplayPrice"] ?? 0m);
+    var ssrDisplayPreviousPrice = ViewData["SsrDisplayPreviousPrice"] is decimal price ? price : (decimal?)null;
+    var priceFormat = (string)(ViewData["PriceFormat"] ?? "N2");
+}
+
+<div class="col-lg-6">
+    <h1 class="h2 mb-2">@Model.ProductRoot.RootName</h1>
+
+    <p class="text-muted small mb-3">
+        SKU: <span x-text="sku">@Model.SelectedVariant.Sku</span>
+    </p>
+
+    <div class="pricing mb-3">
+        <span class="h3 text-dark" x-text="formattedDisplayTotalPrice">@displayContext.CurrencySymbol@ssrDisplayPrice.ToString(priceFormat)</span>
+        <span class="text-decoration-line-through text-muted ms-2"
+              x-show="onSale && displayPreviousPrice"
+              x-text="formattedDisplayPreviousPrice"
+              @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && ssrDisplayPreviousPrice.HasValue ? $"{displayContext.CurrencySymbol}{ssrDisplayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
+        <span class="badge bg-danger ms-2"
+              x-show="onSale"
+              @(Model.OnSale ? "" : "x-cloak")>Sale</span>
+        @if (includesTax)
+        {
+            <span class="text-muted small ms-2" x-show="includesTax">(inc. @taxRate% VAT)</span>
+        }
+    </div>
+
+    <div class="stock-status mb-4">
+        <noscript>
+            @if (ssrInStock && ssrIsLowStock && settings.ShowStockLevels)
+            {
+                <span class="text-warning">Low Stock - Only @ssrTotalStock left!</span>
+            }
+            else if (ssrInStock && ssrTrackStock && settings.ShowStockLevels)
+            {
+                <span class="text-success">In Stock (@ssrTotalStock available)</span>
+            }
+            else if (ssrInStock)
+            {
+                <span class="text-success">In Stock</span>
+            }
+            else
+            {
+                <span class="text-danger">Out of Stock</span>
+            }
+        </noscript>
+
+        <span class="text-warning"
+              x-show="inStock && trackStock && showStockLevels && stockCount <= lowStockThreshold"
+              @(ssrInStock && ssrIsLowStock && settings.ShowStockLevels ? "" : "x-cloak")>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-exclamation-triangle me-1" viewBox="0 0 16 16">
+                <path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.15.15 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.2.2 0 0 1-.054.06.1.1 0 0 1-.066.017H1.146a.1.1 0 0 1-.066-.017.2.2 0 0 1-.054-.06.18.18 0 0 1 .002-.183L7.884 2.073a.15.15 0 0 1 .054-.057m1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767z"/>
+                <path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0M7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z"/>
+            </svg>
+            Low Stock - Only <span x-text="stockCount">@ssrTotalStock</span> left!
+        </span>
+
+        <span class="text-success"
+              x-show="inStock && trackStock && showStockLevels && stockCount > lowStockThreshold"
+              @(ssrInStock && ssrTrackStock && settings.ShowStockLevels && !ssrIsLowStock ? "" : "x-cloak")>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
+            </svg>
+            In Stock (<span x-text="stockCount">@ssrTotalStock</span> available)
+        </span>
+
+        <span class="text-success"
+              x-show="inStock && (!trackStock || !showStockLevels)"
+              @(ssrInStock && (!ssrTrackStock || !settings.ShowStockLevels) ? "" : "x-cloak")>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-check-circle me-1" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                <path d="m10.97 4.97-.02.022-3.473 4.425-2.093-2.094a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05"/>
+            </svg>
+            In Stock
+        </span>
+
+        <span class="text-danger"
+              x-show="!inStock && canShipToLocation"
+              @(!ssrInStock && ssrCanShipToLocation ? "" : "x-cloak")>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-x-circle me-1" viewBox="0 0 16 16">
+                <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
+            </svg>
+            Out of Stock
+        </span>
+
+        <span class="text-danger"
+              x-show="!canShipToLocation"
+              @(!ssrCanShipToLocation ? "" : "x-cloak")>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-geo-alt me-1" viewBox="0 0 16 16">
+                <path d="M12.166 8.94c-.524 1.062-1.234 2.12-1.96 3.07A32 32 0 0 1 8 14.58a32 32 0 0 1-2.206-2.57c-.726-.95-1.436-2.008-1.96-3.07C3.304 7.867 3 6.862 3 6a5 5 0 0 1 10 0c0 .862-.305 1.867-.834 2.94M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10"/>
+                <path d="M8 8a2 2 0 1 1 0-4 2 2 0 0 1 0 4m0 1a3 3 0 1 0 0-6 3 3 0 0 0 0 6"/>
+            </svg>
+            Not available in <span x-text="$store.country.name">your location</span>
+        </span>
+    </div>
+
+    @if (Model.AllVariants.Count > 1 && Model.VariantOptions.Any())
+    {
+        <div class="variant-options mb-4">
+            @foreach (var option in Model.VariantOptions.OrderBy(o => o.SortOrder))
+            {
+                @await Component.InvokeAsync("ProductOptionSelector", new { option = option })
+            }
+        </div>
+    }
+
+    @if (Model.AddOnOptions.Any())
+    {
+        <div class="addon-options card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Customization Options</h5>
+
+                @foreach (var option in Model.AddOnOptions.OrderBy(o => o.SortOrder))
+                {
+                    @await Component.InvokeAsync("ProductAddonSelector", new { option = option, taxRate = taxRate })
+                }
+            </div>
+        </div>
+    }
+
+    <div class="add-to-cart-section">
+        <div class="row g-3 align-items-end">
+            <div class="col-auto">
+                <label class="form-label">Quantity</label>
+                <div class="input-group quantity-selector">
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            @@click="decrementQuantity()"
+                            :disabled="quantity <= 1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8"/>
+                        </svg>
+                    </button>
+                    <input type="number"
+                           class="form-control text-center"
+                           x-model.number="quantity"
+                           min="1"
+                           :max="maxQuantity"
+                           style="width: 60px;" />
+                    <button type="button"
+                            class="btn btn-outline-secondary"
+                            @@click="incrementQuantity()"
+                            :disabled="quantity >= maxQuantity">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="col">
+                <button type="button"
+                        class="btn btn-lg w-100"
+                        :class="inStock ? 'btn-primary' : 'btn-secondary'"
+                        :disabled="!inStock || isLoading"
+                        @@click="addToCart()">
+                    <span x-show="!isLoading && inStock">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                            <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5M3.102 4l1.313 7h8.17l1.313-7zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4m7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2m7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
+                        </svg>
+                        Add to Basket
+                    </span>
+                    <span x-show="!isLoading && !inStock"
+                          @(!ssrInStock ? "" : "x-cloak")>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="me-2" viewBox="0 0 16 16">
+                            <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
+                            <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708"/>
+                        </svg>
+                        Out of Stock
+                    </span>
+                    <span x-show="isLoading" x-cloak>
+                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Adding...
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,6 +1,11 @@
-﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
+@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
 @{
     Layout = null;
+
+    var root = Umbraco.ContentAtRoot().FirstOrDefault();
+    var categories = root?.Children().Where(x => x.ContentType.Alias == "category").ToList() ?? [];
+    var primaryCategories = categories.Take(4).ToList();
+    var overflowCategories = categories.Skip(4).ToList();
 }
 
 <!doctype html>
@@ -11,100 +16,123 @@
     <base href="/"/>
     <title>@(Model?.Name ?? "Merchello Store")</title>
 
-    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
           rel="stylesheet"
           integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
           crossorigin="anonymous">
 
-    <!-- Swiper CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
 
     <link href="~/css/styles.css" rel="stylesheet"/>
 
-    <!-- Alpine cloak style -->
     <style>[x-cloak] { display: none !important; }</style>
 
-    <!-- Currency context for storefront display -->
     @await Component.InvokeAsync("StorefrontCurrency")
 
     @await RenderSectionAsync("Head", required: false)
 </head>
 <body class="d-flex flex-column min-vh-100">
-    <!-- Header -->
-    <header class="bg-dark text-white py-3">
-        <div class="container">
-            <div class="d-flex justify-content-between align-items-center">
-                <a href="/" class="text-white text-decoration-none">
-                    <h1 class="h4 mb-0">Merchello Store</h1>
+    <header class="site-header border-bottom">
+        <div class="container py-3 py-lg-2">
+            <div class="site-header-top d-flex align-items-center justify-content-between gap-3">
+                <a href="/" class="site-brand text-decoration-none">
+                    <span class="site-brand-mark">M</span>
+                    <span class="site-brand-text">Merchello Storefront</span>
                 </a>
-                <nav>
-                    <ul class="nav">
-                        <li class="nav-item">
-                            <a class="nav-link text-white" href="/">Home</a>
-                        </li>
-                        @foreach (var category in Umbraco.ContentAtRoot().First().Children().Where(x => x.ContentType.Alias == "category"))
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link text-white" href="@category.Url()">@category.Name</a>
-                            </li>
-                        }
-                        <!-- Country Selector -->
-                        <li class="nav-item dropdown" x-data x-init="$store.country.init()">
-                            <button class="nav-link text-white dropdown-toggle d-flex align-items-center gap-1"
-                                    data-bs-toggle="dropdown"
-                                    :disabled="$store.country.isLoading">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                                    <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7 7 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z"/>
-                                </svg>
-                                <span x-text="$store.country.name || 'Country'"></span>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <template x-for="country in $store.country.countries" :key="country.code">
-                                    <li>
-                                        <button class="dropdown-item"
-                                                :class="{ 'active': country.code === $store.country.code }"
-                                                @@click="$store.country.setCountry(country.code)"
-                                                x-text="country.name">
-                                        </button>
-                                    </li>
-                                </template>
-                            </ul>
-                        </li>
-                        <li class="nav-item" x-data>
-                            <a class="nav-link text-white position-relative" href="/basket">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-cart" viewBox="0 0 16 16">
-                                    <path d="M0 1.5A.5.5 0 0 1 .5 1H2a.5.5 0 0 1 .485.379L2.89 3H14.5a.5.5 0 0 1 .491.592l-1.5 8A.5.5 0 0 1 13 12H4a.5.5 0 0 1-.491-.408L2.01 3.607 1.61 2H.5a.5.5 0 0 1-.5-.5M3.102 4l1.313 7h8.17l1.313-7zM5 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4m7 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4m-7 1a1 1 0 1 1 0 2 1 1 0 0 1 0-2m7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2"/>
-                                </svg>
-                                Basket
-                                <span x-show="$store.basket.count > 0"
-                                      x-text="$store.basket.count"
-                                      class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary"
-                                      x-cloak></span>
-                            </a>
-                        </li>
-                    </ul>
-                </nav>
+
+                <div class="site-header-utility d-flex align-items-center gap-2" x-data x-init="$store.country.init(); $store.basket.init();">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-dark btn-sm dropdown-toggle d-flex align-items-center gap-1"
+                                data-bs-toggle="dropdown"
+                                :disabled="$store.country.isLoading">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+                                <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855A8 8 0 0 0 5.145 4H7.5zM4.09 4a9.3 9.3 0 0 1 .64-1.539 7 7 0 0 1 .597-.933A7 7 0 0 0 2.255 4zm-.582 3.5c.03-.877.138-1.718.312-2.5H1.674a7 7 0 0 0-.656 2.5zM4.847 5a12.5 12.5 0 0 0-.338 2.5H7.5V5zM8.5 5v2.5h2.99a12.5 12.5 0 0 0-.337-2.5zM4.51 8.5a12.5 12.5 0 0 0 .337 2.5H7.5V8.5zm3.99 0V11h2.653c.187-.765.306-1.608.338-2.5zM5.145 12q.208.58.468 1.068c.552 1.035 1.218 1.65 1.887 1.855V12zm.182 2.472a7 7 0 0 1-.597-.933A9.3 9.3 0 0 1 4.09 12H2.255a7 7 0 0 0 3.072 2.472M3.82 11a13.7 13.7 0 0 1-.312-2.5h-2.49c.062.89.291 1.733.656 2.5zm6.853 3.472A7 7 0 0 0 13.745 12H11.91a9.3 9.3 0 0 1-.64 1.539 7 7 0 0 1-.597.933M8.5 12v2.923c.67-.204 1.335-.82 1.887-1.855q.26-.487.468-1.068zm3.68-1h2.146c.365-.767.594-1.61.656-2.5h-2.49a13.7 13.7 0 0 1-.312 2.5m2.802-3.5a7 7 0 0 0-.656-2.5H12.18c.174.782.282 1.623.312 2.5zM11.27 2.461c.247.464.462.98.64 1.539h1.835a7 7 0 0 0-3.072-2.472c.218.284.418.598.597.933M10.855 4a8 8 0 0 0-.468-1.068C9.835 1.897 9.17 1.282 8.5 1.077V4z"/>
+                            </svg>
+                            <span class="d-none d-sm-inline" x-text="$store.country.name || 'Country'"></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <template x-for="country in $store.country.countries" :key="country.code">
+                                <li>
+                                    <button class="dropdown-item"
+                                            :class="{ 'active': country.code === $store.country.code }"
+                                            @@click="$store.country.setCountry(country.code)"
+                                            x-text="country.name"></button>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <a class="btn btn-dark btn-sm position-relative" href="/basket">
+                        Basket
+                        <span x-show="$store.basket.count > 0"
+                              x-text="$store.basket.count"
+                              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                              x-cloak></span>
+                    </a>
+
+                    <button class="btn btn-outline-dark btn-sm d-lg-none"
+                            type="button"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#siteNav"
+                            aria-controls="siteNav">
+                        Menu
+                    </button>
+                </div>
             </div>
+
+            <nav class="site-header-nav d-none d-lg-flex align-items-center gap-1 mt-3" aria-label="Primary">
+                <a class="site-nav-link" href="/">Home</a>
+                @foreach (var category in primaryCategories)
+                {
+                    <a class="site-nav-link" href="@category.Url()">@category.Name</a>
+                }
+                @if (overflowCategories.Count > 0)
+                {
+                    <div class="dropdown">
+                        <button class="site-nav-link dropdown-toggle border-0 bg-transparent" data-bs-toggle="dropdown">More</button>
+                        <ul class="dropdown-menu">
+                            @foreach (var category in overflowCategories)
+                            {
+                                <li><a class="dropdown-item" href="@category.Url()">@category.Name</a></li>
+                            }
+                        </ul>
+                    </div>
+                }
+            </nav>
         </div>
     </header>
 
-    <!-- Main Content -->
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="siteNav" aria-labelledby="siteNavLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="siteNavLabel">Browse Store</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="/">Home</a>
+                @foreach (var category in categories)
+                {
+                    <a class="list-group-item list-group-item-action" href="@category.Url()">@category.Name</a>
+                }
+                <a class="list-group-item list-group-item-action" href="/basket">Basket</a>
+            </div>
+        </div>
+    </div>
+
     <main class="flex-grow-1 py-4">
         <div class="container">
             @RenderBody()
         </div>
     </main>
 
-    <!-- Footer -->
     <footer class="bg-dark text-white py-4 mt-auto">
         <div class="container">
-            <div class="row">
-                <div class="col-md-4">
-                    <h5>Merchello Store</h5>
-                    <p class="text-white-50 mb-0">Your trusted ecommerce solution</p>
+            <div class="row align-items-center">
+                <div class="col-md-6 mb-3 mb-md-0">
+                    <h5 class="mb-1">Merchello Store</h5>
+                    <p class="text-white-50 mb-0">Build an ecommerce storefront with Merchello APIs and Razor templates.</p>
                 </div>
-                <div class="col-md-4 text-md-end">
+                <div class="col-md-6 text-md-end">
                     <p class="mb-1">&copy; @DateTime.Now.Year Merchello Store</p>
                     <p class="text-white-50 mb-0">Powered by Merchello</p>
                 </div>
@@ -112,26 +140,16 @@
         </div>
     </footer>
 
-    <!-- Swiper JS -->
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-
-    <!-- Merchello API (must load before site.js) -->
-    <script type="text/javascript" src="/scripts/merchello-api.js"></script>
-
-    <!-- Site JS (must load before Alpine for store registration) -->
-    <script type="text/javascript" src="/scripts/site.js"></script>
-
-    <!-- Alpine.js -->
+    <script src="/scripts/merchello-api.js"></script>
+    <script type="module" src="/scripts/storefront/index.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js"></script>
-
-    <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
-            integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+            integrity="sha384-C6RzsynM9kWDrMNeBh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
             crossorigin="anonymous"></script>
 
     @await RenderSectionAsync("Scripts", required: false)
 
-    <!-- Toast Notifications Container -->
     <div x-data="toastContainer()"
          class="toast-container position-fixed bottom-0 end-0 p-3"
          style="z-index: 1100;">

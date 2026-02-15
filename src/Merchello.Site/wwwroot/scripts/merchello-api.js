@@ -1,8 +1,214 @@
 /**
- * Merchello API Client - Centralized API service for storefront operations
+ * Merchello API Client - Storefront API contracts used by the sample site.
  *
- * This module provides a single source of truth for all API calls,
- * with consistent error handling, request/response typing, and endpoint management.
+ * DTO names and field names below are aligned with backend contracts in:
+ * - src/Merchello.Core/Storefront/Dtos
+ * - src/Merchello.Core/Shared/Dtos
+ */
+
+/**
+ * @template T
+ * @typedef {Object} ApiResult
+ * @property {boolean} success
+ * @property {T} [data]
+ * @property {string} [error]
+ */
+
+/**
+ * @typedef {Object} AddonSelectionDto
+ * @property {string} optionId
+ * @property {string} valueId
+ */
+
+/**
+ * @typedef {Object} BasketCountDto
+ * @property {number} itemCount
+ * @property {number} total
+ * @property {string} formattedTotal
+ */
+
+/**
+ * @typedef {Object} BasketOperationResultDto
+ * @property {boolean} success
+ * @property {string} [message]
+ * @property {number} itemCount
+ * @property {number} total
+ * @property {string} [formattedTotal]
+ */
+
+/**
+ * @typedef {Object} SelectedOptionDto
+ * @property {string} optionName
+ * @property {string} valueName
+ */
+
+/**
+ * @typedef {Object} StorefrontLineItemDto
+ * @property {string} id
+ * @property {string} sku
+ * @property {string} name
+ * @property {string} productRootName
+ * @property {SelectedOptionDto[]} selectedOptions
+ * @property {number} quantity
+ * @property {number} unitPrice
+ * @property {number} lineTotal
+ * @property {string} formattedUnitPrice
+ * @property {string} formattedLineTotal
+ * @property {number} displayUnitPrice
+ * @property {number} displayLineTotal
+ * @property {string} formattedDisplayUnitPrice
+ * @property {string} formattedDisplayLineTotal
+ * @property {number} displayUnitPriceWithAddons
+ * @property {number} displayLineTotalWithAddons
+ * @property {string} formattedDisplayUnitPriceWithAddons
+ * @property {string} formattedDisplayLineTotalWithAddons
+ * @property {number} taxRate
+ * @property {boolean} isTaxable
+ * @property {string} lineItemType
+ * @property {string | null} dependentLineItemSku
+ * @property {string | null} parentLineItemId
+ */
+
+/**
+ * @typedef {Object} BasketItemAvailabilityDto
+ * @property {boolean} canShipToLocation
+ * @property {boolean} hasStock
+ * @property {string} [message]
+ */
+
+/**
+ * @typedef {Object} StorefrontBasketDto
+ * @property {StorefrontLineItemDto[]} items
+ * @property {number} subTotal
+ * @property {number} discount
+ * @property {number} tax
+ * @property {number} shipping
+ * @property {number} total
+ * @property {boolean} isTaxEstimated
+ * @property {string} [taxEstimationReason]
+ * @property {string} formattedSubTotal
+ * @property {string} formattedDiscount
+ * @property {string} formattedTax
+ * @property {string} formattedTotal
+ * @property {string} currencySymbol
+ * @property {number} displaySubTotal
+ * @property {number} displayDiscount
+ * @property {number} displayTax
+ * @property {number} displayShipping
+ * @property {number} displayTotal
+ * @property {string} formattedDisplaySubTotal
+ * @property {string} formattedDisplayDiscount
+ * @property {string} formattedDisplayTax
+ * @property {string} formattedDisplayShipping
+ * @property {string} formattedDisplayTotal
+ * @property {string} displayCurrencyCode
+ * @property {string} displayCurrencySymbol
+ * @property {number} exchangeRate
+ * @property {boolean} displayPricesIncTax
+ * @property {number} taxInclusiveDisplaySubTotal
+ * @property {string} formattedTaxInclusiveDisplaySubTotal
+ * @property {number} taxInclusiveDisplayShipping
+ * @property {string} formattedTaxInclusiveDisplayShipping
+ * @property {number} taxInclusiveDisplayDiscount
+ * @property {string} formattedTaxInclusiveDisplayDiscount
+ * @property {string} [taxIncludedMessage]
+ * @property {number} itemCount
+ * @property {boolean} isEmpty
+ * @property {boolean} allItemsAvailable
+ * @property {Object.<string, BasketItemAvailabilityDto>} itemAvailability
+ */
+
+/**
+ * @typedef {Object} CountryDto
+ * @property {string} code
+ * @property {string} name
+ */
+
+/**
+ * @typedef {Object} StorefrontCurrencyDto
+ * @property {string} currencyCode
+ * @property {string} currencySymbol
+ * @property {number} decimalPlaces
+ */
+
+/**
+ * @typedef {Object} ShippingCountriesDto
+ * @property {CountryDto[]} countries
+ * @property {CountryDto} current
+ * @property {string} [currentRegionCode]
+ * @property {string} [currentRegionName]
+ * @property {StorefrontCurrencyDto} currency
+ */
+
+/**
+ * @typedef {Object} SetCountryResultDto
+ * @property {string} countryCode
+ * @property {string} countryName
+ * @property {string} currencyCode
+ * @property {string} currencySymbol
+ */
+
+/**
+ * @typedef {Object} StorefrontContextDto
+ * @property {CountryDto} country
+ * @property {string} [regionCode]
+ * @property {string} [regionName]
+ * @property {StorefrontCurrencyDto} currency
+ * @property {BasketCountDto} basket
+ */
+
+/**
+ * @typedef {Object} RegionDto
+ * @property {string} countryCode
+ * @property {string} regionCode
+ * @property {string} name
+ */
+
+/**
+ * @typedef {Object} BasketItemAvailabilityDetailDto
+ * @property {string} lineItemId
+ * @property {string} productId
+ * @property {boolean} canShipToLocation
+ * @property {boolean} hasStock
+ * @property {string} [message]
+ */
+
+/**
+ * @typedef {Object} BasketAvailabilityDto
+ * @property {boolean} allItemsAvailable
+ * @property {BasketItemAvailabilityDetailDto[]} items
+ */
+
+/**
+ * @typedef {Object} ProductAvailabilityDto
+ * @property {boolean} canShipToLocation
+ * @property {boolean} hasStock
+ * @property {number} availableStock
+ * @property {string} [message]
+ * @property {boolean} showStockLevels
+ */
+
+/**
+ * @typedef {Object} EstimatedShippingDto
+ * @property {boolean} success
+ * @property {number} estimatedShipping
+ * @property {string} formattedEstimatedShipping
+ * @property {number} displayEstimatedShipping
+ * @property {string} formattedDisplayEstimatedShipping
+ * @property {number} displayTotal
+ * @property {string} formattedDisplayTotal
+ * @property {number} displayTax
+ * @property {string} formattedDisplayTax
+ * @property {boolean} displayPricesIncTax
+ * @property {number} taxInclusiveDisplaySubTotal
+ * @property {string} formattedTaxInclusiveDisplaySubTotal
+ * @property {number} taxInclusiveDisplayShipping
+ * @property {string} formattedTaxInclusiveDisplayShipping
+ * @property {number} taxInclusiveDisplayDiscount
+ * @property {string} formattedTaxInclusiveDisplayDiscount
+ * @property {string} [taxIncludedMessage]
+ * @property {number} groupCount
+ * @property {string} [message]
  */
 
 const MerchelloApi = {
@@ -13,7 +219,7 @@ const MerchelloApi = {
      * Generic fetch wrapper with consistent error handling
      * @param {string} endpoint - API endpoint (relative to baseUrl)
      * @param {RequestInit} options - Fetch options
-     * @returns {Promise<{success: boolean, data?: any, error?: string}>}
+     * @returns {Promise<ApiResult<any>>}
      */
     async request(endpoint, options = {}) {
         try {
@@ -56,7 +262,7 @@ const MerchelloApi = {
     basket: {
         /**
          * Get basket item count and total
-         * @returns {Promise<{success: boolean, data?: {itemCount: number, total: number, formattedTotal: string}}>}
+         * @returns {Promise<ApiResult<BasketCountDto>>}
          */
         async getCount() {
             return MerchelloApi.request('/basket/count');
@@ -64,19 +270,25 @@ const MerchelloApi = {
 
         /**
          * Get full basket with all line items
-         * @returns {Promise<{success: boolean, data?: StorefrontBasketDto}>}
+         * @param {{includeAvailability?: boolean, countryCode?: string, regionCode?: string}} [options]
+         * @returns {Promise<ApiResult<StorefrontBasketDto>>}
          */
-        async get() {
-            return MerchelloApi.request('/basket');
+        async get(options = {}) {
+            const params = new URLSearchParams();
+            if (options.includeAvailability) params.append('includeAvailability', 'true');
+            if (options.countryCode) params.append('countryCode', options.countryCode);
+            if (options.regionCode) params.append('regionCode', options.regionCode);
+            const query = params.toString();
+            return MerchelloApi.request(`/basket${query ? '?' + query : ''}`);
         },
 
         /**
          * Add item to basket
-         * @param {Object} params - Add to basket parameters
+         * @param {Object} params - Add-to-basket payload
          * @param {string} params.productId - Product (variant) ID
          * @param {number} params.quantity - Quantity to add
-         * @param {Array<{valueId: string}>} params.addons - Selected addon values
-         * @returns {Promise<{success: boolean, data?: BasketOperationResultDto}>}
+         * @param {AddonSelectionDto[]} params.addons - Selected add-ons
+         * @returns {Promise<ApiResult<BasketOperationResultDto>>}
          */
         async add(params) {
             return MerchelloApi.request('/basket/add', {
@@ -93,7 +305,7 @@ const MerchelloApi = {
          * Update line item quantity
          * @param {string} lineItemId - Line item ID
          * @param {number} quantity - New quantity
-         * @returns {Promise<{success: boolean, data?: BasketOperationResultDto}>}
+         * @returns {Promise<ApiResult<BasketOperationResultDto>>}
          */
         async updateQuantity(lineItemId, quantity) {
             return MerchelloApi.request('/basket/update', {
@@ -105,7 +317,7 @@ const MerchelloApi = {
         /**
          * Remove item from basket
          * @param {string} lineItemId - Line item ID to remove
-         * @returns {Promise<{success: boolean, data?: BasketOperationResultDto}>}
+         * @returns {Promise<ApiResult<BasketOperationResultDto>>}
          */
         async remove(lineItemId) {
             return MerchelloApi.request(`/basket/${lineItemId}`, {
@@ -114,10 +326,20 @@ const MerchelloApi = {
         },
 
         /**
+         * Clear the current basket
+         * @returns {Promise<ApiResult<BasketOperationResultDto>>}
+         */
+        async clear() {
+            return MerchelloApi.request('/basket/clear', {
+                method: 'POST'
+            });
+        },
+
+        /**
          * Check availability for all basket items
          * @param {string} countryCode - Country code
          * @param {string} regionCode - Region code (optional)
-         * @returns {Promise<{success: boolean, data?: BasketAvailabilityDto}>}
+         * @returns {Promise<ApiResult<BasketAvailabilityDto>>}
          */
         async checkAvailability(countryCode, regionCode = null) {
             const params = new URLSearchParams();
@@ -131,7 +353,7 @@ const MerchelloApi = {
          * Get estimated shipping for basket
          * @param {string} countryCode - Country code (optional, uses current if not provided)
          * @param {string} regionCode - Region code (optional)
-         * @returns {Promise<{success: boolean, data?: EstimatedShippingDto}>}
+         * @returns {Promise<ApiResult<EstimatedShippingDto>>}
          */
         async getEstimatedShipping(countryCode = null, regionCode = null) {
             const params = new URLSearchParams();
@@ -149,7 +371,7 @@ const MerchelloApi = {
     shipping: {
         /**
          * Get available shipping countries and current selection
-         * @returns {Promise<{success: boolean, data?: ShippingCountriesDto}>}
+         * @returns {Promise<ApiResult<ShippingCountriesDto>>}
          */
         async getCountries() {
             return MerchelloApi.request('/shipping/countries');
@@ -157,7 +379,7 @@ const MerchelloApi = {
 
         /**
          * Get current shipping country
-         * @returns {Promise<{success: boolean, data?: StorefrontCountryDto}>}
+         * @returns {Promise<ApiResult<CountryDto>>}
          */
         async getCurrentCountry() {
             return MerchelloApi.request('/shipping/country');
@@ -167,7 +389,7 @@ const MerchelloApi = {
          * Set shipping country (also updates currency)
          * @param {string} countryCode - Country code to set
          * @param {string} regionCode - Region code (optional)
-         * @returns {Promise<{success: boolean, data?: SetCountryResultDto}>}
+         * @returns {Promise<ApiResult<SetCountryResultDto>>}
          */
         async setCountry(countryCode, regionCode = null) {
             return MerchelloApi.request('/shipping/country', {
@@ -179,10 +401,24 @@ const MerchelloApi = {
         /**
          * Get regions for a country
          * @param {string} countryCode - Country code
-         * @returns {Promise<{success: boolean, data?: StorefrontRegionDto[]}>}
+         * @returns {Promise<ApiResult<RegionDto[]>>}
          */
         async getRegions(countryCode) {
             return MerchelloApi.request(`/shipping/countries/${countryCode}/regions`);
+        }
+    },
+
+    // =========================================================================
+    // Bootstrap Context (Headless Convenience)
+    // =========================================================================
+
+    context: {
+        /**
+         * Get location + currency + basket summary in one call.
+         * @returns {Promise<ApiResult<StorefrontContextDto>>}
+         */
+        async get() {
+            return MerchelloApi.request('/context');
         }
     },
 
@@ -193,7 +429,7 @@ const MerchelloApi = {
     currency: {
         /**
          * Get current currency
-         * @returns {Promise<{success: boolean, data?: StorefrontCurrencyDto}>}
+         * @returns {Promise<ApiResult<StorefrontCurrencyDto>>}
          */
         async get() {
             return MerchelloApi.request('/currency');
@@ -202,7 +438,7 @@ const MerchelloApi = {
         /**
          * Set currency
          * @param {string} currencyCode - Currency code to set
-         * @returns {Promise<{success: boolean, data?: StorefrontCurrencyDto}>}
+         * @returns {Promise<ApiResult<StorefrontCurrencyDto>>}
          */
         async set(currencyCode) {
             return MerchelloApi.request('/currency', {
@@ -224,7 +460,7 @@ const MerchelloApi = {
          * @param {string} options.countryCode - Country code
          * @param {string} options.regionCode - Region code (optional)
          * @param {number} options.quantity - Quantity to check (default 1)
-         * @returns {Promise<{success: boolean, data?: ProductAvailabilityDto}>}
+         * @returns {Promise<ApiResult<ProductAvailabilityDto>>}
          */
         async checkAvailability(productId, options = {}) {
             const params = new URLSearchParams();
@@ -245,7 +481,7 @@ const MerchelloApi = {
          * Get upsell suggestions for the current basket at a specific display location.
          * @param {string} location - Display location: Checkout, Basket, ProductPage, Email, Confirmation
          * @param {{countryCode?: string, regionCode?: string}} [options] - Optional location override
-         * @returns {Promise<{success: boolean, data?: UpsellSuggestionDto[]}>}
+         * @returns {Promise<ApiResult<UpsellSuggestionDto[]>>}
          */
         async getSuggestions(location, options = {}) {
             const params = new URLSearchParams({ location });
@@ -261,7 +497,7 @@ const MerchelloApi = {
         /**
          * Get upsell suggestions for a specific product page.
          * @param {string} productId - Product ID
-         * @returns {Promise<{success: boolean, data?: UpsellSuggestionDto[]}>}
+         * @returns {Promise<ApiResult<UpsellSuggestionDto[]>>}
          */
         async getProductSuggestions(productId) {
             return MerchelloApi.request(`/upsells/product/${productId}`);
@@ -270,7 +506,7 @@ const MerchelloApi = {
         /**
          * Record upsell impression and click events (batch).
          * @param {Array<{upsellRuleId: string, eventType: string, productId?: string, displayLocation: number}>} events
-         * @returns {Promise<{success: boolean}>}
+         * @returns {Promise<ApiResult<void>>}
          */
         async recordEvents(events) {
             return MerchelloApi.request('/upsells/events', {
