@@ -2,10 +2,98 @@ name: Release Package (Manual)
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (example: 1.0.0)"
+        required: true
+        type: string
+      ref:
+        description: "Git ref to release from (default: main)"
+        required: false
+        default: "main"
+        type: string
 
 jobs:
-  info:
+  publish-nuget:
+    name: Publish NuGet (Manual)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: nuget-release-manual
+      cancel-in-progress: false
+
     steps:
-      - name: Release handled by CI workflow
-        run: echo "NuGet publish now runs from .github/workflows/ci.yml on push to main."
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Validate version and tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ inputs.version }}"
+          if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version must be semver-like, for example 1.0.0 or 1.0.0-rc.1"
+            exit 1
+          fi
+
+          tag="v${version}"
+          git fetch --tags --force
+
+          existing_tag_commit="$(git rev-list -n 1 "${tag}" 2>/dev/null || true)"
+          head_commit="$(git rev-parse HEAD)"
+
+          if [[ -n "${existing_tag_commit}" && "${existing_tag_commit}" != "${head_commit}" ]]; then
+            echo "Tag ${tag} already exists on a different commit (${existing_tag_commit})."
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${existing_tag_commit}" ]]; then
+            echo "tag_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and push release tag
+        if: steps.release.outputs.tag_exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.release.outputs.tag }}"
+          git push origin "${{ steps.release.outputs.tag }}"
+
+      - name: Build and create NuGet packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build src/Merchello/Merchello.csproj -c Release /p:Version=${{ steps.release.outputs.version }}
+
+      - name: Push packages to NuGet.org
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find src -type f -path "*/bin/Release/*.nupkg")
+          if [[ "${#packages[@]}" -eq 0 ]]; then
+            echo "No NuGet packages were created."
+            exit 1
+          fi
+
+          for package in "${packages[@]}"; do
+            dotnet nuget push "${package}" \
+              --api-key "${{ secrets.NUGET_API_KEY }}" \
+              --source "https://api.nuget.org/v3/index.json" \
+              --skip-duplicate
+          done
