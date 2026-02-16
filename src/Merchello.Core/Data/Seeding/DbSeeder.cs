@@ -184,7 +184,7 @@ public class DbSeeder(
 
         // 14. Seed random invoices (slightly reduced for faster install while keeping variety)
         // Discounts will be auto-applied during invoice creation
-        await SeedInvoicesViaServicesAsync(products, 120, cancellationToken);
+        await SeedInvoicesViaServicesAsync(products, 100, cancellationToken);
 
         // 15. Seed invoices for account customers (tests Outstanding UI with varied due dates)
         await SeedAccountCustomerInvoicesAsync(products, accountCustomers, cancellationToken);
