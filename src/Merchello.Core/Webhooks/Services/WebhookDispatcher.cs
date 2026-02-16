@@ -18,17 +18,6 @@ public class WebhookDispatcher(
     IHttpClientFactory httpClientFactory,
     ILogger<WebhookDispatcher> logger) : IWebhookDispatcher
 {
-    public async Task DispatchAsync<T>(
-        string topic,
-        T payload,
-        Guid? entityId = null,
-        CancellationToken ct = default) where T : class
-    {
-        // This method delegates to WebhookService.QueueDeliveryAsync
-        // It's provided for convenience when injecting IWebhookDispatcher directly
-        logger.LogDebug("Dispatch called for topic {Topic}, entity {EntityId}", topic, entityId);
-    }
-
     public async Task<OutboundDeliveryResult> SendAsync(
         OutboundDelivery delivery,
         WebhookSubscription subscription,
@@ -54,9 +43,11 @@ public class WebhookDispatcher(
         }
 
         var client = httpClientFactory.CreateClient("Webhooks");
-        client.Timeout = TimeSpan.FromSeconds(subscription.TimeoutSeconds);
+        var timeoutSeconds = Math.Max(1, subscription.TimeoutSeconds);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
-        var request = new HttpRequestMessage(HttpMethod.Post, subscription.TargetUrl);
+        using var request = new HttpRequestMessage(HttpMethod.Post, subscription.TargetUrl);
 
         if (subscription.Format == WebhookFormat.Json)
         {
@@ -93,16 +84,15 @@ public class WebhookDispatcher(
         }
 
         var stopwatch = Stopwatch.StartNew();
-        var requestHeadersJson = SerializeHeaders(request.Headers);
 
         try
         {
             logger.LogDebug("Sending webhook to {Url} for topic {Topic}", subscription.TargetUrl, delivery.Topic);
 
-            var response = await client.SendAsync(request, ct);
+            using var response = await client.SendAsync(request, timeoutCts.Token);
             stopwatch.Stop();
 
-            var responseBody = await response.Content.ReadAsStringAsync(ct);
+            var responseBody = await response.Content.ReadAsStringAsync(timeoutCts.Token);
             var responseHeadersJson = SerializeHeaders(response.Headers);
 
             logger.LogDebug(
@@ -120,7 +110,19 @@ public class WebhookDispatcher(
                 DurationMs = (int)stopwatch.ElapsedMilliseconds
             };
         }
-        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            stopwatch.Stop();
+            logger.LogDebug("Webhook delivery to {Url} was canceled after {Duration}ms", subscription.TargetUrl, stopwatch.ElapsedMilliseconds);
+
+            return new OutboundDeliveryResult
+            {
+                Success = false,
+                ErrorMessage = "Request canceled",
+                DurationMs = (int)stopwatch.ElapsedMilliseconds
+            };
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
             stopwatch.Stop();
             logger.LogWarning("Webhook to {Url} timed out after {Duration}ms", subscription.TargetUrl, stopwatch.ElapsedMilliseconds);
@@ -170,9 +172,10 @@ public class WebhookDispatcher(
         }
 
         var client = httpClientFactory.CreateClient("Webhooks");
-        client.Timeout = TimeSpan.FromSeconds(10);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(10));
 
-        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Content = new StringContent(
             JsonSerializer.Serialize(new { ping = true, timestamp = DateTime.UtcNow }),
             Encoding.UTF8,
@@ -185,16 +188,36 @@ public class WebhookDispatcher(
 
         try
         {
-            var response = await client.SendAsync(request, ct);
+            using var response = await client.SendAsync(request, timeoutCts.Token);
             stopwatch.Stop();
 
-            var responseBody = await response.Content.ReadAsStringAsync(ct);
+            var responseBody = await response.Content.ReadAsStringAsync(timeoutCts.Token);
 
             return new OutboundDeliveryResult
             {
                 Success = response.IsSuccessStatusCode,
                 StatusCode = (int)response.StatusCode,
                 ResponseBody = responseBody,
+                DurationMs = (int)stopwatch.ElapsedMilliseconds
+            };
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            stopwatch.Stop();
+            return new OutboundDeliveryResult
+            {
+                Success = false,
+                ErrorMessage = "Request canceled",
+                DurationMs = (int)stopwatch.ElapsedMilliseconds
+            };
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            stopwatch.Stop();
+            return new OutboundDeliveryResult
+            {
+                Success = false,
+                ErrorMessage = "Request timed out",
                 DurationMs = (int)stopwatch.ElapsedMilliseconds
             };
         }

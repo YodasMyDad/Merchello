@@ -37,6 +37,7 @@ public class EmailNotificationHandler(
       INotificationAsyncHandler<PaymentCreatedNotification>,
       INotificationAsyncHandler<PaymentRefundedNotification>,
       INotificationAsyncHandler<CustomerCreatedNotification>,
+      INotificationAsyncHandler<CustomerSavedNotification>,
       INotificationAsyncHandler<CustomerPasswordResetRequestedNotification>,
       INotificationAsyncHandler<ShipmentCreatedNotification>,
       INotificationAsyncHandler<ShipmentSavedNotification>,
@@ -105,6 +106,9 @@ public class EmailNotificationHandler(
     public Task HandleAsync(CustomerCreatedNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.CustomerCreated, notification, notification.Customer.Id, "Customer", ct);
 
+    public Task HandleAsync(CustomerSavedNotification notification, CancellationToken ct)
+        => ProcessEmailsAsync(Constants.EmailTopics.CustomerUpdated, notification, notification.Customer.Id, "Customer", ct);
+
     public Task HandleAsync(CustomerPasswordResetRequestedNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.CustomerPasswordReset, notification, notification.Customer.Id, "Customer", ct);
 
@@ -112,8 +116,12 @@ public class EmailNotificationHandler(
 
     #region Shipments
 
-    public Task HandleAsync(ShipmentCreatedNotification notification, CancellationToken ct)
-        => ProcessEmailsAsync(Constants.EmailTopics.ShipmentPreparing, notification, notification.Shipment.Id, "Shipment", ct);
+    public async Task HandleAsync(ShipmentCreatedNotification notification, CancellationToken ct)
+    {
+        // Bridge shipment creation to both topics so existing templates continue to work.
+        await ProcessEmailsAsync(Constants.EmailTopics.ShipmentCreated, notification, notification.Shipment.Id, "Shipment", ct);
+        await ProcessEmailsAsync(Constants.EmailTopics.ShipmentPreparing, notification, notification.Shipment.Id, "Shipment", ct);
+    }
 
     public Task HandleAsync(ShipmentSavedNotification notification, CancellationToken ct)
         => ProcessEmailsAsync(Constants.EmailTopics.ShipmentUpdated, notification, notification.Shipment.Id, "Shipment", ct);

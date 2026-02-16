@@ -366,5 +366,19 @@ public class EmailAttachmentStorageServiceTests : IDisposable
             () => _service.LoadAttachmentAsync(maliciousPath));
     }
 
+    [Fact]
+    public async Task PathSecurity_BlocksBasePathPrefixCollision()
+    {
+        // Arrange
+        var siblingPath = Path.Combine(_testBasePath, "Email_Attachments_Evil");
+        Directory.CreateDirectory(siblingPath);
+        await File.WriteAllTextAsync(Path.Combine(siblingPath, "stolen.txt"), "not allowed");
+        var maliciousPath = $"..{Path.DirectorySeparatorChar}Email_Attachments_Evil{Path.DirectorySeparatorChar}stolen.txt";
+
+        // Act & Assert
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => _service.LoadAttachmentAsync(maliciousPath));
+    }
+
     #endregion
 }

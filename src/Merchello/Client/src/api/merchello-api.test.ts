@@ -150,6 +150,23 @@ describe("merchello api client", () => {
     expect(url).toContain("name=John+Doe");
   });
 
+  it("serializes repeated query parameters for multi-status webhook delivery filters", async () => {
+    fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: { items: [] } }));
+
+    await MerchelloApi.getWebhookDeliveries("sub-1", {
+      statuses: [0, 4],
+      page: 2,
+      pageSize: 10,
+    });
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/umbraco/api/v1/webhooks/sub-1/deliveries?");
+    expect(url).toContain("statuses=0");
+    expect(url).toContain("statuses=4");
+    expect(url).toContain("page=2");
+    expect(url).toContain("pageSize=10");
+  });
+
   it("encodes email path segments in customer order queries", async () => {
     fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: [] }));
 

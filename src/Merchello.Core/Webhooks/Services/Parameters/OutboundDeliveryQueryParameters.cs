@@ -28,6 +28,11 @@ public class OutboundDeliveryQueryParameters
     public OutboundDeliveryStatus? Status { get; set; }
 
     /// <summary>
+    /// Filter by multiple delivery statuses.
+    /// </summary>
+    public IReadOnlyCollection<OutboundDeliveryStatus>? Statuses { get; set; }
+
+    /// <summary>
     /// Filter by entity ID.
     /// </summary>
     public Guid? EntityId { get; set; }

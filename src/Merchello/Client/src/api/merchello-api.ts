@@ -473,9 +473,20 @@ function buildQueryString(params?: Record<string, unknown>): string {
   if (!params) return '';
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== '') {
-      searchParams.append(key, String(value));
+    if (value === undefined || value === null || value === '') {
+      continue;
     }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== undefined && item !== null && item !== '') {
+          searchParams.append(key, String(item));
+        }
+      }
+      continue;
+    }
+
+    searchParams.append(key, String(value));
   }
   return searchParams.toString();
 }

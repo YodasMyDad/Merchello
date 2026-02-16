@@ -1,6 +1,7 @@
 using Merchello.Core.DigitalProducts.Notifications;
 using Merchello.Core.Fulfilment.Notifications;
 using Merchello.Core.Notifications;
+using Merchello.Core.Notifications.BasketNotifications;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Notifications.DiscountNotifications;
@@ -50,6 +51,11 @@ public class WebhookNotificationHandler(
       INotificationAsyncHandler<LowStockNotification>,
       INotificationAsyncHandler<StockReservedNotification>,
       INotificationAsyncHandler<StockAllocatedNotification>,
+      INotificationAsyncHandler<BasketCreatedNotification>,
+      INotificationAsyncHandler<BasketItemAddedNotification>,
+      INotificationAsyncHandler<BasketItemRemovedNotification>,
+      INotificationAsyncHandler<BasketItemQuantityChangedNotification>,
+      INotificationAsyncHandler<BasketClearedNotification>,
       INotificationAsyncHandler<CheckoutAbandonedNotification>,
       INotificationAsyncHandler<CheckoutAbandonedFirstNotification>,
       INotificationAsyncHandler<CheckoutAbandonedReminderNotification>,
@@ -301,6 +307,87 @@ public class WebhookNotificationHandler(
             notification.Quantity,
             notification.RemainingStock
         }, notification.ProductId, "Product", ct);
+
+    #endregion
+
+    #region Baskets
+
+    public Task HandleAsync(BasketCreatedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.BasketCreated, new
+        {
+            notification.Basket.Id,
+            notification.Basket.CustomerId,
+            notification.Basket.Currency,
+            notification.Basket.SubTotal,
+            notification.Basket.Total,
+            notification.Basket.DateCreated
+        }, notification.Basket.Id, "Basket", ct);
+
+    public Task HandleAsync(BasketItemAddedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.BasketUpdated, new
+        {
+            notification.Basket.Id,
+            Event = "item.added",
+            Item = new
+            {
+                notification.Item.Id,
+                notification.Item.ProductId,
+                notification.Item.Sku,
+                notification.Item.Name,
+                notification.Item.Quantity
+            },
+            notification.Basket.SubTotal,
+            notification.Basket.Total,
+            notification.Basket.DateUpdated
+        }, notification.Basket.Id, "Basket", ct);
+
+    public Task HandleAsync(BasketItemRemovedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.BasketUpdated, new
+        {
+            notification.Basket.Id,
+            Event = "item.removed",
+            Item = new
+            {
+                notification.Item.Id,
+                notification.Item.ProductId,
+                notification.Item.Sku,
+                notification.Item.Name,
+                notification.Item.Quantity
+            },
+            notification.Basket.SubTotal,
+            notification.Basket.Total,
+            notification.Basket.DateUpdated
+        }, notification.Basket.Id, "Basket", ct);
+
+    public Task HandleAsync(BasketItemQuantityChangedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.BasketUpdated, new
+        {
+            notification.Basket.Id,
+            Event = "item.quantity_changed",
+            Item = new
+            {
+                notification.Item.Id,
+                notification.Item.ProductId,
+                notification.Item.Sku,
+                notification.Item.Name,
+                notification.Item.Quantity
+            },
+            notification.OldQuantity,
+            notification.NewQuantity,
+            notification.Basket.SubTotal,
+            notification.Basket.Total,
+            notification.Basket.DateUpdated
+        }, notification.Basket.Id, "Basket", ct);
+
+    public Task HandleAsync(BasketClearedNotification notification, CancellationToken ct)
+        => DispatchAsync(Constants.WebhookTopics.BasketUpdated, new
+        {
+            notification.Basket.Id,
+            Event = "basket.cleared",
+            notification.Basket.CustomerId,
+            notification.Basket.Currency,
+            notification.Basket.DateUpdated
+        }, notification.Basket.Id, "Basket", ct);
 
     #endregion
 

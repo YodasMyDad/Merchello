@@ -30,6 +30,10 @@ export class MerchelloWebhooksWorkspaceContext
   #subscriptionId?: string;
   #subscription = new UmbObjectState<WebhookSubscriptionDetailDto | undefined>(undefined);
   readonly subscription = this.#subscription.asObservable();
+  #isLoading = new UmbObjectState<boolean>(false);
+  readonly isLoading = this.#isLoading.asObservable();
+  #loadError = new UmbObjectState<string | null>(null);
+  readonly loadError = this.#loadError.asObservable();
 
   constructor(host: UmbControllerHost) {
     super(host, UMB_WORKSPACE_CONTEXT.toString());
@@ -59,6 +63,8 @@ export class MerchelloWebhooksWorkspaceContext
           // Reset subscription state when viewing list
           this.#subscriptionId = undefined;
           this.#subscription.setValue(undefined);
+          this.#isLoading.setValue(false);
+          this.#loadError.setValue(null);
         },
       },
       // Default redirect
@@ -81,11 +87,20 @@ export class MerchelloWebhooksWorkspaceContext
 
   async loadSubscription(unique: string): Promise<void> {
     this.#subscriptionId = unique;
+    this.#isLoading.setValue(true);
+    this.#loadError.setValue(null);
+    this.#subscription.setValue(undefined);
+
     const { data, error } = await MerchelloApi.getWebhookSubscription(unique);
-    if (error) {
+
+    if (error || !data) {
+      this.#loadError.setValue(error?.message ?? "Webhook subscription not found.");
+      this.#isLoading.setValue(false);
       return;
     }
+
     this.#subscription.setValue(data);
+    this.#isLoading.setValue(false);
   }
 
   async reloadSubscription(): Promise<void> {
@@ -96,6 +111,8 @@ export class MerchelloWebhooksWorkspaceContext
 
   updateSubscription(subscription: WebhookSubscriptionDetailDto): void {
     this.#subscription.setValue(subscription);
+    this.#isLoading.setValue(false);
+    this.#loadError.setValue(null);
     if (subscription.id) {
       this.#subscriptionId = subscription.id;
     }
@@ -104,6 +121,8 @@ export class MerchelloWebhooksWorkspaceContext
   clearSubscription(): void {
     this.#subscriptionId = undefined;
     this.#subscription.setValue(undefined);
+    this.#isLoading.setValue(false);
+    this.#loadError.setValue(null);
   }
 }
 
