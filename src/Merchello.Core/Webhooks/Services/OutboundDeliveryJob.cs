@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Persistence.EFCore.Scoping;
 
 namespace Merchello.Core.Webhooks.Services;
 
@@ -20,6 +21,7 @@ namespace Merchello.Core.Webhooks.Services;
 /// </summary>
 public class OutboundDeliveryJob(
     IServiceScopeFactory serviceScopeFactory,
+    IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ISeedDataInstallationState seedDataInstallationState,
     IOptions<WebhookSettings> webhookOptions,
     IOptions<EmailSettings> emailOptions,
@@ -124,9 +126,6 @@ public class OutboundDeliveryJob(
 
     private async Task CleanupOldDeliveriesAsync(CancellationToken stoppingToken)
     {
-        using var scope = serviceScopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<MerchelloDbContext>();
-
         var activeStatuses = new[]
         {
             OutboundDeliveryStatus.Pending,
@@ -140,17 +139,21 @@ public class OutboundDeliveryJob(
         var webhookCutoff = now.AddDays(-webhookRetentionDays);
         var emailCutoff = now.AddDays(-emailRetentionDays);
 
-        var deletedWebhookRows = await db.OutboundDeliveries
-            .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
-                        d.DateCreated < webhookCutoff &&
-                        !activeStatuses.Contains(d.Status))
-            .ExecuteDeleteAsync(stoppingToken);
+        using var scope = efCoreScopeProvider.CreateScope();
+        var deletedWebhookRows = await scope.ExecuteWithContextAsync(async db =>
+            await db.OutboundDeliveries
+                .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
+                            d.DateCreated < webhookCutoff &&
+                            !activeStatuses.Contains(d.Status))
+                .ExecuteDeleteAsync(stoppingToken));
 
-        var deletedEmailRows = await db.OutboundDeliveries
-            .Where(d => d.DeliveryType == OutboundDeliveryType.Email &&
-                        d.DateCreated < emailCutoff &&
-                        !activeStatuses.Contains(d.Status))
-            .ExecuteDeleteAsync(stoppingToken);
+        var deletedEmailRows = await scope.ExecuteWithContextAsync(async db =>
+            await db.OutboundDeliveries
+                .Where(d => d.DeliveryType == OutboundDeliveryType.Email &&
+                            d.DateCreated < emailCutoff &&
+                            !activeStatuses.Contains(d.Status))
+                .ExecuteDeleteAsync(stoppingToken));
+        scope.Complete();
 
         if (deletedWebhookRows > 0 || deletedEmailRows > 0)
         {

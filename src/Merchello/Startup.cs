@@ -22,7 +22,6 @@ using Merchello.Core.Customers.Services;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.Data.Handlers;
-using Merchello.Core.Data.Interfaces;
 using Merchello.Core.Data.Seeding;
 using Merchello.Core.Discounts.Factories;
 using Merchello.Core.Discounts.Services;
@@ -177,7 +176,7 @@ public static class Startup
         // Register MerchelloDbContext with Umbraco's database provider (automatically uses same DB as Umbraco)
         builder.Services.AddUmbracoDbContext<MerchelloDbContext>((serviceProvider, options, connectionString, providerName) =>
         {
-            ConfigureMerchelloDbContext(serviceProvider, options, connectionString, providerName);
+            options.UseUmbracoDatabaseProvider(serviceProvider);
             options.ConfigureWarnings(w =>
             {
                 w.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
@@ -715,63 +714,4 @@ public static class Startup
         return discoveredAssemblies;
     }
 
-    private static void ConfigureMerchelloDbContext(
-        IServiceProvider serviceProvider,
-        DbContextOptionsBuilder options,
-        string? connectionString,
-        string? providerName)
-    {
-        var (resolvedConnectionString, resolvedProviderName) = ResolveConnectionSettings(connectionString, providerName);
-        if (string.IsNullOrWhiteSpace(resolvedConnectionString) || string.IsNullOrWhiteSpace(resolvedProviderName))
-        {
-            options.UseUmbracoDatabaseProvider(serviceProvider);
-            return;
-        }
-
-        var providerSetup = serviceProvider
-            .GetServices<IMerchelloMigrationProviderSetup>()
-            .FirstOrDefault(x => ProviderNameMatches(x.ProviderName, resolvedProviderName));
-
-        if (providerSetup is not null)
-        {
-            providerSetup.Setup(options, resolvedConnectionString);
-            return;
-        }
-
-        options.UseDatabaseProvider(resolvedProviderName, resolvedConnectionString);
-    }
-
-    private static (string? ConnectionString, string? ProviderName) ResolveConnectionSettings(
-        string? connectionString,
-        string? providerName)
-    {
-        if (LooksLikeProviderName(connectionString) && !LooksLikeProviderName(providerName))
-        {
-            return (providerName, connectionString);
-        }
-
-        return (connectionString, providerName);
-    }
-
-    private static bool ProviderNameMatches(string configuredProviderName, string activeProviderName)
-    {
-        if (configuredProviderName.Equals(activeProviderName, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return configuredProviderName == "Microsoft.Data.Sqlite" &&
-               activeProviderName is "Microsoft.Data.SQLite" or "Microsoft.Data.Sqlite";
-    }
-
-    private static bool LooksLikeProviderName(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return false;
-        }
-
-        return value.StartsWith("Microsoft.Data.", StringComparison.OrdinalIgnoreCase) ||
-               value.StartsWith("Npgsql", StringComparison.OrdinalIgnoreCase);
-    }
 }
