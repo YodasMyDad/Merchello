@@ -53,19 +53,27 @@ public sealed class SftpClientWrapper : IFtpClient
     }
 
     /// <inheritdoc />
-    public Task<FtpTestResult> TestConnectionAsync(CancellationToken ct = default)
+    public async Task<FtpTestResult> TestConnectionAsync(CancellationToken ct = default)
     {
         try
         {
-            _client.Connect();
-
-            if (!_client.Exists(_settings.RemotePath))
+            ct.ThrowIfCancellationRequested();
+            if (!_client.IsConnected)
             {
-                return Task.FromResult(FtpTestResult.Failed($"Remote directory '{_settings.RemotePath}' does not exist"));
+                await _client.ConnectAsync(ct);
+            }
+
+            if (!await _client.ExistsAsync(_settings.RemotePath, ct))
+            {
+                return FtpTestResult.Failed($"Remote directory '{_settings.RemotePath}' does not exist");
             }
 
             _logger.LogDebug("SFTP connection test successful for {Host}", _settings.Host);
-            return Task.FromResult(FtpTestResult.Succeeded());
+            return FtpTestResult.Succeeded();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -74,57 +82,69 @@ public sealed class SftpClientWrapper : IFtpClient
                 "SFTP connection test failed for {Host}. Error: {Error}",
                 _settings.Host,
                 safeError);
-            return Task.FromResult(FtpTestResult.Failed($"SFTP connection failed: {safeError}"));
+            return FtpTestResult.Failed($"SFTP connection failed: {safeError}");
         }
     }
 
     /// <inheritdoc />
-    public Task<bool> UploadFileAsync(
+    public async Task<bool> UploadFileAsync(
         string remotePath,
         byte[] content,
         bool overwrite = false,
         CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         if (!_client.IsConnected)
         {
-            _client.Connect();
+            await _client.ConnectAsync(ct);
         }
 
         // Check if file exists when not overwriting
-        if (!overwrite && _client.Exists(remotePath))
+        if (!overwrite && await _client.ExistsAsync(remotePath, ct))
         {
             _logger.LogDebug("SFTP file already exists and overwrite=false: {RemotePath}", remotePath);
-            return Task.FromResult(false);
+            return false;
         }
 
         // Ensure parent directory exists
         var directory = Path.GetDirectoryName(remotePath)?.Replace('\\', '/');
-        if (!string.IsNullOrEmpty(directory) && !_client.Exists(directory))
+        if (!string.IsNullOrEmpty(directory) && !await _client.ExistsAsync(directory, ct))
         {
-            CreateDirectoryRecursive(directory);
+            await CreateDirectoryRecursiveAsync(directory, ct);
         }
 
-        using var stream = new MemoryStream(content);
-        _client.UploadFile(stream, remotePath, overwrite);
+        await using var localStream = new MemoryStream(content, writable: false);
+        await using var remoteStream = await _client.OpenAsync(
+            remotePath,
+            overwrite ? FileMode.Create : FileMode.CreateNew,
+            FileAccess.Write,
+            ct);
+        await localStream.CopyToAsync(remoteStream, ct);
+        await remoteStream.FlushAsync(ct);
 
         _logger.LogInformation("SFTP upload successful: {RemotePath} ({Size} bytes)", remotePath, content.Length);
-        return Task.FromResult(true);
+        return true;
     }
 
     /// <inheritdoc />
-    public Task<bool> FileExistsAsync(string remotePath, CancellationToken ct = default)
+    public async Task<bool> FileExistsAsync(string remotePath, CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         if (!_client.IsConnected)
         {
-            _client.Connect();
+            await _client.ConnectAsync(ct);
         }
 
-        return Task.FromResult(_client.Exists(remotePath));
+        return await _client.ExistsAsync(remotePath, ct);
     }
 
     /// <inheritdoc />
     public Task DisconnectAsync(CancellationToken ct = default)
     {
+        ct.ThrowIfCancellationRequested();
+
         if (_client.IsConnected)
         {
             _client.Disconnect();
@@ -143,17 +163,18 @@ public sealed class SftpClientWrapper : IFtpClient
         return ValueTask.CompletedTask;
     }
 
-    private void CreateDirectoryRecursive(string path)
+    private async Task CreateDirectoryRecursiveAsync(string path, CancellationToken ct)
     {
         var parts = path.Split('/').Where(p => !string.IsNullOrEmpty(p)).ToList();
         var currentPath = "";
 
         foreach (var part in parts)
         {
+            ct.ThrowIfCancellationRequested();
             currentPath = currentPath + "/" + part;
-            if (!_client.Exists(currentPath))
+            if (!await _client.ExistsAsync(currentPath, ct))
             {
-                _client.CreateDirectory(currentPath);
+                await _client.CreateDirectoryAsync(currentPath, ct);
             }
         }
     }

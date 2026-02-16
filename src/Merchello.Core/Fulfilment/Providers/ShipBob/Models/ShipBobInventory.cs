@@ -7,6 +7,9 @@ namespace Merchello.Core.Fulfilment.Providers.ShipBob.Models;
 /// </summary>
 public sealed record ShipBobInventoryLevelResponse
 {
+    [JsonPropertyName("sku")]
+    public string? Sku { get; init; }
+
     [JsonPropertyName("id")]
     public int Id { get; init; }
 

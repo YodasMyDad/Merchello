@@ -8,7 +8,7 @@ namespace Merchello.Core.Protocols.Authentication;
 /// <remarks>
 /// The UCP-Agent header uses RFC 8941 (Structured Field Values for HTTP) dictionary format:
 /// <code>
-/// UCP-Agent: profile="https://platform.example/profile", version="2026-01-11"
+/// UCP-Agent: profile="https://platform.example/profile", version="2026-01-23"
 /// </code>
 /// This implementation uses the StructuredFieldValues NuGet package for full RFC 8941 compliance.
 /// </remarks>

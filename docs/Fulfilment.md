@@ -240,7 +240,7 @@ Use existing `ExtendedData` dictionary for provider-specific information:
 |--------|------|-------------|
 | Id | UNIQUEIDENTIFIER | Primary key |
 | ProviderConfigurationId | UNIQUEIDENTIFIER | FK to provider config |
-| MessageId | NVARCHAR(256) | Provider's webhook ID (indexed, unique per provider) |
+| MessageId | NVARCHAR(256) NOT NULL | Provider webhook ID (required, unique per provider) |
 | EventType | NVARCHAR(100) | e.g., "shipment.created" |
 | Payload | NVARCHAR(MAX) | Raw webhook body (for debugging) |
 | ProcessedAt | DATETIME2 | When processed |
@@ -311,6 +311,10 @@ POST /umbraco/merchello/webhooks/fulfilment/{providerKey}
     ↓
 IFulfilmentProvider.ValidateWebhookAsync()
     ↓
+IFulfilmentService.TryLogWebhookAsync(providerConfigId, messageId, eventType, payload)
+    ↓
+If duplicate (same ProviderConfigurationId + MessageId) → return 200 Already processed
+    ↓
 IFulfilmentProvider.ProcessWebhookAsync()
     ↓
 Find Order by FulfilmentProviderReference
@@ -370,7 +374,7 @@ Webhook OR FulfilmentPollingJob
 IFulfilmentProvider.GetInventoryLevelsAsync()
     ↓
 Update ProductWarehouse.Stock:
-    - Full mode: Overwrite completely
+    - Full mode: Stock = AvailableQuantity + ReservedStock (preserve reservations)
     - Delta mode: Apply adjustments
     ↓
 Create FulfilmentSyncLog record
@@ -468,6 +472,9 @@ public interface IFulfilmentService
     Task<CrudResult<Shipment>> ProcessShipmentUpdateAsync(FulfilmentShipmentUpdate update, CancellationToken ct = default);
     Task<IReadOnlyList<Order>> GetOrdersForPollingAsync(Guid providerConfigId, CancellationToken ct = default);
     Task<FulfilmentProviderConfiguration?> ResolveProviderForWarehouseAsync(Guid warehouseId, CancellationToken ct = default);
+    Task<bool> IsDuplicateWebhookAsync(Guid providerConfigId, string messageId, CancellationToken ct = default);
+    Task<bool> TryLogWebhookAsync(Guid providerConfigId, string messageId, string? eventType, string? payload, CancellationToken ct = default);
+    Task LogWebhookAsync(Guid providerConfigId, string? messageId, string? eventType, string? payload, CancellationToken ct = default);
 }
 ```
 
@@ -726,7 +733,8 @@ public class FulfilmentWebhookTopics : IWebhookTopicRegistration
 | POST | `/api/v1/fulfilment-providers` | Create config |
 | PUT | `/api/v1/fulfilment-providers/{id}` | Update config |
 | DELETE | `/api/v1/fulfilment-providers/{id}` | Delete config |
-| POST | `/api/v1/fulfilment-providers/{id}/test` | Test connection |
+| POST | `/api/v1/fulfilment-providers/{id}/test` | Test connection (legacy compatibility alias) |
+| POST | `/api/v1/fulfilment-providers/{id}/test/connection` | Test connection (documented endpoint) |
 
 ### Assignment
 
@@ -749,9 +757,12 @@ public class FulfilmentWebhookTopics : IWebhookTopicRegistration
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/fulfilment-providers/{id}/sync/products` | Trigger product sync |
-| POST | `/api/v1/fulfilment-providers/{id}/sync/inventory` | Trigger inventory sync |
-| GET | `/api/v1/fulfilment-providers/{id}/sync/history` | Get sync logs |
+| POST | `/api/v1/fulfilment-providers/{id}/sync/products` | Trigger product sync (legacy compatibility endpoint) |
+| POST | `/api/v1/fulfilment-providers/{id}/sync/inventory` | Trigger inventory sync (legacy compatibility endpoint) |
+| POST | `/api/v1/fulfilment-providers/{id}/test/product-sync` | Trigger product sync from test surface |
+| POST | `/api/v1/fulfilment-providers/{id}/test/inventory-sync` | Trigger inventory sync from test surface |
+| GET | `/api/v1/fulfilment-providers/sync-logs` | Get paginated sync logs (filter by providerConfigurationId) |
+| GET | `/api/v1/fulfilment-providers/sync-logs/{id}` | Get a specific sync log |
 
 ### Inbound Webhooks
 
@@ -1897,6 +1908,7 @@ interface InventoryDiscrepancyDto {
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| POST | `/api/v1/fulfilment-providers/{id}/test` | Legacy compatibility alias for connection test |
 | POST | `/api/v1/fulfilment-providers/{id}/test/connection` | Test API connectivity |
 | POST | `/api/v1/fulfilment-providers/{id}/test/order` | Submit test order |
 | GET | `/api/v1/fulfilment-providers/{id}/test/webhook-events` | Get webhook event templates |
@@ -1912,24 +1924,28 @@ public interface IFulfilmentProvider
     // ... existing methods ...
 
     // Test UI support
-    Task<IReadOnlyList<WebhookEventTemplate>> GetWebhookEventTemplatesAsync(CancellationToken ct = default);
-    Task<string?> GenerateTestWebhookPayloadAsync(string eventType, FulfilmentTestWebhookContext context, CancellationToken ct = default);
+    ValueTask<IReadOnlyList<FulfilmentWebhookEventTemplate>> GetWebhookEventTemplatesAsync(CancellationToken ct = default);
+    ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        GenerateFulfilmentWebhookPayloadRequest request,
+        CancellationToken ct = default);
 }
 
-public record WebhookEventTemplate
+public class FulfilmentWebhookEventTemplate
 {
     public required string EventType { get; init; }
     public required string DisplayName { get; init; }
     public string? Description { get; init; }
-    public WebhookEventCategory Category { get; init; }  // Shipment, Order, Inventory, Other
 }
 
-public record FulfilmentTestWebhookContext
+public class GenerateFulfilmentWebhookPayloadRequest
 {
+    public required string EventType { get; init; }
     public string? ProviderReference { get; init; }
+    public string? ProviderShipmentId { get; init; }
     public string? TrackingNumber { get; init; }
     public string? Carrier { get; init; }
-    public decimal? Amount { get; init; }
+    public DateTime? ShippedDate { get; init; }
+    public string? CustomPayload { get; init; }
 }
 ```
 
@@ -2320,13 +2336,14 @@ webhook-id: msg_xxx
 | Operation | Endpoint |
 |-----------|----------|
 | Create order | `POST /2025-07/order` |
-| Cancel order | `POST /2025-07/order/{id}:cancel` |
+| Cancel shipment (primary) | `POST /2025-07/shipment/{id}:cancel` |
+| Cancel shipment (fallback) | `POST /2025-07/shipment/{id}/cancel` |
 | Get shipments | `GET /2025-07/order/{id}/shipment` |
 | Create product | `POST /2025-07/product` |
 | List inventory | `GET /2025-07/inventory` |
 | List inventory (fast) | `GET /2025-07/inventory-levels` |
 
-> **Note:** ShipBob uses `:action` suffix notation for some endpoints (e.g., `order/{id}:cancel`).
+> **Note:** ShipBob uses `:action` suffix notation for some endpoints. The implementation tries `:cancel` first, then falls back to `/cancel` for compatibility.
 
 ---
 
@@ -2497,10 +2514,12 @@ Use a dedicated table for webhook deduplication:
 |--------|------|-------------|
 | Id | UNIQUEIDENTIFIER | Primary key |
 | ProviderConfigurationId | UNIQUEIDENTIFIER | FK to provider config |
-| MessageId | NVARCHAR(256) | Provider's webhook ID (indexed) |
+| MessageId | NVARCHAR(256) NOT NULL | Provider webhook ID (required, non-empty at write-time) |
 | EventType | NVARCHAR(100) | e.g., "shipment.created" |
 | ProcessedAt | DATETIME2 | When processed |
 | ExpiresAt | DATETIME2 | TTL for cleanup |
+
+**Index Contract:** Unique composite index on `(ProviderConfigurationId, MessageId)` enforces atomic dedupe at insert time.
 
 **Retention:** 7 days (configurable via `Merchello:Fulfilment:WebhookLogRetentionDays`)
 

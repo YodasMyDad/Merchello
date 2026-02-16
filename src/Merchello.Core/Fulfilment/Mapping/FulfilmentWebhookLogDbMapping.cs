@@ -13,7 +13,7 @@ public class FulfilmentWebhookLogDbMapping : IEntityTypeConfiguration<Fulfilment
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).IsRequired();
         builder.Property(x => x.ProviderConfigurationId).IsRequired();
-        builder.Property(x => x.MessageId).HasMaxLength(256);
+        builder.Property(x => x.MessageId).IsRequired().HasMaxLength(256);
         builder.Property(x => x.EventType).HasMaxLength(100);
         builder.Property(x => x.Payload);
         builder.Property(x => x.ProcessedAt).HasConversion(
@@ -29,7 +29,7 @@ public class FulfilmentWebhookLogDbMapping : IEntityTypeConfiguration<Fulfilment
             .OnDelete(DeleteBehavior.Cascade);
 
         // Composite index for deduplication (unique per provider)
-        builder.HasIndex(x => new { x.ProviderConfigurationId, x.MessageId });
+        builder.HasIndex(x => new { x.ProviderConfigurationId, x.MessageId }).IsUnique();
         builder.HasIndex(x => x.ExpiresAt);
     }
 }
