@@ -739,7 +739,7 @@ namespace Merchello.Core.Sqlite.Migrations
                 {
                     Id = table.Column<Guid>(type: "TEXT", nullable: false),
                     ProviderConfigurationId = table.Column<Guid>(type: "TEXT", nullable: false),
-                    MessageId = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    MessageId = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
                     EventType = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
                     Payload = table.Column<string>(type: "TEXT", nullable: true),
                     ProcessedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
@@ -1814,7 +1814,8 @@ namespace Merchello.Core.Sqlite.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloFulfilmentWebhookLogs_ProviderConfigurationId_MessageId",
                 table: "merchelloFulfilmentWebhookLogs",
-                columns: new[] { "ProviderConfigurationId", "MessageId" });
+                columns: new[] { "ProviderConfigurationId", "MessageId" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloGiftCards_Code",
