@@ -20,7 +20,7 @@ import type { ProductListItemDto, ProductSelectionChangeEventDetail } from "@pro
 import {
   navigateToWarehousesList,
   getWarehousesListHref,
-  getWarehouseDetailHref,
+  replaceToWarehouseDetail,
 } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
@@ -313,7 +313,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         if (data) {
           // Update context and navigate to edit route using SPA navigation
           this.#workspaceContext?.updateWarehouse(data);
-          history.replaceState({}, "", getWarehouseDetailHref(data.id));
+          replaceToWarehouseDetail(data.id);
           this.#notificationContext?.peek("positive", {
             data: { headline: "Warehouse created", message: "The warehouse has been created successfully" }
           });

@@ -29,6 +29,9 @@ describe("navigation utilities", () => {
       expect(navigation.getProductsListHref()).toBe(
         "section/merchello/workspace/merchello-products/edit/products"
       );
+      expect(navigation.getFiltersListHref()).toBe(
+        "section/merchello/workspace/merchello-filters/edit/filters"
+      );
 
       expect(navigation.getWarehouseDetailHref("warehouse-1")).toBe(
         "section/merchello/workspace/merchello-warehouses/edit/warehouses/warehouse-1"
@@ -135,6 +138,13 @@ describe("navigation utilities", () => {
         "section/merchello/workspace/merchello-products/edit/products"
       );
 
+      navigation.navigateToFiltersList();
+      expect(pushStateSpy).toHaveBeenLastCalledWith(
+        {},
+        "",
+        "section/merchello/workspace/merchello-filters/edit/filters"
+      );
+
       navigation.navigateToWarehouseCreate();
       expect(pushStateSpy).toHaveBeenLastCalledWith(
         {},
@@ -191,6 +201,13 @@ describe("navigation utilities", () => {
         {},
         "",
         "section/merchello/workspace/merchello-discounts/edit/discounts/discount-1"
+      );
+
+      navigation.replaceToWarehouseDetail("warehouse-1");
+      expect(replaceStateSpy).toHaveBeenLastCalledWith(
+        {},
+        "",
+        "section/merchello/workspace/merchello-warehouses/edit/warehouses/warehouse-1"
       );
 
       navigation.replaceToUpsellDetail("upsell-1");

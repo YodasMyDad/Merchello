@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, property } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type { ProductFilterGroupDto, ProductFilterDto } from "@filters/types/filters.types.js";
+import { getFiltersListHref } from "@shared/utils/navigation.js";
 
 // ============================================
 // Event Types
@@ -92,7 +93,7 @@ export class MerchelloProductFiltersElement extends UmbElementMixin(LitElement) 
               <strong>No Filter Groups</strong>
               <p>
                 No filter groups have been created yet. Go to
-                <a href="/section/merchello/workspace/merchello-filters">Filters</a>
+                <a href=${getFiltersListHref()}>Filters</a>
                 to create filter groups and filter values.
               </p>
             </div>

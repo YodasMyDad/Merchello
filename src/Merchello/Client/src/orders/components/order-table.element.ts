@@ -111,8 +111,20 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
     );
   }
 
-  private _handleRowClick(order: OrderListItemDto): void {
+  private _isAnchorClick(e: Event): boolean {
+    const anchor = e
+      .composedPath()
+      .find(($elem): $elem is HTMLAnchorElement | SVGAElement => {
+        const isSvgAnchor = typeof SVGAElement !== "undefined" && $elem instanceof SVGAElement;
+        return $elem instanceof HTMLAnchorElement || isSvgAnchor;
+      });
+
+    return anchor !== undefined;
+  }
+
+  private _handleRowClick(e: Event, order: OrderListItemDto): void {
     if (!this.clickable) return;
+    if (this._isAnchorClick(e)) return;
 
     const detail: OrderClickEventDetail = { orderId: order.id, order };
     this.dispatchEvent(
@@ -213,7 +225,7 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
     return html`
       <uui-table-row
         class=${this.clickable ? "clickable" : ""}
-        @click=${() => this._handleRowClick(order)}
+        @click=${(e: Event) => this._handleRowClick(e, order)}
       >
         ${cols.map((col) => this._renderCell(order, col))}
       </uui-table-row>
