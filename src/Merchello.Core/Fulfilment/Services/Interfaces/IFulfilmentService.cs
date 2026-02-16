@@ -63,6 +63,16 @@ public interface IFulfilmentService
     Task<bool> TryLogWebhookAsync(Guid providerConfigId, string messageId, string? eventType, string? payload, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Finalizes a previously logged webhook after successful processing.
+    /// </summary>
+    Task CompleteWebhookLogAsync(Guid providerConfigId, string messageId, string? eventType, string? payload, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes a webhook log entry so the provider can retry processing.
+    /// </summary>
+    Task RemoveWebhookLogAsync(Guid providerConfigId, string messageId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Logs a processed webhook for idempotency tracking.
     /// </summary>
     Task LogWebhookAsync(Guid providerConfigId, string? messageId, string? eventType, string? payload, CancellationToken cancellationToken = default);

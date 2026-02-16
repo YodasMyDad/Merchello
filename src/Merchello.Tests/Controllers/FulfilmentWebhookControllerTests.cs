@@ -130,6 +130,9 @@ public class FulfilmentWebhookControllerTests
             .Setup(x => x.TryLogWebhookAsync(config.Id, It.IsAny<string>(), null, It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         fulfilmentServiceMock
+            .Setup(x => x.CompleteWebhookLogAsync(config.Id, "msg-456", "order.shipped", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        fulfilmentServiceMock
             .Setup(x => x.ProcessStatusUpdateAsync(It.IsAny<FulfilmentStatusUpdate>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CrudResult<Order> { ResultObject = new Order() });
         fulfilmentServiceMock
@@ -156,8 +159,78 @@ public class FulfilmentWebhookControllerTests
 
         // Assert
         result.ShouldBeOfType<OkObjectResult>();
+        fulfilmentServiceMock.Verify(
+            x => x.CompleteWebhookLogAsync(config.Id, "msg-456", "order.shipped", It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Once);
         fulfilmentServiceMock.Verify(x => x.ProcessStatusUpdateAsync(It.IsAny<FulfilmentStatusUpdate>(), It.IsAny<CancellationToken>()), Times.Once);
         fulfilmentServiceMock.Verify(x => x.ProcessShipmentUpdateAsync(It.IsAny<FulfilmentShipmentUpdate>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task HandleWebhook_ProcessingFailure_ReleasesWebhookLogForRetry()
+    {
+        // Arrange
+        var config = new FulfilmentProviderConfiguration
+        {
+            Id = Guid.NewGuid(),
+            ProviderKey = "shipbob",
+            IsEnabled = true
+        };
+
+        var providerMock = new Mock<IFulfilmentProvider>();
+        providerMock.SetupGet(x => x.Metadata).Returns(new FulfilmentProviderMetadata
+        {
+            Key = "shipbob",
+            DisplayName = "ShipBob",
+            SupportsWebhooks = true
+        });
+        providerMock
+            .Setup(x => x.ValidateWebhookAsync(It.IsAny<HttpRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        providerMock
+            .Setup(x => x.ProcessWebhookAsync(It.IsAny<HttpRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new FulfilmentWebhookResult
+            {
+                Success = false,
+                ErrorMessage = "Temporary parser failure"
+            });
+
+        var providerManagerMock = new Mock<IFulfilmentProviderManager>();
+        providerManagerMock
+            .Setup(x => x.GetProviderAsync("shipbob", false, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new RegisteredFulfilmentProvider(providerMock.Object, config));
+
+        var fulfilmentServiceMock = new Mock<IFulfilmentService>();
+        fulfilmentServiceMock
+            .Setup(x => x.TryLogWebhookAsync(config.Id, It.IsAny<string>(), null, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        fulfilmentServiceMock
+            .Setup(x => x.RemoveWebhookLogAsync(config.Id, "msg-789", It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var controller = new FulfilmentWebhookController(
+            providerManagerMock.Object,
+            fulfilmentServiceMock.Object,
+            NullLogger<FulfilmentWebhookController>.Instance);
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = BuildHttpContext("""{"topic":"order.shipped"}""", new Dictionary<string, string>
+            {
+                ["webhook-id"] = "msg-789"
+            })
+        };
+
+        // Act
+        var result = await controller.HandleWebhook("shipbob", CancellationToken.None);
+
+        // Assert
+        result.ShouldBeOfType<BadRequestObjectResult>();
+        fulfilmentServiceMock.Verify(
+            x => x.RemoveWebhookLogAsync(config.Id, "msg-789", It.IsAny<CancellationToken>()),
+            Times.Once);
+        fulfilmentServiceMock.Verify(
+            x => x.CompleteWebhookLogAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     private static HttpContext BuildHttpContext(string payload, IDictionary<string, string> headers)
