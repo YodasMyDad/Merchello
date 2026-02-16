@@ -16,6 +16,7 @@ using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Tax.Models;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Warehouses.Models;
+using Merchello.Core.Data.Interfaces;
 using Merchello.Core.Auditing.Models;
 using Merchello.Core.GiftCards.Models;
 using Merchello.Core.Returns.Models;
@@ -23,6 +24,12 @@ using Merchello.Core.Search.Models;
 using Merchello.Core.Subscriptions.Models;
 using Merchello.Core.Webhooks.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Configuration.Models;
+using Umbraco.Cms.Core.DependencyInjection;
+using Umbraco.Extensions;
 
 namespace Merchello.Core.Data;
 
@@ -32,7 +39,7 @@ namespace Merchello.Core.Data;
 public class MerchelloDbContext : DbContext
 {
     public MerchelloDbContext(DbContextOptions<MerchelloDbContext> options)
-        : base(options)
+        : base(ConfigureOptions(options))
     {
     }
 
@@ -131,5 +138,68 @@ public class MerchelloDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+    }
+
+    private static DbContextOptions<MerchelloDbContext> ConfigureOptions(DbContextOptions<MerchelloDbContext> options)
+    {
+        // If a provider is already configured (normal runtime and design-time factories), keep existing options.
+        if (options.Extensions.Any(extension => extension.Info.IsDatabaseProvider))
+        {
+            return options;
+        }
+
+        var coreOptionsExtension = options.Extensions.OfType<CoreOptionsExtension>().FirstOrDefault();
+        var serviceProvider = coreOptionsExtension?.ApplicationServiceProvider ?? StaticServiceProvider.Instance;
+        if (serviceProvider is null)
+        {
+            return options;
+        }
+
+        var connectionStrings = serviceProvider.GetRequiredService<IOptionsMonitor<ConnectionStrings>>().CurrentValue;
+        if (string.IsNullOrWhiteSpace(connectionStrings.ProviderName) || string.IsNullOrWhiteSpace(connectionStrings.ConnectionString))
+        {
+            return options;
+        }
+
+        var connectionString = ResolveDataDirectory(connectionStrings.ConnectionString);
+        var providerName = connectionStrings.ProviderName;
+
+        var optionsBuilder = new DbContextOptionsBuilder<MerchelloDbContext>(options);
+        var providerSetup = serviceProvider
+            .GetServices<IMerchelloMigrationProviderSetup>()
+            .FirstOrDefault(x => ProviderNameMatches(x.ProviderName, providerName));
+
+        if (providerSetup is not null)
+        {
+            providerSetup.Setup(optionsBuilder, connectionString);
+        }
+        else
+        {
+            optionsBuilder.UseDatabaseProvider(providerName, connectionString);
+        }
+
+        return optionsBuilder.Options;
+    }
+
+    private static string ResolveDataDirectory(string connectionString)
+    {
+        var dataDirectory = AppDomain.CurrentDomain.GetData(Umbraco.Cms.Core.Constants.System.DataDirectoryName)?.ToString();
+        if (string.IsNullOrWhiteSpace(dataDirectory))
+        {
+            return connectionString;
+        }
+
+        return connectionString.Replace(Umbraco.Cms.Core.Constants.System.DataDirectoryPlaceholder, dataDirectory);
+    }
+
+    private static bool ProviderNameMatches(string configuredProviderName, string activeProviderName)
+    {
+        if (configuredProviderName.Equals(activeProviderName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return configuredProviderName == "Microsoft.Data.Sqlite" &&
+               activeProviderName is "Microsoft.Data.SQLite" or "Microsoft.Data.Sqlite";
     }
 }

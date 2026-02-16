@@ -739,7 +739,7 @@ namespace Merchello.Core.SqlServer.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     ProviderConfigurationId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    MessageId = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    MessageId = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
                     EventType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     Payload = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ProcessedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -1814,7 +1814,8 @@ namespace Merchello.Core.SqlServer.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloFulfilmentWebhookLogs_ProviderConfigurationId_MessageId",
                 table: "merchelloFulfilmentWebhookLogs",
-                columns: new[] { "ProviderConfigurationId", "MessageId" });
+                columns: new[] { "ProviderConfigurationId", "MessageId" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_merchelloGiftCards_Code",

@@ -296,6 +296,7 @@ public class WebhookServiceReliabilityTests : IClassFixture<ServiceTestFixture>
 
         var job = new OutboundDeliveryJob(
             _fixture.GetService<IServiceScopeFactory>(),
+            _fixture.GetService<Umbraco.Cms.Persistence.EFCore.Scoping.IEFCoreScopeProvider<MerchelloDbContext>>(),
             seedDataState.Object,
             _fixture.GetService<IOptions<WebhookSettings>>(),
             _fixture.GetService<IOptions<EmailSettings>>(),
