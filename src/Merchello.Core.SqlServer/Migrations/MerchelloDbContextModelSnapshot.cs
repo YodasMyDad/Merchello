@@ -1473,6 +1473,7 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("MessageId")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
@@ -1489,7 +1490,8 @@ namespace Merchello.Core.SqlServer.Migrations
 
                     b.HasIndex("ExpiresAt");
 
-                    b.HasIndex("ProviderConfigurationId", "MessageId");
+                    b.HasIndex("ProviderConfigurationId", "MessageId")
+                        .IsUnique();
 
                     b.ToTable("merchelloFulfilmentWebhookLogs", (string)null);
                 });

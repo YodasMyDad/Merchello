@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Fulfilment.Models;
@@ -621,6 +623,120 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
         return result;
     }
 
+    /// <inheritdoc />
+    public override ValueTask<IReadOnlyList<FulfilmentWebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<FulfilmentWebhookEventTemplate> templates =
+        [
+            new() { EventType = "order.shipped", DisplayName = "Order Shipped", Description = "Order status updated to shipped." },
+            new() { EventType = "order.delivered", DisplayName = "Order Delivered", Description = "Order status updated to delivered/completed." },
+            new() { EventType = "order.cancelled", DisplayName = "Order Cancelled", Description = "Order status updated to cancelled." },
+            new() { EventType = "shipment.created", DisplayName = "Shipment Created", Description = "Shipment created with tracking details." }
+        ];
+
+        return ValueTask.FromResult(templates);
+    }
+
+    /// <inheritdoc />
+    public override ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        GenerateFulfilmentWebhookPayloadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!string.IsNullOrWhiteSpace(request.CustomPayload))
+        {
+            var customHeaders = new Dictionary<string, string>
+            {
+                ["x-webhook-topic"] = request.EventType
+            };
+            return ValueTask.FromResult((request.CustomPayload, (IDictionary<string, string>)customHeaders));
+        }
+
+        var topic = request.EventType.Trim();
+        var messageId = $"msg_test_{Guid.NewGuid():N}";
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var providerReference = string.IsNullOrWhiteSpace(request.ProviderReference)
+            ? $"TEST-{Guid.NewGuid():N}"[..12]
+            : request.ProviderReference;
+        var providerShipmentId = int.TryParse(request.ProviderShipmentId, out var parsedShipmentId)
+            ? parsedShipmentId
+            : 10001;
+        var shippedDate = request.ShippedDate ?? DateTime.UtcNow;
+        var trackingNumber = string.IsNullOrWhiteSpace(request.TrackingNumber)
+            ? $"TRACK-{Guid.NewGuid():N}"[..16]
+            : request.TrackingNumber;
+        var carrier = string.IsNullOrWhiteSpace(request.Carrier) ? "UPS" : request.Carrier;
+        var mappedStatus = topic switch
+        {
+            "order.cancelled" => "cancelled",
+            "order.delivered" => "delivered",
+            _ => "shipped"
+        };
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            topic,
+            data = new
+            {
+                id = providerShipmentId,
+                order_id = 12345,
+                reference_id = providerReference,
+                status = mappedStatus,
+                updated_date = DateTime.UtcNow,
+                shipment = new
+                {
+                    id = providerShipmentId,
+                    status = "shipped",
+                    tracking = new
+                    {
+                        tracking_number = trackingNumber,
+                        tracking_url = $"https://tracking.example.com/{trackingNumber}",
+                        carrier,
+                        shipping_date = shippedDate
+                    },
+                    products = new[]
+                    {
+                        new
+                        {
+                            sku = "TEST-SKU-001",
+                            quantity = 1
+                        }
+                    }
+                }
+            }
+        }, JsonOptions);
+
+        var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["x-webhook-topic"] = topic,
+            [ShipBobWebhookValidator.MessageIdHeader] = messageId,
+            [ShipBobWebhookValidator.TimestampHeader] = timestamp.ToString()
+        };
+
+        if (!string.IsNullOrWhiteSpace(_settings?.WebhookSecret))
+        {
+            var signedPayload = $"{messageId}.{timestamp}.{payload}";
+            var signature = ComputeHmacSha256(signedPayload, _settings.WebhookSecret);
+            headers[ShipBobWebhookValidator.SignatureHeader] = $"v1,{signature}";
+        }
+        else
+        {
+            headers[ShipBobWebhookValidator.SignatureHeader] = "v1,test";
+        }
+
+        return ValueTask.FromResult((payload, (IDictionary<string, string>)headers));
+    }
+
+    private static string ComputeHmacSha256(string payload, string secret)
+    {
+        var keyBytes = Encoding.UTF8.GetBytes(secret);
+        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+
+        using var hmac = new HMACSHA256(keyBytes);
+        var hashBytes = hmac.ComputeHash(payloadBytes);
+        return Convert.ToBase64String(hashBytes);
+    }
+
     #endregion
 
     #region Polling
@@ -828,7 +944,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                     {
                         levels.Add(new FulfilmentInventoryLevel
                         {
-                            Sku = item.Name ?? item.Id.ToString(),
+                            Sku = item.Sku ?? item.Name ?? item.Id.ToString(),
                             WarehouseCode = fcQuantity.Name ?? fcQuantity.Id.ToString(),
                             AvailableQuantity = fcQuantity.FulfillableQuantity,
                             ReservedQuantity = fcQuantity.CommittedQuantity,
@@ -842,7 +958,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                     // Total quantities only
                     levels.Add(new FulfilmentInventoryLevel
                     {
-                        Sku = item.Name ?? item.Id.ToString(),
+                        Sku = item.Sku ?? item.Name ?? item.Id.ToString(),
                         AvailableQuantity = item.TotalFulfillableQuantity,
                         ReservedQuantity = item.TotalCommittedQuantity,
                         IncomingQuantity = item.TotalAwaitingQuantity,

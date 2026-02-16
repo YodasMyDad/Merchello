@@ -1466,6 +1466,7 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("MessageId")
+                        .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
@@ -1482,7 +1483,8 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("ExpiresAt");
 
-                    b.HasIndex("ProviderConfigurationId", "MessageId");
+                    b.HasIndex("ProviderConfigurationId", "MessageId")
+                        .IsUnique();
 
                     b.ToTable("merchelloFulfilmentWebhookLogs", (string)null);
                 });

@@ -114,13 +114,30 @@ public sealed class ShipBobApiClient : IDisposable
         int shipmentId,
         CancellationToken cancellationToken = default)
     {
-        var url = $"/{_settings.ApiVersion}/shipment/{shipmentId}/cancel";
-        var result = await PostAsync<object, object>(url, new { }, cancellationToken);
+        var primaryUrl = $"/{_settings.ApiVersion}/shipment/{shipmentId}:cancel";
+        var primary = await PostAsync<object, object>(primaryUrl, new { }, cancellationToken);
+        if (primary.Success)
+        {
+            return new ShipBobApiResult<bool> { Success = true, Data = true };
+        }
+
+        if (primary.Error?.StatusCode is not (404 or 405))
+        {
+            return new ShipBobApiResult<bool>
+            {
+                Success = false,
+                Data = false,
+                Error = primary.Error
+            };
+        }
+
+        var fallbackUrl = $"/{_settings.ApiVersion}/shipment/{shipmentId}/cancel";
+        var fallback = await PostAsync<object, object>(fallbackUrl, new { }, cancellationToken);
         return new ShipBobApiResult<bool>
         {
-            Success = result.Success,
-            Data = result.Success,
-            Error = result.Error
+            Success = fallback.Success,
+            Data = fallback.Success,
+            Error = fallback.Error
         };
     }
 

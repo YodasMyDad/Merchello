@@ -358,4 +358,68 @@ describe("merchello api client", () => {
     expect(result.data).toBeUndefined();
     expect(result.error?.message).toBe("network down");
   });
+
+  it("uses fulfilment test endpoints with correct routes, verbs, and payloads", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { success: true } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { success: true } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: [] }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { success: true } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { id: "sync-1" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { id: "sync-2" } }));
+
+    const orderPayload = {
+      customerEmail: "customer@example.com",
+      orderNumber: "TEST-ORDER-1",
+      shippingAddress: {
+        name: "Test Customer",
+        addressOne: "123 Test Street",
+        townCity: "Test City",
+        countyState: "CA",
+        postalCode: "90210",
+        countryCode: "US",
+      },
+      lineItems: [{ sku: "SKU-1", name: "Item", quantity: 1, unitPrice: 10 }],
+      useRealSandbox: true,
+    };
+
+    const webhookPayload = {
+      eventType: "order.shipped",
+      providerReference: "REF-1",
+    };
+
+    await MerchelloApi.testFulfilmentProvider("cfg-1");
+    await MerchelloApi.testFulfilmentOrderSubmission("cfg-1", orderPayload);
+    await MerchelloApi.getFulfilmentWebhookEventTemplates("cfg-1");
+    await MerchelloApi.simulateFulfilmentWebhook("cfg-1", webhookPayload);
+    await MerchelloApi.testFulfilmentProductSync("cfg-1");
+    await MerchelloApi.testFulfilmentInventorySync("cfg-1");
+
+    const [connectionUrl, connectionInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [orderUrl, orderInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [eventsUrl, eventsInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const [simulateUrl, simulateInit] = fetchMock.mock.calls[3] as [string, RequestInit];
+    const [productSyncUrl, productSyncInit] = fetchMock.mock.calls[4] as [string, RequestInit];
+    const [inventorySyncUrl, inventorySyncInit] = fetchMock.mock.calls[5] as [string, RequestInit];
+
+    expect(connectionUrl).toBe("/umbraco/api/v1/fulfilment-providers/cfg-1/test/connection");
+    expect(connectionInit.method).toBe("POST");
+
+    expect(orderUrl).toBe("/umbraco/api/v1/fulfilment-providers/cfg-1/test/order");
+    expect(orderInit.method).toBe("POST");
+    expect(orderInit.body).toBe(JSON.stringify(orderPayload));
+
+    expect(eventsUrl).toBe("/umbraco/api/v1/fulfilment-providers/cfg-1/test/webhook-events");
+    expect(eventsInit.method).toBe("GET");
+
+    expect(simulateUrl).toBe("/umbraco/api/v1/fulfilment-providers/cfg-1/test/simulate-webhook");
+    expect(simulateInit.method).toBe("POST");
+    expect(simulateInit.body).toBe(JSON.stringify(webhookPayload));
+
+    expect(productSyncUrl).toBe("/umbraco/api/v1/fulfilment-providers/cfg-1/test/product-sync");
+    expect(productSyncInit.method).toBe("POST");
+
+    expect(inventorySyncUrl).toBe("/umbraco/api/v1/fulfilment-providers/cfg-1/test/inventory-sync");
+    expect(inventorySyncInit.method).toBe("POST");
+  });
 });
