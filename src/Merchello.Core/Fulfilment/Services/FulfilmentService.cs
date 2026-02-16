@@ -928,6 +928,70 @@ public class FulfilmentService(
     }
 
     /// <inheritdoc />
+    public async Task CompleteWebhookLogAsync(Guid providerConfigId, string messageId, string? eventType, string? payload, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            throw new ArgumentException("Webhook message ID cannot be empty.", nameof(messageId));
+        }
+
+        var resolvedMessageId = messageId.Trim();
+        var completedAt = DateTime.UtcNow;
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var existing = await db.FulfilmentWebhookLogs
+                .FirstOrDefaultAsync(x => x.ProviderConfigurationId == providerConfigId && x.MessageId == resolvedMessageId, cancellationToken);
+
+            if (existing == null)
+            {
+                return false;
+            }
+
+            existing.EventType = string.IsNullOrWhiteSpace(eventType) ? existing.EventType : eventType.Trim();
+            if (payload != null)
+            {
+                existing.Payload = payload;
+            }
+
+            existing.ProcessedAt = completedAt;
+            existing.ExpiresAt = completedAt.AddDays(_settings.WebhookLogRetentionDays);
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+        scope.Complete();
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveWebhookLogAsync(Guid providerConfigId, string messageId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            return;
+        }
+
+        var resolvedMessageId = messageId.Trim();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var existing = await db.FulfilmentWebhookLogs
+                .FirstOrDefaultAsync(x => x.ProviderConfigurationId == providerConfigId && x.MessageId == resolvedMessageId, cancellationToken);
+
+            if (existing == null)
+            {
+                return false;
+            }
+
+            db.FulfilmentWebhookLogs.Remove(existing);
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+        scope.Complete();
+    }
+
+    /// <inheritdoc />
     public async Task LogWebhookAsync(Guid providerConfigId, string? messageId, string? eventType, string? payload, CancellationToken cancellationToken = default)
     {
         var resolvedMessageId = string.IsNullOrWhiteSpace(messageId)

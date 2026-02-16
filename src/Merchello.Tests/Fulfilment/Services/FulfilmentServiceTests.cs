@@ -764,6 +764,56 @@ public class FulfilmentServiceTests
         count.ShouldBe(1);
     }
 
+    [Fact]
+    public async Task CompleteWebhookLogAsync_UpdatesEventTypeAfterSuccessfulProcessing()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var service = CreateFulfilmentService();
+
+        // Act
+        var inserted = await service.TryLogWebhookAsync(config.Id, "msg-complete", null, "{}");
+        await service.CompleteWebhookLogAsync(
+            config.Id,
+            "msg-complete",
+            "shipment.created",
+            """{"topic":"shipment.created"}""");
+
+        // Assert
+        inserted.ShouldBeTrue();
+        var log = await _fixture.DbContext.FulfilmentWebhookLogs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ProviderConfigurationId == config.Id && x.MessageId == "msg-complete");
+
+        log.ShouldNotBeNull();
+        log.EventType.ShouldBe("shipment.created");
+        log.Payload.ShouldBe("""{"topic":"shipment.created"}""");
+    }
+
+    [Fact]
+    public async Task RemoveWebhookLogAsync_DeletesRowSoProviderRetriesAreNotBlocked()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var service = CreateFulfilmentService();
+
+        // Act
+        var inserted = await service.TryLogWebhookAsync(config.Id, "msg-retry", null, "{}");
+        await service.RemoveWebhookLogAsync(config.Id, "msg-retry");
+        var duplicate = await service.IsDuplicateWebhookAsync(config.Id, "msg-retry");
+
+        // Assert
+        inserted.ShouldBeTrue();
+        duplicate.ShouldBeFalse();
+        var count = await _fixture.DbContext.FulfilmentWebhookLogs
+            .CountAsync(x => x.ProviderConfigurationId == config.Id && x.MessageId == "msg-retry");
+        count.ShouldBe(0);
+    }
+
     #endregion
 
     #region Helper Methods

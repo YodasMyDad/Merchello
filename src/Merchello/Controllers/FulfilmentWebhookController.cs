@@ -56,6 +56,7 @@ public class FulfilmentWebhookController(
             return BadRequest($"Provider '{providerKey}' does not support webhooks.");
         }
 
+        var providerConfigId = registeredProvider.Configuration?.Id;
         var payload = await CapturePayloadAsync(Request, cancellationToken);
         var messageId = GetWebhookMessageId(Request, payload);
 
@@ -79,10 +80,10 @@ public class FulfilmentWebhookController(
         }
 
         // Atomic idempotency write before processing webhook to avoid duplicate concurrent execution.
-        if (registeredProvider.Configuration != null)
+        if (providerConfigId.HasValue)
         {
             var inserted = await fulfilmentService.TryLogWebhookAsync(
-                registeredProvider.Configuration.Id,
+                providerConfigId.Value,
                 messageId,
                 eventType: null,
                 payload: payload,
@@ -102,15 +103,22 @@ public class FulfilmentWebhookController(
         }
         catch (Exception ex)
         {
+            await ReleaseWebhookLogForRetryAsync(providerConfigId, messageId, cancellationToken);
             logger.LogError(ex, "Error processing fulfilment webhook for provider: {Provider}", providerKey);
             return BadRequest("Webhook processing failed.");
         }
 
         if (!result.Success)
         {
+            await ReleaseWebhookLogForRetryAsync(providerConfigId, messageId, cancellationToken);
             logger.LogWarning("Fulfilment webhook processing failed for provider: {Provider}. Error: {Error}",
                 providerKey, result.ErrorMessage);
             return BadRequest(result.ErrorMessage);
+        }
+
+        if (!await CompleteWebhookLogAsync(providerConfigId, messageId, result.EventType, payload, cancellationToken))
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, "Failed to persist webhook state.");
         }
 
         // Process status updates
@@ -198,5 +206,58 @@ public class FulfilmentWebhookController(
         var payload = await reader.ReadToEndAsync(cancellationToken);
         request.Body.Position = 0;
         return payload;
+    }
+
+    private async Task<bool> CompleteWebhookLogAsync(
+        Guid? providerConfigId,
+        string messageId,
+        string? eventType,
+        string payload,
+        CancellationToken cancellationToken)
+    {
+        if (!providerConfigId.HasValue)
+        {
+            return true;
+        }
+
+        try
+        {
+            await fulfilmentService.CompleteWebhookLogAsync(
+                providerConfigId.Value,
+                messageId,
+                eventType,
+                payload,
+                cancellationToken);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Failed to finalize webhook log. ProviderConfig: {ProviderConfigId}, MessageId: {MessageId}",
+                providerConfigId.Value,
+                messageId);
+            await ReleaseWebhookLogForRetryAsync(providerConfigId, messageId, cancellationToken);
+            return false;
+        }
+    }
+
+    private async Task ReleaseWebhookLogForRetryAsync(Guid? providerConfigId, string messageId, CancellationToken cancellationToken)
+    {
+        if (!providerConfigId.HasValue || string.IsNullOrWhiteSpace(messageId))
+        {
+            return;
+        }
+
+        try
+        {
+            await fulfilmentService.RemoveWebhookLogAsync(providerConfigId.Value, messageId, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Failed to release webhook log for retry. ProviderConfig: {ProviderConfigId}, MessageId: {MessageId}",
+                providerConfigId.Value,
+                messageId);
+        }
     }
 }

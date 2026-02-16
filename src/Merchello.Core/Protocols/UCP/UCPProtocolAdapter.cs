@@ -1884,6 +1884,14 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             return string.Empty;
         }
 
+        // On Linux, rooted paths (e.g. "/api/v1") may be parsed as absolute file URIs.
+        // Treat rooted values as app-relative so they always resolve against public base URL.
+        if (path.StartsWith('/'))
+        {
+            var rootedBaseUri = ResolvePublicBaseUri();
+            return new Uri(rootedBaseUri, path).ToString().TrimEnd('/');
+        }
+
         if (Uri.TryCreate(path, UriKind.Absolute, out var absoluteUri))
         {
             var secureBuilder = new UriBuilder(absoluteUri)
