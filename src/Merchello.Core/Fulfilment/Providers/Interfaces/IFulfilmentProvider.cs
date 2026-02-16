@@ -56,6 +56,19 @@ public interface IFulfilmentProvider
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets webhook event templates that can be simulated for testing.
+    /// </summary>
+    ValueTask<IReadOnlyList<FulfilmentWebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates a test webhook payload and headers for simulation.
+    /// </summary>
+    ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        GenerateFulfilmentWebhookPayloadRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Polls the provider for order status updates.
     /// </summary>
     Task<IReadOnlyList<FulfilmentStatusUpdate>> PollOrderStatusAsync(IEnumerable<string> providerReferences,

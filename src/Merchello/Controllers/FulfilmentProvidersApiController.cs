@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using Asp.Versioning;
 using Merchello.Core.Fulfilment.Dtos;
 using Merchello.Core.Fulfilment.Models;
@@ -21,6 +22,7 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class FulfilmentProvidersApiController(
     IFulfilmentProviderManager providerManager,
+    IFulfilmentService fulfilmentService,
     IFulfilmentSyncService syncService) : MerchelloApiControllerBase
 {
     private const string SensitiveMask = "********";
@@ -254,6 +256,7 @@ public class FulfilmentProvidersApiController(
     /// Test a fulfilment provider connection.
     /// </summary>
     [HttpPost("fulfilment-providers/{id:guid}/test")]
+    [HttpPost("fulfilment-providers/{id:guid}/test/connection")]
     [ProducesResponseType<TestFulfilmentProviderDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> TestProvider(Guid id, CancellationToken cancellationToken = default)
@@ -276,6 +279,210 @@ public class FulfilmentProvidersApiController(
             ErrorMessage = testResult.ErrorMessage,
             ErrorCode = testResult.ErrorCode
         });
+    }
+
+    /// <summary>
+    /// Submits a test order payload directly to the configured provider.
+    /// </summary>
+    [HttpPost("fulfilment-providers/{id:guid}/test/order")]
+    [ProducesResponseType<TestFulfilmentOrderSubmissionResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TestOrderSubmission(
+        Guid id,
+        [FromBody] TestFulfilmentOrderSubmissionDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var provider = await providerManager.GetConfiguredProviderAsync(id, cancellationToken);
+        if (provider?.Configuration == null)
+        {
+            return NotFound("Provider configuration not found.");
+        }
+
+        if (!provider.Metadata.SupportsOrderSubmission)
+        {
+            return Ok(new TestFulfilmentOrderSubmissionResultDto
+            {
+                Success = false,
+                ErrorMessage = $"Provider '{provider.Metadata.Key}' does not support order submission."
+            });
+        }
+
+        var lineItems = request.LineItems?.Count > 0
+            ? request.LineItems
+            : [new TestFulfilmentLineItemDto { Sku = "TEST-SKU-001", Name = "Test Product", Quantity = 1, UnitPrice = 10m }];
+
+        var shippingAddress = request.ShippingAddress ?? new TestFulfilmentAddressDto
+        {
+            Name = "Test Customer",
+            AddressOne = "123 Test Street",
+            TownCity = "Test City",
+            CountyState = "CA",
+            PostalCode = "90210",
+            CountryCode = "US"
+        };
+
+        var fulfilmentRequest = new FulfilmentOrderRequest
+        {
+            OrderId = Guid.NewGuid(),
+            OrderNumber = string.IsNullOrWhiteSpace(request.OrderNumber)
+                ? $"TEST-{DateTime.UtcNow:yyyyMMddHHmmss}"
+                : request.OrderNumber,
+            CustomerEmail = string.IsNullOrWhiteSpace(request.CustomerEmail)
+                ? "test@example.com"
+                : request.CustomerEmail,
+            ShippingAddress = new FulfilmentAddress
+            {
+                Name = shippingAddress.Name ?? "Test Customer",
+                Company = shippingAddress.Company,
+                AddressOne = shippingAddress.AddressOne ?? "123 Test Street",
+                AddressTwo = shippingAddress.AddressTwo,
+                TownCity = shippingAddress.TownCity ?? "Test City",
+                CountyState = shippingAddress.CountyState ?? "CA",
+                PostalCode = shippingAddress.PostalCode ?? "90210",
+                CountryCode = shippingAddress.CountryCode ?? "US",
+                Phone = shippingAddress.Phone
+            },
+            LineItems = lineItems
+                .Where(x => !string.IsNullOrWhiteSpace(x.Sku))
+                .Select(x => new FulfilmentLineItem
+                {
+                    LineItemId = Guid.NewGuid(),
+                    Sku = x.Sku!,
+                    Name = x.Name ?? x.Sku!,
+                    Quantity = Math.Max(1, x.Quantity),
+                    UnitPrice = x.UnitPrice
+                })
+                .ToList(),
+            ExtendedData = new Dictionary<string, object>
+            {
+                ["IsTestOrder"] = true,
+                ["UseRealSandbox"] = request.UseRealSandbox
+            }
+        };
+
+        var submitResult = await provider.Provider.SubmitOrderAsync(fulfilmentRequest, cancellationToken);
+        return Ok(new TestFulfilmentOrderSubmissionResultDto
+        {
+            Success = submitResult.Success,
+            ProviderReference = submitResult.ProviderReference,
+            ProviderStatus = submitResult.ExtendedData.GetValueOrDefault("ProviderStatus")?.ToString(),
+            ErrorMessage = submitResult.ErrorMessage
+        });
+    }
+
+    /// <summary>
+    /// Gets webhook event templates supported by a fulfilment provider for simulation.
+    /// </summary>
+    [HttpGet("fulfilment-providers/{id:guid}/test/webhook-events")]
+    [ProducesResponseType<List<FulfilmentWebhookEventTemplateDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetWebhookEventTemplates(Guid id, CancellationToken cancellationToken = default)
+    {
+        var provider = await providerManager.GetConfiguredProviderAsync(id, cancellationToken);
+        if (provider?.Configuration == null)
+        {
+            return NotFound("Provider configuration not found.");
+        }
+
+        var templates = await provider.Provider.GetWebhookEventTemplatesAsync(cancellationToken);
+        var result = templates.Select(x => new FulfilmentWebhookEventTemplateDto
+        {
+            EventType = x.EventType,
+            DisplayName = x.DisplayName,
+            Description = x.Description
+        }).ToList();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Simulates provider webhook parsing and applies resulting updates through fulfilment services.
+    /// </summary>
+    [HttpPost("fulfilment-providers/{id:guid}/test/simulate-webhook")]
+    [ProducesResponseType<FulfilmentWebhookSimulationResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SimulateWebhook(
+        Guid id,
+        [FromBody] SimulateFulfilmentWebhookDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var provider = await providerManager.GetConfiguredProviderAsync(id, cancellationToken);
+        if (provider?.Configuration == null)
+        {
+            return NotFound("Provider configuration not found.");
+        }
+
+        var simulationResult = new FulfilmentWebhookSimulationResultDto();
+
+        try
+        {
+            var payloadRequest = new GenerateFulfilmentWebhookPayloadRequest
+            {
+                EventType = request.EventType,
+                ProviderReference = request.ProviderReference,
+                ProviderShipmentId = request.ProviderShipmentId,
+                TrackingNumber = request.TrackingNumber,
+                Carrier = request.Carrier,
+                ShippedDate = request.ShippedDate,
+                CustomPayload = request.CustomPayload
+            };
+
+            var (payload, headers) = await provider.Provider.GenerateTestWebhookPayloadAsync(payloadRequest, cancellationToken);
+            simulationResult.Payload = payload;
+
+            var webhookRequest = BuildWebhookRequest(payload, headers);
+            var webhookResult = await provider.Provider.ProcessWebhookAsync(webhookRequest, cancellationToken);
+
+            simulationResult.Success = webhookResult.Success;
+            simulationResult.EventTypeDetected = webhookResult.EventType;
+
+            if (!webhookResult.Success)
+            {
+                simulationResult.ErrorMessage = webhookResult.ErrorMessage;
+                return Ok(simulationResult);
+            }
+
+            simulationResult.ActionsPerformed.Add($"Parsed event '{webhookResult.EventType}'.");
+
+            foreach (var statusUpdate in webhookResult.StatusUpdates)
+            {
+                var updateResult = await fulfilmentService.ProcessStatusUpdateAsync(statusUpdate, cancellationToken);
+                if (updateResult.Success)
+                {
+                    simulationResult.ActionsPerformed.Add(
+                        $"Updated order '{statusUpdate.ProviderReference}' status to {statusUpdate.MappedStatus}.");
+                }
+                else
+                {
+                    var message = updateResult.Messages.FirstOrDefault()?.Message ?? "Unknown error";
+                    simulationResult.ActionsPerformed.Add(
+                        $"Failed status update for '{statusUpdate.ProviderReference}': {message}");
+                }
+            }
+
+            foreach (var shipmentUpdate in webhookResult.ShipmentUpdates)
+            {
+                var shipmentResult = await fulfilmentService.ProcessShipmentUpdateAsync(shipmentUpdate, cancellationToken);
+                if (shipmentResult.Success)
+                {
+                    simulationResult.ActionsPerformed.Add(
+                        $"Processed shipment '{shipmentUpdate.ProviderShipmentId}' for order '{shipmentUpdate.ProviderReference}'.");
+                }
+                else
+                {
+                    var message = shipmentResult.Messages.FirstOrDefault()?.Message ?? "Unknown error";
+                    simulationResult.ActionsPerformed.Add(
+                        $"Failed shipment update for '{shipmentUpdate.ProviderReference}': {message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            simulationResult.Success = false;
+            simulationResult.ErrorMessage = ex.Message;
+        }
+
+        return Ok(simulationResult);
     }
 
     /// <summary>
@@ -372,6 +579,7 @@ public class FulfilmentProvidersApiController(
     /// Trigger a product sync for a provider.
     /// </summary>
     [HttpPost("fulfilment-providers/{id:guid}/sync/products")]
+    [HttpPost("fulfilment-providers/{id:guid}/test/product-sync")]
     [ProducesResponseType<FulfilmentSyncLogDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> TriggerProductSync(Guid id, CancellationToken cancellationToken = default)
@@ -397,6 +605,7 @@ public class FulfilmentProvidersApiController(
     /// Trigger an inventory sync for a provider.
     /// </summary>
     [HttpPost("fulfilment-providers/{id:guid}/sync/inventory")]
+    [HttpPost("fulfilment-providers/{id:guid}/test/inventory-sync")]
     [ProducesResponseType<FulfilmentSyncLogDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> TriggerInventorySync(Guid id, CancellationToken cancellationToken = default)
@@ -665,5 +874,27 @@ public class FulfilmentProvidersApiController(
         }
     }
 
+    private static HttpRequest BuildWebhookRequest(string payload, IDictionary<string, string> headers)
+    {
+        var context = new DefaultHttpContext();
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        context.Request.Body = new MemoryStream(bytes);
+        context.Request.ContentLength = bytes.Length;
+        context.Request.ContentType = "application/json";
+        context.Request.Method = HttpMethods.Post;
+
+        foreach (var header in headers)
+        {
+            context.Request.Headers[header.Key] = header.Value;
+        }
+
+        if (!context.Request.Headers.ContainsKey("x-webhook-topic") &&
+            headers.TryGetValue("x-webhook-topic", out var topicHeader))
+        {
+            context.Request.Headers["x-webhook-topic"] = topicHeader;
+        }
+
+        return context.Request;
+    }
 }
 

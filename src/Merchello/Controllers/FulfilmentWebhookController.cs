@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers.Interfaces;
 using Merchello.Core.Fulfilment.Services.Interfaces;
@@ -54,6 +56,9 @@ public class FulfilmentWebhookController(
             return BadRequest($"Provider '{providerKey}' does not support webhooks.");
         }
 
+        var payload = await CapturePayloadAsync(Request, cancellationToken);
+        var messageId = GetWebhookMessageId(Request, payload);
+
         // Validate webhook signature
         bool isValid;
         try
@@ -73,14 +78,16 @@ public class FulfilmentWebhookController(
             return BadRequest("Invalid webhook signature.");
         }
 
-        // Check for duplicate webhook (idempotency)
-        var messageId = GetWebhookMessageId(Request);
-        if (!string.IsNullOrEmpty(messageId) && registeredProvider.Configuration != null)
+        // Atomic idempotency write before processing webhook to avoid duplicate concurrent execution.
+        if (registeredProvider.Configuration != null)
         {
-            var isDuplicate = await fulfilmentService.IsDuplicateWebhookAsync(
-                registeredProvider.Configuration.Id, messageId, cancellationToken);
-
-            if (isDuplicate)
+            var inserted = await fulfilmentService.TryLogWebhookAsync(
+                registeredProvider.Configuration.Id,
+                messageId,
+                eventType: null,
+                payload: payload,
+                cancellationToken);
+            if (!inserted)
             {
                 logger.LogInformation("Duplicate fulfilment webhook received. MessageId: {MessageId}", messageId);
                 return Ok(new { message = "Already processed" });
@@ -104,29 +111,6 @@ public class FulfilmentWebhookController(
             logger.LogWarning("Fulfilment webhook processing failed for provider: {Provider}. Error: {Error}",
                 providerKey, result.ErrorMessage);
             return BadRequest(result.ErrorMessage);
-        }
-
-        // Log the webhook
-        if (registeredProvider.Configuration != null)
-        {
-            string? payload = null;
-            try
-            {
-                if (Request.Body.CanSeek)
-                {
-                    Request.Body.Position = 0;
-                    using var reader = new StreamReader(Request.Body, leaveOpen: true);
-                    payload = await reader.ReadToEndAsync(cancellationToken);
-                    Request.Body.Position = 0;
-                }
-            }
-            catch
-            {
-                // Payload capture is optional
-            }
-
-            await fulfilmentService.LogWebhookAsync(
-                registeredProvider.Configuration.Id, messageId, result.EventType, payload, cancellationToken);
         }
 
         // Process status updates
@@ -184,7 +168,7 @@ public class FulfilmentWebhookController(
     /// <summary>
     /// Extracts the webhook message ID from common header patterns.
     /// </summary>
-    private static string? GetWebhookMessageId(HttpRequest request)
+    private static string GetWebhookMessageId(HttpRequest request, string payload)
     {
         // Try common webhook ID headers
         if (request.Headers.TryGetValue("webhook-id", out var webhookId) && !string.IsNullOrEmpty(webhookId))
@@ -199,7 +183,20 @@ public class FulfilmentWebhookController(
         if (request.Headers.TryGetValue("X-Request-Id", out var requestId) && !string.IsNullOrEmpty(requestId))
             return requestId.ToString();
 
-        return null;
+        // Last-resort deterministic ID so logging contract never stores empty IDs.
+        // This keeps dedupe behavior stable even for providers missing a message-id header.
+        var normalizedPayload = payload ?? string.Empty;
+        var payloadHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPayload)));
+        return $"hash:{payloadHash}";
     }
 
+    private static async Task<string> CapturePayloadAsync(HttpRequest request, CancellationToken cancellationToken)
+    {
+        request.EnableBuffering();
+        request.Body.Position = 0;
+        using var reader = new StreamReader(request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
+        var payload = await reader.ReadToEndAsync(cancellationToken);
+        request.Body.Position = 0;
+        return payload;
+    }
 }

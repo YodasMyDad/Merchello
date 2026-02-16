@@ -379,7 +379,28 @@ public class FulfilmentSyncService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
-            { await db.SaveChangesAsync(cancellationToken); return true; });
+        {
+            var existing = await db.FulfilmentSyncLogs.FirstOrDefaultAsync(x => x.Id == syncLog.Id, cancellationToken);
+            if (existing == null)
+            {
+                db.FulfilmentSyncLogs.Add(syncLog);
+            }
+            else
+            {
+                existing.ProviderConfigurationId = syncLog.ProviderConfigurationId;
+                existing.SyncType = syncLog.SyncType;
+                existing.Status = syncLog.Status;
+                existing.ItemsProcessed = syncLog.ItemsProcessed;
+                existing.ItemsSucceeded = syncLog.ItemsSucceeded;
+                existing.ItemsFailed = syncLog.ItemsFailed;
+                existing.ErrorMessage = syncLog.ErrorMessage;
+                existing.StartedAt = syncLog.StartedAt;
+                existing.CompletedAt = syncLog.CompletedAt;
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
         scope.Complete();
     }
 
@@ -491,10 +512,10 @@ public class FulfilmentSyncService(
         switch (syncMode)
         {
             case InventorySyncMode.Full:
-                // Full mode: Overwrite stock completely, but preserve reserved stock
-                productWarehouse.Stock = level.AvailableQuantity;
-                logger.LogDebug("Full sync: Set stock for SKU {Sku} to {Stock}",
-                    level.Sku, level.AvailableQuantity);
+                // Full mode: Preserve reserved stock so available quantity remains accurate.
+                productWarehouse.Stock = level.AvailableQuantity + productWarehouse.ReservedStock;
+                logger.LogDebug("Full sync: Set stock for SKU {Sku} to {Stock} (available {Available}, reserved {Reserved})",
+                    level.Sku, productWarehouse.Stock, level.AvailableQuantity, productWarehouse.ReservedStock);
                 break;
 
             case InventorySyncMode.Delta:

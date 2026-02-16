@@ -5,6 +5,9 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import {
   FulfilmentSyncStatus,
   type TestFulfilmentProviderResultDto,
+  type TestFulfilmentOrderSubmissionResultDto,
+  type FulfilmentWebhookEventTemplateDto,
+  type FulfilmentWebhookSimulationResultDto,
   type FulfilmentSyncLogDto,
 } from "@fulfilment-providers/types/fulfilment-providers.types.js";
 import type {
@@ -12,7 +15,7 @@ import type {
   TestFulfilmentProviderModalValue,
 } from "@fulfilment-providers/modals/test-provider-modal.token.js";
 
-type TabId = "connection" | "product-sync" | "inventory-sync";
+type TabId = "connection" | "order-submission" | "webhooks" | "product-sync" | "inventory-sync";
 
 @customElement("merchello-test-fulfilment-provider-modal")
 export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseElement<
@@ -21,17 +24,37 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
 > {
   @state() private _activeTab: TabId = "connection";
 
-  // Connection test state
   @state() private _isTestingConnection = false;
   @state() private _connectionResult?: TestFulfilmentProviderResultDto;
   @state() private _connectionError: string | null = null;
 
-  // Product sync state
+  @state() private _isSubmittingOrder = false;
+  @state() private _orderSubmissionResult?: TestFulfilmentOrderSubmissionResultDto;
+  @state() private _orderSubmissionError: string | null = null;
+  @state() private _testOrderNumber = "";
+  @state() private _testOrderCustomerEmail = "test@example.com";
+  @state() private _testOrderSku = "TEST-SKU-001";
+  @state() private _testOrderName = "Test Product";
+  @state() private _testOrderQuantity = 1;
+  @state() private _testOrderUnitPrice = 10;
+  @state() private _testOrderUseRealSandbox = true;
+
+  @state() private _isLoadingWebhookTemplates = false;
+  @state() private _webhookTemplates: FulfilmentWebhookEventTemplateDto[] = [];
+  @state() private _selectedWebhookEvent = "";
+  @state() private _webhookProviderReference = "";
+  @state() private _webhookProviderShipmentId = "";
+  @state() private _webhookTrackingNumber = "";
+  @state() private _webhookCarrier = "";
+  @state() private _webhookCustomPayload = "";
+  @state() private _isSimulatingWebhook = false;
+  @state() private _webhookSimulationResult?: FulfilmentWebhookSimulationResultDto;
+  @state() private _webhookSimulationError: string | null = null;
+
   @state() private _isSyncingProducts = false;
   @state() private _productSyncResult?: FulfilmentSyncLogDto;
   @state() private _productSyncError: string | null = null;
 
-  // Inventory sync state
   @state() private _isSyncingInventory = false;
   @state() private _inventorySyncResult?: FulfilmentSyncLogDto;
   @state() private _inventorySyncError: string | null = null;
@@ -41,11 +64,36 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
   override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
+    this._loadWebhookTemplates();
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
+  }
+
+  private async _loadWebhookTemplates(): Promise<void> {
+    const provider = this.data?.provider;
+    if (!provider?.configurationId || !provider.supportsWebhooks) {
+      return;
+    }
+
+    this._isLoadingWebhookTemplates = true;
+    const { data, error } = await MerchelloApi.getFulfilmentWebhookEventTemplates(provider.configurationId);
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this._webhookSimulationError = error.message;
+      this._isLoadingWebhookTemplates = false;
+      return;
+    }
+
+    this._webhookTemplates = data ?? [];
+    if (!this._selectedWebhookEvent && this._webhookTemplates.length > 0) {
+      this._selectedWebhookEvent = this._webhookTemplates[0].eventType;
+    }
+    this._isLoadingWebhookTemplates = false;
   }
 
   private async _handleTestConnection(): Promise<void> {
@@ -73,6 +121,88 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     this._isTestingConnection = false;
   }
 
+  private async _handleTestOrderSubmission(): Promise<void> {
+    const provider = this.data?.provider;
+    if (!provider?.configurationId) {
+      this._orderSubmissionError = "Provider configuration not found";
+      return;
+    }
+
+    this._isSubmittingOrder = true;
+    this._orderSubmissionError = null;
+    this._orderSubmissionResult = undefined;
+
+    const { data, error } = await MerchelloApi.testFulfilmentOrderSubmission(provider.configurationId, {
+      customerEmail: this._testOrderCustomerEmail,
+      orderNumber: this._testOrderNumber || undefined,
+      useRealSandbox: this._testOrderUseRealSandbox,
+      lineItems: [
+        {
+          sku: this._testOrderSku,
+          name: this._testOrderName,
+          quantity: Math.max(1, this._testOrderQuantity),
+          unitPrice: this._testOrderUnitPrice,
+        },
+      ],
+      shippingAddress: {
+        name: "Test Customer",
+        addressOne: "123 Test Street",
+        townCity: "Test City",
+        countyState: "CA",
+        postalCode: "90210",
+        countryCode: "US",
+      },
+    });
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this._orderSubmissionError = error.message;
+      this._isSubmittingOrder = false;
+      return;
+    }
+
+    this._orderSubmissionResult = data;
+    this._isSubmittingOrder = false;
+  }
+
+  private async _handleSimulateWebhook(): Promise<void> {
+    const provider = this.data?.provider;
+    if (!provider?.configurationId) {
+      this._webhookSimulationError = "Provider configuration not found";
+      return;
+    }
+
+    if (!this._selectedWebhookEvent && !this._webhookCustomPayload.trim()) {
+      this._webhookSimulationError = "Select an event type or provide custom payload.";
+      return;
+    }
+
+    this._isSimulatingWebhook = true;
+    this._webhookSimulationError = null;
+    this._webhookSimulationResult = undefined;
+
+    const { data, error } = await MerchelloApi.simulateFulfilmentWebhook(provider.configurationId, {
+      eventType: this._selectedWebhookEvent,
+      providerReference: this._webhookProviderReference || undefined,
+      providerShipmentId: this._webhookProviderShipmentId || undefined,
+      trackingNumber: this._webhookTrackingNumber || undefined,
+      carrier: this._webhookCarrier || undefined,
+      customPayload: this._webhookCustomPayload.trim() || undefined,
+    });
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this._webhookSimulationError = error.message;
+      this._isSimulatingWebhook = false;
+      return;
+    }
+
+    this._webhookSimulationResult = data;
+    this._isSimulatingWebhook = false;
+  }
+
   private async _handleProductSync(): Promise<void> {
     const provider = this.data?.provider;
     if (!provider?.configurationId) {
@@ -84,7 +214,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     this._productSyncError = null;
     this._productSyncResult = undefined;
 
-    const { data, error } = await MerchelloApi.triggerProductSync(provider.configurationId);
+    const { data, error } = await MerchelloApi.testFulfilmentProductSync(provider.configurationId);
 
     if (!this.#isConnected) return;
 
@@ -109,7 +239,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     this._inventorySyncError = null;
     this._inventorySyncResult = undefined;
 
-    const { data, error } = await MerchelloApi.triggerInventorySync(provider.configurationId);
+    const { data, error } = await MerchelloApi.testFulfilmentInventorySync(provider.configurationId);
 
     if (!this.#isConnected) return;
 
@@ -124,15 +254,25 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
   }
 
   private _handleClose(): void {
-    this.value = { wasTests: !!(this._connectionResult || this._productSyncResult || this._inventorySyncResult) };
+    this.value = {
+      wasTests: !!(
+        this._connectionResult ||
+        this._orderSubmissionResult ||
+        this._webhookSimulationResult ||
+        this._productSyncResult ||
+        this._inventorySyncResult
+      ),
+    };
     this.modalContext?.reject();
   }
 
   override render() {
     const provider = this.data?.provider;
+    const supportsOrderSubmission = provider?.supportsOrderSubmission ?? false;
+    const supportsWebhooks = provider?.supportsWebhooks ?? false;
 
     return html`
-      <umb-body-layout headline="Test ${provider?.displayName ?? 'Provider'}">
+      <umb-body-layout headline="Test ${provider?.displayName ?? "Provider"}">
         <div id="main">
           <uui-box>
             <div class="provider-info">
@@ -146,8 +286,8 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
               </div>
               <div class="info-row">
                 <span class="info-label">Status</span>
-                <span class="status-badge ${provider?.isEnabled ? 'enabled' : 'disabled'}">
-                  ${provider?.isEnabled ? 'Enabled' : 'Disabled'}
+                <span class="status-badge ${provider?.isEnabled ? "enabled" : "disabled"}">
+                  ${provider?.isEnabled ? "Enabled" : "Disabled"}
                 </span>
               </div>
             </div>
@@ -161,6 +301,28 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
             >
               Connection
             </uui-tab>
+            ${supportsOrderSubmission
+              ? html`
+                  <uui-tab
+                    label="Order Submission"
+                    ?active=${this._activeTab === "order-submission"}
+                    @click=${() => (this._activeTab = "order-submission")}
+                  >
+                    Order Submission
+                  </uui-tab>
+                `
+              : nothing}
+            ${supportsWebhooks
+              ? html`
+                  <uui-tab
+                    label="Webhooks"
+                    ?active=${this._activeTab === "webhooks"}
+                    @click=${() => (this._activeTab = "webhooks")}
+                  >
+                    Webhooks
+                  </uui-tab>
+                `
+              : nothing}
             <uui-tab
               label="Product Sync"
               ?active=${this._activeTab === "product-sync"}
@@ -179,6 +341,8 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
 
           <div class="tab-content">
             ${this._activeTab === "connection" ? this._renderConnectionTab() : nothing}
+            ${this._activeTab === "order-submission" ? this._renderOrderSubmissionTab() : nothing}
+            ${this._activeTab === "webhooks" ? this._renderWebhooksTab() : nothing}
             ${this._activeTab === "product-sync" ? this._renderProductSyncTab() : nothing}
             ${this._activeTab === "inventory-sync" ? this._renderInventorySyncTab() : nothing}
           </div>
@@ -197,8 +361,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     return html`
       <div class="tab-panel">
         <p class="description">
-          Test the connection to this fulfilment provider. This will verify that the API credentials
-          are valid and the provider is accessible.
+          Test provider connectivity and authentication using current configuration.
         </p>
 
         ${this._connectionError
@@ -210,16 +373,209 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
             `
           : nothing}
 
-        <uui-button
-          look="primary"
-          ?disabled=${this._isTestingConnection}
-          @click=${this._handleTestConnection}
-        >
+        <uui-button look="primary" ?disabled=${this._isTestingConnection} @click=${this._handleTestConnection}>
           ${this._isTestingConnection ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
           ${this._isTestingConnection ? "Testing Connection..." : "Test Connection"}
         </uui-button>
 
         ${this._connectionResult ? this._renderConnectionResult() : nothing}
+      </div>
+    `;
+  }
+
+  private _renderOrderSubmissionTab() {
+    return html`
+      <div class="tab-panel">
+        <p class="description">
+          Submit a test order payload to the provider using sample line item data.
+        </p>
+
+        ${this._orderSubmissionError
+          ? html`
+              <div class="error-message">
+                <uui-icon name="icon-alert"></uui-icon>
+                ${this._orderSubmissionError}
+              </div>
+            `
+          : nothing}
+
+        <div class="form-grid">
+          <uui-input
+            label="Order Number"
+            .value=${this._testOrderNumber}
+            @input=${(e: Event) => (this._testOrderNumber = (e.target as HTMLInputElement).value)}
+          ></uui-input>
+          <uui-input
+            label="Customer Email"
+            type="email"
+            .value=${this._testOrderCustomerEmail}
+            @input=${(e: Event) => (this._testOrderCustomerEmail = (e.target as HTMLInputElement).value)}
+          ></uui-input>
+          <uui-input
+            label="SKU"
+            .value=${this._testOrderSku}
+            @input=${(e: Event) => (this._testOrderSku = (e.target as HTMLInputElement).value)}
+          ></uui-input>
+          <uui-input
+            label="Item Name"
+            .value=${this._testOrderName}
+            @input=${(e: Event) => (this._testOrderName = (e.target as HTMLInputElement).value)}
+          ></uui-input>
+          <uui-input
+            label="Quantity"
+            type="number"
+            .value=${String(this._testOrderQuantity)}
+            @input=${(e: Event) => (this._testOrderQuantity = parseInt((e.target as HTMLInputElement).value || "1", 10))}
+          ></uui-input>
+          <uui-input
+            label="Unit Price"
+            type="number"
+            .value=${String(this._testOrderUnitPrice)}
+            @input=${(e: Event) => (this._testOrderUnitPrice = parseFloat((e.target as HTMLInputElement).value || "0"))}
+          ></uui-input>
+          <uui-toggle
+            label="Use Real Sandbox"
+            .checked=${this._testOrderUseRealSandbox}
+            @change=${(e: Event) => (this._testOrderUseRealSandbox = (e.target as HTMLInputElement).checked)}
+          ></uui-toggle>
+        </div>
+
+        <uui-button
+          look="primary"
+          ?disabled=${this._isSubmittingOrder}
+          @click=${this._handleTestOrderSubmission}
+        >
+          ${this._isSubmittingOrder ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+          ${this._isSubmittingOrder ? "Submitting Test Order..." : "Submit Test Order"}
+        </uui-button>
+
+        ${this._orderSubmissionResult ? this._renderOrderSubmissionResult() : nothing}
+      </div>
+    `;
+  }
+
+  private _renderWebhooksTab() {
+    return html`
+      <div class="tab-panel">
+        <p class="description">
+          Generate and process a simulated webhook payload through provider parser and fulfilment service handlers.
+        </p>
+
+        ${this._webhookSimulationError
+          ? html`
+              <div class="error-message">
+                <uui-icon name="icon-alert"></uui-icon>
+                ${this._webhookSimulationError}
+              </div>
+            `
+          : nothing}
+
+        ${this._isLoadingWebhookTemplates
+          ? html`<uui-loader></uui-loader>`
+          : html`
+              <div class="form-grid">
+                <uui-select
+                  label="Event Type"
+                  .options=${[
+                    { name: "Select event", value: "", selected: !this._selectedWebhookEvent },
+                    ...this._webhookTemplates.map((t) => ({
+                      name: t.displayName,
+                      value: t.eventType,
+                      selected: t.eventType === this._selectedWebhookEvent,
+                    })),
+                  ]}
+                  @change=${(e: Event) => (this._selectedWebhookEvent = (e.target as HTMLSelectElement).value)}
+                ></uui-select>
+                <uui-input
+                  label="Provider Reference"
+                  .value=${this._webhookProviderReference}
+                  @input=${(e: Event) => (this._webhookProviderReference = (e.target as HTMLInputElement).value)}
+                ></uui-input>
+                <uui-input
+                  label="Provider Shipment Id"
+                  .value=${this._webhookProviderShipmentId}
+                  @input=${(e: Event) => (this._webhookProviderShipmentId = (e.target as HTMLInputElement).value)}
+                ></uui-input>
+                <uui-input
+                  label="Tracking Number"
+                  .value=${this._webhookTrackingNumber}
+                  @input=${(e: Event) => (this._webhookTrackingNumber = (e.target as HTMLInputElement).value)}
+                ></uui-input>
+                <uui-input
+                  label="Carrier"
+                  .value=${this._webhookCarrier}
+                  @input=${(e: Event) => (this._webhookCarrier = (e.target as HTMLInputElement).value)}
+                ></uui-input>
+              </div>
+              <uui-textarea
+                label="Custom Payload (optional JSON)"
+                .value=${this._webhookCustomPayload}
+                @input=${(e: Event) => (this._webhookCustomPayload = (e.target as HTMLTextAreaElement).value)}
+              ></uui-textarea>
+            `}
+
+        <uui-button
+          look="primary"
+          ?disabled=${this._isSimulatingWebhook || this._isLoadingWebhookTemplates}
+          @click=${this._handleSimulateWebhook}
+        >
+          ${this._isSimulatingWebhook ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+          ${this._isSimulatingWebhook ? "Simulating Webhook..." : "Simulate Webhook"}
+        </uui-button>
+
+        ${this._webhookSimulationResult ? this._renderWebhookSimulationResult() : nothing}
+      </div>
+    `;
+  }
+
+  private _renderProductSyncTab() {
+    return html`
+      <div class="tab-panel">
+        <p class="description">
+          Trigger product sync test endpoint for the selected provider configuration.
+        </p>
+
+        ${this._productSyncError
+          ? html`
+              <div class="error-message">
+                <uui-icon name="icon-alert"></uui-icon>
+                ${this._productSyncError}
+              </div>
+            `
+          : nothing}
+
+        <uui-button look="primary" ?disabled=${this._isSyncingProducts} @click=${this._handleProductSync}>
+          ${this._isSyncingProducts ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+          ${this._isSyncingProducts ? "Syncing Products..." : "Sync Products"}
+        </uui-button>
+
+        ${this._productSyncResult ? this._renderSyncResult(this._productSyncResult, "Product") : nothing}
+      </div>
+    `;
+  }
+
+  private _renderInventorySyncTab() {
+    return html`
+      <div class="tab-panel">
+        <p class="description">
+          Trigger inventory sync test endpoint to pull stock levels from provider.
+        </p>
+
+        ${this._inventorySyncError
+          ? html`
+              <div class="error-message">
+                <uui-icon name="icon-alert"></uui-icon>
+                ${this._inventorySyncError}
+              </div>
+            `
+          : nothing}
+
+        <uui-button look="primary" ?disabled=${this._isSyncingInventory} @click=${this._handleInventorySync}>
+          ${this._isSyncingInventory ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+          ${this._isSyncingInventory ? "Syncing Inventory..." : "Sync Inventory"}
+        </uui-button>
+
+        ${this._inventorySyncResult ? this._renderSyncResult(this._inventorySyncResult, "Inventory") : nothing}
       </div>
     `;
   }
@@ -231,8 +587,8 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
 
     return html`
       <div class="results-section">
-        <div class="result-card ${success ? 'success' : 'error'}">
-          <uui-icon name="${success ? 'icon-check' : 'icon-alert'}"></uui-icon>
+        <div class="result-card ${success ? "success" : "error"}">
+          <uui-icon name="${success ? "icon-check" : "icon-alert"}"></uui-icon>
           <span>${success ? "Connection successful" : "Connection failed"}</span>
         </div>
 
@@ -256,7 +612,6 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
                       </div>
                     `
                   : nothing}
-
                 ${accountName
                   ? html`
                       <div class="detail-row">
@@ -265,7 +620,6 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
                       </div>
                     `
                   : nothing}
-
                 ${warehouseCount !== undefined && warehouseCount !== null
                   ? html`
                       <div class="detail-row">
@@ -281,64 +635,87 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     `;
   }
 
-  private _renderProductSyncTab() {
-    return html`
-      <div class="tab-panel">
-        <p class="description">
-          Trigger a product sync to push product data to the fulfilment provider.
-          This will sync all products marked for this provider.
-        </p>
+  private _renderOrderSubmissionResult(): unknown {
+    if (!this._orderSubmissionResult) return nothing;
 
-        ${this._productSyncError
+    return html`
+      <div class="results-section">
+        <div class="result-card ${this._orderSubmissionResult.success ? "success" : "error"}">
+          <uui-icon name="${this._orderSubmissionResult.success ? "icon-check" : "icon-alert"}"></uui-icon>
+          <span>
+            ${this._orderSubmissionResult.success ? "Test order submitted" : "Test order submission failed"}
+          </span>
+        </div>
+
+        <div class="result-details">
+          <div class="detail-row">
+            <span class="detail-label">Provider Reference</span>
+            <span class="detail-value monospace">${this._orderSubmissionResult.providerReference ?? "-"}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Provider Status</span>
+            <span class="detail-value">${this._orderSubmissionResult.providerStatus ?? "-"}</span>
+          </div>
+        </div>
+
+        ${this._orderSubmissionResult.errorMessage
           ? html`
-              <div class="error-message">
-                <uui-icon name="icon-alert"></uui-icon>
-                ${this._productSyncError}
+              <div class="result-errors">
+                <p>${this._orderSubmissionResult.errorMessage}</p>
               </div>
             `
           : nothing}
-
-        <uui-button
-          look="primary"
-          ?disabled=${this._isSyncingProducts}
-          @click=${this._handleProductSync}
-        >
-          ${this._isSyncingProducts ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-          ${this._isSyncingProducts ? "Syncing Products..." : "Sync Products"}
-        </uui-button>
-
-        ${this._productSyncResult ? this._renderSyncResult(this._productSyncResult, "Product") : nothing}
       </div>
     `;
   }
 
-  private _renderInventorySyncTab() {
-    return html`
-      <div class="tab-panel">
-        <p class="description">
-          Trigger an inventory sync to pull inventory levels from the fulfilment provider.
-          This will update stock levels in Merchello based on the provider's data.
-        </p>
+  private _renderWebhookSimulationResult(): unknown {
+    if (!this._webhookSimulationResult) return nothing;
 
-        ${this._inventorySyncError
+    return html`
+      <div class="results-section">
+        <div class="result-card ${this._webhookSimulationResult.success ? "success" : "error"}">
+          <uui-icon name="${this._webhookSimulationResult.success ? "icon-check" : "icon-alert"}"></uui-icon>
+          <span>
+            ${this._webhookSimulationResult.success ? "Webhook simulation completed" : "Webhook simulation failed"}
+          </span>
+        </div>
+
+        <div class="result-details">
+          <div class="detail-row">
+            <span class="detail-label">Detected Event</span>
+            <span class="detail-value">${this._webhookSimulationResult.eventTypeDetected ?? "-"}</span>
+          </div>
+        </div>
+
+        ${this._webhookSimulationResult.actionsPerformed.length > 0
           ? html`
-              <div class="error-message">
-                <uui-icon name="icon-alert"></uui-icon>
-                ${this._inventorySyncError}
+              <div class="result-details">
+                <span class="detail-label">Actions Performed</span>
+                <ul class="action-list">
+                  ${this._webhookSimulationResult.actionsPerformed.map((action) => html`<li>${action}</li>`) }
+                </ul>
               </div>
             `
           : nothing}
 
-        <uui-button
-          look="primary"
-          ?disabled=${this._isSyncingInventory}
-          @click=${this._handleInventorySync}
-        >
-          ${this._isSyncingInventory ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-          ${this._isSyncingInventory ? "Syncing Inventory..." : "Sync Inventory"}
-        </uui-button>
+        ${this._webhookSimulationResult.payload
+          ? html`
+              <uui-textarea
+                readonly
+                label="Payload"
+                .value=${this._webhookSimulationResult.payload}
+              ></uui-textarea>
+            `
+          : nothing}
 
-        ${this._inventorySyncResult ? this._renderSyncResult(this._inventorySyncResult, "Inventory") : nothing}
+        ${this._webhookSimulationResult.errorMessage
+          ? html`
+              <div class="result-errors">
+                <p>${this._webhookSimulationResult.errorMessage}</p>
+              </div>
+            `
+          : nothing}
       </div>
     `;
   }
@@ -349,8 +726,8 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
 
     return html`
       <div class="results-section">
-        <div class="result-card ${isSuccess ? 'success' : isFailed ? 'error' : 'pending'}">
-          <uui-icon name="${isSuccess ? 'icon-check' : isFailed ? 'icon-alert' : 'icon-time'}"></uui-icon>
+        <div class="result-card ${isSuccess ? "success" : isFailed ? "error" : "pending"}">
+          <uui-icon name="${isSuccess ? "icon-check" : isFailed ? "icon-alert" : "icon-time"}"></uui-icon>
           <span>${type} sync ${isSuccess ? "completed" : isFailed ? "failed" : "in progress"}</span>
         </div>
 
@@ -365,7 +742,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
           </div>
           <div class="detail-row">
             <span class="detail-label">Failed</span>
-            <span class="detail-value ${result.itemsFailed > 0 ? 'error-text' : ''}">${result.itemsFailed}</span>
+            <span class="detail-value ${result.itemsFailed > 0 ? "error-text" : ""}">${result.itemsFailed}</span>
           </div>
         </div>
 
@@ -438,10 +815,6 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
       color: var(--uui-color-warning-contrast);
     }
 
-    uui-tab-group {
-      --uui-tab-divider: var(--uui-color-border);
-    }
-
     .tab-content {
       padding-top: var(--uui-size-space-4);
     }
@@ -455,6 +828,12 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     .description {
       margin: 0;
       color: var(--uui-color-text-alt);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--uui-size-space-3);
     }
 
     .error-message {
@@ -528,6 +907,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: var(--uui-size-space-3);
     }
 
     .detail-label {
@@ -539,6 +919,16 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
 
     .detail-value {
       font-weight: 500;
+      word-break: break-word;
+      text-align: right;
+    }
+
+    .action-list {
+      margin: 0;
+      padding-left: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
     }
 
     .success-text {
@@ -554,13 +944,13 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
+
+    @media (max-width: 900px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   `;
 }
 
 export default MerchelloTestFulfilmentProviderModalElement;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "merchello-test-fulfilment-provider-modal": MerchelloTestFulfilmentProviderModalElement;
-  }
-}

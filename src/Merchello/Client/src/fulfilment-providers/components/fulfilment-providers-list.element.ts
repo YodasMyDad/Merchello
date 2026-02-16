@@ -170,6 +170,19 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
     });
   }
 
+  private async _copyToClipboard(value: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(value);
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Copied", message: "Webhook URL copied to clipboard." },
+      });
+    } catch {
+      this.#notificationContext?.peek("warning", {
+        data: { headline: "Copy Failed", message: "Unable to copy webhook URL." },
+      });
+    }
+  }
+
   private _renderProviderIcon(key: string, iconSvg?: string, fallbackIcon?: string): unknown {
     const svg = iconSvg ?? getFulfilmentProviderIconSvg(key);
     if (svg) {
@@ -182,6 +195,8 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
   private _renderConfiguredProvider(provider: FulfilmentProviderListItemDto): unknown {
     const availableProvider = this._availableProviders.find(p => p.key === provider.key);
     const showGenericTestButton = provider.key !== SUPPLIER_DIRECT_PROVIDER_KEY;
+    const supportsWebhooks = availableProvider?.supportsWebhooks ?? provider.supportsWebhooks;
+    const webhookUrl = `${window.location.origin}/umbraco/merchello/webhooks/fulfilment/${provider.key}`;
 
     return html`
       <div class="provider-card configured">
@@ -230,6 +245,19 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
         </div>
         ${provider.description
           ? html`<p class="provider-description">${provider.description}</p>`
+          : nothing}
+        ${supportsWebhooks
+          ? html`
+              <div class="webhook-url-section">
+                <span class="webhook-url-label">Webhook URL</span>
+                <div class="webhook-url-row">
+                  <uui-input readonly .value=${webhookUrl} label="Webhook URL"></uui-input>
+                  <uui-button look="secondary" compact @click=${() => this._copyToClipboard(webhookUrl)}>
+                    Copy
+                  </uui-button>
+                </div>
+              </div>
+            `
           : nothing}
       </div>
     `;
@@ -454,6 +482,27 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
       color: var(--uui-color-text-alt);
       font-size: 0.875rem;
       flex: 1;
+    }
+
+    .webhook-url-section {
+      margin-top: var(--uui-size-space-3);
+      border-top: 1px solid var(--uui-color-border);
+      padding-top: var(--uui-size-space-3);
+    }
+
+    .webhook-url-label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
+      margin-bottom: var(--uui-size-space-2);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .webhook-url-row {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
     }
 
   `;

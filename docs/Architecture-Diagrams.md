@@ -431,6 +431,7 @@ IFulfilmentService:
 - GetOrdersForPollingAsync() - Get orders needing status polling
 - ResolveProviderForWarehouseAsync() - Resolve fulfilment provider for warehouse
 - IsDuplicateWebhookAsync() - Check webhook idempotency
+- TryLogWebhookAsync() - Atomic webhook idempotency insert (returns false on duplicate)
 
 ### 2.15 Upsells
 
