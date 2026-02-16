@@ -1,4 +1,4 @@
-﻿# Merchello Architecture
+# Merchello Architecture
 
 An Enterprise (Shopify equivalent) ecommerce plugin for Umbraco v17+ (NuGet), where the Merchello project is a NuGet package with admin and Shopify-style integrated checkout. The Merchello.Site is an example site showing users how to leverage the package to build an ecommerce store making using of our API's and controllers to go inline with our ethos.
 
@@ -11,16 +11,16 @@ Ethos: making enterprise ecommerce simple.
 - Services - Feature-grouped, DI, parameter models (RORO pattern)
 - Factories - All key domain objects created via factories for consistency and thread safety
 - Multi-warehouse - Variant-level stock with priority-based warehouse selection
-- Single Source of Truth - All business logic and calculations are centralized in services. Key calculations (tax, totals, discounts, payment status, stock) must never be duplicatedâ€”always call the designated service method or provider. This ensures consistency, auditability, and maintainability across the entire system.
+- Single Source of Truth - All business logic and calculations are centralized in services. Key calculations (tax, totals, discounts, payment status, stock) must never be duplicated—always call the designated service method or provider. This ensures consistency, auditability, and maintainability across the entire system.
 
 ### Architecture Layers
 
 ```
-CONTROLLERS â†’ Thin: HTTP only, no logic, no DbContext
-     â†“
-SERVICES    â†’ All business logic, all DB access, CrudResult<T>, RORO params
-     â†“
-FACTORIES   â†’ All object creation, stateless singletons
+CONTROLLERS → Thin: HTTP only, no logic, no DbContext
+     ↓
+SERVICES    → All business logic, all DB access, CrudResult<T>, RORO params
+     ↓
+FACTORIES   → All object creation, stateless singletons
 ```
 
 Rules:
@@ -36,14 +36,14 @@ new Invoice{Id=Guid.NewGuid()}       invoiceFactory.CreateFromBasket(basket,num,
 
 ```
 Feature/
-â”œâ”€â”€ Models/           # Domain entities
-â”œâ”€â”€ Dtos/             # API transfer objects
-â”œâ”€â”€ Factories/        # Object creation
-â”œâ”€â”€ Services/
-â”‚   â”œâ”€â”€ Interfaces/   # Service contracts
-â”‚   â””â”€â”€ Parameters/   # RORO parameter objects
-â”œâ”€â”€ Mapping/          # EF Core mappings
-â””â”€â”€ Extensions/       # Extension methods
+├── Models/           # Domain entities
+├── Dtos/             # API transfer objects
+├── Factories/        # Object creation
+├── Services/
+│   ├── Interfaces/   # Service contracts
+│   └── Parameters/   # RORO parameter objects
+├── Mapping/          # EF Core mappings
+└── Extensions/       # Extension methods
 ```
 
 Modules: Accounting, AddressLookup, Auditing, Caching, Checkout, Customers, Data, Developer, DigitalProducts, Discounts, Email, ExchangeRates, Fulfilment, GiftCards, Locality, Notifications, Payments, Products, Protocols, Reporting, Returns, Search, Settings, Shared, Shipping, Storefront, Stores, Subscriptions, Suppliers, Tax, Upsells, Warehouses, Webhooks
@@ -96,8 +96,8 @@ Model Hierarchy:
 Front-End Product Routing:
 
 Products are rendered at root-level URLs without requiring Umbraco content nodes:
-- /{root-url} â†’ ProductRoot with default variant
-- /{root-url}/{variant-url} â†’ ProductRoot with specific variant
+- /{root-url} → ProductRoot with default variant
+- /{root-url}/{variant-url} → ProductRoot with specific variant
 
 Request Flow:
 ```
@@ -154,9 +154,9 @@ IWarehouseService:
 
 Stock Flow (TrackStock=true):
 ```
-Create Order â†’ Check (Stock - Reserved >= qty) â†’ Reserve (Reserved += qty)
-Ship         â†’ Allocate (Stock -= qty, Reserved -= qty)
-Cancel       â†’ Release (Reserved -= qty)
+Create Order → Check (Stock - Reserved >= qty) → Reserve (Reserved += qty)
+Ship         → Allocate (Stock -= qty, Reserved -= qty)
+Cancel       → Release (Reserved -= qty)
 ```
 
 TrackStock = false for digital products, services, or drop-ship items.
@@ -177,7 +177,7 @@ ICheckoutDiscountService:
 - RemoveDiscountFromBasketAsync() - Remove a discount from the basket
 
 IAbandonedCheckoutService:
-- TrackCheckoutActivityAsync() - Track customer checkout progress (resets Recovered/Abandoned â†’ Active for re-abandonment)
+- TrackCheckoutActivityAsync() - Track customer checkout progress (resets Recovered/Abandoned → Active for re-abandonment)
 - DetectAbandonedCheckoutsAsync() - Find abandoned carts (only processes Active status)
 - SendScheduledRecoveryEmailsAsync() - Send recovery email sequence
 - RestoreBasketFromRecoveryAsync() - Restore basket from recovery link (validates item availability)
@@ -186,10 +186,10 @@ IAbandonedCheckoutService:
 
 Abandoned Checkout Status Lifecycle:
 ```
-Active â†’ Abandoned â†’ Recovered â†’ Converted
-   â†‘         â†“           â†“
-   â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜  (activity resets to Active, enables re-abandonment)
-                         â””â†’ Expired (recovery window closed)
+Active → Abandoned → Recovered → Converted
+   ↑         ↓           ↓
+   └─────────┴───────────┘  (activity resets to Active, enables re-abandonment)
+                         └→ Expired (recovery window closed)
 ```
 
 ### 2.4 Invoices & Orders
@@ -229,10 +229,10 @@ ILineItemService:
 Calculation Flow:
 ```
 CheckoutService.CalculateBasketAsync()
-    â†’ ResolveLineItemTaxRatesAsync()              â† Resolves per-location rates via TaxService
-        â†’ TaxService.GetApplicableRateAsync()        (state â†’ country â†’ TaxGroup default)
-    â†’ LineItemService.CalculateFromLineItems()
-        â†’ TaxCalculationService.CalculateOrderTax()  â† Uses resolved li.TaxRate values
+    → ResolveLineItemTaxRatesAsync()              ← Resolves per-location rates via TaxService
+        → TaxService.GetApplicableRateAsync()        (state → country → TaxGroup default)
+    → LineItemService.CalculateFromLineItems()
+        → TaxCalculationService.CalculateOrderTax()  ← Uses resolved li.TaxRate values
 ```
 
 Shared Calculation Logic:
@@ -247,8 +247,8 @@ Difference: Basket resolves rates from TaxGroupRate by location (accurate for Ma
 
 Order Lifecycle:
 ```
-Pending â†’ AwaitingStock â†’ ReadyToFulfill â†’ Processing â†’ Shipped/PartiallyShipped â†’ Completed
-Any (except Shipped/Completed) â†’ Cancelled | OnHold
+Pending → AwaitingStock → ReadyToFulfill → Processing → Shipped/PartiallyShipped → Completed
+Any (except Shipped/Completed) → Cancelled | OnHold
 ```
 
 ### 2.5 Shipping & Fulfillment
@@ -318,7 +318,7 @@ See [Section 3: Tax System](#3-tax-system) for detailed shipping tax documentati
 ### 2.8 Customers & Segments
 
 ICustomerService:
-- GetOrCreateByEmailAsync() - Get or create customer (with acceptsMarketing param, ratchet-up: only falseâ†’true)
+- GetOrCreateByEmailAsync() - Get or create customer (with acceptsMarketing param, ratchet-up: only false→true)
 
 ICustomerSegmentService:
 - IsCustomerInSegmentAsync() - Check segment membership
@@ -390,8 +390,8 @@ Delivery Methods:
 
 | Method | Confirmation Page | Email | Use Case |
 |--------|------------------|-------|----------|
-| InstantDownload | âœ… Shows links | âœ… Sends email | Standard digital products |
-| EmailDelivered | âŒ Hidden | âœ… Email only | License keys, time-sensitive content |
+| InstantDownload | ✅ Shows links | ✅ Sends email | Standard digital products |
+| EmailDelivered | ❌ Hidden | ✅ Email only | License keys, time-sensitive content |
 
 Constraints:
 - Digital products require customer account (no guest checkout)
@@ -472,21 +472,21 @@ LineItem.TaxGroupId preserves the tax category through checkout for API-based ta
 
 ```
 ProductRoot.TaxGroupId
-        â†“
+        ↓
 LineItemFactory.CreateFromProduct() captures TaxGroupId + TaxRate (TaxGroup default)
-        â†“
+        ↓
 Basket.LineItems (TaxGroupId preserved)
-        â†“
+        ↓
 CheckoutService.ResolveLineItemTaxRatesAsync() updates TaxRate per-location
-        â†“
+        ↓
 LineItemFactory.CreateForOrder() preserves TaxGroupId
-        â†“
+        ↓
 Order.LineItems (TaxGroupId preserved)
-        â†“
+        ↓
 InvoiceService creates TaxableLineItem with TaxGroupId
-        â†“
+        ↓
 Provider.CalculateOrderTaxAsync() uses GetTaxCodeForTaxGroup()
-        â†“
+        ↓
 Provider sends correct tax code to API (Avalara, TaxJar, etc.)
 ```
 
@@ -503,17 +503,17 @@ Shipping tax is calculated through the active tax provider, NOT hardcoded. The s
 
 ```
 1. Call ITaxProviderManager.IsShippingTaxedForLocationAsync(country, state)
-   â”œâ”€â”€ Returns TRUE  â†’ Shipping IS taxable, continue to get rate
-   â””â”€â”€ Returns FALSE â†’ Shipping NOT taxable, skip tax calculation
+   ├── Returns TRUE  → Shipping IS taxable, continue to get rate
+   └── Returns FALSE → Shipping NOT taxable, skip tax calculation
 ```
 
 #### Getting the Tax Rate
 
 ```
 2. Call ITaxProviderManager.GetShippingTaxRateForLocationAsync(country, state)
-   â”œâ”€â”€ Returns 0m      â†’ Shipping explicitly NOT taxable
-   â”œâ”€â”€ Returns decimal â†’ Use this specific rate (regional override or configured tax group)
-   â””â”€â”€ Returns null    â†’ Use proportional calculation (weighted average of line item rates)
+   ├── Returns 0m      → Shipping explicitly NOT taxable
+   ├── Returns decimal → Use this specific rate (regional override or configured tax group)
+   └── Returns null    → Use proportional calculation (weighted average of line item rates)
 ```
 
 #### Return Value Semantics
@@ -529,7 +529,7 @@ Shipping tax is calculated through the active tax provider, NOT hardcoded. The s
 When rate is null, use ITaxCalculationService.CalculateProportionalShippingTax():
 
 ```
-shippingTax = shippingAmount Ã— (lineItemTax / taxableSubtotal)
+shippingTax = shippingAmount × (lineItemTax / taxableSubtotal)
 ```
 
 This ensures VAT compliance for mixed-rate orders (e.g., food at 0% + electronics at 20%).
@@ -546,10 +546,10 @@ Single Implementation: Always use CalculateProportionalShippingTax() - never dup
 
 #### ManualTaxProvider Priority
 
-1. Regional override with ShippingTaxGroupId = null â†’ NOT taxed (returns 0m)
-2. Regional override with ShippingTaxGroupId â†’ Use that group's rate
-3. Global shipping tax group configured â†’ Use that group's rate
-4. No group configured â†’ Proportional calculation (returns null)
+1. Regional override with ShippingTaxGroupId = null → NOT taxed (returns 0m)
+2. Regional override with ShippingTaxGroupId → Use that group's rate
+3. Global shipping tax group configured → Use that group's rate
+4. No group configured → Proportional calculation (returns null)
 
 #### Rules
 
@@ -616,10 +616,10 @@ Flat-rate cost resolution (single source of truth):
 Important: External/dynamic providers (UsesLiveRates = true) cannot have fixed costs. They fetch rates from carrier APIs at runtime. If you need flat-rate options named after carriers (e.g., "FedEx Ground" with a fixed $8.99 cost), use ProviderKey = "flat-rate":
 
 ```csharp
-// âœ“ Correct: Flat-rate option named after carrier
+// ✓ Correct: Flat-rate option named after carrier
 new ShippingOptionConfig { Name = "FedEx Ground", Cost = 8.99m } // ProviderKey defaults to "flat-rate"
 
-// âœ— Wrong: Dynamic provider with fixed cost (will show "Calculated at checkout" or be hidden)
+// ✗ Wrong: Dynamic provider with fixed cost (will show "Calculated at checkout" or be hidden)
 new ShippingOptionConfig { Name = "FedEx Ground", Cost = 8.99m, ProviderKey = "fedex", ServiceType = "FEDEX_GROUND" }
 ```
 
@@ -673,21 +673,21 @@ OrderGroupingContext Properties:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| Basket | Created, Clearing✓/Cleared, ItemAdding✓/Added, ItemRemoving✓/Removed, QuantityChanging✓/Changed | CheckoutService |
+| Basket | Created, Clearing?/Cleared, ItemAdding?/Added, ItemRemoving?/Removed, QuantityChanging?/Changed | CheckoutService |
 | BillingAddress | Address | Billing address |
 | ShippingAddress | Address | Shipping address |
 | CustomerId | Guid? | Customer ID |
 | CustomerEmail | string? | Customer email |
 | Products | Dictionary<Guid, Product> | Product lookup |
 | Warehouses | Dictionary<Guid, Warehouse> | Warehouse lookup |
-| SelectedShippingOptions | Dictionary<Guid, string> | Group â†’ SelectionKey (e.g., "so:{id}" or "dyn:fedex:FEDEX_GROUND") |
+| SelectedShippingOptions | Dictionary<Guid, string> | Group → SelectionKey (e.g., "so:{id}" or "dyn:fedex:FEDEX_GROUND") |
 | ExtendedData | Dictionary<string, object> | Custom strategy data |
 
 Output: OrderGroupingResult with GroupId (deterministic GUID), GroupName, WarehouseId?, LineItems, AvailableShippingOptions, Metadata
 
 Config: "Merchello:OrderGroupingStrategy": "vendor-grouping" (empty = warehouse default)
 
-Default Strategy: Groups by warehouse (stock â†’ priority â†’ region). For each group:
+Default Strategy: Groups by warehouse (stock → priority → region). For each group:
 - Flat-rate options resolved via ShippingCostResolver (DB lookup)
 - Dynamic provider options resolved via ShippingQuoteService.GetQuotesForWarehouseAsync() (carrier API calls)
 - Products with ProductRoot.AllowExternalCarrierShipping = false only show flat-rate options
@@ -711,12 +711,18 @@ CommerceProtocolManager:
 - Caches adapter instances
 - Routes protocol requests to appropriate adapter
 - Supports capability negotiation with agents
+- Startup provider discovery explicitly scans assemblies for `ICommerceProtocolAdapter` implementations
 
 Agent Authentication (AgentAuthenticationMiddleware):
-- Validates UCP-Agent header (RFC 8941 Dictionary Structured Field)
+- Treats `/.well-known/ucp`, `/api/v1/checkout-sessions*`, and `/api/v1/orders*` as UCP routes (header-independent path detection)
+- Validates UCP-Agent header (RFC 8941 Dictionary Structured Field) when required by route
+- Enforces strict transactional headers on UCP API routes: `UCP-Agent`, `Request-Signature`, `Request-Id`
+- Enforces `Idempotency-Key` on create/update/complete write operations
+- Delegates signature verification to `IAgentAuthenticator` (`UcpAgentAuthenticator`) using raw request body bytes + agent profile signing keys
 - Checks agent against allowed list (Merchello:Protocols:Ucp:AllowedAgents)
 - Publishes AgentAuthenticatingNotification (cancelable) and AgentAuthenticatedNotification
 - Stores AgentIdentity in HttpContext.Items for controllers
+- Keeps `/.well-known/ucp` negotiable (auth failures there are non-fatal)
 
 Order Source Tracking:
 - UCP orders tracked via Invoice.Source with Type = "ucp"
@@ -769,17 +775,17 @@ IFulfilmentProvider Interface:
 
 Built-in: ShipBobFulfilmentProvider
 
-Shipping â†’ Fulfilment Bridge (Service Category Inference):
+Shipping → Fulfilment Bridge (Service Category Inference):
 
 3PLs don't use carrier-specific codes (e.g., FEDEX_GROUND). They need speed tiers (Standard, Express, Overnight). The system infers the speed tier from carrier transit time data:
 
 ```
-Carrier API â†’ TransitTime â†’ DaysFrom/DaysTo on ShippingOptionInfo
-  â†’ InferServiceCategory() at order creation â†’ Order.ShippingServiceCategory
-  â†’ ResolveShippingServiceCode() at fulfilment submission â†’ 3PL-specific method code
+Carrier API → TransitTime → DaysFrom/DaysTo on ShippingOptionInfo
+  → InferServiceCategory() at order creation → Order.ShippingServiceCategory
+  → ResolveShippingServiceCode() at fulfilment submission → 3PL-specific method code
 ```
 
-ShippingServiceCategory enum: Standard (4-7 days), Economy (8+), Express (2-3), Overnight (â‰¤1)
+ShippingServiceCategory enum: Standard (4-7 days), Economy (8+), Express (2-3), Overnight (≤1)
 
 Resolution Priority (ResolveShippingServiceCode):
 1. ServiceCategoryMapping_{Category} from provider settings (category-based)
@@ -788,7 +794,7 @@ Resolution Priority (ResolveShippingServiceCode):
 
 Each fulfilment provider defines category mappings via GetConfigurationFieldsAsync() (auto-rendered in config UI):
 ```
-ShipBob: { Standard â†’ "Ground", Express â†’ "2-Day", Overnight â†’ "Overnight", Economy â†’ "Standard" }
+ShipBob: { Standard → "Ground", Express → "2-Day", Overnight → "Overnight", Economy → "Standard" }
 ```
 
 ### Configuration Field Types
@@ -809,7 +815,7 @@ Storage Mechanism:
 Automatic Country-Currency Mapping:
 - CountryCurrencyMappingService maps country codes to default currencies (80+ mappings)
 - When shipping country changes, currency automatically updates
-- Examples: "GB" â†’ "GBP", "US" â†’ "USD", "DE" â†’ "EUR", "JP" â†’ "JPY"
+- Examples: "GB" → "GBP", "US" → "USD", "DE" → "EUR", "JP" → "JPY"
 
 API Endpoints:
 - GET /api/merchello/storefront/currency - Get current display currency
@@ -829,7 +835,7 @@ public interface IExchangeRateProvider
 
 Built-in Provider: FrankfurterExchangeRateProvider
 - Free API via European Central Bank (https://api.frankfurter.dev/v1)
-- Returns rates as Dictionary<string, decimal> (currency â†’ rate)
+- Returns rates as Dictionary<string, decimal> (currency → rate)
 
 Exchange Rate Cache (IExchangeRateCache):
 - Caches rates with configurable TTL
@@ -859,10 +865,10 @@ Store currency: USD
 User selects: GBP (exchange rate: 1.25 USD/GBP)
 
 Basket stored:  {SubTotal: $100, Tax: $20, Total: $120, Currency: "GBP"}
-                 â†‘ These amounts are USD, not GBP!
+                 ↑ These amounts are USD, not GBP!
 
-Display shown:  GetDisplayAmounts() â†’ {DisplayTotal: Â£96, ...}
-                 â†‘ Calculated: $120 Ã· 1.25 = Â£96
+Display shown:  GetDisplayAmounts() → {DisplayTotal: £96, ...}
+                 ↑ Calculated: $120 ÷ 1.25 = £96
 ```
 
 Why This Matters:
@@ -876,25 +882,25 @@ CRITICAL: Display uses MULTIPLY, Checkout uses DIVIDE
 
 | Context | Method | Formula | Use For |
 |---------|--------|---------|---------|
-| UI Display | GetDisplayAmounts() | amount Ã— rate | Product pages, cart UI |
-| Checkout/Payment | ConvertToPresentmentCurrency() | amount Ã· rate | Invoice creation |
+| UI Display | GetDisplayAmounts() | amount × rate | Product pages, cart UI |
+| Checkout/Payment | ConvertToPresentmentCurrency() | amount ÷ rate | Invoice creation |
 
-Why different directions? The exchange rate is stored as "presentment to store" (e.g., 1.25 means Â£1 = $1.25). Display multiplies to show equivalent, checkout divides to convert store amounts to presentment.
+Why different directions? The exchange rate is stored as "presentment to store" (e.g., 1.25 means £1 = $1.25). Display multiplies to show equivalent, checkout divides to convert store amounts to presentment.
 
 Product Display Calculation:
 ```
 DB Price (NET, Store Currency)
-    â†’ Apply Tax: price Ã— (1 + taxRate/100)           [if DisplayPricesIncTax]
-    â†’ Convert: result Ã— exchangeRate
-    â†’ Round: per currency decimal places
-    â†’ Display to Customer
+    → Apply Tax: price × (1 + taxRate/100)           [if DisplayPricesIncTax]
+    → Convert: result × exchangeRate
+    → Round: per currency decimal places
+    → Display to Customer
 ```
 
 Example (USD store, UK customer, 20% VAT, rate 0.80):
 ```
 Stored:   $100.00 USD (NET)
-Calc:     $100 Ã— 1.20 (tax) Ã— 0.80 (currency) = Â£96.00
-Display:  "Â£96.00 inc VAT"
+Calc:     $100 × 1.20 (tax) × 0.80 (currency) = £96.00
+Display:  "£96.00 inc VAT"
 ```
 
 Extension Methods (Display Only):
@@ -903,7 +909,7 @@ Extension Methods (Display Only):
 - basket.GetDisplayAmounts(displayContext, currencyService)
 
 Tax Message Generation:
-When DisplayPricesIncTax = true, generates message like "Including Â£2.41 in taxes"
+When DisplayPricesIncTax = true, generates message like "Including £2.41 in taxes"
 
 ### 5.5 Checkout/Invoice Conversion
 
@@ -921,14 +927,14 @@ Conversion Formula:
 ```csharp
 // Converting store amount to presentment (customer) currency
 var presentmentAmount = currencyService.Round(storeAmount / rate, presentmentCurrency);
-// Example: $120 Ã· 1.25 = Â£96
+// Example: $120 ÷ 1.25 = £96
 ```
 
 Store Currency Calculation (for reporting):
 ```csharp
 // After invoice is in presentment currency, calculate store equivalents
 invoice.TotalInStoreCurrency = currencyService.Round(invoice.Total * rate, storeCurrency);
-// Example: Â£96 Ã— 1.25 = $120
+// Example: £96 × 1.25 = $120
 ```
 
 Code Pattern - WRONG vs CORRECT:
@@ -949,7 +955,7 @@ Invoice:
 | Field | Description |
 |-------|-------------|
 | CurrencyCode | Presentment (customer) currency, e.g., "GBP" |
-| CurrencySymbol | Snapshot symbol for display, e.g., "Â£" |
+| CurrencySymbol | Snapshot symbol for display, e.g., "£" |
 | StoreCurrencyCode | Store's base currency, e.g., "USD" |
 | PricingExchangeRate | Locked rate at invoice creation |
 | PricingExchangeRateSource | Provider alias for audit trail |
@@ -986,8 +992,8 @@ Product Tax:
 - Product display: DisplayPriceExtensions.GetDisplayPriceAsync() calls TaxService.GetApplicableRateAsync() directly
 - Basket line items: CheckoutService.ResolveLineItemTaxRatesAsync() updates each li.TaxRate before calculation
 - Basket display: GetDisplayAmounts() / GetDisplayLineItemTotal() uses resolved li.TaxRate
-- Priority: State-specific â†’ Country-level â†’ TaxGroup default
-- Calculation: NET Ã— (1 + taxRate/100)
+- Priority: State-specific → Country-level → TaxGroup default
+- Calculation: NET × (1 + taxRate/100)
 
 Shipping Tax (4-Tier Priority):
 
@@ -1001,7 +1007,7 @@ Shipping Tax (4-Tier Priority):
 
 Proportional Calculation (EU/UK VAT Compliant):
 ```
-shippingTax = shippingAmount Ã— (sum of line item taxes / sum of line item totals)
+shippingTax = shippingAmount × (sum of line item taxes / sum of line item totals)
 ```
 This ensures mixed-rate orders (e.g., food at 0% + electronics at 20%) distribute shipping tax fairly.
 
@@ -1021,9 +1027,9 @@ What It Does NOT Affect:
 public record StorefrontDisplayContext(
     // Currency
     string CurrencyCode,              // Customer's display currency ("GBP")
-    string CurrencySymbol,            // Symbol for display ("Â£")
+    string CurrencySymbol,            // Symbol for display ("£")
     int DecimalPlaces,                // Rounding precision (2 for most, 0 for JPY)
-    decimal ExchangeRate,             // Store â†’ Presentment rate (0.80 for USDâ†’GBP)
+    decimal ExchangeRate,             // Store → Presentment rate (0.80 for USD→GBP)
     string StoreCurrencyCode,         // Base store currency ("USD")
 
     // Tax Display
@@ -1045,45 +1051,45 @@ Built by StorefrontContextService.GetDisplayContextAsync():
 ### 5.9 Complete Flow Diagram
 
 ```
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ BROWSING (Display Only)                                                      â”‚
-â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
-â”‚ User selects "GBP" â†’ Cookie set â†’ StorefrontContextService returns context  â”‚
-â”‚                                                                              â”‚
-â”‚ Product Display:                                                             â”‚
-â”‚   DB: $100 NET â†’ Tax(20%): $120 â†’ Convert(Ã—0.80): Â£96 â†’ Display: "Â£96 inc"  â”‚
-â”‚                                                                              â”‚
-â”‚ Basket Display:                                                              â”‚
-â”‚   Basket stores: {SubTotal: $100, Tax: $20, Total: $120, Currency: "USD"}   â”‚
-â”‚   GetDisplayAmounts() â†’ {DisplayTotal: Â£96, ...}                            â”‚
-â”‚   Basket amounts UNCHANGED                                                   â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                                    â†“
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ CHECKOUT (Rate Locking)                                                      â”‚
-â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
-â”‚ CreateOrderFromBasketAsync():                                                â”‚
-â”‚   1. Fetch rate quote: GetRateQuoteAsync("GBP", "USD") â†’ {Rate: 1.25, ...}  â”‚
-â”‚   2. Lock on invoice: PricingExchangeRate=1.25, Source="frankfurter"        â”‚
-â”‚   3. Convert: $120 Ã· 1.25 = Â£96 (stored in Invoice.Total)                   â”‚
-â”‚   4. Calculate: TotalInStoreCurrency = Â£96 Ã— 1.25 = $120 (for reporting)    â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                                    â†“
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ PAYMENT (Uses Invoice Values)                                                â”‚
-â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
-â”‚ Payment provider receives: Â£96 GBP                                           â”‚
-â”‚ Customer charged: Â£96 GBP                                                    â”‚
-â”‚ Invoice shows: Total=Â£96, TotalInStoreCurrency=$120                         â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
-                                    â†“
-â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
-â”‚ REPORTING (Store Currency Aggregation)                                       â”‚
-â”œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¤
-â”‚ Dashboard: Uses TotalInStoreCurrency for consistent aggregation              â”‚
-â”‚ Invoice View: Shows both Â£96 (paid) and $120 (store equivalent)             â”‚
-â”‚ Export: All amounts available in both currencies                             â”‚
-â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ BROWSING (Display Only)                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ User selects "GBP" → Cookie set → StorefrontContextService returns context  │
+│                                                                              │
+│ Product Display:                                                             │
+│   DB: $100 NET → Tax(20%): $120 → Convert(×0.80): £96 → Display: "£96 inc"  │
+│                                                                              │
+│ Basket Display:                                                              │
+│   Basket stores: {SubTotal: $100, Tax: $20, Total: $120, Currency: "USD"}   │
+│   GetDisplayAmounts() → {DisplayTotal: £96, ...}                            │
+│   Basket amounts UNCHANGED                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ CHECKOUT (Rate Locking)                                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ CreateOrderFromBasketAsync():                                                │
+│   1. Fetch rate quote: GetRateQuoteAsync("GBP", "USD") → {Rate: 1.25, ...}  │
+│   2. Lock on invoice: PricingExchangeRate=1.25, Source="frankfurter"        │
+│   3. Convert: $120 ÷ 1.25 = £96 (stored in Invoice.Total)                   │
+│   4. Calculate: TotalInStoreCurrency = £96 × 1.25 = $120 (for reporting)    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ PAYMENT (Uses Invoice Values)                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Payment provider receives: £96 GBP                                           │
+│ Customer charged: £96 GBP                                                    │
+│ Invoice shows: Total=£96, TotalInStoreCurrency=$120                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    ↓
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ REPORTING (Store Currency Aggregation)                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Dashboard: Uses TotalInStoreCurrency for consistent aggregation              │
+│ Invoice View: Shows both £96 (paid) and $120 (store equivalent)             │
+│ Export: All amounts available in both currencies                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 5.10 Key Services Summary
@@ -1091,7 +1097,7 @@ Built by StorefrontContextService.GetDisplayContextAsync():
 | Service | Responsibility |
 |---------|----------------|
 | StorefrontContextService | Currency cookie management, display context building |
-| CountryCurrencyMappingService | Country â†’ currency auto-mapping |
+| CountryCurrencyMappingService | Country → currency auto-mapping |
 | IExchangeRateCache | Rate caching, quote generation for locking |
 | ICurrencyService | Rounding, minor unit conversion |
 | DisplayCurrencyExtensions | Basket/line item display calculations |
@@ -1101,35 +1107,35 @@ Built by StorefrontContextService.GetDisplayContextAsync():
 ## 6. Entity Relationships
 
 ```
-Supplier â†’ 1:N â†’ Warehouse â†’ 1:N â†’ ServiceRegions, ShippingOptions â†’ ShippingCosts
-                          â†’ M:N â†’ ProductRoot (ProductRootWarehouse with PriorityOrder)
-                          â†’ M:N â†’ Product (ProductWarehouse: Stock, ReservedStock, TrackStock, RowVersion)
+Supplier → 1:N → Warehouse → 1:N → ServiceRegions, ShippingOptions → ShippingCosts
+                          → M:N → ProductRoot (ProductRootWarehouse with PriorityOrder)
+                          → M:N → Product (ProductWarehouse: Stock, ReservedStock, TrackStock, RowVersion)
 
-ProductRoot â†’ 1:N â†’ Product (variant), DefaultPackageConfigurations
-Product â†’ 1:N â†’ PackageConfigurations
-Product â†’ 1:1 â†’ HsCode
+ProductRoot → 1:N → Product (variant), DefaultPackageConfigurations
+Product → 1:N → PackageConfigurations
+Product → 1:1 → HsCode
 
-Customer â†’ 1:N â†’ Invoice (required, auto-created)
-Customer â†’ M:N â†’ CustomerSegment (via member/criteria)
-CustomerSegment â†’ 1:N â†’ CustomerSegmentMember (manual only)
+Customer → 1:N → Invoice (required, auto-created)
+Customer → M:N → CustomerSegment (via member/criteria)
+CustomerSegment → 1:N → CustomerSegmentMember (manual only)
 
-Discount â†’ 1:N â†’ Usage
-Discount â†’ JSON â†’ TargetRules[], EligibilityRules[], BuyXGetYConfig?, FreeShippingConfig?
+Discount → 1:N → Usage
+Discount → JSON → TargetRules[], EligibilityRules[], BuyXGetYConfig?, FreeShippingConfig?
 
-Invoice â†’ 1:N â†’ Order â†’ Shipment (N:1 Warehouse)
-Invoice â†’ 1:N â†’ Payment (IdempotencyKey, WebhookEventId for dedup)
-Invoice â†’ 1:N â†’ DownloadLink (digital product downloads)
-Order â†’ 1:N â†’ LineItems
+Invoice → 1:N → Order → Shipment (N:1 Warehouse)
+Invoice → 1:N → Payment (IdempotencyKey, WebhookEventId for dedup)
+Invoice → 1:N → DownloadLink (digital product downloads)
+Order → 1:N → LineItems
 
-DownloadLink â†’ N:1 â†’ Invoice, LineItem, Customer
+DownloadLink → N:1 → Invoice, LineItem, Customer
 
-Warehouse â†’ 0:N â†’ WarehouseProviderConfig (per-provider config: markup, exclusions)
+Warehouse → 0:N → WarehouseProviderConfig (per-provider config: markup, exclusions)
 
-Order â†’ 0:1 â†’ FulfilmentProviderConfiguration
-Warehouse â†’ 0:1 â†’ FulfilmentProviderConfiguration
-Supplier â†’ 0:1 â†’ FulfilmentProviderConfiguration (default)
+Order → 0:1 → FulfilmentProviderConfiguration
+Warehouse → 0:1 → FulfilmentProviderConfiguration
+Supplier → 0:1 → FulfilmentProviderConfiguration (default)
 
-WebhookSubscription â†’ 1:N â†’ WebhookDelivery (cascade)
+WebhookSubscription → 1:N → WebhookDelivery (cascade)
 ```
 
 ## 7. Checkout Flow
@@ -1157,16 +1163,16 @@ State-specific overrides country-level rules.
 ```
 Base = Product.ShippingOptions ?? Warehouse.ShippingOptions
 Restriction:
-  - None â†’ use base
-  - AllowList â†’ only allowed options
-  - ExcludeList â†’ base minus excluded
+  - None → use base
+  - AllowList → only allowed options
+  - ExcludeList → base minus excluded
 ```
 
 Different restrictions = separate groups (even from same warehouse)
 
 ### Package Configuration
 
-ProductRoot.DefaultPackageConfigurations (inherited) â†’ Product.PackageConfigurations (override if populated)
+ProductRoot.DefaultPackageConfigurations (inherited) → Product.PackageConfigurations (override if populated)
 
 Product.HsCode for customs (varies by variant)
 
@@ -1186,7 +1192,7 @@ At order creation, SelectionKey is parsed to populate Order.ShippingProviderKey,
 ### Flow
 
 ```
-Basket â†’ GroupItemsAsync() â†’ Groups (flat-rate + dynamic quotes) â†’ Customer selects shipping (SelectionKey) â†’ Invoice (1) â†’ Orders (/group) â†’ Shipments (1+/order)
+Basket → GroupItemsAsync() → Groups (flat-rate + dynamic quotes) → Customer selects shipping (SelectionKey) → Invoice (1) → Orders (/group) → Shipments (1+/order)
 ```
 
 ### Checkout Frontend Asset Pipeline
@@ -1279,22 +1285,22 @@ public class WebhookNotificationHandler : INotificationAsyncHandler<OrderCreated
 
 ### 8.3 Events by Domain
 
-Standard CRUD Pattern: Creatingâœ“/Created, Savingâœ“/Saved, Deletingâœ“/Deleted (âœ“ = cancelable)
+Standard CRUD Pattern: Creating✓/Created, Saving✓/Saved, Deleting✓/Deleted (✓ = cancelable)
 
 | Domain | Events | Service |
 |--------|--------|---------|
-| Basket | Created, Clearing✓/Cleared, ItemAdding✓/Added, ItemRemoving✓/Removed, QuantityChanging✓/Changed | CheckoutService |
-| BasketCurrency | Changingâœ“/Changed | CheckoutService |
-| Order | Creatingâœ“/Created, Savingâœ“/Saved, StatusChangingâœ“/Changed | InvoiceService |
-| Invoice | Savingâœ“/Saved, Deletingâœ“/Deleted, Cancellingâœ“/Cancelled | InvoiceService |
-| Payment | Creatingâœ“/Created, Refundingâœ“/Refunded | PaymentService |
-| Shipment | Creatingâœ“/Created, Savingâœ“/Saved, StatusChangingâœ“/Changed | ShipmentService |
+| Basket | Created, Clearing?/Cleared, ItemAdding?/Added, ItemRemoving?/Removed, QuantityChanging?/Changed | CheckoutService |
+| BasketCurrency | Changing✓/Changed | CheckoutService |
+| Order | Creating✓/Created, Saving✓/Saved, StatusChanging✓/Changed | InvoiceService |
+| Invoice | Saving✓/Saved, Deleting✓/Deleted, Cancelling✓/Cancelled | InvoiceService |
+| Payment | Creating✓/Created, Refunding✓/Refunded | PaymentService |
+| Shipment | Creating✓/Created, Saving✓/Saved, StatusChanging✓/Changed | ShipmentService |
 | Product | All 6 | ProductService |
 | Customer | All 6 + PasswordResetRequested | CustomerService |
 | CustomerSegment | All 6 | CustomerSegmentService |
-| Discount | All 6 + StatusChangingâœ“/Changed | DiscountService |
-| UpsellRule | All 6 + StatusChangingâœ“/Changed | UpsellService |
-| SavedPaymentMethod | Creatingâœ“/Created, Deletingâœ“/Deleted | SavedPaymentMethodService |
+| Discount | All 6 + StatusChanging✓/Changed | DiscountService |
+| UpsellRule | All 6 + StatusChanging✓/Changed | UpsellService |
+| SavedPaymentMethod | Creating✓/Created, Deleting✓/Deleted | SavedPaymentMethodService |
 | Supplier | All 6 | SupplierService |
 | Warehouse | All 6 | WarehouseService |
 | TaxGroup | All 6 | TaxService |
@@ -1302,14 +1308,14 @@ Standard CRUD Pattern: Creatingâœ“/Created, Savingâœ“/Saved, Deletingâ�
 | ShippingOption | All 6 | ShippingService |
 
 Inventory Events (InventoryService):
-- StockReservingâœ“/Reserved, StockReleasingâœ“/Released, StockAllocatingâœ“/Allocated, StockAdjusted, LowStock
+- StockReserving✓/Reserved, StockReleasing✓/Released, StockAllocating✓/Allocated, StockAdjusted, LowStock
 
 Checkout Events:
-- AddressesChangingâœ“/Changed, DiscountCodeApplyingâœ“/Applied/Removed, ShippingSelectionChangingâœ“/Changed (CheckoutService)
+- AddressesChanging✓/Changed, DiscountCodeApplying✓/Applied/Removed, ShippingSelectionChanging✓/Changed (CheckoutService)
 - StockValidationFailed (CheckoutPaymentsApiController)
 
 Order Grouping Events (IOrderGroupingStrategy):
-- OrderGroupingModifyingâœ“ - Before grouping is finalized (cancelable, allows modification)
+- OrderGroupingModifying✓ - Before grouping is finalized (cancelable, allows modification)
 - OrderGrouping - After grouping is complete
 
 Abandoned Checkout Events:
@@ -1331,12 +1337,12 @@ Special Events:
 - MerchelloCacheRefresherNotification - Distributed cache invalidation (Umbraco cache refresher)
 
 Protocol Events:
-- AgentAuthenticatingâœ“/Authenticated - External agent authentication (AgentAuthenticationMiddleware)
-- ProtocolSessionCreatingâœ“/Created, ProtocolSessionUpdatingâœ“/Updated, ProtocolSessionCompletingâœ“/Completed (UcpProtocolAdapter)
-- ProtocolWebhookSendingâœ“/Sent - Protocol webhook delivery (UcpOrderWebhookHandler)
+- AgentAuthenticating✓/Authenticated - External agent authentication (AgentAuthenticationMiddleware)
+- ProtocolSessionCreating✓/Created, ProtocolSessionUpdating✓/Updated, ProtocolSessionCompleting✓/Completed (UcpProtocolAdapter)
+- ProtocolWebhookSending✓/Sent - Protocol webhook delivery (UcpOrderWebhookHandler)
 
 Fulfilment Events:
-- FulfilmentSubmittingâœ“/Submitted, SubmissionFailed (FulfilmentOrderSubmissionHandler, FulfilmentRetryJob)
+- FulfilmentSubmitting✓/Submitted, SubmissionFailed (FulfilmentOrderSubmissionHandler, FulfilmentRetryJob)
 - InventoryUpdated, ProductSynced (FulfilmentSyncService)
 
 ### 8.4 Integration Points
@@ -1526,7 +1532,7 @@ All domain objects are created via factories for consistency, thread safety, and
 
 | Job | Purpose |
 |-----|---------|
-| DiscountStatusJob | Transitions discounts: Scheduled â†’ Active â†’ Expired |
+| DiscountStatusJob | Transitions discounts: Scheduled → Active → Expired |
 | OutboundDeliveryJob | Processes webhook and email retry queue |
 | AbandonedCheckoutDetectionJob | Detects abandoned carts, sends email sequence, expires old checkouts |
 | InvoiceReminderJob | Sends payment reminders and overdue notices |
@@ -1534,7 +1540,7 @@ All domain objects are created via factories for consistency, thread safety, and
 | FulfilmentRetryJob | Retries failed 3PL order submissions |
 | FulfilmentCleanupJob | Cleans up old fulfilment sync and webhook logs |
 | ExchangeRateRefreshJob | Periodically refreshes exchange rates from configured provider |
-| UpsellStatusJob | Transitions upsell rules: Scheduled â†’ Active â†’ Expired; cleans up old analytics |
+| UpsellStatusJob | Transitions upsell rules: Scheduled → Active → Expired; cleans up old analytics |
 
 ## 12. Caching
 
@@ -1722,14 +1728,18 @@ Public endpoints for protocol discovery by external agents.
 | /.well-known/oauth-authorization-server | GET | OAuth 2.0 metadata (when Identity Linking enabled) |
 
 Headers:
-- UCP-Agent: profile="https://agent.example/profile", version="2026-01-11" - Agent identification for capability negotiation
+- UCP-Agent: profile="https://agent.example/profile", version="2026-01-23" - Agent identification for capability negotiation
+- Request-Signature: RFC 7797 detached JWS signature over raw request payload (transactional routes)
+- Request-Id: UUID trace identifier (transactional routes)
+- Idempotency-Key: required on create/update/complete write operations
 
 Response Headers:
 - Cache-Control: public, max-age=3600 - Manifest caching
 
 Authentication:
 - Manifest endpoint is public (for discovery)
-- Protocol operation endpoints require valid UCP-Agent header when RequireAuthentication: true
+- Transactional protocol endpoints are always strict: missing/invalid required headers/signatures are rejected
+- Manifest endpoint remains negotiable; header/auth validation failures are logged but do not block discovery
 
 ### 13.5 Downloads API (/api/merchello/downloads)
 
@@ -1812,8 +1822,8 @@ ISubscriptionService (Planned):
 
 Entity Relationships (Planned):
 ```
-Subscription â†’ 1:1 â†’ Customer, ProductRoot (IsSubscriptionProduct only)
-Subscription â†’ 1:N â†’ SubscriptionInvoice â†’ Invoice
+Subscription → 1:1 → Customer, ProductRoot (IsSubscriptionProduct only)
+Subscription → 1:N → SubscriptionInvoice → Invoice
 ```
 
 Products with IsSubscriptionProduct = true purchased alone (one per basket).
@@ -1827,5 +1837,6 @@ SubscriptionFactory (Planned): Will create subscription entities.
 - Return/Restock - Return goods and restock inventory
 - Basket Reservation Expiry - Expire reserved stock after timeout
 - Checkout Group Consolidation - Merge groups when possible
+
 
 

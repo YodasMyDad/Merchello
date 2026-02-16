@@ -123,7 +123,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                     {
                         Rest = new UcpRestEndpoint
                         {
-                            Endpoint = "/api/v1",
+                            Endpoint = BuildAbsoluteUrl("/api/v1"),
                             Schema = "https://ucp.dev/services/shopping/rest.openapi.json"
                         }
                     }
@@ -317,15 +317,9 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 foreach (var group in fulfillmentGroups)
                 {
                     if (Guid.TryParse(group.Id, out var groupId) &&
-                        Guid.TryParse(group.SelectedOptionId, out var optionId))
+                        TryNormalizeSelectionKey(group.SelectedOptionId, out var normalizedSelectionKey))
                     {
-                        // Convert Guid to SelectionKey format for flat-rate options
-                        selections[groupId] = Shipping.Extensions.SelectionKeyExtensions.ForShippingOption(optionId);
-                    }
-                    else if (Guid.TryParse(group.Id, out groupId) && !string.IsNullOrEmpty(group.SelectedOptionId))
-                    {
-                        // Already in SelectionKey format (dyn:provider:serviceCode)
-                        selections[groupId] = group.SelectedOptionId;
+                        selections[groupId] = normalizedSelectionKey;
                     }
                 }
 
@@ -599,7 +593,12 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 status = completionStatus,
                 order_id = invoice.Id.ToString(),
                 order_number = invoice.InvoiceNumber,
-                permalink_url = $"/order/{invoice.Id}"
+                permalink_url = BuildAbsoluteUrl($"/order/{invoice.Id}"),
+                totals = BuildTotalsArray(
+                    invoice.CurrencyCode,
+                    ("subtotal", ToMinorUnits(invoice.SubTotal)),
+                    ("tax", ToMinorUnits(invoice.Tax)),
+                    ("total", ToMinorUnits(invoice.Total)))
             };
 
             return ProtocolResponse.Ok(WrapDataInEnvelope(completionData));
@@ -706,11 +705,10 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                     total = li.Quantity,
                     fulfilled = GetFulfilledQuantity(li, invoice.Orders)
                 },
-                totals = new
-                {
-                    subtotal = ToMinorUnits(li.Amount * li.Quantity),
-                    total = ToMinorUnits(li.Amount * li.Quantity)
-                },
+                totals = BuildTotalsArray(
+                    invoice.CurrencyCode,
+                    ("subtotal", ToMinorUnits(li.Amount * li.Quantity)),
+                    ("total", ToMinorUnits(li.Amount * li.Quantity))),
                 status = GetLineItemStatus(li, invoice.Orders)
             })
             .ToList() ?? [];
@@ -739,43 +737,19 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         {
             id = invoice.Id.ToString(),
             checkout_id = invoice.Source?.SessionId,
-            permalink_url = $"/order/{invoice.Id}",
+            permalink_url = BuildAbsoluteUrl($"/order/{invoice.Id}"),
             line_items = lineItems,
-            totals = new
-            {
-                subtotal = ToMinorUnits(invoice.SubTotal),
-                tax = ToMinorUnits(invoice.Tax),
-                total = ToMinorUnits(invoice.Total)
-            },
+            totals = BuildTotalsArray(
+                invoice.CurrencyCode,
+                ("subtotal", ToMinorUnits(invoice.SubTotal)),
+                ("tax", ToMinorUnits(invoice.Tax)),
+                ("total", ToMinorUnits(invoice.Total))),
             fulfillment = new
             {
                 status = fulfillmentStatus,
                 events = fulfillmentEvents
             },
             payment_status = paymentStatus
-        };
-    }
-
-    private static object? MapInvoiceAddress(Address? address)
-    {
-        if (address == null || string.IsNullOrEmpty(address.CountryCode))
-        {
-            return null;
-        }
-
-        var nameParts = (address.Name ?? string.Empty).Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
-
-        return new
-        {
-            given_name = nameParts.Length > 0 ? nameParts[0] : null,
-            family_name = nameParts.Length > 1 ? nameParts[1] : null,
-            organization = address.Company,
-            address_line_1 = address.AddressOne,
-            address_line_2 = address.AddressTwo,
-            locality = address.TownCity,
-            administrative_area = address.CountyState?.RegionCode,
-            postal_code = address.PostalCode,
-            country_code = address.CountryCode
         };
     }
 
@@ -1443,6 +1417,29 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     private static string? CoerceToString(object? value) =>
         value.UnwrapJsonElement()?.ToString();
 
+    private static bool TryNormalizeSelectionKey(string? selection, out string normalized)
+    {
+        normalized = string.Empty;
+        if (!Shipping.Extensions.SelectionKeyExtensions.TryParse(selection, out var shippingOptionId, out var providerKey, out var serviceCode))
+        {
+            return false;
+        }
+
+        if (shippingOptionId.HasValue)
+        {
+            normalized = Shipping.Extensions.SelectionKeyExtensions.ForShippingOption(shippingOptionId.Value);
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(providerKey) && !string.IsNullOrWhiteSpace(serviceCode))
+        {
+            normalized = Shipping.Extensions.SelectionKeyExtensions.ForDynamicProvider(providerKey, serviceCode);
+            return true;
+        }
+
+        return false;
+    }
+
     private async Task<bool> AutoSelectSingleOptionGroupsAsync(
         Basket basket,
         CheckoutSessionState sessionState,
@@ -1481,14 +1478,14 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 }
 
                 if (!Guid.TryParse(group.GroupId, out var groupId) ||
-                    !Guid.TryParse(group.Options[0].OptionId, out var optionId))
+                    !TryNormalizeSelectionKey(group.Options[0].OptionId, out var normalizedSelectionKey))
                 {
                     continue;
                 }
 
                 if (!selections.ContainsKey(groupId))
                 {
-                    selections[groupId] = Shipping.Extensions.SelectionKeyExtensions.ForShippingOption(optionId);
+                    selections[groupId] = normalizedSelectionKey;
                     added = true;
                 }
             }
@@ -1524,13 +1521,13 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
         if (settings.Capabilities.Checkout)
         {
-            capabilities.Add(new UcpCapability
-            {
-                Name = UcpCapabilityNames.Checkout,
-                Version = settings.Version,
-                Spec = "https://ucp.dev/specifications/checkout.md",
-                Schema = "https://ucp.dev/schemas/shopping/checkout.json"
-            });
+                capabilities.Add(new UcpCapability
+                {
+                    Name = UcpCapabilityNames.Checkout,
+                    Version = settings.Version,
+                    Spec = "https://ucp.dev/specification/checkout/",
+                    Schema = "https://ucp.dev/schemas/shopping/checkout.json"
+                });
 
             // Add extensions that extend Checkout
             if (settings.Extensions.Discount)
@@ -1539,7 +1536,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 {
                     Name = UcpExtensionNames.Discount,
                     Version = settings.Version,
-                    Spec = "https://ucp.dev/specifications/discount.md",
+                    Spec = "https://ucp.dev/specification/discount/",
                     Schema = "https://ucp.dev/schemas/shopping/discount.json",
                     Extends = UcpCapabilityNames.Checkout
                 });
@@ -1551,7 +1548,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 {
                     Name = UcpExtensionNames.Fulfillment,
                     Version = settings.Version,
-                    Spec = "https://ucp.dev/specifications/fulfillment.md",
+                    Spec = "https://ucp.dev/specification/fulfillment/",
                     Schema = "https://ucp.dev/schemas/shopping/fulfillment.json",
                     Extends = UcpCapabilityNames.Checkout
                 });
@@ -1563,7 +1560,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 {
                     Name = UcpExtensionNames.BuyerConsent,
                     Version = settings.Version,
-                    Spec = "https://ucp.dev/specifications/buyer-consent.md",
+                    Spec = "https://ucp.dev/specification/buyer-consent/",
                     Schema = "https://ucp.dev/schemas/shopping/buyer-consent.json",
                     Extends = UcpCapabilityNames.Checkout
                 });
@@ -1575,7 +1572,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                 {
                     Name = UcpExtensionNames.Ap2Mandates,
                     Version = settings.Version,
-                    Spec = "https://ucp.dev/specifications/ap2-mandates.md",
+                    Spec = "https://ucp.dev/specification/ap2-mandates/",
                     Schema = "https://ucp.dev/schemas/shopping/ap2-mandates.json",
                     Extends = UcpCapabilityNames.Checkout
                 });
@@ -1588,7 +1585,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             {
                 Name = UcpCapabilityNames.Order,
                 Version = settings.Version,
-                Spec = "https://ucp.dev/specifications/order.md",
+                Spec = "https://ucp.dev/specification/order/",
                 Schema = "https://ucp.dev/schemas/shopping/order.json"
             });
         }
@@ -1599,7 +1596,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             {
                 Name = UcpCapabilityNames.IdentityLinking,
                 Version = settings.Version,
-                Spec = "https://ucp.dev/specifications/identity-linking.md",
+                Spec = "https://ucp.dev/specification/identity-linking/",
                 Schema = "https://ucp.dev/schemas/common/identity-linking.json"
             });
         }
@@ -1616,22 +1613,21 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             session.SessionId,
             ct);
 
-        var ucpSession = MapSessionToUcpSession(session, handlers);
+        var ucpSession = MapSessionToUcpSession(session);
 
         return new ProtocolResponseEnvelope
         {
             Ucp = new UcpMetadata
             {
                 Version = _protocolSettings.Ucp.Version,
-                Capabilities = GetActiveCapabilities()
+                Capabilities = GetActiveCapabilities(),
+                PaymentHandlers = handlers
             },
             Data = ucpSession
         };
     }
 
-    private static object MapSessionToUcpSession(
-        CheckoutSessionState session,
-        IReadOnlyList<ProtocolPaymentHandler> handlers)
+    private object MapSessionToUcpSession(CheckoutSessionState session)
     {
         return new
         {
@@ -1642,16 +1638,15 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             expires_at = session.ExpiresAt,
             currency = session.Currency,
             buyer = MapBuyer(session),
-            line_items = session.LineItems.Select(MapSessionLineItem).ToList(),
+            line_items = session.LineItems.Select(li => MapSessionLineItem(li, session.Currency)).ToList(),
             discounts = MapSessionDiscounts(session.Discounts),
             totals = MapSessionTotals(session.Totals),
             messages = session.Messages.Select(MapSessionMessage).ToList(),
             fulfillment = MapSessionFulfillment(session.Fulfillment),
-            continue_url = session.ContinueUrl,
-            payment = new
-            {
-                handlers = handlers.Select(MapPaymentHandler).ToList()
-            }
+            continue_url = string.IsNullOrWhiteSpace(session.ContinueUrl)
+                ? null
+                : BuildAbsoluteUrl(session.ContinueUrl),
+            links = BuildLegalLinks()
         };
     }
 
@@ -1705,7 +1700,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         };
     }
 
-    private static object MapSessionLineItem(CheckoutLineItemState lineItem)
+    private static object MapSessionLineItem(CheckoutLineItemState lineItem, string currency)
     {
         return new
         {
@@ -1722,34 +1717,52 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
                     .ToList()
             },
             quantity = lineItem.Quantity,
-            totals = new
-            {
-                subtotal = lineItem.LineTotal,
-                discount = lineItem.DiscountAmount,
-                tax = lineItem.TaxAmount,
-                total = lineItem.FinalTotal
-            }
+            totals = BuildTotalsArray(
+                currency,
+                ("subtotal", lineItem.LineTotal),
+                ("discount", -Math.Abs(lineItem.DiscountAmount)),
+                ("tax", lineItem.TaxAmount),
+                ("total", lineItem.FinalTotal))
         };
     }
 
     private static object MapSessionTotals(CheckoutTotalsState totals)
     {
-        return new
+        if (totals.Breakdown is { Count: > 0 })
         {
-            subtotal = totals.Subtotal,
-            items_discount = totals.ItemsDiscount,
-            discount = totals.Discount,
-            fulfillment = totals.Fulfillment,
-            tax = totals.Tax,
-            total = totals.Total,
-            currency = totals.Currency,
-            breakdown = totals.Breakdown?.Select(b => new
+            return totals.Breakdown
+                .Select(b => new
+                {
+                    type = b.Type,
+                    amount = b.Amount,
+                    currency = totals.Currency
+                })
+                .ToList();
+        }
+
+        return BuildTotalsArray(
+            totals.Currency,
+            ("subtotal", totals.Subtotal),
+            ("items_discount", -Math.Abs(totals.ItemsDiscount)),
+            ("discount", -Math.Abs(totals.Discount)),
+            ("fulfillment", totals.Fulfillment),
+            ("tax", totals.Tax),
+            ("total", totals.Total));
+    }
+
+    private static List<object> BuildTotalsArray(
+        string currency,
+        params (string Type, long Amount)[] totals)
+    {
+        return totals
+            .Where(t => t.Amount != 0 || string.Equals(t.Type, "total", StringComparison.OrdinalIgnoreCase))
+            .Select(t => (object)new
             {
-                label = b.Label,
-                amount = b.Amount,
-                type = b.Type
-            }).ToList()
-        };
+                type = t.Type,
+                amount = t.Amount,
+                currency
+            })
+            .ToList();
     }
 
     private static object? MapSessionDiscounts(IReadOnlyList<CheckoutDiscountState> discounts)
@@ -1845,27 +1858,88 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         };
     }
 
-    private static object MapPaymentHandler(ProtocolPaymentHandler handler)
+    private IReadOnlyList<object> BuildLegalLinks()
     {
-        return new
+        var links = new List<object>();
+
+        var termsUrl = NormalizeAbsoluteUrl(_merchelloSettings.Store.TermsUrl);
+        if (!string.IsNullOrWhiteSpace(termsUrl))
         {
-            id = handler.HandlerId,
-            name = handler.Name,
-            type = handler.Type,
-            supports_express_checkout = handler.SupportsExpressCheckout,
-            instrument_schemas = handler.InstrumentSchemas?
-                .Select(s => new { type = s })
-                .ToList(),
-            config = handler.Config,
-            tokenization = handler.Tokenization == null
-                ? null
-                : new
-                {
-                    type = handler.Tokenization.Type,
-                    gateway = handler.Tokenization.Gateway,
-                    gateway_merchant_id = handler.Tokenization.GatewayMerchantId
-                }
+            links.Add(new { rel = "terms", href = termsUrl });
+        }
+
+        var privacyUrl = NormalizeAbsoluteUrl(_merchelloSettings.Store.PrivacyUrl);
+        if (!string.IsNullOrWhiteSpace(privacyUrl))
+        {
+            links.Add(new { rel = "privacy", href = privacyUrl });
+        }
+
+        return links;
+    }
+
+    private string BuildAbsoluteUrl(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        if (Uri.TryCreate(path, UriKind.Absolute, out var absoluteUri))
+        {
+            var secureBuilder = new UriBuilder(absoluteUri)
+            {
+                Scheme = Uri.UriSchemeHttps,
+                Port = absoluteUri.Port == 80 ? 443 : absoluteUri.Port
+            };
+            return secureBuilder.Uri.ToString().TrimEnd('/');
+        }
+
+        var baseUri = ResolvePublicBaseUri();
+        return new Uri(baseUri, path).ToString().TrimEnd('/');
+    }
+
+    private string? NormalizeAbsoluteUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return BuildAbsoluteUrl(value);
+    }
+
+    private Uri ResolvePublicBaseUri()
+    {
+        if (TryResolveConfiguredPublicBaseUri(_protocolSettings.PublicBaseUrl, out var configured))
+        {
+            return configured;
+        }
+
+        if (TryResolveConfiguredPublicBaseUri(_merchelloSettings.Store.WebsiteUrl, out var storeWebsite))
+        {
+            return storeWebsite;
+        }
+
+        return new Uri("https://localhost");
+    }
+
+    private static bool TryResolveConfiguredPublicBaseUri(string? configuredValue, out Uri uri)
+    {
+        uri = default!;
+        if (string.IsNullOrWhiteSpace(configuredValue) ||
+            !Uri.TryCreate(configuredValue, UriKind.Absolute, out var parsed))
+        {
+            return false;
+        }
+
+        var builder = new UriBuilder(parsed)
+        {
+            Scheme = Uri.UriSchemeHttps,
+            Port = parsed.Port == 80 ? 443 : parsed.Port
         };
+
+        uri = new Uri(builder.Uri.GetLeftPart(UriPartial.Authority).TrimEnd('/') + "/");
+        return true;
     }
 
     private ProtocolResponseEnvelope WrapDataInEnvelope(object data)
@@ -1875,35 +1949,36 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             Ucp = new UcpMetadata
             {
                 Version = _protocolSettings.Ucp.Version,
-                Capabilities = GetActiveCapabilities()
+                Capabilities = GetActiveCapabilities(),
+                PaymentHandlers = null
             },
             Data = data
         };
     }
 
-    private IReadOnlyList<string> GetActiveCapabilities()
+    private IReadOnlyDictionary<string, string> GetActiveCapabilities()
     {
-        var capabilities = new List<string>();
+        var capabilities = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var settings = _protocolSettings.Ucp;
 
         if (settings.Capabilities.Checkout)
         {
-            capabilities.Add(UcpCapabilityNames.Checkout);
+            capabilities[UcpCapabilityNames.Checkout] = settings.Version;
 
             if (settings.Extensions.Discount)
-                capabilities.Add(UcpExtensionNames.Discount);
+                capabilities[UcpExtensionNames.Discount] = settings.Version;
             if (settings.Extensions.Fulfillment)
-                capabilities.Add(UcpExtensionNames.Fulfillment);
+                capabilities[UcpExtensionNames.Fulfillment] = settings.Version;
             if (settings.Extensions.BuyerConsent)
-                capabilities.Add(UcpExtensionNames.BuyerConsent);
+                capabilities[UcpExtensionNames.BuyerConsent] = settings.Version;
             if (settings.Extensions.Ap2Mandates)
-                capabilities.Add(UcpExtensionNames.Ap2Mandates);
+                capabilities[UcpExtensionNames.Ap2Mandates] = settings.Version;
         }
 
         if (settings.Capabilities.Order)
-            capabilities.Add(UcpCapabilityNames.Order);
+            capabilities[UcpCapabilityNames.Order] = settings.Version;
         if (settings.Capabilities.IdentityLinking)
-            capabilities.Add(UcpCapabilityNames.IdentityLinking);
+            capabilities[UcpCapabilityNames.IdentityLinking] = settings.Version;
 
         return capabilities;
     }

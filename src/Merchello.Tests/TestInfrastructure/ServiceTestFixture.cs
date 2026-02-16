@@ -263,7 +263,12 @@ public class ServiceTestFixture : IDisposable
             StoreCurrencyCode = "USD",
             DefaultShippingCountry = "US",
             DefaultRounding = MidpointRounding.AwayFromZero,
-            Store = new StoreSettings { WebsiteUrl = "https://test.example.com" },
+            Store = new StoreSettings
+            {
+                WebsiteUrl = "https://test.example.com",
+                TermsUrl = "https://test.example.com/terms",
+                PrivacyUrl = "https://test.example.com/privacy"
+            },
             DownloadTokenSecret = "test-download-token-secret-32-chars"
         };
         services.AddSingleton(Options.Create(merchelloSettings));
@@ -615,9 +620,10 @@ public class ServiceTestFixture : IDisposable
             WellKnownPath = "/.well-known",
             ManifestCacheDurationMinutes = 60,
             RequireHttps = false, // Allow HTTP in tests
+            PublicBaseUrl = "https://test.example.com",
             Ucp = new UcpSettings
             {
-                Version = "2026-01-11",
+                Version = "2026-01-23",
                 RequireAuthentication = false,
                 AllowedAgents = ["*"],
                 SigningKeyRotationDays = 90,
@@ -665,6 +671,7 @@ public class ServiceTestFixture : IDisposable
         services.AddScoped<ISigningKeyStore, SigningKeyStore>();
         services.AddScoped<IWebhookSigner, WebhookSigner>();
         services.AddScoped<IPaymentHandlerExporter, PaymentHandlerExporter>();
+        services.AddScoped<Merchello.Core.Protocols.Authentication.Interfaces.IAgentAuthenticator, Merchello.Core.Protocols.Authentication.UcpAgentAuthenticator>();
 
         // ExtensionManager for protocol adapter discovery
         services.AddSingleton<ExtensionManager>();

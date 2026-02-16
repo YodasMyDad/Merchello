@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Merchello.Core.Protocols.Models;
+
 namespace Merchello.Core.Protocols;
 
 /// <summary>
@@ -11,7 +14,13 @@ public class UcpMetadata
     public required string Version { get; init; }
 
     /// <summary>
-    /// Active capabilities for this session (e.g., "dev.ucp.shopping.checkout").
+    /// Active capabilities with their resolved versions.
     /// </summary>
-    public required IReadOnlyList<string> Capabilities { get; init; }
+    public required IReadOnlyDictionary<string, string> Capabilities { get; init; }
+
+    /// <summary>
+    /// Available payment handlers for the current protocol response context.
+    /// </summary>
+    [JsonPropertyName("payment_handlers")]
+    public IReadOnlyList<ProtocolPaymentHandler>? PaymentHandlers { get; init; }
 }

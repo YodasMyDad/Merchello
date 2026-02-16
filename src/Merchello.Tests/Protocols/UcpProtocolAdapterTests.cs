@@ -58,7 +58,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         var metadata = _adapter.Metadata;
 
         // Assert
-        metadata.Version.ShouldBe("2026-01-11");
+        metadata.Version.ShouldBe("2026-01-23");
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         // Assert
         manifest.ShouldNotBeNull();
         manifest.Ucp.ShouldNotBeNull();
-        manifest.Ucp.Version.ShouldBe("2026-01-11");
+        manifest.Ucp.Version.ShouldBe("2026-01-23");
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         manifest.Ucp.Services.ShouldNotBeNull();
         manifest.Ucp.Services.Shopping.ShouldNotBeNull();
         manifest.Ucp.Services.Shopping.Rest.ShouldNotBeNull();
-        manifest.Ucp.Services.Shopping.Rest.Endpoint.ShouldBe("/api/v1");
+        manifest.Ucp.Services.Shopping.Rest.Endpoint.ShouldBe("https://test.example.com/api/v1");
     }
 
     [Fact]
@@ -279,7 +279,7 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
 
         // Assert - service endpoints should be preserved
         negotiated.ShouldNotBeNull();
-        negotiated.Ucp.Services.Shopping.Rest.Endpoint.ShouldBe("/api/v1");
+        negotiated.Ucp.Services.Shopping.Rest.Endpoint.ShouldBe("https://test.example.com/api/v1");
     }
 
     [Fact]
@@ -368,12 +368,12 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
         response.Success.ShouldBeTrue();
         var envelope = response.Data as ProtocolResponseEnvelope;
         envelope.ShouldNotBeNull();
-        envelope.Ucp.Capabilities.ShouldContain(UcpCapabilityNames.Checkout);
-        envelope.Ucp.Capabilities.ShouldContain(UcpCapabilityNames.Order);
-        envelope.Ucp.Capabilities.ShouldContain(UcpCapabilityNames.IdentityLinking);
-        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.Discount);
-        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.Fulfillment);
-        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.BuyerConsent);
-        envelope.Ucp.Capabilities.ShouldContain(UcpExtensionNames.Ap2Mandates);
+        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.Checkout);
+        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.Order);
+        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.IdentityLinking);
+        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Discount);
+        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Fulfillment);
+        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.BuyerConsent);
+        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Ap2Mandates);
     }
 }

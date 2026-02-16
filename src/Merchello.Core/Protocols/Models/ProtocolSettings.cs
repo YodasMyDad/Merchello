@@ -16,6 +16,12 @@ public class ProtocolSettings
     public int ManifestCacheDurationMinutes { get; set; } = 60;
 
     /// <summary>
+    /// Public base URL used for absolute protocol endpoint/link generation.
+    /// Falls back to MerchelloSettings.Store.WebsiteUrl when unset.
+    /// </summary>
+    public string? PublicBaseUrl { get; set; }
+
+    /// <summary>
     /// Whether to require HTTPS for protocol endpoints.
     /// </summary>
     public bool RequireHttps { get; set; } = true;
