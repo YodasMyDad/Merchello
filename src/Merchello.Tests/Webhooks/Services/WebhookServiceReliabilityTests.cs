@@ -148,6 +148,39 @@ public class WebhookServiceReliabilityTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
+    public async Task ProcessPendingRetriesAsync_RequeuesStaleSendingRows()
+    {
+        _httpHandler.ResponseStatusCode = HttpStatusCode.OK;
+        var subscription = await CreateSubscriptionAsync(Constants.WebhookTopics.ProductUpdated);
+
+        var delivery = new OutboundDelivery
+        {
+            Id = Guid.NewGuid(),
+            DeliveryType = OutboundDeliveryType.Webhook,
+            ConfigurationId = subscription.Id,
+            Topic = subscription.Topic,
+            TargetUrl = subscription.TargetUrl,
+            RequestBody = """{"id":"stale-sending"}""",
+            RequestHeaders = "{}",
+            Status = OutboundDeliveryStatus.Sending,
+            AttemptNumber = 1,
+            DateCreated = DateTime.UtcNow.AddMinutes(-20),
+            DateSent = DateTime.UtcNow.AddMinutes(-20)
+        };
+
+        _fixture.DbContext.OutboundDeliveries.Add(delivery);
+        await _fixture.DbContext.SaveChangesAsync();
+
+        await _webhookService.ProcessPendingRetriesAsync();
+
+        var persisted = await _webhookService.GetDeliveryAsync(delivery.Id);
+        persisted.ShouldNotBeNull();
+        persisted.Status.ShouldBe(OutboundDeliveryStatus.Succeeded);
+        persisted.AttemptNumber.ShouldBe(2);
+        _httpHandler.ReceivedRequests.Count.ShouldBe(1);
+    }
+
+    [Fact]
     public async Task DeliverAsync_ConcurrentCalls_DoNotSendDuplicateRequests()
     {
         _httpHandler.ResponseStatusCode = HttpStatusCode.OK;

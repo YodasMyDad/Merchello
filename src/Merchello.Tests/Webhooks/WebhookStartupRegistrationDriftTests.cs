@@ -39,6 +39,20 @@ public class WebhookStartupRegistrationDriftTests
             $"Missing Startup registrations for WebhookNotificationHandler: {string.Join(", ", missingRegistrations)}");
     }
 
+    [Fact]
+    public void Startup_ShouldConfigureNamedWebhooksHttpClientWithInfiniteTimeout()
+    {
+        var startupFilePath = ResolveStartupPath();
+        var startupText = File.ReadAllText(startupFilePath);
+
+        var clientConfigurationPattern = new Regex(
+            @"AddHttpClient\(\s*""Webhooks""[\s\S]*?Timeout\s*=\s*Timeout\.InfiniteTimeSpan",
+            RegexOptions.Compiled);
+
+        clientConfigurationPattern.IsMatch(startupText).ShouldBeTrue(
+            "Startup must configure a named Webhooks HttpClient with Timeout.InfiniteTimeSpan so subscription timeouts are enforced by per-request cancellation.");
+    }
+
     private static string ResolveStartupPath()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Threading;
 using Merchello.Core.AddressLookup.Providers;
 using Merchello.Core.AddressLookup.Providers.Interfaces;
 using Merchello.Core.AddressLookup.Services;
@@ -215,6 +216,12 @@ public static class Startup
         builder.Services.AddMemoryCache();
         builder.Services.AddDataProtection();
         builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("Webhooks", client =>
+        {
+            // Per-subscription webhook timeout is enforced via cancellation tokens in WebhookDispatcher.
+            // Keep HttpClient timeout uncapped to avoid a hidden global 100s ceiling.
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        });
 
         // Register Merchello cache refresher for distributed cache invalidation
         builder.CacheRefreshers().Add<MerchelloCacheRefresher>();

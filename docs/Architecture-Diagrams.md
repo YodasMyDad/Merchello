@@ -1370,7 +1370,9 @@ Runtime behavior:
 - Missing subscription during delivery is non-throwing and terminal (`Abandoned` with error persisted).
 - Attempt numbering starts at the first send attempt, and retry delay indexing starts at `RetryDelaysSeconds[0]`.
 - Pending recovery includes orphan `Pending` rows and due `Retrying` rows.
+- Stale `Sending` rows are automatically re-queued to `Pending` after the max webhook timeout window plus grace.
 - Timeout values are clamped and webhook payloads are size-limited (`Webhooks:MaxPayloadSizeBytes`).
+- The named `Webhooks` `HttpClient` uses `Timeout.InfiniteTimeSpan`; request timeout is enforced per subscription via linked cancellation tokens.
 - Payloads above max size are persisted as terminal rejected deliveries (`Abandoned`) without dispatch.
 
 Background processing (`OutboundDeliveryJob`):

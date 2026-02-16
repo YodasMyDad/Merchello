@@ -35,6 +35,7 @@ public class WebhookService(
     };
     private const int MinTimeoutSeconds = 1;
     private const int MaxTimeoutSeconds = 300;
+    private const int SendingRecoveryGraceSeconds = 60;
 
     #region Subscriptions
 
@@ -598,6 +599,17 @@ public class WebhookService(
     {
         using var scope = efCoreScopeProvider.CreateScope();
         var utcNow = DateTime.UtcNow;
+        var staleSendingCutoff = utcNow.AddSeconds(-(MaxTimeoutSeconds + SendingRecoveryGraceSeconds));
+        var recoveredStaleSendingRows = await scope.ExecuteWithContextAsync(async db =>
+            await db.OutboundDeliveries
+                .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
+                            d.Status == OutboundDeliveryStatus.Sending &&
+                            (d.DateSent == null || d.DateSent <= staleSendingCutoff))
+                .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, OutboundDeliveryStatus.Pending)
+                        .SetProperty(d => d.NextRetryUtc, _ => (DateTime?)null),
+                    ct));
+
         var pendingDeliveries = await scope.ExecuteWithContextAsync(async db =>
             await db.OutboundDeliveries
                 .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
@@ -611,7 +623,17 @@ public class WebhookService(
                 .ToListAsync(ct));
         scope.Complete();
 
-        foreach (var deliveryId in pendingDeliveries)
+        var deliveryIds = pendingDeliveries ?? [];
+
+        if (recoveredStaleSendingRows > 0)
+        {
+            logger.LogWarning(
+                "Recovered {Count} stale webhook deliveries stuck in Sending state (older than {StaleSeconds}s)",
+                recoveredStaleSendingRows,
+                MaxTimeoutSeconds + SendingRecoveryGraceSeconds);
+        }
+
+        foreach (var deliveryId in deliveryIds)
         {
             try
             {
