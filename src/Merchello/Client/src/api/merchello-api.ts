@@ -207,6 +207,11 @@ import type {
   CreateFulfilmentProviderDto,
   UpdateFulfilmentProviderDto,
   TestFulfilmentProviderResultDto,
+  TestFulfilmentOrderSubmissionDto,
+  TestFulfilmentOrderSubmissionResultDto,
+  FulfilmentWebhookEventTemplateDto,
+  SimulateFulfilmentWebhookDto,
+  FulfilmentWebhookSimulationResultDto,
   FulfilmentSyncLogDto,
   FulfilmentSyncLogPageDto,
   FulfilmentSyncLogQueryParams,
@@ -1944,7 +1949,19 @@ export const MerchelloApi = {
 
   /** Test a fulfilment provider connection */
   testFulfilmentProvider: (id: string) =>
-    apiPost<TestFulfilmentProviderResultDto>(`fulfilment-providers/${id}/test`),
+    apiPost<TestFulfilmentProviderResultDto>(`fulfilment-providers/${id}/test/connection`),
+
+  /** Submit a test order directly to the fulfilment provider */
+  testFulfilmentOrderSubmission: (id: string, request: TestFulfilmentOrderSubmissionDto) =>
+    apiPost<TestFulfilmentOrderSubmissionResultDto>(`fulfilment-providers/${id}/test/order`, request),
+
+  /** Get webhook event templates for fulfilment provider simulation */
+  getFulfilmentWebhookEventTemplates: (id: string) =>
+    apiGet<FulfilmentWebhookEventTemplateDto[]>(`fulfilment-providers/${id}/test/webhook-events`),
+
+  /** Simulate a fulfilment webhook event */
+  simulateFulfilmentWebhook: (id: string, request: SimulateFulfilmentWebhookDto) =>
+    apiPost<FulfilmentWebhookSimulationResultDto>(`fulfilment-providers/${id}/test/simulate-webhook`, request),
 
   /** Get fulfilment provider options for dropdown selection */
   getFulfilmentProviderOptions: () =>
@@ -1968,9 +1985,17 @@ export const MerchelloApi = {
   triggerProductSync: (providerConfigId: string) =>
     apiPost<FulfilmentSyncLogDto>(`fulfilment-providers/${providerConfigId}/sync/products`),
 
+  /** Trigger product sync through test endpoint for provider modal */
+  testFulfilmentProductSync: (providerConfigId: string) =>
+    apiPost<FulfilmentSyncLogDto>(`fulfilment-providers/${providerConfigId}/test/product-sync`),
+
   /** Trigger an inventory sync for a provider */
   triggerInventorySync: (providerConfigId: string) =>
     apiPost<FulfilmentSyncLogDto>(`fulfilment-providers/${providerConfigId}/sync/inventory`),
+
+  /** Trigger inventory sync through test endpoint for provider modal */
+  testFulfilmentInventorySync: (providerConfigId: string) =>
+    apiPost<FulfilmentSyncLogDto>(`fulfilment-providers/${providerConfigId}/test/inventory-sync`),
 
   // ============================================
   // Notifications Discovery API (Developer Tools)

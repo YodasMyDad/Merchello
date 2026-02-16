@@ -25,7 +25,7 @@ public class FulfilmentWebhookLog
     /// <summary>
     /// Provider's webhook/message ID (for deduplication)
     /// </summary>
-    public string? MessageId { get; set; }
+    public string MessageId { get; set; } = string.Empty;
 
     /// <summary>
     /// Type of event (e.g., "shipment.created")

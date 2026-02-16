@@ -145,12 +145,8 @@ public class UcpOrderWebhookHandler(
             var payload = BuildOrderPayload(invoice, eventType);
             var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
 
-            // Sign the payload
-            var keyId = await signingKeyStore.GetCurrentKeyIdAsync(ct);
-            var signature = await webhookSigner.SignAsync(payloadJson, keyId, ct);
-
             // Send the webhook
-            await SendWebhookAsync(webhookUrl, payloadJson, signature, eventType, invoice.Id, ct);
+            await SendWebhookAsync(webhookUrl, payloadJson, eventType, invoice.Id, ct);
         }
         catch (Exception ex)
         {
@@ -251,7 +247,6 @@ public class UcpOrderWebhookHandler(
     private async Task SendWebhookAsync(
         string webhookUrl,
         string payload,
-        string signature,
         string eventType,
         Guid invoiceId,
         CancellationToken ct)
@@ -278,6 +273,17 @@ public class UcpOrderWebhookHandler(
 
         try
         {
+            var keyId = await signingKeyStore.GetCurrentKeyIdAsync(ct);
+            if (string.IsNullOrWhiteSpace(keyId))
+            {
+                logger.LogWarning(
+                    "Unable to send UCP webhook for invoice {InvoiceId}. No signing key is configured.",
+                    invoiceId);
+                return;
+            }
+
+            var signature = await webhookSigner.SignAsync(payloadToSend, keyId, ct);
+
             var client = httpClientFactory.CreateClient("UcpWebhooks");
             client.Timeout = TimeSpan.FromSeconds(_protocolSettings.Ucp.WebhookTimeoutSeconds);
 

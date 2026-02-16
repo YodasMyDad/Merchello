@@ -1,456 +1,280 @@
+using System.Text.Json;
 using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
+using Merchello.Core.Protocols.Authentication.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Notifications;
-using Merchello.Core.Protocols.UCP.Models;
-using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
-using System.Text.Json;
 using Xunit;
 
 namespace Merchello.Tests.Protocols;
 
-/// <summary>
-/// Tests for AgentAuthenticationMiddleware.
-/// Validates UCP-Agent header parsing, allowlist enforcement, and notification publishing.
-/// </summary>
 public class AgentAuthenticationMiddlewareTests
 {
-    private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisher;
-    private readonly Mock<ILogger<AgentAuthenticationMiddleware>> _logger;
-    private readonly Mock<IUcpAgentProfileService> _agentProfileService;
+    private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisher = new();
+    private readonly Mock<ILogger<AgentAuthenticationMiddleware>> _logger = new();
 
     public AgentAuthenticationMiddlewareTests()
     {
-        _notificationPublisher = new Mock<IMerchelloNotificationPublisher>();
         _notificationPublisher
-            .Setup(p => p.PublishCancelableAsync(It.IsAny<AgentAuthenticatingNotification>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.PublishCancelableAsync(It.IsAny<AgentAuthenticatingNotification>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
         _notificationPublisher
-            .Setup(p => p.PublishAsync(It.IsAny<AgentAuthenticatedNotification>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.PublishAsync(It.IsAny<AgentAuthenticatedNotification>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
-
-        _logger = new Mock<ILogger<AgentAuthenticationMiddleware>>();
-
-        _agentProfileService = new Mock<IUcpAgentProfileService>();
-        _agentProfileService
-            .Setup(p => p.GetProfileAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((UcpAgentProfile?)null);
     }
 
     [Fact]
-    public async Task InvokeAsync_WithValidUcpAgentHeader_SetsAgentIdentityInContext()
+    public async Task InvokeAsync_NonProtocolPath_CallsNext()
     {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://test-agent.example.com/profile\"");
+        var context = CreateContext("/api/products");
         var nextCalled = false;
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, CreateSettings());
 
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
 
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
-        var agentIdentity = AgentAuthenticationMiddleware.GetAgentIdentity(context);
-        agentIdentity.ShouldNotBeNull();
-        agentIdentity.ProfileUri.ShouldBe("https://test-agent.example.com/profile");
-        agentIdentity.Protocol.ShouldBe(ProtocolAliases.Ucp);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_WithMissingHeader_WhenAuthNotRequired_AllowsRequest()
-    {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: null);
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
         nextCalled.ShouldBeTrue();
         context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
     }
 
     [Fact]
-    public async Task InvokeAsync_WithMissingHeader_WhenAuthRequired_Returns401()
+    public async Task InvokeAsync_TransactionalPath_MissingUcpAgent_Returns401()
     {
-        // Arrange
-        var settings = CreateSettings(requireAuth: true, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: null);
+        var context = CreateContext("/api/v1/checkout-sessions", HttpMethods.Post, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.RequestSignature] = "sig",
+            [ProtocolHeaders.RequestId] = Guid.NewGuid().ToString(),
+            [ProtocolHeaders.IdempotencyKey] = Guid.NewGuid().ToString()
+        });
         var nextCalled = false;
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, CreateSettings());
 
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
 
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
         nextCalled.ShouldBeFalse();
         context.Response.StatusCode.ShouldBe(StatusCodes.Status401Unauthorized);
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("missing_ucp_agent");
     }
 
     [Fact]
-    public async Task InvokeAsync_WithHigherProtocolVersion_ReturnsVersionUnsupported()
+    public async Task InvokeAsync_TransactionalPath_MissingRequestSignature_Returns401()
     {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext(
-            "/api/v1/checkout-sessions",
-            ucpAgentHeader: "profile=\"https://test-agent.example.com/profile\", version=\"2026-02-01\"");
-        var nextCalled = false;
+        var context = CreateContext("/api/v1/orders/123", HttpMethods.Get, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://agent.example.com/profile\"",
+            [ProtocolHeaders.RequestId] = Guid.NewGuid().ToString()
+        });
+        var middleware = CreateMiddleware(_ => Task.CompletedTask, CreateSettings());
 
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
 
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status401Unauthorized);
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("missing_request_signature");
+    }
 
-        // Assert
-        nextCalled.ShouldBeFalse();
+    [Fact]
+    public async Task InvokeAsync_TransactionalPath_MissingRequestId_Returns400()
+    {
+        var context = CreateContext("/api/v1/orders/123", HttpMethods.Get, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://agent.example.com/profile\"",
+            [ProtocolHeaders.RequestSignature] = "sig"
+        });
+        var middleware = CreateMiddleware(_ => Task.CompletedTask, CreateSettings());
+
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
+
         context.Response.StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
-
-        using var payload = await ReadResponseJsonAsync(context);
-        payload.RootElement.GetProperty("error").GetString().ShouldBe("version_unsupported");
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("missing_request_id");
     }
 
     [Fact]
-    public async Task InvokeAsync_WithEqualProtocolVersion_AllowsRequest()
+    public async Task InvokeAsync_TransactionalPath_InvalidRequestId_Returns400()
     {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext(
-            "/api/v1/checkout-sessions",
-            ucpAgentHeader: "profile=\"https://test-agent.example.com/profile\", version=\"2026-01-11\"");
+        var context = CreateContext("/api/v1/orders/123", HttpMethods.Get, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://agent.example.com/profile\"",
+            [ProtocolHeaders.RequestSignature] = "sig",
+            [ProtocolHeaders.RequestId] = "not-a-guid"
+        });
+        var middleware = CreateMiddleware(_ => Task.CompletedTask, CreateSettings());
+
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("invalid_request_id");
+    }
+
+    [Theory]
+    [InlineData("/api/v1/checkout-sessions", "POST")]
+    [InlineData("/api/v1/checkout-sessions/2E895D8A-6E10-4386-8476-3A9B1A1F7B05", "PUT")]
+    [InlineData("/api/v1/checkout-sessions/2E895D8A-6E10-4386-8476-3A9B1A1F7B05/complete", "POST")]
+    public async Task InvokeAsync_WriteRoute_MissingIdempotencyKey_Returns400(string path, string method)
+    {
+        var context = CreateContext(path, method, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://agent.example.com/profile\"",
+            [ProtocolHeaders.RequestSignature] = "sig",
+            [ProtocolHeaders.RequestId] = Guid.NewGuid().ToString()
+        });
+        var middleware = CreateMiddleware(_ => Task.CompletedTask, CreateSettings());
+
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("missing_idempotency_key");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_WellKnownPath_WithoutAgentHeader_AllowsRequest()
+    {
+        var context = CreateContext("/.well-known/ucp");
         var nextCalled = false;
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, CreateSettings());
 
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
 
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
         nextCalled.ShouldBeTrue();
         context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
     }
 
     [Fact]
-    public async Task InvokeAsync_WithNotificationCancel_Returns403()
+    public async Task InvokeAsync_UnsupportedVersion_ReturnsVersionUnsupported()
     {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://malicious-agent.example.com\"");
-        var nextCalled = false;
+        var context = CreateContext("/api/v1/checkout-sessions", HttpMethods.Get, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://agent.example.com/profile\", version=\"2026-02-01\""
+        });
+        var middleware = CreateMiddleware(_ => Task.CompletedTask, CreateSettings());
 
-        // Configure notification publisher to cancel the request
-        _notificationPublisher
-            .Setup(p => p.PublishCancelableAsync(It.IsAny<AgentAuthenticatingNotification>(), It.IsAny<CancellationToken>()))
-            .Callback<AgentAuthenticatingNotification, CancellationToken>((n, _) =>
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status400BadRequest);
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("version_unsupported");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AuthenticatorFailureOnTransactionalRoute_Returns401()
+    {
+        var context = CreateContext("/api/v1/orders/123", HttpMethods.Get, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://agent.example.com/profile\"",
+            [ProtocolHeaders.RequestSignature] = "sig",
+            [ProtocolHeaders.RequestId] = Guid.NewGuid().ToString()
+        });
+        var middleware = CreateMiddleware(_ => Task.CompletedTask, CreateSettings());
+        var authenticator = new Mock<IAgentAuthenticator>();
+        authenticator.SetupGet(x => x.Alias).Returns(ProtocolAliases.Ucp);
+        authenticator.Setup(x => x.AuthenticateAsync(It.IsAny<HttpRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AgentAuthenticationResult.Failure("bad signature", "invalid_request_signature"));
+
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, [authenticator.Object]);
+
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status401Unauthorized);
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("invalid_request_signature");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AuthenticatorSuccessOnTransactionalRoute_SetsIdentityAndCallsNext()
+    {
+        var context = CreateContext("/api/v1/orders/123", HttpMethods.Get, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://agent.example.com/profile\"",
+            [ProtocolHeaders.RequestSignature] = "sig",
+            [ProtocolHeaders.RequestId] = Guid.NewGuid().ToString()
+        });
+        var nextCalled = false;
+        var middleware = CreateMiddleware(_ => { nextCalled = true; return Task.CompletedTask; }, CreateSettings());
+        var authenticator = new Mock<IAgentAuthenticator>();
+        authenticator.SetupGet(x => x.Alias).Returns(ProtocolAliases.Ucp);
+        authenticator.Setup(x => x.AuthenticateAsync(It.IsAny<HttpRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AgentAuthenticationResult.Success(new AgentIdentity
             {
-                n.CancelOperation("Agent blocked by security policy");
-            })
-            .ReturnsAsync(true);
+                AgentId = "agent-1",
+                ProfileUri = "https://agent.example.com/profile",
+                Protocol = ProtocolAliases.Ucp,
+                Capabilities = [UcpCapabilityNames.Checkout]
+            }));
 
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, [authenticator.Object]);
 
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeFalse();
-        context.Response.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_WithAgentNotInAllowlist_Returns403()
-    {
-        // Arrange - only allow specific agents
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["https://trusted-agent.example.com"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://untrusted-agent.example.com/profile\"");
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeFalse();
-        context.Response.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_OnNonProtocolPath_SkipsAuthentication()
-    {
-        // Arrange
-        var settings = CreateSettings(requireAuth: true, allowedAgents: []);
-        var context = CreateHttpContext("/api/products", ucpAgentHeader: null);
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
         nextCalled.ShouldBeTrue();
-        // No authentication check should have occurred - next() was called without 401/403
-    }
-
-    [Fact]
-    public async Task InvokeAsync_WithWildcardAllowlist_AllowsAllAgents()
-    {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://any-agent-anywhere.example.com/profile\"");
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
-        context.Response.StatusCode.ShouldBe(StatusCodes.Status200OK);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_WithSpecificAllowlist_MatchesProfileUri()
-    {
-        // Arrange - allow agent with prefix matching
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["https://gemini.google.com"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://gemini.google.com/agent/v2\"");
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task InvokeAsync_PublishesAuthenticatedNotification_OnSuccess()
-    {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://test-agent.example.com/profile\"");
-        AgentAuthenticatedNotification? capturedNotification = null;
-
-        _notificationPublisher
-            .Setup(p => p.PublishAsync(It.IsAny<AgentAuthenticatedNotification>(), It.IsAny<CancellationToken>()))
-            .Callback<AgentAuthenticatedNotification, CancellationToken>((n, _) => capturedNotification = n)
-            .Returns(Task.CompletedTask);
-
-        var middleware = CreateMiddleware(
-            ctx => Task.CompletedTask,
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        capturedNotification.ShouldNotBeNull();
-        capturedNotification.Identity.ProfileUri.ShouldBe("https://test-agent.example.com/profile");
-    }
-
-    [Fact]
-    public async Task GetAgentIdentity_ReturnsStoredIdentity()
-    {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"https://test.example.com\"");
-
-        var middleware = CreateMiddleware(
-            ctx => Task.CompletedTask,
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-        var identity = AgentAuthenticationMiddleware.GetAgentIdentity(context);
-
-        // Assert
-        identity.ShouldNotBeNull();
-        identity.AgentId.ShouldBe("https://test.example.com");
-    }
-
-    [Theory]
-    [InlineData("/.well-known/ucp")]
-    [InlineData("/api/v1/checkout-sessions")]
-    [InlineData("/api/v1/checkout-sessions/abc123")]
-    [InlineData("/api/v1/orders")]
-    [InlineData("/api/v1/orders/abc123")]
-    public async Task InvokeAsync_OnProtocolPaths_ProcessesAuthentication(string path)
-    {
-        // Arrange
-        var settings = CreateSettings(requireAuth: true, allowedAgents: ["*"]);
-        var context = CreateHttpContext(path, ucpAgentHeader: "profile=\"https://agent.example.com\"");
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
-        // Agent identity should be set for all protocol paths
         var identity = AgentAuthenticationMiddleware.GetAgentIdentity(context);
         identity.ShouldNotBeNull();
-    }
-
-    [Theory]
-    [InlineData("/api/products")]
-    [InlineData("/umbraco/backoffice")]
-    [InlineData("/")]
-    [InlineData("/checkout")]
-    public async Task InvokeAsync_OnNonProtocolPaths_SkipsAuthCheck(string path)
-    {
-        // Arrange - auth required but should be skipped for non-protocol paths
-        var settings = CreateSettings(requireAuth: true, allowedAgents: []);
-        var context = CreateHttpContext(path, ucpAgentHeader: null);
-        var nextCalled = false;
-
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
+        identity.ProfileUri.ShouldBe("https://agent.example.com/profile");
     }
 
     [Fact]
-    public async Task InvokeAsync_WithEmptyProfileUri_DoesNotSetIdentity()
+    public async Task InvokeAsync_AgentOutsideAllowList_Returns403()
     {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "profile=\"\"");
-        var nextCalled = false;
+        var settings = CreateSettings(["https://trusted.example.com"]);
+        var context = CreateContext("/.well-known/ucp", HttpMethods.Get, new Dictionary<string, string>
+        {
+            [ProtocolHeaders.UcpAgent] = "profile=\"https://untrusted.example.com/profile\""
+        });
+        var middleware = CreateMiddleware(_ => Task.CompletedTask, settings);
 
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
+        await middleware.InvokeAsync(context, _notificationPublisher.Object, []);
 
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
-        var identity = AgentAuthenticationMiddleware.GetAgentIdentity(context);
-        identity.ShouldBeNull();
+        context.Response.StatusCode.ShouldBe(StatusCodes.Status403Forbidden);
+        var body = await ReadBodyAsync(context);
+        body.RootElement.GetProperty("error").GetString().ShouldBe("forbidden");
     }
 
-    [Fact]
-    public async Task InvokeAsync_WithMalformedHeader_DoesNotSetIdentity()
-    {
-        // Arrange
-        var settings = CreateSettings(requireAuth: false, allowedAgents: ["*"]);
-        var context = CreateHttpContext("/.well-known/ucp", ucpAgentHeader: "not a valid header format");
-        var nextCalled = false;
+    private AgentAuthenticationMiddleware CreateMiddleware(RequestDelegate next, IOptions<ProtocolSettings> settings)
+        => new(next, _logger.Object, settings);
 
-        var middleware = CreateMiddleware(
-            ctx => { nextCalled = true; return Task.CompletedTask; },
-            settings);
-
-        // Act
-        await middleware.InvokeAsync(context, _notificationPublisher.Object, _agentProfileService.Object);
-
-        // Assert
-        nextCalled.ShouldBeTrue();
-        var identity = AgentAuthenticationMiddleware.GetAgentIdentity(context);
-        identity.ShouldBeNull();
-    }
-
-    // Helper methods
-
-    private static IOptions<ProtocolSettings> CreateSettings(
-        bool requireAuth = false,
-        string[]? allowedAgents = null)
-    {
-        var settings = new ProtocolSettings
+    private static IOptions<ProtocolSettings> CreateSettings(IReadOnlyList<string>? allowedAgents = null)
+        => Options.Create(new ProtocolSettings
         {
             RequireHttps = false,
+            MinimumTlsVersion = "1.3",
             Ucp = new UcpSettings
             {
-                Version = "2026-01-11",
-                RequireAuthentication = requireAuth,
+                Version = "2026-01-23",
                 AllowedAgents = (allowedAgents ?? ["*"]).ToList()
             }
-        };
+        });
 
-        return Options.Create(settings);
-    }
-
-    private static DefaultHttpContext CreateHttpContext(string path, string? ucpAgentHeader)
+    private static DefaultHttpContext CreateContext(
+        string path,
+        string method = "GET",
+        IReadOnlyDictionary<string, string>? headers = null)
     {
         var context = new DefaultHttpContext();
         context.Request.Path = path;
-        context.Request.Method = "GET";
-
-        if (ucpAgentHeader != null)
-        {
-            context.Request.Headers[ProtocolHeaders.UcpAgent] = ucpAgentHeader;
-        }
-
-        // Set up response body stream so WriteAsJsonAsync works
+        context.Request.Method = method;
         context.Response.Body = new MemoryStream();
+
+        if (headers != null)
+        {
+            foreach (var (key, value) in headers)
+            {
+                context.Request.Headers[key] = value;
+            }
+        }
 
         return context;
     }
 
-    private AgentAuthenticationMiddleware CreateMiddleware(
-        RequestDelegate next,
-        IOptions<ProtocolSettings> settings)
-    {
-        return new AgentAuthenticationMiddleware(
-            next,
-            _logger.Object,
-            settings);
-    }
-
-    private static async Task<JsonDocument> ReadResponseJsonAsync(HttpContext context)
+    private static async Task<JsonDocument> ReadBodyAsync(HttpContext context)
     {
         context.Response.Body.Position = 0;
         using var reader = new StreamReader(context.Response.Body, leaveOpen: true);
-        var json = await reader.ReadToEndAsync();
-        return JsonDocument.Parse(json);
+        var payload = await reader.ReadToEndAsync();
+        return JsonDocument.Parse(payload);
     }
 }

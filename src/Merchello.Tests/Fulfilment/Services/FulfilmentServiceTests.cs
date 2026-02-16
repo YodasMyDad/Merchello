@@ -525,6 +525,143 @@ public class FulfilmentServiceTests
         result.ResultObject.Carrier.ShouldBe("Test Carrier");
     }
 
+    [Fact]
+    public async Task ProcessShipmentUpdateAsync_PartialShipments_UseQuantityShippedAndRemainPartial()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var warehouse = _dataBuilder.CreateWarehouse();
+        _dataBuilder.AssignFulfilmentProviderToWarehouse(warehouse, config);
+        var shippingOption = _dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var invoice = _dataBuilder.CreateInvoice();
+        var order = _dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+        order.FulfilmentProviderConfigurationId = config.Id;
+        order.FulfilmentProviderReference = "PARTIAL-SHIP-REF";
+        if (order.LineItems != null)
+        {
+            foreach (var existingLineItem in order.LineItems.ToList())
+            {
+                _fixture.DbContext.LineItems.Remove(existingLineItem);
+            }
+            order.LineItems.Clear();
+        }
+
+        var productA = _dataBuilder.CreateProduct("Product A");
+        productA.Sku = "SKU-A";
+        _dataBuilder.CreateProductWarehouse(productA, warehouse, stock: 10);
+
+        var productB = _dataBuilder.CreateProduct("Product B");
+        productB.Sku = "SKU-B";
+        _dataBuilder.CreateProductWarehouse(productB, warehouse, stock: 10);
+
+        _dataBuilder.CreateLineItem(order, product: productA, quantity: 2, amount: 10.00m);
+        _dataBuilder.CreateLineItem(order, product: productB, quantity: 1, amount: 15.00m);
+        _dataBuilder.CreateOrderLevelDiscount(order, discountAmount: 5.00m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateFulfilmentService();
+
+        // Act - first partial shipment (1 out of 2 for SKU-A)
+        var firstResult = await service.ProcessShipmentUpdateAsync(new FulfilmentShipmentUpdate
+        {
+            ProviderReference = "PARTIAL-SHIP-REF",
+            ProviderShipmentId = "SHIP-001",
+            TrackingNumber = "TRACK-001",
+            Carrier = "Carrier One",
+            ShippedDate = DateTime.UtcNow,
+            Items =
+            [
+                new FulfilmentShippedItem { Sku = "SKU-A", QuantityShipped = 1 }
+            ]
+        });
+
+        // Assert first shipment
+        firstResult.Success.ShouldBeTrue();
+        var afterFirst = await _fixture.DbContext.Orders
+            .Include(o => o.Shipments)
+            .FirstAsync(o => o.Id == order.Id);
+        afterFirst.Status.ShouldBe(OrderStatus.PartiallyShipped);
+        var firstShipment = afterFirst.Shipments.ShouldNotBeNull().Single();
+        firstShipment.LineItems.Sum(li => li.Quantity).ShouldBe(1);
+
+        // Act - second shipment progresses remaining known SKU quantities
+        var secondResult = await service.ProcessShipmentUpdateAsync(new FulfilmentShipmentUpdate
+        {
+            ProviderReference = "PARTIAL-SHIP-REF",
+            ProviderShipmentId = "SHIP-002",
+            TrackingNumber = "TRACK-002",
+            Carrier = "Carrier Two",
+            ShippedDate = DateTime.UtcNow,
+            Items =
+            [
+                new FulfilmentShippedItem { Sku = "SKU-A", QuantityShipped = 1 },
+                new FulfilmentShippedItem { Sku = "SKU-B", QuantityShipped = 1 }
+            ]
+        });
+
+        // Assert second shipment remains partial until complete quantity is fulfilled
+        secondResult.Success.ShouldBeTrue();
+        var afterSecond = await _fixture.DbContext.Orders
+            .Include(o => o.Shipments)
+            .FirstAsync(o => o.Id == order.Id);
+        afterSecond.Status.ShouldBe(OrderStatus.PartiallyShipped);
+        afterSecond.Shipments.ShouldNotBeNull().Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task ProcessShipmentUpdateAsync_FullShipment_ExcludesDiscountLineItems()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var warehouse = _dataBuilder.CreateWarehouse();
+        _dataBuilder.AssignFulfilmentProviderToWarehouse(warehouse, config);
+        var shippingOption = _dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var invoice = _dataBuilder.CreateInvoice();
+        var order = _dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+        order.FulfilmentProviderConfigurationId = config.Id;
+        order.FulfilmentProviderReference = "FULL-SHIP-REF";
+        if (order.LineItems != null)
+        {
+            foreach (var existingLineItem in order.LineItems.ToList())
+            {
+                _fixture.DbContext.LineItems.Remove(existingLineItem);
+            }
+            order.LineItems.Clear();
+        }
+
+        var product = _dataBuilder.CreateProduct("Shippable Product");
+        product.Sku = "FULL-SKU";
+        _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
+
+        _dataBuilder.CreateLineItem(order, product: product, quantity: 1, amount: 20.00m);
+        _dataBuilder.CreateOrderLevelDiscount(order, discountAmount: 5.00m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateFulfilmentService();
+
+        // Act
+        var result = await service.ProcessShipmentUpdateAsync(new FulfilmentShipmentUpdate
+        {
+            ProviderReference = "FULL-SHIP-REF",
+            ProviderShipmentId = "SHIP-FULL-001",
+            TrackingNumber = "TRACK-FULL",
+            Carrier = "Carrier",
+            ShippedDate = DateTime.UtcNow
+        });
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        var updatedOrder = await _fixture.DbContext.Orders
+            .Include(o => o.Shipments)
+            .FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Shipped);
+        var shipment = updatedOrder.Shipments.ShouldNotBeNull().Single();
+        shipment.LineItems.ShouldAllBe(li => li.LineItemType != LineItemType.Discount);
+        shipment.LineItems.Count.ShouldBe(1);
+    }
+
     #endregion
 
     #region GetOrdersForPollingAsync Tests
@@ -551,6 +688,130 @@ public class FulfilmentServiceTests
         result.ShouldContain(o => o.FulfilmentProviderReference == "REF-1");
         result.ShouldContain(o => o.FulfilmentProviderReference == "REF-2");
         result.ShouldNotContain(o => o.FulfilmentProviderReference == "REF-3");
+    }
+
+    #endregion
+
+    #region Webhook Idempotency Tests
+
+    [Fact]
+    public async Task TryLogWebhookAsync_SameProviderAndMessageId_IsIdempotent()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var service = CreateFulfilmentService();
+
+        // Act
+        var first = await service.TryLogWebhookAsync(config.Id, "msg-001", "shipment.created", "{}");
+        var second = await service.TryLogWebhookAsync(config.Id, "msg-001", "shipment.created", "{}");
+
+        // Assert
+        first.ShouldBeTrue();
+        second.ShouldBeFalse();
+
+        var count = await _fixture.DbContext.FulfilmentWebhookLogs
+            .CountAsync(x => x.ProviderConfigurationId == config.Id && x.MessageId == "msg-001");
+        count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task TryLogWebhookAsync_SameMessageIdAcrossProviders_IsNotDuplicate()
+    {
+        // Arrange
+        var configA = _dataBuilder.CreateFulfilmentProviderConfiguration(providerKey: "provider-a");
+        var configB = _dataBuilder.CreateFulfilmentProviderConfiguration(providerKey: "provider-b");
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var service = CreateFulfilmentService();
+
+        // Act
+        var first = await service.TryLogWebhookAsync(configA.Id, "msg-shared", "shipment.created", "{}");
+        var second = await service.TryLogWebhookAsync(configB.Id, "msg-shared", "shipment.created", "{}");
+
+        // Assert
+        first.ShouldBeTrue();
+        second.ShouldBeTrue();
+
+        var countA = await _fixture.DbContext.FulfilmentWebhookLogs
+            .CountAsync(x => x.ProviderConfigurationId == configA.Id && x.MessageId == "msg-shared");
+        var countB = await _fixture.DbContext.FulfilmentWebhookLogs
+            .CountAsync(x => x.ProviderConfigurationId == configB.Id && x.MessageId == "msg-shared");
+        countA.ShouldBe(1);
+        countB.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task TryLogWebhookAsync_ConcurrentDuplicateSubmissions_OnlyOneInsertSucceeds()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var service = CreateFulfilmentService();
+
+        // Act
+        var results = await Task.WhenAll(
+            Enumerable.Range(0, 12)
+                .Select(_ => service.TryLogWebhookAsync(config.Id, "msg-concurrent", "shipment.created", "{}")));
+
+        // Assert
+        results.Count(x => x).ShouldBe(1);
+
+        var count = await _fixture.DbContext.FulfilmentWebhookLogs
+            .CountAsync(x => x.ProviderConfigurationId == config.Id && x.MessageId == "msg-concurrent");
+        count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task CompleteWebhookLogAsync_UpdatesEventTypeAfterSuccessfulProcessing()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var service = CreateFulfilmentService();
+
+        // Act
+        var inserted = await service.TryLogWebhookAsync(config.Id, "msg-complete", null, "{}");
+        await service.CompleteWebhookLogAsync(
+            config.Id,
+            "msg-complete",
+            "shipment.created",
+            """{"topic":"shipment.created"}""");
+
+        // Assert
+        inserted.ShouldBeTrue();
+        var log = await _fixture.DbContext.FulfilmentWebhookLogs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.ProviderConfigurationId == config.Id && x.MessageId == "msg-complete");
+
+        log.ShouldNotBeNull();
+        log.EventType.ShouldBe("shipment.created");
+        log.Payload.ShouldBe("""{"topic":"shipment.created"}""");
+    }
+
+    [Fact]
+    public async Task RemoveWebhookLogAsync_DeletesRowSoProviderRetriesAreNotBlocked()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var service = CreateFulfilmentService();
+
+        // Act
+        var inserted = await service.TryLogWebhookAsync(config.Id, "msg-retry", null, "{}");
+        await service.RemoveWebhookLogAsync(config.Id, "msg-retry");
+        var duplicate = await service.IsDuplicateWebhookAsync(config.Id, "msg-retry");
+
+        // Assert
+        inserted.ShouldBeTrue();
+        duplicate.ShouldBeFalse();
+        var count = await _fixture.DbContext.FulfilmentWebhookLogs
+            .CountAsync(x => x.ProviderConfigurationId == config.Id && x.MessageId == "msg-retry");
+        count.ShouldBe(0);
     }
 
     #endregion

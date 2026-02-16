@@ -4,7 +4,7 @@
 
 The Universal Commerce Protocol (UCP) is an open-source standard developed by Google in collaboration with Shopify, Stripe, Visa, Mastercard, and other industry leaders. It enables "agentic commerce" - allowing AI agents to conduct commerce on behalf of users.
 
-**Current Status**: Spec version 2026-01-11 (newly released)
+**Current Status**: Spec version 2026-01-23 (newly released)
 **Initial Rollout**: Google AI Mode in Search, Gemini app (US only)
 **Timeline**: Global expansion "in coming months"
 
@@ -150,19 +150,35 @@ Idempotency-Key: abc123
 ```json
 {
   "ucp": {
-    "version": "2026-01-11",
-    "capabilities": ["dev.ucp.shopping.checkout"]
+    "version": "2026-01-23",
+    "capabilities": {
+      "dev.ucp.shopping.checkout": "2026-01-23",
+      "dev.ucp.shopping.discount": "2026-01-23",
+      "dev.ucp.shopping.fulfillment": "2026-01-23",
+      "dev.ucp.shopping.order": "2026-01-23"
+    },
+    "payment_handlers": [
+      {
+        "handler_id": "manual:manual",
+        "title": "Manual Payment",
+        "type": "form"
+      }
+    ]
   },
   "data": {
     "id": "chk_1234567890",
     "status": "incomplete",
     "currency": "USD",
     "line_items": [...],
-    "totals": {
-      "subtotal": 5000,
-      "tax": 400,
-      "total": 5400
-    },
+    "totals": [
+      {"type": "subtotal", "amount": 5000, "currency": "USD"},
+      {"type": "tax", "amount": 400, "currency": "USD"},
+      {"type": "total", "amount": 5400, "currency": "USD"}
+    ],
+    "links": [
+      {"rel": "terms", "href": "https://merchant.example.com/terms"},
+      {"rel": "privacy", "href": "https://merchant.example.com/privacy"}
+    ],
     "messages": [
       {
         "type": "error",
@@ -171,36 +187,34 @@ Idempotency-Key: abc123
         "content": "Buyer information required",
         "severity": "requires_buyer_input"
       }
-    ],
-    "payment": {
-      "handlers": [...]
-    }
+    ]
   }
 }
 ```
 
 ### Authentication & Headers
 
-**Required Headers:**
+**Required headers for transactional routes** (`/api/v1/checkout-sessions*`, `/api/v1/orders*`):
 
 | Header | Format | Purpose |
 |--------|--------|---------|
-| `UCP-Agent` | `profile="https://platform.example/profile"` | Platform identification |
-| `Content-Type` | `application/json` | Required for all requests |
-| `Idempotency-Key` | Unique string | Prevent duplicate operations |
+| `UCP-Agent` | `profile="https://platform.example/profile"` | Agent identity + profile URI |
+| `Request-Signature` | Detached JWT (RFC 7797) | Signature over raw HTTP body bytes |
+| `Request-Id` | UUID | Request tracing and replay diagnostics |
+| `Idempotency-Key` | Unique string | Required on `POST /checkout-sessions`, `PUT /checkout-sessions/{id}`, `POST /checkout-sessions/{id}/complete` |
+| `Content-Type` | `application/json` | Required for request bodies |
 
-**Optional Headers:**
+**Discovery route behavior** (`/.well-known/ucp`):
+- `UCP-Agent` is optional (negotiable endpoint).
+- If `UCP-Agent` is provided, version negotiation is applied.
 
-| Header | Format | Purpose |
-|--------|--------|---------|
-| `Request-Signature` | Detached JWT (RFC 7797) | Request authenticity |
-| `Request-Id` | UUID | Request tracing |
+**Inbound signature verification:**
+- Signature validation is mandatory for transactional UCP routes.
+- Verification uses the exact raw request body + `Request-Signature`.
+- Keys are resolved from the agent profile `signing_keys` (top-level or `ucp.signing_keys`).
 
-**Authentication Methods:**
-- Open APIs (no authentication)
-- API Keys via `X-API-Key` header
-- OAuth 2.0 bearer tokens
-- Mutual TLS
+**Strictness note:**
+- Merchello enforces transactional header/signature policy regardless of `RequireAuthentication` legacy settings.
 
 ### Data Format Requirements
 
@@ -219,7 +233,7 @@ Published at `/.well-known/ucp`:
 ```json
 {
   "ucp": {
-    "version": "2026-01-11",
+    "version": "2026-01-23",
     "services": {
       "shopping": {
         "rest": {
@@ -231,21 +245,21 @@ Published at `/.well-known/ucp`:
     "capabilities": [
       {
         "name": "dev.ucp.shopping.checkout",
-        "version": "2026-01-11",
-        "spec": "https://ucp.dev/specifications/checkout.md",
+        "version": "2026-01-23",
+        "spec": "https://ucp.dev/specification/checkout/",
         "schema": "https://ucp.dev/schemas/shopping/checkout.json"
       },
       {
         "name": "dev.ucp.shopping.discount",
-        "version": "2026-01-11",
-        "spec": "https://ucp.dev/specifications/discount.md",
+        "version": "2026-01-23",
+        "spec": "https://ucp.dev/specification/discount/",
         "schema": "https://ucp.dev/schemas/shopping/discount.json",
         "extends": "dev.ucp.shopping.checkout"
       },
       {
         "name": "dev.ucp.shopping.fulfillment",
-        "version": "2026-01-11",
-        "spec": "https://ucp.dev/specifications/fulfillment.md",
+        "version": "2026-01-23",
+        "spec": "https://ucp.dev/specification/fulfillment/",
         "schema": "https://ucp.dev/schemas/shopping/fulfillment.json",
         "extends": "dev.ucp.shopping.checkout"
       }
@@ -339,10 +353,10 @@ Enables shipping and pickup options during checkout.
           {
             "id": "grp_1",
             "line_item_ids": ["li_1", "li_2"],
-            "selected_option_id": "opt_standard",
+            "selected_option_id": "dyn:fedex:FEDEX_GROUND",
             "options": [
               {
-                "id": "opt_standard",
+                "id": "so:7f6a5f48-8b96-4fd0-8f27-1afaa79fe6ec",
                 "title": "Standard Shipping",
                 "description": "5-7 business days",
                 "totals": [
@@ -352,7 +366,7 @@ Enables shipping and pickup options during checkout.
                 "latest_fulfillment_time": "2026-01-22"
               },
               {
-                "id": "opt_express",
+                "id": "dyn:fedex:FEDEX_2_DAY",
                 "title": "Express Shipping",
                 "description": "2-3 business days",
                 "totals": [
@@ -367,6 +381,10 @@ Enables shipping and pickup options during checkout.
   }
 }
 ```
+
+Selection key contract:
+- Flat-rate options: `so:{guid}`
+- Dynamic provider options: `dyn:{provider}:{serviceCode}`
 
 **Method Types:**
 - `shipping` - Delivery to address
@@ -512,7 +530,7 @@ UCP separates **instruments** (what consumers use) from **handlers** (processing
 ```json
 {
   "id": "com.google.pay",
-  "version": "2026-01-11",
+  "version": "2026-01-23",
   "config": {
     "api_version": 2,
     "api_version_minor": 0,
@@ -1977,7 +1995,7 @@ Request-Signature: eyJhbGciOiJFUzI1NiIsImtpZCI6ImtleS0yMDI2LTAxIn0...
       "MinimumTlsVersion": "1.3",
       "UCP": {
         "Enabled": false,
-        "Version": "2026-01-11",
+        "Version": "2026-01-23",
         "RequireAuthentication": true,
         "AllowedAgents": ["*"],
         "SigningKeyRotationDays": 90,
@@ -2198,7 +2216,7 @@ UCP webhooks are signed with RFC 7797 detached JWTs:
 ```json
 {
   "ucp": {
-    "version": "2026-01-11",
+    "version": "2026-01-23",
     "capabilities": ["dev.ucp.shopping.order"]
   },
   "event": "order.shipped",
@@ -2313,7 +2331,7 @@ When the protocol infrastructure is implemented, the following documentation upd
 
 ## Document Review Summary
 
-*Reviewed: 2026-01-15 against UCP spec v2026-01-11*
+*Reviewed: 2026-01-15 against UCP spec v2026-01-23*
 
 ### Compliance Status
 
@@ -2346,7 +2364,7 @@ UCP orders are tracked via the `Invoice.Source` property, which records where th
 | `SourceId` | Agent ID | From UCP-Agent header profile |
 | `SourceName` | Agent name | Display name for reporting |
 | `ProfileUri` | Profile URL | Full UCP-Agent profile URI |
-| `ProtocolVersion` | `"2026-01-11"` | UCP spec version |
+| `ProtocolVersion` | `"2026-01-23"` | UCP spec version |
 | `SessionId` | Basket ID | Links to checkout session |
 
 **Querying UCP Orders:**
@@ -2427,3 +2445,4 @@ The protocol infrastructure correctly:
 - [Google Developers Blog - UCP](https://developers.googleblog.com/under-the-hood-universal-commerce-protocol-ucp/)
 - [Shopify Engineering - Building UCP](https://shopify.engineering/ucp)
 - [Google Blog - Agentic Commerce](https://blog.google/products/ads-commerce/agentic-commerce-ai-tools-protocol-retailers-platforms/)
+

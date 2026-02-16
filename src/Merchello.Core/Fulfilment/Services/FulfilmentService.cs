@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
 using Merchello.Core.Fulfilment.Models;
@@ -469,21 +470,26 @@ public class FulfilmentService(
             if (update.Items != null && update.Items.Count > 0)
             {
                 // Partial shipment - assign specified items
-                foreach (var item in update.Items)
+                foreach (var item in update.Items
+                             .Where(i => !string.IsNullOrWhiteSpace(i.Sku) && i.QuantityShipped > 0)
+                             .GroupBy(i => i.Sku, StringComparer.OrdinalIgnoreCase)
+                             .Select(g => new { Sku = g.Key, Quantity = g.Sum(i => i.QuantityShipped) }))
                 {
                     var lineItem = order.LineItems?.FirstOrDefault(li =>
                         string.Equals(li.Sku, item.Sku, StringComparison.OrdinalIgnoreCase));
 
                     if (lineItem != null)
                     {
-                        shipment.LineItems.Add(lineItem);
+                        shipment.LineItems.Add(LineItemFactory.CreateShipmentTrackingLineItem(lineItem, item.Quantity));
                     }
                 }
             }
             else if (order.LineItems != null)
             {
                 // Full shipment - assign all items
-                shipment.LineItems.AddRange(order.LineItems);
+                shipment.LineItems.AddRange(order.LineItems
+                    .Where(li => li.LineItemType != LineItemType.Discount)
+                    .Select(li => LineItemFactory.CreateShipmentTrackingLineItem(li, li.Quantity)));
             }
 
             await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -826,21 +832,29 @@ public class FulfilmentService(
                     .ToListAsync(cancellationToken));
         }
 
-        var totalItems = lineItems.Count;
-        var shippedItems = shipments
+        var totalOrdered = lineItems
+            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Sum(li => li.Quantity);
+
+        var totalShipped = shipments
             .Where(s => s.Status == ShipmentStatus.Shipped || s.Status == ShipmentStatus.Delivered)
-            .SelectMany(s => s.LineItems)
-            .Distinct()
-            .Count();
+            .SelectMany(s => s.LineItems ?? [])
+            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Sum(li => li.Quantity);
+
+        if (totalOrdered <= 0)
+        {
+            return;
+        }
 
         var oldStatus = order.Status;
 
-        if (shippedItems >= totalItems)
+        if (totalShipped >= totalOrdered)
         {
             order.Status = OrderStatus.Shipped;
             order.ShippedDate ??= DateTime.UtcNow;
         }
-        else if (shippedItems > 0)
+        else if (totalShipped > 0)
         {
             order.Status = OrderStatus.PartiallyShipped;
         }
@@ -862,6 +876,11 @@ public class FulfilmentService(
     /// <inheritdoc />
     public async Task<bool> IsDuplicateWebhookAsync(Guid providerConfigId, string messageId, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            return false;
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         var isDuplicate = await scope.ExecuteWithContextAsync(async db =>
             await db.FulfilmentWebhookLogs
@@ -871,12 +890,17 @@ public class FulfilmentService(
     }
 
     /// <inheritdoc />
-    public async Task LogWebhookAsync(Guid providerConfigId, string? messageId, string? eventType, string? payload, CancellationToken cancellationToken = default)
+    public async Task<bool> TryLogWebhookAsync(Guid providerConfigId, string messageId, string? eventType, string? payload, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            throw new ArgumentException("Webhook message ID cannot be empty.", nameof(messageId));
+        }
+
         var log = new FulfilmentWebhookLog
         {
             ProviderConfigurationId = providerConfigId,
-            MessageId = messageId ?? Guid.NewGuid().ToString(),
+            MessageId = messageId.Trim(),
             EventType = eventType,
             Payload = payload,
             ProcessedAt = DateTime.UtcNow,
@@ -884,13 +908,109 @@ public class FulfilmentService(
         };
 
         using var scope = efCoreScopeProvider.CreateScope();
+        try
+        {
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                db.FulfilmentWebhookLogs.Add(log);
+                await db.SaveChangesAsync(cancellationToken);
+                return true;
+            });
+            scope.Complete();
+            return true;
+        }
+        catch (DbUpdateException ex) when (IsDuplicateWebhookInsertException(ex))
+        {
+            logger.LogDebug("Duplicate fulfilment webhook ignored. ProviderConfig: {ProviderConfigId}, MessageId: {MessageId}",
+                providerConfigId, messageId);
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task CompleteWebhookLogAsync(Guid providerConfigId, string messageId, string? eventType, string? payload, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            throw new ArgumentException("Webhook message ID cannot be empty.", nameof(messageId));
+        }
+
+        var resolvedMessageId = messageId.Trim();
+        var completedAt = DateTime.UtcNow;
+
+        using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            db.FulfilmentWebhookLogs.Add(log);
+            var existing = await db.FulfilmentWebhookLogs
+                .FirstOrDefaultAsync(x => x.ProviderConfigurationId == providerConfigId && x.MessageId == resolvedMessageId, cancellationToken);
+
+            if (existing == null)
+            {
+                return false;
+            }
+
+            existing.EventType = string.IsNullOrWhiteSpace(eventType) ? existing.EventType : eventType.Trim();
+            if (payload != null)
+            {
+                existing.Payload = payload;
+            }
+
+            existing.ProcessedAt = completedAt;
+            existing.ExpiresAt = completedAt.AddDays(_settings.WebhookLogRetentionDays);
             await db.SaveChangesAsync(cancellationToken);
             return true;
         });
         scope.Complete();
+    }
+
+    /// <inheritdoc />
+    public async Task RemoveWebhookLogAsync(Guid providerConfigId, string messageId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(messageId))
+        {
+            return;
+        }
+
+        var resolvedMessageId = messageId.Trim();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var existing = await db.FulfilmentWebhookLogs
+                .FirstOrDefaultAsync(x => x.ProviderConfigurationId == providerConfigId && x.MessageId == resolvedMessageId, cancellationToken);
+
+            if (existing == null)
+            {
+                return false;
+            }
+
+            db.FulfilmentWebhookLogs.Remove(existing);
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        });
+        scope.Complete();
+    }
+
+    /// <inheritdoc />
+    public async Task LogWebhookAsync(Guid providerConfigId, string? messageId, string? eventType, string? payload, CancellationToken cancellationToken = default)
+    {
+        var resolvedMessageId = string.IsNullOrWhiteSpace(messageId)
+            ? throw new ArgumentException("Webhook message ID cannot be empty.", nameof(messageId))
+            : messageId.Trim();
+
+        var inserted = await TryLogWebhookAsync(providerConfigId, resolvedMessageId, eventType, payload, cancellationToken);
+        if (!inserted)
+        {
+            throw new InvalidOperationException($"Webhook '{resolvedMessageId}' has already been logged.");
+        }
+    }
+
+    private static bool IsDuplicateWebhookInsertException(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Cannot insert duplicate key", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsRetryableFulfilmentError(string? errorCode)

@@ -1,8 +1,11 @@
+using System.Reflection;
+using System.Text;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.ShipBob;
 using Merchello.Core.Shipping.Providers;
 using Merchello.Core.Shared.Providers;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
 using Xunit;
@@ -245,6 +248,55 @@ public class ShipBobFulfilmentProviderTests
         result.ShouldBeEmpty();
     }
 
+    [Fact]
+    public async Task GetInventoryLevelsAsync_UsesSkuFirstWhenProvided()
+    {
+        // Arrange
+        await _provider.ConfigureAsync(new FulfilmentProviderConfiguration
+        {
+            Id = Guid.NewGuid(),
+            ProviderKey = "shipbob",
+            SettingsJson = new ShipBobSettings
+            {
+                PersonalAccessToken = "pat_test_token",
+                ChannelId = 12345,
+                ApiBaseUrl = "https://api.shipbob.test"
+            }.ToJson()
+        });
+
+        var handler = new ShipBobApiClientTests_OneShotHandler("""
+            [
+              {
+                "id": 101,
+                "name": "Fallback Name",
+                "sku": "SKU-INV-001",
+                "total_fulfillable_quantity": 9,
+                "total_committed_quantity": 1,
+                "total_awaiting_quantity": 0
+              }
+            ]
+            """);
+        var settings = new ShipBobSettings
+        {
+            PersonalAccessToken = "pat_test_token",
+            ChannelId = 12345,
+            ApiVersion = "2025-07"
+        };
+        var apiClient = new ShipBobApiClient(
+            new HttpClient(handler) { BaseAddress = new Uri("https://api.shipbob.test") },
+            settings,
+            NullLogger.Instance);
+        SetProviderApiClientForTest(_provider, apiClient);
+
+        // Act
+        var levels = await _provider.GetInventoryLevelsAsync();
+
+        // Assert
+        levels.Count.ShouldBe(1);
+        levels[0].Sku.ShouldBe("SKU-INV-001");
+        levels[0].AvailableQuantity.ShouldBe(9);
+    }
+
     #endregion
 
     #region Validation Tests
@@ -272,6 +324,68 @@ public class ShipBobFulfilmentProviderTests
         // Assert
         result.Success.ShouldBeFalse();
         result.ErrorMessage!.ShouldContain("Invalid provider reference");
+    }
+
+    [Fact]
+    public async Task GetWebhookEventTemplatesAsync_ReturnsShipBobTemplates()
+    {
+        // Act
+        var templates = await _provider.GetWebhookEventTemplatesAsync();
+
+        // Assert
+        templates.ShouldNotBeEmpty();
+        templates.ShouldContain(x => x.EventType == "order.shipped");
+        templates.ShouldContain(x => x.EventType == "order.delivered");
+        templates.ShouldContain(x => x.EventType == "order.cancelled");
+        templates.ShouldContain(x => x.EventType == "shipment.created");
+    }
+
+    [Fact]
+    public async Task GenerateTestWebhookPayloadAsync_ProducesPayloadThatCanBeProcessed()
+    {
+        // Arrange
+        var settings = new ShipBobSettings
+        {
+            PersonalAccessToken = "pat_test_token",
+            ChannelId = 12345,
+            WebhookSecret = "webhook-secret"
+        };
+
+        await _provider.ConfigureAsync(new FulfilmentProviderConfiguration
+        {
+            Id = Guid.NewGuid(),
+            ProviderKey = "shipbob",
+            SettingsJson = settings.ToJson()
+        });
+
+        // Act
+        var (payload, headers) = await _provider.GenerateTestWebhookPayloadAsync(new GenerateFulfilmentWebhookPayloadRequest
+        {
+            EventType = "order.shipped",
+            ProviderReference = "REF-123",
+            ProviderShipmentId = "456",
+            TrackingNumber = "TRACK-123",
+            Carrier = "UPS",
+            ShippedDate = DateTime.UtcNow
+        });
+
+        var request = BuildRequest(payload, headers);
+        var isValid = await _provider.ValidateWebhookAsync(request);
+        var parsed = await _provider.ProcessWebhookAsync(request);
+
+        // Assert
+        isValid.ShouldBeTrue();
+        parsed.Success.ShouldBeTrue();
+        parsed.EventType.ShouldNotBeNullOrWhiteSpace();
+        parsed.StatusUpdates.Count.ShouldBe(1);
+        parsed.StatusUpdates[0].ProviderReference.ShouldBe("REF-123");
+        parsed.ShipmentUpdates.Count.ShouldBe(1);
+        parsed.ShipmentUpdates[0].TrackingNumber.ShouldBe("TRACK-123");
+        var shippedItems = parsed.ShipmentUpdates[0].Items;
+        shippedItems.ShouldNotBeNull();
+        shippedItems!.Count.ShouldBe(1);
+        shippedItems[0].Sku.ShouldBe("TEST-SKU-001");
+        headers.ContainsKey("x-webhook-topic").ShouldBeTrue();
     }
 
     #endregion
@@ -440,6 +554,42 @@ public class ShipBobFulfilmentProviderTests
                 }
             ]
         };
+    }
+
+    private static HttpRequest BuildRequest(string payload, IDictionary<string, string> headers)
+    {
+        var context = new DefaultHttpContext();
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        context.Request.Body = new MemoryStream(bytes);
+        context.Request.ContentLength = bytes.Length;
+        context.Request.ContentType = "application/json";
+        context.Request.Method = HttpMethods.Post;
+
+        foreach (var header in headers)
+        {
+            context.Request.Headers[header.Key] = header.Value;
+        }
+
+        return context.Request;
+    }
+
+    private static void SetProviderApiClientForTest(ShipBobFulfilmentProvider provider, ShipBobApiClient apiClient)
+    {
+        var apiClientField = typeof(ShipBobFulfilmentProvider)
+            .GetField("_apiClient", BindingFlags.Instance | BindingFlags.NonPublic);
+        apiClientField.ShouldNotBeNull();
+        apiClientField!.SetValue(provider, apiClient);
+    }
+
+    private sealed class ShipBobApiClientTests_OneShotHandler(string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            });
+        }
     }
 
     #endregion

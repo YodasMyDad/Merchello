@@ -167,6 +167,52 @@ public class FulfilmentSyncServiceTests
     }
 
     [Fact]
+    public async Task SyncProductsAsync_PersistsTerminalSyncLogValues()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var product = _dataBuilder.CreateProduct("Sync Product", price: 12.34m);
+        product.CanPurchase = true;
+        var warehouse = _dataBuilder.CreateWarehouse();
+        _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 25);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateSyncServiceWithProvider(config);
+        _testProvider.NextProductSyncResult = new FulfilmentSyncResult
+        {
+            Success = false,
+            ItemsProcessed = 1,
+            ItemsSucceeded = 0,
+            ItemsFailed = 1,
+            Errors = ["Provider rejected product payload"]
+        };
+
+        // Act
+        var result = await service.SyncProductsAsync(config.Id);
+
+        // Assert in returned model
+        result.Status.ShouldBe(FulfilmentSyncStatus.Failed);
+        result.ItemsProcessed.ShouldBe(1);
+        result.ItemsSucceeded.ShouldBe(0);
+        result.ItemsFailed.ShouldBe(1);
+        result.ErrorMessage.ShouldNotBeNull();
+        result.CompletedAt.ShouldNotBeNull();
+
+        // Assert persisted DB row reflects final terminal values
+        var persisted = await _fixture.DbContext.FulfilmentSyncLogs
+            .AsNoTracking()
+            .FirstAsync(x => x.Id == result.Id);
+        persisted.Status.ShouldBe(FulfilmentSyncStatus.Failed);
+        persisted.ItemsProcessed.ShouldBe(1);
+        persisted.ItemsSucceeded.ShouldBe(0);
+        persisted.ItemsFailed.ShouldBe(1);
+        persisted.ErrorMessage.ShouldNotBeNull();
+        persisted.ErrorMessage!.ShouldContain("Provider rejected product payload");
+        persisted.CompletedAt.ShouldNotBeNull();
+    }
+
+    [Fact]
     public async Task SyncProductsAsync_ProviderThrowsException_LogsFailure()
     {
         // Arrange
@@ -222,6 +268,68 @@ public class FulfilmentSyncServiceTests
         var productWarehouse = await _fixture.DbContext.ProductWarehouses
             .FirstOrDefaultAsync(pw => pw.ProductId == product.Id);
         productWarehouse!.Stock.ShouldBe(75);
+    }
+
+    [Fact]
+    public async Task SyncInventoryAsync_FullMode_PreservesReservedStock()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration(
+            inventorySyncMode: InventorySyncMode.Full);
+        var warehouse = _dataBuilder.CreateWarehouse();
+        var product = _dataBuilder.CreateProduct("Reserved Product", price: 29.99m);
+        product.Sku = "RESERVED-FULL-SKU";
+        _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 30, trackStock: true, reservedStock: 4);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateSyncServiceWithProvider(config);
+        _testProvider.NextInventoryLevels =
+        [
+            new FulfilmentInventoryLevel { Sku = "RESERVED-FULL-SKU", AvailableQuantity = 20 }
+        ];
+
+        // Act
+        var result = await service.SyncInventoryAsync(config.Id);
+
+        // Assert
+        result.Status.ShouldBe(FulfilmentSyncStatus.Completed);
+        var productWarehouse = await _fixture.DbContext.ProductWarehouses
+            .AsNoTracking()
+            .FirstAsync(pw => pw.ProductId == product.Id);
+        productWarehouse.ReservedStock.ShouldBe(4);
+        productWarehouse.Stock.ShouldBe(24);
+    }
+
+    [Fact]
+    public async Task SyncInventoryAsync_DeltaMode_MaintainsReservedStockInvariant()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration(
+            inventorySyncMode: InventorySyncMode.Delta);
+        var warehouse = _dataBuilder.CreateWarehouse();
+        var product = _dataBuilder.CreateProduct("Delta Product", price: 19.99m);
+        product.Sku = "RESERVED-DELTA-SKU";
+        _dataBuilder.CreateProductWarehouse(product, warehouse, stock: 40, trackStock: true, reservedStock: 6);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateSyncServiceWithProvider(config);
+        _testProvider.NextInventoryLevels =
+        [
+            new FulfilmentInventoryLevel { Sku = "RESERVED-DELTA-SKU", AvailableQuantity = 28 }
+        ];
+
+        // Act
+        var result = await service.SyncInventoryAsync(config.Id);
+
+        // Assert
+        result.Status.ShouldBe(FulfilmentSyncStatus.Completed);
+        var productWarehouse = await _fixture.DbContext.ProductWarehouses
+            .AsNoTracking()
+            .FirstAsync(pw => pw.ProductId == product.Id);
+        productWarehouse.ReservedStock.ShouldBe(6);
+        productWarehouse.Stock.ShouldBe(34); // available (28) + reserved (6)
     }
 
     [Fact]

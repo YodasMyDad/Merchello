@@ -98,6 +98,27 @@ public abstract class FulfilmentProviderBase : IFulfilmentProvider
 
     /// <inheritdoc />
     /// <remarks>
+    /// Default implementation returns no templates.
+    /// </remarks>
+    public virtual ValueTask<IReadOnlyList<FulfilmentWebhookEventTemplate>> GetWebhookEventTemplatesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ValueTask.FromResult<IReadOnlyList<FulfilmentWebhookEventTemplate>>([]);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Default implementation returns an empty payload.
+    /// </remarks>
+    public virtual ValueTask<(string Payload, IDictionary<string, string> Headers)> GenerateTestWebhookPayloadAsync(
+        GenerateFulfilmentWebhookPayloadRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        return ValueTask.FromResult<(string Payload, IDictionary<string, string> Headers)>(("{}", new Dictionary<string, string>()));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
     /// Default implementation returns empty list.
     /// Override to implement status polling.
     /// </remarks>

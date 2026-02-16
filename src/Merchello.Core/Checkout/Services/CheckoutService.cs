@@ -3112,6 +3112,7 @@ public class CheckoutService(
 
         // Map to protocol state
         var currencyCode = basket.Currency ?? _settings.StoreCurrencyCode;
+        var displayRate = await ResolveDisplayRateAsync(currencyCode, cancellationToken);
 
         return new CheckoutSessionState
         {
@@ -3121,13 +3122,13 @@ public class CheckoutService(
             UpdatedAt = basket.DateUpdated,
             ExpiresAt = session.CreatedAt.AddHours(24),
             Currency = currencyCode,
-            LineItems = MapLineItems(basket, currencyCode),
+            LineItems = MapLineItems(basket, currencyCode, displayRate),
             BillingAddress = MapAddress(basket.BillingAddress),
             ShippingAddress = MapAddress(basket.ShippingAddress),
             ShippingSameAsBilling = session.ShippingSameAsBilling,
-            Discounts = MapDiscounts(basket, currencyCode),
-            Fulfillment = MapFulfillment(orderGroups, session, currencyCode),
-            Totals = MapTotals(basket, currencyCode),
+            Discounts = MapDiscounts(basket, currencyCode, displayRate),
+            Fulfillment = MapFulfillment(orderGroups, session, currencyCode, displayRate),
+            Totals = MapTotals(basket, currencyCode, displayRate),
             Messages = messages,
             ContinueUrl = status == ProtocolSessionStatuses.RequiresEscalation
                 ? $"/checkout/{basketId}"
@@ -3293,7 +3294,7 @@ public class CheckoutService(
         return (normalizedSelections, null);
     }
 
-    private IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket, string currencyCode)
+    private IReadOnlyList<CheckoutLineItemState> MapLineItems(Basket basket, string currencyCode, decimal displayRate)
     {
         return basket.LineItems
             .Where(li => li.LineItemType == LineItemType.Product)
@@ -3310,11 +3311,13 @@ public class CheckoutService(
                     ? desc.UnwrapJsonElement()?.ToString()
                     : null,
                 Quantity = li.Quantity,
-                UnitPrice = ToMinorUnits(li.Amount, currencyCode),
-                LineTotal = ToMinorUnits(li.Amount * li.Quantity, currencyCode),
+                UnitPrice = ToMinorUnits(ConvertAmountForDisplay(li.Amount, currencyCode, displayRate), currencyCode),
+                LineTotal = ToMinorUnits(ConvertAmountForDisplay(li.Amount * li.Quantity, currencyCode, displayRate), currencyCode),
                 DiscountAmount = 0, // Line-level discounts would need additional calculation
-                TaxAmount = li.IsTaxable ? ToMinorUnits(li.Amount * li.Quantity * li.TaxRate / 100, currencyCode) : 0,
-                FinalTotal = ToMinorUnits(li.Amount * li.Quantity, currencyCode),
+                TaxAmount = li.IsTaxable
+                    ? ToMinorUnits(ConvertAmountForDisplay(li.Amount * li.Quantity * li.TaxRate / 100, currencyCode, displayRate), currencyCode)
+                    : 0,
+                FinalTotal = ToMinorUnits(ConvertAmountForDisplay(li.Amount * li.Quantity, currencyCode, displayRate), currencyCode),
                 RequiresShipping = !IsDigitalProduct(li),
                 ImageUrl = li.ExtendedData.TryGetValue("ImageUrl", out var img)
                     ? img.UnwrapJsonElement()?.ToString()
@@ -3380,7 +3383,7 @@ public class CheckoutService(
         };
     }
 
-    private IReadOnlyList<CheckoutDiscountState> MapDiscounts(Basket basket, string currencyCode)
+    private IReadOnlyList<CheckoutDiscountState> MapDiscounts(Basket basket, string currencyCode, decimal displayRate)
     {
         return basket.LineItems
             .Where(li => li.LineItemType == LineItemType.Discount)
@@ -3401,7 +3404,9 @@ public class CheckoutService(
                     li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCategory, out var categoryObj)
                         ? categoryObj.UnwrapJsonElement()?.ToString()
                         : null),
-                Amount = ToMinorUnits(Math.Abs(li.Amount * li.Quantity), currencyCode),
+                Amount = ToMinorUnits(
+                    Math.Abs(ConvertAmountForDisplay(li.Amount * li.Quantity, currencyCode, displayRate)),
+                    currencyCode),
                 IsAutomatic = !(li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.DiscountCode, out var codeValue) &&
                                 !string.IsNullOrWhiteSpace(codeValue.UnwrapJsonElement()?.ToString())),
                 Method = ProtocolDiscountAllocationMethods.Across
@@ -3433,7 +3438,8 @@ public class CheckoutService(
     private CheckoutFulfillmentState? MapFulfillment(
         OrderGroupingResult? orderGroups,
         CheckoutSession? session,
-        string currency)
+        string currency,
+        decimal displayRate)
     {
         if (orderGroups?.Groups == null || orderGroups.Groups.Count == 0)
         {
@@ -3458,16 +3464,16 @@ public class CheckoutService(
                         GroupId = g.GroupId.ToString(),
                         GroupName = g.GroupName,
                         LineItemIds = g.LineItems.Select(li => li.LineItemId.ToString()).ToList(),
-                        SelectedOptionId = g.SelectedShippingOptionId?.ToString()
+                        SelectedOptionId = g.SelectedShippingOptionId
                             ?? (session?.SelectedShippingOptions.TryGetValue(g.GroupId, out var selId) == true
-                                ? selId.ToString()
+                                ? selId
                                 : null),
                         Options = g.AvailableShippingOptions.Select(opt => new FulfillmentOptionState
                         {
-                            OptionId = opt.ShippingOptionId.ToString(),
+                            OptionId = opt.SelectionKey,
                             Title = opt.Name,
                             Description = opt.DeliveryTimeDescription,
-                            Amount = ToMinorUnits(opt.Cost, currency),
+                            Amount = ToMinorUnits(ConvertAmountForDisplay(opt.Cost, currency, displayRate), currency),
                             Currency = currency,
                             EstimatedDeliveryDays = opt.DaysTo > 0 ? opt.DaysTo : null
                         }).ToList()
@@ -3477,38 +3483,44 @@ public class CheckoutService(
         };
     }
 
-    private CheckoutTotalsState MapTotals(Basket basket, string currency)
+    private CheckoutTotalsState MapTotals(Basket basket, string currency, decimal displayRate)
     {
+        var subtotalAmount = ConvertAmountForDisplay(basket.SubTotal, currency, displayRate);
+        var discountAmount = ConvertAmountForDisplay(basket.Discount, currency, displayRate);
+        var shippingAmount = ConvertAmountForDisplay(basket.Shipping, currency, displayRate);
+        var taxAmount = ConvertAmountForDisplay(basket.Tax, currency, displayRate);
+        var totalAmount = ConvertAmountForDisplay(basket.Total, currency, displayRate);
+
         var breakdown = new List<CheckoutTotalBreakdown>
         {
-            new() { Label = "Subtotal", Amount = ToMinorUnits(basket.SubTotal, currency), Type = "subtotal" }
+            new() { Label = "Subtotal", Amount = ToMinorUnits(subtotalAmount, currency), Type = "subtotal" }
         };
 
-        if (basket.Discount > 0)
+        if (discountAmount > 0)
         {
-            breakdown.Add(new CheckoutTotalBreakdown { Label = "Discount", Amount = -ToMinorUnits(basket.Discount, currency), Type = "discount" });
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Discount", Amount = -ToMinorUnits(discountAmount, currency), Type = "discount" });
         }
 
-        if (basket.Shipping > 0)
+        if (shippingAmount > 0)
         {
-            breakdown.Add(new CheckoutTotalBreakdown { Label = "Shipping", Amount = ToMinorUnits(basket.Shipping, currency), Type = "fulfillment" });
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Shipping", Amount = ToMinorUnits(shippingAmount, currency), Type = "fulfillment" });
         }
 
-        if (basket.Tax > 0)
+        if (taxAmount > 0)
         {
-            breakdown.Add(new CheckoutTotalBreakdown { Label = "Tax", Amount = ToMinorUnits(basket.Tax, currency), Type = "tax" });
+            breakdown.Add(new CheckoutTotalBreakdown { Label = "Tax", Amount = ToMinorUnits(taxAmount, currency), Type = "tax" });
         }
 
-        breakdown.Add(new CheckoutTotalBreakdown { Label = "Total", Amount = ToMinorUnits(basket.Total, currency), Type = "total" });
+        breakdown.Add(new CheckoutTotalBreakdown { Label = "Total", Amount = ToMinorUnits(totalAmount, currency), Type = "total" });
 
         return new CheckoutTotalsState
         {
-            Subtotal = ToMinorUnits(basket.SubTotal, currency),
+            Subtotal = ToMinorUnits(subtotalAmount, currency),
             ItemsDiscount = 0,
-            Discount = ToMinorUnits(basket.Discount, currency),
-            Fulfillment = ToMinorUnits(basket.Shipping, currency),
-            Tax = ToMinorUnits(basket.Tax, currency),
-            Total = ToMinorUnits(basket.Total, currency),
+            Discount = ToMinorUnits(discountAmount, currency),
+            Fulfillment = ToMinorUnits(shippingAmount, currency),
+            Tax = ToMinorUnits(taxAmount, currency),
+            Total = ToMinorUnits(totalAmount, currency),
             Currency = currency,
             Breakdown = breakdown
         };
@@ -3592,6 +3604,36 @@ public class CheckoutService(
         }, cancellationToken);
 
         return GetEstimatedShippingResult.Ok(estimatedShipping, groupingResult.Groups.Count);
+    }
+
+    private async Task<decimal> ResolveDisplayRateAsync(string currencyCode, CancellationToken cancellationToken)
+    {
+        if (string.Equals(currencyCode, _settings.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return 1m;
+        }
+
+        var rate = await exchangeRateCache.GetRateAsync(_settings.StoreCurrencyCode, currencyCode, cancellationToken);
+        if (rate is > 0m)
+        {
+            return rate.Value;
+        }
+
+        logger.LogWarning(
+            "No exchange rate available for protocol session display conversion {StoreCurrency}->{DisplayCurrency}; using 1.0 fallback.",
+            _settings.StoreCurrencyCode,
+            currencyCode);
+        return 1m;
+    }
+
+    private decimal ConvertAmountForDisplay(decimal storeAmount, string currencyCode, decimal displayRate)
+    {
+        if (string.Equals(currencyCode, _settings.StoreCurrencyCode, StringComparison.OrdinalIgnoreCase))
+        {
+            return storeAmount;
+        }
+
+        return currencyService.Round(storeAmount * displayRate, currencyCode);
     }
 
     /// <summary>

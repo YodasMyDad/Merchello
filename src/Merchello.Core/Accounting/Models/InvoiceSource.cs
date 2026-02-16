@@ -30,7 +30,7 @@ public class InvoiceSource
     public string? SourceName { get; set; }
 
     /// <summary>
-    /// Protocol version if applicable (e.g., UCP version "2026-01-11").
+    /// Protocol version if applicable (e.g., UCP version "2026-01-23").
     /// </summary>
     public string? ProtocolVersion { get; set; }
 

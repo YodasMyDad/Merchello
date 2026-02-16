@@ -97,6 +97,8 @@ using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services;
 using Merchello.Core.Webhooks.Services.Interfaces;
 using Merchello.Core.Protocols;
+using Merchello.Core.Protocols.Authentication;
+using Merchello.Core.Protocols.Authentication.Interfaces;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Payments;
@@ -418,6 +420,7 @@ public static class Startup
         builder.Services.AddScoped<ISigningKeyStore, SigningKeyStore>();
         builder.Services.AddScoped<IWebhookSigner, WebhookSigner>();
         builder.Services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
+        builder.Services.AddScoped<IAgentAuthenticator, UcpAgentAuthenticator>();
         // UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
 
         // =====================================================
@@ -652,7 +655,7 @@ public static class Startup
     }
 
     /// <summary>
-    /// Discovers assemblies containing payment, shipping, fulfilment, or order grouping strategy implementations.
+    /// Discovers assemblies containing provider, strategy, and protocol adapter implementations.
     /// Scans all loaded assemblies for types implementing provider interfaces.
     /// </summary>
     private static IEnumerable<Assembly> DiscoverProviderAssemblies()
@@ -665,6 +668,7 @@ public static class Startup
         var taxProviderType = typeof(ITaxProvider);
         var addressLookupProviderType = typeof(IAddressLookupProvider);
         var emailAttachmentType = typeof(IEmailAttachment);
+        var commerceProtocolAdapterType = typeof(ICommerceProtocolAdapter);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -693,14 +697,15 @@ public static class Startup
                      exchangeRateProviderType.IsAssignableFrom(t) ||
                      taxProviderType.IsAssignableFrom(t) ||
                      addressLookupProviderType.IsAssignableFrom(t) ||
-                     emailAttachmentType.IsAssignableFrom(t)));
+                     emailAttachmentType.IsAssignableFrom(t) ||
+                     commerceProtocolAdapterType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {
                     discoveredAssemblies.Add(assembly);
                 }
             }
-            catch (Exception ex) when (ex is ReflectionTypeLoadException or NotSupportedException or FileNotFoundException)
+            catch (Exception ex) when (ex is ReflectionTypeLoadException or TypeLoadException or NotSupportedException or FileNotFoundException)
             {
                 // Expected for dynamic assemblies, collectible assemblies, or assemblies with missing dependencies.
                 // These are intentionally skipped during provider discovery.

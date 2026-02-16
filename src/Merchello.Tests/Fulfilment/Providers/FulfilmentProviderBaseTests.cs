@@ -152,6 +152,28 @@ public class FulfilmentProviderBaseTests
     }
 
     [Fact]
+    public async Task GetWebhookEventTemplatesAsync_DefaultReturnsEmpty()
+    {
+        // Act
+        var templates = await _provider.GetWebhookEventTemplatesAsync();
+
+        // Assert
+        templates.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GenerateTestWebhookPayloadAsync_DefaultReturnsEmptyPayloadAndHeaders()
+    {
+        // Act
+        var (payload, headers) = await _provider.GenerateTestWebhookPayloadAsync(
+            new GenerateFulfilmentWebhookPayloadRequest { EventType = "test.event" });
+
+        // Assert
+        payload.ShouldBe("{}");
+        headers.ShouldBeEmpty();
+    }
+
+    [Fact]
     public async Task PollOrderStatusAsync_DefaultReturnsEmptyList()
     {
         // Arrange

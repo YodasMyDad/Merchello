@@ -166,6 +166,71 @@ export interface TestFulfilmentProviderResultDto {
   errorCode?: string;
 }
 
+/** Test order submission payload */
+export interface TestFulfilmentOrderSubmissionDto {
+  customerEmail?: string;
+  orderNumber?: string;
+  shippingAddress?: TestFulfilmentAddressDto;
+  lineItems: TestFulfilmentLineItemDto[];
+  useRealSandbox: boolean;
+}
+
+/** Test order submission address */
+export interface TestFulfilmentAddressDto {
+  name?: string;
+  company?: string;
+  addressOne?: string;
+  addressTwo?: string;
+  townCity?: string;
+  countyState?: string;
+  postalCode?: string;
+  countryCode?: string;
+  phone?: string;
+}
+
+/** Test order submission line item */
+export interface TestFulfilmentLineItemDto {
+  sku?: string;
+  name?: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+/** Test order submission result */
+export interface TestFulfilmentOrderSubmissionResultDto {
+  success: boolean;
+  providerReference?: string;
+  providerStatus?: string;
+  errorMessage?: string;
+}
+
+/** Webhook event template for fulfilment simulation */
+export interface FulfilmentWebhookEventTemplateDto {
+  eventType: string;
+  displayName: string;
+  description?: string;
+}
+
+/** Simulate fulfilment webhook payload */
+export interface SimulateFulfilmentWebhookDto {
+  eventType: string;
+  providerReference?: string;
+  providerShipmentId?: string;
+  trackingNumber?: string;
+  carrier?: string;
+  shippedDate?: string;
+  customPayload?: string;
+}
+
+/** Fulfilment webhook simulation result */
+export interface FulfilmentWebhookSimulationResultDto {
+  success: boolean;
+  eventTypeDetected?: string;
+  actionsPerformed: string[];
+  payload?: string;
+  errorMessage?: string;
+}
+
 // ============================================
 // Sync Log DTOs
 // ============================================

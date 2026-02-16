@@ -19,4 +19,10 @@ public class UcpAgentProfile
     /// </summary>
     [JsonPropertyName("ucp")]
     public UcpAgentProfileMetadata? Ucp { get; set; }
+
+    /// <summary>
+    /// Agent public keys used to verify signed transactional API requests.
+    /// </summary>
+    [JsonPropertyName("signing_keys")]
+    public List<UcpSigningKey>? SigningKeys { get; set; }
 }
