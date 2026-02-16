@@ -1,8 +1,12 @@
+using Merchello.Core.Data;
+using Merchello.Core.Email;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Services;
+using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,11 +21,13 @@ namespace Merchello.Core.Webhooks.Services;
 public class OutboundDeliveryJob(
     IServiceScopeFactory serviceScopeFactory,
     ISeedDataInstallationState seedDataInstallationState,
-    IOptions<WebhookSettings> options,
+    IOptions<WebhookSettings> webhookOptions,
+    IOptions<EmailSettings> emailOptions,
     Umbraco.Cms.Core.Services.IRuntimeState runtimeState,
     ILogger<OutboundDeliveryJob> logger) : BackgroundService
 {
-    private readonly WebhookSettings _settings = options.Value;
+    private readonly WebhookSettings _webhookSettings = webhookOptions.Value;
+    private readonly EmailSettings _emailSettings = emailOptions.Value;
     private readonly TimeSpan _initialDelay = TimeSpan.FromSeconds(30);
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -50,7 +56,7 @@ public class OutboundDeliveryJob(
             return;
         }
 
-        var interval = TimeSpan.FromSeconds(Math.Max(5, _settings.DeliveryIntervalSeconds));
+        var interval = TimeSpan.FromSeconds(Math.Max(5, _webhookSettings.DeliveryIntervalSeconds));
         using var timer = new PeriodicTimer(interval);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -64,6 +70,7 @@ public class OutboundDeliveryJob(
                 else
                 {
                     await ProcessPendingRetriesAsync(stoppingToken);
+                    await CleanupOldDeliveriesAsync(stoppingToken);
                 }
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
@@ -112,6 +119,47 @@ public class OutboundDeliveryJob(
         if (emailService != null)
         {
             await emailService.ProcessPendingRetriesAsync(stoppingToken);
+        }
+    }
+
+    private async Task CleanupOldDeliveriesAsync(CancellationToken stoppingToken)
+    {
+        using var scope = serviceScopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MerchelloDbContext>();
+
+        var activeStatuses = new[]
+        {
+            OutboundDeliveryStatus.Pending,
+            OutboundDeliveryStatus.Retrying,
+            OutboundDeliveryStatus.Sending
+        };
+
+        var now = DateTime.UtcNow;
+        var webhookRetentionDays = Math.Max(1, _webhookSettings.DeliveryLogRetentionDays);
+        var emailRetentionDays = Math.Max(1, _emailSettings.DeliveryRetentionDays);
+        var webhookCutoff = now.AddDays(-webhookRetentionDays);
+        var emailCutoff = now.AddDays(-emailRetentionDays);
+
+        var deletedWebhookRows = await db.OutboundDeliveries
+            .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
+                        d.DateCreated < webhookCutoff &&
+                        !activeStatuses.Contains(d.Status))
+            .ExecuteDeleteAsync(stoppingToken);
+
+        var deletedEmailRows = await db.OutboundDeliveries
+            .Where(d => d.DeliveryType == OutboundDeliveryType.Email &&
+                        d.DateCreated < emailCutoff &&
+                        !activeStatuses.Contains(d.Status))
+            .ExecuteDeleteAsync(stoppingToken);
+
+        if (deletedWebhookRows > 0 || deletedEmailRows > 0)
+        {
+            logger.LogInformation(
+                "Cleaned up outbound deliveries: {WebhookCount} webhook rows older than {WebhookRetentionDays}d, {EmailCount} email rows older than {EmailRetentionDays}d",
+                deletedWebhookRows,
+                webhookRetentionDays,
+                deletedEmailRows,
+                emailRetentionDays);
         }
     }
 }

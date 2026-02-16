@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Threading;
 using Merchello.Core.AddressLookup.Providers;
 using Merchello.Core.AddressLookup.Providers.Interfaces;
 using Merchello.Core.AddressLookup.Services;
@@ -215,6 +216,12 @@ public static class Startup
         builder.Services.AddMemoryCache();
         builder.Services.AddDataProtection();
         builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("Webhooks", client =>
+        {
+            // Per-subscription webhook timeout is enforced via cancellation tokens in WebhookDispatcher.
+            // Keep HttpClient timeout uncapped to avoid a hidden global 100s ceiling.
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        });
 
         // Register Merchello cache refresher for distributed cache invalidation
         builder.CacheRefreshers().Add<MerchelloCacheRefresher>();
@@ -476,6 +483,7 @@ public static class Startup
         builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, WebhookNotificationHandler>();
         // Invoices
         builder.AddNotificationAsyncHandler<InvoiceSavedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<InvoiceDeletedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<InvoiceCancelledNotification, WebhookNotificationHandler>();
         // Payments
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, WebhookNotificationHandler>();
@@ -501,6 +509,12 @@ public static class Startup
         builder.AddNotificationAsyncHandler<LowStockNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockReservedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockAllocatedNotification, WebhookNotificationHandler>();
+        // Baskets
+        builder.AddNotificationAsyncHandler<BasketCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemAddedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemRemovedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemQuantityChangedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketClearedNotification, WebhookNotificationHandler>();
         // Checkout
         builder.AddNotificationAsyncHandler<CheckoutAbandonedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutAbandonedFirstNotification, WebhookNotificationHandler>();
@@ -563,6 +577,7 @@ public static class Startup
         builder.AddNotificationAsyncHandler<PaymentRefundedNotification, EmailNotificationHandler>();
         // Customers
         builder.AddNotificationAsyncHandler<CustomerCreatedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CustomerSavedNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<CustomerPasswordResetRequestedNotification, EmailNotificationHandler>();
         // Shipments
         builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, EmailNotificationHandler>();

@@ -163,6 +163,7 @@ export interface WebhookSubscriptionQueryParams {
 
 export interface OutboundDeliveryQueryParams {
   status?: OutboundDeliveryStatus;
+  statuses?: OutboundDeliveryStatus[];
   page?: number;
   pageSize?: number;
 }

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Merchello.Core.Data;
 using Merchello.Core.Shared.Security;
@@ -32,6 +33,9 @@ public class WebhookService(
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false
     };
+    private const int MinTimeoutSeconds = 1;
+    private const int MaxTimeoutSeconds = 300;
+    private const int SendingRecoveryGraceSeconds = 60;
 
     #region Subscriptions
 
@@ -89,7 +93,10 @@ public class WebhookService(
             AuthType = parameters.AuthType,
             AuthHeaderName = parameters.AuthHeaderName,
             AuthHeaderValue = parameters.AuthHeaderValue,
-            TimeoutSeconds = parameters.TimeoutSeconds > 0 ? parameters.TimeoutSeconds : _settings.DefaultTimeoutSeconds,
+            TimeoutSeconds = ClampTimeoutSeconds(
+                parameters.TimeoutSeconds > 0
+                    ? parameters.TimeoutSeconds
+                    : _settings.DefaultTimeoutSeconds),
             FilterExpression = parameters.FilterExpression,
             Headers = parameters.Headers,
             IsActive = true,
@@ -148,7 +155,10 @@ public class WebhookService(
         if (parameters.AuthType.HasValue) subscription.AuthType = parameters.AuthType.Value;
         if (parameters.AuthHeaderName != null) subscription.AuthHeaderName = parameters.AuthHeaderName;
         if (parameters.AuthHeaderValue != null) subscription.AuthHeaderValue = parameters.AuthHeaderValue;
-        if (parameters.TimeoutSeconds.HasValue) subscription.TimeoutSeconds = parameters.TimeoutSeconds.Value;
+        if (parameters.TimeoutSeconds.HasValue)
+        {
+            subscription.TimeoutSeconds = ClampTimeoutSeconds(parameters.TimeoutSeconds.Value);
+        }
         if (parameters.FilterExpression != null) subscription.FilterExpression = parameters.FilterExpression;
         if (parameters.Headers != null) subscription.Headers = parameters.Headers;
 
@@ -315,13 +325,25 @@ public class WebhookService(
             };
 
             var requestBody = JsonSerializer.Serialize(envelope, WebhookJsonOptions);
-            var delivery = CreatePendingWebhookDelivery(
-                subscription.Id,
-                topic,
-                subscription.TargetUrl,
-                requestBody,
-                entityId,
-                entityType);
+            var maxPayloadBytes = Math.Max(1, _settings.MaxPayloadSizeBytes);
+            var payloadSizeBytes = Encoding.UTF8.GetByteCount(requestBody);
+            var isPayloadTooLarge = payloadSizeBytes > maxPayloadBytes;
+            var delivery = isPayloadTooLarge
+                ? CreateRejectedWebhookDelivery(
+                    subscription.Id,
+                    topic,
+                    subscription.TargetUrl,
+                    requestBody,
+                    $"Payload exceeds max size: {payloadSizeBytes} bytes > {maxPayloadBytes} bytes",
+                    entityId,
+                    entityType)
+                : CreatePendingWebhookDelivery(
+                    subscription.Id,
+                    topic,
+                    subscription.TargetUrl,
+                    requestBody,
+                    entityId,
+                    entityType);
 
             using var scope = efCoreScopeProvider.CreateScope();
             await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -330,8 +352,15 @@ public class WebhookService(
 
                 // Update subscription stats
                 var sub = await db.WebhookSubscriptions.FirstAsync(s => s.Id == subscription.Id, ct);
-                sub.LastTriggeredUtc = DateTime.UtcNow;
-                sub.DateUpdated = DateTime.UtcNow;
+                var now = DateTime.UtcNow;
+                sub.LastTriggeredUtc = now;
+                sub.DateUpdated = now;
+                if (isPayloadTooLarge)
+                {
+                    sub.FailureCount++;
+                    sub.LastFailureUtc = now;
+                    sub.LastErrorMessage = delivery.ErrorMessage;
+                }
 
                 await db.SaveChangesAsync(ct);
                 return true;
@@ -339,6 +368,17 @@ public class WebhookService(
             scope.Complete();
 
             deliveryIds.Add(delivery.Id);
+
+            if (isPayloadTooLarge)
+            {
+                logger.LogWarning(
+                    "Webhook delivery {DeliveryId} rejected for subscription {SubscriptionId}: payload size {PayloadSize} exceeds max {MaxPayloadSize} bytes",
+                    delivery.Id,
+                    subscription.Id,
+                    payloadSizeBytes,
+                    maxPayloadBytes);
+                continue;
+            }
 
             // Attempt immediate delivery - failures are logged and will be retried by OutboundDeliveryJob
             try
@@ -356,85 +396,30 @@ public class WebhookService(
 
     public async Task<OutboundDeliveryResult> DeliverAsync(Guid deliveryId, CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        var delivery = await scope.ExecuteWithContextAsync(async db =>
-            await db.OutboundDeliveries
-                .FirstOrDefaultAsync(d => d.Id == deliveryId, ct));
-
+        var delivery = await TryMarkDeliveryAsSendingAsync(deliveryId, ct);
         if (delivery == null)
         {
             return new OutboundDeliveryResult
             {
                 Success = false,
-                ErrorMessage = "Delivery not found"
+                ErrorMessage = "Delivery not found or not ready for processing",
+                DeliveryId = deliveryId
             };
         }
 
-        var subscription = await scope.ExecuteWithContextAsync(async db =>
-            await db.WebhookSubscriptions
-                .FirstOrDefaultAsync(s => s.Id == delivery.ConfigurationId, ct));
-
+        var subscription = await GetSubscriptionAsync(delivery.ConfigurationId, ct);
         if (subscription == null)
         {
-            return new OutboundDeliveryResult
-            {
-                Success = false,
-                ErrorMessage = "Subscription not found"
-            };
+            var missingSubscriptionResult = await MarkDeliveryAbandonedAsync(
+                delivery.Id,
+                "Subscription not found",
+                ct);
+            missingSubscriptionResult.DeliveryId = deliveryId;
+            return missingSubscriptionResult;
         }
 
         var result = await dispatcher.SendAsync(delivery, subscription, ct);
-
-        // Update delivery record
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var del = await db.OutboundDeliveries.FirstAsync(d => d.Id == deliveryId, ct);
-            var sub = await db.WebhookSubscriptions.FirstAsync(s => s.Id == delivery.ConfigurationId, ct);
-
-            del.DateSent = DateTime.UtcNow;
-            del.DurationMs = result.DurationMs;
-            del.ResponseStatusCode = result.StatusCode;
-            del.ResponseBody = result.ResponseBody?.Length > 10000
-                ? result.ResponseBody[..10000]
-                : result.ResponseBody;
-            del.ResponseHeaders = result.ResponseHeaders;
-            del.ErrorMessage = result.ErrorMessage;
-
-            if (result.Success)
-            {
-                del.Status = OutboundDeliveryStatus.Succeeded;
-                del.DateCompleted = DateTime.UtcNow;
-                sub.SuccessCount++;
-                sub.LastSuccessUtc = DateTime.UtcNow;
-                sub.LastErrorMessage = null;
-            }
-            else
-            {
-                if (del.AttemptNumber < _settings.MaxRetries)
-                {
-                    del.Status = OutboundDeliveryStatus.Retrying;
-                    del.AttemptNumber++;
-                    var delayIndex = Math.Min(del.AttemptNumber - 1, _settings.RetryDelaysSeconds.Length - 1);
-                    del.NextRetryUtc = DateTime.UtcNow.AddSeconds(_settings.RetryDelaysSeconds[delayIndex]);
-                }
-                else
-                {
-                    del.Status = OutboundDeliveryStatus.Abandoned;
-                    del.DateCompleted = DateTime.UtcNow;
-                }
-
-                sub.FailureCount++;
-                sub.LastFailureUtc = DateTime.UtcNow;
-                sub.LastErrorMessage = result.ErrorMessage;
-            }
-
-            sub.DateUpdated = DateTime.UtcNow;
-            await db.SaveChangesAsync(ct);
-            return true;
-        });
-        scope.Complete();
-
+        await PersistDeliveryResultAsync(delivery, result, ct);
         result.DeliveryId = deliveryId;
         return result;
     }
@@ -463,8 +448,15 @@ public class WebhookService(
             if (!string.IsNullOrWhiteSpace(parameters.Topic))
                 query = query.Where(d => d.Topic == parameters.Topic);
 
-            if (parameters.Status.HasValue)
+            if (parameters.Statuses is { Count: > 0 })
+            {
+                var statuses = parameters.Statuses.Distinct().ToArray();
+                query = query.Where(d => statuses.Contains(d.Status));
+            }
+            else if (parameters.Status.HasValue)
+            {
                 query = query.Where(d => d.Status == parameters.Status.Value);
+            }
 
             if (parameters.EntityId.HasValue)
                 query = query.Where(d => d.EntityId == parameters.EntityId.Value);
@@ -606,19 +598,42 @@ public class WebhookService(
     public async Task ProcessPendingRetriesAsync(CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();
+        var utcNow = DateTime.UtcNow;
+        var staleSendingCutoff = utcNow.AddSeconds(-(MaxTimeoutSeconds + SendingRecoveryGraceSeconds));
+        var recoveredStaleSendingRows = await scope.ExecuteWithContextAsync(async db =>
+            await db.OutboundDeliveries
+                .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
+                            d.Status == OutboundDeliveryStatus.Sending &&
+                            (d.DateSent == null || d.DateSent <= staleSendingCutoff))
+                .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, OutboundDeliveryStatus.Pending)
+                        .SetProperty(d => d.NextRetryUtc, _ => (DateTime?)null),
+                    ct));
+
         var pendingDeliveries = await scope.ExecuteWithContextAsync(async db =>
             await db.OutboundDeliveries
                 .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
-                            d.Status == OutboundDeliveryStatus.Retrying &&
-                            d.NextRetryUtc != null &&
-                            d.NextRetryUtc <= DateTime.UtcNow)
-                .OrderBy(d => d.NextRetryUtc)
+                            (d.Status == OutboundDeliveryStatus.Pending ||
+                             (d.Status == OutboundDeliveryStatus.Retrying &&
+                              d.NextRetryUtc != null &&
+                              d.NextRetryUtc <= utcNow)))
+                .OrderBy(d => d.NextRetryUtc ?? d.DateCreated)
                 .Take(100)
                 .Select(d => d.Id)
                 .ToListAsync(ct));
         scope.Complete();
 
-        foreach (var deliveryId in pendingDeliveries)
+        var deliveryIds = pendingDeliveries ?? [];
+
+        if (recoveredStaleSendingRows > 0)
+        {
+            logger.LogWarning(
+                "Recovered {Count} stale webhook deliveries stuck in Sending state (older than {StaleSeconds}s)",
+                recoveredStaleSendingRows,
+                MaxTimeoutSeconds + SendingRecoveryGraceSeconds);
+        }
+
+        foreach (var deliveryId in deliveryIds)
         {
             try
             {
@@ -727,8 +742,202 @@ public class WebhookService(
             RequestBody = requestBody,
             RequestHeaders = "{}",
             Status = OutboundDeliveryStatus.Pending,
+            AttemptNumber = 0,
             DateCreated = DateTime.UtcNow
         };
+    }
+
+    private static OutboundDelivery CreateRejectedWebhookDelivery(
+        Guid configurationId,
+        string topic,
+        string targetUrl,
+        string requestBody,
+        string errorMessage,
+        Guid? entityId = null,
+        string? entityType = null)
+    {
+        var now = DateTime.UtcNow;
+        return new OutboundDelivery
+        {
+            Id = GuidExtensions.NewSequentialGuid,
+            DeliveryType = OutboundDeliveryType.Webhook,
+            ConfigurationId = configurationId,
+            Topic = topic,
+            EntityId = entityId,
+            EntityType = entityType,
+            TargetUrl = targetUrl,
+            RequestBody = requestBody,
+            RequestHeaders = "{}",
+            Status = OutboundDeliveryStatus.Abandoned,
+            ErrorMessage = errorMessage,
+            AttemptNumber = 0,
+            DateCreated = now,
+            DateCompleted = now
+        };
+    }
+
+    private async Task<OutboundDelivery?> TryMarkDeliveryAsSendingAsync(Guid deliveryId, CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var utcNow = DateTime.UtcNow;
+
+        var delivery = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var transitioned = await db.OutboundDeliveries
+                .Where(d => d.Id == deliveryId &&
+                            d.DeliveryType == OutboundDeliveryType.Webhook &&
+                            (d.Status == OutboundDeliveryStatus.Pending ||
+                             (d.Status == OutboundDeliveryStatus.Retrying &&
+                              (d.NextRetryUtc == null || d.NextRetryUtc <= utcNow))))
+                .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(d => d.Status, OutboundDeliveryStatus.Sending)
+                        .SetProperty(
+                            d => d.AttemptNumber,
+                            d => d.DateSent == null && d.AttemptNumber == 1
+                                ? 1
+                                : d.AttemptNumber > 0
+                                    ? d.AttemptNumber + 1
+                                    : 1)
+                        .SetProperty(d => d.DateSent, utcNow)
+                        .SetProperty(d => d.NextRetryUtc, _ => (DateTime?)null)
+                        .SetProperty(d => d.ErrorMessage, _ => (string?)null),
+                    ct);
+
+            if (transitioned == 0)
+            {
+                return null;
+            }
+
+            return await db.OutboundDeliveries
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == deliveryId, ct);
+        });
+        scope.Complete();
+
+        return delivery;
+    }
+
+    private async Task<OutboundDeliveryResult> MarkDeliveryAbandonedAsync(
+        Guid deliveryId,
+        string errorMessage,
+        CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var delivery = await db.OutboundDeliveries
+                .FirstOrDefaultAsync(d => d.Id == deliveryId, ct);
+
+            if (delivery == null)
+            {
+                return false;
+            }
+
+            var now = DateTime.UtcNow;
+            delivery.Status = OutboundDeliveryStatus.Abandoned;
+            delivery.ErrorMessage = errorMessage;
+            delivery.DateCompleted = now;
+            delivery.DateSent ??= now;
+            await db.SaveChangesAsync(ct);
+            return true;
+        });
+        scope.Complete();
+
+        return new OutboundDeliveryResult
+        {
+            Success = false,
+            ErrorMessage = errorMessage
+        };
+    }
+
+    private async Task PersistDeliveryResultAsync(
+        OutboundDelivery delivery,
+        OutboundDeliveryResult result,
+        CancellationToken ct)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var persistedDelivery = await db.OutboundDeliveries
+                .FirstOrDefaultAsync(d => d.Id == delivery.Id, ct);
+
+            if (persistedDelivery == null)
+            {
+                return false;
+            }
+
+            var subscription = await db.WebhookSubscriptions
+                .FirstOrDefaultAsync(s => s.Id == delivery.ConfigurationId, ct);
+
+            persistedDelivery.DurationMs = result.DurationMs;
+            persistedDelivery.ResponseStatusCode = result.StatusCode;
+            persistedDelivery.ResponseBody = result.ResponseBody?.Length > 10000
+                ? result.ResponseBody[..10000]
+                : result.ResponseBody;
+            persistedDelivery.ResponseHeaders = result.ResponseHeaders;
+            persistedDelivery.ErrorMessage = result.ErrorMessage;
+
+            var now = DateTime.UtcNow;
+            if (result.Success)
+            {
+                persistedDelivery.Status = OutboundDeliveryStatus.Succeeded;
+                persistedDelivery.DateCompleted = now;
+
+                if (subscription != null)
+                {
+                    subscription.SuccessCount++;
+                    subscription.LastSuccessUtc = now;
+                    subscription.LastErrorMessage = null;
+                    subscription.DateUpdated = now;
+                }
+            }
+            else
+            {
+                if (persistedDelivery.AttemptNumber < Math.Max(0, _settings.MaxRetries))
+                {
+                    persistedDelivery.Status = OutboundDeliveryStatus.Retrying;
+                    persistedDelivery.NextRetryUtc = now.AddSeconds(GetRetryDelaySeconds(persistedDelivery.AttemptNumber));
+                }
+                else
+                {
+                    persistedDelivery.Status = OutboundDeliveryStatus.Abandoned;
+                    persistedDelivery.DateCompleted = now;
+                }
+
+                if (subscription != null)
+                {
+                    subscription.FailureCount++;
+                    subscription.LastFailureUtc = now;
+                    subscription.LastErrorMessage = result.ErrorMessage;
+                    subscription.DateUpdated = now;
+                }
+            }
+
+            await db.SaveChangesAsync(ct);
+            return true;
+        });
+        scope.Complete();
+    }
+
+    private int ClampTimeoutSeconds(int timeoutSeconds)
+    {
+        if (timeoutSeconds <= 0)
+        {
+            timeoutSeconds = _settings.DefaultTimeoutSeconds;
+        }
+
+        return Math.Clamp(timeoutSeconds, MinTimeoutSeconds, MaxTimeoutSeconds);
+    }
+
+    private int GetRetryDelaySeconds(int attemptNumber)
+    {
+        if (_settings.RetryDelaysSeconds.Length == 0)
+        {
+            return 60;
+        }
+
+        var index = Math.Clamp(attemptNumber - 1, 0, _settings.RetryDelaysSeconds.Length - 1);
+        return Math.Max(1, _settings.RetryDelaysSeconds[index]);
     }
 
     public string GenerateSecret()

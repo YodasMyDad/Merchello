@@ -651,6 +651,13 @@ public class CheckoutService(
             }
         }
 
+        if (isNewBasket && basket != null)
+        {
+            await notificationPublisher.PublishAsync(
+                new BasketCreatedNotification(basket),
+                cancellationToken);
+        }
+
         // 5. If it's a new basket and for a guest user, update the cookie
         if (isNewBasket && !parameters.CustomerId.HasValue && basket != null)
         {
@@ -1351,6 +1358,7 @@ public class CheckoutService(
             {
                 using var scope = efCoreScopeProvider.CreateScope();
                 Basket? updatedBasket = null;
+                var basketCreated = false;
 
                 try
                 {
@@ -1366,6 +1374,7 @@ public class CheckoutService(
                             updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
                             db.Baskets.Add(updatedBasket);
                             await db.SaveChangesAsync(cancellationToken);
+                            basketCreated = true;
                             return true;
                         }
 
@@ -1385,6 +1394,13 @@ public class CheckoutService(
 
                     if (updatedBasket != null)
                     {
+                        if (basketCreated)
+                        {
+                            await notificationPublisher.PublishAsync(
+                                new BasketCreatedNotification(updatedBasket),
+                                cancellationToken);
+                        }
+
                         if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
                         return updatedBasket;
                     }
@@ -2038,6 +2054,7 @@ public class CheckoutService(
         for (var attempt = 0; attempt < maxRetries; attempt++)
         {
             using var scope = efCoreScopeProvider.CreateScope();
+            var basketCreated = false;
             try
             {
                 await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -2055,10 +2072,18 @@ public class CheckoutService(
                         basket.ConcurrencyStamp = Guid.NewGuid().ToString();
                         db.Baskets.Add(basket);
                         await db.SaveChangesAsync(cancellationToken);
+                        basketCreated = true;
                     }
                     return true;
                 });
                 scope.Complete();
+
+                if (basketCreated)
+                {
+                    await notificationPublisher.PublishAsync(
+                        new BasketCreatedNotification(basket),
+                        cancellationToken);
+                }
 
                 // Update per-request cache
                 if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = basket;

@@ -42,6 +42,8 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
   @state() private _isNew = true;
   @state() private _testEmailRecipient = "";
   @state() private _isSendingTest = false;
+  @state() private _workspaceIsLoading = false;
+  @state() private _workspaceError: string | null = null;
 
   #workspaceContext?: MerchelloEmailsWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
@@ -70,6 +72,12 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
           }
         }
       }, '_email');
+      this.observe(this.#workspaceContext.isLoading, (isLoading) => {
+        this._workspaceIsLoading = isLoading ?? false;
+      }, "_workspaceIsLoading");
+      this.observe(this.#workspaceContext.loadError, (error) => {
+        this._workspaceError = error ?? null;
+      }, "_workspaceError");
     });
     this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
       this.#modalManager = context;
@@ -649,8 +657,34 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
   }
 
   override render() {
-    if (!this._email || this._isLoadingMetadata) {
+    if (this._workspaceIsLoading || this._isLoadingMetadata) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
+    }
+
+    if (this._workspaceError) {
+      return html`
+        <div class="load-error">
+          <uui-icon name="icon-alert"></uui-icon>
+          <h2>Unable to load email configuration</h2>
+          <p>${this._workspaceError}</p>
+          <uui-button look="secondary" href=${this._getEmailsListHref()} label="Back to Emails">
+            Back to Emails
+          </uui-button>
+        </div>
+      `;
+    }
+
+    if (!this._email) {
+      return html`
+        <div class="load-error">
+          <uui-icon name="icon-alert"></uui-icon>
+          <h2>Email configuration not found</h2>
+          <p>The requested email configuration could not be found.</p>
+          <uui-button look="secondary" href=${this._getEmailsListHref()} label="Back to Emails">
+            Back to Emails
+          </uui-button>
+        </div>
+      `;
     }
 
     return html`
@@ -854,6 +888,26 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
         justify-content: center;
         align-items: center;
         height: 100%;
+      }
+
+      .load-error {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--uui-size-space-2);
+        text-align: center;
+        height: 100%;
+        padding: var(--uui-size-layout-1);
+      }
+
+      .load-error h2 {
+        margin: 0;
+      }
+
+      .load-error p {
+        margin: 0 0 var(--uui-size-space-3);
+        color: var(--uui-color-text-alt);
       }
 
       .attachments-description {

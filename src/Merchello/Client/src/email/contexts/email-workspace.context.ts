@@ -31,6 +31,10 @@ export class MerchelloEmailsWorkspaceContext
   #isNew = false;
   #email = new UmbObjectState<EmailConfigurationDetailDto | undefined>(undefined);
   readonly email = this.#email.asObservable();
+  #isLoading = new UmbObjectState<boolean>(false);
+  readonly isLoading = this.#isLoading.asObservable();
+  #loadError = new UmbObjectState<string | null>(null);
+  readonly loadError = this.#loadError.asObservable();
 
   constructor(host: UmbControllerHost) {
     super(host, UMB_WORKSPACE_CONTEXT.toString());
@@ -50,6 +54,8 @@ export class MerchelloEmailsWorkspaceContext
         setup: () => {
           this.#isNew = true;
           this.#emailId = undefined;
+          this.#isLoading.setValue(false);
+          this.#loadError.setValue(null);
           this.#email.setValue(this._createEmptyEmail());
         },
       },
@@ -72,6 +78,8 @@ export class MerchelloEmailsWorkspaceContext
           this.#emailId = undefined;
           this.#email.setValue(undefined);
           this.#isNew = false;
+          this.#isLoading.setValue(false);
+          this.#loadError.setValue(null);
         },
       },
       // Default redirect
@@ -98,11 +106,19 @@ export class MerchelloEmailsWorkspaceContext
 
   async loadEmail(unique: string): Promise<void> {
     this.#emailId = unique;
+    this.#isLoading.setValue(true);
+    this.#loadError.setValue(null);
+    this.#email.setValue(undefined);
+
     const { data, error } = await MerchelloApi.getEmailConfiguration(unique);
-    if (error) {
+    if (error || !data) {
+      this.#loadError.setValue(error?.message ?? "Email configuration not found.");
+      this.#isLoading.setValue(false);
       return;
     }
+
     this.#email.setValue(data);
+    this.#isLoading.setValue(false);
   }
 
   async reloadEmail(): Promise<void> {
@@ -113,6 +129,8 @@ export class MerchelloEmailsWorkspaceContext
 
   updateEmail(email: EmailConfigurationDetailDto): void {
     this.#email.setValue(email);
+    this.#isLoading.setValue(false);
+    this.#loadError.setValue(null);
     if (email.id && this.#isNew) {
       this.#emailId = email.id;
       this.#isNew = false;

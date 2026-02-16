@@ -159,6 +159,12 @@ public class WebhooksApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> SendTest(Guid id, CancellationToken ct)
     {
+        var subscription = await webhookService.GetSubscriptionAsync(id, ct);
+        if (subscription == null)
+        {
+            return NotFound();
+        }
+
         var result = await webhookService.SendTestAsync(id, ct);
         return Ok(new OutboundDeliveryResultDto
         {
@@ -244,15 +250,23 @@ public class WebhooksApiController(
     public async Task<PaginatedList<OutboundDeliveryDto>> GetDeliveries(
         Guid id,
         [FromQuery] OutboundDeliveryStatus? status,
+        [FromQuery] List<OutboundDeliveryStatus>? statuses,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
+        var effectiveStatuses = statuses is { Count: > 0 }
+            ? statuses
+            : status.HasValue
+                ? [status.Value]
+                : null;
+
         var result = await webhookService.QueryDeliveriesAsync(new OutboundDeliveryQueryParameters
         {
             ConfigurationId = id,
             DeliveryType = OutboundDeliveryType.Webhook,
             Status = status,
+            Statuses = effectiveStatuses,
             Page = page,
             PageSize = pageSize
         }, ct);

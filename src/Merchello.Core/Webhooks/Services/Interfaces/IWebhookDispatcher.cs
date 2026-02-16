@@ -8,15 +8,6 @@ namespace Merchello.Core.Webhooks.Services.Interfaces;
 public interface IWebhookDispatcher
 {
     /// <summary>
-    /// Dispatches a webhook for all active subscriptions of a topic.
-    /// </summary>
-    Task DispatchAsync<T>(
-        string topic,
-        T payload,
-        Guid? entityId = null,
-        CancellationToken ct = default) where T : class;
-
-    /// <summary>
     /// Sends a webhook delivery with signing and retry logic.
     /// </summary>
     Task<OutboundDeliveryResult> SendAsync(
