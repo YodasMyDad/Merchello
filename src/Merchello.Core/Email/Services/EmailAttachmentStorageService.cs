@@ -136,9 +136,13 @@ public class EmailAttachmentStorageService(
         // Normalize backslashes before resolving (backslash is not a separator on Linux)
         var normalized = fullPath.Replace('\\', Path.DirectorySeparatorChar);
         var resolvedPath = Path.GetFullPath(normalized);
-        var resolvedBasePath = Path.GetFullPath(_baseStoragePath);
+        var resolvedBasePath = Path.GetFullPath(_baseStoragePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var resolvedBasePathWithSeparator = $"{resolvedBasePath}{Path.DirectorySeparatorChar}";
 
-        if (!resolvedPath.StartsWith(resolvedBasePath, StringComparison.OrdinalIgnoreCase))
+        var isWithinBasePath = resolvedPath.Equals(resolvedBasePath, StringComparison.OrdinalIgnoreCase) ||
+                               resolvedPath.StartsWith(resolvedBasePathWithSeparator, StringComparison.OrdinalIgnoreCase);
+        if (!isWithinBasePath)
         {
             throw new InvalidOperationException($"Path traversal attempt detected: {fullPath}");
         }

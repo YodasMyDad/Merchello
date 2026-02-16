@@ -80,6 +80,13 @@ describe("navigation utilities", () => {
         "section/merchello/workspace/merchello-emails/edit/emails"
       );
 
+      expect(navigation.getWebhookDetailHref("webhook-1")).toBe(
+        "section/merchello/workspace/merchello-webhooks/edit/webhooks/webhook-1"
+      );
+      expect(navigation.getWebhooksListHref()).toBe(
+        "section/merchello/workspace/merchello-webhooks/edit/webhooks"
+      );
+
       expect(navigation.getUpsellDetailHref("upsell-1")).toBe(
         "section/merchello/workspace/merchello-upsells/edit/upsells/upsell-1"
       );
@@ -154,6 +161,20 @@ describe("navigation utilities", () => {
         {},
         "",
         "section/merchello/workspace/merchello-emails/edit/emails/email-1"
+      );
+
+      navigation.navigateToWebhooksList();
+      expect(pushStateSpy).toHaveBeenLastCalledWith(
+        {},
+        "",
+        "section/merchello/workspace/merchello-webhooks/edit/webhooks"
+      );
+
+      navigation.navigateToWebhookDetail("webhook-1");
+      expect(pushStateSpy).toHaveBeenLastCalledWith(
+        {},
+        "",
+        "section/merchello/workspace/merchello-webhooks/edit/webhooks/webhook-1"
       );
 
       navigation.navigateToUpsellCreate();

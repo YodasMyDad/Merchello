@@ -380,6 +380,41 @@ export function navigateToEmailsList(): void {
 }
 
 // ============================================
+// Webhook Navigation
+// ============================================
+
+/** Entity type for webhooks workspace (list and detail share same type for tree selection) */
+export const WEBHOOKS_ENTITY_TYPE = "merchello-webhooks";
+
+/**
+ * Generate the URL to view/edit a webhook subscription detail.
+ */
+export function getWebhookDetailHref(webhookId: string): string {
+  return getMerchelloWorkspaceHref(WEBHOOKS_ENTITY_TYPE, `edit/webhooks/${webhookId}`);
+}
+
+/**
+ * Navigate programmatically to a webhook subscription detail page using SPA routing.
+ */
+export function navigateToWebhookDetail(webhookId: string): void {
+  navigateToMerchelloWorkspace(WEBHOOKS_ENTITY_TYPE, `edit/webhooks/${webhookId}`);
+}
+
+/**
+ * Generate the URL to the webhooks list.
+ */
+export function getWebhooksListHref(): string {
+  return getMerchelloWorkspaceHref(WEBHOOKS_ENTITY_TYPE, "edit/webhooks");
+}
+
+/**
+ * Navigate programmatically to the webhooks list using SPA routing.
+ */
+export function navigateToWebhooksList(): void {
+  navigateToMerchelloWorkspace(WEBHOOKS_ENTITY_TYPE, "edit/webhooks");
+}
+
+// ============================================
 // Upsell Navigation
 // ============================================
 

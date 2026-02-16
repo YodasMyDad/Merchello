@@ -15,6 +15,7 @@ import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagin
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
 import { formatRelativeDate, formatNumber } from "@shared/utils/formatting.js";
+import { navigateToWebhookDetail } from "@shared/utils/navigation.js";
 import { MERCHELLO_WEBHOOK_SUBSCRIPTION_MODAL } from "@webhooks/modals/webhook-subscription-modal.token.js";
 import { MERCHELLO_WEBHOOK_TEST_MODAL } from "@webhooks/modals/webhook-test-modal.token.js";
 import "@shared/components/pagination.element.js";
@@ -276,9 +277,7 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
   }
 
   private _handleViewDeliveries(subscription: WebhookSubscriptionDto): void {
-    // Navigate to detail view
-    window.history.pushState({}, "", `section/merchello/workspace/merchello-webhooks/edit/webhooks/${subscription.id}`);
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    navigateToWebhookDetail(subscription.id);
   }
 
   private _renderStats(): unknown {

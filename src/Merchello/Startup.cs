@@ -476,6 +476,7 @@ public static class Startup
         builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, WebhookNotificationHandler>();
         // Invoices
         builder.AddNotificationAsyncHandler<InvoiceSavedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<InvoiceDeletedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<InvoiceCancelledNotification, WebhookNotificationHandler>();
         // Payments
         builder.AddNotificationAsyncHandler<PaymentCreatedNotification, WebhookNotificationHandler>();
@@ -501,6 +502,12 @@ public static class Startup
         builder.AddNotificationAsyncHandler<LowStockNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockReservedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<StockAllocatedNotification, WebhookNotificationHandler>();
+        // Baskets
+        builder.AddNotificationAsyncHandler<BasketCreatedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemAddedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemRemovedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketItemQuantityChangedNotification, WebhookNotificationHandler>();
+        builder.AddNotificationAsyncHandler<BasketClearedNotification, WebhookNotificationHandler>();
         // Checkout
         builder.AddNotificationAsyncHandler<CheckoutAbandonedNotification, WebhookNotificationHandler>();
         builder.AddNotificationAsyncHandler<CheckoutAbandonedFirstNotification, WebhookNotificationHandler>();
@@ -563,6 +570,7 @@ public static class Startup
         builder.AddNotificationAsyncHandler<PaymentRefundedNotification, EmailNotificationHandler>();
         // Customers
         builder.AddNotificationAsyncHandler<CustomerCreatedNotification, EmailNotificationHandler>();
+        builder.AddNotificationAsyncHandler<CustomerSavedNotification, EmailNotificationHandler>();
         builder.AddNotificationAsyncHandler<CustomerPasswordResetRequestedNotification, EmailNotificationHandler>();
         // Shipments
         builder.AddNotificationAsyncHandler<ShipmentCreatedNotification, EmailNotificationHandler>();

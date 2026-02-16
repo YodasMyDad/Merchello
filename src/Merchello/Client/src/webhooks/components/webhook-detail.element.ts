@@ -15,16 +15,16 @@ import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagin
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
 import { formatRelativeDate } from "@shared/utils/formatting.js";
+import { navigateToWebhooksList } from "@shared/utils/navigation.js";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import type { MerchelloWebhooksWorkspaceContext } from "@webhooks/contexts/webhooks-workspace.context.js";
+import { getStatusesForDeliveryTab, type DeliveryFilterTab } from "@webhooks/utils/delivery-filtering.js";
 import { MERCHELLO_WEBHOOK_SUBSCRIPTION_MODAL } from "@webhooks/modals/webhook-subscription-modal.token.js";
 import { MERCHELLO_WEBHOOK_TEST_MODAL } from "@webhooks/modals/webhook-test-modal.token.js";
 import { MERCHELLO_DELIVERY_DETAIL_MODAL } from "@webhooks/modals/delivery-detail-modal.token.js";
 import { MERCHELLO_WEBHOOK_INTEGRATION_GUIDE_MODAL } from "@webhooks/modals/webhook-integration-guide-modal.token.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
-
-type FilterTab = "all" | "succeeded" | "failed" | "pending";
 
 @customElement("merchello-webhook-detail")
 export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
@@ -37,8 +37,10 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
   @state() private _pageSize = 20;
   @state() private _totalItems = 0;
   @state() private _totalPages = 0;
-  @state() private _activeTab: FilterTab = "all";
+  @state() private _activeTab: DeliveryFilterTab = "all";
   @state() private _showSecret = false;
+  @state() private _workspaceIsLoading = false;
+  @state() private _workspaceError: string | null = null;
 
   #workspaceContext?: MerchelloWebhooksWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
@@ -54,8 +56,18 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
         this._subscription = subscription ?? null;
         if (subscription) {
           this._loadDeliveries();
+        } else {
+          this._deliveries = [];
+          this._totalItems = 0;
+          this._totalPages = 0;
         }
       }, '_subscription');
+      this.observe(this.#workspaceContext.isLoading, (isLoading) => {
+        this._workspaceIsLoading = isLoading ?? false;
+      }, "_workspaceIsLoading");
+      this.observe(this.#workspaceContext.loadError, (error) => {
+        this._workspaceError = error ?? null;
+      }, "_workspaceError");
     });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
@@ -77,10 +89,17 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private async _initializeSettings(): Promise<void> {
-    const settings = await getStoreSettings();
-    if (!this.#isConnected) return;
-    this._pageSize = Math.min(settings.defaultPaginationPageSize, 20);
-    this._isLoading = false;
+    try {
+      const settings = await getStoreSettings();
+      if (!this.#isConnected) return;
+      this._pageSize = Math.min(settings.defaultPaginationPageSize, 20);
+    } catch {
+      if (!this.#isConnected) return;
+      this._errorMessage = "Failed to load settings.";
+    } finally {
+      if (!this.#isConnected) return;
+      this._isLoading = false;
+    }
   }
 
   private async _loadDeliveries(): Promise<void> {
@@ -93,13 +112,9 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
       page: this._page,
       pageSize: this._pageSize,
     };
-
-    if (this._activeTab === "succeeded") {
-      params.status = OutboundDeliveryStatus.Succeeded;
-    } else if (this._activeTab === "failed") {
-      params.status = OutboundDeliveryStatus.Failed;
-    } else if (this._activeTab === "pending") {
-      params.status = OutboundDeliveryStatus.Pending;
+    const statuses = getStatusesForDeliveryTab(this._activeTab);
+    if (statuses && statuses.length > 0) {
+      params.statuses = statuses;
     }
 
     const { data, error } = await MerchelloApi.getWebhookDeliveries(this._subscription.id, params);
@@ -121,7 +136,7 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
     this._isLoadingDeliveries = false;
   }
 
-  private _handleTabChange(tab: FilterTab): void {
+  private _handleTabChange(tab: DeliveryFilterTab): void {
     this._activeTab = tab;
     this._page = 1;
     this._loadDeliveries();
@@ -142,8 +157,7 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _handleBack(): void {
-    window.history.pushState({}, "", "section/merchello/workspace/merchello-webhooks/edit/webhooks");
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    navigateToWebhooksList();
   }
 
   private async _handleEdit(): Promise<void> {
@@ -435,8 +449,42 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
   }
 
   override render() {
-    if (this._isLoading || !this._subscription) {
+    if (this._isLoading || this._workspaceIsLoading) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
+    }
+
+    if (this._workspaceError) {
+      return html`
+        <umb-body-layout header-fit-height main-no-padding>
+          <div class="detail-container">
+            <merchello-empty-state
+              icon="icon-alert"
+              headline="Unable to load webhook"
+              message=${this._workspaceError}>
+              <uui-button slot="action" look="secondary" label="Back to Webhooks" @click=${this._handleBack}>
+                Back to Webhooks
+              </uui-button>
+            </merchello-empty-state>
+          </div>
+        </umb-body-layout>
+      `;
+    }
+
+    if (!this._subscription) {
+      return html`
+        <umb-body-layout header-fit-height main-no-padding>
+          <div class="detail-container">
+            <merchello-empty-state
+              icon="icon-alert"
+              headline="Webhook not found"
+              message="The requested webhook subscription could not be found.">
+              <uui-button slot="action" look="secondary" label="Back to Webhooks" @click=${this._handleBack}>
+                Back to Webhooks
+              </uui-button>
+            </merchello-empty-state>
+          </div>
+        </umb-body-layout>
+      `;
     }
 
     return html`
