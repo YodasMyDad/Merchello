@@ -89,6 +89,19 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
     );
   }
 
+  private _handleNameLinkClick(e: MouseEvent, discount: DiscountListItemDto): void {
+    // Preserve native link behavior for modified clicks (new tab/window, context menu).
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+      e.stopPropagation();
+      return;
+    }
+
+    // Prevent a hard navigation and route through the workspace event flow.
+    e.preventDefault();
+    e.stopPropagation();
+    this._handleRowClick(discount);
+  }
+
   private _getMethodIcon(method: DiscountMethod): string {
     return method === DiscountMethod.Automatic ? "icon-bolt" : "icon-receipt-dollar";
   }
@@ -144,7 +157,10 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
                 : nothing}
 
               <uui-table-cell class="name-cell">
-                <a href=${getDiscountDetailHref(discount.id)} @click=${(e: Event) => e.stopPropagation()}>
+                <a
+                  href=${getDiscountDetailHref(discount.id)}
+                  @click=${(e: MouseEvent) => this._handleNameLinkClick(e, discount)}
+                >
                   ${discount.name}
                 </a>
                 ${discount.code
