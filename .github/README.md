@@ -2,7 +2,6 @@
 
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.Merchello?color=0273B3)](https://www.nuget.org/packages/Umbraco.Community.Merchello)
 [![Downloads](https://img.shields.io/nuget/dt/Umbraco.Community.Merchello?color=cc9900)](https://www.nuget.org/packages/Umbraco.Community.Merchello/)
-[![GitHub license](https://img.shields.io/github/license/YodasMyDad/Merchello?color=8AB803)](../LICENSE)
 
 **Enterprise ecommerce for Umbraco v17+.** A NuGet package that gives you a full-featured online store with an integrated Shopify-style checkout, backoffice management UI, and a pluggable provider architecture — out of the box.
 
