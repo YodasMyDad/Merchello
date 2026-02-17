@@ -9,6 +9,7 @@ public class ProductFeedDetailDto
     public string CountryCode { get; set; } = string.Empty;
     public string CurrencyCode { get; set; } = string.Empty;
     public string LanguageCode { get; set; } = string.Empty;
+    public bool IncludeTaxInPrice { get; set; }
 
     public ProductFeedFilterConfigDto FilterConfig { get; set; } = new();
     public List<ProductFeedCustomLabelDto> CustomLabels { get; set; } = [];

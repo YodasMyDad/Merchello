@@ -11,6 +11,7 @@ using Merchello.Core.ProductFeeds.Services.Interfaces;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Shipping.Providers.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Warehouses.Models;
 using Microsoft.AspNetCore.Http;
@@ -28,6 +29,7 @@ public class GoogleProductFeedGenerator(
     IProductFeedResolverRegistry resolverRegistry,
     IProductFeedMediaUrlResolver mediaUrlResolver,
     IShippingOptionEligibilityService shippingOptionEligibilityService,
+    IShippingProviderManager shippingProviderManager,
     IHttpContextAccessor httpContextAccessor,
     ICurrencyService currencyService,
     IOptions<MerchelloSettings> settings,
@@ -127,6 +129,28 @@ public class GoogleProductFeedGenerator(
             }
         }
 
+        var enabledProviders = await shippingProviderManager.GetEnabledProvidersAsync(cancellationToken);
+        var enabledProviderKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "flat-rate"
+        };
+        var usesLiveRatesLookup = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["flat-rate"] = false
+        };
+        var providerDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["flat-rate"] = "Flat Rate"
+        };
+
+        foreach (var provider in enabledProviders)
+        {
+            var providerKey = provider.Metadata.Key;
+            enabledProviderKeys.Add(providerKey);
+            usesLiveRatesLookup[providerKey] = provider.Metadata.ConfigCapabilities.UsesLiveRates;
+            providerDisplayNames[providerKey] = provider.DisplayName;
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         var candidateProducts = await scope.ExecuteWithContextAsync(async db =>
             await db.Products
@@ -137,9 +161,6 @@ public class GoogleProductFeedGenerator(
                     .ThenInclude(pr => pr.ProductType)
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr.Collections)
-                .Include(p => p.ProductRoot)
-                    .ThenInclude(pr => pr.ProductOptions)
-                        .ThenInclude(o => o.ProductOptionValues)
                 .Include(p => p.ProductRoot)
                     .ThenInclude(pr => pr.ProductRootWarehouses)
                         .ThenInclude(prw => prw.Warehouse)
@@ -203,7 +224,7 @@ public class GoogleProductFeedGenerator(
                 warnings.Add($"Product {product.Id} has no image link.");
             }
 
-            var taxInclusive = !TaxExclusiveCountries.Contains(feed.CountryCode);
+            var taxInclusive = feed.IncludeTaxInPrice ?? !TaxExclusiveCountries.Contains(feed.CountryCode);
             var price = await ResolveDisplayPriceAsync(product.Price, root.TaxGroupId, feed.CountryCode, taxInclusive, conversionRate, feedCurrency, taxRatesByGroup, cancellationToken);
             var hasValidSale = product.OnSale && product.PreviousPrice.HasValue && product.PreviousPrice.Value > product.Price;
 
@@ -272,7 +293,12 @@ public class GoogleProductFeedGenerator(
             AddOptionalElement(item, g + "width", product.ShoppingFeedWidth);
             AddOptionalElement(item, g + "height", product.ShoppingFeedHeight);
 
-            var shippingLabel = ResolveShippingLabel(product, feed.CountryCode);
+            var shippingLabel = ResolveShippingLabel(
+                product,
+                feed.CountryCode,
+                enabledProviderKeys,
+                usesLiveRatesLookup,
+                providerDisplayNames);
             AddOptionalElement(item, g + "shipping_label", shippingLabel);
 
             var resolverContext = new ProductFeedResolverContext
@@ -733,7 +759,12 @@ public class GoogleProductFeedGenerator(
         return null;
     }
 
-    private string? ResolveShippingLabel(Product product, string countryCode)
+    private string? ResolveShippingLabel(
+        Product product,
+        string countryCode,
+        IReadOnlySet<string> enabledProviderKeys,
+        IReadOnlyDictionary<string, bool> usesLiveRatesLookup,
+        IReadOnlyDictionary<string, string> providerDisplayNames)
     {
         var rootWarehouses = product.ProductRoot.ProductRootWarehouses
             .OrderBy(x => x.PriorityOrder)
@@ -749,17 +780,31 @@ public class GoogleProductFeedGenerator(
                 continue;
             }
 
+            var candidateOptions = warehouse.ShippingOptions
+                .Where(s => s.IsEnabled);
+
+            if (!product.ProductRoot.AllowExternalCarrierShipping)
+            {
+                candidateOptions = candidateOptions
+                    .Where(s => !usesLiveRatesLookup.GetValueOrDefault(s.ProviderKey, false));
+            }
+
             var eligible = shippingOptionEligibilityService.GetEligibleOptions(
-                    warehouse.ShippingOptions.Where(s => s.IsEnabled),
+                    candidateOptions,
                     countryCode,
-                    null)
+                    null,
+                    enabledProviderKeys,
+                    usesLiveRatesLookup)
                 .Select(x => x.Option)
                 .OrderBy(x => x.Name)
                 .FirstOrDefault();
 
-            if (!string.IsNullOrWhiteSpace(eligible?.Name))
+            if (eligible != null)
             {
-                return eligible.Name;
+                return FirstNonEmpty(
+                    eligible.Name,
+                    eligible.ServiceType,
+                    providerDisplayNames.GetValueOrDefault(eligible.ProviderKey));
             }
         }
 

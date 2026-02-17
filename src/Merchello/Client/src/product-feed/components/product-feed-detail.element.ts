@@ -213,6 +213,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
     return {
       ...feed,
+      includeTaxInPrice: feed.includeTaxInPrice ?? false,
       filterConfig: this._normalizeFilterConfig(feed.filterConfig),
       customLabels,
       customFields: (feed.customFields ?? []).map((field) => ({
@@ -642,6 +643,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       countryCode: feed.countryCode.trim().toUpperCase(),
       currencyCode: feed.currencyCode.trim().toUpperCase(),
       languageCode: feed.languageCode.trim().toLowerCase(),
+      includeTaxInPrice: feed.includeTaxInPrice ?? null,
       filterConfig: this._normalizeFilterConfig(feed.filterConfig),
       customLabels: feed.customLabels.map((label) => ({
         slot: label.slot,
@@ -1054,8 +1056,21 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
               @input=${(event: Event) =>
                 this._setGeneralField("languageCode", (event.target as HTMLInputElement).value.toLowerCase())}
               ?invalid=${!!this._validationErrors.languageCode}
-              placeholder="en">
+                placeholder="en">
             </uui-input>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Include Tax In Price"
+            description="Controls whether feed prices are tax-inclusive or tax-exclusive.">
+            <uui-toggle
+              slot="editor"
+              label="Include tax in g:price"
+              ?checked=${this._feed.includeTaxInPrice}
+              @change=${(event: Event) =>
+                this._setGeneralField("includeTaxInPrice", (event.target as HTMLInputElement).checked)}>
+              Include tax in g:price
+            </uui-toggle>
           </umb-property-layout>
         </div>
       </uui-box>

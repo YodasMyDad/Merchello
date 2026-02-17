@@ -9,6 +9,7 @@ public class ProductFeedListItemDto
     public string CountryCode { get; set; } = string.Empty;
     public string CurrencyCode { get; set; } = string.Empty;
     public string LanguageCode { get; set; } = string.Empty;
+    public bool IncludeTaxInPrice { get; set; }
     public DateTime? LastGeneratedUtc { get; set; }
     public bool HasProductSnapshot { get; set; }
     public bool HasPromotionsSnapshot { get; set; }

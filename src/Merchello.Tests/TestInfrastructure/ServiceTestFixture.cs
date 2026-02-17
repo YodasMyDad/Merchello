@@ -60,6 +60,7 @@ using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
+using Merchello.Core.ProductFeeds.Models;
 using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
@@ -848,6 +849,15 @@ public class ServiceTestFixture : IDisposable
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<Product>>>>()))
                     .Returns((Func<MerchelloDbContext, Task<List<Product>>> func) => func(dbContext));
+
+                // Product feed return types
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductFeed?>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<ProductFeed?>> func) => func(dbContext));
+
+                scopeMock
+                    .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<List<ProductFeed>>>>()))
+                    .Returns((Func<MerchelloDbContext, Task<List<ProductFeed>>> func) => func(dbContext));
 
                 scopeMock
                     .Setup(s => s.ExecuteWithContextAsync(It.IsAny<Func<MerchelloDbContext, Task<ProductRootDetailDto?>>>()))

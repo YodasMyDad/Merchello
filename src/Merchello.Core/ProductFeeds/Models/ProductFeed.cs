@@ -12,6 +12,7 @@ public class ProductFeed
     public string CountryCode { get; set; } = "US";
     public string CurrencyCode { get; set; } = "USD";
     public string LanguageCode { get; set; } = "en";
+    public bool? IncludeTaxInPrice { get; set; }
 
     public string AccessTokenHash { get; set; } = string.Empty;
 

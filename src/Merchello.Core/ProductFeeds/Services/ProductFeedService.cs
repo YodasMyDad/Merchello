@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Globalization;
 using System.Text.Json;
+using System.Xml.Linq;
 using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Data;
 using Merchello.Core.ProductFeeds.Dtos;
@@ -130,6 +132,7 @@ public class ProductFeedService(
                 request.CountryCode.Trim().ToUpperInvariant(),
                 request.CurrencyCode.Trim().ToUpperInvariant(),
                 request.LanguageCode.Trim().ToLowerInvariant(),
+                request.IncludeTaxInPrice ?? GetDefaultIncludeTaxInPrice(request.CountryCode),
                 tokenHash);
 
             entity.IsEnabled = request.IsEnabled;
@@ -202,6 +205,9 @@ public class ProductFeedService(
             entity.CountryCode = request.CountryCode.Trim().ToUpperInvariant();
             entity.CurrencyCode = request.CurrencyCode.Trim().ToUpperInvariant();
             entity.LanguageCode = request.LanguageCode.Trim().ToLowerInvariant();
+            entity.IncludeTaxInPrice = request.IncludeTaxInPrice
+                ?? entity.IncludeTaxInPrice
+                ?? GetDefaultIncludeTaxInPrice(entity.CountryCode);
             entity.FilterConfigJson = JsonSerializer.Serialize(MapFilterConfig(request.FilterConfig), JsonOptions);
             entity.CustomLabelsJson = JsonSerializer.Serialize(MapCustomLabels(request.CustomLabels ?? []), JsonOptions);
             entity.CustomFieldsJson = JsonSerializer.Serialize(MapCustomFields(normalizedCustomFields), JsonOptions);
@@ -394,6 +400,186 @@ public class ProductFeedService(
                 PromotionCount = 0,
                 Warnings = ["Preview failed"],
                 SampleProductIds = []
+            };
+        }
+    }
+
+    public async Task<ProductFeedValidationDto?> ValidateAsync(
+        Guid id,
+        ValidateProductFeedDto request,
+        CancellationToken cancellationToken = default)
+    {
+        request ??= new ValidateProductFeedDto();
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var feed = await scope.ExecuteWithContextAsync(async db =>
+            await db.Set<ProductFeed>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken));
+        scope.Complete();
+
+        if (feed == null)
+        {
+            return null;
+        }
+
+        var maxIssues = Math.Clamp(request.MaxIssues ?? 200, 1, 1000);
+        var requestedPreviewProductIds = (request.PreviewProductIds ?? [])
+            .Where(x => x != Guid.Empty)
+            .Distinct()
+            .Take(20)
+            .Select(x => x.ToString())
+            .ToList();
+
+        try
+        {
+            var productResult = await productFeedGenerator.GenerateAsync(feed, cancellationToken);
+            var promotionResult = await promotionFeedGenerator.GenerateAsync(feed, productResult, cancellationToken);
+
+            var warnings = new List<string>();
+            warnings.AddRange(productResult.Warnings);
+            warnings.AddRange(promotionResult.Warnings);
+
+            var expectedByCountry = GetDefaultIncludeTaxInPrice(feed.CountryCode);
+            var actualTaxMode = ResolveIncludeTaxInPrice(feed.CountryCode, feed.IncludeTaxInPrice);
+            if (actualTaxMode != expectedByCountry)
+            {
+                warnings.Add(
+                    $"Tax mode differs from Google default for {feed.CountryCode}. " +
+                    $"Expected {(expectedByCountry ? "tax-inclusive" : "tax-exclusive")} " +
+                    $"but feed is set to {(actualTaxMode ? "tax-inclusive" : "tax-exclusive")}.");
+            }
+
+            var issues = new List<ProductFeedValidationIssueDto>();
+            XNamespace g = "http://base.google.com/ns/1.0";
+            var items = ParseItems(productResult.Xml);
+
+            foreach (var item in items)
+            {
+                if (issues.Count >= maxIssues)
+                {
+                    break;
+                }
+
+                var productId = GetElementValue(item, g, "id");
+
+                ValidateRequiredField(item, g, "id", productId, issues, maxIssues);
+                ValidateRequiredField(item, g, "title", productId, issues, maxIssues);
+                ValidateRequiredField(item, g, "description", productId, issues, maxIssues);
+                ValidateRequiredField(item, g, "link", productId, issues, maxIssues);
+                ValidateRequiredField(item, g, "image_link", productId, issues, maxIssues);
+                ValidateRequiredField(item, g, "availability", productId, issues, maxIssues);
+                ValidateRequiredField(item, g, "price", productId, issues, maxIssues);
+
+                var availability = GetElementValue(item, g, "availability");
+                if (!string.IsNullOrWhiteSpace(availability) &&
+                    availability is not ("in_stock" or "out_of_stock" or "preorder" or "backorder"))
+                {
+                    AddIssue(
+                        issues,
+                        maxIssues,
+                        severity: "error",
+                        code: "invalid_availability",
+                        message: $"Unsupported availability value '{availability}'.",
+                        productId: productId,
+                        field: "availability");
+                }
+
+                var price = GetElementValue(item, g, "price");
+                if (!string.IsNullOrWhiteSpace(price) && !IsValidPrice(price))
+                {
+                    AddIssue(
+                        issues,
+                        maxIssues,
+                        severity: "error",
+                        code: "invalid_price_format",
+                        message: $"Price '{price}' does not match '<amount> <ISO currency>' format.",
+                        productId: productId,
+                        field: "price");
+                }
+
+                ValidateAbsoluteHttpUrl(item, g, "link", productId, issues, maxIssues);
+                ValidateAbsoluteHttpUrl(item, g, "image_link", productId, issues, maxIssues);
+
+                var gtin = GetElementValue(item, g, "gtin");
+                var mpn = GetElementValue(item, g, "mpn");
+                var identifierExists = GetElementValue(item, g, "identifier_exists");
+                if (string.IsNullOrWhiteSpace(gtin) &&
+                    string.IsNullOrWhiteSpace(mpn) &&
+                    !string.Equals(identifierExists, "no", StringComparison.OrdinalIgnoreCase))
+                {
+                    AddIssue(
+                        issues,
+                        maxIssues,
+                        severity: "warning",
+                        code: "identifier_exists_expected_no",
+                        message: "identifier_exists should be 'no' when both gtin and mpn are missing.",
+                        productId: productId,
+                        field: "identifier_exists");
+                }
+            }
+
+            var itemsById = items
+                .Select(item =>
+                {
+                    var idValue = GetElementValue(item, g, "id");
+                    return new { Item = item, Id = idValue };
+                })
+                .Where(x => !string.IsNullOrWhiteSpace(x.Id))
+                .GroupBy(x => x.Id!, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x.Key, x => x.First().Item, StringComparer.OrdinalIgnoreCase);
+
+            var previews = new List<ProductFeedValidationProductPreviewDto>();
+            var missingRequested = new List<string>();
+            foreach (var requestedId in requestedPreviewProductIds)
+            {
+                if (!itemsById.TryGetValue(requestedId, out var item))
+                {
+                    missingRequested.Add(requestedId);
+                    continue;
+                }
+
+                previews.Add(MapProductPreview(requestedId, item, g));
+            }
+
+            var warningIssueCount = issues.Count(x => string.Equals(x.Severity, "warning", StringComparison.OrdinalIgnoreCase));
+            var errorIssueCount = issues.Count(x => string.Equals(x.Severity, "error", StringComparison.OrdinalIgnoreCase));
+
+            return new ProductFeedValidationDto
+            {
+                ProductItemCount = productResult.ItemCount,
+                PromotionCount = promotionResult.PromotionCount,
+                WarningCount = warnings.Count + warningIssueCount,
+                ErrorCount = errorIssueCount,
+                Warnings = warnings,
+                Issues = issues,
+                SampleProductIds = productResult.Items
+                    .Take(25)
+                    .Select(x => x.ProductId.ToString())
+                    .ToList(),
+                ProductPreviews = previews,
+                MissingRequestedProductIds = missingRequested
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Product feed validation failed for feed {FeedId}", id);
+            return new ProductFeedValidationDto
+            {
+                ProductItemCount = 0,
+                PromotionCount = 0,
+                WarningCount = 0,
+                ErrorCount = 1,
+                Issues =
+                [
+                    new ProductFeedValidationIssueDto
+                    {
+                        Severity = "error",
+                        Code = "validation_failed",
+                        Message = ex.Message
+                    }
+                ],
+                MissingRequestedProductIds = requestedPreviewProductIds
             };
         }
     }
@@ -707,6 +893,7 @@ public class ProductFeedService(
             CountryCode = feed.CountryCode,
             CurrencyCode = feed.CurrencyCode,
             LanguageCode = feed.LanguageCode,
+            IncludeTaxInPrice = ResolveIncludeTaxInPrice(feed.CountryCode, feed.IncludeTaxInPrice),
             LastGeneratedUtc = feed.LastGeneratedUtc,
             HasProductSnapshot = !string.IsNullOrWhiteSpace(feed.LastSuccessfulProductFeedXml),
             HasPromotionsSnapshot = !string.IsNullOrWhiteSpace(feed.LastSuccessfulPromotionsFeedXml),
@@ -725,6 +912,7 @@ public class ProductFeedService(
             CountryCode = feed.CountryCode,
             CurrencyCode = feed.CurrencyCode,
             LanguageCode = feed.LanguageCode,
+            IncludeTaxInPrice = ResolveIncludeTaxInPrice(feed.CountryCode, feed.IncludeTaxInPrice),
             FilterConfig = MapFilterConfigDto(Deserialize(feed.FilterConfigJson, new ProductFeedFilterConfig())),
             CustomLabels = MapCustomLabelDtos(Deserialize(feed.CustomLabelsJson, new List<ProductFeedCustomLabelConfig>())),
             CustomFields = MapCustomFieldDtos(Deserialize(feed.CustomFieldsJson, new List<ProductFeedCustomFieldConfig>())),
@@ -751,6 +939,162 @@ public class ProductFeedService(
         {
             return fallback;
         }
+    }
+
+    private static bool GetDefaultIncludeTaxInPrice(string? countryCode)
+    {
+        if (string.IsNullOrWhiteSpace(countryCode))
+        {
+            return true;
+        }
+
+        var normalized = countryCode.Trim().ToUpperInvariant();
+        return normalized is not ("US" or "CA");
+    }
+
+    private static bool ResolveIncludeTaxInPrice(string? countryCode, bool? includeTaxInPrice)
+    {
+        return includeTaxInPrice ?? GetDefaultIncludeTaxInPrice(countryCode);
+    }
+
+    private static List<XElement> ParseItems(string xml)
+    {
+        if (string.IsNullOrWhiteSpace(xml))
+        {
+            return [];
+        }
+
+        try
+        {
+            var document = XDocument.Parse(xml);
+            return document.Descendants("item").ToList();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    private static string? GetElementValue(XElement item, XNamespace g, string name)
+    {
+        return item.Element(g + name)?.Value?.Trim();
+    }
+
+    private static void ValidateRequiredField(
+        XElement item,
+        XNamespace g,
+        string field,
+        string? productId,
+        List<ProductFeedValidationIssueDto> issues,
+        int maxIssues)
+    {
+        if (!string.IsNullOrWhiteSpace(GetElementValue(item, g, field)))
+        {
+            return;
+        }
+
+        AddIssue(
+            issues,
+            maxIssues,
+            severity: "error",
+            code: "missing_required_field",
+            message: $"Required field '{field}' is missing.",
+            productId: productId,
+            field: field);
+    }
+
+    private static void ValidateAbsoluteHttpUrl(
+        XElement item,
+        XNamespace g,
+        string field,
+        string? productId,
+        List<ProductFeedValidationIssueDto> issues,
+        int maxIssues)
+    {
+        var value = GetElementValue(item, g, field);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+            (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        AddIssue(
+            issues,
+            maxIssues,
+            severity: "error",
+            code: "invalid_url",
+            message: $"Field '{field}' must be an absolute http/https URL.",
+            productId: productId,
+            field: field);
+    }
+
+    private static bool IsValidPrice(string value)
+    {
+        var parts = value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2)
+        {
+            return false;
+        }
+
+        if (!decimal.TryParse(parts[0], NumberStyles.Number, CultureInfo.InvariantCulture, out _))
+        {
+            return false;
+        }
+
+        if (parts[1].Length != 3 || parts[1].Any(c => !char.IsLetter(c)))
+        {
+            return false;
+        }
+
+        return string.Equals(parts[1], parts[1].ToUpperInvariant(), StringComparison.Ordinal);
+    }
+
+    private static void AddIssue(
+        List<ProductFeedValidationIssueDto> issues,
+        int maxIssues,
+        string severity,
+        string code,
+        string message,
+        string? productId = null,
+        string? field = null)
+    {
+        if (issues.Count >= maxIssues)
+        {
+            return;
+        }
+
+        issues.Add(new ProductFeedValidationIssueDto
+        {
+            Severity = severity,
+            Code = code,
+            Message = message,
+            ProductId = productId,
+            Field = field
+        });
+    }
+
+    private static ProductFeedValidationProductPreviewDto MapProductPreview(string productId, XElement item, XNamespace g)
+    {
+        return new ProductFeedValidationProductPreviewDto
+        {
+            ProductId = productId,
+            Title = GetElementValue(item, g, "title"),
+            Price = GetElementValue(item, g, "price"),
+            Availability = GetElementValue(item, g, "availability"),
+            Link = GetElementValue(item, g, "link"),
+            ImageLink = GetElementValue(item, g, "image_link"),
+            Brand = GetElementValue(item, g, "brand"),
+            Gtin = GetElementValue(item, g, "gtin"),
+            Mpn = GetElementValue(item, g, "mpn"),
+            IdentifierExists = GetElementValue(item, g, "identifier_exists"),
+            ShippingLabel = GetElementValue(item, g, "shipping_label")
+        };
     }
 
     private static ProductFeedFilterConfig MapFilterConfig(ProductFeedFilterConfigDto? dto)

@@ -32,4 +32,11 @@ export const manifests: Array<UmbExtensionManifest> = [
       },
     ],
   },
+
+  {
+    type: "modal",
+    alias: "Merchello.ProductFeed.Validation.Modal",
+    name: "Product Feed Validation Modal",
+    js: () => import("@product-feed/modals/product-feed-validation-modal.element.js"),
+  },
 ];

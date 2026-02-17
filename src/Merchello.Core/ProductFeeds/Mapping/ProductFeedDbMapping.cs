@@ -18,6 +18,7 @@ public class ProductFeedDbMapping : IEntityTypeConfiguration<ProductFeed>
         builder.Property(x => x.CountryCode).IsRequired().HasMaxLength(2);
         builder.Property(x => x.CurrencyCode).IsRequired().HasMaxLength(3);
         builder.Property(x => x.LanguageCode).IsRequired().HasMaxLength(10);
+        builder.Property(x => x.IncludeTaxInPrice);
         builder.Property(x => x.AccessTokenHash).IsRequired().HasMaxLength(256);
 
         builder.Property(x => x.FilterConfigJson);

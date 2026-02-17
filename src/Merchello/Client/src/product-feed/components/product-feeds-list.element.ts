@@ -1,9 +1,12 @@
 import { LitElement, css, html, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { ProductFeedListItemDto } from "@product-feed/types/product-feed.types.js";
+import { MERCHELLO_PRODUCT_FEED_VALIDATION_MODAL } from "@product-feed/modals/product-feed-validation-modal.token.js";
 import type { PageChangeEventDetail, PaginationState } from "@shared/types/pagination.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
@@ -28,12 +31,17 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #notificationContext?: UmbNotificationContext;
+  #modalManager?: UmbModalManagerContext;
   #isConnected = false;
 
   constructor() {
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
+    });
+
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
     });
   }
 
@@ -211,6 +219,24 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     await this._loadFeeds();
   }
 
+  private async _validateFeed(feed: ProductFeedListItemDto, event: Event): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!this.#modalManager) {
+      return;
+    }
+
+    const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_FEED_VALIDATION_MODAL, {
+      data: {
+        feedId: feed.id,
+        feedName: feed.name,
+      },
+    });
+
+    await modal.onSubmit().catch(() => undefined);
+  }
+
   private _renderLoading(): unknown {
     return html`<div class="loading"><uui-loader></uui-loader></div>`;
   }
@@ -297,6 +323,13 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
               @click=${(event: Event) => this._rebuildFeed(feed, event)}
               label="Rebuild">
               <uui-icon name=${isRebuilding ? "icon-hourglass" : "icon-sync"}></uui-icon>
+            </uui-button>
+            <uui-button
+              compact
+              look="secondary"
+              @click=${(event: Event) => this._validateFeed(feed, event)}
+              label="Validate">
+              <uui-icon name="icon-search"></uui-icon>
             </uui-button>
             <uui-button
               compact

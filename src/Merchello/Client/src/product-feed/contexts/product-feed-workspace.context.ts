@@ -58,6 +58,7 @@ export class MerchelloProductFeedWorkspaceContext
             countryCode: "US",
             currencyCode: "USD",
             languageCode: "en",
+            includeTaxInPrice: false,
             filterConfig: {
               productTypeIds: [],
               collectionIds: [],
