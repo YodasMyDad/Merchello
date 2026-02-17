@@ -169,7 +169,7 @@ public static class Startup
     /// </list>
     /// </remarks>
     /// <param name="builder">The Umbraco builder to add services to.</param>
-    /// <param name="pluginAssemblies">Optional assemblies containing payment/shipping provider plugins.</param>
+    /// <param name="pluginAssemblies">Optional assemblies containing Merchello plugin extensions (providers, resolvers, etc.).</param>
     /// <returns>The builder for method chaining.</returns>
     public static IUmbracoBuilder AddMerch(this IUmbracoBuilder builder, IEnumerable<Assembly>? pluginAssemblies = null)
     {
@@ -682,7 +682,7 @@ public static class Startup
     }
 
     /// <summary>
-    /// Discovers assemblies containing provider, strategy, and protocol adapter implementations.
+    /// Discovers assemblies containing provider, strategy, resolver, and protocol adapter implementations.
     /// Scans all loaded assemblies for types implementing provider interfaces.
     /// </summary>
     private static IEnumerable<Assembly> DiscoverProviderAssemblies()
@@ -696,6 +696,7 @@ public static class Startup
         var addressLookupProviderType = typeof(IAddressLookupProvider);
         var emailAttachmentType = typeof(IEmailAttachment);
         var commerceProtocolAdapterType = typeof(ICommerceProtocolAdapter);
+        var productFeedResolverType = typeof(IProductFeedValueResolver);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -725,7 +726,8 @@ public static class Startup
                      taxProviderType.IsAssignableFrom(t) ||
                      addressLookupProviderType.IsAssignableFrom(t) ||
                      emailAttachmentType.IsAssignableFrom(t) ||
-                     commerceProtocolAdapterType.IsAssignableFrom(t)));
+                     commerceProtocolAdapterType.IsAssignableFrom(t) ||
+                     productFeedResolverType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

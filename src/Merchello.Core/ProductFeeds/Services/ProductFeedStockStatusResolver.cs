@@ -3,10 +3,15 @@ using Merchello.Core.ProductFeeds.Services.Interfaces;
 
 namespace Merchello.Core.ProductFeeds.Services;
 
-public class ProductFeedStockStatusResolver : IProductFeedValueResolver
+public class ProductFeedStockStatusResolver : IProductFeedValueResolver, IProductFeedResolverMetadata
 {
     public string Alias => "stock-status";
     public string Description => "Returns in_stock or out_of_stock based on purchasability and stock.";
+    public string DisplayName => "Stock Status";
+    public string? HelpText => "Returns Google-compatible stock status based on purchasability and tracked inventory.";
+    public bool SupportsArgs => false;
+    public string? ArgsHelpText => null;
+    public string? ArgsExampleJson => null;
 
     public Task<string?> ResolveAsync(
         ProductFeedResolverContext context,

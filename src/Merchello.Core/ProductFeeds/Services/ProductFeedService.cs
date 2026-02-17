@@ -632,7 +632,14 @@ public class ProductFeedService(
             .Select(r => new ProductFeedResolverDescriptorDto
             {
                 Alias = r.Alias,
-                Description = r.Description
+                Description = r.Description,
+                DisplayName = r is IProductFeedResolverMetadata metadata
+                    ? metadata.DisplayName
+                    : r.Alias,
+                HelpText = (r as IProductFeedResolverMetadata)?.HelpText,
+                SupportsArgs = (r as IProductFeedResolverMetadata)?.SupportsArgs ?? false,
+                ArgsHelpText = (r as IProductFeedResolverMetadata)?.ArgsHelpText,
+                ArgsExampleJson = (r as IProductFeedResolverMetadata)?.ArgsExampleJson
             })
             .OrderBy(r => r.Alias)
             .ToList();

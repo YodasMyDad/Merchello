@@ -36,12 +36,32 @@ export class MerchelloProductFeedWorkspaceContext
   constructor(host: UmbControllerHost) {
     super(host, UMB_WORKSPACE_CONTEXT.toString());
 
+    this.#normalizeLegacyRoutePath();
+
     this.#entityContext.setEntityType(MERCHELLO_PRODUCT_FEED_ENTITY_TYPE);
-    this.#entityContext.setUnique("product-feed");
+    this.#entityContext.setUnique("product-feeds");
 
     this.routes = new UmbWorkspaceRouteManager(host);
 
     this.routes.setRoutes([
+      {
+        path: "edit/product-feed",
+        redirectTo: "edit/product-feeds",
+      },
+      {
+        path: "edit/product-feed/create",
+        redirectTo: "edit/product-feeds/create",
+      },
+      {
+        path: "edit/product-feed/:id",
+        component: () =>
+          import("@product-feed/components/product-feed-detail.element.js"),
+        setup: (_component, info) => {
+          const id = info.match.params.id;
+          this.#redirectLegacyPath("/edit/product-feed/", "/edit/product-feeds/");
+          this.loadFeed(id);
+        },
+      },
       {
         path: "edit/product-feeds/create",
         component: () =>
@@ -108,7 +128,7 @@ export class MerchelloProductFeedWorkspaceContext
   }
 
   getUnique(): string {
-    return this.#feedId ?? "product-feed";
+    return this.#feedId ?? "product-feeds";
   }
 
   get isNew(): boolean {
@@ -128,7 +148,16 @@ export class MerchelloProductFeedWorkspaceContext
       return;
     }
 
-    this.#feed.setValue(data);
+    // Keep a freshly created/regenerated token visible in the current session.
+    const existingFeed = this.#feed.getValue();
+    const accessToken =
+      data.accessToken ??
+      (existingFeed?.id === data.id ? existingFeed.accessToken : null);
+
+    this.#feed.setValue({
+      ...data,
+      accessToken,
+    });
     this.#isLoading.setValue(false);
   }
 
@@ -152,6 +181,31 @@ export class MerchelloProductFeedWorkspaceContext
     this.#feed.setValue(undefined);
     this.#loadError.setValue(null);
     this.#isLoading.setValue(false);
+  }
+
+  #redirectLegacyPath(legacyPathFragment: string, canonicalPathFragment: string): void {
+    const { pathname, search, hash } = window.location;
+    if (!pathname.includes(legacyPathFragment)) {
+      return;
+    }
+
+    const canonicalPath = pathname.replace(legacyPathFragment, canonicalPathFragment);
+    history.replaceState(history.state, "", `${canonicalPath}${search}${hash}`);
+  }
+
+  #normalizeLegacyRoutePath(): void {
+    const { pathname, search, hash } = window.location;
+    let canonicalPath = pathname;
+
+    if (canonicalPath.includes("/edit/product-feed/")) {
+      canonicalPath = canonicalPath.replace("/edit/product-feed/", "/edit/product-feeds/");
+    } else if (canonicalPath.endsWith("/edit/product-feed")) {
+      canonicalPath = canonicalPath.replace("/edit/product-feed", "/edit/product-feeds");
+    }
+
+    if (canonicalPath !== pathname) {
+      history.replaceState(history.state, "", `${canonicalPath}${search}${hash}`);
+    }
   }
 }
 

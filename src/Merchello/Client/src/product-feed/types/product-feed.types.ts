@@ -162,6 +162,11 @@ export interface ProductFeedValidationDto {
 export interface ProductFeedResolverDescriptorDto {
   alias: string;
   description: string;
+  displayName: string;
+  helpText: string | null;
+  supportsArgs: boolean;
+  argsHelpText: string | null;
+  argsExampleJson: string | null;
 }
 
 export interface ProductFeedTokenResultDto {

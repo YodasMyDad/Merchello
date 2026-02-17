@@ -3,10 +3,15 @@ using Merchello.Core.ProductFeeds.Services.Interfaces;
 
 namespace Merchello.Core.ProductFeeds.Services;
 
-public class ProductFeedCollectionsResolver : IProductFeedValueResolver
+public class ProductFeedCollectionsResolver : IProductFeedValueResolver, IProductFeedResolverMetadata
 {
     public string Alias => "collections";
     public string Description => "Comma-separated product collection names.";
+    public string DisplayName => "Collections";
+    public string? HelpText => "Returns collection names for the product root as a comma-separated list.";
+    public bool SupportsArgs => false;
+    public string? ArgsHelpText => null;
+    public string? ArgsExampleJson => null;
 
     public Task<string?> ResolveAsync(
         ProductFeedResolverContext context,

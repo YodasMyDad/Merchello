@@ -1391,6 +1391,7 @@ Every Merchello feature (Products, Orders, Discounts, Upsells, etc.) should use 
 | Status display | Badge with `statusColor` + `statusLabel` from DTO |
 | Error display | Inline at field level, badge on tab, toast for API errors |
 | Empty state | Icon + heading + message + CTA button |
+| Checklist selection | Show selected count + `Select all`/`Clear` at section level; for grouped filters also show per-group count + group-level `Select all`/`Clear` |
 
 ## Workspace View Scrolling
 
@@ -1419,6 +1420,11 @@ For CRUD operations navigating to specific entities.
 Example: `section/merchello/workspace/merchello-orders/edit/orders/9cd851e3-da06-4563-be6a-b3a700b565fd`
 
 For tree selection to persist, `routePath` must include tree item's `unique` value.
+
+Tree/workspace alignment rule:
+- Tree item `unique` must match the list route segment used by the workspace (including pluralization).
+- Example: tree `unique: "product-feeds"` requires list route `edit/product-feeds` and detail routes under that segment.
+- A mismatch like `product-feed` vs `product-feeds` breaks active highlight state in the left tree.
 
 ### Manifest
 ```typescript
@@ -1488,6 +1494,37 @@ render() {
 - Absolute paths (`/umbraco/section/...`) cause full page reloads
 - `window.location.href` causes full reload; use `history.pushState()` or navigation helpers
 - Tree selection not persisting: Routes must nest under list path. Tree uses `location.includes(path)` for active state.
+
+## Metadata-Driven Resolver Inputs
+
+For resolver-based editors (for example Product Feed custom labels/fields), render input controls from resolver metadata returned by API descriptors. Do not hardcode behavior per alias.
+
+Authoring reference:
+- For resolver implementation, external assembly setup, and DI/discovery behavior, see `Product-Feed-Resolvers.md`.
+
+Descriptor fields:
+- `alias`
+- `description`
+- `displayName`
+- `helpText`
+- `supportsArgs`
+- `argsHelpText`
+- `argsExampleJson`
+
+Rules:
+- Resolver dropdown labels should prioritize `displayName`, with alias still visible (for example `Supplier Name (supplier)`).
+- Show resolver help text near resolver selection.
+- Only show JSON args editor when `supportsArgs === true`.
+- Replace generic copy like "Resolver Args (JSON object)" with clearer context-driven copy such as "Resolver Parameters (JSON)".
+- Preserve existing saved args in data models when metadata says args are not supported; do not silently drop stored values.
+
+## Bulk Checklist UX Pattern
+
+For checkbox-heavy selection UIs (product types, collections, grouped filters):
+- Show selected count (`x of y selected`) for each checklist section.
+- Provide section-level `Select all` and `Clear`.
+- For grouped filters, provide group-level selected counts and group-level `Select all` and `Clear`.
+- Keep business semantics unchanged while improving UX visibility (for filters: OR within each group, AND across groups).
 
 ## Merchello Project Patterns
 

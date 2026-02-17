@@ -1730,6 +1730,89 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloSavedPaymentMethods", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.ProductFeeds.Models.ProductFeed", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccessTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomFieldsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CustomLabelsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FilterConfigJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("IncludeTaxInPrice")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastGeneratedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastGenerationError")
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastSuccessfulProductFeedXml")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastSuccessfulPromotionsFeedXml")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ManualPromotionsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsEnabled");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("merchelloProductFeeds", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1802,8 +1885,16 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(0);
 
+                    b.Property<string>("ShoppingFeedBrand")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ShoppingFeedColour")
                         .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ShoppingFeedCondition")
+                        .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ShoppingFeedDescription")
@@ -2006,6 +2097,17 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Property<string>("RootUrl")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("ShoppingFeedBrand")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ShoppingFeedCondition")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("new");
 
                     b.Property<int?>("SubscriptionBillingInterval")
                         .HasColumnType("INTEGER");

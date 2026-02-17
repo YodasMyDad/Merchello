@@ -65,6 +65,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
   @state() private _customLabelArgsErrors: string[] = Array.from({ length: LABEL_SLOT_COUNT }, () => "");
   @state() private _customFieldArgsText: string[] = [];
   @state() private _customFieldArgsErrors: string[] = [];
+  @state() private _isSlugManuallyEdited = false;
 
   #workspaceContext?: MerchelloProductFeedWorkspaceContext;
   #notificationContext?: UmbNotificationContext;
@@ -251,6 +252,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     this._customLabelArgsErrors = Array.from({ length: LABEL_SLOT_COUNT }, () => "");
     this._customFieldArgsText = normalized.customFields.map((field) => this._formatArgs(field.args));
     this._customFieldArgsErrors = normalized.customFields.map(() => "");
+    this._isSlugManuallyEdited = this._isSlugOverride(normalized.name, normalized.slug);
   }
 
   private _commitFeed(feed: ProductFeedDetailDto): void {
@@ -320,6 +322,54 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     });
   }
 
+  private _generateSlug(value: string): string {
+    if (!value) return "";
+
+    const collapsedWhitespace = value.toLowerCase().replace(/\s+/g, " ");
+    const replacedWhitespace = collapsedWhitespace.replace(/ /g, "-");
+    const withoutDiacritics = replacedWhitespace
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const withoutDeniedCharacters = withoutDiacritics.replace(/[^a-zA-Z0-9\-._]/g, "");
+    return withoutDeniedCharacters.replace(/-{2,}/g, "-");
+  }
+
+  private _isSlugOverride(name: string, slug: string | null | undefined): boolean {
+    const currentSlug = slug ?? "";
+    if (!currentSlug.trim()) {
+      return false;
+    }
+
+    return currentSlug !== this._generateSlug(name);
+  }
+
+  private _handleNameInput(value: string): void {
+    if (!this._feed) return;
+
+    const nextName = value;
+    const nextSlug = this._isSlugManuallyEdited
+      ? this._feed.slug
+      : this._generateSlug(nextName);
+
+    this._commitFeed({
+      ...this._feed,
+      name: nextName,
+      slug: nextSlug,
+    });
+  }
+
+  private _handleSlugInput(value: string): void {
+    if (!this._feed) return;
+
+    const isManualOverride = this._isSlugOverride(this._feed.name, value);
+    this._isSlugManuallyEdited = isManualOverride;
+
+    this._commitFeed({
+      ...this._feed,
+      slug: isManualOverride ? value : this._generateSlug(this._feed.name),
+    });
+  }
+
   private _handleRootSelectionChange(
     key: "productTypeIds" | "collectionIds",
     id: string,
@@ -343,6 +393,33 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     this._commitFeed({
       ...this._feed,
       filterConfig: nextConfig,
+    });
+  }
+
+  private _setRootSelectionIds(
+    key: "productTypeIds" | "collectionIds",
+    ids: string[],
+  ): void {
+    if (!this._feed) return;
+    this._commitFeed({
+      ...this._feed,
+      filterConfig: {
+        ...this._feed.filterConfig,
+        [key]: [...new Set(ids)],
+      },
+    });
+  }
+
+  private _setRootFilterGroupSelection(groupId: string, selected: boolean): void {
+    if (!this._feed) return;
+    const group = this._filterGroups.find((item) => item.id === groupId);
+    const groupFilterIds = (group?.filters ?? []).map((filter) => filter.id);
+
+    if (groupFilterIds.length === 0) return;
+
+    this._commitFeed({
+      ...this._feed,
+      filterConfig: this._toggleFilterGroupValues(this._feed.filterConfig, groupId, groupFilterIds, selected),
     });
   }
 
@@ -403,6 +480,167 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
         filterConfig: this._toggleFilterValue(promotion.filterConfig, filterGroupId, filterId, selected),
       };
     });
+  }
+
+  private _setManualPromotionSelectionIds(
+    index: number,
+    key: "productTypeIds" | "collectionIds",
+    ids: string[],
+  ): void {
+    this._updateManualPromotion(index, (promotion) => ({
+      ...promotion,
+      filterConfig: {
+        ...promotion.filterConfig,
+        [key]: [...new Set(ids)],
+      },
+    }));
+  }
+
+  private _setManualPromotionFilterGroupSelection(index: number, groupId: string, selected: boolean): void {
+    const group = this._filterGroups.find((item) => item.id === groupId);
+    const groupFilterIds = (group?.filters ?? []).map((filter) => filter.id);
+
+    if (groupFilterIds.length === 0) return;
+
+    this._updateManualPromotion(index, (promotion) => ({
+      ...promotion,
+      filterConfig: this._toggleFilterGroupValues(promotion.filterConfig, groupId, groupFilterIds, selected),
+    }));
+  }
+
+  private _toggleFilterGroupValues(
+    config: ProductFeedFilterConfigDto,
+    groupId: string,
+    filterIds: string[],
+    selected: boolean,
+  ): ProductFeedFilterConfigDto {
+    let nextConfig = { ...config };
+    for (const filterId of filterIds) {
+      nextConfig = this._toggleFilterValue(nextConfig, groupId, filterId, selected);
+    }
+    return nextConfig;
+  }
+
+  private _getSelectedFilterCount(config: ProductFeedFilterConfigDto, groupId: string): number {
+    return config.filterValueGroups.find((group) => group.filterGroupId === groupId)?.filterIds.length ?? 0;
+  }
+
+  private _resolveNamesByIds(items: Array<{ id: string; name: string }>, ids: string[]): string[] {
+    const byId = new Map(items.map((item) => [item.id, item.name]));
+    return ids.map((id) => byId.get(id) ?? id);
+  }
+
+  private _formatSentenceValueList(values: string[]): string {
+    if (values.length === 0) {
+      return "any value";
+    }
+
+    const quoted = values.map((value) => `"${value}"`);
+    if (quoted.length === 1) {
+      return quoted[0];
+    }
+
+    if (quoted.length === 2) {
+      return `${quoted[0]} or ${quoted[1]}`;
+    }
+
+    return `${quoted.slice(0, -1).join(", ")}, or ${quoted[quoted.length - 1]}`;
+  }
+
+  private _buildSelectionQueryInfo(config: ProductFeedFilterConfigDto): {
+    productTypeNames: string[];
+    collectionNames: string[];
+    filterGroups: Array<{ groupName: string; valueNames: string[] }>;
+    expression: string;
+    english: string;
+  } {
+    const productTypeNames = this._resolveNamesByIds(this._productTypes, config.productTypeIds);
+    const collectionNames = this._resolveNamesByIds(this._collections, config.collectionIds);
+
+    const filterGroups = config.filterValueGroups
+      .map((selectedGroup) => {
+        const group = this._filterGroups.find((item) => item.id === selectedGroup.filterGroupId);
+        const filterNames = this._resolveNamesByIds(group?.filters ?? [], selectedGroup.filterIds);
+        return {
+          groupName: group?.name ?? selectedGroup.filterGroupId,
+          valueNames: filterNames,
+        };
+      })
+      .filter((group) => group.valueNames.length > 0);
+
+    const expressionClauses: string[] = [];
+    if (productTypeNames.length > 0) {
+      expressionClauses.push(`productType IN (${productTypeNames.map((name) => `"${name}"`).join(", ")})`);
+    }
+
+    if (collectionNames.length > 0) {
+      expressionClauses.push(`collection IN (${collectionNames.map((name) => `"${name}"`).join(", ")})`);
+    }
+
+    for (const group of filterGroups) {
+      expressionClauses.push(`${group.groupName} IN (${group.valueNames.map((name) => `"${name}"`).join(", ")})`);
+    }
+
+    const expression = expressionClauses.length > 0
+      ? expressionClauses.join(" AND ")
+      : "TRUE (no selection filters)";
+
+    const englishClauses: string[] = [];
+    if (productTypeNames.length > 0) {
+      englishClauses.push(`product type is ${this._formatSentenceValueList(productTypeNames)}`);
+    }
+
+    if (collectionNames.length > 0) {
+      englishClauses.push(`collection is ${this._formatSentenceValueList(collectionNames)}`);
+    }
+
+    for (const group of filterGroups) {
+      englishClauses.push(`${group.groupName} is ${this._formatSentenceValueList(group.valueNames)}`);
+    }
+
+    const english = englishClauses.length > 0
+      ? `Include products where ${englishClauses.join(" and ")}.`
+      : "Include all products. No product type, collection, or filter-value restrictions are active.";
+
+    return {
+      productTypeNames,
+      collectionNames,
+      filterGroups,
+      expression,
+      english,
+    };
+  }
+
+  private _getResolverDescriptor(alias: string | null | undefined): ProductFeedResolverDescriptorDto | undefined {
+    if (!alias) {
+      return undefined;
+    }
+
+    const normalizedAlias = alias.trim().toLowerCase();
+    return this._resolvers.find((resolver) => resolver.alias.trim().toLowerCase() === normalizedAlias);
+  }
+
+  private _resolverSupportsArgs(alias: string | null | undefined): boolean {
+    return this._getResolverDescriptor(alias)?.supportsArgs ?? false;
+  }
+
+  private _getResolverHelpText(alias: string | null | undefined): string {
+    const resolver = this._getResolverDescriptor(alias);
+    if (!resolver) {
+      return "Resolver computes a value dynamically for each product.";
+    }
+
+    return resolver.helpText?.trim() || resolver.description || "Resolver computes a value dynamically for each product.";
+  }
+
+  private _getResolverArgsHelpText(alias: string | null | undefined): string {
+    const resolver = this._getResolverDescriptor(alias);
+    return resolver?.argsHelpText?.trim() || "Provide a JSON object with simple key/value pairs.";
+  }
+
+  private _getResolverArgsExample(alias: string | null | undefined): string {
+    const resolver = this._getResolverDescriptor(alias);
+    return resolver?.argsExampleJson?.trim() || "{\"key\":\"value\",\"flag\":\"true\"}";
   }
 
   private _addCustomField(): void {
@@ -542,6 +780,13 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     const fieldErrors = [...this._customFieldArgsErrors];
 
     for (let slot = 0; slot < LABEL_SLOT_COUNT; slot++) {
+      const label = this._feed.customLabels.find((item) => item.slot === slot);
+      const expectsArgs = label?.sourceType === "resolver" && this._resolverSupportsArgs(label.resolverAlias);
+      if (!expectsArgs) {
+        labelErrors[slot] = "";
+        continue;
+      }
+
       const parsed = this._parseArgs(this._customLabelArgsText[slot] ?? "{}");
       labelErrors[slot] = parsed.error ?? "";
       if (parsed.error) {
@@ -556,6 +801,13 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     }
 
     for (let i = 0; i < this._feed.customFields.length; i++) {
+      const field = this._feed.customFields[i];
+      const expectsArgs = field.sourceType === "resolver" && this._resolverSupportsArgs(field.resolverAlias);
+      if (!expectsArgs) {
+        fieldErrors[i] = "";
+        continue;
+      }
+
       const parsed = this._parseArgs(this._customFieldArgsText[i] ?? "{}");
       fieldErrors[i] = parsed.error ?? "";
       if (parsed.error) {
@@ -631,7 +883,15 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
     this._validationErrors = errors;
 
-    const hasArgErrors = this._customLabelArgsErrors.some(Boolean) || this._customFieldArgsErrors.some(Boolean);
+    const hasLabelArgErrors = this._feed.customLabels.some((label) =>
+      label.sourceType === "resolver" &&
+      this._resolverSupportsArgs(label.resolverAlias) &&
+      !!this._customLabelArgsErrors[label.slot]);
+    const hasFieldArgErrors = this._feed.customFields.some((field, index) =>
+      field.sourceType === "resolver" &&
+      this._resolverSupportsArgs(field.resolverAlias) &&
+      !!this._customFieldArgsErrors[index]);
+    const hasArgErrors = hasLabelArgErrors || hasFieldArgErrors;
     return Object.keys(errors).length === 0 && !hasArgErrors;
   }
 
@@ -710,7 +970,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       this.#notificationContext?.peek("positive", {
         data: {
           headline: "Feed created",
-          message: `${data.name} is ready.`,
+          message: `${data.name} was created. Run Rebuild Now or request the feed URL to generate snapshots.`,
         },
       });
       replaceToProductFeedDetail(data.id);
@@ -943,12 +1203,26 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
     const token = this._feed.accessToken;
     const baseUrl = window.location.origin;
+    const productsEndpointPath = `${baseUrl}/api/merchello/feeds/${this._feed.slug}.xml`;
+    const promotionsEndpointPath = `${baseUrl}/api/merchello/feeds/${this._feed.slug}/promotions.xml`;
     const productsUrl = token
-      ? `${baseUrl}/api/merchello/feeds/${this._feed.slug}.xml?token=${token}`
-      : null;
+      ? `${productsEndpointPath}?token=${encodeURIComponent(token)}`
+      : `${productsEndpointPath}?token=<regenerate-required>`;
     const promotionsUrl = token
-      ? `${baseUrl}/api/merchello/feeds/${this._feed.slug}/promotions.xml?token=${token}`
-      : null;
+      ? `${promotionsEndpointPath}?token=${encodeURIComponent(token)}`
+      : `${promotionsEndpointPath}?token=<regenerate-required>`;
+
+    const productsSnapshotStatus = this._feed.hasProductSnapshot
+      ? { label: "Ready", color: "positive" as const }
+      : this._feed.lastGeneratedUtc
+        ? { label: "Missing", color: "warning" as const }
+        : { label: "Not generated", color: "default" as const };
+
+    const promotionsSnapshotStatus = this._feed.hasPromotionsSnapshot
+      ? { label: "Ready", color: "positive" as const }
+      : this._feed.lastGeneratedUtc
+        ? { label: "Missing", color: "warning" as const }
+        : { label: "Not generated", color: "default" as const };
 
     const countryOptions = this._countries
       .map((country) => ({
@@ -959,34 +1233,21 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
     return html`
       <uui-box headline="General Settings">
-        <div class="grid">
+        <div class="form-stack">
           <umb-property-layout
-            label="Feed Name"
-            ?mandatory=${true}
-            ?invalid=${!!this._validationErrors.name}>
-            <uui-input
-              slot="editor"
-              .value=${this._feed.name}
-              @input=${(event: Event) => this._setGeneralField("name", (event.target as HTMLInputElement).value)}
-              maxlength="200"
-              ?invalid=${!!this._validationErrors.name}
-              placeholder="Google Shopping - US">
-            </uui-input>
-          </umb-property-layout>
-
-          <umb-property-layout
+            class="full-row"
             label="Slug"
-            description="Used in the feed URL. Leave blank to auto-generate.">
+            description="Auto-generated from Feed Name using SlugHelper. Edit to override.">
             <uui-input
               slot="editor"
               .value=${this._feed.slug ?? ""}
-              @input=${(event: Event) => this._setGeneralField("slug", (event.target as HTMLInputElement).value)}
+              @input=${(event: Event) => this._handleSlugInput((event.target as HTMLInputElement).value)}
               maxlength="200"
               placeholder="google-shopping-us">
             </uui-input>
           </umb-property-layout>
 
-          <umb-property-layout label="Enabled">
+          <umb-property-layout label="Feed Status">
             <uui-toggle
               slot="editor"
               label="Feed enabled"
@@ -999,7 +1260,10 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       </uui-box>
 
       <uui-box headline="Market Settings">
-        <div class="grid">
+        <p class="hint">
+          Google feed targets are market-specific. Country, currency, and language are required for products and promotions feeds.
+        </p>
+        <div class="market-grid">
           <umb-property-layout
             label="Country"
             description="Google target country (ISO 3166-1 alpha-2)."
@@ -1046,7 +1310,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
           <umb-property-layout
             label="Language"
-            description="Feed language code."
+            description="Required for Google language targeting (ISO 639-1, e.g. en)."
             ?mandatory=${true}
             ?invalid=${!!this._validationErrors.languageCode}>
             <uui-input
@@ -1059,10 +1323,12 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                 placeholder="en">
             </uui-input>
           </umb-property-layout>
+        </div>
 
+        <div class="market-toggle-row">
           <umb-property-layout
             label="Include Tax In Price"
-            description="Controls whether feed prices are tax-inclusive or tax-exclusive.">
+            description="Controls whether feed prices are tax-inclusive or tax-exclusive for g:price.">
             <uui-toggle
               slot="editor"
               label="Include tax in g:price"
@@ -1103,11 +1369,42 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
                     <umb-property-layout label="Products Endpoint">
                       <div slot="editor" class="url-row">
-                        <uui-input .value=${productsUrl ?? ""} readonly></uui-input>
+                        <uui-input .value=${productsUrl} readonly></uui-input>
                         <uui-button
                           look="secondary"
                           compact
-                          @click=${() => this._copyToClipboard(productsUrl ?? "", "Products URL copied.")}>
+                          @click=${() => this._copyToClipboard(productsUrl, "Products URL copied.")}>
+                          Copy
+                        </uui-button>
+                        <uui-button look="secondary" compact href=${productsUrl} target="_blank" rel="noopener">
+                          Open
+                        </uui-button>
+                      </div>
+                    </umb-property-layout>
+
+                    <umb-property-layout label="Promotions Endpoint">
+                      <div slot="editor" class="url-row">
+                        <uui-input .value=${promotionsUrl} readonly></uui-input>
+                        <uui-button
+                          look="secondary"
+                          compact
+                          @click=${() => this._copyToClipboard(promotionsUrl, "Promotions URL copied.")}>
+                          Copy
+                        </uui-button>
+                        <uui-button look="secondary" compact href=${promotionsUrl} target="_blank" rel="noopener">
+                          Open
+                        </uui-button>
+                      </div>
+                    </umb-property-layout>
+                  `
+                : html`
+                    <umb-property-layout label="Products Endpoint">
+                      <div slot="editor" class="url-row">
+                        <uui-input .value=${productsUrl} readonly></uui-input>
+                        <uui-button
+                          look="secondary"
+                          compact
+                          @click=${() => this._copyToClipboard(productsUrl, "Products endpoint copied.")}>
                           Copy
                         </uui-button>
                       </div>
@@ -1115,17 +1412,16 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
                     <umb-property-layout label="Promotions Endpoint">
                       <div slot="editor" class="url-row">
-                        <uui-input .value=${promotionsUrl ?? ""} readonly></uui-input>
+                        <uui-input .value=${promotionsUrl} readonly></uui-input>
                         <uui-button
                           look="secondary"
                           compact
-                          @click=${() => this._copyToClipboard(promotionsUrl ?? "", "Promotions URL copied.")}>
+                          @click=${() => this._copyToClipboard(promotionsUrl, "Promotions endpoint copied.")}>
                           Copy
                         </uui-button>
                       </div>
                     </umb-property-layout>
-                  `
-                : html`
+
                     <p class="hint">
                       Tokens are never returned after save. Regenerate a token to reveal and copy new feed URLs.
                     </p>
@@ -1140,14 +1436,14 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                 </div>
                 <div>
                   <strong>Products snapshot:</strong>
-                  <uui-tag color=${this._feed.hasProductSnapshot ? "positive" : "default"}>
-                    ${this._feed.hasProductSnapshot ? "Available" : "Missing"}
+                  <uui-tag color=${productsSnapshotStatus.color}>
+                    ${productsSnapshotStatus.label}
                   </uui-tag>
                 </div>
                 <div>
                   <strong>Promotions snapshot:</strong>
-                  <uui-tag color=${this._feed.hasPromotionsSnapshot ? "positive" : "default"}>
-                    ${this._feed.hasPromotionsSnapshot ? "Available" : "Missing"}
+                  <uui-tag color=${promotionsSnapshotStatus.color}>
+                    ${promotionsSnapshotStatus.label}
                   </uui-tag>
                 </div>
               </div>
@@ -1160,6 +1456,11 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                     </div>
                   `
                 : nothing}
+
+              <p class="hint">
+                Snapshots are cached XML outputs used for public feed responses and fallback behavior.
+                They are created during rebuild or when feed URLs are requested.
+              </p>
             </uui-box>
           `
         : nothing}
@@ -1171,9 +1472,165 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     onProductTypeChange: (id: string, selected: boolean) => void,
     onCollectionChange: (id: string, selected: boolean) => void,
     onFilterValueChange: (groupId: string, filterId: string, selected: boolean) => void,
+    onProductTypeToggleAll: (selected: boolean) => void,
+    onCollectionToggleAll: (selected: boolean) => void,
+    onFilterGroupToggleAll: (groupId: string, selected: boolean) => void,
   ): unknown {
+    const productTypeTotal = this._productTypes.length;
+    const productTypeSelected = config.productTypeIds.length;
+    const allProductTypesSelected = productTypeTotal > 0 && productTypeSelected === productTypeTotal;
+    const hasProductTypeRestriction = productTypeSelected > 0 && !allProductTypesSelected;
+    const productTypeStatus = productTypeSelected === 0
+      ? `0 of ${productTypeTotal} selected • No restriction (all product types)`
+      : allProductTypesSelected
+        ? `${productTypeSelected} of ${productTypeTotal} selected • Effectively no restriction`
+        : `${productTypeSelected} of ${productTypeTotal} selected • OR logic (any selected type)`;
+
+    const collectionTotal = this._collections.length;
+    const collectionSelected = config.collectionIds.length;
+    const allCollectionsSelected = collectionTotal > 0 && collectionSelected === collectionTotal;
+    const hasCollectionRestriction = collectionSelected > 0;
+    const collectionStatus = collectionSelected === 0
+      ? `0 of ${collectionTotal} selected • No restriction (all collections + unassigned)`
+      : allCollectionsSelected
+        ? `${collectionSelected} of ${collectionTotal} selected • OR logic (products must be in at least one collection)`
+        : `${collectionSelected} of ${collectionTotal} selected • OR logic (any selected collection)`;
+
+    const activeFilterGroups = config.filterValueGroups.filter((group) => group.filterIds.length > 0);
+    const selectedFilterValueCount = activeFilterGroups.reduce((total, group) => total + group.filterIds.length, 0);
+    const hasFilterRestriction = activeFilterGroups.length > 0;
+    const queryInfo = this._buildSelectionQueryInfo(config);
+
     return html`
+      <div class="selection-stack">
+      <uui-box headline="Selection Logic">
+        <div class="logic-grid">
+          <section class="logic-rule">
+            <div class="logic-rule-header">
+              <strong>1. Product Types</strong>
+              <uui-tag color=${hasProductTypeRestriction ? "warning" : "positive"}>
+                ${hasProductTypeRestriction ? "Active • OR" : "No restriction"}
+              </uui-tag>
+            </div>
+            <p class="hint">A product matches if its type is any selected type.</p>
+          </section>
+
+          <section class="logic-rule">
+            <div class="logic-rule-header">
+              <strong>2. Collections</strong>
+              <uui-tag color=${hasCollectionRestriction ? "warning" : "positive"}>
+                ${hasCollectionRestriction ? "Active • OR" : "No restriction"}
+              </uui-tag>
+            </div>
+            <p class="hint">
+              A product matches if it is in any selected collection. If none are selected, collection matching is not used.
+            </p>
+          </section>
+
+          <section class="logic-rule">
+            <div class="logic-rule-header">
+              <strong>3. Filter Values</strong>
+              <uui-tag color=${hasFilterRestriction ? "warning" : "positive"}>
+                ${hasFilterRestriction ? "Active • AND across groups" : "No restriction"}
+              </uui-tag>
+            </div>
+            <p class="hint">
+              Within each selected group values are OR. Across selected groups, products must match every group (AND).
+            </p>
+          </section>
+        </div>
+
+        <div class="logic-summary">
+          <strong>Current rule summary:</strong>
+          <ul class="logic-list">
+            <li>Product Types: ${hasProductTypeRestriction ? "restricted" : "not restricted"}</li>
+            <li>Collections: ${hasCollectionRestriction ? "restricted" : "not restricted"}</li>
+            <li>Filter Values: ${hasFilterRestriction ? `${activeFilterGroups.length} groups / ${selectedFilterValueCount} values active` : "not restricted"}</li>
+          </ul>
+        </div>
+
+        <div class="query-builder">
+          <div class="query-builder-header">
+            <strong>Effective Query</strong>
+            <uui-tag color="default">Live preview</uui-tag>
+          </div>
+
+          <p class="query-english">${queryInfo.english}</p>
+          <code class="query-expression">${queryInfo.expression}</code>
+
+          <div class="query-groups">
+            <section class="query-group">
+              <strong>Product Types</strong>
+              <div class="query-tag-list">
+                ${queryInfo.productTypeNames.length > 0
+                  ? queryInfo.productTypeNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)
+                  : html`<uui-tag color="positive">Any</uui-tag>`}
+              </div>
+            </section>
+
+            <section class="query-group">
+              <strong>Collections</strong>
+              <div class="query-tag-list">
+                ${queryInfo.collectionNames.length > 0
+                  ? queryInfo.collectionNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)
+                  : html`<uui-tag color="positive">Any</uui-tag>`}
+              </div>
+            </section>
+
+            <section class="query-group full-width">
+              <strong>Filter Values</strong>
+              ${queryInfo.filterGroups.length === 0
+                ? html`
+                    <div class="query-tag-list">
+                      <uui-tag color="positive">Any</uui-tag>
+                    </div>
+                  `
+                : html`
+                    <div class="query-filter-groups">
+                      ${queryInfo.filterGroups.map((group) => html`
+                        <div class="query-filter-group">
+                          <span class="query-filter-group-name">${group.groupName}</span>
+                          <div class="query-tag-list">
+                            ${group.valueNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)}
+                          </div>
+                        </div>
+                      `)}
+                    </div>
+                  `}
+            </section>
+          </div>
+        </div>
+      </uui-box>
+
       <uui-box headline="Product Types">
+        ${productTypeTotal > 0
+          ? html`
+              <div class="selection-toolbar">
+                <div class="selection-meta">
+                  <span class="selection-count">${productTypeStatus}</span>
+                  <div class="selection-actions">
+                    <uui-button
+                      compact
+                      look="secondary"
+                      ?disabled=${allProductTypesSelected}
+                      @click=${() => onProductTypeToggleAll(true)}>
+                      Select all
+                    </uui-button>
+                    <uui-button
+                      compact
+                      look="secondary"
+                      ?disabled=${productTypeSelected === 0}
+                      @click=${() => onProductTypeToggleAll(false)}>
+                      Clear
+                    </uui-button>
+                  </div>
+                </div>
+              </div>
+              <p class="hint selection-hint">
+                Matches products with any selected product type (OR).
+              </p>
+            `
+          : nothing}
         ${this._productTypes.length === 0
           ? html`<p class="hint">No product types found.</p>`
           : html`
@@ -1194,6 +1651,34 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       </uui-box>
 
       <uui-box headline="Collections">
+        ${collectionTotal > 0
+          ? html`
+              <div class="selection-toolbar">
+                <div class="selection-meta">
+                  <span class="selection-count">${collectionStatus}</span>
+                  <div class="selection-actions">
+                    <uui-button
+                      compact
+                      look="secondary"
+                      ?disabled=${allCollectionsSelected}
+                      @click=${() => onCollectionToggleAll(true)}>
+                      Select all
+                    </uui-button>
+                    <uui-button
+                      compact
+                      look="secondary"
+                      ?disabled=${collectionSelected === 0}
+                      @click=${() => onCollectionToggleAll(false)}>
+                      Clear
+                    </uui-button>
+                  </div>
+                </div>
+              </div>
+              <p class="hint selection-hint">
+                Matches products in any selected collection (OR). If any collection is selected, products with no collections are excluded.
+              </p>
+            `
+          : nothing}
         ${this._collections.length === 0
           ? html`<p class="hint">No collections found.</p>`
           : html`
@@ -1215,15 +1700,45 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
       <uui-box headline="Filter Values">
         <p class="hint">Within each group values are OR. Across groups selection is AND.</p>
+        <p class="hint selection-hint">
+          Selecting all values in a group still requires the product to have at least one value from that group.
+        </p>
         ${this._filterGroups.length === 0
           ? html`<p class="hint">No filter groups found.</p>`
           : html`
               <div class="group-list">
                 ${this._filterGroups.map((group) => {
                   const selectedForGroup = config.filterValueGroups.find((x) => x.filterGroupId === group.id);
+                  const selectedCount = this._getSelectedFilterCount(config, group.id);
+                  const totalCount = (group.filters ?? []).length;
+                  const isGroupFullySelected = totalCount > 0 && selectedCount === totalCount;
+                  const groupStatus = selectedCount === 0
+                    ? `0 of ${totalCount} selected • Group ignored`
+                    : `${selectedCount} of ${totalCount} selected • OR in this group`;
                   return html`
                     <section class="group-card">
-                      <h4>${group.name}</h4>
+                      <div class="selection-toolbar selection-toolbar-with-title">
+                        <h4>${group.name}</h4>
+                        <div class="selection-meta">
+                          <span class="selection-count">${groupStatus}</span>
+                          <div class="selection-actions">
+                            <uui-button
+                              compact
+                              look="secondary"
+                              ?disabled=${isGroupFullySelected}
+                              @click=${() => onFilterGroupToggleAll(group.id, true)}>
+                              Select all
+                            </uui-button>
+                            <uui-button
+                              compact
+                              look="secondary"
+                              ?disabled=${selectedCount === 0}
+                              @click=${() => onFilterGroupToggleAll(group.id, false)}>
+                              Clear
+                            </uui-button>
+                          </div>
+                        </div>
+                      </div>
                       <div class="checkbox-grid">
                         ${(group.filters ?? []).map((filter) => {
                           const checked = selectedForGroup?.filterIds.includes(filter.id) ?? false;
@@ -1243,6 +1758,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
               </div>
             `}
       </uui-box>
+      </div>
     `;
   }
 
@@ -1255,6 +1771,17 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
         (id, selected) => this._handleRootSelectionChange("productTypeIds", id, selected),
         (id, selected) => this._handleRootSelectionChange("collectionIds", id, selected),
         (groupId, filterId, selected) => this._handleRootFilterValueChange(groupId, filterId, selected),
+        (selected) =>
+          this._setRootSelectionIds(
+            "productTypeIds",
+            selected ? this._productTypes.map((productType) => productType.id) : [],
+          ),
+        (selected) =>
+          this._setRootSelectionIds(
+            "collectionIds",
+            selected ? this._collections.map((collection) => collection.id) : [],
+          ),
+        (groupId, selected) => this._setRootFilterGroupSelection(groupId, selected),
       )}
     `;
   }
@@ -1284,7 +1811,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
           ? html`<p class="error-message">${this._validationErrors[`promotionValue-${index}`]}</p>`
           : nothing}
 
-        <div class="grid">
+        <div class="grid promotion-grid">
           <umb-property-layout label="Promotion ID" ?mandatory=${true}>
             <uui-input
               slot="editor"
@@ -1433,6 +1960,19 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
             (id, selected) => this._handleManualPromotionSelectionChange(index, "collectionIds", id, selected),
             (groupId, filterId, selected) =>
               this._handleManualPromotionFilterValueChange(index, groupId, filterId, selected),
+            (selected) =>
+              this._setManualPromotionSelectionIds(
+                index,
+                "productTypeIds",
+                selected ? this._productTypes.map((productType) => productType.id) : [],
+              ),
+            (selected) =>
+              this._setManualPromotionSelectionIds(
+                index,
+                "collectionIds",
+                selected ? this._collections.map((collection) => collection.id) : [],
+              ),
+            (groupId, selected) => this._setManualPromotionFilterGroupSelection(index, groupId, selected),
           )}
         </div>
       </uui-box>
@@ -1472,17 +2012,22 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
   }
 
   private _renderResolverOptions(selectedAlias: string | null): Array<{ name: string; value: string; selected: boolean }> {
+    const normalizedSelectedAlias = selectedAlias?.trim().toLowerCase() ?? "";
     return [
       {
         name: "Select resolver...",
         value: "",
         selected: !selectedAlias,
       },
-      ...this._resolvers.map((resolver) => ({
-        name: `${resolver.alias} - ${resolver.description}`,
-        value: resolver.alias,
-        selected: resolver.alias === selectedAlias,
-      })),
+      ...this._resolvers.map((resolver) => {
+        const displayName = resolver.displayName?.trim() || resolver.alias;
+        const showAlias = displayName.toLowerCase() !== resolver.alias.trim().toLowerCase();
+        return {
+          name: showAlias ? `${displayName} (${resolver.alias})` : displayName,
+          value: resolver.alias,
+          selected: resolver.alias.trim().toLowerCase() === normalizedSelectedAlias,
+        };
+      }),
     ];
   }
 
@@ -1499,7 +2044,10 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     return html`
       <uui-box headline="Custom Labels (0-4)">
         <p class="hint">
-          Configure each Google custom label slot with a static value or a resolver alias.
+          Configure each Google custom label slot with a static value or a resolver.
+        </p>
+        <p class="hint">
+          Resolver values are computed per product when feed XML is generated. Use static values when the same value applies to all products.
         </p>
       </uui-box>
 
@@ -1507,12 +2055,18 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
         const error = this._validationErrors[`customLabel-${label.slot}`];
         const argsError = this._customLabelArgsErrors[label.slot];
         const argsText = this._customLabelArgsText[label.slot] ?? "{}";
+        const isResolverSource = label.sourceType === "resolver";
+        const hasSelectedResolver = isResolverSource && !!label.resolverAlias?.trim();
+        const resolverSupportsArgs = isResolverSource && this._resolverSupportsArgs(label.resolverAlias);
+        const resolverHelpText = this._getResolverHelpText(label.resolverAlias);
+        const resolverArgsHelp = this._getResolverArgsHelpText(label.resolverAlias);
+        const resolverArgsExample = this._getResolverArgsExample(label.resolverAlias);
 
         return html`
-          <uui-box headline=${`custom_label_${label.slot}`}>
+          <uui-box headline=${`Custom Label ${label.slot}`}>
             ${error ? html`<p class="error-message">${error}</p>` : nothing}
 
-            <div class="grid">
+            <div class="grid two-col-grid">
               <umb-property-layout label="Source Type">
                 <uui-select
                   slot="editor"
@@ -1526,9 +2080,9 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                 </uui-select>
               </umb-property-layout>
 
-              ${label.sourceType === "resolver"
+              ${isResolverSource
                 ? html`
-                    <umb-property-layout label="Resolver Alias" ?mandatory=${true}>
+                    <umb-property-layout label="Resolver" ?mandatory=${true}>
                       <uui-select
                         slot="editor"
                         label="Resolver"
@@ -1539,19 +2093,6 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                             resolverAlias: (event.target as HTMLSelectElement).value || null,
                           }))}>
                       </uui-select>
-                    </umb-property-layout>
-
-                    <umb-property-layout label="Resolver Args (JSON object)">
-                      <uui-textarea
-                        slot="editor"
-                        .value=${argsText}
-                        ?invalid=${!!argsError}
-                        @input=${(event: Event) =>
-                          this._handleCustomLabelArgsInput(label.slot, (event.target as HTMLTextAreaElement).value)}>
-                      </uui-textarea>
-                      ${argsError
-                        ? html`<p class="error-message">${argsError}</p>`
-                        : html`<p class="hint">Example: {"key":"value","flag":"true"}</p>`}
                     </umb-property-layout>
                   `
                 : html`
@@ -1567,6 +2108,40 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                       </uui-input>
                     </umb-property-layout>
                   `}
+
+              <div class="resolver-panel full-row">
+                ${isResolverSource
+                  ? html`
+                      ${hasSelectedResolver
+                        ? html`<p class="hint resolver-help">${resolverHelpText}</p>`
+                        : html`<p class="hint">Select a resolver to view details.</p>`}
+
+                      ${hasSelectedResolver && resolverSupportsArgs
+                        ? html`
+                            <umb-property-layout label="Resolver Parameters (JSON)" class="full-row">
+                              <uui-textarea
+                                slot="editor"
+                                .value=${argsText}
+                                ?invalid=${!!argsError}
+                                @input=${(event: Event) =>
+                                  this._handleCustomLabelArgsInput(label.slot, (event.target as HTMLTextAreaElement).value)}>
+                              </uui-textarea>
+                              ${argsError
+                                ? html`<p class="error-message">${argsError}</p>`
+                                : html`
+                                    <p class="hint">${resolverArgsHelp}</p>
+                                    <p class="hint">Example: <code>${resolverArgsExample}</code></p>
+                                  `}
+                            </umb-property-layout>
+                          `
+                        : nothing}
+
+                      ${hasSelectedResolver && !resolverSupportsArgs
+                        ? html`<p class="hint resolver-no-args">This resolver does not take parameters.</p>`
+                        : nothing}
+                    `
+                  : html`<p class="hint">Static mode: this value is used for every product in this feed.</p>`}
+              </div>
             </div>
           </uui-box>
         `;
@@ -1588,6 +2163,9 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
         <p class="hint">
           Only attributes on the Google whitelist are accepted by the backend.
         </p>
+        <p class="hint">
+          Resolver-based fields are calculated per product at generation time, while static fields use the same value for all products.
+        </p>
       </uui-box>
 
       ${this._feed.customFields.length === 0
@@ -1604,6 +2182,12 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
               const resolverError = this._validationErrors[`customFieldResolver-${index}`];
               const argsError = this._customFieldArgsErrors[index];
               const argsText = this._customFieldArgsText[index] ?? "{}";
+              const isResolverSource = field.sourceType === "resolver";
+              const hasSelectedResolver = isResolverSource && !!field.resolverAlias?.trim();
+              const resolverSupportsArgs = isResolverSource && this._resolverSupportsArgs(field.resolverAlias);
+              const resolverHelpText = this._getResolverHelpText(field.resolverAlias);
+              const resolverArgsHelp = this._getResolverArgsHelpText(field.resolverAlias);
+              const resolverArgsExample = this._getResolverArgsExample(field.resolverAlias);
 
               return html`
                 <uui-box headline=${field.attribute ? field.attribute : `Custom Field ${index + 1}`}>
@@ -1616,7 +2200,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                   ${fieldError ? html`<p class="error-message">${fieldError}</p>` : nothing}
                   ${resolverError ? html`<p class="error-message">${resolverError}</p>` : nothing}
 
-                  <div class="grid">
+                  <div class="grid two-col-grid">
                     <umb-property-layout label="Attribute" ?mandatory=${true}>
                       <uui-input
                         slot="editor"
@@ -1643,9 +2227,9 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                       </uui-select>
                     </umb-property-layout>
 
-                    ${field.sourceType === "resolver"
+                    ${isResolverSource
                       ? html`
-                          <umb-property-layout label="Resolver Alias" ?mandatory=${true}>
+                          <umb-property-layout label="Resolver" ?mandatory=${true}>
                             <uui-select
                               slot="editor"
                               label="Resolver"
@@ -1656,19 +2240,6 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                                   resolverAlias: (event.target as HTMLSelectElement).value || null,
                                 }))}>
                             </uui-select>
-                          </umb-property-layout>
-
-                          <umb-property-layout label="Resolver Args (JSON object)">
-                            <uui-textarea
-                              slot="editor"
-                              .value=${argsText}
-                              ?invalid=${!!argsError}
-                              @input=${(event: Event) =>
-                                this._handleCustomFieldArgsInput(index, (event.target as HTMLTextAreaElement).value)}>
-                            </uui-textarea>
-                            ${argsError
-                              ? html`<p class="error-message">${argsError}</p>`
-                              : html`<p class="hint">Example: {"key":"value","flag":"true"}</p>`}
                           </umb-property-layout>
                         `
                       : html`
@@ -1684,6 +2255,43 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                             </uui-input>
                           </umb-property-layout>
                         `}
+
+                    <div class="resolver-panel">
+                      ${isResolverSource
+                        ? html`
+                            ${hasSelectedResolver
+                              ? html`<p class="hint resolver-help">${resolverHelpText}</p>`
+                              : html`<p class="hint">Select a resolver to view details.</p>`}
+                            ${hasSelectedResolver && resolverSupportsArgs
+                              ? html`<p class="hint">This resolver supports parameters. Configure them below.</p>`
+                              : nothing}
+
+                            ${hasSelectedResolver && !resolverSupportsArgs
+                              ? html`<p class="hint resolver-no-args">This resolver does not take parameters.</p>`
+                              : nothing}
+                          `
+                        : html`<p class="hint">Static mode: this value is used for every product in this feed.</p>`}
+                    </div>
+
+                    ${hasSelectedResolver && resolverSupportsArgs
+                      ? html`
+                          <umb-property-layout label="Resolver Parameters (JSON)" class="full-row">
+                            <uui-textarea
+                              slot="editor"
+                              .value=${argsText}
+                              ?invalid=${!!argsError}
+                              @input=${(event: Event) =>
+                                this._handleCustomFieldArgsInput(index, (event.target as HTMLTextAreaElement).value)}>
+                            </uui-textarea>
+                            ${argsError
+                              ? html`<p class="error-message">${argsError}</p>`
+                              : html`
+                                  <p class="hint">${resolverArgsHelp}</p>
+                                  <p class="hint">Example: <code>${resolverArgsExample}</code></p>
+                                `}
+                          </umb-property-layout>
+                        `
+                      : nothing}
                   </div>
                 </uui-box>
               `;
@@ -1891,8 +2499,11 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
           <umb-icon name="icon-rss"></umb-icon>
           <uui-input
             id="name-input"
+            label="Feed Name"
             .value=${this._feed.name}
-            @input=${(event: Event) => this._setGeneralField("name", (event.target as HTMLInputElement).value)}
+            ?required=${true}
+            ?invalid=${!!this._validationErrors.name}
+            @input=${(event: Event) => this._handleNameInput((event.target as HTMLInputElement).value)}
             placeholder=${this._isNew ? "Enter feed name..." : "Feed name"}>
           </uui-input>
           <uui-tag color=${this._feed.isEnabled ? "positive" : "default"}>
@@ -2020,10 +2631,46 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       --uui-box-default-padding: var(--uui-size-space-5);
     }
 
+    .form-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-4);
+    }
+
+    .full-row {
+      width: 100%;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: var(--uui-size-space-4);
+    }
+
+    .grid > .full-row {
+      grid-column: 1 / -1;
+    }
+
+    .two-col-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+
+    .two-col-grid > umb-property-layout,
+    .two-col-grid > .resolver-panel {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: var(--uui-size-space-4);
+      margin-top: var(--uui-size-space-4);
+    }
+
+    .market-toggle-row {
+      margin-top: var(--uui-size-space-4);
     }
 
     .status-grid {
@@ -2091,27 +2738,210 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       flex: 1;
     }
 
-    .checkbox-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: var(--uui-size-space-2);
+    .selection-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-4);
     }
 
-    .group-list {
+    .logic-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-3);
+    }
+
+    .logic-rule {
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3);
+      background: color-mix(in srgb, var(--uui-color-surface) 95%, var(--uui-color-border) 5%);
+    }
+
+    .logic-rule-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--uui-size-space-2);
+      margin-bottom: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .logic-summary {
+      border-top: 1px solid var(--uui-color-border);
+      padding-top: var(--uui-size-space-3);
+    }
+
+    .logic-list {
+      margin: var(--uui-size-space-2) 0 0;
+      padding-left: 20px;
+    }
+
+    .query-builder {
+      border-top: 1px solid var(--uui-color-border);
+      margin-top: var(--uui-size-space-3);
+      padding-top: var(--uui-size-space-3);
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-3);
     }
 
-    .group-card {
+    .query-builder-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .query-english {
+      margin: 0;
+      color: var(--uui-color-text);
+    }
+
+    .query-expression {
+      display: block;
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
       padding: var(--uui-size-space-3);
+      font-family: var(--uui-font-monospace);
+      background: color-mix(in srgb, var(--uui-color-surface) 96%, var(--uui-color-border) 4%);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .query-groups {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--uui-size-space-3);
+    }
+
+    .query-group {
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+      background: color-mix(in srgb, var(--uui-color-surface) 97%, var(--uui-color-border) 3%);
+    }
+
+    .query-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .query-tag-list {
+      display: flex;
+      gap: var(--uui-size-space-1);
+      flex-wrap: wrap;
+    }
+
+    .query-filter-groups {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .query-filter-group {
+      border: 1px dashed var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-2);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .query-filter-group-name {
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+    }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: var(--uui-size-space-4);
+      row-gap: var(--uui-size-space-2);
+    }
+
+    .selection-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-3);
+      padding-bottom: var(--uui-size-space-2);
+      border-bottom: 1px solid var(--uui-color-border);
+      flex-wrap: wrap;
+    }
+
+    .selection-toolbar-with-title {
+      justify-content: space-between;
+    }
+
+    .selection-meta {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex-wrap: wrap;
+    }
+
+    .selection-actions {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .selection-count {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
+    .group-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-4);
+      margin-top: var(--uui-size-space-2);
+    }
+
+    .group-card {
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-4);
+      background: color-mix(in srgb, var(--uui-color-surface) 95%, var(--uui-color-border) 5%);
     }
 
     .group-card h4 {
-      margin: 0 0 var(--uui-size-space-2);
+      margin: 0;
       font-size: var(--uui-type-default-size);
+    }
+
+    .selection-hint {
+      margin: 0 0 var(--uui-size-space-3);
+    }
+
+    .resolver-help {
+      margin: 0;
+    }
+
+    .resolver-panel {
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+      min-height: 64px;
+      background: color-mix(in srgb, var(--uui-color-surface) 92%, var(--uui-color-border) 8%);
+    }
+
+    .resolver-no-args {
+      margin: 0;
+    }
+
+    uui-input,
+    uui-select,
+    uui-textarea {
+      width: 100%;
     }
 
     .promotion-filter-section {
@@ -2122,6 +2952,15 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
     .promotion-filter-section h4 {
       margin: 0 0 var(--uui-size-space-3);
+    }
+
+    .promotion-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--uui-size-space-4);
+    }
+
+    .promotion-grid > .full-row {
+      grid-column: 1 / -1;
     }
 
     .bullet-list {
@@ -2153,6 +2992,26 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       .url-row {
         flex-direction: column;
         align-items: stretch;
+      }
+
+      .checkbox-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .promotion-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .logic-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .query-groups {
+        grid-template-columns: 1fr;
+      }
+
+      .two-col-grid {
+        grid-template-columns: 1fr;
       }
     }
   `;

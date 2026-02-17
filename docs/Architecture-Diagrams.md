@@ -46,7 +46,7 @@ Feature/
 └── Extensions/       # Extension methods
 ```
 
-Modules: Accounting, AddressLookup, Auditing, Caching, Checkout, Customers, Data, Developer, DigitalProducts, Discounts, Email, ExchangeRates, Fulfilment, GiftCards, Locality, Notifications, Payments, Products, Protocols, Reporting, Returns, Search, Settings, Shared, Shipping, Storefront, Stores, Subscriptions, Suppliers, Tax, Upsells, Warehouses, Webhooks
+Modules: Accounting, AddressLookup, Auditing, Caching, Checkout, Customers, Data, Developer, DigitalProducts, Discounts, Email, ExchangeRates, Fulfilment, GiftCards, Locality, Notifications, Payments, ProductFeeds, Products, Protocols, Reporting, Returns, Search, Settings, Shared, Shipping, Storefront, Stores, Subscriptions, Suppliers, Tax, Upsells, Warehouses, Webhooks
 
 ### Design Rules
 - DbContext only in services, never in controllers
@@ -458,6 +458,28 @@ IPostPurchaseUpsellService:
 - AddToOrderAsync() - Add item, charge saved method, record payment, then apply invoice edit (fails closed if recording fails)
 - SkipUpsellsAsync() - Skip upsells and release fulfillment hold
 - IsPostPurchaseWindowValidAsync() - Check if post-purchase window is still valid
+
+### 2.16 Product Feeds
+
+IProductFeedService:
+- GetFeedsAsync() - List product feeds
+- GetFeedAsync() - Read feed detail
+- CreateFeedAsync() / UpdateFeedAsync() / DeleteFeedAsync() - CRUD with validation
+- PreviewFeedAsync() - Lightweight diagnostics and sample product IDs
+- RebuildFeedAsync() - Regenerate products/promotions XML snapshots
+- ValidateFeedAsync() - Deep validation with issue reporting
+- GetProductsXmlAsync() / GetPromotionsXmlAsync() - Token-protected feed output
+- GetResolversAsync() - Resolver descriptors for backoffice configuration UIs
+
+Resolver contracts:
+- `IProductFeedValueResolver` remains the runtime resolver contract (non-breaking).
+- Optional `IProductFeedResolverMetadata` adds UI metadata: `DisplayName`, `HelpText`, `SupportsArgs`, `ArgsHelpText`, `ArgsExampleJson`.
+- Resolvers without metadata remain valid and are surfaced with alias/description fallback.
+- Resolver implementation and external assembly extension steps are documented in `Product-Feed-Resolvers.md`.
+
+Language and targeting requirements:
+- `LanguageCode` is required for Product Feed create/update (ISO 639-1, e.g. `en`).
+- `CountryCode`, `CurrencyCode`, and `LanguageCode` are all required because Google product and promotions feeds are market-targeted.
 
 ## 3. Tax System
 
@@ -1774,7 +1796,7 @@ Backoffice APIs for store management. All endpoints require Umbraco backoffice a
 
 | Category | Controllers |
 |----------|-------------|
-| Products | ProductsApiController, FiltersApiController, ProductTypesApiController, ProductCollectionsApiController |
+| Products | ProductsApiController, FiltersApiController, ProductTypesApiController, ProductCollectionsApiController, ProductFeedsApiController |
 | Orders | OrdersApiController, ShippingOptionsApiController, ShipmentsApiController |
 | Customers | CustomersApiController, CustomerSegmentsApiController |
 | Payments | PaymentsApiController, SavedPaymentMethodsApiController, PaymentLinksApiController |
@@ -1783,6 +1805,18 @@ Backoffice APIs for store management. All endpoints require Umbraco backoffice a
 | Configuration | SettingsApiController, TaxApiController, WarehousesApiController, SuppliersApiController |
 | Notifications | EmailConfigurationApiController, WebhooksApiController, NotificationsApiController |
 | Reporting | ReportingApiController |
+
+ProductFeedsApiController coverage:
+- `GET /product-feeds`
+- `GET /product-feeds/{id}`
+- `POST /product-feeds`
+- `PUT /product-feeds/{id}`
+- `DELETE /product-feeds/{id}`
+- `POST /product-feeds/{id}/rebuild`
+- `POST /product-feeds/{id}/regenerate-token`
+- `GET /product-feeds/{id}/preview`
+- `POST /product-feeds/{id}/validate`
+- `GET /product-feeds/resolvers`
 
 ### 13.7 OpenAPI / Swagger Documents
 

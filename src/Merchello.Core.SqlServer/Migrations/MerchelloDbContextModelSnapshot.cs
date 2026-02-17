@@ -1737,6 +1737,89 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloSavedPaymentMethods", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.ProductFeeds.Models.ProductFeed", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AccessTokenHash")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CustomFieldsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomLabelsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FilterConfigJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool?>("IncludeTaxInPrice")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("LastGeneratedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastGenerationError")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("LastSuccessfulProductFeedXml")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastSuccessfulPromotionsFeedXml")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ManualPromotionsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsEnabled");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("merchelloProductFeeds", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1809,9 +1892,17 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(0);
 
+                    b.Property<string>("ShoppingFeedBrand")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("ShoppingFeedColour")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ShoppingFeedCondition")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("ShoppingFeedDescription")
                         .HasMaxLength(1000)
@@ -2013,6 +2104,17 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("RootUrl")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ShoppingFeedBrand")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("ShoppingFeedCondition")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("new");
 
                     b.Property<int?>("SubscriptionBillingInterval")
                         .HasColumnType("int");

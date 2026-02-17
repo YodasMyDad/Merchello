@@ -16,6 +16,11 @@ import "@shared/components/merchello-empty-state.element.js";
 import "@shared/components/pagination.element.js";
 
 type FeedFilterTab = "all" | "enabled" | "disabled";
+type FeedHealthStatus = {
+  label: string;
+  color: "positive" | "warning" | "danger" | "default";
+  title: string;
+};
 
 @customElement("merchello-product-feeds-list")
 export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement) {
@@ -275,16 +280,47 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     `;
   }
 
+  private _getFeedEndpointPath(feed: ProductFeedListItemDto): string {
+    return `/api/merchello/feeds/${feed.slug}.xml`;
+  }
+
+  private _getFeedHealthStatus(feed: ProductFeedListItemDto): FeedHealthStatus {
+    if (feed.lastGenerationError) {
+      return {
+        label: "Error",
+        color: "danger",
+        title: feed.lastGenerationError,
+      };
+    }
+
+    if (!feed.lastGeneratedUtc) {
+      return {
+        label: "Not Generated",
+        color: "default",
+        title: "No generation run has completed yet.",
+      };
+    }
+
+    return {
+      label: "Healthy",
+      color: "positive",
+      title: "Last generation completed without recorded errors.",
+    };
+  }
+
   private _renderFeedRow(feed: ProductFeedListItemDto): unknown {
     const isRebuilding = this._isRebuildingId === feed.id;
     const isDeleting = this._isDeletingId === feed.id;
+    const healthStatus = this._getFeedHealthStatus(feed);
+    const feedPath = this._getFeedEndpointPath(feed);
 
     return html`
       <uui-table-row class="clickable" href=${getProductFeedDetailHref(feed.id)}>
         <uui-table-cell>
           <div class="feed-name-block">
             <a class="feed-name" href=${getProductFeedDetailHref(feed.id)}>${feed.name}</a>
-            <span class="feed-slug">/${feed.slug}.xml</span>
+            <span class="feed-slug">${feedPath}</span>
+            <span class="feed-slug-hint">Token required</span>
           </div>
         </uui-table-cell>
         <uui-table-cell>${feed.countryCode}</uui-table-cell>
@@ -299,13 +335,23 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
           ${feed.lastGeneratedUtc ? formatRelativeDate(feed.lastGeneratedUtc) : "Never"}
         </uui-table-cell>
         <uui-table-cell>
-          <span class="snapshot-status ${feed.hasProductSnapshot ? "ok" : "missing"}">P</span>
-          <span class="snapshot-status ${feed.hasPromotionsSnapshot ? "ok" : "missing"}">R</span>
+          <div class="snapshot-tags">
+            <uui-tag
+              color=${feed.hasProductSnapshot ? "positive" : "default"}
+              title="Products XML snapshot">
+              ${feed.hasProductSnapshot ? "Products Ready" : "Products Missing"}
+            </uui-tag>
+            <uui-tag
+              color=${feed.hasPromotionsSnapshot ? "positive" : "default"}
+              title="Promotions XML snapshot">
+              ${feed.hasPromotionsSnapshot ? "Promotions Ready" : "Promotions Missing"}
+            </uui-tag>
+          </div>
         </uui-table-cell>
         <uui-table-cell>
-          ${feed.lastGenerationError
-            ? html`<span class="error-text" title=${feed.lastGenerationError}>Error</span>`
-            : html`<span class="ok-text">OK</span>`}
+          <uui-tag color=${healthStatus.color} title=${healthStatus.title}>
+            ${healthStatus.label}
+          </uui-tag>
         </uui-table-cell>
         <uui-table-cell>
           <div class="actions">
@@ -497,36 +543,22 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
       color: var(--uui-color-text-alt);
     }
 
-    .snapshot-status {
-      display: inline-flex;
+    .feed-slug-hint {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .snapshot-tags {
+      display: flex;
       align-items: center;
-      justify-content: center;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      font-size: 11px;
-      font-weight: 700;
-      margin-right: 6px;
+      gap: var(--uui-size-space-1);
+      flex-wrap: wrap;
     }
 
-    .snapshot-status.ok {
-      background: color-mix(in srgb, var(--uui-color-positive) 20%, white);
-      color: var(--uui-color-positive-emphasis);
-    }
-
-    .snapshot-status.missing {
-      background: color-mix(in srgb, var(--uui-color-danger) 12%, white);
-      color: var(--uui-color-danger-emphasis);
-    }
-
-    .ok-text {
-      color: var(--uui-color-positive-emphasis);
-      font-weight: 600;
-    }
-
-    .error-text {
-      color: var(--uui-color-danger-emphasis);
-      font-weight: 600;
+    .snapshot-tags uui-tag {
+      white-space: nowrap;
     }
 
     .actions {

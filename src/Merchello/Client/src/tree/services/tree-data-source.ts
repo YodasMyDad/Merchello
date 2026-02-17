@@ -87,7 +87,7 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
       },
       {
         entityType: MERCHELLO_PRODUCT_FEED_ENTITY_TYPE,
-        unique: "product-feed",
+        unique: "product-feeds",
         name: "Product Feed",
         hasChildren: false,
         isFolder: false,

@@ -3,10 +3,15 @@ using Merchello.Core.ProductFeeds.Services.Interfaces;
 
 namespace Merchello.Core.ProductFeeds.Services;
 
-public class ProductFeedSupplierResolver : IProductFeedValueResolver
+public class ProductFeedSupplierResolver : IProductFeedValueResolver, IProductFeedResolverMetadata
 {
     public string Alias => "supplier";
     public string Description => "Supplier name based on warehouse priority.";
+    public string DisplayName => "Supplier Name";
+    public string? HelpText => "Resolves the prioritized warehouse supplier name for this product.";
+    public bool SupportsArgs => false;
+    public string? ArgsHelpText => null;
+    public string? ArgsExampleJson => null;
 
     public Task<string?> ResolveAsync(
         ProductFeedResolverContext context,
