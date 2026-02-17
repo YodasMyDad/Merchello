@@ -118,6 +118,23 @@ export function navigateToProductsList(): void {
   navigateToMerchelloWorkspace(PRODUCTS_ENTITY_TYPE, "edit/products");
 }
 
+/** Entity type for filters workspace */
+export const FILTERS_ENTITY_TYPE = "merchello-filters";
+
+/**
+ * Generate the URL to the filters list.
+ */
+export function getFiltersListHref(): string {
+  return getMerchelloWorkspaceHref(FILTERS_ENTITY_TYPE, "edit/filters");
+}
+
+/**
+ * Navigate programmatically to the filters list using SPA routing.
+ */
+export function navigateToFiltersList(): void {
+  navigateToMerchelloWorkspace(FILTERS_ENTITY_TYPE, "edit/filters");
+}
+
 /**
  * Generate the URL to view/edit a product variant detail.
  * Use this in href attributes on links/buttons.
@@ -156,6 +173,13 @@ export function getWarehouseCreateHref(): string {
  */
 export function navigateToWarehouseDetail(warehouseId: string): void {
   navigateToMerchelloWorkspace(WAREHOUSES_ENTITY_TYPE, `edit/warehouses/${warehouseId}`);
+}
+
+/**
+ * Replace current URL with warehouse detail page (no browser history entry).
+ */
+export function replaceToWarehouseDetail(warehouseId: string): void {
+  history.replaceState({}, "", getWarehouseDetailHref(warehouseId));
 }
 
 /**

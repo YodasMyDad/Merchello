@@ -1,7 +1,7 @@
 {
   "name": "merchello",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-dev",
   "type": "module",
   "scripts": {
     "watch": "tsc && vite build --watch",

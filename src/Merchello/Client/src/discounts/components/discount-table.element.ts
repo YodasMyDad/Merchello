@@ -76,8 +76,20 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
     );
   }
 
-  private _handleRowClick(discount: DiscountListItemDto): void {
+  private _isAnchorClick(e: Event): boolean {
+    const anchor = e
+      .composedPath()
+      .find(($elem): $elem is HTMLAnchorElement | SVGAElement => {
+        const isSvgAnchor = typeof SVGAElement !== "undefined" && $elem instanceof SVGAElement;
+        return $elem instanceof HTMLAnchorElement || isSvgAnchor;
+      });
+
+    return anchor !== undefined;
+  }
+
+  private _handleRowClick(e: Event, discount: DiscountListItemDto): void {
     if (!this.clickable) return;
+    if (this._isAnchorClick(e)) return;
 
     const detail: DiscountClickEventDetail = { discountId: discount.id, discount };
     this.dispatchEvent(
@@ -128,7 +140,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
           (discount) => html`
             <uui-table-row
               class="${this.clickable ? 'clickable' : ''}"
-              @click=${() => this._handleRowClick(discount)}
+              @click=${(e: Event) => this._handleRowClick(e, discount)}
             >
               ${this.selectable
                 ? html`
@@ -144,7 +156,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
                 : nothing}
 
               <uui-table-cell class="name-cell">
-                <a href=${getDiscountDetailHref(discount.id)} @click=${(e: Event) => e.stopPropagation()}>
+                <a href=${getDiscountDetailHref(discount.id)}>
                   ${discount.name}
                 </a>
                 ${discount.code

@@ -55,8 +55,20 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
     }));
   }
 
-  private _handleRowClick(product: ProductListItemDto): void {
+  private _isAnchorClick(e: Event): boolean {
+    const anchor = e
+      .composedPath()
+      .find(($elem): $elem is HTMLAnchorElement | SVGAElement => {
+        const isSvgAnchor = typeof SVGAElement !== "undefined" && $elem instanceof SVGAElement;
+        return $elem instanceof HTMLAnchorElement || isSvgAnchor;
+      });
+
+    return anchor !== undefined;
+  }
+
+  private _handleRowClick(e: Event, product: ProductListItemDto): void {
     if (!this.clickable) return;
+    if (this._isAnchorClick(e)) return;
     this.dispatchEvent(new CustomEvent("product-click", {
       detail: { productId: product.id, product } as ProductClickEventDetail,
       bubbles: true,
@@ -149,7 +161,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
   private _renderRow(product: ProductListItemDto): unknown {
     const cols = this._getEffectiveColumns();
     return html`
-      <uui-table-row class=${this.clickable ? "clickable" : ""} @click=${() => this._handleRowClick(product)}>
+      <uui-table-row class=${this.clickable ? "clickable" : ""} @click=${(e: Event) => this._handleRowClick(e, product)}>
         ${cols.map((col) => this._renderCell(product, col))}
       </uui-table-row>
     `;

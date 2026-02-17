@@ -182,9 +182,9 @@ public class DbSeeder(
         // 13. Seed explicit multi-warehouse test invoices FIRST to guarantee stock availability
         await SeedMultiWarehouseTestInvoicesAsync(products, cancellationToken);
 
-        // 14. Seed random invoices (148 instead of 150 to leave room for explicit test cases)
+        // 14. Seed random invoices (slightly reduced for faster install while keeping variety)
         // Discounts will be auto-applied during invoice creation
-        await SeedInvoicesViaServicesAsync(products, 148, cancellationToken);
+        await SeedInvoicesViaServicesAsync(products, 100, cancellationToken);
 
         // 15. Seed invoices for account customers (tests Outstanding UI with varied due dates)
         await SeedAccountCustomerInvoicesAsync(products, accountCustomers, cancellationToken);
@@ -1364,7 +1364,7 @@ public class DbSeeder(
             }
         }
 
-        // ============ T-SHIRTS (6 products) - All 4 warehouses, UK priority ============
+        // ============ T-SHIRTS (5 products) - All 4 warehouses, UK priority ============
 
         // Classic Cotton Tee - HIGH STOCK in all 4 warehouses (global bestseller)
         await CreateProduct("Classic Cotton Tee",
@@ -1393,13 +1393,6 @@ public class DbSeeder(
             22.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
             0.2m, ["White", "Black", "Red"], standardSizes,
             [(0, 5, 15, true), (1, 8, 20, true), (2, 25, 50, true), (3, 20, 40, true)]);
-
-        // Long Sleeve Tee - Good stock in UK/EU, lower in US
-        await CreateProduct("Long Sleeve Tee",
-            "Long sleeve cotton t-shirt perfect for layering.",
-            29.99m, productTypes["tshirt"], [collections["clothing"], collections["tshirts"]],
-            0.25m, ["Navy", "Grey", "Black"], standardSizes,
-            [(0, 20, 40, true), (1, 25, 45, true), (2, 10, 20, true), (3, 8, 15, true)]);
 
         // Sold Out Limited Tee - OUT OF STOCK everywhere (for OOS UI testing)
         await CreateProduct("Limited Edition Tee",
@@ -1493,7 +1486,7 @@ public class DbSeeder(
             0.08m, ["Black", "Grey", "Navy", "Burgundy", "Forest Green"], null,
             [(0, 50, 90, true), (1, 40, 70, true), (2, 20, 35, true), (3, 15, 30, true)]);
 
-        // ============ BAGS (3 products) - UK, US-East, US-West ============
+        // ============ BAGS (2 products) - UK, US-East, US-West ============
 
         // Canvas Tote - HIGH STOCK, all warehouses
         await CreateProduct("Canvas Tote Bag",
@@ -1508,13 +1501,6 @@ public class DbSeeder(
             49.99m, productTypes["bag"], [collections["bags"]],
             0.5m, ["Black", "Navy", "Grey"], ["S", "L"],
             [(0, 20, 40, true), (2, 15, 30, true), (3, 12, 25, true)]);
-
-        // Gym Bag - UK and US
-        await CreateProduct("Duffle Gym Bag",
-            "Spacious duffle bag with shoe compartment.",
-            39.99m, productTypes["bag"], [collections["bags"]],
-            0.4m, ["Black", "Navy", "Charcoal"], null,
-            [(0, 25, 45, true), (2, 20, 35, true), (3, 15, 30, true)]);
 
         // ============ MUGS (2 products) - fragile items ============
 
@@ -1555,7 +1541,7 @@ public class DbSeeder(
             await CreateProductWithAmountVariantsAsync("Gift Card",
                 "Digital gift card, delivered via email.",
                 taxGroup, productTypes["digital"], [collections["digital"]],
-                warehouses[0], [25m, 50m, 75m, 100m]);
+                warehouses[0], [25m, 50m, 100m]);
         }
         catch (Exception ex)
         {
