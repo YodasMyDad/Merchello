@@ -1784,6 +1784,17 @@ Backoffice APIs for store management. All endpoints require Umbraco backoffice a
 | Notifications | EmailConfigurationApiController, WebhooksApiController, NotificationsApiController |
 | Reporting | ReportingApiController |
 
+### 13.7 OpenAPI / Swagger Documents
+
+Merchello publishes two Swagger documents:
+
+| Document Name | Purpose | Typical JSON URL |
+|---------------|---------|------------------|
+| `merchello` | Backoffice management APIs | `/umbraco/swagger/merchello/swagger.json` |
+| `merchello-storefront` | Public storefront + checkout APIs for headless clients | `/umbraco/swagger/merchello-storefront/swagger.json` |
+
+Typical Swagger UI URL: `/umbraco/swagger`
+
 ## 14. DTOs
 
 DTOs are organized by domain module. See CLAUDE.md for naming conventions.

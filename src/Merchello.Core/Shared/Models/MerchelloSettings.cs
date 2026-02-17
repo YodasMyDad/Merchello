@@ -6,6 +6,20 @@ namespace Merchello.Core.Shared.Models;
 public class MerchelloSettings
 {
     /// <summary>
+    /// When true, enables integrated checkout route hijacking via CheckoutContentFinder (/checkout/*).
+    /// Set false for headless installs that provide their own checkout frontend/routing.
+    /// Default: true
+    /// </summary>
+    public bool EnableCheckout { get; set; } = true;
+
+    /// <summary>
+    /// When true, enables integrated product route hijacking via ProductContentFinder.
+    /// Set false for headless installs that provide their own product rendering/routing.
+    /// Default: true
+    /// </summary>
+    public bool EnableProductRendering { get; set; } = true;
+
+    /// <summary>
     /// When true, seeds sample data (products, warehouses, customers, invoices) on startup.
     /// Essential items like data types are always installed regardless of this setting.
     /// Default: false

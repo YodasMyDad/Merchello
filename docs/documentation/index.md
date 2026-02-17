@@ -247,6 +247,27 @@ Upsells (optional advanced):
 - `GET /upsells/product/{productId}`
 - `POST /upsells/events`
 
+### 8.4 OpenAPI / Swagger for Headless Developers
+
+Merchello now publishes two OpenAPI documents in Umbraco Swagger:
+
+- Backoffice API document name: `merchello`
+- Storefront/headless API document name: `merchello-storefront`
+
+Typical Umbraco Swagger endpoints:
+
+- UI: `/umbraco/swagger`
+- Backoffice JSON: `/umbraco/swagger/merchello/swagger.json`
+- Storefront JSON: `/umbraco/swagger/merchello-storefront/swagger.json`
+
+For headless clients, generate typed SDKs from the `merchello-storefront` document.
+
+Example (`@hey-api/openapi-ts`):
+
+```bash
+npx @hey-api/openapi-ts -i https://your-store.com/umbraco/swagger/merchello-storefront/swagger.json -o ./src/api/generated
+```
+
 ## 9. Core-First vs Optional Features
 
 Core-first (recommended to launch with):

@@ -16,6 +16,7 @@ using Merchello.Core.Warehouses.Services.Parameters;
 using Merchello.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Api.Common.Attributes;
 
 namespace Merchello.Controllers;
 
@@ -24,6 +25,8 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/merchello/storefront")]
+[ApiExplorerSettings(GroupName = Core.Constants.StorefrontApiName)]
+[MapToApi(Core.Constants.StorefrontApiName)]
 public class StorefrontApiController(
     ICheckoutService checkoutService,
     IStorefrontContextService storefrontContext,
