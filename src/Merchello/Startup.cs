@@ -133,6 +133,7 @@ using Merchello.Tax.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
@@ -630,9 +631,22 @@ public static class Startup
         // Content Finders
         // =====================================================
         // Custom content finders for product and checkout URL routing.
+        var merchelloSettings = new MerchelloSettings();
+        builder.Config.GetSection("Merchello").Bind(merchelloSettings);
 
-        builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
-        builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
+        if (merchelloSettings.EnableProductRendering)
+        {
+            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
+
+            if (merchelloSettings.EnableCheckout)
+            {
+                builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
+            }
+        }
+        else if (merchelloSettings.EnableCheckout)
+        {
+            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, CheckoutContentFinder>();
+        }
 
         // =====================================================
         // Plugin Assembly Discovery

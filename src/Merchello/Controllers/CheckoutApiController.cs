@@ -34,6 +34,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Api.Common.Attributes;
 
 namespace Merchello.Controllers;
 
@@ -42,6 +43,8 @@ namespace Merchello.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/merchello/checkout")]
+[ApiExplorerSettings(GroupName = Core.Constants.StorefrontApiName)]
+[MapToApi(Core.Constants.StorefrontApiName)]
 public class CheckoutApiController(
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,
