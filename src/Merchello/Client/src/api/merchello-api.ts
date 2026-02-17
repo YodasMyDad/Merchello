@@ -274,6 +274,8 @@ import type {
   UpdateProductFeedDto,
   ProductFeedRebuildResultDto,
   ProductFeedPreviewDto,
+  ProductFeedValidationDto,
+  ValidateProductFeedDto,
   ProductFeedResolverDescriptorDto,
   ProductFeedTokenResultDto,
 } from '@product-feed/types/product-feed.types.js';
@@ -1242,6 +1244,10 @@ export const MerchelloApi = {
   /** Preview feed generation diagnostics */
   previewProductFeed: (id: string) =>
     apiGet<ProductFeedPreviewDto>(`product-feeds/${id}/preview`),
+
+  /** Validate feed output and run Google spec checks */
+  validateProductFeed: (id: string, request: ValidateProductFeedDto) =>
+    apiPost<ProductFeedValidationDto>(`product-feeds/${id}/validate`, request),
 
   /** Get available dynamic value resolvers for custom labels/fields */
   getProductFeedResolvers: () =>

@@ -10,6 +10,7 @@ public class ProductFeedFactory
         string countryCode,
         string currencyCode,
         string languageCode,
+        bool includeTaxInPrice,
         string accessTokenHash)
     {
         return new ProductFeed
@@ -19,6 +20,7 @@ public class ProductFeedFactory
             CountryCode = countryCode,
             CurrencyCode = currencyCode,
             LanguageCode = languageCode,
+            IncludeTaxInPrice = includeTaxInPrice,
             AccessTokenHash = accessTokenHash,
             IsEnabled = true,
             DateCreated = DateTime.UtcNow,

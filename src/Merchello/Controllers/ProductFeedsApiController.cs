@@ -117,6 +117,20 @@ public class ProductFeedsApiController(
         return Ok(preview);
     }
 
+    [HttpPost("product-feeds/{id:guid}/validate")]
+    [ProducesResponseType<ProductFeedValidationDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Validate(Guid id, [FromBody] ValidateProductFeedDto request, CancellationToken ct)
+    {
+        var validation = await productFeedService.ValidateAsync(id, request, ct);
+        if (validation == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(validation);
+    }
+
     [HttpGet("product-feeds/resolvers")]
     [ProducesResponseType<List<ProductFeedResolverDescriptorDto>>(StatusCodes.Status200OK)]
     public async Task<List<ProductFeedResolverDescriptorDto>> GetResolvers(CancellationToken ct)

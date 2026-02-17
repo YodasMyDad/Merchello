@@ -8,6 +8,7 @@ public class CreateProductFeedDto
     public string CountryCode { get; set; } = "US";
     public string CurrencyCode { get; set; } = "USD";
     public string LanguageCode { get; set; } = "en";
+    public bool? IncludeTaxInPrice { get; set; }
 
     public ProductFeedFilterConfigDto FilterConfig { get; set; } = new();
     public List<ProductFeedCustomLabelDto> CustomLabels { get; set; } = [];

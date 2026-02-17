@@ -47,6 +47,7 @@ export interface ProductFeedListItemDto {
   countryCode: string;
   currencyCode: string;
   languageCode: string;
+  includeTaxInPrice: boolean;
   lastGeneratedUtc: string | null;
   hasProductSnapshot: boolean;
   hasPromotionsSnapshot: boolean;
@@ -61,6 +62,7 @@ export interface ProductFeedDetailDto {
   countryCode: string;
   currencyCode: string;
   languageCode: string;
+  includeTaxInPrice: boolean;
   filterConfig: ProductFeedFilterConfigDto;
   customLabels: ProductFeedCustomLabelDto[];
   customFields: ProductFeedCustomFieldDto[];
@@ -79,6 +81,7 @@ export interface CreateProductFeedDto {
   countryCode: string;
   currencyCode: string;
   languageCode: string;
+  includeTaxInPrice: boolean | null;
   filterConfig: ProductFeedFilterConfigDto;
   customLabels: ProductFeedCustomLabelDto[];
   customFields: ProductFeedCustomFieldDto[];
@@ -92,6 +95,7 @@ export interface UpdateProductFeedDto {
   countryCode: string;
   currencyCode: string;
   languageCode: string;
+  includeTaxInPrice: boolean | null;
   filterConfig: ProductFeedFilterConfigDto;
   customLabels: ProductFeedCustomLabelDto[];
   customFields: ProductFeedCustomFieldDto[];
@@ -116,6 +120,45 @@ export interface ProductFeedPreviewDto {
   error: string | null;
 }
 
+export interface ValidateProductFeedDto {
+  maxIssues: number | null;
+  previewProductIds: string[];
+}
+
+export interface ProductFeedValidationIssueDto {
+  severity: string;
+  code: string;
+  message: string;
+  productId: string | null;
+  field: string | null;
+}
+
+export interface ProductFeedValidationProductPreviewDto {
+  productId: string;
+  title: string | null;
+  price: string | null;
+  availability: string | null;
+  link: string | null;
+  imageLink: string | null;
+  brand: string | null;
+  gtin: string | null;
+  mpn: string | null;
+  identifierExists: string | null;
+  shippingLabel: string | null;
+}
+
+export interface ProductFeedValidationDto {
+  productItemCount: number;
+  promotionCount: number;
+  warningCount: number;
+  errorCount: number;
+  warnings: string[];
+  issues: ProductFeedValidationIssueDto[];
+  sampleProductIds: string[];
+  productPreviews: ProductFeedValidationProductPreviewDto[];
+  missingRequestedProductIds: string[];
+}
+
 export interface ProductFeedResolverDescriptorDto {
   alias: string;
   description: string;
@@ -123,4 +166,13 @@ export interface ProductFeedResolverDescriptorDto {
 
 export interface ProductFeedTokenResultDto {
   accessToken: string;
+}
+
+export interface ProductFeedValidationModalData {
+  feedId: string;
+  feedName: string;
+}
+
+export interface ProductFeedValidationModalValue {
+  refreshed: boolean;
 }
