@@ -23,7 +23,7 @@ import type {
   ElementTypeListItemDto,
 } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
-import type { WarehouseDto } from "@shipping/types/shipping.types.js";
+import type { WarehouseListDto } from "@warehouses/types/warehouses.types.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import type { ElementTypeDto, ElementTypeContainerDto } from "@products/types/element-type.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
@@ -43,10 +43,12 @@ import "@products/components/variant-stock-display.element.js";
 import "@products/components/product-packages.element.js";
 import "@products/components/product-filters.element.js";
 import "@products/components/product-shipping-exclusions.element.js";
+import "@products/components/product-warehouse-selector.element.js";
 import type { StockSettingsChangeDetail } from "@products/components/variant-stock-display.element.js";
 import type { PackagesChangeDetail } from "@products/components/product-packages.element.js";
 import type { FiltersChangeDetail } from "@products/components/product-filters.element.js";
 import type { ShippingExclusionsChangeDetail } from "@products/components/product-shipping-exclusions.element.js";
+import type { WarehouseSelectionChangeDetail } from "@products/components/product-warehouse-selector.element.js";
 
 // Utility functions
 import {
@@ -61,6 +63,7 @@ import {
   hasOptionWarnings,
   formatUrlAsBreadcrumb,
 } from "@products/utils/variant-helpers.js";
+import { getSelectedWarehouseSetupSummary } from "@products/utils/warehouse-setup.js";
 
 import { UmbDataTypeDetailRepository } from "@umbraco-cms/backoffice/data-type";
 import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
@@ -131,7 +134,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
   @state() private _taxGroups: TaxGroupDto[] = [];
   @state() private _productTypes: ProductTypeDto[] = [];
-  @state() private _warehouses: WarehouseDto[] = [];
+  @state() private _warehouses: WarehouseListDto[] = [];
   @state() private _productViews: ProductViewDto[] = [];
   @state() private _optionSettings: ProductOptionSettingsDto | null = null;
   @state() private _elementTypes: ElementTypeListItemDto[] = [];
@@ -263,7 +266,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       ] = await Promise.all([
         MerchelloApi.getTaxGroups(),
         MerchelloApi.getProductTypes(),
-        MerchelloApi.getWarehouses(),
+        MerchelloApi.getWarehousesList(),
         MerchelloApi.getProductOptionSettings(),
         MerchelloApi.getDescriptionEditorSettings(),
         MerchelloApi.getProductViews(),
@@ -518,12 +521,36 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     return !!(this._variantFieldErrors.sku || this._variantFieldErrors.price);
   }
 
+  private _getSelectedWarehouseSetupSummary(): {
+    selectedCount: number;
+    selectedNeedsSetupCount: number;
+    missingSelectedIdsCount: number;
+  } {
+    return getSelectedWarehouseSetupSummary(
+      this._warehouses,
+      this._formData.warehouseIds ?? []
+    );
+  }
+
+  private _hasSelectedWarehouseSetupWarnings(): boolean {
+    if (this._formData.isDigitalProduct) return false;
+
+    const summary = this._getSelectedWarehouseSetupSummary();
+    return summary.selectedNeedsSetupCount > 0 || summary.missingSelectedIdsCount > 0;
+  }
+
   /**
    * Gets validation hint for a specific tab
    */
-  private _getTabHint(tab: "details" | "variants" | "options"): { color: string } | null {
+  private _getTabHint(tab: "details" | "variants" | "options"): {
+    color: "danger" | "warning";
+    attention?: boolean;
+  } | null {
     if (tab === "details" && this._validationAttempted && this._hasDetailsErrors()) {
-      return { color: "danger" };
+      return { color: "danger", attention: true };
+    }
+    if (tab === "details" && this._hasSelectedWarehouseSetupWarnings()) {
+      return { color: "warning" };
     }
     if (tab === "variants" && this._hasVariantWarnings()) {
       return { color: "warning" };
@@ -825,6 +852,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  private _handleWarehouseSelectionChange(e: CustomEvent<WarehouseSelectionChangeDetail>): void {
+    this._handleWarehouseToggle(e.detail.warehouseId, e.detail.checked);
+  }
+
   private _handleMediaDatasetChange(e: Event): void {
     const dataset = e.target as UmbPropertyDatasetElement;
     const values = this._toPropertyValueMap(dataset.value ?? []);
@@ -1118,7 +1149,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           href="${this._routerPath}/tab/details"
           ?active=${activeTab === "details"}>
           Details
-          ${detailsHint ? html`<uui-badge slot="extra" color="danger" attention>!</uui-badge>` : nothing}
+          ${detailsHint
+            ? html`<uui-badge
+                slot="extra"
+                color=${detailsHint.color}
+                ?attention=${detailsHint.attention ?? false}>!</uui-badge>`
+            : nothing}
         </uui-tab>
 
         ${isSingleVariant
@@ -1417,6 +1453,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
                     ? html`<span class="field-error-message">${this._fieldErrors.warehouseIds}</span>`
                     : nothing}
                 </umb-property-layout>
+                ${this._renderWarehouseSetupWarning()}
               </uui-box>
             `
           : nothing}
@@ -1428,23 +1465,41 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const selectedWarehouseIds = this._formData.warehouseIds ?? [];
 
     return html`
-      <div class="warehouse-toggle-list">
-        ${this._warehouses.map((warehouse) => {
-          const warehouseName = warehouse.name || "Unnamed Warehouse";
-          return html`
-            <div class="toggle-field">
-              <uui-toggle
-                label="${warehouseName}"
-                .checked=${selectedWarehouseIds.includes(warehouse.id)}
-                @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
-              </uui-toggle>
-              <label>${warehouseName}${warehouse.code ? ` (${warehouse.code})` : ""}</label>
-            </div>
-          `;
-        })}
-        ${this._warehouses.length === 0
-          ? html`<p class="hint">No warehouses available. Create a warehouse first.</p>`
-          : nothing}
+      <merchello-product-warehouse-selector
+        .warehouses=${this._warehouses}
+        .selectedWarehouseIds=${selectedWarehouseIds}
+        .showConfigureLinks=${true}
+        @warehouse-selection-change=${this._handleWarehouseSelectionChange}>
+      </merchello-product-warehouse-selector>
+    `;
+  }
+
+  private _renderWarehouseSetupWarning(): unknown {
+    const summary = this._getSelectedWarehouseSetupSummary();
+    if (summary.selectedNeedsSetupCount === 0 && summary.missingSelectedIdsCount === 0) {
+      return nothing;
+    }
+
+    const warnings: string[] = [];
+    if (summary.selectedNeedsSetupCount > 0) {
+      warnings.push(
+        `${summary.selectedNeedsSetupCount} selected warehouse${summary.selectedNeedsSetupCount === 1 ? "" : "s"} are missing regions or shipping options`
+      );
+    }
+    if (summary.missingSelectedIdsCount > 0) {
+      warnings.push(
+        `${summary.missingSelectedIdsCount} selected warehouse reference${summary.missingSelectedIdsCount === 1 ? "" : "s"} could not be found`
+      );
+    }
+
+    return html`
+      <div class="warehouse-setup-warning-banner" role="status">
+        <uui-icon name="icon-alert"></uui-icon>
+        <div>
+          <strong>Warehouse setup needs attention</strong>
+          <p>${warnings.join(". ")}.</p>
+          <p class="hint">Saving is still allowed, but shipping availability may be incomplete.</p>
+        </div>
       </div>
     `;
   }
@@ -2597,21 +2652,29 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         gap: var(--uui-size-space-5);
       }
 
-      .warehouse-toggle-list {
+      .warehouse-setup-warning-banner {
         display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-      }
-
-      .warehouse-toggle-list .toggle-field {
-        display: flex;
-        align-items: center;
         gap: var(--uui-size-space-3);
+        padding: var(--uui-size-space-3);
+        margin-top: var(--uui-size-space-3);
+        border: 1px solid var(--uui-color-warning);
+        border-radius: var(--uui-border-radius);
+        background: color-mix(in srgb, var(--uui-color-warning) 8%, var(--uui-color-surface));
       }
 
-      .warehouse-toggle-list label {
+      .warehouse-setup-warning-banner uui-icon {
+        color: var(--uui-color-warning-emphasis);
+        flex-shrink: 0;
+      }
+
+      .warehouse-setup-warning-banner strong {
+        display: block;
+        margin-bottom: var(--uui-size-space-1);
+      }
+
+      .warehouse-setup-warning-banner p {
+        margin: 0;
         color: var(--uui-color-text);
-        font-weight: normal;
       }
 
       .field-error-message {
