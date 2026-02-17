@@ -33,6 +33,9 @@ using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.ProductFeeds.Factories;
+using Merchello.Core.ProductFeeds.Services;
+using Merchello.Core.ProductFeeds.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
@@ -257,6 +260,7 @@ public static class Startup
         builder.Services.AddSingleton<ProductFilterGroupFactory>();
         builder.Services.AddSingleton<ProductFilterFactory>();
         builder.Services.AddSingleton<ProductOptionFactory>();
+        builder.Services.AddSingleton<ProductFeedFactory>();
 
         // Customers
         builder.Services.AddSingleton<CustomerFactory>();
@@ -320,6 +324,16 @@ public static class Startup
         builder.Services.AddScoped<IProductCollectionService, ProductCollectionService>();
         builder.Services.AddScoped<IGoogleShoppingCategoryService, GoogleShoppingCategoryService>();
         builder.Services.AddScoped<IInventoryService, InventoryService>();
+        builder.Services.AddScoped<IProductFeedService, ProductFeedService>();
+        builder.Services.AddScoped<IGoogleProductFeedGenerator, GoogleProductFeedGenerator>();
+        builder.Services.AddScoped<IGooglePromotionFeedGenerator, GooglePromotionFeedGenerator>();
+        builder.Services.AddScoped<IProductFeedResolverRegistry, ProductFeedResolverRegistry>();
+        builder.Services.AddScoped<IProductFeedMediaUrlResolver, ProductFeedMediaUrlResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedSupplierResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedStockStatusResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedOnSaleResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedProductTypeResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedCollectionsResolver>();
 
         // Digital Products
         builder.Services.AddSingleton<Core.DigitalProducts.Factories.DownloadLinkFactory>();

@@ -47,6 +47,16 @@ public class ProductRoot
     public string? GoogleShoppingFeedCategory { get; set; }
 
     /// <summary>
+    /// Default brand used for shopping feeds when variant override is not set.
+    /// </summary>
+    public string? ShoppingFeedBrand { get; set; }
+
+    /// <summary>
+    /// Default condition used for shopping feeds (Google requires values like "new", "used", "refurbished").
+    /// </summary>
+    public string ShoppingFeedCondition { get; set; } = "new";
+
+    /// <summary>
     /// The product images, these are appended to the end of the main product
     /// </summary>
     public List<string> RootImages { get; set; } = [];

@@ -18,11 +18,11 @@ export const manifests: Array<UmbExtensionManifest> = [
     type: "workspaceView",
     alias: "Merchello.ProductFeed.Workspace.View",
     name: "Merchello Product Feed View",
-    js: () => import("@product-feed/components/product-feed-workspace.element.js"),
+    js: () => import("@product-feed/components/product-feeds-list.element.js"),
     weight: 100,
     meta: {
-      label: "Product Feed",
-      pathname: "product-feed",
+      label: "Product Feeds",
+      pathname: "product-feeds",
       icon: "icon-rss",
     },
     conditions: [

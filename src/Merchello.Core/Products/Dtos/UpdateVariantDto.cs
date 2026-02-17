@@ -37,6 +37,8 @@ public class UpdateVariantDto
     public string? ShoppingFeedColour { get; set; }
     public string? ShoppingFeedMaterial { get; set; }
     public string? ShoppingFeedSize { get; set; }
+    public string? ShoppingFeedBrand { get; set; }
+    public string? ShoppingFeedCondition { get; set; }
     public string? ShoppingFeedWidth { get; set; }
     public string? ShoppingFeedHeight { get; set; }
     public bool? RemoveFromFeed { get; set; }

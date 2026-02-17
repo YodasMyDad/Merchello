@@ -9,6 +9,8 @@ public static class ProductMappingExtensions
         destination.RootName = source.RootName;
         destination.RootUrl = source.RootUrl;
         destination.GoogleShoppingFeedCategory = source.GoogleShoppingFeedCategory;
+        destination.ShoppingFeedBrand = source.ShoppingFeedBrand;
+        destination.ShoppingFeedCondition = source.ShoppingFeedCondition;
         destination.RootImages = source.RootImages?.ToList() ?? [];
         destination.DefaultPackageConfigurations = source.DefaultPackageConfigurations.ToList();
         destination.ProductOptions = source.ProductOptions?.ToList() ?? [];
@@ -40,6 +42,8 @@ public static class ProductMappingExtensions
         destination.ShoppingFeedColour = source.ShoppingFeedColour;
         destination.ShoppingFeedMaterial = source.ShoppingFeedMaterial;
         destination.ShoppingFeedSize = source.ShoppingFeedSize;
+        destination.ShoppingFeedBrand = source.ShoppingFeedBrand;
+        destination.ShoppingFeedCondition = source.ShoppingFeedCondition;
         destination.RemoveFromFeed = source.RemoveFromFeed;
         destination.Url = source.Url;
         destination.HsCode = source.HsCode;
