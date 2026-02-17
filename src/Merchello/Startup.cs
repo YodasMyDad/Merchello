@@ -33,6 +33,7 @@ using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.ProductFeeds;
 using Merchello.Core.ProductFeeds.Factories;
 using Merchello.Core.ProductFeeds.Services;
 using Merchello.Core.ProductFeeds.Services.Interfaces;
@@ -201,6 +202,8 @@ public static class Startup
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
         // Currency exchange rate provider and refresh intervals
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
+        // Product feed refresh cadence (automatic product/promotions snapshot rebuilds)
+        builder.Services.Configure<ProductFeedSettings>(builder.Config.GetSection("Merchello:ProductFeeds"));
         // Outbound webhook delivery settings (retries, timeouts)
         builder.Services.Configure<WebhookSettings>(builder.Config.GetSection("Merchello:Webhooks"));
         // Email provider configuration (SMTP, templates)
@@ -471,6 +474,7 @@ public static class Startup
         builder.Services.AddHostedService<FulfilmentPollingJob>();             // Polls 3PLs for order status updates
         builder.Services.AddHostedService<FulfilmentCleanupJob>();             // Cleans up old fulfilment sync/webhook logs
         builder.Services.AddHostedService<EmailAttachmentCleanupJob>();        // Cleans up orphaned email attachment temp files
+        builder.Services.AddHostedService<ProductFeedRefreshJob>();            // Rebuilds enabled product/promotions feeds on a schedule
 
         // =====================================================
         // Notification Handlers

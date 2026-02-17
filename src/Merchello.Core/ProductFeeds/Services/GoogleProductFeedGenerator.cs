@@ -178,7 +178,9 @@ public class GoogleProductFeedGenerator(
             .Where(p => !p.RemoveFromFeed)
             .ToList();
 
-        var emittedCountByRoot = filteredProducts
+        // Determine variant grouping from the underlying product model, not only emitted rows.
+        // This keeps item_group_id stable even when feed filters/remove-from-feed hide siblings.
+        var variantCountByRoot = candidateProducts
             .GroupBy(p => p.ProductRootId)
             .ToDictionary(g => g.Key, g => g.Count());
 
@@ -202,7 +204,7 @@ public class GoogleProductFeedGenerator(
             var root = product.ProductRoot;
             var item = new XElement("item");
 
-            var title = FirstNonEmpty(product.ShoppingFeedTitle, product.Name, root.RootName) ?? product.Id.ToString();
+            var title = ResolveTitle(product, root) ?? product.Id.ToString();
             var description = FirstNonEmpty(product.ShoppingFeedDescription, root.Description, root.MetaDescription, root.RootName) ?? product.Id.ToString();
             var link = BuildProductLink(baseUrl, root.RootUrl, product.Url);
             var imageLink = ResolveImageLink(baseUrl, product, root);
@@ -282,7 +284,7 @@ public class GoogleProductFeedGenerator(
                 item.Add(new XElement(g + "google_product_category", root.GoogleShoppingFeedCategory));
             }
 
-            if (emittedCountByRoot.TryGetValue(product.ProductRootId, out var rootCount) && rootCount > 1)
+            if (variantCountByRoot.TryGetValue(product.ProductRootId, out var rootCount) && rootCount > 1)
             {
                 item.Add(new XElement(g + "item_group_id", product.ProductRootId.ToString()));
             }
@@ -668,6 +670,30 @@ public class GoogleProductFeedGenerator(
     private static string? FirstNonEmpty(params string?[] values)
     {
         return values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v))?.Trim();
+    }
+
+    private static string? ResolveTitle(Product product, ProductRoot root)
+    {
+        var configuredTitle = FirstNonEmpty(product.ShoppingFeedTitle);
+        if (!string.IsNullOrWhiteSpace(configuredTitle))
+        {
+            return configuredTitle;
+        }
+
+        var rootName = FirstNonEmpty(root.RootName);
+        var productName = FirstNonEmpty(product.Name);
+
+        if (!string.IsNullOrWhiteSpace(rootName) && !string.IsNullOrWhiteSpace(productName))
+        {
+            if (string.Equals(rootName, productName, StringComparison.OrdinalIgnoreCase))
+            {
+                return rootName;
+            }
+
+            return $"{rootName} - {productName}";
+        }
+
+        return FirstNonEmpty(productName, rootName);
     }
 
     private string? ResolveImageLink(string baseUrl, Product product, ProductRoot root)

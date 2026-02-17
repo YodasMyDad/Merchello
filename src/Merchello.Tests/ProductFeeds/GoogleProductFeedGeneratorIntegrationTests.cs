@@ -209,6 +209,123 @@ public class GoogleProductFeedGeneratorIntegrationTests : IClassFixture<ServiceT
         shippingLabel.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task GenerateAsync_MultiVariantRootWithSingleEmittedVariant_StillEmitsItemGroupId()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var generator = CreateGenerator(taxServiceMock);
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "US");
+        warehouse.SetServiceRegions(
+        [
+            new WarehouseServiceRegion
+            {
+                CountryCode = "US",
+                IsExcluded = false
+            }
+        ]);
+
+        var productRoot = dataBuilder.CreateProductRoot("Grouped Variant Root", taxGroup);
+        productRoot.RootUrl = "grouped-variant-root";
+        productRoot.Description = "Grouped variant root description";
+
+        var includedVariant = dataBuilder.CreateProduct("Grouped Variant A", productRoot, price: 100m, isDefault: true);
+        includedVariant.Url = "https://test.example.com/products/grouped-variant-a";
+        includedVariant.Images = ["https://cdn.example.com/products/grouped-variant-a.jpg"];
+
+        var filteredOutVariant = dataBuilder.CreateProduct("Grouped Variant B", productRoot, price: 110m, isDefault: false);
+        filteredOutVariant.Url = "https://test.example.com/products/grouped-variant-b";
+        filteredOutVariant.Images = ["https://cdn.example.com/products/grouped-variant-b.jpg"];
+        filteredOutVariant.RemoveFromFeed = true;
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(includedVariant, warehouse, stock: 25);
+        dataBuilder.CreateProductWarehouse(filteredOutVariant, warehouse, stock: 25);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var feed = new ProductFeed
+        {
+            Id = Guid.NewGuid(),
+            Name = "Grouped Variant Feed",
+            Slug = $"grouped-variant-feed-{Guid.NewGuid():N}",
+            IsEnabled = true,
+            CountryCode = "US",
+            CurrencyCode = "USD",
+            LanguageCode = "en",
+            IncludeTaxInPrice = false
+        };
+
+        var result = await generator.GenerateAsync(feed);
+        var document = XDocument.Parse(result.Xml);
+        var items = document.Descendants("item").ToList();
+
+        items.Count.ShouldBe(1);
+        var itemGroupId = GetGoogleElementValue(items.Single(), "item_group_id");
+        itemGroupId.ShouldBe(productRoot.Id.ToString());
+    }
+
+    [Fact]
+    public async Task GenerateAsync_TitleFallback_UsesRootNameDashVariantNameWhenNoExplicitTitle()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var generator = CreateGenerator(taxServiceMock);
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "US");
+        warehouse.SetServiceRegions(
+        [
+            new WarehouseServiceRegion
+            {
+                CountryCode = "US",
+                IsExcluded = false
+            }
+        ]);
+
+        var productRoot = dataBuilder.CreateProductRoot("T-Shirt Name", taxGroup);
+        productRoot.RootUrl = "t-shirt-name";
+        var product = dataBuilder.CreateProduct("A2", productRoot, price: 100m, isDefault: true);
+        product.Url = "https://test.example.com/products/t-shirt-name-a2";
+        product.Images = ["https://cdn.example.com/products/t-shirt-name-a2.jpg"];
+        product.ShoppingFeedTitle = null;
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var feed = new ProductFeed
+        {
+            Id = Guid.NewGuid(),
+            Name = "Title Fallback Feed",
+            Slug = $"title-fallback-feed-{Guid.NewGuid():N}",
+            IsEnabled = true,
+            CountryCode = "US",
+            CurrencyCode = "USD",
+            LanguageCode = "en",
+            IncludeTaxInPrice = false
+        };
+
+        var result = await generator.GenerateAsync(feed);
+        var item = GetSingleItem(result.Xml);
+
+        var title = GetGoogleElementValue(item, "title");
+        title.ShouldBe("T-Shirt Name - A2");
+    }
+
     private GoogleProductFeedGenerator CreateGenerator(
         Mock<ITaxService> taxServiceMock,
         Mock<IShippingProviderManager>? shippingProviderManagerMock = null)

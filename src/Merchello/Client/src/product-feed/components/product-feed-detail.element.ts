@@ -1131,10 +1131,12 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       return;
     }
 
-    this._commitFeed({
+    const nextFeed = {
       ...this._feed,
       accessToken: data.accessToken,
-    });
+    };
+    this._commitFeed(nextFeed);
+    this.#workspaceContext?.updateFeed(nextFeed);
 
     this.#notificationContext?.peek("positive", {
       data: {
@@ -1423,7 +1425,8 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                     </umb-property-layout>
 
                     <p class="hint">
-                      Tokens are never returned after save. Regenerate a token to reveal and copy new feed URLs.
+                      The API does not return plaintext tokens after save.
+                      If this browser session has no saved token, regenerate to reveal and copy new feed URLs.
                     </p>
                   `}
             </uui-box>
