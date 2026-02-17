@@ -125,6 +125,16 @@ public class Product
     public string? ShoppingFeedSize { get; set; }
 
     /// <summary>
+    /// Optional variant-level brand override for shopping feeds.
+    /// </summary>
+    public string? ShoppingFeedBrand { get; set; }
+
+    /// <summary>
+    /// Optional variant-level condition override for shopping feeds.
+    /// </summary>
+    public string? ShoppingFeedCondition { get; set; }
+
+    /// <summary>
     /// The shopping feed width (e.g. "10 cm")
     /// </summary>
     public string? ShoppingFeedWidth { get; set; }

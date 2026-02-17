@@ -142,6 +142,8 @@ export interface ProductRootDetailDto {
   rootImages: string[];
   rootUrl: string | null;
   googleShoppingFeedCategory: string | null;
+  shoppingFeedBrand: string | null;
+  shoppingFeedCondition: string | null;
   isDigitalProduct: boolean;
   digitalDeliveryMethod: string | null;
   digitalFileIds: string[] | null;
@@ -247,6 +249,8 @@ export interface ProductVariantDto {
   shoppingFeedColour: string | null;
   shoppingFeedMaterial: string | null;
   shoppingFeedSize: string | null;
+  shoppingFeedBrand: string | null;
+  shoppingFeedCondition: string | null;
   shoppingFeedWidth: string | null;
   shoppingFeedHeight: string | null;
   removeFromFeed: boolean;
@@ -329,6 +333,8 @@ export interface DescriptionEditorSettingsDto {
 export interface CreateProductRootDto {
   rootName: string;
   googleShoppingFeedCategory?: string;
+  shoppingFeedBrand?: string;
+  shoppingFeedCondition?: string;
   taxGroupId: string;
   productTypeId: string;
   collectionIds?: string[];
@@ -358,6 +364,8 @@ export interface UpdateProductRootDto {
   rootImages?: string[];
   rootUrl?: string;
   googleShoppingFeedCategory?: string;
+  shoppingFeedBrand?: string;
+  shoppingFeedCondition?: string;
   isDigitalProduct?: boolean;
   digitalDeliveryMethod?: string;
   digitalFileIds?: string[];
@@ -404,6 +412,8 @@ export interface UpdateVariantDto {
   shoppingFeedColour?: string;
   shoppingFeedMaterial?: string;
   shoppingFeedSize?: string;
+  shoppingFeedBrand?: string;
+  shoppingFeedCondition?: string;
   shoppingFeedWidth?: string;
   shoppingFeedHeight?: string;
   removeFromFeed?: boolean;

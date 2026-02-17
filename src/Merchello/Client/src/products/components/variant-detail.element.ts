@@ -290,6 +290,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
         shoppingFeedColour: this._formData.shoppingFeedColour ?? undefined,
         shoppingFeedMaterial: this._formData.shoppingFeedMaterial ?? undefined,
         shoppingFeedSize: this._formData.shoppingFeedSize ?? undefined,
+        shoppingFeedBrand: this._formData.shoppingFeedBrand ?? undefined,
+        shoppingFeedCondition: this._formData.shoppingFeedCondition ?? undefined,
         shoppingFeedWidth: this._formData.shoppingFeedWidth ?? undefined,
         shoppingFeedHeight: this._formData.shoppingFeedHeight ?? undefined,
         removeFromFeed: this._formData.removeFromFeed,

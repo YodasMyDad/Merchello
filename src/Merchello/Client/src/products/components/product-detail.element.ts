@@ -775,6 +775,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     ];
   }
 
+  private _getRootFeedDatasetValue(): UmbPropertyValueData[] {
+    return [
+      { alias: "shoppingFeedBrand", value: this._formData.shoppingFeedBrand ?? "" },
+      { alias: "shoppingFeedCondition", value: this._formData.shoppingFeedCondition ?? "new" },
+    ];
+  }
+
   private _getMediaDatasetValue(): UmbPropertyValueData[] {
     return [
       {
@@ -834,6 +841,19 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       productTypeId: this._getFirstDropdownValue(values.productTypeId),
       collectionIds: this._getStringArrayFromPropertyValue(values.collectionIds),
       googleShoppingFeedCategory: this._getStringFromPropertyValue(values.googleShoppingFeedCategory) || null,
+    };
+  }
+
+  private _handleRootFeedDatasetChange(e: Event): void {
+    const dataset = e.target as UmbPropertyDatasetElement;
+    const values = this._toPropertyValueMap(dataset.value ?? []);
+    const brand = this._getStringFromPropertyValue(values.shoppingFeedBrand).trim();
+    const condition = this._getStringFromPropertyValue(values.shoppingFeedCondition).trim().toLowerCase();
+
+    this._formData = {
+      ...this._formData,
+      shoppingFeedBrand: brand || null,
+      shoppingFeedCondition: condition || "new",
     };
   }
 
@@ -918,6 +938,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const request: CreateProductRootDto = {
       rootName: this._formData.rootName || "",
       googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? undefined,
+      shoppingFeedBrand: this._formData.shoppingFeedBrand ?? undefined,
+      shoppingFeedCondition: this._formData.shoppingFeedCondition ?? undefined,
       taxGroupId: this._formData.taxGroupId || "",
       productTypeId: this._formData.productTypeId || "",
       collectionIds: this._formData.collectionIds,
@@ -963,6 +985,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       rootImages: this._formData.rootImages,
       rootUrl: this._formData.rootUrl ?? undefined,
       googleShoppingFeedCategory: this._formData.googleShoppingFeedCategory ?? undefined,
+      shoppingFeedBrand: this._formData.shoppingFeedBrand ?? undefined,
+      shoppingFeedCondition: this._formData.shoppingFeedCondition ?? undefined,
       isDigitalProduct: this._formData.isDigitalProduct,
       digitalDeliveryMethod: this._formData.digitalDeliveryMethod ?? undefined,
       digitalFileIds: this._formData.digitalFileIds ?? undefined,
@@ -1067,6 +1091,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       shoppingFeedColour: this._variantFormData.shoppingFeedColour ?? undefined,
       shoppingFeedMaterial: this._variantFormData.shoppingFeedMaterial ?? undefined,
       shoppingFeedSize: this._variantFormData.shoppingFeedSize ?? undefined,
+      shoppingFeedBrand: this._variantFormData.shoppingFeedBrand ?? undefined,
+      shoppingFeedCondition: this._variantFormData.shoppingFeedCondition ?? undefined,
+      shoppingFeedWidth: this._variantFormData.shoppingFeedWidth ?? undefined,
+      shoppingFeedHeight: this._variantFormData.shoppingFeedHeight ?? undefined,
       removeFromFeed: this._variantFormData.removeFromFeed,
       // Warehouse stock settings
       warehouseStock: this._variantFormData.warehouseStock?.map((ws) => ({
@@ -1922,6 +1950,35 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   private _renderShoppingFeedTab(): unknown {
     return html`
       <div class="tab-content">
+        <uui-box headline="Product Feed Defaults">
+          <umb-property-dataset
+            .value=${this._getRootFeedDatasetValue()}
+            @change=${this._handleRootFeedDatasetChange}>
+            <umb-property
+              alias="shoppingFeedBrand"
+              label="Default Brand"
+              description="Used when a variant does not define a brand override."
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+              .config=${[{ alias: "maxChars", value: 150 }]}>
+            </umb-property>
+
+            <umb-property
+              alias="shoppingFeedCondition"
+              label="Default Condition"
+              description="Default Google condition for variants. Variants can override this."
+              property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+              .config=${[{
+                alias: "items",
+                value: [
+                  { name: "New", value: "new" },
+                  { name: "Used", value: "used" },
+                  { name: "Refurbished", value: "refurbished" },
+                ],
+              }]}>
+            </umb-property>
+          </umb-property-dataset>
+        </uui-box>
+
         <merchello-variant-feed-settings
           .formData=${this._variantFormData}
           @variant-change=${(e: CustomEvent) => (this._variantFormData = e.detail)}>

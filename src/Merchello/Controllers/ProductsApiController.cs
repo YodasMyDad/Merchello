@@ -696,6 +696,8 @@ public class ProductsApiController(
             ShoppingFeedColour = product.ShoppingFeedColour,
             ShoppingFeedMaterial = product.ShoppingFeedMaterial,
             ShoppingFeedSize = product.ShoppingFeedSize,
+            ShoppingFeedBrand = product.ShoppingFeedBrand,
+            ShoppingFeedCondition = product.ShoppingFeedCondition,
             ShoppingFeedWidth = product.ShoppingFeedWidth,
             ShoppingFeedHeight = product.ShoppingFeedHeight,
             RemoveFromFeed = product.RemoveFromFeed,

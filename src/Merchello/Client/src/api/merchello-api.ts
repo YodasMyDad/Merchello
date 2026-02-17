@@ -266,6 +266,18 @@ import type {
   VariantLookupDto,
 } from '@products/types/product.types.js';
 
+// Import product feed types
+import type {
+  ProductFeedListItemDto,
+  ProductFeedDetailDto,
+  CreateProductFeedDto,
+  UpdateProductFeedDto,
+  ProductFeedRebuildResultDto,
+  ProductFeedPreviewDto,
+  ProductFeedResolverDescriptorDto,
+  ProductFeedTokenResultDto,
+} from '@product-feed/types/product-feed.types.js';
+
 // Import element type types
 import type { ElementTypeDto } from '@products/types/element-type.types.js';
 
@@ -1194,6 +1206,46 @@ export const MerchelloApi = {
    */
   previewAddonPrice: (variantId: string, request: AddonPricePreviewRequestDto) =>
     apiPost<AddonPricePreviewDto>(`products/variants/${variantId}/preview-addon-price`, request),
+
+  // ============================================
+  // Product Feeds API
+  // ============================================
+
+  /** Get all configured product feeds */
+  getProductFeeds: () =>
+    apiGet<ProductFeedListItemDto[]>('product-feeds'),
+
+  /** Get a product feed by ID */
+  getProductFeed: (id: string) =>
+    apiGet<ProductFeedDetailDto>(`product-feeds/${id}`),
+
+  /** Create a product feed */
+  createProductFeed: (request: CreateProductFeedDto) =>
+    apiPost<ProductFeedDetailDto>('product-feeds', request),
+
+  /** Update a product feed */
+  updateProductFeed: (id: string, request: UpdateProductFeedDto) =>
+    apiPut<ProductFeedDetailDto>(`product-feeds/${id}`, request),
+
+  /** Delete a product feed */
+  deleteProductFeed: (id: string) =>
+    apiDelete(`product-feeds/${id}`),
+
+  /** Rebuild product and promotions XML snapshots for a feed */
+  rebuildProductFeed: (id: string) =>
+    apiPost<ProductFeedRebuildResultDto>(`product-feeds/${id}/rebuild`),
+
+  /** Regenerate signed access token for a feed */
+  regenerateProductFeedToken: (id: string) =>
+    apiPost<ProductFeedTokenResultDto>(`product-feeds/${id}/regenerate-token`),
+
+  /** Preview feed generation diagnostics */
+  previewProductFeed: (id: string) =>
+    apiGet<ProductFeedPreviewDto>(`product-feeds/${id}/preview`),
+
+  /** Get available dynamic value resolvers for custom labels/fields */
+  getProductFeedResolvers: () =>
+    apiGet<ProductFeedResolverDescriptorDto[]>('product-feeds/resolvers'),
 
   // ============================================
   // Shipping Options API

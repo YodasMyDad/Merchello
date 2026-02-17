@@ -219,6 +219,8 @@ export class MerchelloProductsWorkspaceContext
       rootImages: [],
       rootUrl: null,
       googleShoppingFeedCategory: null,
+      shoppingFeedBrand: null,
+      shoppingFeedCondition: "new",
       isDigitalProduct: false,
       digitalDeliveryMethod: null,
       digitalFileIds: null,

@@ -354,6 +354,62 @@ export function navigateToDiscountsList(): void {
 }
 
 // ============================================
+// Product Feed Navigation
+// ============================================
+
+/** Entity type for product feed workspace (list and detail share same type for tree selection) */
+export const PRODUCT_FEEDS_ENTITY_TYPE = "merchello-product-feed";
+
+/**
+ * Generate the URL to view/edit a product feed detail.
+ */
+export function getProductFeedDetailHref(feedId: string): string {
+  return getMerchelloWorkspaceHref(PRODUCT_FEEDS_ENTITY_TYPE, `edit/product-feeds/${feedId}`);
+}
+
+/**
+ * Generate the URL to create a new product feed.
+ */
+export function getProductFeedCreateHref(): string {
+  return getMerchelloWorkspaceHref(PRODUCT_FEEDS_ENTITY_TYPE, "edit/product-feeds/create");
+}
+
+/**
+ * Generate the URL to the product feeds list.
+ */
+export function getProductFeedsListHref(): string {
+  return getMerchelloWorkspaceHref(PRODUCT_FEEDS_ENTITY_TYPE, "edit/product-feeds");
+}
+
+/**
+ * Navigate programmatically to a product feed detail page.
+ */
+export function navigateToProductFeedDetail(feedId: string): void {
+  navigateToMerchelloWorkspace(PRODUCT_FEEDS_ENTITY_TYPE, `edit/product-feeds/${feedId}`);
+}
+
+/**
+ * Navigate programmatically to create a new product feed.
+ */
+export function navigateToProductFeedCreate(): void {
+  navigateToMerchelloWorkspace(PRODUCT_FEEDS_ENTITY_TYPE, "edit/product-feeds/create");
+}
+
+/**
+ * Replace current URL with product feed detail page (no browser history entry).
+ */
+export function replaceToProductFeedDetail(feedId: string): void {
+  history.replaceState({}, "", getProductFeedDetailHref(feedId));
+}
+
+/**
+ * Navigate programmatically to the product feeds list.
+ */
+export function navigateToProductFeedsList(): void {
+  navigateToMerchelloWorkspace(PRODUCT_FEEDS_ENTITY_TYPE, "edit/product-feeds");
+}
+
+// ============================================
 // Email Navigation
 // ============================================
 
