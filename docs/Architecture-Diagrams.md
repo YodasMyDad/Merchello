@@ -433,6 +433,14 @@ IFulfilmentService:
 - IsDuplicateWebhookAsync() - Check webhook idempotency
 - TryLogWebhookAsync() - Atomic webhook idempotency insert (returns false on duplicate)
 
+IFulfilmentSubmissionService:
+- SubmitOrderAsync(parameters) - Trigger-aware submission coordinator used by payment-created automation and explicit staff release workflows
+- Enforces source policy per provider:
+  - Supplier Direct `OnPaid` accepts `PaymentCreated`
+  - Supplier Direct `ExplicitRelease` accepts `ExplicitRelease`
+  - Non-Supplier Direct providers reject `ExplicitRelease`
+- Supports paid-gating for explicit release (`RequirePaidInvoice = true`)
+
 ### 2.15 Upsells
 
 IUpsellService:
@@ -797,6 +805,15 @@ IFulfilmentProvider Interface:
 | Sync | SyncProductsAsync(), GetInventoryLevelsAsync() |
 
 Built-in: ShipBobFulfilmentProvider
+
+Supplier Direct trigger modes (per supplier profile):
+- `OnPaid` - automatic submission from payment-created flow (current default)
+- `ExplicitRelease` - staff-triggered submission per order via `POST /orders/{orderId}/fulfillment/release`
+
+Trigger routing:
+- Payment-created path (`FulfilmentOrderSubmissionHandler`) calls `IFulfilmentSubmissionService` with source `PaymentCreated`
+- Explicit release API path calls `IFulfilmentSubmissionService` with source `ExplicitRelease` and paid-gating enabled
+- Dynamic/non-Supplier Direct providers are unaffected and continue their current payment-created behavior
 
 Shipping → Fulfilment Bridge (Service Category Inference):
 
@@ -1286,7 +1303,7 @@ class Syncer : INotificationAsyncHandler<OrderCreatedNotification>
 |----------|---------|---------|
 | 1000 | *(default)* | Default priority (NotificationHandlerPriorityAttribute.DefaultPriority) |
 | 1500 | DigitalProductPaymentHandler | Digital product link creation after payment |
-| 1800 | FulfilmentOrderSubmissionHandler | 3PL order submission after order creation |
+| 1800 | FulfilmentOrderSubmissionHandler | 3PL order submission from payment-created events (provider trigger-policy aware) |
 | 1800 | FulfilmentCancellationHandler | 3PL cancellation after status change |
 | 1900 | FulfilmentAutoShipmentHandler | Auto-shipment creation on order submission |
 | 1900 | PaymentPostPurchaseHandler | Post-purchase upsell window initialization |
@@ -1367,6 +1384,11 @@ Protocol Events:
 Fulfilment Events:
 - FulfilmentSubmitting✓/Submitted, SubmissionFailed (FulfilmentOrderSubmissionHandler, FulfilmentRetryJob)
 - InventoryUpdated, ProductSynced (FulfilmentSyncService)
+- Supplier Direct submission trigger policy:
+  - `OnPaid`: submission attempted from payment-created workflow
+  - `ExplicitRelease`: submission attempted only from `POST /orders/{orderId}/fulfillment/release`
+  - Explicit release is paid-gated and Supplier Direct-only
+  - Dynamic/non-Supplier Direct provider behavior is unchanged
 
 ### 8.4 Integration Points
 
@@ -1805,6 +1827,9 @@ Backoffice APIs for store management. All endpoints require Umbraco backoffice a
 | Configuration | SettingsApiController, TaxApiController, WarehousesApiController, SuppliersApiController |
 | Notifications | EmailConfigurationApiController, WebhooksApiController, NotificationsApiController |
 | Reporting | ReportingApiController |
+
+Orders API highlight:
+- `POST /orders/{orderId}/fulfillment/release` - explicit Supplier Direct release for paid orders when supplier trigger mode is `ExplicitRelease`
 
 ProductFeedsApiController coverage:
 - `GET /product-feeds`

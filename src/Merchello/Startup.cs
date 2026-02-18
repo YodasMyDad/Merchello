@@ -381,6 +381,7 @@ public static class Startup
         // Fulfilment
         builder.Services.AddScoped<IFulfilmentProviderManager, FulfilmentProviderManager>();
         builder.Services.AddScoped<IFulfilmentService, FulfilmentService>();
+        builder.Services.AddScoped<IFulfilmentSubmissionService, FulfilmentSubmissionService>();
         builder.Services.AddScoped<IFulfilmentSyncService, FulfilmentSyncService>();
         builder.Services.AddSingleton<Merchello.Core.Fulfilment.Providers.SupplierDirect.Csv.SupplierDirectCsvGenerator>();
         builder.Services.AddSingleton<Merchello.Core.Fulfilment.Providers.SupplierDirect.Transport.IFtpClientFactory, Merchello.Core.Fulfilment.Providers.SupplierDirect.Transport.FtpClientFactory>();

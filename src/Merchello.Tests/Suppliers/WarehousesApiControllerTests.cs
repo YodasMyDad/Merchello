@@ -5,9 +5,11 @@ using Merchello.Core.Fulfilment.Providers.SupplierDirect.Transport;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Suppliers.Models;
 using Merchello.Core.Suppliers.Services.Interfaces;
+using Merchello.Core.Suppliers.Services.Parameters;
 using Merchello.Core.Warehouses.Dtos;
 using Merchello.Core.Warehouses.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -19,6 +21,133 @@ namespace Merchello.Tests.Suppliers;
 
 public class WarehousesApiControllerTests
 {
+    [Fact]
+    public async Task GetSupplier_LegacySupplierDirectProfile_DefaultsSubmissionTriggerToOnPaid()
+    {
+        var supplierId = Guid.NewGuid();
+        var supplierServiceMock = new Mock<ISupplierService>();
+        supplierServiceMock
+            .Setup(x => x.GetSupplierByIdAsync(supplierId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Supplier
+            {
+                Id = supplierId,
+                Name = "Legacy Supplier",
+                ExtendedData =
+                {
+                    [SupplierDirectExtendedDataKeys.Profile] = "{\"deliveryMethod\":0,\"emailSettings\":{\"recipientEmail\":\"orders@legacy.test\"}}"
+                }
+            });
+
+        var controller = CreateController(supplierService: supplierServiceMock.Object);
+
+        var result = await controller.GetSupplier(supplierId, CancellationToken.None);
+
+        var ok = result.ShouldBeOfType<OkObjectResult>();
+        var dto = ok.Value.ShouldBeOfType<SupplierDetailDto>();
+        dto.SupplierDirectProfile.ShouldNotBeNull();
+        dto.SupplierDirectProfile.SubmissionTrigger.ShouldBe("OnPaid");
+    }
+
+    [Fact]
+    public async Task UpdateSupplier_InvalidSubmissionTrigger_ReturnsBadRequest()
+    {
+        var supplierId = Guid.NewGuid();
+        var supplierServiceMock = new Mock<ISupplierService>();
+        supplierServiceMock
+            .Setup(x => x.GetSupplierByIdAsync(supplierId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Supplier
+            {
+                Id = supplierId,
+                Name = "Supplier"
+            });
+
+        var controller = CreateController(supplierService: supplierServiceMock.Object);
+        var dto = new UpdateSupplierDto
+        {
+            Name = "Supplier",
+            SupplierDirectProfile = new SupplierDirectProfileDto
+            {
+                SubmissionTrigger = "InvalidTrigger",
+                DeliveryMethod = "Email"
+            }
+        };
+
+        var result = await controller.UpdateSupplier(supplierId, dto, CancellationToken.None);
+
+        var badRequest = result.ShouldBeOfType<BadRequestObjectResult>();
+        badRequest.Value.ShouldBe("SupplierDirectProfile.submissionTrigger must be one of: OnPaid, ExplicitRelease.");
+        supplierServiceMock.Verify(
+            x => x.UpdateSupplierAsync(It.IsAny<UpdateSupplierParameters>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateSupplier_ValidSubmissionTrigger_RoundTripsProfileTrigger()
+    {
+        var supplierId = Guid.NewGuid();
+        var existingSupplier = new Supplier
+        {
+            Id = supplierId,
+            Name = "Supplier"
+        };
+
+        UpdateSupplierParameters? capturedParameters = null;
+        var supplierServiceMock = new Mock<ISupplierService>();
+        supplierServiceMock
+            .Setup(x => x.GetSupplierByIdAsync(supplierId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingSupplier);
+        supplierServiceMock
+            .Setup(x => x.UpdateSupplierAsync(It.IsAny<UpdateSupplierParameters>(), It.IsAny<CancellationToken>()))
+            .Callback<UpdateSupplierParameters, CancellationToken>((parameters, _) => capturedParameters = parameters)
+            .ReturnsAsync((UpdateSupplierParameters parameters, CancellationToken _) =>
+            {
+                var supplier = new Supplier
+                {
+                    Id = supplierId,
+                    Name = parameters.Name ?? "Supplier",
+                    Code = parameters.Code
+                };
+                foreach (var entry in parameters.ExtendedData ?? [])
+                {
+                    supplier.ExtendedData[entry.Key] = entry.Value;
+                }
+
+                return new CrudResult<Supplier>
+                {
+                    ResultObject = supplier
+                };
+            });
+
+        var controller = CreateController(supplierService: supplierServiceMock.Object);
+        var dto = new UpdateSupplierDto
+        {
+            Name = "Supplier",
+            SupplierDirectProfile = new SupplierDirectProfileDto
+            {
+                SubmissionTrigger = "ExplicitRelease",
+                DeliveryMethod = "Email",
+                EmailSettings = new EmailDeliverySettingsDto
+                {
+                    RecipientEmail = "orders@supplier.test"
+                }
+            }
+        };
+
+        var result = await controller.UpdateSupplier(supplierId, dto, CancellationToken.None);
+
+        var ok = result.ShouldBeOfType<OkObjectResult>();
+        var response = ok.Value.ShouldBeOfType<SupplierDetailDto>();
+        response.SupplierDirectProfile.ShouldNotBeNull();
+        response.SupplierDirectProfile.SubmissionTrigger.ShouldBe("ExplicitRelease");
+
+        var parameters = capturedParameters.ShouldNotBeNull();
+        parameters.ExtendedData.ShouldNotBeNull();
+        parameters.ExtendedData.TryGetValue(SupplierDirectExtendedDataKeys.Profile, out var profileJson).ShouldBeTrue();
+        var profile = SupplierDirectProfile.FromJson(profileJson?.ToString());
+        profile.ShouldNotBeNull();
+        profile!.SubmissionTrigger.ShouldBe(SupplierDirectSubmissionTrigger.ExplicitRelease);
+    }
+
     [Fact]
     public async Task TestSupplierFtpConnection_WithValidFtpPayload_ReturnsSuccess()
     {

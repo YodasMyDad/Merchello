@@ -138,7 +138,7 @@ public class ShipmentServiceTests
         result.Success.ShouldBeFalse();
         result.ResultObject.ShouldBeNull();
         result.Messages.ShouldContain(m =>
-            m.Message.Contains("cannot be shipped", StringComparison.OrdinalIgnoreCase));
+            (m.Message ?? string.Empty).Contains("cannot be shipped", StringComparison.OrdinalIgnoreCase));
     }
 
     #endregion
