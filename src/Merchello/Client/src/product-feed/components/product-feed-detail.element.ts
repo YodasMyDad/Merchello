@@ -1002,7 +1002,17 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
   private async _handleDelete(): Promise<void> {
     if (!this._feed?.id || this._isNew) return;
 
-    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+    if (!this.#modalManager) {
+      this.#notificationContext?.peek("warning", {
+        data: {
+          headline: "Action unavailable",
+          message: "Delete confirmation is not available right now. Refresh and try again.",
+        },
+      });
+      return;
+    }
+
+    const modalContext = this.#modalManager.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Product Feed",
         content: `Delete "${this._feed.name}"? This cannot be undone.`,
@@ -1388,7 +1398,6 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     const productTypeTotal = this._productTypes.length;
     const productTypeSelected = config.productTypeIds.length;
     const allProductTypesSelected = productTypeTotal > 0 && productTypeSelected === productTypeTotal;
-    const hasProductTypeRestriction = productTypeSelected > 0 && !allProductTypesSelected;
     const productTypeStatus = productTypeSelected === 0
       ? `0 of ${productTypeTotal} selected • No restriction (all product types)`
       : allProductTypesSelected
@@ -1398,118 +1407,68 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     const collectionTotal = this._collections.length;
     const collectionSelected = config.collectionIds.length;
     const allCollectionsSelected = collectionTotal > 0 && collectionSelected === collectionTotal;
-    const hasCollectionRestriction = collectionSelected > 0;
     const collectionStatus = collectionSelected === 0
       ? `0 of ${collectionTotal} selected • No restriction (all collections + unassigned)`
       : allCollectionsSelected
         ? `${collectionSelected} of ${collectionTotal} selected • OR logic (products must be in at least one collection)`
         : `${collectionSelected} of ${collectionTotal} selected • OR logic (any selected collection)`;
 
-    const activeFilterGroups = config.filterValueGroups.filter((group) => group.filterIds.length > 0);
-    const selectedFilterValueCount = activeFilterGroups.reduce((total, group) => total + group.filterIds.length, 0);
-    const hasFilterRestriction = activeFilterGroups.length > 0;
     const queryInfo = this._buildSelectionQueryInfo(config);
 
     return html`
       <div class="selection-stack">
-      <uui-box headline="Selection Logic">
-        <div class="logic-grid">
-          <section class="logic-rule">
-            <div class="logic-rule-header">
-              <strong>1. Product Types</strong>
-              <uui-tag color=${hasProductTypeRestriction ? "warning" : "positive"}>
-                ${hasProductTypeRestriction ? "Active • OR" : "No restriction"}
-              </uui-tag>
+        <uui-box headline="Effective Query">
+          <div class="query-builder">
+            <div class="query-builder-header">
+              <uui-tag color="default">Live preview</uui-tag>
             </div>
-            <p class="hint">A product matches if its type is any selected type.</p>
-          </section>
 
-          <section class="logic-rule">
-            <div class="logic-rule-header">
-              <strong>2. Collections</strong>
-              <uui-tag color=${hasCollectionRestriction ? "warning" : "positive"}>
-                ${hasCollectionRestriction ? "Active • OR" : "No restriction"}
-              </uui-tag>
-            </div>
-            <p class="hint">
-              A product matches if it is in any selected collection. If none are selected, collection matching is not used.
-            </p>
-          </section>
+            <p class="query-english">${queryInfo.english}</p>
+            <code class="query-expression">${queryInfo.expression}</code>
 
-          <section class="logic-rule">
-            <div class="logic-rule-header">
-              <strong>3. Filter Values</strong>
-              <uui-tag color=${hasFilterRestriction ? "warning" : "positive"}>
-                ${hasFilterRestriction ? "Active • AND across groups" : "No restriction"}
-              </uui-tag>
-            </div>
-            <p class="hint">
-              Within each selected group values are OR. Across selected groups, products must match every group (AND).
-            </p>
-          </section>
-        </div>
+            <div class="query-groups">
+              <section class="query-group">
+                <strong>Product Types</strong>
+                <div class="query-tag-list">
+                  ${queryInfo.productTypeNames.length > 0
+                    ? queryInfo.productTypeNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)
+                    : html`<uui-tag color="positive">Any</uui-tag>`}
+                </div>
+              </section>
 
-        <div class="logic-summary">
-          <strong>Current rule summary:</strong>
-          <ul class="logic-list">
-            <li>Product Types: ${hasProductTypeRestriction ? "restricted" : "not restricted"}</li>
-            <li>Collections: ${hasCollectionRestriction ? "restricted" : "not restricted"}</li>
-            <li>Filter Values: ${hasFilterRestriction ? `${activeFilterGroups.length} groups / ${selectedFilterValueCount} values active` : "not restricted"}</li>
-          </ul>
-        </div>
+              <section class="query-group">
+                <strong>Collections</strong>
+                <div class="query-tag-list">
+                  ${queryInfo.collectionNames.length > 0
+                    ? queryInfo.collectionNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)
+                    : html`<uui-tag color="positive">Any</uui-tag>`}
+                </div>
+              </section>
 
-        <div class="query-builder">
-          <div class="query-builder-header">
-            <strong>Effective Query</strong>
-            <uui-tag color="default">Live preview</uui-tag>
-          </div>
-
-          <p class="query-english">${queryInfo.english}</p>
-          <code class="query-expression">${queryInfo.expression}</code>
-
-          <div class="query-groups">
-            <section class="query-group">
-              <strong>Product Types</strong>
-              <div class="query-tag-list">
-                ${queryInfo.productTypeNames.length > 0
-                  ? queryInfo.productTypeNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)
-                  : html`<uui-tag color="positive">Any</uui-tag>`}
-              </div>
-            </section>
-
-            <section class="query-group">
-              <strong>Collections</strong>
-              <div class="query-tag-list">
-                ${queryInfo.collectionNames.length > 0
-                  ? queryInfo.collectionNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)
-                  : html`<uui-tag color="positive">Any</uui-tag>`}
-              </div>
-            </section>
-
-            <section class="query-group full-width">
-              <strong>Filter Values</strong>
-              ${queryInfo.filterGroups.length === 0
-                ? html`
-                    <div class="query-tag-list">
-                      <uui-tag color="positive">Any</uui-tag>
-                    </div>
-                  `
-                : html`
-                    <div class="query-filter-groups">
-                      ${queryInfo.filterGroups.map((group) => html`
-                        <div class="query-filter-group">
-                          <span class="query-filter-group-name">${group.groupName}</span>
-                          <div class="query-tag-list">
-                            ${group.valueNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)}
+              <section class="query-group full-width">
+                <strong>Filter Values</strong>
+                ${queryInfo.filterGroups.length === 0
+                  ? html`
+                      <div class="query-tag-list">
+                        <uui-tag color="positive">Any</uui-tag>
+                      </div>
+                    `
+                  : html`
+                      <div class="query-filter-groups">
+                        ${queryInfo.filterGroups.map((group) => html`
+                          <div class="query-filter-group">
+                            <span class="query-filter-group-name">${group.groupName}</span>
+                            <div class="query-tag-list">
+                              ${group.valueNames.map((name) => html`<uui-tag color="warning">${name}</uui-tag>`)}
+                            </div>
                           </div>
-                        </div>
-                      `)}
-                    </div>
-                  `}
-            </section>
+                        `)}
+                      </div>
+                    `}
+              </section>
+            </div>
           </div>
-        </div>
-      </uui-box>
+        </uui-box>
 
       <uui-box headline="Product Types">
         ${productTypeTotal > 0
@@ -2652,43 +2611,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       gap: var(--uui-size-space-4);
     }
 
-    .logic-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-3);
-    }
-
-    .logic-rule {
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      padding: var(--uui-size-space-3);
-      background: color-mix(in srgb, var(--uui-color-surface) 95%, var(--uui-color-border) 5%);
-    }
-
-    .logic-rule-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--uui-size-space-2);
-      margin-bottom: var(--uui-size-space-2);
-      flex-wrap: wrap;
-    }
-
-    .logic-summary {
-      border-top: 1px solid var(--uui-color-border);
-      padding-top: var(--uui-size-space-3);
-    }
-
-    .logic-list {
-      margin: var(--uui-size-space-2) 0 0;
-      padding-left: 20px;
-    }
-
     .query-builder {
-      border-top: 1px solid var(--uui-color-border);
-      margin-top: var(--uui-size-space-3);
-      padding-top: var(--uui-size-space-3);
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-3);
@@ -2697,7 +2620,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     .query-builder-header {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-end;
       gap: var(--uui-size-space-2);
       flex-wrap: wrap;
     }
@@ -2907,10 +2830,6 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       }
 
       .promotion-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .logic-grid {
         grid-template-columns: 1fr;
       }
 

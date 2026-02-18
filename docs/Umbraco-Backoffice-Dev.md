@@ -2,7 +2,9 @@
 
 Source audited against:
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client`
-- Audit date: February 17, 2026
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\node_modules\@umbraco-ui`
+- `https://uui.umbraco.com` (Storybook docs/index)
+- Audit date: February 18, 2026
 
 This guide is the source of truth for how we build Merchello backoffice UI so it matches Umbraco patterns and behaves like native backoffice features.
 
@@ -111,6 +113,34 @@ Pattern:
 - In modal forms: label belongs to `uui-label slot="label"`.
 - Ensure text inputs/selects generally span full width where expected (`width: 100%`).
 
+### UUI control label contract (critical)
+The UUI controls used in backoffice commonly warn in dev mode when `label` is missing.
+
+Applies to common controls such as:
+- `uui-button`
+- `uui-select`
+- `uui-toggle`
+- `uui-checkbox`
+- `uui-textarea`
+
+Rules:
+- Do not rely only on surrounding wrapper labels (`umb-property-layout`) for UUI control accessibility names.
+- Set a `label` on UUI controls that require it.
+- For `uui-select`, `label` is required but not rendered as visible label text (it maps to accessible naming).
+- For icon-only `uui-button`, still set `label`; the slotted icon remains the visible content.
+- For toggles/checkboxes where visible label text would hurt layout, keep accessibility label while visually hiding label content.
+
+Hidden-label pattern for boolean controls:
+```ts
+<uui-toggle label=${this.localize.term('general_select')}>
+  <uui-visually-hidden>${this.localize.term('general_select')}</uui-visually-hidden>
+</uui-toggle>
+```
+
+Batch select guidance:
+- For table row selection, use dedicated selection controls (`umb-table`) and keep explicit accessibility naming.
+- Keep click handlers from bubbling where selection controls are inside clickable rows.
+
 ## Modal and Dialog Standards
 
 ### Modal shell choice
@@ -152,6 +182,13 @@ Use existing localization terms for common actions:
 - `general_delete`
 
 Avoid inventing synonyms when a standard term exists.
+
+### Dialog writing style (UUI style guide)
+- Headline should be short and action-oriented.
+- Description should explain effect and consequence, not repeat the headline.
+- Avoid filler confirmation text like "Are you sure...".
+- Action button text should use the exact action verb (`Delete`, `Publish`, `Transfer`) and remain short.
+- Keep action wording consistent with headline/description terminology.
 
 ### Icon usage in dialogs and actions
 - Use `umb-icon` for backoffice extension/entity icons (manifest or entity-associated icon names).
@@ -241,6 +278,7 @@ Use this as the approved component playbook for Merchello backoffice.
 - `umb-property`: action-enabled property host (with property editor integration).
 - `umb-property-dataset`: required dataset host for `umb-property`.
 - `uui-form`, `uui-form-layout-item`, `uui-label`: modal and non-property form layouts.
+- `uui-visually-hidden`: visually hidden but screen-reader-accessible labels/content.
 
 ### Inputs and selectors
 - Use UUI inputs for primitive controls:
@@ -292,6 +330,46 @@ If using `UmbSorterController`:
 
 This avoids runtime errors such as missing sorter container element.
 
+## Tree Interaction Contracts
+
+### Ownership and extension resolution
+- `umb-tree` is an extension host; default rendering is `umb-default-tree`.
+- Tree item rendering is resolved by `entityType`; if no matching `treeItem` extension exists, Umbraco falls back to `umb-default-tree-item`.
+- Selection and expansion state are owned by tree context managers, not by ad-hoc DOM state in custom tree items.
+
+### Selection, open/close, and navigation behavior
+- `umb-tree-item` interactions map to `uui-menu-item` events (`selected`, `deselected`, `show-children`, `hide-children`).
+- In selectable contexts, navigation links are intentionally suppressed for non-edit selection workflows.
+- Active state is calculated from route matching and propagated through the active chain manager.
+
+### Root/start node behavior
+- If `hideTreeRoot = false`, the root item is rendered as a normal tree item.
+- If `hideTreeRoot = true`, root children render directly.
+- `startNode` and `hideTreeRoot` change loading behavior and trigger tree reset + reload.
+- `expandTreeRoot` controls root expansion behavior without custom tree item hacks.
+
+### Pagination, retries, and fallback
+- Tree child loading uses target pagination plus offset fallback.
+- Load size defaults to `50` unless explicitly changed in manager/context.
+- On missing target errors (`not found`), Umbraco retries with alternate targets.
+- If retries fail, Umbraco falls back to safe offset pagination from top of list.
+- On terminal load failure, Umbraco keeps UI stable and can notify user (`danger` peek notification).
+
+### Reload event contract after mutations
+After create/move/delete/sort, do not hand-mutate visible tree nodes. Dispatch reload events:
+- `UmbRequestReloadChildrenOfEntityEvent` for current node children.
+- `UmbRequestReloadStructureForEntityEvent` for parent/root structural refresh.
+- Legacy `UmbRequestReloadTreeItemChildrenEvent` exists but is deprecated.
+
+### Active-path edge case contract
+- Tree item active checks use trailing-slash-safe path comparisons to avoid collisions such as `/path-1` vs `/path-1-2`.
+- If `ancestors` are available on item models, they must be preserved for correct active-chain propagation/expansion behavior.
+
+### Tree picker state behavior
+- `umb-tree-picker-modal` wires selection + expansion through picker context.
+- Expansion state is stored in interaction memory (`UmbTreeItemPickerExpansion`) and restored when present.
+- `hideTreeRoot`, `expandTreeRoot`, `startNode`, `foldersOnly`, `filter`, and `pickableFilter` are first-class picker contracts.
+
 ## Routing and Workspace Conventions
 
 ### Manifest route metadata
@@ -327,11 +405,35 @@ Define constants with `UmbPathPattern` and generate paths from them.
 Do not hardcode:
 - `section/.../workspace/...` URL strings inline in components.
 
+### Workspace view ordering and fallback routes
+- Workspace views are sorted by `weight` (descending).
+- Default route behavior duplicates first view into `path: ''`.
+- Catch-all not-found route (`path: '**'`) must remain last.
+- `umb-workspace-editor` still has a slot fallback path when no routes are available; do not rely on mixed slot+route behavior for new implementation.
+
+### Unsaved changes navigation guard
+- Entity-detail workspaces listen to `willchangestate`.
+- If navigating away with unpersisted changes, Umbraco prevents navigation and opens discard-changes modal.
+- On confirm, Umbraco re-pushes target history state with an internal allow flag to avoid re-trigger loops.
+- Do not bypass this with custom `history.pushState()` flows in feature code.
+
+### New-entity redirect edge case
+- New entity creation (`isNew -> false`) redirects create routes to `edit/:id`.
+- Core uses delayed redirect timing to avoid modal-route race conditions after create/submit flows.
+- Keep this redirect behavior centralized in workspace controllers.
+
+### Split-view variant URL contract
+- Split view encodes variants in URL path using delimiter `_&_`.
+- Switching/opening/closing split view updates history while preserving additional sub-path when possible.
+- Split view context provides variant-scoped dataset + validation context; do not duplicate this wiring in workspace views.
+
 ## Spacing and Visual Tokens
 
 Use UUI spacing tokens, not custom pixel systems:
 - Layout rhythm: `--uui-size-layout-1`, `--uui-size-layout-2`.
 - Component spacing: `--uui-size-space-1` through `--uui-size-space-6`.
+- UUI style guide baseline is a `6px` base unit; prefer token multiples to preserve rhythm.
+- Keep related elements visually closer than unrelated groups; use spacing to communicate hierarchy.
 
 Most-used spacing in audited source:
 - `--uui-size-layout-1`
@@ -346,6 +448,13 @@ Use color/border tokens from UUI:
 - `--uui-color-surface`
 - `--uui-color-text-alt`
 
+### Typography foundation (UUI docs)
+- Storybook guidance exists in both `Design/Style Guide` (`?path=/docs/design-style-guide--docs`) and `Design/Css` (`?path=/docs/design-css--docs`).
+- When outside Umbraco wrappers that already provide typography classes, use `uui-font` + `uui-text`.
+- `uui-css.css` includes custom properties, font, and text styles in one import.
+- Use `uui-lead` for lead paragraph styling where a short textual summary is needed.
+- Keep backoffice typography token-driven; avoid standalone font stacks on admin surfaces.
+
 ## Localization and Text
 - In manifests, use localization keys for labels when available (for example `#general_content`).
 - In components, use `this.localize.term(...)` and `this.localize.string(...)`.
@@ -359,7 +468,9 @@ Do:
 - Use `uui-dialog-layout` for compact confirm dialogs and `umb-body-layout` for complex dialog flows.
 - Put modal actions in `slot="actions"` with neutral action first and primary confirm last.
 - Use `umb-table` in collection views.
+- Keep tree state in tree context managers and trigger refresh via tree reload events after mutations.
 - Use `UmbPathPattern` constants for workspace paths.
+- Set `label` on UUI controls that require it, including icon-only buttons and selects inside wrapper layouts.
 - Keep product action-enabled fields on `umb-property`.
 
 Do not:
@@ -367,6 +478,8 @@ Do not:
 - Mix `pathname` and `pathName`.
 - Bypass dataset context for `umb-property`.
 - Use raw UUI inputs for product fields that need property actions.
+- Directly mutate tree DOM state after create/move/delete/sort operations.
+- Rely on placeholder-only or wrapper-only labeling for `uui-select`/`uui-toggle`/`uui-button`.
 - Use non-standard button semantics (for example danger-colored non-destructive primary actions).
 - Ship icon-only primary/destructive dialog actions.
 
@@ -378,9 +491,12 @@ Do not:
 - Modal button bar follows semantic patterns (cancel/close + primary action color/look).
 - Dialog labels/icons follow localization and icon rules.
 - Collection views use `umb-table` + collection context wiring.
+- Tree behaviors follow context contracts (`selectionConfiguration`, expansion, reload events).
 - Routing uses constants and route fallback (`''`, `**`).
+- Workspace edge cases are preserved (unsaved-change guard, is-new redirect, split-view route contract).
 - Manifest metadata casing is correct (`pathname` vs `pathName`).
 - Spacing uses UUI tokens only.
+- UUI controls with label requirements have explicit `label` (or hidden-label pattern).
 - Labels/localization are present and consistent.
 
 ## Audit Reference Files
@@ -404,6 +520,34 @@ Do not:
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\modal\common\confirm\confirm-modal.element.ts`
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\modal\common\confirm\confirm-modal.token.ts`
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\modal\common\discard-changes\discard-changes-modal.element.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\components\workspace-editor\workspace-editor.context.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\controllers\workspace-is-new-redirect.controller.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\controllers\workspace-route-manager.controller.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\entity-detail\entity-detail-workspace-base.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\components\workspace-split-view\workspace-split-view.element.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\controllers\workspace-split-view-manager.controller.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\default\default-tree.context.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\default\default-tree.element.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\tree-item\tree-item-base\tree-item-context-base.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\tree-item\tree-item-base\tree-item-element-base.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\tree-item\tree-item-children.manager.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\tree-item-picker\tree-item-picker-expansion.manager.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\tree-picker-modal\tree-picker-modal.element.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\components\workspace-action-menu\workspace-action-menu.element.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\webhook\webhook\workspace\views\webhook-details-workspace-view.element.ts`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\node_modules\@umbraco-ui\uui-base\lib\mixins\index.js`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\node_modules\@umbraco-ui\uui-select\lib\index.js`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\node_modules\@umbraco-ui\uui-button\lib\index.js`
+- `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\node_modules\@umbraco-ui\uui-boolean-input\lib\index.js`
+- `C:\Projects\Umbraco.UI\packages\uui-base\lib\mixins\LabelMixin.ts`
+- `C:\Projects\Umbraco.UI\packages\uui-css\lib\guidelines.story.ts`
+- `C:\Projects\Umbraco.UI\packages\uui-css\lib\uui-css.mdx`
+- `C:\Projects\Umbraco.UI\packages\uui-button\lib\uui-button.story.ts`
+- `C:\Projects\Umbraco.UI\packages\uui-select\lib\uui-select.story.ts`
+- `C:\Projects\Umbraco.UI\packages\uui-toggle\lib\uui-toggle.story.ts`
+- `C:\Projects\Umbraco.UI\packages\uui-checkbox\lib\uui-checkbox.story.ts`
+- `C:\Projects\Umbraco.UI\packages\uui-visually-hidden\README.md`
+- `https://uui.umbraco.com/index.json`
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\tree\folder\modal\folder-modal-element-base.ts`
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\server-file-system\rename\modal\rename-server-file-modal.element.ts`
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\relations\relations\entity-actions\delete\modal\delete-with-relation-modal.element.ts`

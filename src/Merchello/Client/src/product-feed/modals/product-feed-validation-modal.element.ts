@@ -391,22 +391,25 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
             </uui-input>
           </umb-property-layout>
 
-          <div class="preview-picker">
-            <label for="preview-product-search">Preview Products</label>
-            <div class="autocomplete-field">
-              <uui-input
-                id="preview-product-search"
-                .value=${this._productQuery}
-                @input=${this._handleProductQueryInput}
-                @focus=${this._handleProductQueryFocus}
-                @blur=${this._handleProductQueryBlur}
-                placeholder="Search products by name or SKU"
-                autocomplete="off">
-              </uui-input>
-              ${this._renderAutocompleteResults()}
+          <umb-property-layout
+            label="Preview Products"
+            description="Select products to request detailed preview rows.">
+            <div slot="editor" class="preview-picker">
+              <div class="autocomplete-field">
+                <uui-input
+                  id="preview-product-search"
+                  label="Search products"
+                  .value=${this._productQuery}
+                  @input=${this._handleProductQueryInput}
+                  @focus=${this._handleProductQueryFocus}
+                  @blur=${this._handleProductQueryBlur}
+                  placeholder="Search products by name or SKU"
+                  autocomplete="off">
+                </uui-input>
+                ${this._renderAutocompleteResults()}
+              </div>
             </div>
-            <p class="hint">Select products to request detailed preview rows.</p>
-          </div>
+          </umb-property-layout>
 
           ${this._selectedPreviewProducts.length > 0
             ? html`
@@ -455,7 +458,7 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
               Use Sample IDs
             </uui-button>
           </div>
-          <uui-button look="primary" ?disabled=${this._isLoading} @click=${this._runValidation}>
+          <uui-button look="primary" color="positive" ?disabled=${this._isLoading} @click=${this._runValidation}>
             ${this._isLoading ? "Validating..." : "Validate Feed"}
           </uui-button>
         </div>
@@ -661,9 +664,7 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
             : this._renderActiveTab()}
         </div>
 
-        <div slot="actions">
-          <uui-button look="secondary" @click=${this._close}>Close</uui-button>
-        </div>
+        <uui-button slot="actions" look="secondary" label="Close" @click=${this._close}>Close</uui-button>
       </umb-body-layout>
     `;
   }

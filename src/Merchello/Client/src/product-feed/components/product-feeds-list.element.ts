@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_CONFIRM_MODAL, UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -194,7 +194,8 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     event.preventDefault();
     event.stopPropagation();
 
-    if (!confirm(`Delete feed "${feed.name}"? This cannot be undone.`)) {
+    const confirmed = await this._confirmDeleteFeed(feed);
+    if (!confirmed) {
       return;
     }
 
@@ -222,6 +223,34 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     });
 
     await this._loadFeeds();
+  }
+
+  private async _confirmDeleteFeed(feed: ProductFeedListItemDto): Promise<boolean> {
+    if (!this.#modalManager) {
+      this.#notificationContext?.peek("warning", {
+        data: {
+          headline: "Action unavailable",
+          message: "Delete confirmation is not available right now. Refresh and try again.",
+        },
+      });
+      return false;
+    }
+
+    const modalContext = this.#modalManager.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete Product Feed",
+        content: `Delete "${feed.name}"? This cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    try {
+      await modalContext.onSubmit();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async _validateFeed(feed: ProductFeedListItemDto, event: Event): Promise<void> {
@@ -428,6 +457,7 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
             <uui-input
               class="search"
               type="text"
+              label="Search feeds"
               placeholder="Search by name, slug, country, or currency"
               @input=${this._onSearchInput}>
               <uui-icon slot="prepend" name="icon-search"></uui-icon>
