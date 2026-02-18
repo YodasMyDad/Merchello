@@ -154,10 +154,9 @@ internal static class ProductSeederExtensions
                 // Step 5: Update variants with images, stock, and filters
                 foreach (var variant in productRoot.Products)
                 {
-                    // Update variant with image (SKU already set by ProductService)
+                    // Keep variants purchasable; images remain empty unless real media keys are provided.
                     await productService.UpdateVariant(productRootId, variant.Id, new UpdateVariantDto
                     {
-                        Images = [Guid.NewGuid()], // Placeholder - real seeding would use actual media keys
                         AvailableForPurchase = true
                     }, cancellationToken);
 

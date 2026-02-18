@@ -74,6 +74,7 @@ public class GoogleProductFeedGenerator(
 
     private static readonly HashSet<string> AllowedConditions =
         new(["new", "used", "refurbished"], StringComparer.OrdinalIgnoreCase);
+    private const int MaxAdditionalImageLinks = 10;
 
     public async Task<ProductFeedGenerationResult> GenerateAsync(ProductFeed feed, CancellationToken cancellationToken = default)
     {
@@ -205,9 +206,9 @@ public class GoogleProductFeedGenerator(
             var item = new XElement("item");
 
             var title = ResolveTitle(product, root) ?? product.Id.ToString();
-            var description = FirstNonEmpty(product.ShoppingFeedDescription, root.Description, root.MetaDescription, root.RootName) ?? product.Id.ToString();
+            var description = ResolveDescription(product, root) ?? product.Id.ToString();
             var link = BuildProductLink(baseUrl, root.RootUrl, product.Url);
-            var imageLink = ResolveImageLink(baseUrl, product, root);
+            var (imageLink, additionalImageLinks) = ResolveImageLinks(baseUrl, product, root);
             var availability = ResolveAvailability(product);
             var condition = NormalizeCondition(
                 FirstNonEmpty(product.ShoppingFeedCondition, root.ShoppingFeedCondition, "new"),
@@ -237,6 +238,10 @@ public class GoogleProductFeedGenerator(
             if (!string.IsNullOrWhiteSpace(imageLink))
             {
                 item.Add(new XElement(g + "image_link", imageLink));
+            }
+            foreach (var additionalImageLink in additionalImageLinks)
+            {
+                item.Add(new XElement(g + "additional_image_link", additionalImageLink));
             }
 
             item.Add(new XElement(g + "availability", availability));
@@ -696,21 +701,119 @@ public class GoogleProductFeedGenerator(
         return FirstNonEmpty(productName, rootName);
     }
 
-    private string? ResolveImageLink(string baseUrl, Product product, ProductRoot root)
+    private static string? ResolveDescription(Product product, ProductRoot root)
     {
-        var imageReference = product.Images.FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(imageReference))
-        {
-            imageReference = root.RootImages.FirstOrDefault();
-        }
+        return FirstNonEmpty(
+            ExtractTipTapMarkup(product.ShoppingFeedDescription),
+            ExtractTipTapMarkup(root.Description),
+            ExtractTipTapMarkup(root.MetaDescription),
+            root.RootName);
+    }
 
-        if (string.IsNullOrWhiteSpace(imageReference))
+    private static string? ExtractTipTapMarkup(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
         {
             return null;
         }
 
-        var resolved = mediaUrlResolver.ResolveMediaUrl(imageReference) ?? imageReference;
-        return ToAbsoluteUrl(baseUrl, resolved);
+        var trimmed = value.Trim();
+
+        try
+        {
+            using var document = JsonDocument.Parse(trimmed);
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.TryGetProperty("markup", out var markupElement) &&
+                markupElement.ValueKind == JsonValueKind.String)
+            {
+                var markup = markupElement.GetString();
+                return string.IsNullOrWhiteSpace(markup) ? null : markup.Trim();
+            }
+        }
+        catch (JsonException)
+        {
+            // Stored value is not TipTap JSON. Keep backwards-compatible behavior.
+        }
+
+        return trimmed;
+    }
+
+    private (string? ImageLink, List<string> AdditionalImageLinks) ResolveImageLinks(string baseUrl, Product product, ProductRoot root)
+    {
+        var imageReferences = new List<string>();
+        AddImageReferences(imageReferences, product.Images);
+
+        if (!product.ExcludeRootProductImages)
+        {
+            AddImageReferences(imageReferences, root.RootImages);
+        }
+
+        if (imageReferences.Count == 0)
+        {
+            return (null, []);
+        }
+
+        var resolvedLinks = new List<string>(imageReferences.Count);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var imageReference in imageReferences)
+        {
+            var resolved = ResolveImageReference(baseUrl, imageReference);
+            if (string.IsNullOrWhiteSpace(resolved))
+            {
+                continue;
+            }
+
+            if (seen.Add(resolved))
+            {
+                resolvedLinks.Add(resolved);
+            }
+        }
+
+        if (resolvedLinks.Count == 0)
+        {
+            return (null, []);
+        }
+
+        var mainImageLink = resolvedLinks[0];
+        var additionalImageLinks = resolvedLinks
+            .Skip(1)
+            .Take(MaxAdditionalImageLinks)
+            .ToList();
+
+        return (mainImageLink, additionalImageLinks);
+    }
+
+    private string? ResolveImageReference(string baseUrl, string imageReference)
+    {
+        var resolved = mediaUrlResolver.ResolveMediaUrl(imageReference);
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            // Only use raw value if it is already a URL/path. Never emit unresolved GUIDs.
+            if (imageReference.StartsWith("/", StringComparison.Ordinal) ||
+                imageReference.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                imageReference.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                resolved = imageReference;
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(resolved)
+            ? null
+            : ToAbsoluteUrl(baseUrl, resolved);
+    }
+
+    private static void AddImageReferences(List<string> destination, IEnumerable<string> source)
+    {
+        foreach (var imageReference in source)
+        {
+            if (string.IsNullOrWhiteSpace(imageReference))
+            {
+                continue;
+            }
+
+            destination.Add(imageReference.Trim());
+        }
     }
 
     private static string ResolveAvailability(Product product)

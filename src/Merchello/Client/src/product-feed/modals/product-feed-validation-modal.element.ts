@@ -466,17 +466,6 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
           </uui-button>
         </div>
 
-        ${validation.warnings.length > 0
-          ? html`
-              <div class="warnings-wrap">
-                <h5>Feed warnings</h5>
-                <ul class="list">
-                  ${validation.warnings.map((warning) => html`<li>${warning}</li>`)}
-                </ul>
-              </div>
-            `
-          : nothing}
-
         <div class="issue-filters">
           <uui-button
             look=${this._issueFilter === "all" ? "primary" : "secondary"}
@@ -730,14 +719,6 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
       background: var(--uui-color-surface-alt);
     }
 
-    .warnings-wrap {
-      margin-bottom: var(--uui-size-space-3);
-    }
-
-    .warnings-wrap h5 {
-      margin: 0 0 var(--uui-size-space-2);
-    }
-
     .issue-filters {
       display: flex;
       gap: var(--uui-size-space-2);
@@ -895,14 +876,6 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
       display: flex;
       justify-content: center;
       padding: var(--uui-size-space-5);
-    }
-
-    .list {
-      margin: 0;
-      padding-left: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
     }
 
     .hint {
