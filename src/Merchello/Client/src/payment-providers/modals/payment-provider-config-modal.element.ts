@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { PaymentProviderFieldDto } from '@payment-providers/types/payment-providers.types.js';
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   PaymentProviderConfigModalData,
   PaymentProviderConfigModalValue,
@@ -401,7 +402,9 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -476,7 +479,8 @@ export class MerchelloPaymentProviderConfigModalElement extends UmbModalBaseElem
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloPaymentProviderConfigModalElement;
@@ -486,3 +490,4 @@ declare global {
     "merchello-payment-provider-config-modal": MerchelloPaymentProviderConfigModalElement;
   }
 }
+

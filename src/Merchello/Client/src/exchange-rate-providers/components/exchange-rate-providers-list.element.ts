@@ -10,6 +10,7 @@ import { getStoreSettings } from "@api/store-settings.js";
 import type { ExchangeRateProviderDto, ExchangeRateSnapshotDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 import { MERCHELLO_EXCHANGE_RATE_PROVIDER_CONFIG_MODAL } from "@exchange-rate-providers/modals/exchange-rate-provider-config-modal.token.js";
 import { MERCHELLO_TEST_EXCHANGE_RATE_PROVIDER_MODAL } from "@exchange-rate-providers/modals/test-provider-modal.token.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-exchange-rate-providers-list")
 export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(LitElement) {
@@ -287,7 +288,7 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <div class="loading">
               <uui-loader></uui-loader>
               <span>Loading exchange rate providers...</span>
@@ -300,7 +301,7 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
     if (this._errorMessage) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <uui-box>
               <div class="error">
                 <uui-icon name="icon-alert"></uui-icon>
@@ -317,7 +318,7 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="content">
+        <div class="content layout-container">
           ${this._renderStatusBox()}
 
           <uui-box headline="Available Providers">
@@ -344,17 +345,12 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
-    }
-
-    .content {
-      padding: var(--uui-size-layout-1);
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-layout-1);
     }
 
     .loading {
@@ -602,7 +598,8 @@ export class MerchelloExchangeRateProvidersListElement extends UmbElementMixin(L
       font-size: 0.875rem;
     }
 
-  `;
+  `,
+  ];
 }
 
 export default MerchelloExchangeRateProvidersListElement;

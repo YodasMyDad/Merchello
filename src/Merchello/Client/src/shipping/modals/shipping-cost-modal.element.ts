@@ -7,6 +7,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { CreateShippingCostDto } from "@shipping/types/shipping.types.js";
 import type { ShippingCostModalData, ShippingCostModalValue } from "@shipping/modals/shipping-cost-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface CountryOption {
   code: string;
@@ -305,7 +306,9 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -365,7 +368,8 @@ export class MerchelloShippingCostModalElement extends UmbModalBaseElement<
       color: var(--uui-color-text-alt);
       margin-top: var(--uui-size-space-1);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShippingCostModalElement;
@@ -375,3 +379,4 @@ declare global {
     "merchello-shipping-cost-modal": MerchelloShippingCostModalElement;
   }
 }
+

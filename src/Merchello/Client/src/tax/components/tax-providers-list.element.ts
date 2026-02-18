@@ -10,6 +10,7 @@ import type { TaxProviderDto } from "@tax/types/tax.types.js";
 import { MERCHELLO_TAX_PROVIDER_CONFIG_MODAL } from "@tax/modals/tax-provider-config-modal.token.js";
 import { MERCHELLO_TEST_TAX_PROVIDER_MODAL } from "@tax/modals/test-tax-provider-modal.token.js";
 import { getTaxProviderIconSvg } from "@tax/utils/brand-icons.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-tax-providers-list")
 export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement) {
@@ -180,7 +181,7 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <div class="loading">
               <uui-loader></uui-loader>
               <span>Loading tax providers...</span>
@@ -193,7 +194,7 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
     if (this._errorMessage) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <uui-box>
               <div class="error">
                 <uui-icon name="icon-alert"></uui-icon>
@@ -210,7 +211,7 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="content">
+        <div class="content layout-container">
           <uui-box headline="Available Providers">
             <p class="section-description">
               Select which tax provider to use for tax calculations.
@@ -235,17 +236,12 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
-    }
-
-    .content {
-      padding: var(--uui-size-layout-1);
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-layout-1);
     }
 
     .loading {
@@ -420,7 +416,8 @@ export class MerchelloTaxProvidersListElement extends UmbElementMixin(LitElement
       font-size: 0.875rem;
     }
 
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTaxProvidersListElement;

@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   ManualPaymentModalData,
   ManualPaymentModalValue,
@@ -215,7 +216,9 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -299,7 +302,8 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloManualPaymentModalElement;
@@ -309,3 +313,4 @@ declare global {
     "merchello-manual-payment-modal": MerchelloManualPaymentModalElement;
   }
 }
+

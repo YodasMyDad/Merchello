@@ -12,6 +12,7 @@ import type {
 import type { SupplierPickerModalData, SupplierPickerModalValue } from "@suppliers/modals/supplier-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { SupplierListItemDto } from "@suppliers/types/suppliers.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-supplier-picker-modal")
 export class MerchelloSupplierPickerModalElement extends UmbModalBaseElement<
@@ -252,7 +253,9 @@ export class MerchelloSupplierPickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -296,7 +299,8 @@ export class MerchelloSupplierPickerModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloSupplierPickerModalElement;
@@ -306,3 +310,4 @@ declare global {
     "merchello-supplier-picker-modal": MerchelloSupplierPickerModalElement;
   }
 }
+

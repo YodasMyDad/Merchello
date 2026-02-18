@@ -16,6 +16,7 @@ import type {
 } from "@orders/types/order.types.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import type { CreateOrderModalData, CreateOrderModalValue } from "@orders/modals/create-order-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 function createEmptyAddress(): AddressDto {
   return {
@@ -888,7 +889,9 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -1153,7 +1156,8 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
     .credit-warning--danger uui-icon {
       color: #ef4444;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloCreateOrderModalElement;
@@ -1163,3 +1167,4 @@ declare global {
     "merchello-create-order-modal": MerchelloCreateOrderModalElement;
   }
 }
+

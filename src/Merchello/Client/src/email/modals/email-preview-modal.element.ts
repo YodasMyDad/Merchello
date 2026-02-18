@@ -6,6 +6,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import type { EmailPreviewDto } from "@email/types/email.types.js";
 import type { EmailPreviewModalData, EmailPreviewModalValue } from "@email/modals/email-preview-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-email-preview-modal")
 export class MerchelloEmailPreviewModalElement extends UmbModalBaseElement<
@@ -239,6 +240,7 @@ export class MerchelloEmailPreviewModalElement extends UmbModalBaseElement<
   }
 
   static override readonly styles = [
+    modalLayoutStyles,
     css`
       :host {
         display: block;
@@ -371,3 +373,4 @@ declare global {
     "merchello-email-preview-modal": MerchelloEmailPreviewModalElement;
   }
 }
+

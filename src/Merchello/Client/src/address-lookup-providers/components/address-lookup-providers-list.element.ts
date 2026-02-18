@@ -9,6 +9,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type { AddressLookupProviderDto } from '@address-lookup-providers/types/address-lookup-providers.types.js';
 import { MERCHELLO_ADDRESS_LOOKUP_PROVIDER_CONFIG_MODAL } from "@address-lookup-providers/modals/address-lookup-provider-config-modal.token.js";
 import { MERCHELLO_TEST_ADDRESS_LOOKUP_PROVIDER_MODAL } from "@address-lookup-providers/modals/test-provider-modal.token.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-address-lookup-providers-list")
 export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(LitElement) {
@@ -294,7 +295,7 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <div class="loading">
               <uui-loader></uui-loader>
               <span>Loading address lookup providers...</span>
@@ -307,7 +308,7 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
     if (this._errorMessage) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <uui-box>
               <div class="error">
                 <uui-icon name="icon-alert"></uui-icon>
@@ -324,7 +325,7 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="content">
+        <div class="content layout-container">
           ${this._renderStatusBox()}
 
           <uui-box headline="Available Providers">
@@ -351,17 +352,12 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
-    }
-
-    .content {
-      padding: var(--uui-size-layout-1);
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-layout-1);
     }
 
     .loading {
@@ -626,7 +622,8 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
       font-size: 0.8125rem;
       color: var(--uui-color-text-alt);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloAddressLookupProvidersListElement;

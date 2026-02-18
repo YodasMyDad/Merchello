@@ -14,6 +14,7 @@ import { MERCHELLO_FULFILMENT_PROVIDER_CONFIG_MODAL } from "@fulfilment-provider
 import { MERCHELLO_TEST_FULFILMENT_PROVIDER_MODAL } from "@fulfilment-providers/modals/test-provider-modal.token.js";
 import { getFulfilmentProviderIconSvg } from "@fulfilment-providers/utils/brand-icons.js";
 import "@fulfilment-providers/components/sync-logs-list.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 const SUPPLIER_DIRECT_PROVIDER_KEY = "supplier-direct";
 
@@ -298,7 +299,7 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <div class="loading">
               <uui-loader></uui-loader>
               <span>Loading fulfilment providers...</span>
@@ -311,7 +312,7 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
     if (this._errorMessage) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <uui-box>
               <div class="error">
                 <uui-icon name="icon-alert"></uui-icon>
@@ -330,7 +331,7 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-      <div class="content">
+      <div class="content layout-container">
       <uui-box headline="Configured Fulfilment Providers">
         <p class="section-description">
           These fulfilment providers are installed and configured. Toggle the switch to enable or disable a provider.
@@ -366,18 +367,12 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
-    }
-
-    .content {
-      padding: var(--uui-size-layout-1);
-    }
-
-    uui-box {
-      margin-bottom: var(--uui-size-layout-1);
     }
 
     .loading {
@@ -510,7 +505,8 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
       gap: var(--uui-size-space-2);
     }
 
-  `;
+  `,
+  ];
 }
 
 export default MerchelloFulfilmentProvidersListElement;

@@ -10,6 +10,6 @@ export const MERCHELLO_WEBHOOK_TEST_MODAL = new UmbModalToken<
 >("Merchello.Webhook.Test.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

@@ -11,6 +11,7 @@ import { MERCHELLO_SHIPPING_PROVIDER_CONFIG_MODAL } from "@shipping/modals/shipp
 import { MERCHELLO_TEST_SHIPPING_PROVIDER_MODAL } from "@shipping/modals/test-provider-modal.token.js";
 import { MERCHELLO_SETUP_INSTRUCTIONS_MODAL } from "@payment-providers/modals/setup-instructions-modal.token.js";
 import { getShippingProviderIconSvg } from "@shipping/utils/brand-icons.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-shipping-providers-list")
 export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitElement) {
@@ -323,7 +324,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     if (this._isLoading) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <div class="loading">
               <uui-loader></uui-loader>
               <span>Loading shipping providers...</span>
@@ -336,7 +337,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     if (this._errorMessage) {
       return html`
         <umb-body-layout header-fit-height main-no-padding>
-          <div class="content">
+          <div class="content layout-container">
             <uui-box>
               <div class="error">
                 <uui-icon name="icon-alert"></uui-icon>
@@ -356,7 +357,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-      <div class="content">
+      <div class="content layout-container">
       <!-- Built-in Providers (always available, no config needed) -->
       ${builtInProviders.length > 0
         ? html`
@@ -409,18 +410,12 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
-    }
-
-    .content {
-      padding: var(--uui-size-layout-1);
-    }
-
-    uui-box {
-      margin-bottom: var(--uui-size-layout-1);
     }
 
     .loading {
@@ -544,7 +539,8 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
       margin-top: var(--uui-size-space-3);
       gap: var(--uui-size-space-3);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShippingProvidersListElement;

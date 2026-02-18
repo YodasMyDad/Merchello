@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { SupplierModalData, SupplierModalValue } from "@suppliers/modals/supplier-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   CsvDeliverySettingsDto,
   SupplierDirectProfileDto,
@@ -1232,7 +1233,9 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -1407,7 +1410,8 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloSupplierModalElement;
@@ -1417,3 +1421,4 @@ declare global {
     "merchello-supplier-modal": MerchelloSupplierModalElement;
   }
 }
+

@@ -363,34 +363,82 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
-        var idList = orderedIds.ToList();
+        var idList = orderedIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList();
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        if (idList.Count == 0)
         {
-            var settings = await db.ProviderConfigurations
-                .OfType<PaymentProviderSetting>()
-                .Where(s => idList.Contains(s.Id))
-                .ToListAsync(cancellationToken);
-
-            for (int i = 0; i < idList.Count; i++)
+            result.Messages.Add(new ResultMessage
             {
-                var setting = settings.FirstOrDefault(s => s.Id == idList[i]);
-                if (setting != null)
+                Message = "No provider IDs were provided for reordering.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        try
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                var settings = await db.ProviderConfigurations
+                    .OfType<PaymentProviderSetting>()
+                    .Where(s => idList.Contains(s.Id))
+                    .ToListAsync(cancellationToken);
+
+                if (settings.Count == 0)
                 {
-                    setting.SortOrder = i;
-                    setting.DateUpdated = DateTime.UtcNow;
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = "No matching payment provider settings were found for reordering.",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                    return false;
                 }
-            }
 
-            await db.SaveChangesAsync(cancellationToken);
-            result.ResultObject = true;
-            return true;
-        });
-        scope.Complete();
+                var settingsById = settings.ToDictionary(s => s.Id);
+                var now = DateTime.UtcNow;
 
-        // Refresh cache
-        RefreshCache();
+                for (int i = 0; i < idList.Count; i++)
+                {
+                    if (!settingsById.TryGetValue(idList[i], out var setting))
+                    {
+                        continue;
+                    }
+
+                    setting.SortOrder = i;
+                    setting.DateUpdated = now;
+                }
+
+                await db.SaveChangesAsync(cancellationToken);
+                result.ResultObject = true;
+                return true;
+            });
+            scope.Complete();
+
+            // Refresh cache
+            RefreshCache();
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Failed to reorder payment providers.");
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Failed to save payment provider order. Please try again.",
+                ResultMessageType = ResultMessageType.Error
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while reordering payment providers.");
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Unexpected error while saving payment provider order.",
+                ResultMessageType = ResultMessageType.Error
+            });
+        }
 
         return result;
     }
@@ -982,42 +1030,149 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
-        var aliasList = orderedMethodAliases.ToList();
+        var aliasList = orderedMethodAliases
+            .Where(alias => !string.IsNullOrWhiteSpace(alias))
+            .Select(alias => alias.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        if (aliasList.Count == 0)
         {
-            var providerSetting = await db.ProviderConfigurations
-                .OfType<PaymentProviderSetting>()
-                .FirstOrDefaultAsync(s => s.Id == providerSettingId, cancellationToken);
-
-            if (providerSetting == null)
+            result.Messages.Add(new ResultMessage
             {
-                return false;
-            }
+                Message = "No payment method aliases were provided for reordering.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
 
-            var methodSettings = providerSetting.MethodSettings;
-            for (int i = 0; i < aliasList.Count; i++)
+        var providerSetting = await GetProviderSettingAsync(providerSettingId, cancellationToken);
+        if (providerSetting == null)
+        {
+            result.Messages.Add(new ResultMessage
             {
-                var setting = methodSettings.FirstOrDefault(ms =>
-                    string.Equals(ms.MethodAlias, aliasList[i], StringComparison.OrdinalIgnoreCase));
+                Message = $"Payment provider setting with ID '{providerSettingId}' was not found.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
 
-                if (setting != null)
+        var provider = await GetProviderAsync(providerSetting.ProviderAlias, requireEnabled: false, cancellationToken);
+        if (provider == null)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = $"Payment provider '{providerSetting.ProviderAlias}' was not found.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        var availableAliases = provider.Provider.GetAvailablePaymentMethods()
+            .Select(m => m.Alias)
+            .Where(alias => !string.IsNullOrWhiteSpace(alias))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        aliasList = aliasList
+            .Where(alias => availableAliases.Contains(alias))
+            .ToList();
+
+        if (aliasList.Count == 0)
+        {
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "No valid payment method aliases were provided for this provider.",
+                ResultMessageType = ResultMessageType.Error
+            });
+            return result;
+        }
+
+        try
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            await scope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                var trackedSetting = await db.ProviderConfigurations
+                    .OfType<PaymentProviderSetting>()
+                    .FirstOrDefaultAsync(s => s.Id == providerSettingId, cancellationToken);
+
+                if (trackedSetting == null)
                 {
-                    setting.SortOrder = i;
-                    setting.DateUpdated = DateTime.UtcNow;
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = $"Payment provider setting with ID '{providerSettingId}' was not found.",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                    return false;
                 }
-            }
 
-            providerSetting.SetMethodSettings(methodSettings);
-            providerSetting.DateUpdated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-            result.ResultObject = true;
-            return true;
-        });
-        scope.Complete();
+                var methodSettings = trackedSetting.MethodSettings;
+                var now = DateTime.UtcNow;
 
-        RefreshCache();
+                for (int i = 0; i < aliasList.Count; i++)
+                {
+                    var alias = aliasList[i];
+                    var setting = methodSettings.FirstOrDefault(ms =>
+                        string.Equals(ms.MethodAlias, alias, StringComparison.OrdinalIgnoreCase));
+
+                    if (setting == null)
+                    {
+                        methodSettings.Add(new PaymentMethodSetting
+                        {
+                            Id = GuidExtensions.NewSequentialGuid,
+                            PaymentProviderSettingId = providerSettingId,
+                            MethodAlias = alias,
+                            IsEnabled = true,
+                            SortOrder = i,
+                            DateCreated = now,
+                            DateUpdated = now
+                        });
+                    }
+                    else
+                    {
+                        setting.SortOrder = i;
+                        setting.DateUpdated = now;
+                    }
+                }
+
+                var nextSortOrder = aliasList.Count;
+                foreach (var setting in methodSettings
+                             .Where(ms => !aliasList.Contains(ms.MethodAlias, StringComparer.OrdinalIgnoreCase))
+                             .OrderBy(ms => ms.SortOrder))
+                {
+                    setting.SortOrder = nextSortOrder++;
+                    setting.DateUpdated = now;
+                }
+
+                trackedSetting.SetMethodSettings(methodSettings);
+                trackedSetting.DateUpdated = now;
+                await db.SaveChangesAsync(cancellationToken);
+                result.ResultObject = true;
+                return true;
+            });
+            scope.Complete();
+
+            RefreshCache();
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Failed to reorder payment methods for provider setting {ProviderSettingId}.", providerSettingId);
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Failed to save payment method order. Please try again.",
+                ResultMessageType = ResultMessageType.Error
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while reordering payment methods for provider setting {ProviderSettingId}.", providerSettingId);
+            result.Messages.Add(new ResultMessage
+            {
+                Message = "Unexpected error while saving payment method order.",
+                ResultMessageType = ResultMessageType.Error
+            });
+        }
+
         return result;
     }
 

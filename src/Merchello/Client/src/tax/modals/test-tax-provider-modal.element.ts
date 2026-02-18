@@ -7,6 +7,7 @@ import type {
 } from "@tax/modals/test-tax-provider-modal.token.js";
 import type { TestTaxProviderResultDto } from "@tax/types/tax.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-test-tax-provider-modal")
 export class MerchelloTestTaxProviderModalElement extends UmbModalBaseElement<
@@ -186,7 +187,9 @@ export class MerchelloTestTaxProviderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -352,7 +355,8 @@ export class MerchelloTestTaxProviderModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTestTaxProviderModalElement;
@@ -362,3 +366,4 @@ declare global {
     "merchello-test-tax-provider-modal": MerchelloTestTaxProviderModalElement;
   }
 }
+

@@ -1,6 +1,7 @@
 import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import {
   DiscountCategory,
   DISCOUNT_CATEGORIES,
@@ -84,7 +85,9 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -170,7 +173,8 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
       color: var(--uui-color-text-alt);
       line-height: 1.4;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloSelectDiscountTypeModalElement;
@@ -180,3 +184,4 @@ declare global {
     "merchello-select-discount-type-modal": MerchelloSelectDiscountTypeModalElement;
   }
 }
+

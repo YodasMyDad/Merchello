@@ -21,6 +21,7 @@ import "@analytics/components/analytics-header.element.js";
 import "@analytics/components/analytics-kpi-card.element.js";
 import "@analytics/components/analytics-line-chart.element.js";
 import "@analytics/components/analytics-breakdown.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-analytics-workspace")
 export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitElement) {
@@ -239,7 +240,7 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
   override render() {
     return html`
       <umb-body-layout header-fit-height>
-        <div class="analytics-content">
+        <div class="analytics-content layout-container">
           <merchello-analytics-header
             .dateRange=${this._dateRange}
             @date-range-change=${this._handleDateRangeChange}>
@@ -256,14 +257,12 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
     `;
   }
 
-  static override styles = css`
+  static override styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
-    }
-
-    .analytics-content {
-      padding: var(--uui-size-layout-1);
     }
 
     .kpi-grid {
@@ -313,7 +312,8 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
     merchello-analytics-line-chart:last-of-type {
       margin-bottom: 0;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloAnalyticsWorkspaceElement;

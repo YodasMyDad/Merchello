@@ -16,6 +16,6 @@ export const MERCHELLO_GENERATE_STATEMENT_MODAL = new UmbModalToken<
 >("Merchello.GenerateStatement.Modal", {
   modal: {
     type: "dialog",
-    size: "small",
+    size: "medium",
   },
 });

@@ -9,7 +9,7 @@ public class SupplierDirectProfileDto
     /// <summary>
     /// Submission trigger: "OnPaid" or "ExplicitRelease".
     /// </summary>
-    public string SubmissionTrigger { get; set; } = "OnPaid";
+    public string? SubmissionTrigger { get; set; }
 
     /// <summary>
     /// Delivery method: "Email", "Ftp", or "Sftp".

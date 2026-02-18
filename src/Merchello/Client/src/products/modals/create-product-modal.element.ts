@@ -14,6 +14,7 @@ import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseListDto } from "@warehouses/types/warehouses.types.js";
 import type { WarehouseSelectionChangeDetail } from "@products/components/product-warehouse-selector.element.js";
 import { getSelectedWarehouseSetupSummary } from "@products/utils/warehouse-setup.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface FormData {
   rootName: string;
@@ -491,7 +492,9 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -567,7 +570,8 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloCreateProductModalElement;
@@ -577,3 +581,4 @@ declare global {
     "merchello-create-product-modal": MerchelloCreateProductModalElement;
   }
 }
+
