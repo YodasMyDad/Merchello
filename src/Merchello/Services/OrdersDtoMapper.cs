@@ -2,25 +2,34 @@ using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect;
+using Merchello.Core.Fulfilment.Providers.SupplierDirect.Models;
+using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Warehouses.Services.Interfaces;
 
 namespace Merchello.Services;
 
 public class OrdersDtoMapper(
     IPaymentService paymentService,
     ICurrencyService currencyService,
-    ILocalityCatalog localityCatalog) : IOrdersDtoMapper
+    ILocalityCatalog localityCatalog,
+    IFulfilmentService fulfilmentService,
+    IWarehouseService warehouseService) : IOrdersDtoMapper
 {
     private readonly ICurrencyService _currencyService = currencyService;
     private readonly ILocalityCatalog _localityCatalog = localityCatalog;
+    private readonly IFulfilmentService _fulfilmentService = fulfilmentService;
+    private readonly IWarehouseService _warehouseService = warehouseService;
 
     public Core.Locality.Models.Address MapDtoToAddress(AddressDto dto)
     {
@@ -113,6 +122,7 @@ public class OrdersDtoMapper(
 
         var shippingCost = orders.Sum(o => o.ShippingCost);
         var shippingCostInStoreCurrency = orders.Sum(o => o.ShippingCostInStoreCurrency ?? o.ShippingCost);
+        var supplierDirectContexts = await ResolveSupplierDirectContextsAsync(orders, ct);
 
         // Get discount line items
         var discountLineItems = orders
@@ -192,7 +202,14 @@ public class OrdersDtoMapper(
             IsCancelled = invoice.IsCancelled,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            Orders = orders.Select(o => MapFulfillmentOrder(o, shippingOptionNames, productImages)).ToList(),
+            Orders = orders
+                .Select(o => MapFulfillmentOrder(
+                    o,
+                    shippingOptionNames,
+                    productImages,
+                    supplierDirectContexts,
+                    paymentDetails.Status))
+                .ToList(),
             Notes = invoice.Notes?.Select(n => new InvoiceNoteDto
             {
                 Date = n.DateCreated,
@@ -313,8 +330,26 @@ public class OrdersDtoMapper(
     private static FulfillmentOrderDto MapFulfillmentOrder(
         Order order,
         Dictionary<Guid, string> shippingOptionNames,
-        Dictionary<Guid, string?> productImages)
+        Dictionary<Guid, string?> productImages,
+        IReadOnlyDictionary<Guid, (string? ProviderKey, SupplierDirectSubmissionTrigger SubmissionTrigger)> supplierDirectContexts,
+        InvoicePaymentStatus invoicePaymentStatus)
     {
+        supplierDirectContexts.TryGetValue(order.Id, out var supplierDirectContext);
+
+        var effectiveProviderKey = order.FulfilmentProviderConfiguration?.ProviderKey
+                                   ?? supplierDirectContext.ProviderKey;
+        var isSupplierDirect = string.Equals(
+            effectiveProviderKey,
+            SupplierDirectProviderDefaults.ProviderKey,
+            StringComparison.OrdinalIgnoreCase);
+        var supplierDirectSubmissionTrigger = isSupplierDirect
+            ? supplierDirectContext.SubmissionTrigger
+            : SupplierDirectSubmissionTrigger.OnPaid;
+        var canReleaseSupplierDirect = isSupplierDirect &&
+                                       supplierDirectSubmissionTrigger == SupplierDirectSubmissionTrigger.ExplicitRelease &&
+                                       string.IsNullOrWhiteSpace(order.FulfilmentProviderReference) &&
+                                       invoicePaymentStatus == InvoicePaymentStatus.Paid;
+
         var deliveryMethod = shippingOptionNames.TryGetValue(order.ShippingOptionId, out var name)
             ? name
             : "Unknown";
@@ -415,13 +450,63 @@ public class OrdersDtoMapper(
             }).ToList() ?? [],
 
             // Fulfilment provider information
-            FulfilmentProviderKey = order.FulfilmentProviderConfiguration?.ProviderKey,
+            FulfilmentProviderKey = effectiveProviderKey,
             FulfilmentProviderName = order.FulfilmentProviderConfiguration?.DisplayName,
             FulfilmentProviderReference = order.FulfilmentProviderReference,
             FulfilmentSubmittedAt = order.FulfilmentSubmittedAt,
             FulfilmentErrorMessage = order.FulfilmentErrorMessage,
-            FulfilmentRetryCount = order.FulfilmentRetryCount
+            FulfilmentRetryCount = order.FulfilmentRetryCount,
+            SupplierDirectSubmissionTrigger = isSupplierDirect
+                ? supplierDirectSubmissionTrigger.ToString()
+                : null,
+            CanReleaseSupplierDirect = canReleaseSupplierDirect
         };
+    }
+
+    private async Task<Dictionary<Guid, (string? ProviderKey, SupplierDirectSubmissionTrigger SubmissionTrigger)>> ResolveSupplierDirectContextsAsync(
+        List<Order> orders,
+        CancellationToken ct)
+    {
+        Dictionary<Guid, (string? ProviderKey, SupplierDirectSubmissionTrigger SubmissionTrigger)> contexts = [];
+        Dictionary<Guid, (string? ProviderKey, SupplierDirectSubmissionTrigger SubmissionTrigger)> warehouseContexts = [];
+
+        var warehouseIds = orders
+            .Select(o => o.WarehouseId)
+            .Distinct()
+            .ToList();
+
+        foreach (var warehouseId in warehouseIds)
+        {
+            var providerConfig = await _fulfilmentService.ResolveProviderForWarehouseAsync(warehouseId, ct);
+            var providerKey = providerConfig?.ProviderKey;
+            var submissionTrigger = SupplierDirectSubmissionTrigger.OnPaid;
+
+            if (string.Equals(providerKey, SupplierDirectProviderDefaults.ProviderKey, StringComparison.OrdinalIgnoreCase))
+            {
+                var warehouse = await _warehouseService.GetWarehouseByIdAsync(warehouseId, ct);
+                if (warehouse?.Supplier?.ExtendedData?.TryGetValue(SupplierDirectExtendedDataKeys.Profile, out var profileRaw) == true)
+                {
+                    var profileJson = profileRaw.UnwrapJsonElement()?.ToString();
+                    var profile = SupplierDirectProfile.FromJson(profileJson);
+                    if (profile != null)
+                    {
+                        submissionTrigger = profile.SubmissionTrigger;
+                    }
+                }
+            }
+
+            warehouseContexts[warehouseId] = (providerKey, submissionTrigger);
+        }
+
+        foreach (var order in orders)
+        {
+            warehouseContexts.TryGetValue(order.WarehouseId, out var warehouseContext);
+            var effectiveProviderKey = order.FulfilmentProviderConfiguration?.ProviderKey
+                                       ?? warehouseContext.ProviderKey;
+            contexts[order.Id] = (effectiveProviderKey, warehouseContext.SubmissionTrigger);
+        }
+
+        return contexts;
     }
 
     private static LineItemDto MapLineItem(

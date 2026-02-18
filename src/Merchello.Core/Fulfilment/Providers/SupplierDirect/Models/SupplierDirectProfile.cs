@@ -16,6 +16,11 @@ public record SupplierDirectProfile
     };
 
     /// <summary>
+    /// Determines when orders should be submitted for this supplier.
+    /// </summary>
+    public SupplierDirectSubmissionTrigger SubmissionTrigger { get; init; } = SupplierDirectSubmissionTrigger.OnPaid;
+
+    /// <summary>
     /// Delivery method for this supplier.
     /// </summary>
     public SupplierDirectDeliveryMethod DeliveryMethod { get; init; } = SupplierDirectDeliveryMethod.Email;

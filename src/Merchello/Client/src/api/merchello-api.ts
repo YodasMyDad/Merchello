@@ -177,6 +177,7 @@ import type {
   OrderStatsDto,
   DashboardStatsDto,
   FulfillmentSummaryDto,
+  ReleaseFulfillmentResultDto,
   CreateShipmentDto,
   UpdateShipmentDto,
   UpdateShipmentStatusDto,
@@ -782,6 +783,10 @@ export const MerchelloApi = {
   /** Get fulfillment summary for an invoice (used in fulfillment dialog) */
   getFulfillmentSummary: (invoiceId: string) =>
     apiGet<FulfillmentSummaryDto>(`orders/${invoiceId}/fulfillment-summary`),
+
+  /** Explicitly release an order to Supplier Direct fulfilment. */
+  releaseOrderFulfillment: (orderId: string) =>
+    apiPost<ReleaseFulfillmentResultDto>(`orders/${orderId}/fulfillment/release`),
 
   /** Create a shipment for an order */
   createShipment: (orderId: string, request: CreateShipmentDto) =>

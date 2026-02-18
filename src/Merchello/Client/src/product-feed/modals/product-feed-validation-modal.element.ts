@@ -251,12 +251,17 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
   }
 
   private async _refreshValidation(): Promise<void> {
-    const previewIds = this._selectedPreviewProduct
-      ? [this._selectedPreviewProduct.id]
+    const selectedPreviewProductId = this._selectedPreviewProduct?.id ?? null;
+    const previewIds = selectedPreviewProductId
+      ? [selectedPreviewProductId]
       : [];
 
     const validation = await this._runValidation(previewIds, "issues");
     if (!validation) {
+      return;
+    }
+
+    if ((this._selectedPreviewProduct?.id ?? null) !== selectedPreviewProductId) {
       return;
     }
 

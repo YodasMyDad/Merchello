@@ -87,8 +87,8 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
             errors[$"{prefix}.postalCode"] = "Postal code is required.";
         }
 
-        // Optional: Validate phone if required by settings
-        if (_checkoutSettings.RequirePhone && string.IsNullOrWhiteSpace(address.Phone))
+        // Billing phone can be required by checkout settings.
+        if (IsBillingPhoneRequired(prefix) && string.IsNullOrWhiteSpace(address.Phone))
         {
             errors[$"{prefix}.phone"] = "Phone number is required.";
         }
@@ -99,6 +99,10 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
 
         return errors;
     }
+
+    private bool IsBillingPhoneRequired(string prefix) =>
+        _checkoutSettings.BillingPhoneRequired &&
+        prefix.Equals("billing", StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />
     public bool IsValidEmail(string? email) =>

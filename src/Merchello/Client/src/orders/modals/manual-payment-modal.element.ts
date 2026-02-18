@@ -143,6 +143,7 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
               id="amount"
               type="number"
               min="0.01"
+              max="${balanceDue}"
               step="0.01"
               .value=${String(this._amount)}
               required
@@ -151,7 +152,15 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
               }}
             ></uui-input>
             ${this._amount > balanceDue
-              ? html`<small class="warning">Amount exceeds balance due</small>`
+              ? html`
+                  <div class="amount-warning" role="status" aria-live="polite">
+                    <uui-icon name="icon-alert"></uui-icon>
+                    <div class="amount-warning-content">
+                      <strong>Amount exceeds balance due.</strong>
+                      <p>Enter an amount up to ${formatCurrency(balanceDue, currencyCode, currencySymbol)}.</p>
+                    </div>
+                  </div>
+                `
               : nothing}
           </div>
 
@@ -246,11 +255,37 @@ export class MerchelloManualPaymentModalElement extends UmbModalBaseElement<
       margin-bottom: var(--uui-size-space-1);
     }
 
-    .warning {
-      display: block;
-      margin-top: var(--uui-size-space-1);
-      color: var(--uui-color-warning);
-      font-size: 0.75rem;
+    .amount-warning {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--uui-size-space-2);
+      margin-top: var(--uui-size-space-2);
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+      border-radius: var(--uui-border-radius);
+    }
+
+    .amount-warning uui-icon {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .amount-warning-content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .amount-warning-content strong {
+      font-size: 0.875rem;
+      line-height: 1.3;
+    }
+
+    .amount-warning-content p {
+      margin: 0;
+      font-size: 0.8125rem;
+      line-height: 1.4;
     }
 
     uui-input,

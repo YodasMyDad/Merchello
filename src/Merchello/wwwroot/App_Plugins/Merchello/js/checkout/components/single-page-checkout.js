@@ -235,6 +235,7 @@ export function initSinglePageCheckout() {
             get addressLookupConfig() { return this.$store.checkout?.addressLookup ?? { isEnabled: false }; },
             get addressLookupMinQueryLength() { return this.addressLookupConfig?.minQueryLength ?? 3; },
             get addressLookupMaxSuggestions() { return this.addressLookupConfig?.maxSuggestions ?? 6; },
+            get isBillingPhoneRequired() { return this.$store.checkout?.billingPhoneRequired === true; },
 
             // Upsell store getters
             get upsellSuggestions() { return this.$store.checkout?.upsellSuggestions ?? []; },
@@ -264,20 +265,30 @@ export function initSinglePageCheckout() {
                 return this.shippingGroups.some(g => !g.shippingOptions?.length);
             },
 
-            get canSubmit() {
-                const billingValid = this.form.billing.name &&
-                                    this.form.billing.addressOne &&
-                                    this.form.billing.townCity &&
-                                    this.form.billing.countryCode &&
-                                    this.form.billing.postalCode;
+            hasRequiredShippingAddress() {
+                if (this.shippingSameAsBilling) {
+                    return true;
+                }
 
-                const shippingValid = this.shippingSameAsBilling || (
+                return !!(
                     this.form.shipping.name &&
                     this.form.shipping.addressOne &&
                     this.form.shipping.townCity &&
                     this.form.shipping.countryCode &&
                     this.form.shipping.postalCode
                 );
+            },
+
+            get canSubmit() {
+                const billingValid = this.form.billing.name &&
+                                    this.form.billing.addressOne &&
+                                    this.form.billing.townCity &&
+                                    this.form.billing.countryCode &&
+                                    this.form.billing.postalCode;
+                const billingPhoneValid = !this.isBillingPhoneRequired ||
+                    !!(this.form.billing.phone && this.form.billing.phone.trim());
+
+                const shippingValid = this.hasRequiredShippingAddress();
 
                 // Digital products require account (signed in OR valid password for new account)
                 const store = this.$store.checkout;
@@ -301,6 +312,7 @@ export function initSinglePageCheckout() {
                        (this.selectedPaymentMethod !== null || this.selectedSavedMethod !== null) &&
                        this.form.email &&
                        billingValid &&
+                       billingPhoneValid &&
                        shippingValid;
             },
 
@@ -983,7 +995,14 @@ export function initSinglePageCheckout() {
                 this.debouncedCaptureAddress();
             },
 
+            onShippingFieldChange() {
+                this.debouncedCalculateShipping();
+                this.debouncedCaptureAddress();
+            },
+
             onShippingSameAsBillingChange() {
+                this.$store.checkout?.setSameAsBilling(this.shippingSameAsBilling);
+
                 if (this.shippingSameAsBilling) {
                     this.syncBillingToShipping();
                     this.shippingRegions = [...this.billingRegions];
@@ -1341,6 +1360,13 @@ export function initSinglePageCheckout() {
                     return;
                 }
 
+                if (!this.hasRequiredShippingAddress()) {
+                    store?.setPaymentMethod(null);
+                    store?.setPaymentError('Please complete your shipping address first.');
+                    this.selectedPaymentMethodKey = '';
+                    return;
+                }
+
                 store?.setPaymentMethod(method);
                 store?.setPaymentError(null);
                 store?.setPaymentSession(null);
@@ -1397,18 +1423,49 @@ export function initSinglePageCheckout() {
                 this.setExpressReRenderSkip(true);
 
                 try {
+                    if (!this.hasRequiredShippingAddress()) {
+                        store?.setPaymentFormInitializing(false);
+                        this.setExpressReRenderSkip(false);
+                        store?.setPaymentError('Please complete your shipping address first.');
+                        return;
+                    }
+
                     // PRE-SAVE ADDRESSES: Some payment providers (e.g., Braintree with
                     // fraud tools) need customer address data during session creation
                     // for risk assessment. We save here so the backend has current data.
                     // Note: submitOrder() also saves addresses (includes password for account creation)
                     if (this.form.billing.name && this.form.billing.addressOne && this.form.billing.countryCode) {
-                        await checkoutApi.saveAddresses({
+                        const saveAddressResult = await checkoutApi.saveAddresses({
                             email: this.form.email,
                             billingAddress: this.form.billing,
                             shippingAddress: this.form.shipping,
                             shippingSameAsBilling: this.shippingSameAsBilling,
                             acceptsMarketing: this.form.acceptsMarketing
                         });
+
+                        if (!saveAddressResult?.success) {
+                            if (saveAddressResult?.errors && typeof saveAddressResult.errors === 'object') {
+                                Object.entries(saveAddressResult.errors).forEach(([field, message]) => {
+                                    if (typeof message === 'string' && message.length > 0) {
+                                        store?.setError(field, message);
+                                    }
+                                });
+                            }
+
+                            const firstValidationMessage = saveAddressResult?.errors &&
+                                typeof saveAddressResult.errors === 'object'
+                                ? Object.values(saveAddressResult.errors).find(v => typeof v === 'string' && v.length > 0)
+                                : null;
+
+                            store?.setPaymentFormInitializing(false);
+                            this.setExpressReRenderSkip(false);
+                            store?.setPaymentError(
+                                typeof firstValidationMessage === 'string'
+                                    ? firstValidationMessage
+                                    : (saveAddressResult?.message || 'Please complete the checkout information step first.')
+                            );
+                            return;
+                        }
                     }
 
                     // STALE RESPONSE CHECK: User may have clicked a different payment
@@ -1457,7 +1514,6 @@ export function initSinglePageCheckout() {
                         store?.setPaymentFormInitializing(false);
                         this.setExpressReRenderSkip(false);
                         console.error('Payment session creation failed:', payData.errorMessage);
-                        store?.setPaymentMethod(null);
                         store?.setPaymentError(payData.errorMessage || 'Failed to initialize payment');
                     } else {
                         // Edge case: payData.success is true but MerchelloPayment handler not available
@@ -1475,7 +1531,6 @@ export function initSinglePageCheckout() {
                     store?.setPaymentFormInitializing(false);
                     this.setExpressReRenderSkip(false);
                     console.error('Failed to initialize payment form:', error);
-                    store?.setPaymentMethod(null);
                     store?.setPaymentError('Failed to load payment form. Please try again.');
                 }
             },
@@ -1643,9 +1698,15 @@ export function initSinglePageCheckout() {
                     if (requiredFields.includes(key) && !this.form[prefix][key]) {
                         store?.setError(field, 'This field is required.');
                     } else if (key === 'phone') {
-                        const result = validatePhone(this.form[prefix].phone);
-                        if (!result.isValid) {
-                            store?.setError(field, result.error);
+                        const phone = this.form[prefix].phone ?? '';
+                        const phoneRequired = prefix === 'billing' && this.isBillingPhoneRequired;
+                        if (phoneRequired && !phone.trim()) {
+                            store?.setError(field, 'Phone number is required.');
+                        } else if (phone.trim()) {
+                            const result = validatePhone(phone);
+                            if (!result.isValid) {
+                                store?.setError(field, result.error);
+                            }
                         }
                     }
                 }

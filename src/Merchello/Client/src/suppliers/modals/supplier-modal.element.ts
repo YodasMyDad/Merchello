@@ -11,6 +11,7 @@ import type {
 } from "@suppliers/types/suppliers.types.js";
 
 type SupplierDirectDeliveryMethod = "Email" | "Ftp" | "Sftp";
+type SupplierDirectSubmissionTrigger = "OnPaid" | "ExplicitRelease";
 type CsvColumnRow = { field: string; header: string };
 type CsvStaticColumnRow = { header: string; value: string };
 const SUPPLIER_DIRECT_PROVIDER_KEY = "supplier-direct";
@@ -74,6 +75,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
   @state() private _errors: Record<string, string> = {};
 
   @state() private _deliveryMethod: SupplierDirectDeliveryMethod = "Email";
+  @state() private _submissionTrigger: SupplierDirectSubmissionTrigger = "OnPaid";
   @state() private _emailRecipient = "";
   @state() private _emailCcAddresses = "";
   @state() private _ftpHost = "";
@@ -202,8 +204,11 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       profile.deliveryMethod === "Ftp" || profile.deliveryMethod === "Sftp"
         ? profile.deliveryMethod
         : "Email";
+    const submissionTrigger =
+      profile.submissionTrigger === "ExplicitRelease" ? "ExplicitRelease" : "OnPaid";
 
     this._deliveryMethod = method;
+    this._submissionTrigger = submissionTrigger;
     this._emailRecipient = profile.emailSettings?.recipientEmail ?? "";
     this._emailCcAddresses = (profile.emailSettings?.ccAddresses ?? []).join(", ");
     this._ftpHost = profile.ftpSettings?.host ?? "";
@@ -374,6 +379,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
     if (this._deliveryMethod === "Email") {
       return {
+        submissionTrigger: this._submissionTrigger,
         deliveryMethod: "Email",
         emailSettings,
         csvSettings,
@@ -383,6 +389,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     const parsedPort = this._ftpPort.trim() ? parseInt(this._ftpPort.trim(), 10) : undefined;
 
     return {
+      submissionTrigger: this._submissionTrigger,
       deliveryMethod: this._deliveryMethod,
       emailSettings,
       ftpSettings: {
@@ -546,6 +553,17 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       { name: "Email", value: "Email", selected: this._deliveryMethod === "Email" },
       { name: "FTP", value: "Ftp", selected: this._deliveryMethod === "Ftp" },
       { name: "SFTP", value: "Sftp", selected: this._deliveryMethod === "Sftp" },
+    ];
+  }
+
+  private _getSubmissionTriggerOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: "On Paid", value: "OnPaid", selected: this._submissionTrigger === "OnPaid" },
+      {
+        name: "Explicit Release",
+        value: "ExplicitRelease",
+        selected: this._submissionTrigger === "ExplicitRelease",
+      },
     ];
   }
 
@@ -990,6 +1008,24 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     return html`
       <div class="section">
         <h4>Supplier Direct Profile</h4>
+
+        ${this._renderFormLayoutItem({
+          id: "submission-trigger",
+          label: "Submission trigger",
+          input: html`
+            <uui-select
+              id="submission-trigger"
+              label="Submission trigger"
+              .options=${this._getSubmissionTriggerOptions()}
+              @change=${(e: Event) => {
+                this._submissionTrigger = ((e.target as HTMLSelectElement)
+                  .value as SupplierDirectSubmissionTrigger) ?? "OnPaid";
+              }}>
+            </uui-select>
+          `,
+          hint:
+            "On Paid submits automatically when payment is captured. Explicit Release requires a staff release action per order.",
+        })}
 
         ${this._renderFormLayoutItem({
           id: "delivery-method",

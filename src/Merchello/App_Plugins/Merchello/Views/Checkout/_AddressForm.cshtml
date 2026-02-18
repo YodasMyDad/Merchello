@@ -4,7 +4,8 @@
     var countries = prefix == "billing"
         ? (model?.BillingCountries ?? [])
         : (model?.ShippingCountries ?? []);
-    var requirePhone = model?.Settings?.RequirePhone ?? false;
+    var billingPhoneRequired = model?.Settings?.BillingPhoneRequired ?? true;
+    var requirePhone = prefix == "billing" && billingPhoneRequired;
     var compact = model?.IsSinglePageCheckout == true;
     var showRequired = ViewData["ShowRequired"] as bool? ?? false;
     var onBlurCallback = ViewData["OnBlurCallback"]?.ToString() ?? "";

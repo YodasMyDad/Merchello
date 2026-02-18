@@ -7,8 +7,8 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { formatShortDate } from "@shared/utils/formatting.js";
-import type { FulfillmentSummaryDto, ShipmentDetailDto } from "@orders/types/order.types.js";
+import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
+import type { FulfillmentSummaryDto, OrderDetailDto, ShipmentDetailDto } from "@orders/types/order.types.js";
 import { ShipmentStatus } from "@orders/types/order.types.js";
 import type { MerchelloOrdersWorkspaceContext } from "@orders/contexts/orders-workspace.context.js";
 import { MERCHELLO_SHIPMENT_EDIT_MODAL } from "@orders/modals/shipment-edit-modal.token.js";
@@ -35,6 +35,11 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   @state() private _trackingForm: TrackingFormData = { carrier: "", trackingNumber: "", trackingUrl: "" };
   /** Whether a status update is in progress */
   @state() private _isUpdatingStatus: boolean = false;
+  @state() private _hasOutstandingBalance: boolean = false;
+  @state() private _paymentStatusDisplay: string = "";
+  @state() private _balanceDue: number = 0;
+  @state() private _currencyCode: string = "";
+  @state() private _currencySymbol: string = "";
 
   #workspaceContext?: MerchelloOrdersWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
@@ -47,6 +52,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       this.#workspaceContext = context as MerchelloOrdersWorkspaceContext;
       if (!this.#workspaceContext) return;
       this.observe(this.#workspaceContext.order, (order) => {
+        this._syncPaymentState(order);
         if (order?.id && order.id !== this._invoiceId) {
           this._invoiceId = order.id;
           this._loadShipments();
@@ -89,6 +95,15 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
 
     this._isLoading = false;
+  }
+
+  private _syncPaymentState(order: OrderDetailDto | undefined): void {
+    const balanceDue = order?.balanceDue ?? 0;
+    this._hasOutstandingBalance = balanceDue > 0;
+    this._paymentStatusDisplay = order?.paymentStatusDisplay ?? "";
+    this._balanceDue = balanceDue;
+    this._currencyCode = order?.currencyCode ?? "";
+    this._currencySymbol = order?.currencySymbol ?? "";
   }
 
   private async _handleEditShipment(shipment: ShipmentDetailDto): Promise<void> {
@@ -508,6 +523,29 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
   }
 
+  private _renderOutstandingPaymentWarning(): unknown {
+    if (!this._hasOutstandingBalance) {
+      return nothing;
+    }
+
+    const paymentStatus = this._paymentStatusDisplay?.trim();
+    const formattedBalanceDue = formatCurrency(this._balanceDue, this._currencyCode, this._currencySymbol);
+
+    return html`
+      <div class="payment-warning" role="status" aria-live="polite">
+        <uui-icon name="icon-alert"></uui-icon>
+        <div class="payment-warning-content">
+          <strong>Payment outstanding</strong>
+          <p>
+            ${paymentStatus ? `${paymentStatus}.` : "This invoice is not fully paid."}
+            Shipping actions are available for this order.
+            Outstanding balance: <strong>${formattedBalanceDue}</strong>.
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
   override render() {
     if (this._isLoading) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
@@ -535,16 +573,20 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
 
     if (allShipments.length === 0) {
       return html`
-        <div class="empty-state">
-          <uui-icon name="icon-box"></uui-icon>
-          <h3>No shipments yet</h3>
-          <p>Use the "Fulfil" button on the Details tab to create shipments for this order.</p>
+        <div class="shipments-view">
+          ${this._renderOutstandingPaymentWarning()}
+          <div class="empty-state">
+            <uui-icon name="icon-box"></uui-icon>
+            <h3>No shipments yet</h3>
+            <p>Use the "Fulfill" button on the Details tab to create shipments for this order.</p>
+          </div>
         </div>
       `;
     }
 
     return html`
       <div class="shipments-view">
+        ${this._renderOutstandingPaymentWarning()}
         <div class="header">
           <h2>Shipments</h2>
           <div class="summary">
@@ -582,6 +624,33 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
+    }
+
+    .payment-warning {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      align-items: flex-start;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .payment-warning uui-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .payment-warning-content strong {
+      display: block;
+      margin-bottom: var(--uui-size-space-1);
+    }
+
+    .payment-warning-content p {
+      margin: 0;
+      line-height: 1.4;
     }
 
     .empty-state {

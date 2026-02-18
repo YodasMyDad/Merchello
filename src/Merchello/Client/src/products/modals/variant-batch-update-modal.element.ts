@@ -858,6 +858,12 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
     .field-card.selected {
       border-color: var(--uui-color-selected);
       background: var(--uui-color-selected-emphasis);
+      color: var(--uui-color-selected-contrast, #fff);
+    }
+
+    .field-card.selected uui-checkbox,
+    .field-card.selected p {
+      color: var(--uui-color-selected-contrast, #fff);
     }
 
     .field-card p {

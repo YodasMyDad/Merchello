@@ -3,7 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
-import { formatShortDate } from "@shared/utils/formatting.js";
+import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
 import type {
   FulfillmentSummaryDto,
   OrderFulfillmentDto,
@@ -608,6 +608,39 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     `;
   }
 
+  private _renderOutstandingPaymentWarning(): unknown {
+    if (!this.data?.hasOutstandingBalance) {
+      return nothing;
+    }
+
+    const paymentStatus = this.data.paymentStatusDisplay?.trim();
+    const balanceDue = this.data.balanceDue;
+    const hasBalanceDue = typeof balanceDue === "number" && balanceDue > 0;
+    const formattedBalanceDue = hasBalanceDue
+      ? formatCurrency(
+          balanceDue,
+          this.data.currencyCode,
+          this.data.currencySymbol
+        )
+      : null;
+
+    return html`
+      <div class="payment-warning" role="status" aria-live="polite">
+        <uui-icon name="icon-alert"></uui-icon>
+        <div class="payment-warning-content">
+          <strong>Payment outstanding</strong>
+          <p>
+            ${paymentStatus ? `${paymentStatus}.` : "This invoice is not fully paid."}
+            You can still create shipments.
+            ${formattedBalanceDue
+              ? html`Outstanding balance: <strong>${formattedBalanceDue}</strong>.`
+              : nothing}
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
   private _renderMainContent(): unknown {
     if (this._isLoading) {
       return this._renderLoadingState();
@@ -629,6 +662,8 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
           ${this._summary.overallStatus}
         </span>
       </div>
+
+      ${this._renderOutstandingPaymentWarning()}
 
       ${hasItemsToShip
         ? html`
@@ -654,7 +689,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     const hasSelections = ordersWithSelections.length > 0;
 
     return html`
-      <umb-body-layout headline="Fulfil Order ${this._summary?.invoiceNumber ?? ""}">
+      <umb-body-layout headline="Fulfill Order ${this._summary?.invoiceNumber ?? ""}">
         <div id="main">
           ${this._renderMainContent()}
         </div>
@@ -739,6 +774,33 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     .status-badge.fulfilled {
       background: var(--uui-color-positive-standalone);
       color: var(--uui-color-positive-contrast);
+    }
+
+    .payment-warning {
+      display: flex;
+      gap: var(--uui-size-space-3);
+      align-items: flex-start;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+      border-radius: var(--uui-border-radius);
+      padding: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .payment-warning uui-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .payment-warning-content strong {
+      display: block;
+      margin-bottom: var(--uui-size-space-1);
+    }
+
+    .payment-warning-content p {
+      margin: 0;
+      line-height: 1.4;
     }
 
     .shipments-to-create h3 {

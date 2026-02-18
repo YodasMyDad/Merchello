@@ -10,6 +10,9 @@ using Merchello.Core.Accounting.Validators;
 using Merchello.Core.Customers.Dtos;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Fulfilment;
+using Merchello.Core.Fulfilment.Services.Interfaces;
+using Merchello.Core.Fulfilment.Services.Parameters;
 using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
@@ -43,6 +46,7 @@ public class OrdersApiController(
     IInvoiceService invoiceService,
     IInvoiceEditService invoiceEditService,
     ICustomerService customerService,
+    IFulfilmentSubmissionService fulfilmentSubmissionService,
     IShipmentService shipmentService,
     IReportingService reportingService,
     IStatementService statementService,
@@ -425,6 +429,57 @@ public class OrdersApiController(
         }
 
         return Ok(summary);
+    }
+
+    /// <summary>
+    /// Explicitly release an order to Supplier Direct fulfilment.
+    /// </summary>
+    [HttpPost("orders/{orderId:guid}/fulfillment/release")]
+    [ProducesResponseType<ReleaseFulfillmentResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReleaseOrderFulfillment(Guid orderId, CancellationToken ct)
+    {
+        var result = await fulfilmentSubmissionService.SubmitOrderAsync(
+            new SubmitFulfilmentOrderParameters
+            {
+                OrderId = orderId,
+                Source = FulfilmentSubmissionSource.ExplicitRelease,
+                RequirePaidInvoice = true
+            },
+            ct);
+
+        if (CrudError(result) is { } error)
+        {
+            return error;
+        }
+
+        if (result.ResultObject == null)
+        {
+            return BadRequest("Order release did not return an order result.");
+        }
+
+        var order = result.ResultObject;
+        var alreadyReleased = result.Messages.Any(m =>
+            m.ResultMessageType == ResultMessageType.Warning &&
+            m.Message?.Contains("already been submitted", StringComparison.OrdinalIgnoreCase) == true);
+        var released = !alreadyReleased && !string.IsNullOrWhiteSpace(order.FulfilmentProviderReference);
+        var message = result.Messages
+            .FirstOrDefault(m =>
+                m.ResultMessageType == ResultMessageType.Success ||
+                m.ResultMessageType == ResultMessageType.Warning)?.Message
+            ?? (alreadyReleased
+                ? "Order has already been released to fulfilment."
+                : "Order released to fulfilment provider.");
+
+        return Ok(new ReleaseFulfillmentResultDto
+        {
+            OrderId = order.Id,
+            Released = released,
+            AlreadyReleased = alreadyReleased,
+            Message = message ?? string.Empty,
+            FulfilmentProviderReference = order.FulfilmentProviderReference
+        });
     }
 
     /// <summary>

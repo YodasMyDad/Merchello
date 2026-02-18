@@ -34,6 +34,7 @@ export interface CsvDeliverySettingsDto {
 }
 
 export interface SupplierDirectProfileDto {
+  submissionTrigger?: "OnPaid" | "ExplicitRelease" | string;
   deliveryMethod: "Email" | "Ftp" | "Sftp" | string;
   emailSettings?: EmailDeliverySettingsDto;
   ftpSettings?: FtpDeliverySettingsDto;

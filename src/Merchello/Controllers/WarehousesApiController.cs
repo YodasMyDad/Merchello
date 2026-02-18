@@ -658,6 +658,7 @@ public class WarehousesApiController(
     {
         return new SupplierDirectProfileDto
         {
+            SubmissionTrigger = profile.SubmissionTrigger.ToString(),
             DeliveryMethod = profile.DeliveryMethod.ToString(),
             EmailSettings = profile.EmailSettings != null
                 ? new EmailDeliverySettingsDto
@@ -696,6 +697,13 @@ public class WarehousesApiController(
         SupplierDirectProfileDto dto,
         SupplierDirectProfile? existingProfile = null)
     {
+        var submissionTrigger = Enum.TryParse<SupplierDirectSubmissionTrigger>(
+            dto.SubmissionTrigger,
+            true,
+            out var parsedTrigger)
+            ? parsedTrigger
+            : SupplierDirectSubmissionTrigger.OnPaid;
+
         // Parse delivery method
         var deliveryMethod = Enum.TryParse<SupplierDirectDeliveryMethod>(dto.DeliveryMethod, true, out var method)
             ? method
@@ -703,6 +711,7 @@ public class WarehousesApiController(
 
         return new SupplierDirectProfile
         {
+            SubmissionTrigger = submissionTrigger,
             DeliveryMethod = deliveryMethod,
             EmailSettings = dto.EmailSettings != null
                 ? new EmailDeliverySettings
@@ -735,6 +744,12 @@ public class WarehousesApiController(
         SupplierDirectProfileDto dto,
         SupplierDirectProfile? existingProfile = null)
     {
+        if (!string.IsNullOrWhiteSpace(dto.SubmissionTrigger) &&
+            !Enum.TryParse<SupplierDirectSubmissionTrigger>(dto.SubmissionTrigger, true, out _))
+        {
+            return "SupplierDirectProfile.submissionTrigger must be one of: OnPaid, ExplicitRelease.";
+        }
+
         if (!Enum.TryParse<SupplierDirectDeliveryMethod>(dto.DeliveryMethod, true, out var deliveryMethod))
         {
             return "SupplierDirectProfile.deliveryMethod must be one of: Email, Ftp, Sftp.";

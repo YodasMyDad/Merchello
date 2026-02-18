@@ -6,7 +6,7 @@ import DOMPurify from "dompurify";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import type { UmbRoute, UmbRouterSlotChangeEvent, UmbRouterSlotInitEvent } from "@umbraco-cms/backoffice/router";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -168,8 +168,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     if (!this._order || !this.#modalManager) return;
 
     const orderId = this._order.id;
+    const hasOutstandingBalance = this._order.balanceDue > 0;
     const modal = this.#modalManager.open(this, MERCHELLO_FULFILLMENT_MODAL, {
-      data: { invoiceId: orderId },
+      data: {
+        invoiceId: orderId,
+        hasOutstandingBalance,
+        paymentStatusDisplay: this._order.paymentStatusDisplay,
+        balanceDue: this._order.balanceDue,
+        currencyCode: this._order.currencyCode,
+        currencySymbol: this._order.currencySymbol,
+      },
     });
 
     // Wait for modal to close (submit or reject)
@@ -180,6 +188,49 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     // Always refresh the order data when modal closes to ensure status is up to date
     this.#workspaceContext?.load(orderId);
+  }
+
+  private async _releaseSupplierDirectOrder(fulfillmentOrder: FulfillmentOrderDto): Promise<void> {
+    if (!this._order || !this.#modalManager) return;
+
+    const confirmModal = this.#modalManager.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Release to Supplier",
+        content:
+          "This will submit this order to Supplier Direct immediately. If no shipment exists yet, a Preparing shipment will be created automatically.",
+        confirmLabel: "Release",
+      },
+    });
+
+    try {
+      await confirmModal.onSubmit();
+    } catch {
+      return;
+    }
+
+    const { data, error } = await MerchelloApi.releaseOrderFulfillment(fulfillmentOrder.id);
+
+    if (!this.#isConnected) return;
+
+    if (error) {
+      this.#notificationContext?.peek("danger", {
+        data: {
+          headline: "Release failed",
+          message: error.message,
+        },
+      });
+      return;
+    }
+
+    const message = data?.message?.trim() || "Order released to supplier.";
+    this.#notificationContext?.peek(data?.alreadyReleased ? "warning" : "positive", {
+      data: {
+        headline: data?.alreadyReleased ? "Already Released" : "Released to Supplier",
+        message,
+      },
+    });
+
+    this.#workspaceContext?.load(this._order.id);
   }
 
   private async _openEditOrderModal(): Promise<void> {
@@ -589,13 +640,24 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         </div>
         <div class="fulfillment-footer">
           <div class="fulfillment-actions">
+            ${fulfillmentOrder.canReleaseSupplierDirect
+              ? html`
+                  <uui-button
+                    look="secondary"
+                    label="Release to Supplier"
+                    @click=${() => this._releaseSupplierDirectOrder(fulfillmentOrder)}
+                  >
+                    Release to Supplier
+                  </uui-button>
+                `
+              : nothing}
             <uui-button
               look="${canFulfill ? 'primary' : 'secondary'}"
-              label="${canFulfill ? 'Fulfil' : 'Fulfilled'}"
+              label="${canFulfill ? 'Fulfill' : 'Fulfilled'}"
               ?disabled=${!canFulfill}
               @click=${canFulfill ? this._openFulfillmentModal : nothing}
             >
-              ${canFulfill ? "Fulfil" : "Fulfilled"}
+              ${canFulfill ? "Fulfill" : "Fulfilled"}
             </uui-button>
           </div>
         </div>

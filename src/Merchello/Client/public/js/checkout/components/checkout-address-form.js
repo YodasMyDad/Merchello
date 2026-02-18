@@ -242,11 +242,19 @@ export function initCheckoutAddressForm() {
             }
 
             // Phone validation
-            if (field === 'phone' && value) {
-                const result = validatePhone(value);
-                if (!result.isValid) {
-                    this.$store.checkout?.setError(fullPath, result.error);
+            if (field === 'phone') {
+                const phoneRequired = this.isBilling && (this.$store.checkout?.billingPhoneRequired === true);
+                if (phoneRequired && !String(value ?? '').trim()) {
+                    this.$store.checkout?.setError(fullPath, 'Phone number is required.');
                     return false;
+                }
+
+                if (value) {
+                    const result = validatePhone(value);
+                    if (!result.isValid) {
+                        this.$store.checkout?.setError(fullPath, result.error);
+                        return false;
+                    }
                 }
             }
 
@@ -266,11 +274,8 @@ export function initCheckoutAddressForm() {
                 }
             });
 
-            // Also validate phone if provided
-            if (this.fields.phone) {
-                if (!this.validateField('phone')) {
-                    isValid = false;
-                }
+            if (!this.validateField('phone')) {
+                isValid = false;
             }
 
             return isValid;

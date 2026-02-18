@@ -13,15 +13,15 @@ namespace Merchello.Tests.Checkout.Services;
 public class CheckoutValidatorTests
 {
     private readonly CheckoutValidator _validator;
-    private readonly CheckoutValidator _validatorWithPhoneRequired;
+    private readonly CheckoutValidator _validatorWithBillingPhoneRequired;
 
     public CheckoutValidatorTests()
     {
-        var settings = Options.Create(new CheckoutSettings { RequirePhone = false });
+        var settings = Options.Create(new CheckoutSettings { BillingPhoneRequired = false });
         _validator = new CheckoutValidator(settings);
 
-        var phoneRequiredSettings = Options.Create(new CheckoutSettings { RequirePhone = true });
-        _validatorWithPhoneRequired = new CheckoutValidator(phoneRequiredSettings);
+        var phoneRequiredSettings = Options.Create(new CheckoutSettings { BillingPhoneRequired = true });
+        _validatorWithBillingPhoneRequired = new CheckoutValidator(phoneRequiredSettings);
     }
 
     #region Email Validation
@@ -145,9 +145,20 @@ public class CheckoutValidatorTests
         var address = CreateValidAddress();
         address.Phone = null;
 
-        var errors = _validatorWithPhoneRequired.ValidateAddress(address, "billing");
+        var errors = _validatorWithBillingPhoneRequired.ValidateAddress(address, "billing");
 
         errors.ShouldContainKey("billing.phone");
+    }
+
+    [Fact]
+    public void ValidateAddress_BillingPhoneRequired_ShippingPhoneMissing_NoError()
+    {
+        var address = CreateValidAddress();
+        address.Phone = null;
+
+        var errors = _validatorWithBillingPhoneRequired.ValidateAddress(address, "shipping");
+
+        errors.ShouldNotContainKey("shipping.phone");
     }
 
     [Theory]
@@ -294,6 +305,30 @@ public class CheckoutValidatorTests
         var errors = _validator.ValidateAddressRequest(request);
 
         errors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void ValidateAddressRequest_BillingPhoneRequired_SeparateShippingPhoneMissing_NoError()
+    {
+        var request = new SaveAddressesRequestDto
+        {
+            Email = "test@example.com",
+            BillingAddress = CreateValidAddress(),
+            ShippingSameAsBilling = false,
+            ShippingAddress = new AddressDto
+            {
+                Name = "Jane Doe",
+                AddressOne = "42 Shipping Lane",
+                TownCity = "London",
+                CountryCode = "GB",
+                PostalCode = "SW1A 2AA",
+                Phone = null
+            }
+        };
+
+        var errors = _validatorWithBillingPhoneRequired.ValidateAddressRequest(request);
+
+        errors.ShouldNotContainKey("shipping.phone");
     }
 
     #endregion
