@@ -14,7 +14,8 @@ export const badgeStyles = css`
   }
 
   /* Payment status badges */
-  .badge.paid {
+  .badge.paid,
+  .badge.positive {
     background: var(--uui-color-positive-standalone);
     color: var(--uui-color-positive-contrast);
   }
@@ -47,7 +48,8 @@ export const badgeStyles = css`
   }
 
   .badge.unfulfilled,
-  .badge.partially-fulfilled {
+  .badge.partially-fulfilled,
+  .badge.warning {
     background: var(--merchello-color-warning-status-background, #8a6500);
     color: #fff;
   }
@@ -59,22 +61,26 @@ export const badgeStyles = css`
   }
 
   /* Generic color badges (for products, etc.) */
-  .badge-positive {
+  .badge-positive,
+  .badge.positive {
     background: var(--uui-color-positive-standalone);
     color: var(--uui-color-positive-contrast);
   }
 
-  .badge-danger {
+  .badge-danger,
+  .badge.danger {
     background: var(--uui-color-danger-standalone);
     color: var(--uui-color-danger-contrast);
   }
 
-  .badge-warning {
+  .badge-warning,
+  .badge.warning {
     background: var(--merchello-color-warning-status-background, #8a6500);
     color: #fff;
   }
 
-  .badge-default {
+  .badge-default,
+  .badge.default {
     background: var(--uui-color-text-alt);
     color: #fff;
   }

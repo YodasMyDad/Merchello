@@ -44,6 +44,11 @@ export class MerchelloOutstandingWorkspaceContext
         path: "",
         redirectTo: "edit/outstanding",
       },
+      // Catch-all redirect
+      {
+        path: "**",
+        redirectTo: "edit/outstanding",
+      },
     ]);
   }
 

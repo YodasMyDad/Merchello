@@ -308,6 +308,18 @@ Use this as the approved component playbook for Merchello backoffice.
 - `uui-badge`, `uui-tag`: status/hint metadata.
 - `uui-loader`, `uui-loader-bar`, `uui-loader-circle`: loading states.
 
+### Status badge contrast contract (critical)
+For compact status badges/chips used in tables, workspace headers, and order/invoice cards:
+- Warning-like statuses (`unfulfilled`, `partial`, `awaiting`, `warning`) must render white text.
+- Use warning background: `var(--merchello-color-warning-status-background, #8a6500)`.
+- Use text color: `#fff`.
+- Apply this consistently across list and detail surfaces so the same status class does not switch between black/white text by page.
+- Do not use `var(--uui-color-warning-contrast)` for these compact status badges; theme contrast values can render dark text and reduce readability.
+
+Scope note:
+- This rule is for compact status badges/chips.
+- Larger warning callouts/panels can still use standard UUI warning tokens when appropriate.
+
 ### Collections and tables
 - `umb-table`: standard collection/list table with selection/sort integration.
 - `uui-table`: only for simple static/informational tables when collection behavior is not needed.
@@ -488,6 +500,7 @@ Do:
 - Use `UmbPathPattern` constants for workspace paths.
 - Set `label` on UUI controls that require it, including icon-only buttons and selects inside wrapper layouts; use `aria-label` for dense table/list checkbox and radio selection controls.
 - Keep product action-enabled fields on `umb-property`.
+- Use the warning status badge contract for compact chips (`--merchello-color-warning-status-background` + white text).
 
 Do not:
 - Build standalone label/input stacks with custom divs when `umb-property-layout` applies.
@@ -498,6 +511,7 @@ Do not:
 - Rely on placeholder-only or wrapper-only labeling for `uui-select`/`uui-toggle`/`uui-button`.
 - Use non-standard button semantics (for example danger-colored non-destructive primary actions).
 - Ship icon-only primary/destructive dialog actions.
+- Use `--uui-color-warning-contrast` for compact warning status badges/chips.
 
 ## Implementation Checklist (Before PR)
 - Layout uses Umbraco primitives (`umb-body-layout`/`umb-workspace-editor`/`uui-box`).
@@ -515,6 +529,7 @@ Do not:
 - UUI controls with label requirements have explicit `label` (or hidden-label pattern).
 - Dense table/list checkbox and radio controls use `aria-label` (or hidden-label pattern), not visible `label="Select ..."` text.
 - Labels/localization are present and consistent.
+- Compact warning status badges/chips use `--merchello-color-warning-status-background` with white text (`#fff`).
 
 ## Audit Reference Files
 - `C:\Projects\Umbraco-CMS\src\Umbraco.Web.UI.Client\src\packages\core\workspace\components\workspace-editor\workspace-editor.element.ts`
