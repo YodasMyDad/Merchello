@@ -139,10 +139,10 @@ export class MerchelloProductShippingExclusionsElement extends UmbElementMixin(L
             <span class="option-name">${option.name ?? "Unnamed"}</span>
             <span class="option-meta">
               ${option.warehouseName ?? "Unknown warehouse"}${option.providerKey !== "flat-rate"
-                ? ` · ${option.providerKey}`
+                ? ` - ${option.providerKey}`
                 : ""}
               ${hasPartialState
-                ? html` ·
+                ? html` -
                     <em class="partial-count"
                       >${option.excludedVariantCount}/${option.totalVariantCount} variants excluded</em
                     >`

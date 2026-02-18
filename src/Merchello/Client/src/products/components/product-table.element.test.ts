@@ -7,9 +7,15 @@ vi.mock("@umbraco-cms/backoffice/external/lit", () => {
     disconnectedCallback(): void {}
   }
 
+  const renderTemplate = (strings: TemplateStringsArray, ...values: unknown[]): string =>
+    strings.reduce(
+      (result, part, index) => `${result}${part}${index < values.length ? String(values[index]) : ""}`,
+      ""
+    );
+
   return {
     LitElement: TestLitElement,
-    html: (..._args: unknown[]) => "",
+    html: renderTemplate,
     css: (..._args: unknown[]) => "",
     nothing: null,
     customElement: (tagName: string) => (target: CustomElementConstructor) => {
@@ -84,7 +90,7 @@ describe("product table row click behavior", () => {
     expect(dispatchSpy).toHaveBeenCalledTimes(1);
     const emittedEvent = dispatchSpy.mock.calls[0][0] as CustomEvent<{ productId: string }>;
     expect(emittedEvent.type).toBe("product-click");
-    expect(emittedEvent.detail.productId).toBe("product-1");
+    expect(emittedEvent.detail.productId).toBe("root-1");
   });
 
   it("does not dispatch product-click when table is not clickable", () => {
@@ -99,5 +105,31 @@ describe("product table row click behavior", () => {
     );
 
     expect(dispatchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("product table checkbox accessibility markup", () => {
+  it("uses aria-label for select-all checkbox without visible label text", () => {
+    const element = new MerchelloProductTableElement();
+    const headerMarkup = (
+      element as unknown as { _renderHeaderCell(column: "select"): string }
+    )._renderHeaderCell("select");
+
+    expect(headerMarkup).toContain('aria-label="Select all products"');
+    expect(headerMarkup).not.toMatch(/(?:^|\s)label="Select all products"/);
+  });
+
+  it("uses aria-label for row checkbox without visible label text", () => {
+    const element = new MerchelloProductTableElement();
+    const product = {
+      ...createProduct(),
+      rootName: "Art Print Poster",
+    } as ProductListItemDto;
+    const rowMarkup = (
+      element as unknown as { _renderCell(product: ProductListItemDto, column: "select"): string }
+    )._renderCell(product, "select");
+
+    expect(rowMarkup).toContain('aria-label="Select Art Print Poster"');
+    expect(rowMarkup).not.toMatch(/(?:^|\s)label="Select Art Print Poster"/);
   });
 });

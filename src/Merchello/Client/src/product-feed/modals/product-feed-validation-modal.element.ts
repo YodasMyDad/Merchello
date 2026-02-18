@@ -383,6 +383,7 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
           <umb-property-layout label="Max Issues" description="1-1000 issues returned per run.">
             <uui-input
               slot="editor"
+              label="Maximum issues"
               type="number"
               min="1"
               max="1000"
@@ -441,6 +442,7 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
             description="Optional. Paste comma/newline GUIDs (max 20 after merge with selected products).">
             <uui-textarea
               slot="editor"
+              label="Advanced preview product IDs"
               .value=${this._advancedPreviewIdsInput}
               @input=${this._setAdvancedPreviewIds}
               placeholder="00000000-0000-0000-0000-000000000000">
@@ -453,12 +455,18 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
             <span class="hint">Requested preview IDs: ${requestedPreviewIds.length}/20</span>
             <uui-button
               look="secondary"
+              label="Use sample IDs"
               ?disabled=${(this._validation?.sampleProductIds?.length ?? 0) === 0}
               @click=${this._addSampleIds}>
               Use Sample IDs
             </uui-button>
           </div>
-          <uui-button look="primary" color="positive" ?disabled=${this._isLoading} @click=${this._runValidation}>
+          <uui-button
+            look="primary"
+            color="positive"
+            label="Validate feed"
+            ?disabled=${this._isLoading}
+            @click=${this._runValidation}>
             ${this._isLoading ? "Validating..." : "Validate Feed"}
           </uui-button>
         </div>
@@ -503,18 +511,21 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
           <uui-button
             look=${this._issueFilter === "all" ? "primary" : "secondary"}
             compact
+            label="Show all issues"
             @click=${() => this._setIssueFilter("all")}>
             All (${this._validation.issues.length})
           </uui-button>
           <uui-button
             look=${this._issueFilter === "error" ? "primary" : "secondary"}
             compact
+            label="Show errors"
             @click=${() => this._setIssueFilter("error")}>
             Errors (${errorCount})
           </uui-button>
           <uui-button
             look=${this._issueFilter === "warning" ? "primary" : "secondary"}
             compact
+            label="Show warnings"
             @click=${() => this._setIssueFilter("warning")}>
             Warnings (${warningCount})
           </uui-button>
@@ -607,7 +618,11 @@ export class MerchelloProductFeedValidationModalElement extends UmbModalBaseElem
                 ${this._validation.sampleProductIds.map((id) => html`
                   <li>
                     <code>${id}</code>
-                    <uui-button compact look="secondary" @click=${() => this._addPreviewId(id)}>
+                    <uui-button
+                      compact
+                      look="secondary"
+                      label="Add sample ID"
+                      @click=${() => this._addPreviewId(id)}>
                       Add
                     </uui-button>
                   </li>

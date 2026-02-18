@@ -138,19 +138,27 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
     if (!this._product || !this.#variantId) {
       this._variant = null;
       this._isLoading = true;
+      this._errorMessage = null;
       return;
     }
 
     const variant = this._product.variants.find((v) => v.id === this.#variantId);
-    if (variant) {
-      this._variant = variant;
-      this._formData = { ...variant };
+    if (!variant) {
+      this._variant = null;
+      this._formData = {};
       this._isLoading = false;
-      // Load filters for this variant
-      this._loadAssignedFilters();
-      // Initialize shipping exclusions for this variant
-      this._initializeShippingExclusions(variant);
+      this._errorMessage = "Variant not found for this product.";
+      return;
     }
+
+    this._variant = variant;
+    this._formData = { ...variant };
+    this._isLoading = false;
+    this._errorMessage = null;
+    // Load filters for this variant
+    this._loadAssignedFilters();
+    // Initialize shipping exclusions for this variant
+    this._initializeShippingExclusions(variant);
   }
 
   /** Initializes shipping exclusions state for this variant */
@@ -203,6 +211,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       { path: "tab/stock", component: stubComponent },
       { path: "tab/filters", component: stubComponent },
       { path: "", redirectTo: "tab/basic" },
+      { path: "**", redirectTo: "tab/basic" },
     ];
   }
 
@@ -656,8 +665,24 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
       `;
     }
 
-    const activeTab = this._getActiveTab();
     const backHref = this._product?.id ? getProductVariantsTabHref(this._product.id) : "";
+    if (!this._variant) {
+      return html`
+        <umb-body-layout header-fit-height main-no-padding>
+          <uui-button slot="header" compact href=${backHref} label="Back to Product" class="back-button">
+            <uui-icon name="icon-arrow-left"></uui-icon>
+          </uui-button>
+          <uui-box class="error-box">
+            <div class="error-message">
+              <uui-icon name="icon-alert"></uui-icon>
+              <span>${this._errorMessage || "Variant not found."}</span>
+            </div>
+          </uui-box>
+        </umb-body-layout>
+      `;
+    }
+
+    const activeTab = this._getActiveTab();
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
@@ -670,6 +695,7 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
           <umb-icon name="icon-layers"></umb-icon>
           <uui-input
             id="name-input"
+            label="Variant name"
             .value=${this._formData.name || ""}
             @input=${(e: Event) => (this._formData = { ...this._formData, name: (e.target as HTMLInputElement).value })}
             placeholder="Variant name"

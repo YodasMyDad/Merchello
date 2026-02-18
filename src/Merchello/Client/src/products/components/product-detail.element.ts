@@ -447,6 +447,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         path: "",
         redirectTo: "tab/details",
       },
+      {
+        path: "**",
+        redirectTo: "tab/details",
+      },
     ];
   }
 
@@ -1759,7 +1763,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             <uui-table-head>
               <uui-table-head-cell style="width: 56px;">
                 <uui-checkbox
-                  label="Select all variants"
+                  aria-label="Select all variants"
                   ?checked=${allSelected}
                   .indeterminate=${partiallySelected}
                   @change=${(e: Event) => this._handleSelectAllVariants((e.target as HTMLInputElement).checked)}>
@@ -1844,7 +1848,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       <uui-table-row>
         <uui-table-cell>
           <uui-checkbox
-            label="Select variant"
+            aria-label="Select ${variant.name || "Unnamed"} variant"
             ?checked=${isSelected}
             @change=${(e: Event) => this._handleVariantSelection(variant.id, (e.target as HTMLInputElement).checked)}
             @click=${(e: Event) => e.stopPropagation()}>
@@ -1852,6 +1856,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         </uui-table-cell>
         <uui-table-cell>
           <uui-radio
+            aria-label="Set ${variant.name || "Unnamed"} as default variant"
             name="default-variant-${variant.productRootId}"
             ?checked=${variant.default}
             ?disabled=${!canBeDefault}
@@ -1870,7 +1875,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             ${optionDescription ? html`<span class="variant-options-text">${optionDescription}</span>` : nothing}
           </div>
         </uui-table-cell>
-        <uui-table-cell>${variant.sku || "—"}</uui-table-cell>
+        <uui-table-cell>${variant.sku || "-"}</uui-table-cell>
         <uui-table-cell>${formatCurrency(variant.price)}</uui-table-cell>
         <uui-table-cell>
           <span class="badge ${variant.stockStatusCssClass}" title=${variant.stockStatusLabel}>${variant.totalStock}</span>
@@ -2044,7 +2049,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
                   <uui-icon name="icon-lightbulb"></uui-icon>
                   <div>
                     <strong>About Product Options</strong>
-                    <p>Options with "Generates Variants" create all combinations (e.g., 3 sizes × 4 colors = 12 variants). Options without this are add-ons that modify price.</p>
+                    <p>Options with "Generates Variants" create all combinations (for example, 3 sizes x 4 colors = 12 variants). Options without this are add-ons that modify price.</p>
                   </div>
                 </div>
               </uui-box>
@@ -2203,7 +2208,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Option",
-        content: `Are you sure you want to delete "${optionName}"? This action cannot be undone.`,
+        content: `Delete "${optionName}" and remove it from this product. This cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -2513,6 +2518,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           <umb-icon name="icon-box"></umb-icon>
           <uui-input
             id="name-input"
+            label="Product name"
             .value=${this._formData.rootName || ""}
             @input=${(e: Event) => this._handleInputChange("rootName", (e.target as HTMLInputElement).value)}
             placeholder=${isNew ? "Enter product name..." : "Product name"}
