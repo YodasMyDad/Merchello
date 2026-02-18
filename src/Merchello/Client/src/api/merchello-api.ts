@@ -277,7 +277,6 @@ import type {
   ProductFeedValidationDto,
   ValidateProductFeedDto,
   ProductFeedResolverDescriptorDto,
-  ProductFeedTokenResultDto,
 } from '@product-feed/types/product-feed.types.js';
 
 // Import element type types
@@ -1236,10 +1235,6 @@ export const MerchelloApi = {
   /** Rebuild product and promotions XML snapshots for a feed */
   rebuildProductFeed: (id: string) =>
     apiPost<ProductFeedRebuildResultDto>(`product-feeds/${id}/rebuild`),
-
-  /** Regenerate signed access token for a feed */
-  regenerateProductFeedToken: (id: string) =>
-    apiPost<ProductFeedTokenResultDto>(`product-feeds/${id}/regenerate-token`),
 
   /** Preview feed generation diagnostics */
   previewProductFeed: (id: string) =>

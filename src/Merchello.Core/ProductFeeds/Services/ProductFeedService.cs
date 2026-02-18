@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Globalization;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -29,6 +28,11 @@ public class ProductFeedService(
 {
     private const string FeedCacheTagPrefix = "merchello:product-feeds:";
     private const string FeedCacheKeyPrefix = "merchello:product-feeds:";
+    private const int FeedSlugMaxLength = 200;
+    private const int FeedSlugPrefixLength = 8;
+    private const int FeedSlugCreateMaxAttempts = 10;
+
+    private static readonly char[] SlugPrefixAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789".ToCharArray();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -99,8 +103,8 @@ public class ProductFeedService(
             return result;
         }
 
-        var slug = BuildSlug(request.Slug, request.Name);
-        if (string.IsNullOrWhiteSpace(slug))
+        var baseSlug = BuildSlug(request.Slug, request.Name);
+        if (string.IsNullOrWhiteSpace(baseSlug))
         {
             result.AddErrorMessage("Feed slug could not be generated.");
             return result;
@@ -112,17 +116,13 @@ public class ProductFeedService(
             return result;
         }
 
-        var token = GenerateAccessToken();
-        var tokenHash = HashToken(token);
-
         using var scope = efCoreScopeProvider.CreateScope();
         var created = await scope.ExecuteWithContextAsync(async db =>
         {
-            var slugExists = await db.Set<ProductFeed>()
-                .AnyAsync(x => x.Slug == slug, cancellationToken);
-            if (slugExists)
+            var slug = await BuildCreateSlugAsync(db, baseSlug, cancellationToken);
+            if (string.IsNullOrWhiteSpace(slug))
             {
-                result.AddErrorMessage($"A feed with slug '{slug}' already exists.");
+                result.AddErrorMessage("Feed slug could not be generated.");
                 return (ProductFeed?)null;
             }
 
@@ -132,8 +132,7 @@ public class ProductFeedService(
                 request.CountryCode.Trim().ToUpperInvariant(),
                 request.CurrencyCode.Trim().ToUpperInvariant(),
                 request.LanguageCode.Trim().ToLowerInvariant(),
-                request.IncludeTaxInPrice ?? GetDefaultIncludeTaxInPrice(request.CountryCode),
-                tokenHash);
+                request.IncludeTaxInPrice ?? GetDefaultIncludeTaxInPrice(request.CountryCode));
 
             entity.IsEnabled = request.IsEnabled;
             entity.FilterConfigJson = JsonSerializer.Serialize(MapFilterConfig(request.FilterConfig), JsonOptions);
@@ -152,9 +151,7 @@ public class ProductFeedService(
             return result;
         }
 
-        var dto = MapToDetailDto(created);
-        dto.AccessToken = token;
-        result.ResultObject = dto;
+        result.ResultObject = MapToDetailDto(created);
         return result;
     }
 
@@ -164,13 +161,6 @@ public class ProductFeedService(
 
         if (!ValidateFeedRequest(request.Name, request.CountryCode, request.CurrencyCode, request.LanguageCode, result))
         {
-            return result;
-        }
-
-        var slug = BuildSlug(request.Slug, request.Name);
-        if (string.IsNullOrWhiteSpace(slug))
-        {
-            result.AddErrorMessage("Feed slug could not be generated.");
             return result;
         }
 
@@ -188,6 +178,16 @@ public class ProductFeedService(
             if (entity == null)
             {
                 result.AddErrorMessage("Feed not found.");
+                return (ProductFeed?)null;
+            }
+
+            var slug = string.IsNullOrWhiteSpace(request.Slug)
+                ? entity.Slug
+                : BuildSlug(request.Slug, request.Name);
+
+            if (string.IsNullOrWhiteSpace(slug))
+            {
+                result.AddErrorMessage("Feed slug could not be generated.");
                 return (ProductFeed?)null;
             }
 
@@ -257,39 +257,6 @@ public class ProductFeedService(
 
         await InvalidateFeedCacheAsync(id, cancellationToken);
         result.ResultObject = true;
-        return result;
-    }
-
-    public async Task<CrudResult<string>> RegenerateTokenAsync(Guid id, CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<string>();
-        var token = GenerateAccessToken();
-        var tokenHash = HashToken(token);
-
-        using var scope = efCoreScopeProvider.CreateScope();
-        var updated = await scope.ExecuteWithContextAsync(async db =>
-        {
-            var entity = await db.Set<ProductFeed>().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-            if (entity == null)
-            {
-                result.AddErrorMessage("Feed not found.");
-                return false;
-            }
-
-            entity.AccessTokenHash = tokenHash;
-            entity.DateUpdated = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
-            return true;
-        });
-        scope.Complete();
-
-        if (!updated)
-        {
-            return result;
-        }
-
-        await InvalidateFeedCacheAsync(id, cancellationToken);
-        result.ResultObject = token;
         return result;
     }
 
@@ -584,10 +551,10 @@ public class ProductFeedService(
         }
     }
 
-    public async Task<string?> GetProductsXmlAsync(string slug, string token, CancellationToken cancellationToken = default)
+    public async Task<string?> GetProductsXmlAsync(string slug, CancellationToken cancellationToken = default)
     {
         var feed = await GetFeedBySlugAsync(slug, cancellationToken);
-        if (feed == null || !VerifyToken(token, feed.AccessTokenHash) || !feed.IsEnabled)
+        if (feed == null || !feed.IsEnabled)
         {
             return null;
         }
@@ -605,10 +572,10 @@ public class ProductFeedService(
         return string.IsNullOrWhiteSpace(xml) ? null : xml;
     }
 
-    public async Task<string?> GetPromotionsXmlAsync(string slug, string token, CancellationToken cancellationToken = default)
+    public async Task<string?> GetPromotionsXmlAsync(string slug, CancellationToken cancellationToken = default)
     {
         var feed = await GetFeedBySlugAsync(slug, cancellationToken);
-        if (feed == null || !VerifyToken(token, feed.AccessTokenHash) || !feed.IsEnabled)
+        if (feed == null || !feed.IsEnabled)
         {
             return null;
         }
@@ -843,9 +810,65 @@ public class ProductFeedService(
             ? name
             : requestedSlug;
 
-        return string.IsNullOrWhiteSpace(candidate)
-            ? string.Empty
-            : slugHelper.GenerateSlug(candidate);
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return string.Empty;
+        }
+
+        var slug = slugHelper.GenerateSlug(candidate);
+        return TrimSlug(slug, FeedSlugMaxLength);
+    }
+
+    private async Task<string?> BuildCreateSlugAsync(
+        MerchelloDbContext db,
+        string baseSlug,
+        CancellationToken cancellationToken)
+    {
+        var normalizedBaseSlug = TrimSlug(baseSlug, FeedSlugMaxLength - FeedSlugPrefixLength - 1);
+        if (string.IsNullOrWhiteSpace(normalizedBaseSlug))
+        {
+            return null;
+        }
+
+        for (var attempt = 0; attempt < FeedSlugCreateMaxAttempts; attempt++)
+        {
+            var candidate = $"{GenerateSlugPrefix()}-{normalizedBaseSlug}";
+            var exists = await db.Set<ProductFeed>()
+                .AnyAsync(x => x.Slug == candidate, cancellationToken);
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static string GenerateSlugPrefix()
+    {
+        Span<byte> bytes = stackalloc byte[FeedSlugPrefixLength];
+        RandomNumberGenerator.Fill(bytes);
+
+        Span<char> chars = stackalloc char[FeedSlugPrefixLength];
+        for (var i = 0; i < chars.Length; i++)
+        {
+            chars[i] = SlugPrefixAlphabet[bytes[i] % SlugPrefixAlphabet.Length];
+        }
+
+        return new string(chars);
+    }
+
+    private static string TrimSlug(string? slug, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(slug) || maxLength <= 0)
+        {
+            return string.Empty;
+        }
+
+        var normalized = slug.Trim();
+        return normalized.Length <= maxLength
+            ? normalized
+            : normalized[..maxLength];
     }
 
     private async Task InvalidateFeedCacheAsync(Guid feedId, CancellationToken cancellationToken)
@@ -856,38 +879,6 @@ public class ProductFeedService(
     private static string BuildCacheTag(Guid feedId) => $"{FeedCacheTagPrefix}{feedId}";
 
     private static string BuildCacheKey(Guid feedId, string endpoint) => $"{FeedCacheKeyPrefix}{feedId}:{endpoint}";
-
-    private static string GenerateAccessToken()
-    {
-        Span<byte> bytes = stackalloc byte[32];
-        RandomNumberGenerator.Fill(bytes);
-        return Convert.ToHexString(bytes);
-    }
-
-    private static string HashToken(string token)
-    {
-        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return Convert.ToHexString(hashBytes);
-    }
-
-    private static bool VerifyToken(string providedToken, string storedTokenHash)
-    {
-        if (string.IsNullOrWhiteSpace(providedToken) || string.IsNullOrWhiteSpace(storedTokenHash))
-        {
-            return false;
-        }
-
-        var providedHash = HashToken(providedToken.Trim());
-        var left = Encoding.UTF8.GetBytes(providedHash);
-        var right = Encoding.UTF8.GetBytes(storedTokenHash);
-
-        if (left.Length != right.Length)
-        {
-            return false;
-        }
-
-        return CryptographicOperations.FixedTimeEquals(left, right);
-    }
 
     private static ProductFeedListItemDto MapToListItemDto(ProductFeed feed)
     {

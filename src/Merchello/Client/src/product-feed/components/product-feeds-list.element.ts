@@ -320,7 +320,6 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
           <div class="feed-name-block">
             <a class="feed-name" href=${getProductFeedDetailHref(feed.id)}>${feed.name}</a>
             <span class="feed-slug">${feedPath}</span>
-            <span class="feed-slug-hint">Token required</span>
           </div>
         </uui-table-cell>
         <uui-table-cell>${feed.countryCode}</uui-table-cell>
@@ -541,13 +540,6 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
       font-family: var(--uui-font-monospace);
       font-size: var(--uui-type-small-size);
       color: var(--uui-color-text-alt);
-    }
-
-    .feed-slug-hint {
-      color: var(--uui-color-text-alt);
-      font-size: var(--uui-type-small-size);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
     }
 
     .snapshot-tags {

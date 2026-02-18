@@ -13,9 +13,9 @@ public class ProductFeedsPublicController(
 {
     [HttpGet("{slug}.xml")]
     [Produces("application/xml")]
-    public async Task<IActionResult> GetProductsFeed(string slug, [FromQuery] string token, CancellationToken ct)
+    public async Task<IActionResult> GetProductsFeed(string slug, CancellationToken ct)
     {
-        var xml = await productFeedService.GetProductsXmlAsync(slug, token, ct);
+        var xml = await productFeedService.GetProductsXmlAsync(slug, ct);
         if (string.IsNullOrWhiteSpace(xml))
         {
             return NotFound();
@@ -26,9 +26,9 @@ public class ProductFeedsPublicController(
 
     [HttpGet("{slug}/promotions.xml")]
     [Produces("application/xml")]
-    public async Task<IActionResult> GetPromotionsFeed(string slug, [FromQuery] string token, CancellationToken ct)
+    public async Task<IActionResult> GetPromotionsFeed(string slug, CancellationToken ct)
     {
-        var xml = await productFeedService.GetPromotionsXmlAsync(slug, token, ct);
+        var xml = await productFeedService.GetPromotionsXmlAsync(slug, ct);
         if (string.IsNullOrWhiteSpace(xml))
         {
             return NotFound();

@@ -13,13 +13,12 @@ public interface IProductFeedService
     Task<CrudResult<ProductFeedDetailDto>> UpdateFeedAsync(Guid id, UpdateProductFeedDto request, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> DeleteFeedAsync(Guid id, CancellationToken cancellationToken = default);
 
-    Task<CrudResult<string>> RegenerateTokenAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ProductFeedRebuildResultDto?> RebuildAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ProductFeedPreviewDto?> PreviewAsync(Guid id, CancellationToken cancellationToken = default);
     Task<ProductFeedValidationDto?> ValidateAsync(Guid id, ValidateProductFeedDto request, CancellationToken cancellationToken = default);
 
-    Task<string?> GetProductsXmlAsync(string slug, string token, CancellationToken cancellationToken = default);
-    Task<string?> GetPromotionsXmlAsync(string slug, string token, CancellationToken cancellationToken = default);
+    Task<string?> GetProductsXmlAsync(string slug, CancellationToken cancellationToken = default);
+    Task<string?> GetPromotionsXmlAsync(string slug, CancellationToken cancellationToken = default);
 
     Task<List<ProductFeedResolverDescriptorDto>> GetResolversAsync(CancellationToken cancellationToken = default);
 }

@@ -14,8 +14,6 @@ public class ProductFeed
     public string LanguageCode { get; set; } = "en";
     public bool? IncludeTaxInPrice { get; set; }
 
-    public string AccessTokenHash { get; set; } = string.Empty;
-
     public string? FilterConfigJson { get; set; }
     public string? CustomLabelsJson { get; set; }
     public string? CustomFieldsJson { get; set; }

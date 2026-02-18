@@ -247,8 +247,7 @@ public class ProductFeedValidationIntegrationTests : IClassFixture<ServiceTestFi
             CountryCode = countryCode,
             CurrencyCode = "USD",
             LanguageCode = "en",
-            IncludeTaxInPrice = includeTaxInPrice,
-            AccessTokenHash = "HASH"
+            IncludeTaxInPrice = includeTaxInPrice
         };
 
         _fixture.DbContext.ProductFeeds.Add(feed);

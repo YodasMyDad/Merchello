@@ -12,7 +12,6 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductFeedDetailDto } from "@product-feed/types/product-feed.types.js";
 
 export const MERCHELLO_PRODUCT_FEED_WORKSPACE_ALIAS = "Merchello.ProductFeed.Workspace";
-const PRODUCT_FEED_TOKEN_STORAGE_KEY = "merchello:product-feed:tokens";
 
 export class MerchelloProductFeedWorkspaceContext
   extends UmbContextBase
@@ -92,7 +91,6 @@ export class MerchelloProductFeedWorkspaceContext
             lastGenerationError: null,
             hasProductSnapshot: false,
             hasPromotionsSnapshot: false,
-            accessToken: null,
           });
         },
       },
@@ -149,21 +147,7 @@ export class MerchelloProductFeedWorkspaceContext
       return;
     }
 
-    // API never returns token hashes as plaintext after save, so keep known tokens
-    // from in-memory state and browser storage for this user session.
-    const existingFeed = this.#feed.getValue();
-    const storedToken = this.#getPersistedToken(data.id);
-    const accessToken =
-      data.accessToken ??
-      (existingFeed?.id === data.id ? existingFeed.accessToken : null) ??
-      storedToken;
-
-    this.#persistToken(data.id, accessToken);
-
-    this.#feed.setValue({
-      ...data,
-      accessToken,
-    });
+    this.#feed.setValue(data);
     this.#isLoading.setValue(false);
   }
 
@@ -174,18 +158,7 @@ export class MerchelloProductFeedWorkspaceContext
   }
 
   updateFeed(feed: ProductFeedDetailDto): void {
-    const existingFeed = this.#feed.getValue();
-    const storedToken = feed.id ? this.#getPersistedToken(feed.id) : null;
-    const accessToken =
-      feed.accessToken ??
-      (existingFeed?.id === feed.id ? existingFeed.accessToken : null) ??
-      storedToken;
-
-    this.#persistToken(feed.id, accessToken);
-    this.#feed.setValue({
-      ...feed,
-      accessToken,
-    });
+    this.#feed.setValue(feed);
     if (feed.id) {
       this.#feedId = feed.id;
       this.#isNew = false;
@@ -223,57 +196,6 @@ export class MerchelloProductFeedWorkspaceContext
     if (canonicalPath !== pathname) {
       history.replaceState(history.state, "", `${canonicalPath}${search}${hash}`);
     }
-  }
-
-  #persistToken(feedId: string | undefined, token: string | null | undefined): void {
-    if (!feedId || !token) {
-      return;
-    }
-
-    try {
-      const current = this.#readPersistedTokens();
-      current[feedId] = token;
-      window.sessionStorage.setItem(PRODUCT_FEED_TOKEN_STORAGE_KEY, JSON.stringify(current));
-    } catch {
-      // Ignore storage failures (private mode, quota exceeded, etc.).
-    }
-  }
-
-  #getPersistedToken(feedId: string | undefined): string | null {
-    if (!feedId) {
-      return null;
-    }
-
-    try {
-      const current = this.#readPersistedTokens();
-      const token = current[feedId];
-      return token?.trim() ? token : null;
-    } catch {
-      return null;
-    }
-  }
-
-  #readPersistedTokens(): Record<string, string> {
-    const raw = window.sessionStorage.getItem(PRODUCT_FEED_TOKEN_STORAGE_KEY);
-    if (!raw) {
-      return {};
-    }
-
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-
-    const tokens: Record<string, string> = {};
-    for (const [feedId, token] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof token !== "string" || !token.trim()) {
-        continue;
-      }
-
-      tokens[feedId] = token;
-    }
-
-    return tokens;
   }
 }
 

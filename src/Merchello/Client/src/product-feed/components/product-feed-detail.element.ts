@@ -44,7 +44,6 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
   @state() private _isSaving = false;
   @state() private _isRebuilding = false;
   @state() private _isPreviewLoading = false;
-  @state() private _isRegeneratingToken = false;
   @state() private _loadError: string | null = null;
   @state() private _validationErrors: Record<string, string> = {};
 
@@ -1114,38 +1113,6 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     }
   }
 
-  private async _handleRegenerateToken(): Promise<void> {
-    if (!this._feed?.id || this._isNew) return;
-
-    this._isRegeneratingToken = true;
-    const { data, error } = await MerchelloApi.regenerateProductFeedToken(this._feed.id);
-    this._isRegeneratingToken = false;
-
-    if (error || !data) {
-      this.#notificationContext?.peek("danger", {
-        data: {
-          headline: "Token regeneration failed",
-          message: error?.message ?? "Unable to regenerate token.",
-        },
-      });
-      return;
-    }
-
-    const nextFeed = {
-      ...this._feed,
-      accessToken: data.accessToken,
-    };
-    this._commitFeed(nextFeed);
-    this.#workspaceContext?.updateFeed(nextFeed);
-
-    this.#notificationContext?.peek("positive", {
-      data: {
-        headline: "Token regenerated",
-        message: "A new token has been created for this feed.",
-      },
-    });
-  }
-
   private async _copyToClipboard(text: string, successMessage: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
@@ -1203,16 +1170,9 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
   private _renderGeneralTab(): unknown {
     if (!this._feed) return nothing;
 
-    const token = this._feed.accessToken;
     const baseUrl = window.location.origin;
-    const productsEndpointPath = `${baseUrl}/api/merchello/feeds/${this._feed.slug}.xml`;
-    const promotionsEndpointPath = `${baseUrl}/api/merchello/feeds/${this._feed.slug}/promotions.xml`;
-    const productsUrl = token
-      ? `${productsEndpointPath}?token=${encodeURIComponent(token)}`
-      : `${productsEndpointPath}?token=<regenerate-required>`;
-    const promotionsUrl = token
-      ? `${promotionsEndpointPath}?token=${encodeURIComponent(token)}`
-      : `${promotionsEndpointPath}?token=<regenerate-required>`;
+    const productsUrl = `${baseUrl}/api/merchello/feeds/${this._feed.slug}.xml`;
+    const promotionsUrl = `${baseUrl}/api/merchello/feeds/${this._feed.slug}/promotions.xml`;
 
     const productsSnapshotStatus = this._feed.hasProductSnapshot
       ? { label: "Ready", color: "positive" as const }
@@ -1239,7 +1199,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
           <umb-property-layout
             class="full-row"
             label="Slug"
-            description="Auto-generated from Feed Name using SlugHelper. Edit to override.">
+            description="When created, a short random prefix is prepended before this slug. Edit to change the saved URL slug.">
             <uui-input
               slot="editor"
               .value=${this._feed.slug ?? ""}
@@ -1345,90 +1305,36 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
 
       ${!this._isNew
         ? html`
-            <uui-box headline="Access Token & Feed URLs">
-              <div class="token-actions">
-                <uui-button
-                  look="secondary"
-                  ?disabled=${this._isRegeneratingToken}
-                  @click=${this._handleRegenerateToken}>
-                  ${this._isRegeneratingToken ? "Regenerating..." : "Regenerate Token"}
-                </uui-button>
-              </div>
+            <uui-box headline="Feed URLs">
+              <umb-property-layout label="Products Endpoint">
+                <div slot="editor" class="url-row">
+                  <uui-input .value=${productsUrl} readonly></uui-input>
+                  <uui-button
+                    look="secondary"
+                    compact
+                    @click=${() => this._copyToClipboard(productsUrl, "Products URL copied.")}>
+                    Copy
+                  </uui-button>
+                  <uui-button look="secondary" compact href=${productsUrl} target="_blank" rel="noopener">
+                    Open
+                  </uui-button>
+                </div>
+              </umb-property-layout>
 
-              ${token
-                ? html`
-                    <umb-property-layout label="Current Token">
-                      <div slot="editor" class="url-row">
-                        <uui-input .value=${token} readonly></uui-input>
-                        <uui-button
-                          look="secondary"
-                          compact
-                          @click=${() => this._copyToClipboard(token, "Token copied to clipboard.")}>
-                          Copy
-                        </uui-button>
-                      </div>
-                    </umb-property-layout>
-
-                    <umb-property-layout label="Products Endpoint">
-                      <div slot="editor" class="url-row">
-                        <uui-input .value=${productsUrl} readonly></uui-input>
-                        <uui-button
-                          look="secondary"
-                          compact
-                          @click=${() => this._copyToClipboard(productsUrl, "Products URL copied.")}>
-                          Copy
-                        </uui-button>
-                        <uui-button look="secondary" compact href=${productsUrl} target="_blank" rel="noopener">
-                          Open
-                        </uui-button>
-                      </div>
-                    </umb-property-layout>
-
-                    <umb-property-layout label="Promotions Endpoint">
-                      <div slot="editor" class="url-row">
-                        <uui-input .value=${promotionsUrl} readonly></uui-input>
-                        <uui-button
-                          look="secondary"
-                          compact
-                          @click=${() => this._copyToClipboard(promotionsUrl, "Promotions URL copied.")}>
-                          Copy
-                        </uui-button>
-                        <uui-button look="secondary" compact href=${promotionsUrl} target="_blank" rel="noopener">
-                          Open
-                        </uui-button>
-                      </div>
-                    </umb-property-layout>
-                  `
-                : html`
-                    <umb-property-layout label="Products Endpoint">
-                      <div slot="editor" class="url-row">
-                        <uui-input .value=${productsUrl} readonly></uui-input>
-                        <uui-button
-                          look="secondary"
-                          compact
-                          @click=${() => this._copyToClipboard(productsUrl, "Products endpoint copied.")}>
-                          Copy
-                        </uui-button>
-                      </div>
-                    </umb-property-layout>
-
-                    <umb-property-layout label="Promotions Endpoint">
-                      <div slot="editor" class="url-row">
-                        <uui-input .value=${promotionsUrl} readonly></uui-input>
-                        <uui-button
-                          look="secondary"
-                          compact
-                          @click=${() => this._copyToClipboard(promotionsUrl, "Promotions endpoint copied.")}>
-                          Copy
-                        </uui-button>
-                      </div>
-                    </umb-property-layout>
-
-                    <p class="hint">
-                      The API does not return plaintext tokens after save.
-                      If this browser session has no saved token, regenerate to reveal and copy new feed URLs.
-                    </p>
-                  `}
+              <umb-property-layout label="Promotions Endpoint">
+                <div slot="editor" class="url-row">
+                  <uui-input .value=${promotionsUrl} readonly></uui-input>
+                  <uui-button
+                    look="secondary"
+                    compact
+                    @click=${() => this._copyToClipboard(promotionsUrl, "Promotions URL copied.")}>
+                    Copy
+                  </uui-button>
+                  <uui-button look="secondary" compact href=${promotionsUrl} target="_blank" rel="noopener">
+                    Open
+                  </uui-button>
+                </div>
+              </umb-property-layout>
             </uui-box>
 
             <uui-box headline="Generation Status">
@@ -2723,7 +2629,6 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       margin: var(--uui-size-space-2) 0 0;
     }
 
-    .token-actions,
     .promotion-actions {
       display: flex;
       gap: var(--uui-size-space-2);

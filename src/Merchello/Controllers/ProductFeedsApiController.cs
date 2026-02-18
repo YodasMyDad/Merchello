@@ -89,20 +89,6 @@ public class ProductFeedsApiController(
         return Ok(result);
     }
 
-    [HttpPost("product-feeds/{id:guid}/regenerate-token")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> RegenerateToken(Guid id, CancellationToken ct)
-    {
-        var result = await productFeedService.RegenerateTokenAsync(id, ct);
-        if (CrudError(result) is { } error)
-        {
-            return error;
-        }
-
-        return Ok(new { accessToken = result.ResultObject });
-    }
-
     [HttpGet("product-feeds/{id:guid}/preview")]
     [ProducesResponseType<ProductFeedPreviewDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

@@ -20,6 +20,4 @@ public class ProductFeedDetailDto
     public string? LastGenerationError { get; set; }
     public bool HasProductSnapshot { get; set; }
     public bool HasPromotionsSnapshot { get; set; }
-
-    public string? AccessToken { get; set; }
 }

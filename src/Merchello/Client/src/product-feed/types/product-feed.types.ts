@@ -71,7 +71,6 @@ export interface ProductFeedDetailDto {
   lastGenerationError: string | null;
   hasProductSnapshot: boolean;
   hasPromotionsSnapshot: boolean;
-  accessToken: string | null;
 }
 
 export interface CreateProductFeedDto {
@@ -167,10 +166,6 @@ export interface ProductFeedResolverDescriptorDto {
   supportsArgs: boolean;
   argsHelpText: string | null;
   argsExampleJson: string | null;
-}
-
-export interface ProductFeedTokenResultDto {
-  accessToken: string;
 }
 
 export interface ProductFeedValidationModalData {
