@@ -88,13 +88,13 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
-    this._loadCountries();
   }
 
   override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
     this._createRoutes();
+    this._loadCountries();
   }
 
   private _createRoutes(): void {
@@ -104,6 +104,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       { path: "tab/shipments", component: stubComponent },
       { path: "tab/payments", component: stubComponent },
       { path: "", redirectTo: "tab/details" },
+      { path: "**", redirectTo: "tab/details" },
     ];
   }
 
@@ -119,6 +120,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
   private _onRouterChange(event: UmbRouterSlotChangeEvent): void {
     this._activePath = event.target.localActiveViewPath || "";
+  }
+
+  private _getTabHref(tabName: "details" | "shipments" | "payments"): string | undefined {
+    if (!this._routerPath) return undefined;
+    return `${this._routerPath}/tab/${tabName}`;
   }
 
   override disconnectedCallback(): void {
@@ -275,6 +281,25 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     if (address.country) lines.push(address.country);
     if (address.phone) lines.push(address.phone);
     return lines;
+  }
+
+  private _areAddressesEquivalent(addressA: AddressDto | null, addressB: AddressDto | null): boolean {
+    if (!addressA || !addressB) return false;
+    const fields: Array<keyof AddressDto> = [
+      "name",
+      "company",
+      "addressOne",
+      "addressTwo",
+      "townCity",
+      "countyState",
+      "postalCode",
+      "countryCode",
+      "country",
+      "phone",
+      "email",
+    ];
+
+    return fields.every((field) => (addressA[field] ?? "") === (addressB[field] ?? ""));
   }
 
   private _renderMarkdown(text: string): unknown {
@@ -853,21 +878,21 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           <uui-tab-group slot="header">
             <uui-tab
               label="Details"
-              href="${this._routerPath}/tab/details"
+              href=${this._getTabHref("details") ?? nothing}
               ?active=${activeTab === "details"}
             >
               Details
             </uui-tab>
             <uui-tab
               label="Shipments"
-              href="${this._routerPath}/tab/shipments"
+              href=${this._getTabHref("shipments") ?? nothing}
               ?active=${activeTab === "shipments"}
             >
               Shipments
             </uui-tab>
             <uui-tab
               label="Payments"
-              href="${this._routerPath}/tab/payments"
+              href=${this._getTabHref("payments") ?? nothing}
               ?active=${activeTab === "payments"}
             >
               Payments
@@ -909,7 +934,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             <!-- Payment Summary -->
             <div class="card payment-card">
               <div class="card-header">
-                <uui-checkbox checked disabled aria-label="Payment status"></uui-checkbox>
+                <uui-checkbox checked disabled label="Payment status" aria-label="Payment status"></uui-checkbox>
                 <span>${order.paymentStatusDisplay}</span>
               </div>
               <div class="payment-summary">
@@ -1025,7 +1050,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                 >
                   Visible to customer
                 </uui-checkbox>
-                <span class="visibility-hint">Only you and other staff can see comments</span>
+                <span class="visibility-hint">
+                  ${this._isVisibleToCustomer ? "Customers can see this new comment." : "Only staff can see this new comment."}
+                </span>
               </div>
               <div class="timeline-events-container">
                 ${order.notes.length === 0
@@ -1059,7 +1086,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           <!-- Right Column (Sidebar) -->
           <div class="sidebar">
             <!-- Purchase Order -->
-            <div class="card">
+            <div class="card sidebar-card">
               <div class="card-header-with-action">
                 <h3>Purchase Order</h3>
                 ${!this._isEditingPurchaseOrder ? html`
@@ -1095,7 +1122,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
             </div>
 
             <!-- Customer -->
-            <div class="card">
+            <div class="card sidebar-card">
               <h3>Customer</h3>
               <div class="customer-info">
                 <button type="button" class="customer-name-link" @click=${this._openCustomerEditModal}>${order.billingAddress?.name || "Unknown"}</button>
@@ -1106,7 +1133,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               </div>
               <div class="section">
                 <div class="section-header">
-                  <span>Contact information</span>
+                  <span class="section-title">Contact information</span>
                   ${this._editingSection !== 'contact' ? html`
                     <uui-button look="secondary" compact label="Edit contact" @click=${() => this._startEditing('contact')}>
                       <uui-icon name="icon-edit"></uui-icon>
@@ -1131,7 +1158,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               </div>
               <div class="section">
                 <div class="section-header">
-                  <span>Shipping address</span>
+                  <span class="section-title">Shipping address</span>
                   ${this._editingSection !== 'shipping' ? html`
                     <uui-button look="secondary" compact label="Edit shipping address" @click=${() => this._startEditing('shipping')}>
                       <uui-icon name="icon-edit"></uui-icon>
@@ -1167,7 +1194,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               </div>
               <div class="section">
                 <div class="section-header">
-                  <span>Billing address</span>
+                  <span class="section-title">Billing address</span>
                   ${this._editingSection !== 'billing' ? html`
                     <uui-button look="secondary" compact label="Edit billing address" @click=${() => this._startEditing('billing')}>
                       <uui-icon name="icon-edit"></uui-icon>
@@ -1193,7 +1220,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     </div>
                   </div>
                 ` : html`
-                  ${order.billingAddress === order.shippingAddress
+                  ${this._areAddressesEquivalent(order.billingAddress, order.shippingAddress)
                     ? html`<span class="muted">Same as shipping address</span>`
                     : html`
                         <div class="address">
@@ -1321,14 +1348,27 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-danger-contrast);
     }
 
+    .badge.partial,
+    .badge.awaiting {
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
+    }
+
+    .badge.refunded,
+    .badge.partially-refunded {
+      background: var(--uui-color-text-alt);
+      color: var(--uui-color-surface);
+    }
+
     .badge.fulfilled {
       background: var(--uui-color-positive-standalone);
       color: var(--uui-color-positive-contrast);
     }
 
-    .badge.unfulfilled {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+    .badge.unfulfilled,
+    .badge.partially-fulfilled {
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .badge.cancelled {
@@ -1343,18 +1383,18 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .badge.source-ucp {
-      background: #7c3aed; /* Purple for AI/UCP agents */
-      color: white;
+      background: var(--uui-color-current-standalone);
+      color: var(--uui-color-current-contrast);
     }
 
     .badge.source-api {
-      background: #0891b2; /* Cyan for API */
-      color: white;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .badge.source-pos {
-      background: #ea580c; /* Orange for POS */
-      color: white;
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .badge.source-manual {
@@ -1364,7 +1404,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
 
     .order-content {
       display: grid;
-      grid-template-columns: 1fr 350px;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
       gap: var(--uui-size-space-4);
     }
 
@@ -1374,17 +1414,30 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       }
     }
 
+    .main-column {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-4);
+      min-width: 0;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
     .card {
       background: var(--uui-color-surface);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
       padding: var(--uui-size-space-4);
-      margin-bottom: var(--uui-size-space-4);
+      margin-bottom: 0;
     }
 
     .card h3 {
       margin: 0 0 var(--uui-size-space-3);
-      font-size: 0.875rem;
+      font-size: 0.9375rem;
       font-weight: 600;
     }
 
@@ -1412,6 +1465,18 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-top: 1px solid var(--uui-color-border);
     }
 
+    .sidebar-card > h3 {
+      margin-bottom: var(--uui-size-space-3);
+      padding-bottom: var(--uui-size-space-3);
+      border-bottom: 1px solid var(--uui-color-border);
+    }
+
+    .sidebar-card .card-header-with-action {
+      margin-bottom: var(--uui-size-space-3);
+      padding-bottom: var(--uui-size-space-3);
+      border-bottom: 1px solid var(--uui-color-border);
+    }
+
     /* Fulfillment Card - Shopify-like styling */
     .fulfillment-card {
       padding: 0;
@@ -1435,8 +1500,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-radius: 20px;
       font-size: 0.8125rem;
       font-weight: 600;
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .fulfillment-status-badge uui-icon {
@@ -1654,8 +1719,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       border-radius: 12px;
       font-size: 0.75rem;
       font-weight: 500;
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .status-badge.shipped {
@@ -1846,6 +1911,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       align-items: center;
       margin-bottom: var(--uui-size-space-4);
       padding-left: 52px; /* Align with input (40px avatar + 12px gap) */
+      gap: var(--uui-size-space-2);
     }
 
     .customer-visible-checkbox {
@@ -1959,10 +2025,6 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       padding: var(--uui-size-space-2);
     }
 
-    .sidebar .card {
-      margin-bottom: var(--uui-size-space-3);
-    }
-
     .muted {
       color: var(--uui-color-text-alt);
       font-size: 0.875rem;
@@ -1976,6 +2038,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-1);
+      padding-bottom: var(--uui-size-space-1);
     }
 
     .customer-name {
@@ -2021,8 +2084,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .section {
-      margin-top: var(--uui-size-space-3);
-      padding-top: var(--uui-size-space-3);
+      margin-top: var(--uui-size-space-4);
+      padding-top: var(--uui-size-space-4);
       border-top: 1px solid var(--uui-color-border);
     }
 
@@ -2030,14 +2093,23 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: var(--uui-size-space-2);
+      margin-bottom: var(--uui-size-space-3);
       font-weight: 500;
       font-size: 0.875rem;
+    }
+
+    .section-title {
+      font-weight: 600;
+      color: var(--uui-color-text);
     }
 
     .address {
       font-size: 0.875rem;
       line-height: 1.5;
+    }
+
+    .address > div + div {
+      margin-top: 2px;
     }
 
     .view-map {
@@ -2063,6 +2135,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
     }
 
     .edit-form uui-input,
@@ -2091,6 +2167,8 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
       margin-top: var(--uui-size-space-2);
+      padding-top: var(--uui-size-space-2);
+      border-top: 1px solid var(--uui-color-border);
     }
 
     /* Markdown content styles for timeline notes */
@@ -2150,6 +2228,14 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       margin: var(--uui-size-space-2) 0;
       padding-left: var(--uui-size-space-3);
       color: var(--uui-color-text-alt);
+    }
+
+    @media (max-width: 768px) {
+      .timeline-visibility-note {
+        align-items: flex-start;
+        flex-direction: column;
+        padding-left: 0;
+      }
     }
   `;
 }

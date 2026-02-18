@@ -129,11 +129,18 @@ export interface ProductFeedValidationIssueDto {
   code: string;
   message: string;
   productId: string | null;
+  productName: string | null;
   field: string | null;
+}
+
+export interface ProductFeedValidationPreviewFieldDto {
+  field: string;
+  value: string;
 }
 
 export interface ProductFeedValidationProductPreviewDto {
   productId: string;
+  productName: string | null;
   title: string | null;
   price: string | null;
   availability: string | null;
@@ -144,6 +151,7 @@ export interface ProductFeedValidationProductPreviewDto {
   mpn: string | null;
   identifierExists: string | null;
   shippingLabel: string | null;
+  fields: ProductFeedValidationPreviewFieldDto[];
 }
 
 export interface ProductFeedValidationDto {

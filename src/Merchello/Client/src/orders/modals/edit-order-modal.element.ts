@@ -1622,8 +1622,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     }
 
     .fulfillment-badge.unfulfilled {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .fulfillment-badge.partial {

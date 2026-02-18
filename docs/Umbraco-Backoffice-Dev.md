@@ -128,7 +128,8 @@ Rules:
 - Set a `label` on UUI controls that require it.
 - For `uui-select`, `label` is required but not rendered as visible label text (it maps to accessible naming).
 - For icon-only `uui-button`, still set `label`; the slotted icon remains the visible content.
-- For toggles/checkboxes where visible label text would hurt layout, keep accessibility label while visually hiding label content.
+- For toggles/checkboxes/radios in dense tables or long lists, do not render visible inline label text like `label="Select ..."`.
+- In dense list/table selection columns, prefer `aria-label` on `uui-checkbox`/`uui-radio` to keep controls accessible without layout text noise.
 
 Hidden-label pattern for boolean controls:
 ```ts
@@ -137,9 +138,24 @@ Hidden-label pattern for boolean controls:
 </uui-toggle>
 ```
 
+Dense list/table selection pattern:
+```ts
+<uui-checkbox aria-label="Select all variants"></uui-checkbox>
+<uui-checkbox aria-label="Select ${variant.name || variant.id} variant"></uui-checkbox>
+<uui-radio aria-label="Set ${variant.name || 'Unnamed'} as default variant"></uui-radio>
+```
+
+Warning/visibility tradeoff:
+- `label="Select ..."` on checkbox/radio renders visible text next to each control and will break dense table layouts.
+- `aria-label` keeps the UI clean and accessible for long-list selection controls.
+- If you must satisfy `label` contract warnings on a dense control, use hidden-label slot content (do not show plain visible `label` text).
+
 Batch select guidance:
 - For table row selection, use dedicated selection controls (`umb-table`) and keep explicit accessibility naming.
 - Keep click handlers from bubbling where selection controls are inside clickable rows.
+- Header multi-select checkbox must support `indeterminate` state.
+- Row checkbox labels should include row identity (`name` or fallback `id`) via `aria-label`.
+- Row radios (for default selection) should use `aria-label` per row and remain inside the row selection event guard.
 
 ## Modal and Dialog Standards
 
@@ -470,7 +486,7 @@ Do:
 - Use `umb-table` in collection views.
 - Keep tree state in tree context managers and trigger refresh via tree reload events after mutations.
 - Use `UmbPathPattern` constants for workspace paths.
-- Set `label` on UUI controls that require it, including icon-only buttons and selects inside wrapper layouts.
+- Set `label` on UUI controls that require it, including icon-only buttons and selects inside wrapper layouts; use `aria-label` for dense table/list checkbox and radio selection controls.
 - Keep product action-enabled fields on `umb-property`.
 
 Do not:
@@ -497,6 +513,7 @@ Do not:
 - Manifest metadata casing is correct (`pathname` vs `pathName`).
 - Spacing uses UUI tokens only.
 - UUI controls with label requirements have explicit `label` (or hidden-label pattern).
+- Dense table/list checkbox and radio controls use `aria-label` (or hidden-label pattern), not visible `label="Select ..."` text.
 - Labels/localization are present and consistent.
 
 ## Audit Reference Files

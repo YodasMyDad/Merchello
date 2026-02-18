@@ -379,6 +379,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
           ? html`
               <uui-button
                 look="primary"
+                color="positive"
                 compact
                 label="Mark as Shipped"
                 ?disabled=${this._isUpdatingStatus}
@@ -432,6 +433,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
           <uui-form-layout-item>
             <uui-label slot="label">Carrier</uui-label>
             <uui-input
+              label="Carrier"
               placeholder="e.g., UPS, FedEx, DHL"
               .value=${this._trackingForm.carrier}
               @input=${(e: InputEvent) =>
@@ -441,6 +443,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
           <uui-form-layout-item>
             <uui-label slot="label">Tracking Number</uui-label>
             <uui-input
+              label="Tracking Number"
               placeholder="Tracking number"
               .value=${this._trackingForm.trackingNumber}
               @input=${(e: InputEvent) =>
@@ -450,6 +453,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
           <uui-form-layout-item>
             <uui-label slot="label">Tracking URL</uui-label>
             <uui-input
+              label="Tracking URL"
               placeholder="https://..."
               .value=${this._trackingForm.trackingUrl}
               @input=${(e: InputEvent) =>
@@ -460,6 +464,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
         <div class="form-actions">
           <uui-button
             look="primary"
+            color="positive"
             label="Confirm Shipped"
             ?disabled=${this._isUpdatingStatus}
             @click=${() => this._handleMarkAsShipped(shipment)}
@@ -493,8 +498,13 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
   private async _copyToClipboard(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Copied", message: "Tracking number copied to clipboard" },
+      });
     } catch {
-      // Clipboard API may not be available in all contexts
+      this.#notificationContext?.peek("danger", {
+        data: { headline: "Copy failed", message: "Unable to copy tracking number" },
+      });
     }
   }
 
@@ -633,8 +643,8 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
     }
 
     .status-badge.partial {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .status-badge.unfulfilled {
@@ -691,7 +701,7 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
 
     .shipment-status-badge.preparing {
       background: var(--merchello-color-warning-status-background, #8a6500);
-      color: var(--merchello-color-warning-status-contrast, #fff);
+      color: #fff;
     }
 
     .shipment-status-badge.shipped {

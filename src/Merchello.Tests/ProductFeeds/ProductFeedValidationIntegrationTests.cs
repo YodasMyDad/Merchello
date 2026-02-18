@@ -56,7 +56,8 @@ public class ProductFeedValidationIntegrationTests : IClassFixture<ServiceTestFi
         result!.Issues.ShouldContain(x =>
             x.Code == "missing_required_field" &&
             x.Field == "image_link" &&
-            x.Severity == "error");
+            x.Severity == "error" &&
+            x.ProductName == "Test Product");
     }
 
     [Fact]
@@ -92,8 +93,12 @@ public class ProductFeedValidationIntegrationTests : IClassFixture<ServiceTestFi
         result.ShouldNotBeNull();
         result!.ProductPreviews.Count.ShouldBe(1);
         result.ProductPreviews[0].ProductId.ShouldBe(productId.ToString());
+        result.ProductPreviews[0].ProductName.ShouldBe("Preview Product");
         result.ProductPreviews[0].Title.ShouldBe("Preview Product");
         result.ProductPreviews[0].Price.ShouldBe("15.00 USD");
+        result.ProductPreviews[0].Fields.ShouldContain(x =>
+            x.Field == "title" &&
+            x.Value == "Preview Product");
     }
 
     [Fact]

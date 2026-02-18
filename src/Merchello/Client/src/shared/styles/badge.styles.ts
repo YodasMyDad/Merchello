@@ -26,12 +26,12 @@ export const badgeStyles = css`
 
   .badge.partial {
     background: var(--merchello-color-warning-status-background, #8a6500);
-    color: var(--merchello-color-warning-status-contrast, #fff);
+    color: #fff;
   }
 
   .badge.awaiting {
     background: var(--merchello-color-warning-status-background, #8a6500);
-    color: var(--merchello-color-warning-status-contrast, #fff);
+    color: #fff;
   }
 
   .badge.refunded,
@@ -49,7 +49,7 @@ export const badgeStyles = css`
   .badge.unfulfilled,
   .badge.partially-fulfilled {
     background: var(--merchello-color-warning-status-background, #8a6500);
-    color: var(--merchello-color-warning-status-contrast, #fff);
+    color: #fff;
   }
 
   /* Cancellation status badge */
@@ -71,7 +71,7 @@ export const badgeStyles = css`
 
   .badge-warning {
     background: var(--merchello-color-warning-status-background, #8a6500);
-    color: var(--merchello-color-warning-status-contrast, #fff);
+    color: #fff;
   }
 
   .badge-default {

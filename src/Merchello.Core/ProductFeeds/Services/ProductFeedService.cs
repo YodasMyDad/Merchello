@@ -429,14 +429,15 @@ public class ProductFeedService(
                 }
 
                 var productId = GetElementValue(item, g, "id");
+                var productName = GetElementValue(item, g, "title");
 
-                ValidateRequiredField(item, g, "id", productId, issues, maxIssues);
-                ValidateRequiredField(item, g, "title", productId, issues, maxIssues);
-                ValidateRequiredField(item, g, "description", productId, issues, maxIssues);
-                ValidateRequiredField(item, g, "link", productId, issues, maxIssues);
-                ValidateRequiredField(item, g, "image_link", productId, issues, maxIssues);
-                ValidateRequiredField(item, g, "availability", productId, issues, maxIssues);
-                ValidateRequiredField(item, g, "price", productId, issues, maxIssues);
+                ValidateRequiredField(item, g, "id", productId, productName, issues, maxIssues);
+                ValidateRequiredField(item, g, "title", productId, productName, issues, maxIssues);
+                ValidateRequiredField(item, g, "description", productId, productName, issues, maxIssues);
+                ValidateRequiredField(item, g, "link", productId, productName, issues, maxIssues);
+                ValidateRequiredField(item, g, "image_link", productId, productName, issues, maxIssues);
+                ValidateRequiredField(item, g, "availability", productId, productName, issues, maxIssues);
+                ValidateRequiredField(item, g, "price", productId, productName, issues, maxIssues);
 
                 var availability = GetElementValue(item, g, "availability");
                 if (!string.IsNullOrWhiteSpace(availability) &&
@@ -449,6 +450,7 @@ public class ProductFeedService(
                         code: "invalid_availability",
                         message: $"Unsupported availability value '{availability}'.",
                         productId: productId,
+                        productName: productName,
                         field: "availability");
                 }
 
@@ -462,11 +464,12 @@ public class ProductFeedService(
                         code: "invalid_price_format",
                         message: $"Price '{price}' does not match '<amount> <ISO currency>' format.",
                         productId: productId,
+                        productName: productName,
                         field: "price");
                 }
 
-                ValidateAbsoluteHttpUrl(item, g, "link", productId, issues, maxIssues);
-                ValidateAbsoluteHttpUrl(item, g, "image_link", productId, issues, maxIssues);
+                ValidateAbsoluteHttpUrl(item, g, "link", productId, productName, issues, maxIssues);
+                ValidateAbsoluteHttpUrl(item, g, "image_link", productId, productName, issues, maxIssues);
 
                 var gtin = GetElementValue(item, g, "gtin");
                 var mpn = GetElementValue(item, g, "mpn");
@@ -482,6 +485,7 @@ public class ProductFeedService(
                         code: "identifier_exists_expected_no",
                         message: "identifier_exists should be 'no' when both gtin and mpn are missing.",
                         productId: productId,
+                        productName: productName,
                         field: "identifier_exists");
                 }
             }
@@ -983,6 +987,7 @@ public class ProductFeedService(
         XNamespace g,
         string field,
         string? productId,
+        string? productName,
         List<ProductFeedValidationIssueDto> issues,
         int maxIssues)
     {
@@ -998,6 +1003,7 @@ public class ProductFeedService(
             code: "missing_required_field",
             message: $"Required field '{field}' is missing.",
             productId: productId,
+            productName: productName,
             field: field);
     }
 
@@ -1006,6 +1012,7 @@ public class ProductFeedService(
         XNamespace g,
         string field,
         string? productId,
+        string? productName,
         List<ProductFeedValidationIssueDto> issues,
         int maxIssues)
     {
@@ -1029,6 +1036,7 @@ public class ProductFeedService(
             code: "invalid_url",
             message: $"Field '{field}' must be an absolute http/https URL.",
             productId: productId,
+            productName: productName,
             field: field);
     }
 
@@ -1060,6 +1068,7 @@ public class ProductFeedService(
         string code,
         string message,
         string? productId = null,
+        string? productName = null,
         string? field = null)
     {
         if (issues.Count >= maxIssues)
@@ -1073,15 +1082,25 @@ public class ProductFeedService(
             Code = code,
             Message = message,
             ProductId = productId,
+            ProductName = productName,
             Field = field
         });
     }
 
     private static ProductFeedValidationProductPreviewDto MapProductPreview(string productId, XElement item, XNamespace g)
     {
+        var fields = item.Elements()
+            .Select(element => new ProductFeedValidationPreviewFieldDto
+            {
+                Field = element.Name.LocalName,
+                Value = element.Value.Trim()
+            })
+            .ToList();
+
         return new ProductFeedValidationProductPreviewDto
         {
             ProductId = productId,
+            ProductName = GetElementValue(item, g, "title"),
             Title = GetElementValue(item, g, "title"),
             Price = GetElementValue(item, g, "price"),
             Availability = GetElementValue(item, g, "availability"),
@@ -1091,7 +1110,8 @@ public class ProductFeedService(
             Gtin = GetElementValue(item, g, "gtin"),
             Mpn = GetElementValue(item, g, "mpn"),
             IdentifierExists = GetElementValue(item, g, "identifier_exists"),
-            ShippingLabel = GetElementValue(item, g, "shipping_label")
+            ShippingLabel = GetElementValue(item, g, "shipping_label"),
+            Fields = fields
         };
     }
 

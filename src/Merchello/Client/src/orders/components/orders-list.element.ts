@@ -13,6 +13,7 @@ import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
 import "@orders/components/order-table.element.js";
 import type { OrderSelectionChangeEventDetail } from "@orders/components/order-table.element.js";
+import type { OrderClickEventDetail } from "@orders/components/order-table.element.js";
 import { MERCHELLO_EXPORT_MODAL } from "@orders/modals/export-modal.token.js";
 import { MERCHELLO_CREATE_ORDER_MODAL } from "@orders/modals/create-order-modal.token.js";
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
@@ -110,6 +111,10 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       this._orders = data.items;
       this._totalItems = data.totalItems;
       this._totalPages = data.totalPages;
+      const visibleIds = new Set(data.items.map((order) => order.id));
+      this._selectedOrders = new Set(
+        Array.from(this._selectedOrders).filter((id) => visibleIds.has(id)),
+      );
     }
 
     this._isLoading = false;
@@ -126,6 +131,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
   private _handleTabClick(tab: string): void {
     this._activeTab = tab;
     this._page = 1;
+    this._selectedOrders = new Set();
     this._loadOrders();
   }
 
@@ -148,11 +154,13 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
   private _handleSearchClear(): void {
     this._searchTerm = "";
     this._page = 1;
+    this._selectedOrders = new Set();
     this._loadOrders();
   }
 
   private _handlePageChange(e: CustomEvent<PageChangeEventDetail>): void {
     this._page = e.detail.page;
+    this._selectedOrders = new Set();
     this._loadOrders();
   }
 
@@ -168,6 +176,18 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
   private _handleSelectionChange(e: CustomEvent<OrderSelectionChangeEventDetail>): void {
     this._selectedOrders = new Set(e.detail.selectedIds);
     this.requestUpdate();
+  }
+
+  private _handleOrderClick(e: CustomEvent<OrderClickEventDetail>): void {
+    navigateToOrderDetail(e.detail.orderId);
+  }
+
+  private _hasActiveFilters(): boolean {
+    return this._activeTab !== "all" || this._searchTerm.trim().length > 0;
+  }
+
+  private _handleOutstandingClick(): void {
+    navigateToOutstandingList();
   }
 
   private async _handleDeleteSelected(): Promise<void> {
@@ -277,10 +297,32 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderErrorState(): unknown {
-    return html`<div class="error">${this._errorMessage}</div>`;
+    return html`
+      <div class="error">
+        <uui-icon name="icon-alert"></uui-icon>
+        <span>${this._errorMessage}</span>
+        <uui-button
+          look="secondary"
+          label="Retry loading orders"
+          @click=${() => this._loadOrders()}
+        >
+          Retry
+        </uui-button>
+      </div>
+    `;
   }
 
   private _renderEmptyState(): unknown {
+    if (this._hasActiveFilters()) {
+      return html`
+        <merchello-empty-state
+          icon="icon-search"
+          headline="No orders match your filters"
+          message="Try a different search term or clear filters.">
+        </merchello-empty-state>
+      `;
+    }
+
     return html`
       <merchello-empty-state
         icon="icon-receipt-dollar"
@@ -296,7 +338,9 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
         .orders=${this._orders}
         .columns=${this._tableColumns}
         .selectable=${true}
+        .clickable=${true}
         .selectedIds=${Array.from(this._selectedOrders)}
+        @order-click=${this._handleOrderClick}
         @selection-change=${this._handleSelectionChange}
       ></merchello-order-table>
 
@@ -380,17 +424,24 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
               </div>
             </div>
           </uui-box>
-          <uui-box class="stat-box--outstanding" @click=${() => navigateToOutstandingList()}>
-            <div class="stat-content stat-content--clickable">
-              <div class="stat-icon stat-icon--outstanding">
-                <uui-icon name="icon-timer"></uui-icon>
+          <uui-box class="stat-box--outstanding">
+            <button
+              type="button"
+              class="stat-button"
+              aria-label="View outstanding invoices"
+              @click=${this._handleOutstandingClick}
+            >
+              <div class="stat-content stat-content--clickable">
+                <div class="stat-icon stat-icon--outstanding">
+                  <uui-icon name="icon-timer"></uui-icon>
+                </div>
+                <div class="stat-details">
+                  <div class="stat-number">${formatCurrency(this._stats?.totalOutstandingValue ?? 0, this._stats?.currencyCode ?? "USD")}</div>
+                  <div class="stat-label">Outstanding${this._stats?.outstandingInvoiceCount ? ` (${this._stats.outstandingInvoiceCount})` : ""}</div>
+                  ${this._stats?.overdueInvoiceCount ? html`<div class="stat-overdue">${this._stats.overdueInvoiceCount} overdue</div>` : ""}
+                </div>
               </div>
-              <div class="stat-details">
-                <div class="stat-number">${formatCurrency(this._stats?.totalOutstandingValue ?? 0, this._stats?.currencyCode ?? "USD")}</div>
-                <div class="stat-label">Outstanding${this._stats?.outstandingInvoiceCount ? ` (${this._stats.outstandingInvoiceCount})` : ""}</div>
-                ${this._stats?.overdueInvoiceCount ? html`<div class="stat-overdue">${this._stats.overdueInvoiceCount} overdue</div>` : ""}
-              </div>
-            </div>
+            </button>
           </uui-box>
         </div>
 
@@ -476,6 +527,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     .header-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: var(--uui-size-space-2);
       align-items: center;
       justify-content: flex-end;
@@ -514,33 +566,47 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     }
 
     .stat-icon--orders {
-      background: rgba(59, 130, 246, 0.15);
-      color: #3b82f6;
+      background: var(--uui-color-current-standalone);
+      color: var(--uui-color-current-contrast);
     }
 
     .stat-icon--items {
-      background: rgba(168, 85, 247, 0.15);
-      color: #a855f7;
+      background: var(--uui-color-default-standalone);
+      color: var(--uui-color-default-contrast);
     }
 
     .stat-icon--fulfilled {
-      background: rgba(34, 197, 94, 0.15);
-      color: #22c55e;
+      background: var(--uui-color-positive-standalone);
+      color: var(--uui-color-positive-contrast);
     }
 
     .stat-icon--outstanding {
-      background: rgba(245, 158, 11, 0.15);
-      color: #f59e0b;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .stat-box--outstanding {
-      cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      --uui-box-default-padding: 0;
     }
 
-    .stat-box--outstanding:hover {
+    .stat-button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      padding: var(--uui-size-space-4);
+      border-radius: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      color: inherit;
+      font: inherit;
+    }
+
+    .stat-button:hover,
+    .stat-button:focus-visible {
       transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+      outline: none;
     }
 
     .stat-content--clickable {
@@ -606,10 +672,17 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     }
 
     .error {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-4);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
+    }
+
+    .error span {
+      flex: 1;
     }
 
     merchello-pagination {
