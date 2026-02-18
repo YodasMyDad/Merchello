@@ -8,6 +8,7 @@ import {
   DiscountRequirementType,
   DISCOUNT_CATEGORIES,
 } from "@discounts/types/discount.types.js";
+import { badgeStyles } from "@shared/styles/badge.styles.js";
 
 @customElement("merchello-discount-summary-card")
 export class MerchelloDiscountSummaryCardElement extends UmbElementMixin(LitElement) {
@@ -65,7 +66,7 @@ export class MerchelloDiscountSummaryCardElement extends UmbElementMixin(LitElem
             <span>${categoryInfo?.label ?? "Discount"}</span>
           </div>
           ${!this.isNew
-            ? html`<uui-tag look="secondary" color=${statusColor}>${statusLabel}</uui-tag>`
+            ? html`<span class="badge ${statusColor}">${statusLabel}</span>`
             : nothing}
         </div>
 
@@ -143,130 +144,133 @@ export class MerchelloDiscountSummaryCardElement extends UmbElementMixin(LitElem
     `;
   }
 
-  static override readonly styles = css`
-    :host {
-      display: block;
-    }
+  static override readonly styles = [
+    badgeStyles,
+    css`
+      :host {
+        display: block;
+      }
 
-    uui-box {
-      --uui-box-default-padding: var(--uui-size-space-4);
-    }
+      uui-box {
+        --uui-box-default-padding: var(--uui-size-space-4);
+      }
 
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: var(--uui-size-space-3);
-    }
+      .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--uui-size-space-3);
+      }
 
-    .category-badge {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      font-weight: 600;
-      color: var(--uui-color-text);
-    }
+      .category-badge {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        font-weight: 600;
+        color: var(--uui-color-text);
+      }
 
-    .category-badge uui-icon {
-      font-size: 1.2em;
-    }
+      .category-badge uui-icon {
+        font-size: 1.2em;
+      }
 
-    .method-section {
-      margin-bottom: var(--uui-size-space-3);
-    }
+      .method-section {
+        margin-bottom: var(--uui-size-space-3);
+      }
 
-    .code-display {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-3);
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
-      border: 1px dashed var(--uui-color-border-emphasis);
-    }
+      .code-display {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        padding: var(--uui-size-space-3);
+        background: var(--uui-color-surface-alt);
+        border-radius: var(--uui-border-radius);
+        border: 1px dashed var(--uui-color-border-emphasis);
+      }
 
-    .code-value {
-      font-family: monospace;
-      font-size: 1.1em;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-    }
+      .code-value {
+        font-family: monospace;
+        font-size: 1.1em;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+      }
 
-    .automatic-badge {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-      background: var(--uui-color-positive-standalone);
-      color: var(--uui-color-positive-contrast);
-      border-radius: var(--uui-border-radius);
-      font-size: var(--uui-type-small-size);
-    }
+      .automatic-badge {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        padding: var(--uui-size-space-2) var(--uui-size-space-3);
+        background: var(--uui-color-positive-standalone);
+        color: var(--uui-color-positive-contrast);
+        border-radius: var(--uui-border-radius);
+        font-size: var(--uui-type-small-size);
+      }
 
-    .divider {
-      border: none;
-      border-top: 1px solid var(--uui-color-border);
-      margin: var(--uui-size-space-3) 0;
-    }
+      .divider {
+        border: none;
+        border-top: 1px solid var(--uui-color-border);
+        margin: var(--uui-size-space-3) 0;
+      }
 
-    .summary-list {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-    }
+      .summary-list {
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-3);
+      }
 
-    .summary-item {
-      display: flex;
-      align-items: flex-start;
-      gap: var(--uui-size-space-2);
-    }
+      .summary-item {
+        display: flex;
+        align-items: flex-start;
+        gap: var(--uui-size-space-2);
+      }
 
-    .summary-item uui-icon {
-      color: var(--uui-color-text-alt);
-      margin-top: 2px;
-    }
+      .summary-item uui-icon {
+        color: var(--uui-color-text-alt);
+        margin-top: 2px;
+      }
 
-    .summary-item-content {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
+      .summary-item-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
 
-    .summary-item-label {
-      font-size: var(--uui-type-small-size);
-      color: var(--uui-color-text-alt);
-    }
+      .summary-item-label {
+        font-size: var(--uui-type-small-size);
+        color: var(--uui-color-text-alt);
+      }
 
-    .summary-item-value {
-      font-weight: 500;
-    }
+      .summary-item-value {
+        font-weight: 500;
+      }
 
-    .section-label {
-      display: block;
-      font-size: var(--uui-type-small-size);
-      color: var(--uui-color-text-alt);
-      margin-bottom: var(--uui-size-space-2);
-    }
+      .section-label {
+        display: block;
+        font-size: var(--uui-type-small-size);
+        color: var(--uui-color-text-alt);
+        margin-bottom: var(--uui-size-space-2);
+      }
 
-    .combinations-section {
-      margin-top: var(--uui-size-space-1);
-    }
+      .combinations-section {
+        margin-top: var(--uui-size-space-1);
+      }
 
-    .combinations-icons {
-      display: flex;
-      gap: var(--uui-size-space-3);
-    }
+      .combinations-icons {
+        display: flex;
+        gap: var(--uui-size-space-3);
+      }
 
-    .combinations-icons uui-icon {
-      font-size: 1.2em;
-      color: var(--uui-color-positive);
-    }
+      .combinations-icons uui-icon {
+        font-size: 1.2em;
+        color: var(--uui-color-positive);
+      }
 
-    .no-combinations {
-      color: var(--uui-color-text-alt);
-      font-size: var(--uui-type-small-size);
-    }
-  `;
+      .no-combinations {
+        color: var(--uui-color-text-alt);
+        font-size: var(--uui-type-small-size);
+      }
+    `,
+  ];
 }
 
 export default MerchelloDiscountSummaryCardElement;
