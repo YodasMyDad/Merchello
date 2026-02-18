@@ -177,6 +177,12 @@ public class ServiceTestFixture : IDisposable
     public MockHttpContextAccessor MockHttpContext => _mockHttpContextAccessor;
 
     /// <summary>
+    /// Gets the mock fulfilment provider manager for test configuration.
+    /// Use this to configure fulfilment provider behavior per-test.
+    /// </summary>
+    public Mock<IFulfilmentProviderManager> FulfilmentProviderManagerMock => _fulfilmentProviderManagerMock;
+
+    /// <summary>
     /// Gets the mock payment provider manager for test configuration.
     /// Use this to configure payment provider behavior per-test.
     /// </summary>
@@ -334,6 +340,7 @@ public class ServiceTestFixture : IDisposable
         RegisterNotificationHandler<WebhookNotificationHandler>(services);
         RegisterNotificationHandler<DigitalProductPaymentHandler>(services);
         RegisterNotificationHandler<FulfilmentOrderSubmissionHandler>(services);
+        RegisterNotificationHandler<FulfilmentAutoShipmentHandler>(services);
         RegisterNotificationHandler<FulfilmentCancellationHandler>(services);
         RegisterNotificationHandler<AbandonedCheckoutConversionHandler>(services);
         RegisterNotificationHandler<UcpOrderWebhookHandler>(services);
@@ -714,6 +721,7 @@ public class ServiceTestFixture : IDisposable
 
         // Fulfilment services (using DbContext directly for tests)
         services.AddScoped<IFulfilmentService, Merchello.Core.Fulfilment.Services.FulfilmentService>();
+        services.AddScoped<IFulfilmentSubmissionService, Merchello.Core.Fulfilment.Services.FulfilmentSubmissionService>();
         services.AddScoped<IFulfilmentSyncService, Merchello.Core.Fulfilment.Services.FulfilmentSyncService>();
 
         _serviceProvider = services.BuildServiceProvider();

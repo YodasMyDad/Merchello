@@ -7,6 +7,11 @@ namespace Merchello.Core.Warehouses.Dtos;
 public class SupplierDirectProfileDto
 {
     /// <summary>
+    /// Submission trigger: "OnPaid" or "ExplicitRelease".
+    /// </summary>
+    public string SubmissionTrigger { get; set; } = "OnPaid";
+
+    /// <summary>
     /// Delivery method: "Email", "Ftp", or "Sftp".
     /// </summary>
     public string DeliveryMethod { get; set; } = "Email";

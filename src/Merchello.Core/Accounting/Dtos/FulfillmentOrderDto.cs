@@ -59,4 +59,14 @@ public class FulfillmentOrderDto
     /// Number of fulfilment submission retry attempts.
     /// </summary>
     public int FulfilmentRetryCount { get; set; }
+
+    /// <summary>
+    /// Supplier Direct submission trigger for this order context ("OnPaid", "ExplicitRelease"), null for non-Supplier Direct.
+    /// </summary>
+    public string? SupplierDirectSubmissionTrigger { get; set; }
+
+    /// <summary>
+    /// Whether this order can be explicitly released to Supplier Direct now.
+    /// </summary>
+    public bool CanReleaseSupplierDirect { get; set; }
 }

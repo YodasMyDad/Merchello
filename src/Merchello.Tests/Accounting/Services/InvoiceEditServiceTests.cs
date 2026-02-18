@@ -8,7 +8,9 @@ using Merchello.Core.Products.Factories;
 using Merchello.Core.Discounts.Models;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Fulfilment.Services.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Warehouses.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Discounts.Services.Parameters;
 using Merchello.Services;
@@ -579,7 +581,9 @@ public class InvoiceEditServiceTests : IClassFixture<ServiceTestFixture>
         var ordersDtoMapper = new OrdersDtoMapper(
             _fixture.GetService<IPaymentService>(),
             _fixture.GetService<ICurrencyService>(),
-            _fixture.GetService<ILocalityCatalog>());
+            _fixture.GetService<ILocalityCatalog>(),
+            _fixture.GetService<IFulfilmentService>(),
+            _fixture.GetService<IWarehouseService>());
 
         var orderDetailDto = await ordersDtoMapper.MapToDetailAsync(
             persistedInvoice,

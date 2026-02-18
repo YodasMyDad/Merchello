@@ -326,6 +326,10 @@ export interface FulfillmentOrderDto {
   fulfilmentErrorMessage: string | null;
   /** Number of fulfilment submission retry attempts. */
   fulfilmentRetryCount: number;
+  /** Supplier Direct trigger mode ("OnPaid" | "ExplicitRelease"), null for non-Supplier Direct orders. */
+  supplierDirectSubmissionTrigger: string | null;
+  /** Whether this order can be explicitly released to Supplier Direct right now. */
+  canReleaseSupplierDirect: boolean;
 }
 
 /** Selected product option for display (e.g., Color: Grey) */
@@ -488,6 +492,15 @@ export interface UpdateShipmentStatusDto {
   carrier?: string;
   trackingNumber?: string;
   trackingUrl?: string;
+}
+
+/** Result returned when explicitly releasing an order to Supplier Direct fulfilment. */
+export interface ReleaseFulfillmentResultDto {
+  orderId: string;
+  released: boolean;
+  alreadyReleased: boolean;
+  message: string;
+  fulfilmentProviderReference?: string | null;
 }
 
 /** Summary of fulfillment state for the entire invoice (used in fulfillment dialog) */
