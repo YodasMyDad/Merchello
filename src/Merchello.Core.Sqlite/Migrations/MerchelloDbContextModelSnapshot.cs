@@ -1808,6 +1808,155 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloProductFeeds", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Field")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Handle")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("RowNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Severity")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Sku")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Stage")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DateCreatedUtc");
+
+                    b.HasIndex("RunId");
+
+                    b.HasIndex("Severity");
+
+                    b.HasIndex("Stage");
+
+                    b.ToTable("merchelloProductSyncIssues", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateCreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ErrorCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InputFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InputFilePath")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ItemsFailed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("ItemsProcessed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("ItemsSucceeded")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("OptionsJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OutputFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OutputFilePath")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Profile")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RequestedByUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequestedByUserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("WarningCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DateCreatedUtc");
+
+                    b.HasIndex("Direction");
+
+                    b.HasIndex("StartedAtUtc");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("merchelloProductSyncRuns", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3854,6 +4003,17 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncIssue", b =>
+                {
+                    b.HasOne("Merchello.Core.ProductSync.Models.ProductSyncRun", "Run")
+                        .WithMany("Issues")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Run");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -4199,6 +4359,11 @@ namespace Merchello.Core.Sqlite.Migrations
             modelBuilder.Entity("Merchello.Core.GiftCards.Models.GiftCard", b =>
                 {
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncRun", b =>
+                {
+                    b.Navigation("Issues");
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>

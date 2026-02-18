@@ -26,6 +26,7 @@ export default defineConfig({
       "@outstanding": resolve(__dirname, "src/outstanding"),
       "@payment-providers": resolve(__dirname, "src/payment-providers"),
       "@product-feed": resolve(__dirname, "src/product-feed"),
+      "@product-import-export": resolve(__dirname, "src/product-import-export"),
       "@property-editors": resolve(__dirname, "src/property-editors"),
       "@product-types": resolve(__dirname, "src/product-types"),
       "@products": resolve(__dirname, "src/products"),

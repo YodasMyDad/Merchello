@@ -29,6 +29,7 @@ export const MERCHELLO_COLLECTIONS_ENTITY_TYPE = "merchello-collections";
 export const MERCHELLO_FILTERS_ENTITY_TYPE = "merchello-filters";
 export const MERCHELLO_PRODUCT_TYPES_ENTITY_TYPE = "merchello-product-types";
 export const MERCHELLO_PRODUCT_FEED_ENTITY_TYPE = "merchello-product-feed";
+export const MERCHELLO_PRODUCT_IMPORT_EXPORT_ENTITY_TYPE = "merchello-product-import-export";
 export const MERCHELLO_ANALYTICS_ENTITY_TYPE = "merchello-analytics";
 export const MERCHELLO_DISCOUNTS_ENTITY_TYPE = "merchello-discounts";
 export const MERCHELLO_SUPPLIERS_ENTITY_TYPE = "merchello-suppliers";
