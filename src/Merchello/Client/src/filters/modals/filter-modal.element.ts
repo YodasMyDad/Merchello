@@ -4,20 +4,20 @@ import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } fro
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { FilterModalData, FilterModalValue } from "@filters/modals/filter-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
-
-// Import Umbraco packages for the components
 import "@umbraco-cms/backoffice/media";
+
+const FILTER_FORM_ID = "MerchelloFilterForm";
 
 @customElement("merchello-filter-modal")
 export class MerchelloFilterModalElement extends UmbModalBaseElement<
   FilterModalData,
   FilterModalValue
 > {
-  @state() private _name: string = "";
-  @state() private _hexColour: string = "";
+  @state() private _name = "";
+  @state() private _hexColour = "";
   @state() private _image: string | null = null;
-  @state() private _isSaving: boolean = false;
-  @state() private _isDeleting: boolean = false;
+  @state() private _isSaving = false;
+  @state() private _isDeleting = false;
   @state() private _errors: Record<string, string> = {};
 
   #modalManager?: UmbModalManagerContext;
@@ -37,7 +37,6 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
   override connectedCallback(): void {
     super.connectedCallback();
     this.#isConnected = true;
-    // Pre-populate form with existing filter data if editing
     if (this.data?.filter) {
       this._name = this.data.filter.name;
       this._hexColour = this.data.filter.hexColour || "";
@@ -45,9 +44,26 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     }
   }
 
-  private _validate(): boolean {
-    const errors: Record<string, string> = {};
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
+  }
 
+  private _handleNameInput(event: Event): void {
+    this._name = (event.target as HTMLInputElement).value;
+    if (this._errors.name || this._errors.general) {
+      this._errors = {};
+    }
+  }
+
+  private _validate(): boolean {
+    const form = this.shadowRoot?.querySelector<HTMLFormElement>(`#${FILTER_FORM_ID}`);
+    if (form && !form.checkValidity()) {
+      form.reportValidity();
+      return false;
+    }
+
+    const errors: Record<string, string> = {};
     if (!this._name.trim()) {
       errors.name = "Filter name is required";
     }
@@ -56,13 +72,16 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     return Object.keys(errors).length === 0;
   }
 
-  private async _handleSave(): Promise<void> {
+  private async _handleSave(event?: Event): Promise<void> {
+    event?.preventDefault();
+    if (this._isSaving || this._isDeleting) return;
     if (!this._validate()) return;
 
     this._isSaving = true;
+    this._errors = {};
+    const trimmedName = this._name.trim();
 
     if (this._isEditMode) {
-      // Update existing filter
       const filterId = this.data?.filter?.id;
       if (!filterId) {
         this._errors = { general: "Filter ID is missing" };
@@ -71,13 +90,12 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
       }
 
       const { data, error } = await MerchelloApi.updateFilter(filterId, {
-        name: this._name.trim(),
+        name: trimmedName,
         hexColour: this._hexColour || null,
         image: this._image || null,
       });
 
       this._isSaving = false;
-
       if (error) {
         this._errors = { general: error.message };
         return;
@@ -85,41 +103,41 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
 
       this.value = { filter: data, isUpdated: true };
       this.modalContext?.submit();
-    } else {
-      // Create new filter
-      const filterGroupId = this.data?.filterGroupId;
-      if (!filterGroupId) {
-        this._errors = { general: "Filter group ID is missing" };
-        this._isSaving = false;
-        return;
-      }
-
-      const { data, error } = await MerchelloApi.createFilter(filterGroupId, {
-        name: this._name.trim(),
-        hexColour: this._hexColour || undefined,
-        image: this._image || undefined,
-      });
-
-      this._isSaving = false;
-
-      if (error) {
-        this._errors = { general: error.message };
-        return;
-      }
-
-      this.value = { filter: data, isCreated: true };
-      this.modalContext?.submit();
+      return;
     }
+
+    const filterGroupId = this.data?.filterGroupId;
+    if (!filterGroupId) {
+      this._errors = { general: "Filter group ID is missing" };
+      this._isSaving = false;
+      return;
+    }
+
+    const { data, error } = await MerchelloApi.createFilter(filterGroupId, {
+      name: trimmedName,
+      hexColour: this._hexColour || undefined,
+      image: this._image || undefined,
+    });
+
+    this._isSaving = false;
+    if (error) {
+      this._errors = { general: error.message };
+      return;
+    }
+
+    this.value = { filter: data, isCreated: true };
+    this.modalContext?.submit();
   }
 
   private async _handleDelete(): Promise<void> {
     const filterId = this.data?.filter?.id;
-    if (!filterId) return;
+    if (!filterId || this._isDeleting || this._isSaving) return;
 
+    const filterName = this._name.trim() || "this filter";
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Filter",
-        content: `Are you sure you want to delete "${this._name}"? This action cannot be undone.`,
+        content: `Delete "${filterName}"? This cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -128,18 +146,18 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     try {
       await modalContext?.onSubmit();
     } catch {
-      return; // User cancelled
+      return;
     }
-    if (!this.#isConnected) return; // Component disconnected while modal was open
+    if (!this.#isConnected) return;
 
     this._isDeleting = true;
+    this._errors = {};
 
     const { error } = await MerchelloApi.deleteFilter(filterId);
 
     if (!this.#isConnected) return;
 
     this._isDeleting = false;
-
     if (error) {
       this._errors = { general: error.message };
       return;
@@ -153,15 +171,14 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  private _handleColorChange(e: Event): void {
-    const target = e.target as HTMLInputElement;
-    this._hexColour = target.value || "";
+  private _handleColorChange(event: Event): void {
+    this._hexColour = (event.target as HTMLInputElement).value || "";
   }
 
-  private _handleMediaChange(e: Event): void {
-    const target = e.target as HTMLElement & { value?: Array<{ mediaKey?: string }> };
-    const value = target?.value || [];
-    this._image = value.length > 0 ? value[0].mediaKey || null : null;
+  private _handleMediaChange(event: Event): void {
+    const target = event.target as HTMLElement & { value?: Array<{ mediaKey?: string }> };
+    const selected = target.value ?? [];
+    this._image = selected.length > 0 ? selected[0].mediaKey || null : null;
   }
 
   private _clearColor(): void {
@@ -175,105 +192,123 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
   override render() {
     const headline = this._isEditMode ? "Edit Filter" : "Add Filter";
     const saveLabel = this._isEditMode ? "Save Changes" : "Create Filter";
-    const savingLabel = this._isEditMode ? "Saving..." : "Creating...";
-
-    // Prepare media value for the picker
+    const submitLabel = this._isSaving ? "Saving..." : saveLabel;
     const mediaValue = this._image ? [{ key: this._image, mediaKey: this._image }] : [];
 
     return html`
       <umb-body-layout headline=${headline}>
         <div id="main">
           ${this._errors.general
-            ? html`<div class="error-banner">${this._errors.general}</div>`
-            : nothing}
-
-          <div class="form-row">
-            <label for="filter-name">Name <span class="required">*</span></label>
-            <uui-input
-              id="filter-name"
-              .value=${this._name}
-              @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
-              placeholder="e.g., Red, Blue, Large, Cotton"
-              label="Filter name">
-            </uui-input>
-            <span class="hint">The name of the filter value (e.g., Red, Blue, Large)</span>
-            ${this._errors.name ? html`<span class="error">${this._errors.name}</span>` : nothing}
-          </div>
-
-          <div class="form-row">
-            <label>Color (Optional)</label>
-            <div class="color-picker-row">
-              <uui-color-picker
-                label="Filter color"
-                .value=${this._hexColour}
-                @change=${this._handleColorChange}>
-              </uui-color-picker>
-              ${this._hexColour
-                ? html`
-                    <div class="color-preview-row">
-                      <span class="color-swatch" style="background: ${this._hexColour}"></span>
-                      <span class="color-value">${this._hexColour}</span>
-                      <uui-button
-                        label="Clear"
-                        look="placeholder"
-                        compact
-                        @click=${this._clearColor}>
-                        <uui-icon name="icon-trash"></uui-icon>
-                      </uui-button>
-                    </div>
-                  `
-                : nothing}
-            </div>
-            <span class="hint">Optional color for display (e.g., for color swatches)</span>
-          </div>
-
-          <div class="form-row">
-            <label>Image (Optional)</label>
-            <umb-input-rich-media
-              .value=${mediaValue}
-              ?multiple=${false}
-              @change=${this._handleMediaChange}>
-            </umb-input-rich-media>
-            ${this._image
-              ? html`
-                  <uui-button
-                    label="Clear image"
-                    look="placeholder"
-                    compact
-                    @click=${this._clearImage}>
-                    <uui-icon name="icon-trash"></uui-icon> Clear image
-                  </uui-button>
-                `
-              : nothing}
-            <span class="hint">Optional image for this filter (e.g., material texture)</span>
-          </div>
-        </div>
-
-        <div slot="actions">
-          ${this._isEditMode
             ? html`
-                <uui-button
-                  label="Delete"
-                  look="secondary"
-                  color="danger"
-                  ?disabled=${this._isDeleting || this._isSaving}
-                  @click=${this._handleDelete}>
-                  ${this._isDeleting ? "Deleting..." : "Delete"}
-                </uui-button>
+                <div class="error-banner" role="alert">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errors.general}</span>
+                </div>
               `
             : nothing}
-          <uui-button label="Cancel" look="secondary" @click=${this._handleCancel}>
-            Cancel
-          </uui-button>
-          <uui-button
-            label=${saveLabel}
-            look="primary"
-            color="positive"
-            ?disabled=${this._isSaving || this._isDeleting}
-            @click=${this._handleSave}>
-            ${this._isSaving ? savingLabel : saveLabel}
-          </uui-button>
+
+          <uui-box>
+            <uui-form>
+              <form id=${FILTER_FORM_ID} @submit=${this._handleSave}>
+                <uui-form-layout-item>
+                  <uui-label slot="label" for="filter-name" required>Filter Name</uui-label>
+                  <uui-input
+                    id="filter-name"
+                    name="filterName"
+                    label="Filter name"
+                    maxlength="255"
+                    required
+                    placeholder="e.g., Red, Blue, Large, Cotton"
+                    .value=${this._name}
+                    @input=${this._handleNameInput}>
+                  </uui-input>
+                  <span class="hint">Label shown when this filter value is selected on products.</span>
+                  ${this._errors.name ? html`<span class="error" role="alert">${this._errors.name}</span>` : nothing}
+                </uui-form-layout-item>
+
+                <uui-form-layout-item>
+                  <uui-label slot="label">Color (Optional)</uui-label>
+                  <div class="field-stack">
+                    <uui-color-picker
+                      label="Filter color"
+                      .value=${this._hexColour}
+                      @change=${this._handleColorChange}>
+                    </uui-color-picker>
+                    ${this._hexColour
+                      ? html`
+                          <div class="color-preview-row">
+                            <span class="color-swatch" style="background: ${this._hexColour}"></span>
+                            <span class="color-value">${this._hexColour}</span>
+                            <uui-button
+                              type="button"
+                              label="Clear color"
+                              look="secondary"
+                              compact
+                              @click=${this._clearColor}>
+                              Clear
+                            </uui-button>
+                          </div>
+                        `
+                      : nothing}
+                  </div>
+                  <span class="hint">Optional color for storefront swatches.</span>
+                </uui-form-layout-item>
+
+                <uui-form-layout-item>
+                  <uui-label slot="label">Image (Optional)</uui-label>
+                  <div class="field-stack">
+                    <umb-input-rich-media
+                      .value=${mediaValue}
+                      ?multiple=${false}
+                      @change=${this._handleMediaChange}>
+                    </umb-input-rich-media>
+                    ${this._image
+                      ? html`
+                          <uui-button
+                            type="button"
+                            label="Clear image"
+                            look="secondary"
+                            compact
+                            @click=${this._clearImage}>
+                            Clear image
+                          </uui-button>
+                        `
+                      : nothing}
+                  </div>
+                  <span class="hint">Optional image reference for material or texture-based filters.</span>
+                </uui-form-layout-item>
+              </form>
+            </uui-form>
+          </uui-box>
         </div>
+
+        ${this._isEditMode
+          ? html`
+              <uui-button
+                slot="actions"
+                class="delete-action"
+                label="Delete"
+                look="secondary"
+                color="danger"
+                ?disabled=${this._isDeleting || this._isSaving}
+                @click=${this._handleDelete}>
+                ${this._isDeleting ? "Deleting..." : "Delete"}
+              </uui-button>
+            `
+          : nothing}
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._handleCancel}>
+          Cancel
+        </uui-button>
+        <uui-button
+          slot="actions"
+          type="submit"
+          form=${FILTER_FORM_ID}
+          label=${saveLabel}
+          look="primary"
+          color="positive"
+          ?disabled=${this._isSaving || this._isDeleting}>
+          ${submitLabel}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -286,52 +321,41 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     #main {
       display: flex;
       flex-direction: column;
-      gap: var(--uui-size-space-5);
-    }
-
-    .form-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    label {
-      font-weight: 600;
-      font-size: 0.8125rem;
-    }
-
-    .required {
-      color: var(--uui-color-danger);
+      gap: var(--uui-size-space-4);
     }
 
     uui-input {
       width: 100%;
     }
 
+    .field-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
     .hint {
-      font-size: 0.75rem;
+      display: block;
+      margin-top: var(--uui-size-space-2);
+      font-size: var(--uui-type-small-size);
       color: var(--uui-color-text-alt);
     }
 
     .error-banner {
       display: flex;
       align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-3);
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-4);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
 
     .error {
+      display: block;
+      margin-top: var(--uui-size-space-2);
       color: var(--uui-color-danger);
-      font-size: 0.75rem;
-    }
-
-    .color-picker-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-2);
+      font-size: var(--uui-type-small-size);
     }
 
     .color-preview-row {
@@ -353,13 +377,7 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
       font-size: 0.875rem;
     }
 
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
-    }
-
-    [slot="actions"] uui-button:first-child {
+    .delete-action {
       margin-right: auto;
     }
   `;

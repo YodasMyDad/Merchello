@@ -19,12 +19,13 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
   @state() private _errorMessage: string | null = null;
   @state() private _isDeletingGroup: string | null = null;
   @state() private _expandedGroups: Set<string> = new Set();
+  @state() private _searchQuery = "";
 
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
 
-  // Sorter for filter groups
+  // Sorter for filter groups.
   #groupSorter = new UmbSorterController<ProductFilterGroupDto>(this, {
     getUniqueOfElement: (element) => element.getAttribute("data-group-id") ?? "",
     getUniqueOfModel: (model) => model.id,
@@ -33,11 +34,12 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
     containerSelector: ".filter-groups-container",
     onChange: ({ model }) => {
       this._filterGroups = model;
+      this._syncSortersWithCurrentView();
       this._handleGroupReorder(model.map((g) => g.id));
     },
   });
 
-  // Map of filter sorters keyed by group ID
+  // Map of filter sorters keyed by group ID.
   #filterSorters: Map<string, UmbSorterController<ProductFilterDto>> = new Map();
 
   constructor() {
@@ -59,7 +61,10 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
-    // Clean up filter sorters
+    this.#groupSorter.disable();
+    for (const sorter of this.#filterSorters.values()) {
+      sorter.disable();
+    }
     this.#filterSorters.clear();
   }
 
@@ -79,18 +84,36 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
 
     if (data) {
       this._filterGroups = data;
-      this.#groupSorter.setModel(this._filterGroups);
-      // Expand all groups by default
       this._expandedGroups = new Set(data.map((g) => g.id));
-      // Clear and re-initialize filter sorters to prevent stale entries
       this.#filterSorters.clear();
       for (const group of data) {
-        const sorter = this._getOrCreateFilterSorter(group.id);
-        sorter.setModel(group.filters);
+        this._getOrCreateFilterSorter(group.id);
       }
+      this._syncSortersWithCurrentView();
     }
 
     this._isLoading = false;
+  }
+
+  private _syncSortersWithCurrentView(): void {
+    const sortingEnabled = !this._isSearchActive();
+
+    if (sortingEnabled) {
+      this.#groupSorter.enable();
+      this.#groupSorter.setModel(this._filterGroups);
+    } else {
+      this.#groupSorter.disable();
+    }
+
+    for (const group of this._filterGroups) {
+      const sorter = this._getOrCreateFilterSorter(group.id);
+      if (sortingEnabled && this._expandedGroups.has(group.id)) {
+        sorter.enable();
+        sorter.setModel(group.filters);
+      } else {
+        sorter.disable();
+      }
+    }
   }
 
   private async _handleGroupReorder(orderedIds: string[]): Promise<void> {
@@ -99,7 +122,6 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       this.#notificationContext?.peek("danger", {
         data: { headline: "Reorder failed", message: error.message },
       });
-      // Reload to get correct order
       this._loadFilterGroups();
     }
   }
@@ -110,17 +132,15 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       sorter = new UmbSorterController<ProductFilterDto>(this, {
         getUniqueOfElement: (element) => element.getAttribute("data-filter-id") ?? "",
         getUniqueOfModel: (model) => model.id,
-        identifier: "Merchello.Filters.Sorter",
+        identifier: `Merchello.Filters.Sorter.${groupId}`,
         itemSelector: ".filter-item",
         containerSelector: `.filters-container[data-group-id="${groupId}"]`,
         onChange: ({ model }) => {
-          // Update local state
-          const group = this._filterGroups.find((g) => g.id === groupId);
-          if (group) {
-            group.filters = model;
-            this.requestUpdate();
-          }
-          // Persist to API
+          this._filterGroups = this._filterGroups.map((group) =>
+            group.id === groupId
+              ? { ...group, filters: model }
+              : group
+          );
           this._handleFilterReorder(groupId, model.map((f) => f.id));
         },
       });
@@ -135,7 +155,6 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       this.#notificationContext?.peek("danger", {
         data: { headline: "Reorder failed", message: error.message },
       });
-      // Reload to get correct order
       this._loadFilterGroups();
     }
   }
@@ -182,13 +201,13 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
 
     const filterCount = filterGroup.filters?.length || 0;
     const warningText = filterCount > 0
-      ? ` This will also delete ${filterCount} filter${filterCount > 1 ? "s" : ""} in this group.`
+      ? ` This also deletes ${filterCount} filter${filterCount > 1 ? "s" : ""} in this group.`
       : "";
 
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Filter Group",
-        content: `Are you sure you want to delete filter group "${filterGroup.name}"?${warningText} This action cannot be undone.`,
+        content: `Delete "${filterGroup.name}"?${warningText} This permanently removes the group and cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -197,9 +216,9 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
     try {
       await modalContext?.onSubmit();
     } catch {
-      return; // User cancelled
+      return;
     }
-    if (!this.#isConnected) return; // Component disconnected while modal was open
+    if (!this.#isConnected) return;
 
     this._isDeletingGroup = filterGroup.id;
 
@@ -265,17 +284,78 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
   }
 
   private _toggleGroupExpanded(groupId: string): void {
-    const newSet = new Set(this._expandedGroups);
-    if (newSet.has(groupId)) {
-      newSet.delete(groupId);
+    const expanded = new Set(this._expandedGroups);
+    if (expanded.has(groupId)) {
+      expanded.delete(groupId);
     } else {
-      newSet.add(groupId);
+      expanded.add(groupId);
     }
-    this._expandedGroups = newSet;
+    this._expandedGroups = expanded;
+    this._syncSortersWithCurrentView();
+  }
+
+  private _isSearchActive(): boolean {
+    return this._searchQuery.trim().length > 0;
+  }
+
+  private _getVisibleFilterGroups(): ProductFilterGroupDto[] {
+    const query = this._searchQuery.trim().toLowerCase();
+    if (!query) {
+      return this._filterGroups;
+    }
+
+    return this._filterGroups
+      .map((group) => {
+        const groupMatches = group.name.toLowerCase().includes(query);
+        if (groupMatches) {
+          return group;
+        }
+
+        const matchingFilters = group.filters.filter((filter) =>
+          filter.name.toLowerCase().includes(query)
+        );
+
+        if (matchingFilters.length === 0) {
+          return null;
+        }
+
+        return { ...group, filters: matchingFilters };
+      })
+      .filter((group): group is ProductFilterGroupDto => group !== null);
+  }
+
+  private _handleSearchInput(event: Event): void {
+    this._searchQuery = (event.target as HTMLInputElement).value;
+
+    if (this._isSearchActive()) {
+      this._expandedGroups = new Set(this._getVisibleFilterGroups().map((group) => group.id));
+    }
+
+    this._syncSortersWithCurrentView();
+  }
+
+  private _clearSearch(): void {
+    if (!this._searchQuery) return;
+    this._searchQuery = "";
+    this._syncSortersWithCurrentView();
+  }
+
+  private _expandAllGroups(): void {
+    this._expandedGroups = new Set(this._filterGroups.map((group) => group.id));
+    this._syncSortersWithCurrentView();
+  }
+
+  private _collapseAllGroups(): void {
+    this._expandedGroups = new Set();
+    this._syncSortersWithCurrentView();
   }
 
   private _renderLoadingState(): unknown {
-    return html`<div class="loading"><uui-loader></uui-loader></div>`;
+    return html`
+      <div class="loading" role="status" aria-live="polite" aria-label="Loading filter groups">
+        <uui-loader></uui-loader>
+      </div>
+    `;
   }
 
   private _renderErrorState(): unknown {
@@ -295,23 +375,46 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
         message="Create filter groups to organize product attributes like Color, Size, or Material. Then add filter values that can be assigned to products.">
       </merchello-empty-state>
       <div class="empty-action">
-        <uui-button look="primary" color="positive" label="Add Filter Group" @click=${this._handleAddFilterGroup}>
+        <uui-button look="primary" color="positive" label="Add filter group" @click=${this._handleAddFilterGroup}>
           Add Filter Group
         </uui-button>
       </div>
     `;
   }
 
-  private _renderFilterItem(filter: ProductFilterDto, filterGroupId: string): unknown {
+  private _renderNoSearchResults(): unknown {
     return html`
-      <div
-        class="filter-item"
-        data-filter-id=${filter.id}
-        @click=${() => this._handleEditFilter(filterGroupId, filter)}>
-        <div class="filter-item-drag-handle">
-          <uui-icon name="icon-navigation"></uui-icon>
-        </div>
-        <div class="filter-item-content">
+      <merchello-empty-state
+        icon="icon-search"
+        headline="No filters match your search"
+        message="Try a different search term or clear the search to view all filter groups.">
+      </merchello-empty-state>
+      <div class="empty-action">
+        <uui-button look="secondary" label="Clear search" @click=${this._clearSearch}>
+          Clear search
+        </uui-button>
+      </div>
+    `;
+  }
+
+  private _renderFilterItem(filter: ProductFilterDto, filterGroupId: string): unknown {
+    const editLabel = `Edit filter ${filter.name}`;
+
+    return html`
+      <div class="filter-item" data-filter-id=${filter.id}>
+        ${this._isSearchActive()
+          ? nothing
+          : html`
+              <div class="filter-item-drag-handle">
+                <uui-icon name="icon-navigation"></uui-icon>
+              </div>
+            `}
+        <button
+          type="button"
+          class="filter-item-content"
+          aria-label=${editLabel}
+          title=${editLabel}
+          @click=${() => this._handleEditFilter(filterGroupId, filter)}>
           ${filter.hexColour
             ? html`<span class="filter-color-swatch" style="background: ${filter.hexColour}"></span>`
             : nothing}
@@ -319,19 +422,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
           ${filter.productCount > 0
             ? html`<span class="filter-product-count">${filter.productCount} product${filter.productCount > 1 ? "s" : ""}</span>`
             : nothing}
-        </div>
-        <div class="filter-item-actions">
-          <uui-button
-            look="secondary"
-            compact
-            label="Edit"
-            @click=${(e: Event) => {
-              e.stopPropagation();
-              this._handleEditFilter(filterGroupId, filter);
-            }}>
-            <uui-icon name="icon-edit"></uui-icon>
-          </uui-button>
-        </div>
+        </button>
       </div>
     `;
   }
@@ -340,28 +431,47 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
     const isExpanded = this._expandedGroups.has(filterGroup.id);
     const isDeletingGroup = this._isDeletingGroup === filterGroup.id;
     const filterCount = filterGroup.filters?.length || 0;
+    const toggleLabel = isExpanded
+      ? `Collapse ${filterGroup.name}`
+      : `Expand ${filterGroup.name}`;
+    const groupContentId = `filter-group-content-${filterGroup.id}`;
 
     return html`
       <div class="filter-group-card" data-group-id=${filterGroup.id}>
         <div class="filter-group-header">
-          <div class="filter-group-drag-handle">
-            <uui-icon name="icon-navigation"></uui-icon>
-          </div>
+          ${this._isSearchActive()
+            ? nothing
+            : html`
+                <div class="filter-group-drag-handle">
+                  <uui-icon name="icon-navigation"></uui-icon>
+                </div>
+              `}
           <button
+            type="button"
             class="filter-group-toggle"
             @click=${() => this._toggleGroupExpanded(filterGroup.id)}
-            aria-expanded=${isExpanded}>
+            aria-expanded=${isExpanded}
+            aria-controls=${groupContentId}
+            aria-label=${toggleLabel}
+            title=${toggleLabel}>
             <uui-icon name=${isExpanded ? "icon-arrow-down" : "icon-arrow-right"}></uui-icon>
           </button>
-          <div class="filter-group-info" @click=${() => this._toggleGroupExpanded(filterGroup.id)}>
+          <button
+            type="button"
+            class="filter-group-info"
+            @click=${() => this._toggleGroupExpanded(filterGroup.id)}
+            aria-expanded=${isExpanded}
+            aria-controls=${groupContentId}
+            aria-label=${toggleLabel}
+            title=${toggleLabel}>
             <span class="filter-group-name">${filterGroup.name}</span>
             <span class="filter-group-count">${filterCount} filter${filterCount !== 1 ? "s" : ""}</span>
-          </div>
+          </button>
           <div class="filter-group-actions">
             <uui-button
               look="secondary"
               compact
-              label="Add Filter"
+              label="Add filter"
               @click=${(e: Event) => {
                 e.stopPropagation();
                 this._handleAddFilter(filterGroup);
@@ -371,7 +481,7 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
             <uui-button
               look="secondary"
               compact
-              label="Edit"
+              label="Edit group"
               @click=${(e: Event) => {
                 e.stopPropagation();
                 this._handleEditFilterGroup(filterGroup);
@@ -379,10 +489,10 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
               <uui-icon name="icon-edit"></uui-icon>
             </uui-button>
             <uui-button
-              look="primary"
+              look="secondary"
               color="danger"
               compact
-              label="Delete"
+              label="Delete group"
               ?disabled=${isDeletingGroup}
               @click=${(e: Event) => this._handleDeleteFilterGroup(e, filterGroup)}>
               <uui-icon name=${isDeletingGroup ? "icon-hourglass" : "icon-trash"}></uui-icon>
@@ -391,10 +501,10 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
         </div>
         ${isExpanded
           ? html`
-              <div class="filter-group-content">
+              <div class="filter-group-content" id=${groupContentId}>
                 <div class="filters-container" data-group-id=${filterGroup.id}>
-                  ${filterGroup.filters && filterGroup.filters.length > 0
-                    ? filterGroup.filters.map((f) => this._renderFilterItem(f, filterGroup.id))
+                  ${filterGroup.filters.length > 0
+                    ? filterGroup.filters.map((filter) => this._renderFilterItem(filter, filterGroup.id))
                     : html`
                         <div class="empty-filters">
                           <span>No filters in this group.</span>
@@ -425,17 +535,45 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
   }
 
   override render() {
+    const visibleFilterGroups = this._getVisibleFilterGroups();
+
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="filters-container">
-          <!-- Header Actions -->
           <div class="header-actions">
-            <uui-button look="primary" color="positive" label="Add Filter Group" @click=${this._handleAddFilterGroup}>
+            <div class="search-box">
+              <uui-input
+                type="search"
+                label="Search filter groups and filters"
+                placeholder="Search groups or filters"
+                .value=${this._searchQuery}
+                @input=${this._handleSearchInput}>
+                <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                ${this._searchQuery
+                  ? html`
+                      <uui-button
+                        slot="append"
+                        compact
+                        look="secondary"
+                        label="Clear search"
+                        @click=${this._clearSearch}>
+                        <uui-icon name="icon-wrong"></uui-icon>
+                      </uui-button>
+                    `
+                  : nothing}
+              </uui-input>
+            </div>
+            <uui-button look="secondary" label="Expand all groups" @click=${this._expandAllGroups}>
+              Expand all
+            </uui-button>
+            <uui-button look="secondary" label="Collapse all groups" @click=${this._collapseAllGroups}>
+              Collapse all
+            </uui-button>
+            <uui-button look="primary" color="positive" label="Add filter group" @click=${this._handleAddFilterGroup}>
               Add Filter Group
             </uui-button>
           </div>
 
-          <!-- Info Banner -->
           <div class="info-banner">
             <uui-icon name="icon-info"></uui-icon>
             <span>
@@ -444,16 +582,25 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
             </span>
           </div>
 
-          <!-- Loading/Error states -->
+          ${this._isSearchActive()
+            ? html`
+                <p class="search-summary">
+                  Showing ${visibleFilterGroups.length} group${visibleFilterGroups.length === 1 ? "" : "s"} matching
+                  "${this._searchQuery.trim()}". Reordering is paused while search is active.
+                </p>
+              `
+            : nothing}
+
           ${this._renderContent()}
 
-          <!-- Always render container for sorter -->
           <div class="filter-groups-container">
             ${this._isLoading || this._errorMessage
               ? nothing
               : this._filterGroups.length === 0
                 ? this._renderEmptyState()
-                : this._filterGroups.map((fg) => this._renderFilterGroupCard(fg))}
+                : visibleFilterGroups.length === 0
+                  ? this._renderNoSearchResults()
+                  : visibleFilterGroups.map((group) => this._renderFilterGroupCard(group))}
           </div>
         </div>
       </umb-body-layout>
@@ -474,10 +621,20 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
 
     .header-actions {
       display: flex;
-      gap: var(--uui-size-space-2);
       align-items: center;
-      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-3);
       margin-bottom: var(--uui-size-space-4);
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 240px;
+      max-width: 520px;
+    }
+
+    .search-box uui-input {
+      width: 100%;
     }
 
     .info-banner {
@@ -496,6 +653,12 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
     .info-banner uui-icon {
       flex-shrink: 0;
       color: var(--uui-color-interactive);
+    }
+
+    .search-summary {
+      margin: 0 0 var(--uui-size-space-3);
+      font-size: 0.8125rem;
+      color: var(--uui-color-text-alt);
     }
 
     .filter-groups-container {
@@ -566,6 +729,12 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       align-items: center;
       gap: var(--uui-size-space-3);
       cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      color: inherit;
+      font: inherit;
+      text-align: left;
     }
 
     .filter-group-name {
@@ -601,7 +770,6 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       background: var(--uui-color-surface);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
-      cursor: pointer;
       transition: background 0.15s ease;
     }
 
@@ -640,6 +808,14 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       display: flex;
       align-items: center;
       gap: var(--uui-size-space-2);
+      background: none;
+      border: none;
+      padding: 0;
+      text-align: left;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      min-width: 0;
     }
 
     .filter-color-swatch {
@@ -659,11 +835,6 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       font-size: 0.75rem;
       color: var(--uui-color-text-alt);
       margin-left: auto;
-    }
-
-    .filter-item-actions {
-      display: flex;
-      gap: var(--uui-size-space-1);
     }
 
     .empty-filters {
