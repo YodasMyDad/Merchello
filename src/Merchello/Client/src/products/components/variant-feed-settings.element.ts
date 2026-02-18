@@ -79,6 +79,7 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
     return html`
       <umb-property-dataset
         .value=${this._getDatasetValue()}
+        @input=${this._handleDatasetChange}
         @change=${this._handleDatasetChange}>
         <uui-box headline="Shopping Feed Settings">
           <umb-property

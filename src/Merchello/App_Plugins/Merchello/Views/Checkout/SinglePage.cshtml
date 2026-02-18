@@ -540,7 +540,7 @@
                     <h3 class="font-heading text-base font-normal mb-2">Shipping address</h3>
                     @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_AddressForm.cshtml", Model, new ViewDataDictionary(ViewData) {
                         { "Prefix", "shipping" },
-                        { "OnBlurCallback", "debouncedCalculateShipping()" },
+                        { "OnBlurCallback", "onShippingFieldChange()" },
                         { "ShowRequired", true }
                     })
                 </div>
