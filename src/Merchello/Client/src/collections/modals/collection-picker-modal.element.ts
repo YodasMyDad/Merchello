@@ -90,7 +90,7 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
       data: [
         {
           columnAlias: "collectionName",
-          value: html`<span class="collection-name">${collection.name}</span>`,
+          value: collection.name,
         },
         {
           columnAlias: "productCount",
@@ -260,10 +260,6 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
       flex: 1;
       overflow-y: auto;
       min-height: 300px;
-    }
-
-    .collection-name {
-      font-weight: 500;
     }
 
     .loading {

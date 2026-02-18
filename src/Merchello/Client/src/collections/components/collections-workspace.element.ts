@@ -3,7 +3,6 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
-import type { UmbTableColumn, UmbTableConfig, UmbTableItem } from "@umbraco-cms/backoffice/components";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { ProductCollectionDto } from '@products/types/product.types.js';
@@ -22,10 +21,6 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
-  readonly #tableConfig: UmbTableConfig = {
-    allowSelection: false,
-    hideIcon: true,
-  };
 
   constructor() {
     super();
@@ -87,65 +82,6 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
 
   private _handleSearchClear(): void {
     this._searchTerm = "";
-  }
-
-  private get _tableColumns(): Array<UmbTableColumn> {
-    return [
-      { name: "Collection", alias: "collectionName" },
-      { name: "Products", alias: "productCount", width: "140px", align: "right" },
-      { name: "", alias: "actions", width: "240px", align: "right" },
-    ];
-  }
-
-  private _createTableItems(collections: ProductCollectionDto[]): Array<UmbTableItem> {
-    return collections.map((collection) => {
-      const isDeleting = this._isDeletingCollectionId === collection.id;
-
-      return {
-        id: collection.id,
-        data: [
-          {
-            columnAlias: "collectionName",
-            value: html`
-              <button
-                type="button"
-                class="collection-link"
-                @click=${() => this._handleEditCollection(collection)}
-                aria-label=${`Edit collection ${collection.name}`}>
-                ${collection.name}
-              </button>
-            `,
-          },
-          {
-            columnAlias: "productCount",
-            value: collection.productCount,
-          },
-          {
-            columnAlias: "actions",
-            value: html`
-              <div class="actions-cell">
-                <uui-button
-                  look="secondary"
-                  compact
-                  label=${`Edit collection ${collection.name}`}
-                  @click=${() => this._handleEditCollection(collection)}>
-                  Edit
-                </uui-button>
-                <uui-button
-                  look="secondary"
-                  color="danger"
-                  compact
-                  label=${`Delete collection ${collection.name}`}
-                  ?disabled=${isDeleting}
-                  @click=${(event: Event) => this._handleDelete(event, collection)}>
-                  ${isDeleting ? "Deleting..." : "Delete"}
-                </uui-button>
-              </div>
-            `,
-          },
-        ],
-      };
-    });
   }
 
   private async _handleAddCollection(): Promise<void> {
@@ -275,12 +211,53 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
 
     return html`
       <uui-box class="table-box">
-        <umb-table
-          .config=${this.#tableConfig}
-          .columns=${this._tableColumns}
-          .items=${this._createTableItems(filteredCollections)}>
-        </umb-table>
+        <div class="table-scroll">
+          <uui-table class="collection-table">
+            <uui-table-head>
+              <uui-table-head-cell>Collection</uui-table-head-cell>
+              <uui-table-head-cell class="numeric-col">Products</uui-table-head-cell>
+              <uui-table-head-cell class="actions-col">Actions</uui-table-head-cell>
+            </uui-table-head>
+            ${filteredCollections.map((collection) => this._renderCollectionRow(collection))}
+          </uui-table>
+        </div>
       </uui-box>
+    `;
+  }
+
+  private _renderCollectionRow(collection: ProductCollectionDto): unknown {
+    const isDeleting = this._isDeletingCollectionId === collection.id;
+
+    return html`
+      <uui-table-row class="clickable" @click=${() => this._handleEditCollection(collection)}>
+        <uui-table-cell>
+          <span class="collection-name">${collection.name}</span>
+        </uui-table-cell>
+        <uui-table-cell class="numeric-col">${collection.productCount}</uui-table-cell>
+        <uui-table-cell class="actions-col">
+          <div class="actions-cell">
+            <uui-button
+              look="secondary"
+              compact
+              label=${`Edit collection ${collection.name}`}
+              @click=${(event: Event) => {
+                event.stopPropagation();
+                this._handleEditCollection(collection);
+              }}>
+              Edit
+            </uui-button>
+            <uui-button
+              look="secondary"
+              color="danger"
+              compact
+              label=${`Delete collection ${collection.name}`}
+              ?disabled=${isDeleting}
+              @click=${(event: Event) => this._handleDelete(event, collection)}>
+              ${isDeleting ? "Deleting..." : "Delete"}
+            </uui-button>
+          </div>
+        </uui-table-cell>
+      </uui-table-row>
     `;
   }
 
@@ -395,19 +372,34 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
         overflow: hidden;
       }
 
-      .collection-link {
-        border: 0;
-        background: transparent;
-        color: var(--uui-color-interactive);
+      .table-scroll {
+        overflow-x: auto;
+      }
+
+      .collection-table {
+        width: 100%;
+      }
+
+      uui-table-row.clickable {
         cursor: pointer;
-        padding: 0;
-        font: inherit;
-        text-align: left;
+      }
+
+      uui-table-row.clickable:hover {
+        background: var(--uui-color-surface-emphasis);
+      }
+
+      .collection-name {
+        color: var(--uui-color-interactive);
         font-weight: 600;
       }
 
-      .collection-link:hover {
-        text-decoration: underline;
+      .numeric-col {
+        text-align: right;
+      }
+
+      .actions-col {
+        text-align: right;
+        white-space: nowrap;
       }
 
       .actions-cell {
