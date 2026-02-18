@@ -146,10 +146,16 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
   }
 
   private _isInteractiveClick(e: Event): boolean {
-    const interactiveTags = new Set(["A", "BUTTON", "UUI-BUTTON", "INPUT", "UUI-CHECKBOX"]);
+    const interactiveTags = new Set(["BUTTON", "UUI-BUTTON", "INPUT", "UUI-CHECKBOX"]);
     return e
       .composedPath()
       .some((node) => node instanceof HTMLElement && interactiveTags.has(node.tagName));
+  }
+
+  private _isAnchorClick(e: Event): boolean {
+    return e
+      .composedPath()
+      .some((node) => node instanceof HTMLElement && node.tagName === "A");
   }
 
   private _handleTabClick(tab: FilterTab): void {
@@ -226,6 +232,7 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
   }
 
   private _handleRowClick(e: Event, invoice: OrderListItemDto): void {
+    if (this._isAnchorClick(e)) return;
     if (this._isInteractiveClick(e)) return;
     navigateToOrderDetail(invoice.id);
   }
