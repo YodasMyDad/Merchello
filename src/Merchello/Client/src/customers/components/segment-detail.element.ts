@@ -293,7 +293,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
           @criteria-changed=${this._handleCriteriaChanged}>
         </merchello-segment-criteria-builder>
         ${this._fieldErrors.criteria ? html`
-          <div class="error-message">${this._fieldErrors.criteria}</div>
+          <div class="error-message" role="alert">${this._fieldErrors.criteria}</div>
         ` : nothing}
       ` : nothing}
 
@@ -329,7 +329,11 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
 
   private _renderPreviewTab() {
     if (!this._segment?.id) {
-      return html`<p>Save the segment first to preview matching customers.</p>`;
+      return html`
+        <uui-box headline="Preview">
+          <p class="system-info">Save this segment first to preview matching customers.</p>
+        </uui-box>
+      `;
     }
     return html`
       <merchello-segment-preview .segmentId=${this._segment.id}></merchello-segment-preview>
@@ -383,6 +387,7 @@ export class MerchelloSegmentDetailElement extends UmbElementMixin(LitElement) {
         <umb-footer-layout slot="footer">
           <uui-button
             slot="actions"
+            label=${this._isNew ? "Create segment" : "Save changes"}
             look="primary"
             color="positive"
             @click=${this._handleSave}

@@ -505,6 +505,7 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
                   <uui-button
                     look="secondary"
                     compact
+                    label="Dismiss error"
                     @click=${() => (this._errorMessage = null)}
                   >
                     Dismiss

@@ -136,6 +136,13 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
     );
   }
 
+  private _handleRowKeydown(e: KeyboardEvent, order: OrderListItemDto): void {
+    if (!this.clickable) return;
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    this._handleRowClick(e, order);
+  }
+
   private _renderHeaderCell(column: OrderColumnKey): unknown {
     if (column === "select") {
       return html`
@@ -225,7 +232,9 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
     return html`
       <uui-table-row
         class=${this.clickable ? "clickable" : ""}
+        tabindex=${this.clickable ? "0" : "-1"}
         @click=${(e: Event) => this._handleRowClick(e, order)}
+        @keydown=${(e: KeyboardEvent) => this._handleRowKeydown(e, order)}
       >
         ${cols.map((col) => this._renderCell(order, col))}
       </uui-table-row>
@@ -276,6 +285,11 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
 
       uui-table-row.clickable:hover {
         background: var(--uui-color-surface-emphasis);
+      }
+
+      uui-table-row.clickable:focus-visible {
+        outline: 2px solid var(--uui-color-interactive);
+        outline-offset: -2px;
       }
 
       .checkbox-col {

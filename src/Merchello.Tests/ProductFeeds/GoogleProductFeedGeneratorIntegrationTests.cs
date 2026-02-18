@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using System.Text.Json;
 using Merchello.Core;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Data;
@@ -28,6 +29,11 @@ namespace Merchello.Tests.ProductFeeds;
 [Collection("Integration Tests")]
 public class GoogleProductFeedGeneratorIntegrationTests : IClassFixture<ServiceTestFixture>
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly ServiceTestFixture _fixture;
     private readonly IEFCoreScopeProvider<MerchelloDbContext> _scopeProvider;
     private readonly IExchangeRateCache _exchangeRateCache;
@@ -326,22 +332,336 @@ public class GoogleProductFeedGeneratorIntegrationTests : IClassFixture<ServiceT
         title.ShouldBe("T-Shirt Name - A2");
     }
 
+    [Fact]
+    public async Task GenerateAsync_UnresolvedGuidImages_DoesNotEmitRawGuidImageLink()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var unresolvedMediaResolverMock = new Mock<IProductFeedMediaUrlResolver>();
+        unresolvedMediaResolverMock
+            .Setup(x => x.ResolveMediaUrl(It.IsAny<string?>()))
+            .Returns((string? value) =>
+            {
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    return null;
+                }
+
+                return value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                    value.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                    value.StartsWith("/", StringComparison.Ordinal)
+                    ? value
+                    : null;
+            });
+
+        var generator = CreateGenerator(
+            taxServiceMock,
+            mediaUrlResolverMock: unresolvedMediaResolverMock);
+
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "US");
+        warehouse.SetServiceRegions(
+        [
+            new WarehouseServiceRegion
+            {
+                CountryCode = "US",
+                IsExcluded = false
+            }
+        ]);
+
+        var productRoot = dataBuilder.CreateProductRoot("Image-less Root", taxGroup);
+        productRoot.RootUrl = "image-less-root";
+        var product = dataBuilder.CreateProduct("Image-less Variant", productRoot, price: 100m);
+        product.Images = [Guid.NewGuid().ToString()];
+        productRoot.RootImages = [Guid.NewGuid().ToString()];
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var feed = new ProductFeed
+        {
+            Id = Guid.NewGuid(),
+            Name = "Image-less Feed",
+            Slug = $"image-less-feed-{Guid.NewGuid():N}",
+            IsEnabled = true,
+            CountryCode = "US",
+            CurrencyCode = "USD",
+            LanguageCode = "en",
+            IncludeTaxInPrice = false
+        };
+
+        var result = await generator.GenerateAsync(feed);
+        var item = GetSingleItem(result.Xml);
+
+        GetGoogleElementValue(item, "image_link").ShouldBeNull();
+        GetGoogleElementValues(item, "additional_image_link").Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_ProductAndRootImages_UsesVariantMainAndAddsAdditionalImages()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var variantMainRef = Guid.NewGuid().ToString();
+        var variantAltRef = Guid.NewGuid().ToString();
+        var rootImageOneRef = Guid.NewGuid().ToString();
+        var rootImageTwoRef = Guid.NewGuid().ToString();
+
+        var mediaResolverMock = new Mock<IProductFeedMediaUrlResolver>();
+        mediaResolverMock
+            .Setup(x => x.ResolveMediaUrl(It.IsAny<string?>()))
+            .Returns((string? reference) => reference switch
+            {
+                var x when x == variantMainRef => "https://cdn.example.com/images/variant-main.jpg",
+                var x when x == variantAltRef => "https://cdn.example.com/images/variant-alt.jpg",
+                var x when x == rootImageOneRef => "https://cdn.example.com/images/root-1.jpg",
+                var x when x == rootImageTwoRef => "https://cdn.example.com/images/root-2.jpg",
+                _ => null
+            });
+
+        var generator = CreateGenerator(
+            taxServiceMock,
+            mediaUrlResolverMock: mediaResolverMock);
+
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "US");
+        warehouse.SetServiceRegions(
+        [
+            new WarehouseServiceRegion
+            {
+                CountryCode = "US",
+                IsExcluded = false
+            }
+        ]);
+
+        var productRoot = dataBuilder.CreateProductRoot("Image Merge Root", taxGroup);
+        productRoot.RootUrl = "image-merge-root";
+        productRoot.RootImages = [rootImageOneRef, rootImageTwoRef];
+
+        var product = dataBuilder.CreateProduct("Image Merge Variant", productRoot, price: 100m);
+        product.Images = [variantMainRef, variantAltRef];
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var feed = new ProductFeed
+        {
+            Id = Guid.NewGuid(),
+            Name = "Image Merge Feed",
+            Slug = $"image-merge-feed-{Guid.NewGuid():N}",
+            IsEnabled = true,
+            CountryCode = "US",
+            CurrencyCode = "USD",
+            LanguageCode = "en",
+            IncludeTaxInPrice = false
+        };
+
+        var result = await generator.GenerateAsync(feed);
+        var item = GetSingleItem(result.Xml);
+
+        GetGoogleElementValue(item, "image_link").ShouldBe("https://cdn.example.com/images/variant-main.jpg");
+        GetGoogleElementValues(item, "additional_image_link").ShouldBe(
+        [
+            "https://cdn.example.com/images/variant-alt.jpg",
+            "https://cdn.example.com/images/root-1.jpg",
+            "https://cdn.example.com/images/root-2.jpg"
+        ]);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_TipTapDescription_UsesMarkupInsteadOfRawJson()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var generator = CreateGenerator(taxServiceMock);
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "US");
+        warehouse.SetServiceRegions(
+        [
+            new WarehouseServiceRegion
+            {
+                CountryCode = "US",
+                IsExcluded = false
+            }
+        ]);
+
+        var productRoot = dataBuilder.CreateProductRoot("TipTap Root", taxGroup);
+        productRoot.RootUrl = "tiptap-root";
+        productRoot.Description = JsonSerializer.Serialize(new
+        {
+            markup = "<p>Rendered <strong>HTML</strong> description.</p>",
+            blocks = (object?)null
+        });
+
+        var product = dataBuilder.CreateProduct("TipTap Variant", productRoot, price: 100m);
+        product.Url = "https://test.example.com/products/tiptap-variant";
+        product.Images = ["https://cdn.example.com/images/tiptap-variant.jpg"];
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var feed = new ProductFeed
+        {
+            Id = Guid.NewGuid(),
+            Name = "TipTap Feed",
+            Slug = $"tiptap-feed-{Guid.NewGuid():N}",
+            IsEnabled = true,
+            CountryCode = "US",
+            CurrencyCode = "USD",
+            LanguageCode = "en",
+            IncludeTaxInPrice = false
+        };
+
+        var result = await generator.GenerateAsync(feed);
+        var item = GetSingleItem(result.Xml);
+
+        GetGoogleElementValue(item, "description")
+            .ShouldBe("<p>Rendered <strong>HTML</strong> description.</p>");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_CustomLabelResolver_UsesResolverValueAndPassesArgs()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var resolver = new CapturingResolver();
+        var resolverRegistry = CreateResolverRegistry(resolver);
+        var generator = CreateGenerator(taxServiceMock, resolverRegistry: resolverRegistry);
+
+        var (product, feed) = await SeedProductScenarioAsync(
+            countryCode: "US",
+            includeTaxInPrice: false);
+
+        feed.CustomLabelsJson = JsonSerializer.Serialize(
+            new List<ProductFeedCustomLabelConfig>
+            {
+                new()
+                {
+                    Slot = 2,
+                    SourceType = "resolver",
+                    ResolverAlias = resolver.Alias,
+                    Args = new Dictionary<string, string>
+                    {
+                        ["prefix"] = "VIP"
+                    }
+                }
+            },
+            JsonOptions);
+
+        var result = await generator.GenerateAsync(feed);
+        var item = GetSingleItem(result.Xml);
+
+        GetGoogleElementValue(item, "custom_label_2").ShouldBe($"VIP:{product.Id}");
+        resolver.LastProductId.ShouldBe(product.Id);
+        resolver.LastArgs.ShouldNotBeNull();
+        resolver.LastArgs!.Count.ShouldBe(1);
+        resolver.LastArgs["prefix"].ShouldBe("VIP");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_CustomFieldResolverAliasMissing_AddsWarningAndSkipsElement()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var generator = CreateGenerator(taxServiceMock);
+        var (_, feed) = await SeedProductScenarioAsync(
+            countryCode: "US",
+            includeTaxInPrice: false);
+
+        feed.CustomFieldsJson = JsonSerializer.Serialize(
+            new List<ProductFeedCustomFieldConfig>
+            {
+                new()
+                {
+                    Attribute = "material",
+                    SourceType = "resolver",
+                    ResolverAlias = "missing-resolver"
+                }
+            },
+            JsonOptions);
+
+        var result = await generator.GenerateAsync(feed);
+        var item = GetSingleItem(result.Xml);
+
+        GetGoogleElementValue(item, "material").ShouldBeNull();
+        result.Warnings.ShouldContain("Resolver 'missing-resolver' was not found.");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_CustomFieldResolverReturnsWhitespace_SkipsElement()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var resolverRegistry = CreateResolverRegistry(new WhitespaceResolver());
+        var generator = CreateGenerator(taxServiceMock, resolverRegistry: resolverRegistry);
+        var (_, feed) = await SeedProductScenarioAsync(
+            countryCode: "US",
+            includeTaxInPrice: false);
+
+        feed.CustomFieldsJson = JsonSerializer.Serialize(
+            new List<ProductFeedCustomFieldConfig>
+            {
+                new()
+                {
+                    Attribute = "material",
+                    SourceType = "resolver",
+                    ResolverAlias = "whitespace"
+                }
+            },
+            JsonOptions);
+
+        var result = await generator.GenerateAsync(feed);
+        var item = GetSingleItem(result.Xml);
+
+        GetGoogleElementValue(item, "material").ShouldBeNull();
+        result.Warnings.ShouldNotContain(x => x.Contains("Resolver 'whitespace' was not found.", StringComparison.Ordinal));
+    }
+
     private GoogleProductFeedGenerator CreateGenerator(
         Mock<ITaxService> taxServiceMock,
-        Mock<IShippingProviderManager>? shippingProviderManagerMock = null)
+        Mock<IShippingProviderManager>? shippingProviderManagerMock = null,
+        IProductFeedResolverRegistry? resolverRegistry = null,
+        Mock<IProductFeedMediaUrlResolver>? mediaUrlResolverMock = null)
     {
-        var resolverRegistryMock = new Mock<IProductFeedResolverRegistry>();
-        resolverRegistryMock
-            .Setup(x => x.GetResolvers())
-            .Returns([]);
-        resolverRegistryMock
-            .Setup(x => x.GetResolver(It.IsAny<string>()))
-            .Returns((IProductFeedValueResolver?)null);
+        resolverRegistry ??= CreateResolverRegistry();
 
-        var mediaUrlResolverMock = new Mock<IProductFeedMediaUrlResolver>();
-        mediaUrlResolverMock
-            .Setup(x => x.ResolveMediaUrl(It.IsAny<string?>()))
-            .Returns((string? value) => value);
+        if (mediaUrlResolverMock == null)
+        {
+            mediaUrlResolverMock = new Mock<IProductFeedMediaUrlResolver>();
+            mediaUrlResolverMock
+                .Setup(x => x.ResolveMediaUrl(It.IsAny<string?>()))
+                .Returns((string? value) => value);
+        }
 
         if (shippingProviderManagerMock == null)
         {
@@ -355,7 +675,7 @@ public class GoogleProductFeedGeneratorIntegrationTests : IClassFixture<ServiceT
             _scopeProvider,
             _exchangeRateCache,
             taxServiceMock.Object,
-            resolverRegistryMock.Object,
+            resolverRegistry,
             mediaUrlResolverMock.Object,
             _shippingOptionEligibilityService,
             shippingProviderManagerMock.Object,
@@ -415,6 +735,20 @@ public class GoogleProductFeedGeneratorIntegrationTests : IClassFixture<ServiceT
         return (product, feed);
     }
 
+    private static IProductFeedResolverRegistry CreateResolverRegistry(params IProductFeedValueResolver[] resolvers)
+    {
+        var resolverRegistryMock = new Mock<IProductFeedResolverRegistry>();
+        resolverRegistryMock
+            .Setup(x => x.GetResolvers())
+            .Returns(resolvers);
+        resolverRegistryMock
+            .Setup(x => x.GetResolver(It.IsAny<string>()))
+            .Returns((string alias) =>
+                resolvers.FirstOrDefault(r => string.Equals(r.Alias, alias, StringComparison.OrdinalIgnoreCase)));
+
+        return resolverRegistryMock.Object;
+    }
+
     private static RegisteredShippingProvider CreateRegisteredProvider(
         string key,
         string displayName,
@@ -455,5 +789,46 @@ public class GoogleProductFeedGeneratorIntegrationTests : IClassFixture<ServiceT
     {
         XNamespace g = "http://base.google.com/ns/1.0";
         return item.Element(g + name)?.Value;
+    }
+
+    private static List<string> GetGoogleElementValues(XElement item, string name)
+    {
+        XNamespace g = "http://base.google.com/ns/1.0";
+        return item.Elements(g + name).Select(x => x.Value).ToList();
+    }
+
+    private class CapturingResolver : IProductFeedValueResolver
+    {
+        public string Alias => "capturing";
+        public string Description => "Captures args for test assertions.";
+
+        public Guid? LastProductId { get; private set; }
+        public Dictionary<string, string>? LastArgs { get; private set; }
+
+        public Task<string?> ResolveAsync(
+            ProductFeedResolverContext context,
+            IReadOnlyDictionary<string, string> args,
+            CancellationToken cancellationToken = default)
+        {
+            LastProductId = context.Product.Id;
+            LastArgs = args.ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            args.TryGetValue("prefix", out var prefix);
+            return Task.FromResult<string?>($"{prefix}:{context.Product.Id}");
+        }
+    }
+
+    private class WhitespaceResolver : IProductFeedValueResolver
+    {
+        public string Alias => "whitespace";
+        public string Description => "Returns whitespace.";
+
+        public Task<string?> ResolveAsync(
+            ProductFeedResolverContext context,
+            IReadOnlyDictionary<string, string> args,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<string?>("   ");
+        }
     }
 }

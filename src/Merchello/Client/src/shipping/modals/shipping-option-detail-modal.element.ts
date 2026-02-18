@@ -287,7 +287,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Shipping Cost",
-        content: `Are you sure you want to delete the shipping cost for ${displayName}?`,
+        content: `Delete the shipping cost for ${displayName}.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -334,7 +334,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Weight Tier",
-        content: `Are you sure you want to delete the weight tier "${displayName}"?`,
+        content: `Delete weight tier "${displayName}".`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -450,7 +450,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Postcode Rule",
-        content: `Are you sure you want to delete the postcode rule "${displayName}"?`,
+        content: `Delete postcode rule "${displayName}".`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -595,6 +595,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
                   <uui-label slot="label" for="warehouse" required>Warehouse</uui-label>
                   <uui-select
                     id="warehouse"
+                    label="Warehouse"
                     .options=${this._warehouseOptions}
                     @change=${(e: Event) => (this._warehouseId = (e.target as HTMLSelectElement).value)}
                   ></uui-select>
@@ -1078,18 +1079,17 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
           <div class="tab-content">${this._renderActiveTabContent()}</div>
         </div>
 
-        <div slot="actions">
-          <uui-button label="Cancel" @click=${this._close}>Cancel</uui-button>
-          <uui-button
-            look="primary"
-            label="${isEditing ? 'Save' : 'Create'}"
-            ?disabled=${this._isSaving}
-            @click=${this._save}
-          >
-            ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-            ${isEditing ? "Save" : "Create"}
-          </uui-button>
-        </div>
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._close}>Cancel</uui-button>
+        <uui-button
+          slot="actions"
+          look="primary"
+          color="positive"
+          label="${isEditing ? "Save" : "Create"}"
+          ?disabled=${this._isSaving}
+          @click=${this._save}>
+          ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+          ${isEditing ? "Save" : "Create"}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -1286,11 +1286,6 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       border-radius: var(--uui-border-radius);
     }
 
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-3);
-    }
-
     [slot="description"] {
       font-size: 0.8125rem;
       color: var(--uui-color-text-alt);
@@ -1375,8 +1370,8 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     }
 
     .rule-action-surcharge {
-      background: var(--uui-color-warning);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
   `;

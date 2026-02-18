@@ -131,7 +131,7 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Remove Fulfilment Provider",
-        content: `Are you sure you want to remove ${provider.displayName}? This action cannot be undone.`,
+        content: `Remove ${provider.displayName} from fulfilment providers. This action cannot be undone.`,
         confirmLabel: "Remove",
         color: "danger",
       },
@@ -252,7 +252,12 @@ export class MerchelloFulfilmentProvidersListElement extends UmbElementMixin(Lit
                 <span class="webhook-url-label">Webhook URL</span>
                 <div class="webhook-url-row">
                   <uui-input readonly .value=${webhookUrl} label="Webhook URL"></uui-input>
-                  <uui-button look="secondary" compact @click=${() => this._copyToClipboard(webhookUrl)}>
+                  <uui-button
+                    look="secondary"
+                    compact
+                    label="Copy webhook URL"
+                    @click=${() => this._copyToClipboard(webhookUrl)}
+                  >
                     Copy
                   </uui-button>
                 </div>

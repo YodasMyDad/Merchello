@@ -180,15 +180,17 @@ export class MerchelloPaymentLinkPanelElement extends UmbElementMixin(LitElement
         </div>
 
         <div class="link-url-container">
-          <input
+          <uui-input
+            label="Payment URL"
             type="text"
             readonly
             class="link-url"
             .value=${this._linkInfo.paymentUrl ?? ""}
-          />
+          ></uui-input>
           <uui-button
             look="secondary"
             compact
+            label=${this._copySuccess ? "Copied payment link" : "Copy payment link"}
             @click=${this._copyLink}
             ?disabled=${!this._linkInfo.paymentUrl}
           >
@@ -210,6 +212,7 @@ export class MerchelloPaymentLinkPanelElement extends UmbElementMixin(LitElement
         <uui-button
           look="secondary"
           color="danger"
+          label="Deactivate payment link"
           @click=${this._deactivateLink}
           ?disabled=${this._isDeactivating}
         >
@@ -265,6 +268,8 @@ export class MerchelloPaymentLinkPanelElement extends UmbElementMixin(LitElement
 
           <uui-button
             look="primary"
+            color="positive"
+            label="Generate payment link"
             @click=${this._generateLink}
             ?disabled=${this._isGenerating || !this._selectedProvider}
           >
@@ -416,13 +421,9 @@ export class MerchelloPaymentLinkPanelElement extends UmbElementMixin(LitElement
 
     .link-url {
       flex: 1;
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-      border: 1px solid var(--uui-color-border);
-      border-radius: var(--uui-border-radius);
-      font-family: monospace;
-      font-size: 0.875rem;
-      background: var(--uui-color-surface-alt);
-      color: var(--uui-color-text);
+      width: 100%;
+      --uui-input-background-color: var(--uui-color-surface-alt);
+      --uui-input-border-color: var(--uui-color-border);
     }
 
     .link-meta {

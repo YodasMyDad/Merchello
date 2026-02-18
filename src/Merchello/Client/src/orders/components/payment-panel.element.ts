@@ -228,11 +228,12 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
             </div>
             ${status?.balanceStatusCssClass === 'underpaid'
               ? html`
-                  <uui-button
-                    look="primary"
-                    label="Record Payment"
-                    @click=${this._openManualPaymentModal}
-                  >
+                <uui-button
+                  look="primary"
+                  color="positive"
+                  label="Record Payment"
+                  @click=${this._openManualPaymentModal}
+                >
                     <uui-icon name="icon-add"></uui-icon>
                     Record Payment
                   </uui-button>
@@ -346,8 +347,8 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     }
 
     .status-badge.partial {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .status-badge.unpaid {
@@ -489,13 +490,13 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     }
 
     .medium-risk {
-      background: #f97316;
-      color: white;
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
     }
 
     .low-risk {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--uui-color-default-standalone);
+      color: var(--uui-color-default-contrast);
     }
 
     .minimal-risk {

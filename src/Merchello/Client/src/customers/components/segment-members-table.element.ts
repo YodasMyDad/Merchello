@@ -89,7 +89,7 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
   }
 
   private async _handleAddMembers(): Promise<void> {
-    const existingMemberIds = this._members.map(m => m.customerId);
+    const existingMemberIds = this._members.map((member) => member.customerId);
 
     const modal = this.#modalManager?.open(this, MERCHELLO_CUSTOMER_PICKER_MODAL, {
       data: {
@@ -131,9 +131,9 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
 
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
-        headline: "Remove Member",
-        content: `Are you sure you want to remove ${displayName} from this segment?`,
-        confirmLabel: "Remove",
+        headline: "Remove member",
+        content: `Remove ${displayName} from this segment. You can add them again later.`,
+        confirmLabel: "Remove member",
         color: "danger",
       },
     });
@@ -141,9 +141,9 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
     try {
       await modalContext?.onSubmit();
     } catch {
-      return; // User cancelled
+      return;
     }
-    if (!this.#isConnected) return; // Component disconnected while modal was open
+    if (!this.#isConnected) return;
 
     this._removingIds = new Set([...this._removingIds, member.customerId]);
 
@@ -153,7 +153,7 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
 
     if (!this.#isConnected) return;
 
-    this._removingIds = new Set([...this._removingIds].filter(id => id !== member.customerId));
+    this._removingIds = new Set([...this._removingIds].filter((id) => id !== member.customerId));
 
     if (error) {
       this.#notificationContext?.peek("danger", {
@@ -203,7 +203,7 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
 
   private _renderErrorState(): unknown {
     return html`
-      <div class="error-banner">
+      <div class="error-banner" role="alert">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._errorMessage}</span>
       </div>
@@ -219,9 +219,9 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
         <uui-button
           slot="action"
           look="primary"
-          label="Add Customers"
+          label="Add customers"
           @click=${this._handleAddMembers}>
-          Add Customers
+          Add customers
         </uui-button>
       </merchello-empty-state>
     `;
@@ -229,20 +229,21 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
 
   private _renderMemberRow(member: SegmentMemberDto): unknown {
     const isRemoving = this._removingIds.has(member.customerId);
+    const displayName = member.customerName || member.customerEmail;
 
     return html`
       <uui-table-row>
         <uui-table-cell>
-          <span class="member-name">${member.customerName || "—"}</span>
+          <span class="member-name">${member.customerName || "N/A"}</span>
         </uui-table-cell>
         <uui-table-cell>${member.customerEmail}</uui-table-cell>
         <uui-table-cell>${this._formatDate(member.dateAdded)}</uui-table-cell>
-        <uui-table-cell>${member.notes || "—"}</uui-table-cell>
+        <uui-table-cell>${member.notes || "N/A"}</uui-table-cell>
         <uui-table-cell>
           <uui-button
             look="secondary"
             compact
-            label="Remove"
+            label=${`Remove ${displayName}`}
             ?disabled=${isRemoving}
             @click=${() => this._handleRemoveMember(member)}>
             ${isRemoving
@@ -263,9 +264,9 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
             <uui-table-head-cell>Email</uui-table-head-cell>
             <uui-table-head-cell>Added</uui-table-head-cell>
             <uui-table-head-cell>Notes</uui-table-head-cell>
-            <uui-table-head-cell class="actions-header"></uui-table-head-cell>
+            <uui-table-head-cell class="actions-header">Actions</uui-table-head-cell>
           </uui-table-head>
-          ${this._members.map((m) => this._renderMemberRow(m))}
+          ${this._members.map((member) => this._renderMemberRow(member))}
         </uui-table>
       </div>
     `;
@@ -287,21 +288,18 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
   override render() {
     return html`
       <div class="members-container">
-        <!-- Header -->
         <div class="header-actions">
           <uui-button
             look="primary"
-            label="Add Customers"
+            label="Add customers"
             @click=${this._handleAddMembers}>
             <uui-icon name="icon-add"></uui-icon>
-            Add Customers
+            Add customers
           </uui-button>
         </div>
 
-        <!-- Content -->
         ${this._renderContent()}
 
-        <!-- Pagination -->
         ${this._members.length > 0 && !this._isLoading
           ? html`
               <merchello-pagination
@@ -353,7 +351,8 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
       }
 
       .actions-header {
-        width: 60px;
+        width: 80px;
+        text-align: right;
       }
 
       .loading {
@@ -370,6 +369,10 @@ export class MerchelloSegmentMembersTableElement extends UmbElementMixin(LitElem
         background: var(--uui-color-danger-standalone);
         color: var(--uui-color-danger-contrast);
         border-radius: var(--uui-border-radius);
+      }
+
+      .error-banner uui-icon {
+        flex-shrink: 0;
       }
     `,
   ];

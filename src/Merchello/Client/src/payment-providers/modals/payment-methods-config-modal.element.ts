@@ -15,22 +15,6 @@ import type {
 import { MERCHELLO_PAYMENT_METHOD_EDIT_MODAL } from "@payment-providers/modals/payment-method-edit-modal.token.js";
 import { getBrandIconSvg } from "@payment-providers/utils/brand-icons.js";
 
-/** Map of country/region codes to flag emojis */
-const REGION_FLAGS: Record<string, string> = {
-  US: "🇺🇸",
-  NL: "🇳🇱",
-  BE: "🇧🇪",
-  AT: "🇦🇹",
-  PL: "🇵🇱",
-  EU: "🇪🇺",
-  DE: "🇩🇪",
-  FR: "🇫🇷",
-  ES: "🇪🇸",
-  IT: "🇮🇹",
-  GB: "🇬🇧",
-  UK: "🇬🇧",
-};
-
 @customElement("merchello-payment-methods-config-modal")
 export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseElement<
   PaymentMethodsConfigModalData,
@@ -192,7 +176,7 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
       ${regions.map(
         (r) => html`
           <span class="region-badge" title="${r.name}">
-            ${REGION_FLAGS[r.code] ?? "🌍"} ${r.code}
+            ${r.code}
           </span>
         `
       )}

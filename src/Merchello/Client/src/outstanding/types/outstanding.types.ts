@@ -9,6 +9,8 @@ export interface OutstandingInvoicesQueryParams {
   overdueOnly?: boolean;
   /** Filter invoices due within this many days from now */
   dueWithinDays?: number;
+  /** Search by invoice number, customer name, or customer email */
+  search?: string;
   sortBy?: "dueDate" | "amount" | "customer" | "invoiceNumber";
   sortDir?: "asc" | "desc";
 }
@@ -48,18 +50,12 @@ export interface BatchMarkAsPaidDto {
 // Batch mark as paid result
 export interface BatchMarkAsPaidResultDto {
   successCount: number;
-  failureCount: number;
-  payments: PaymentCreatedDto[];
-  errors: BatchPaymentErrorDto[];
+  messages: string[];
+  paymentIds: string[];
 }
 
 export interface PaymentCreatedDto {
   paymentId: string;
   invoiceId: string;
   amount: number;
-}
-
-export interface BatchPaymentErrorDto {
-  invoiceId: string;
-  errorMessage: string;
 }

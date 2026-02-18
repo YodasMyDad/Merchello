@@ -64,6 +64,12 @@ export class MerchelloProductPackagesElement extends UmbElementMixin(LitElement)
     this._emitChange(packages);
   }
 
+  private _parseOptionalNumber(rawValue: string): number | null {
+    if (rawValue === "") return null;
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
   /** Dispatch packages-change event with updated packages */
   private _emitChange(packages: ProductPackageDto[]): void {
     this.dispatchEvent(
@@ -107,6 +113,7 @@ export class MerchelloProductPackagesElement extends UmbElementMixin(LitElement)
       ${this.editable
         ? html`
             <uui-button
+              label="Add package"
               look="placeholder"
               class="add-package-button"
               ?disabled=${this.disableAdd}
@@ -122,8 +129,8 @@ export class MerchelloProductPackagesElement extends UmbElementMixin(LitElement)
   /** Renders a single package card (editable or read-only) */
   private _renderPackageCard(pkg: ProductPackageDto, index: number): unknown {
     const dimensionText =
-      pkg.lengthCm && pkg.widthCm && pkg.heightCm
-        ? `${pkg.lengthCm} × ${pkg.widthCm} × ${pkg.heightCm} cm`
+      pkg.lengthCm != null && pkg.widthCm != null && pkg.heightCm != null
+        ? `${pkg.lengthCm} x ${pkg.widthCm} x ${pkg.heightCm} cm`
         : "No dimensions";
 
     // Read-only view for inherited packages
@@ -166,48 +173,55 @@ export class MerchelloProductPackagesElement extends UmbElementMixin(LitElement)
           <div class="field-group">
             <label>Weight (kg) *</label>
             <uui-input
+              label="Weight in kilograms"
               type="number"
               step="0.01"
               min="0"
               .value=${String(pkg.weight ?? "")}
-              @input=${(e: Event) =>
-                this._updatePackage(index, "weight", parseFloat((e.target as HTMLInputElement).value) || 0)}
+              @input=${(e: Event) => {
+                const parsed = Number((e.target as HTMLInputElement).value);
+                const nextWeight = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+                this._updatePackage(index, "weight", nextWeight);
+              }}
               placeholder="0.50">
             </uui-input>
           </div>
           <div class="field-group">
             <label>Length (cm)</label>
             <uui-input
+              label="Length in centimeters"
               type="number"
               step="0.1"
               min="0"
               .value=${String(pkg.lengthCm ?? "")}
               @input=${(e: Event) =>
-                this._updatePackage(index, "lengthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+                this._updatePackage(index, "lengthCm", this._parseOptionalNumber((e.target as HTMLInputElement).value))}
               placeholder="20">
             </uui-input>
           </div>
           <div class="field-group">
             <label>Width (cm)</label>
             <uui-input
+              label="Width in centimeters"
               type="number"
               step="0.1"
               min="0"
               .value=${String(pkg.widthCm ?? "")}
               @input=${(e: Event) =>
-                this._updatePackage(index, "widthCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+                this._updatePackage(index, "widthCm", this._parseOptionalNumber((e.target as HTMLInputElement).value))}
               placeholder="15">
             </uui-input>
           </div>
           <div class="field-group">
             <label>Height (cm)</label>
             <uui-input
+              label="Height in centimeters"
               type="number"
               step="0.1"
               min="0"
               .value=${String(pkg.heightCm ?? "")}
               @input=${(e: Event) =>
-                this._updatePackage(index, "heightCm", parseFloat((e.target as HTMLInputElement).value) || null)}
+                this._updatePackage(index, "heightCm", this._parseOptionalNumber((e.target as HTMLInputElement).value))}
               placeholder="10">
             </uui-input>
           </div>

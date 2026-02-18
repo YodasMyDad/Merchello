@@ -373,7 +373,12 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
             `
           : nothing}
 
-        <uui-button look="primary" ?disabled=${this._isTestingConnection} @click=${this._handleTestConnection}>
+        <uui-button
+          look="primary"
+          label="Test provider connection"
+          ?disabled=${this._isTestingConnection}
+          @click=${this._handleTestConnection}
+        >
           ${this._isTestingConnection ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
           ${this._isTestingConnection ? "Testing Connection..." : "Test Connection"}
         </uui-button>
@@ -442,6 +447,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
 
         <uui-button
           look="primary"
+          label="Submit test order"
           ?disabled=${this._isSubmittingOrder}
           @click=${this._handleTestOrderSubmission}
         >
@@ -516,6 +522,7 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
 
         <uui-button
           look="primary"
+          label="Simulate webhook event"
           ?disabled=${this._isSimulatingWebhook || this._isLoadingWebhookTemplates}
           @click=${this._handleSimulateWebhook}
         >
@@ -544,7 +551,12 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
             `
           : nothing}
 
-        <uui-button look="primary" ?disabled=${this._isSyncingProducts} @click=${this._handleProductSync}>
+        <uui-button
+          look="primary"
+          label="Run product sync test"
+          ?disabled=${this._isSyncingProducts}
+          @click=${this._handleProductSync}
+        >
           ${this._isSyncingProducts ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
           ${this._isSyncingProducts ? "Syncing Products..." : "Sync Products"}
         </uui-button>
@@ -570,7 +582,12 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
             `
           : nothing}
 
-        <uui-button look="primary" ?disabled=${this._isSyncingInventory} @click=${this._handleInventorySync}>
+        <uui-button
+          look="primary"
+          label="Run inventory sync test"
+          ?disabled=${this._isSyncingInventory}
+          @click=${this._handleInventorySync}
+        >
           ${this._isSyncingInventory ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
           ${this._isSyncingInventory ? "Syncing Inventory..." : "Sync Inventory"}
         </uui-button>
@@ -811,8 +828,8 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     }
 
     .status-badge.disabled {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .tab-content {

@@ -24,6 +24,7 @@ import {
 } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
+import { getCurrencySymbol } from "@api/store-settings.js";
 import type { AddressDto, SelectOption } from "@shared/types/index.js";
 import "@products/components/product-table.element.js";
 import "@shared/components/pagination.element.js";
@@ -360,7 +361,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Warehouse",
-        content: `Are you sure you want to delete warehouse "${this._warehouse.name || "Unnamed"}"? This action cannot be undone.`,
+        content: `Delete warehouse "${this._warehouse.name || "Unnamed"}". This action cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -419,7 +420,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Remove Service Region",
-        content: `Are you sure you want to remove the service region "${regionDisplay}"?`,
+        content: `Remove service region "${regionDisplay}" from this warehouse.`,
         confirmLabel: "Remove",
         color: "danger",
       },
@@ -479,7 +480,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Shipping Option",
-        content: `Are you sure you want to delete shipping option "${option.name}"?`,
+        content: `Delete shipping option "${option.name}". This action cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -580,7 +581,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     const modal = this.#modalManager.open(this, MERCHELLO_PRODUCT_PICKER_MODAL, {
       data: {
         config: {
-          currencySymbol: "£", // TODO: Get from store settings
+          currencySymbol: getCurrencySymbol(),
           propertyEditorMode: true,
           showAddons: false,
           selectRoots: true, // Select product roots directly, not variants
@@ -623,7 +624,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Remove Products",
-        content: `Are you sure you want to remove ${this._selectedProductIds.length} product(s) from this warehouse? This will also remove any stock records for these products at this warehouse.`,
+        content: `Remove ${this._selectedProductIds.length} product(s) from this warehouse. Stock records for these products at this warehouse will also be removed.`,
         confirmLabel: "Remove",
         color: "danger",
       },
@@ -673,53 +674,65 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     return !value || value.trim() === "";
   }
 
-  private _getValidationClass(value: string | undefined | null, required: boolean): string {
-    if (required && this._isFieldEmpty(value)) {
-      return "field-warning";
-    }
-    return "";
-  }
-
   // Render methods
   private _renderLoadingState(): unknown {
     return html`<div class="loading"><uui-loader></uui-loader></div>`;
   }
 
   private _renderGeneralTab(): unknown {
+    const isAddressOneInvalid = this._isFieldEmpty(this._formData.address?.addressOne);
+    const isTownCityInvalid = this._isFieldEmpty(this._formData.address?.townCity);
+    const isPostalCodeInvalid = this._isFieldEmpty(this._formData.address?.postalCode);
+    const isCountryInvalid = this._isFieldEmpty(this._formData.address?.countryCode);
+
     return html`
       <div class="tab-content">
         <!-- Basic Info Section -->
         <uui-box headline="Basic Information">
-          <div class="form-grid">
-            <div class="form-field">
-              <label>Code</label>
-              <uui-input
-                type="text"
-                maxlength="100"
-                .value=${this._formData.code || ""}
-                @input=${(e: Event) => this._handleInputChange("code", (e.target as HTMLInputElement).value)}
-                placeholder="MAIN-01"
-                label="Warehouse code">
-              </uui-input>
+          <div class="property-grid">
+            <div class="property-grid-item">
+              <umb-property-layout
+                label="Code"
+                description="Optional internal code for warehouse operations."
+                orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  maxlength="100"
+                  .value=${this._formData.code || ""}
+                  @input=${(e: Event) => this._handleInputChange("code", (e.target as HTMLInputElement).value)}
+                  placeholder="MAIN-01"
+                  label="Warehouse code">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field">
-              <label>Supplier</label>
-              <uui-select
+            <div class="property-grid-item">
+              <umb-property-layout
                 label="Supplier"
-                .options=${this._getSupplierOptions()}
-                @change=${this._handleSupplierChange}>
-              </uui-select>
+                description="Optional supplier linked to this warehouse."
+                orientation="vertical">
+                <uui-select
+                  slot="editor"
+                  label="Supplier"
+                  .options=${this._getSupplierOptions()}
+                  @change=${this._handleSupplierChange}>
+                </uui-select>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field full-width">
-              <label>Fulfilment Provider Override</label>
-              <uui-select
-                label="Fulfilment Provider"
-                .options=${this._getFulfilmentProviderOptions()}
-                @change=${this._handleFulfilmentProviderChange}>
-              </uui-select>
-              <span class="field-hint">Optional: Override the supplier's default fulfilment provider for this warehouse</span>
+            <div class="property-grid-item full-width">
+              <umb-property-layout
+                label="Fulfilment Provider Override"
+                description="Optional override of the supplier default fulfilment provider."
+                orientation="vertical">
+                <uui-select
+                  slot="editor"
+                  label="Fulfilment provider"
+                  .options=${this._getFulfilmentProviderOptions()}
+                  @change=${this._handleFulfilmentProviderChange}>
+                </uui-select>
+              </umb-property-layout>
             </div>
           </div>
         </uui-box>
@@ -727,104 +740,140 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         <!-- Address Section -->
         <uui-box headline="Shipping Origin Address">
           <p class="section-hint">This address is used as the origin for shipping calculations.</p>
-          <div class="form-grid">
-            <div class="form-field">
-              <label>Contact Name</label>
-              <uui-input
-                type="text"
-                .value=${this._formData.address?.name || ""}
-                @input=${(e: Event) => this._handleAddressChange("name", (e.target as HTMLInputElement).value)}
-                label="Contact name">
-              </uui-input>
+          <div class="property-grid">
+            <div class="property-grid-item">
+              <umb-property-layout label="Contact Name" orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  .value=${this._formData.address?.name || ""}
+                  @input=${(e: Event) => this._handleAddressChange("name", (e.target as HTMLInputElement).value)}
+                  label="Contact name">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field">
-              <label>Company</label>
-              <uui-input
-                type="text"
-                .value=${this._formData.address?.company || ""}
-                @input=${(e: Event) => this._handleAddressChange("company", (e.target as HTMLInputElement).value)}
-                label="Company name">
-              </uui-input>
+            <div class="property-grid-item">
+              <umb-property-layout label="Company" orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  .value=${this._formData.address?.company || ""}
+                  @input=${(e: Event) => this._handleAddressChange("company", (e.target as HTMLInputElement).value)}
+                  label="Company name">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field full-width ${this._getValidationClass(this._formData.address?.addressOne, true)}">
-              <label>Address Line 1 <span class="required">*</span></label>
-              <uui-input
-                type="text"
-                .value=${this._formData.address?.addressOne || ""}
-                @input=${(e: Event) => this._handleAddressChange("addressOne", (e.target as HTMLInputElement).value)}
-                label="Address line 1">
-              </uui-input>
+            <div class="property-grid-item full-width">
+              <umb-property-layout
+                label="Address Line 1"
+                ?mandatory=${true}
+                ?invalid=${isAddressOneInvalid}
+                orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  .value=${this._formData.address?.addressOne || ""}
+                  @input=${(e: Event) => this._handleAddressChange("addressOne", (e.target as HTMLInputElement).value)}
+                  label="Address line 1">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field full-width">
-              <label>Address Line 2</label>
-              <uui-input
-                type="text"
-                .value=${this._formData.address?.addressTwo || ""}
-                @input=${(e: Event) => this._handleAddressChange("addressTwo", (e.target as HTMLInputElement).value)}
-                label="Address line 2">
-              </uui-input>
+            <div class="property-grid-item full-width">
+              <umb-property-layout label="Address Line 2" orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  .value=${this._formData.address?.addressTwo || ""}
+                  @input=${(e: Event) => this._handleAddressChange("addressTwo", (e.target as HTMLInputElement).value)}
+                  label="Address line 2">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field ${this._getValidationClass(this._formData.address?.townCity, true)}">
-              <label>Town/City <span class="required">*</span></label>
-              <uui-input
-                type="text"
-                .value=${this._formData.address?.townCity || ""}
-                @input=${(e: Event) => this._handleAddressChange("townCity", (e.target as HTMLInputElement).value)}
-                label="Town or city">
-              </uui-input>
+            <div class="property-grid-item">
+              <umb-property-layout
+                label="Town/City"
+                ?mandatory=${true}
+                ?invalid=${isTownCityInvalid}
+                orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  .value=${this._formData.address?.townCity || ""}
+                  @input=${(e: Event) => this._handleAddressChange("townCity", (e.target as HTMLInputElement).value)}
+                  label="Town or city">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field">
-              <label>County/State</label>
-              <uui-input
-                type="text"
-                .value=${this._formData.address?.countyState || ""}
-                @input=${(e: Event) => this._handleAddressChange("countyState", (e.target as HTMLInputElement).value)}
-                label="County or state">
-              </uui-input>
+            <div class="property-grid-item">
+              <umb-property-layout label="County/State" orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  .value=${this._formData.address?.countyState || ""}
+                  @input=${(e: Event) => this._handleAddressChange("countyState", (e.target as HTMLInputElement).value)}
+                  label="County or state">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field ${this._getValidationClass(this._formData.address?.postalCode, true)}">
-              <label>Postal Code <span class="required">*</span></label>
-              <uui-input
-                type="text"
-                .value=${this._formData.address?.postalCode || ""}
-                @input=${(e: Event) => this._handleAddressChange("postalCode", (e.target as HTMLInputElement).value)}
-                label="Postal code">
-              </uui-input>
+            <div class="property-grid-item">
+              <umb-property-layout
+                label="Postal Code"
+                ?mandatory=${true}
+                ?invalid=${isPostalCodeInvalid}
+                orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="text"
+                  .value=${this._formData.address?.postalCode || ""}
+                  @input=${(e: Event) => this._handleAddressChange("postalCode", (e.target as HTMLInputElement).value)}
+                  label="Postal code">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field ${this._getValidationClass(this._formData.address?.countryCode, true)}">
-              <label>Country <span class="required">*</span></label>
-              <uui-select
+            <div class="property-grid-item">
+              <umb-property-layout
                 label="Country"
-                .options=${this._getCountryOptions()}
-                @change=${this._handleCountryChange}>
-              </uui-select>
+                ?mandatory=${true}
+                ?invalid=${isCountryInvalid}
+                orientation="vertical">
+                <uui-select
+                  slot="editor"
+                  label="Country"
+                  .options=${this._getCountryOptions()}
+                  @change=${this._handleCountryChange}>
+                </uui-select>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field">
-              <label>Email</label>
-              <uui-input
-                type="email"
-                .value=${this._formData.address?.email || ""}
-                @input=${(e: Event) => this._handleAddressChange("email", (e.target as HTMLInputElement).value)}
-                label="Email">
-              </uui-input>
+            <div class="property-grid-item">
+              <umb-property-layout label="Email" orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="email"
+                  .value=${this._formData.address?.email || ""}
+                  @input=${(e: Event) => this._handleAddressChange("email", (e.target as HTMLInputElement).value)}
+                  label="Email">
+                </uui-input>
+              </umb-property-layout>
             </div>
 
-            <div class="form-field">
-              <label>Phone</label>
-              <uui-input
-                type="tel"
-                .value=${this._formData.address?.phone || ""}
-                @input=${(e: Event) => this._handleAddressChange("phone", (e.target as HTMLInputElement).value)}
-                label="Phone">
-              </uui-input>
+            <div class="property-grid-item">
+              <umb-property-layout label="Phone" orientation="vertical">
+                <uui-input
+                  slot="editor"
+                  type="tel"
+                  .value=${this._formData.address?.phone || ""}
+                  @input=${(e: Event) => this._handleAddressChange("phone", (e.target as HTMLInputElement).value)}
+                  label="Phone">
+                </uui-input>
+              </umb-property-layout>
             </div>
           </div>
         </uui-box>
@@ -1065,7 +1114,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
     } else if (option.costCount > 0) {
       costDisplay = `${option.costCount} location(s)`;
     } else {
-      costDisplay = "—";
+      costDisplay = "-";
     }
 
     return html`
@@ -1195,6 +1244,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
                     <p>No products assigned to this warehouse</p>
                     <uui-button
                       look="primary"
+                      label="Add Products"
                       @click=${this._handleAddProducts}>
                       Add Products
                     </uui-button>
@@ -1441,41 +1491,27 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         color: var(--uui-color-text-alt);
       }
 
-      .field-hint {
-        font-size: 0.75rem;
-        color: var(--uui-color-text-alt);
-        margin-top: var(--uui-size-space-1);
-      }
-
-      .form-grid {
+      .property-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: var(--uui-size-space-4);
       }
 
-      .form-field {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-1);
+      .property-grid-item {
+        min-width: 0;
       }
 
-      .form-field.full-width {
+      .property-grid-item.full-width {
         grid-column: 1 / -1;
       }
 
-      .form-field label {
-        font-weight: 500;
-        font-size: 0.875rem;
+      .property-grid-item umb-property-layout {
+        padding: 0;
       }
 
-      .form-field .required {
-        color: var(--uui-color-danger);
-      }
-
-      .form-field.field-warning uui-input,
-      .form-field.field-warning uui-select {
-        --uui-input-border-color: var(--uui-color-warning);
-        background-color: color-mix(in srgb, var(--uui-color-warning) 10%, transparent);
+      .property-grid-item uui-input,
+      .property-grid-item uui-select {
+        width: 100%;
       }
 
       .validation-summary {
@@ -1518,7 +1554,11 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       }
 
       .info-banner.info {
-        background: linear-gradient(135deg, #e3f2fd 0%, #f5f5f5 100%);
+        background: linear-gradient(
+          135deg,
+          var(--uui-color-surface-alt) 0%,
+          var(--uui-color-surface) 100%
+        );
         border-left: 4px solid var(--uui-color-interactive);
       }
 
@@ -1556,6 +1596,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       .badge-default {
         background: var(--uui-color-surface-alt);
         border: 1px solid var(--uui-color-border);
+        color: var(--uui-color-text);
       }
 
       .service-type {
@@ -1586,7 +1627,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       }
 
       .search-bar uui-input {
-        width: 300px;
+        width: min(100%, 360px);
       }
 
       .table-container {
@@ -1650,22 +1691,18 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       }
 
       @media (max-width: 768px) {
-        .form-grid {
+        .property-grid {
           grid-template-columns: 1fr;
         }
 
-        .header-content {
+        .section-header {
           flex-direction: column;
           align-items: flex-start;
+          gap: var(--uui-size-space-2);
         }
 
-        .name-input {
-          max-width: 100%;
+        .search-bar uui-input {
           width: 100%;
-        }
-
-        .footer-left {
-          display: none;
         }
       }
     `,

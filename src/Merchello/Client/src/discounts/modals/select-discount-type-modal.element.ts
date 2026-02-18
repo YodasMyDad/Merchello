@@ -44,6 +44,8 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
             ${DISCOUNT_CATEGORIES.map(
               (cat) => html`
                 <button
+                  type="button"
+                  aria-pressed=${this._selectedCategory === cat.category}
                   class="category-card ${this._selectedCategory === cat.category ? "selected" : ""}"
                   @click=${() => this._handleCategorySelect(cat.category)}
                 >
@@ -60,24 +62,24 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
           </div>
         </div>
 
-        <div slot="actions">
-          <uui-button
-            label="Cancel"
-            look="secondary"
-            @click=${this._handleCancel}
-          >
-            Cancel
-          </uui-button>
-          <uui-button
-            label="Continue"
-            look="primary"
-            color="positive"
-            @click=${this._handleContinue}
-            ?disabled=${this._selectedCategory === null}
-          >
-            Continue
-          </uui-button>
-        </div>
+        <uui-button
+          slot="actions"
+          label="Cancel"
+          look="secondary"
+          @click=${this._handleCancel}
+        >
+          Cancel
+        </uui-button>
+        <uui-button
+          slot="actions"
+          label="Continue"
+          look="primary"
+          color="positive"
+          @click=${this._handleContinue}
+          ?disabled=${this._selectedCategory === null}
+        >
+          Continue
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -167,12 +169,6 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
       font-size: 0.8125rem;
       color: var(--uui-color-text-alt);
       line-height: 1.4;
-    }
-
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
     }
   `;
 }

@@ -50,6 +50,22 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
   @property({ type: Boolean })
   clickable = true;
 
+  private _getSelectedDiscountCount(): number {
+    if (this.discounts.length === 0 || this.selectedIds.length === 0) return 0;
+
+    const selected = new Set(this.selectedIds);
+    return this.discounts.reduce((count, discount) => count + (selected.has(discount.id) ? 1 : 0), 0);
+  }
+
+  private _isAllDiscountsSelected(): boolean {
+    return this.discounts.length > 0 && this._getSelectedDiscountCount() === this.discounts.length;
+  }
+
+  private _isPartiallySelected(): boolean {
+    const selectedCount = this._getSelectedDiscountCount();
+    return selectedCount > 0 && selectedCount < this.discounts.length;
+  }
+
   private _handleSelectAll(e: Event): void {
     const checked = (e.target as HTMLInputElement).checked;
     const newSelection = checked ? this.discounts.map((d) => d.id) : [];
@@ -59,14 +75,15 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
   private _handleSelectDiscount(id: string, e: Event): void {
     e.stopPropagation();
     const checked = (e.target as HTMLInputElement).checked;
+    const alreadySelected = this.selectedIds.includes(id);
     const newSelection = checked
-      ? [...this.selectedIds, id]
+      ? alreadySelected ? this.selectedIds : [...this.selectedIds, id]
       : this.selectedIds.filter((selectedId) => selectedId !== id);
     this._dispatchSelectionChange(newSelection);
   }
 
   private _dispatchSelectionChange(selectedIds: string[]): void {
-    const detail: DiscountSelectionChangeEventDetail = { selectedIds };
+    const detail: DiscountSelectionChangeEventDetail = { selectedIds: [...new Set(selectedIds)] };
     this.dispatchEvent(
       new CustomEvent("selection-change", {
         detail,
@@ -113,6 +130,9 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
   }
 
   override render() {
+    const allSelected = this._isAllDiscountsSelected();
+    const partiallySelected = this._isPartiallySelected();
+
     return html`
       <uui-table>
         <uui-table-head>
@@ -122,7 +142,9 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
                   <uui-checkbox
                     aria-label="Select all discounts"
                     @change=${this._handleSelectAll}
-                    ?checked=${this.selectedIds.length === this.discounts.length && this.discounts.length > 0}
+                    ?checked=${allSelected}
+                    ?indeterminate=${partiallySelected}
+                    ?disabled=${this.discounts.length === 0}
                   ></uui-checkbox>
                 </uui-table-head-cell>
               `
@@ -146,7 +168,7 @@ export class MerchelloDiscountTableElement extends UmbElementMixin(LitElement) {
                 ? html`
                     <uui-table-cell class="checkbox-col">
                       <uui-checkbox
-                        aria-label="Select discount ${discount.name}"
+                        aria-label="Select discount ${discount.name || discount.id}"
                         ?checked=${this.selectedIds.includes(discount.id)}
                         @change=${(e: Event) => this._handleSelectDiscount(discount.id, e)}
                         @click=${(e: Event) => e.stopPropagation()}

@@ -19,11 +19,11 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
   @state() private _customers: CustomerListItemDto[] = [];
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
-  @state() private _page: number = 1;
-  @state() private _pageSize: number = 50;
-  @state() private _totalItems: number = 0;
-  @state() private _totalPages: number = 0;
-  @state() private _searchTerm: string = "";
+  @state() private _page = 1;
+  @state() private _pageSize = 50;
+  @state() private _totalItems = 0;
+  @state() private _totalPages = 0;
+  @state() private _searchTerm = "";
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #modalManager?: UmbModalManagerContext;
@@ -46,19 +46,20 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
     this._initializeAndLoad();
   }
 
-  private async _initializeAndLoad(): Promise<void> {
-    const settings = await getStoreSettings();
-    if (!this.#isConnected) return;
-    this._pageSize = settings.defaultPaginationPageSize;
-    this._loadCustomers();
-  }
-
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
     if (this._searchDebounceTimer) {
       clearTimeout(this._searchDebounceTimer);
     }
+  }
+
+  private async _initializeAndLoad(): Promise<void> {
+    const settings = await getStoreSettings();
+    if (!this.#isConnected) return;
+
+    this._pageSize = settings.defaultPaginationPageSize;
+    this._loadCustomers();
   }
 
   private async _loadCustomers(): Promise<void> {
@@ -70,7 +71,6 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
       pageSize: this._pageSize,
     };
 
-    // Apply search filter
     if (this._searchTerm.trim()) {
       params.search = this._searchTerm.trim();
     }
@@ -98,7 +98,6 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
     const input = e.target as HTMLInputElement;
     const value = input.value;
 
-    // Debounce search to avoid excessive API calls
     if (this._searchDebounceTimer) {
       clearTimeout(this._searchDebounceTimer);
     }
@@ -130,7 +129,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
     };
   }
 
-  private async _handleViewOrders(customer: CustomerListItemDto): Promise<void> {
+  private _handleViewOrders(customer: CustomerListItemDto): void {
     if (!customer.email) return;
 
     const customerName = [customer.firstName, customer.lastName]
@@ -147,19 +146,17 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
     });
   }
 
-  private async _handleEditCustomer(e: Event, customer: CustomerListItemDto): Promise<void> {
-    e.preventDefault();
-    e.stopPropagation();
-
+  private async _handleEditCustomer(customer: CustomerListItemDto): Promise<void> {
     const modal = this.#modalManager?.open(this, MERCHELLO_CUSTOMER_EDIT_MODAL, {
       data: { customer },
     });
 
     const result = await modal?.onSubmit().catch(() => undefined);
     if (!this.#isConnected) return;
+
     if (result?.isUpdated) {
       this.#notificationContext?.peek("positive", {
-        data: { headline: "Customer updated", message: "Customer details have been updated" }
+        data: { headline: "Customer updated", message: "Customer details have been updated." }
       });
       this._loadCustomers();
     }
@@ -176,18 +173,24 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
 
   private _getCustomerName(customer: CustomerListItemDto): string {
     const name = [customer.firstName, customer.lastName].filter(Boolean).join(" ");
-    return name || "—";
+    return name || "N/A";
   }
 
   private _renderLoadingState(): unknown {
-    return html`<div class="loading"><uui-loader></uui-loader></div>`;
+    return html`<div class="loading" role="status"><uui-loader></uui-loader></div>`;
   }
 
   private _renderErrorState(): unknown {
     return html`
-      <div class="error-banner">
+      <div class="error-banner" role="alert">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._errorMessage}</span>
+        <uui-button
+          look="secondary"
+          label="Retry loading customers"
+          @click=${() => this._loadCustomers()}>
+          Retry
+        </uui-button>
       </div>
     `;
   }
@@ -207,7 +210,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
       <merchello-empty-state
         icon="icon-users"
         headline="No customers yet"
-        message="Customers are automatically created when orders are placed.">
+        message="Customers are created automatically when orders are placed.">
       </merchello-empty-state>
     `;
   }
@@ -217,11 +220,10 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
       <div class="search-box">
         <uui-input
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search by name or email"
           .value=${this._searchTerm}
           @input=${this._handleSearchInput}
-          label="Search customers"
-        >
+          label="Search customers">
           <uui-icon name="icon-search" slot="prepend"></uui-icon>
           ${this._searchTerm
             ? html`
@@ -230,8 +232,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
                   compact
                   look="secondary"
                   label="Clear search"
-                  @click=${this._handleSearchClear}
-                >
+                  @click=${this._handleSearchClear}>
                   <uui-icon name="icon-wrong"></uui-icon>
                 </uui-button>
               `
@@ -242,11 +243,20 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderCustomerRow(customer: CustomerListItemDto): unknown {
+    const customerName = this._getCustomerName(customer);
+
     return html`
-      <uui-table-row class="clickable" @click=${() => this._handleViewOrders(customer)}>
+      <uui-table-row>
         <uui-table-cell>
           <div class="customer-info">
-            <span class="customer-name">${this._getCustomerName(customer)}</span>
+            <uui-button
+              class="customer-name-link"
+              look="placeholder"
+              compact
+              label=${`View orders for ${customerName}`}
+              @click=${() => this._handleViewOrders(customer)}>
+              ${customerName}
+            </uui-button>
           </div>
         </uui-table-cell>
         <uui-table-cell>${customer.email}</uui-table-cell>
@@ -257,15 +267,15 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
             <uui-button
               look="secondary"
               compact
-              label="Edit"
-              @click=${(e: Event) => this._handleEditCustomer(e, customer)}>
+              label=${`Edit ${customerName}`}
+              @click=${() => this._handleEditCustomer(customer)}>
               <uui-icon name="icon-edit"></uui-icon>
             </uui-button>
             <uui-button
               look="secondary"
               compact
-              label="View Orders"
-              @click=${(e: Event) => { e.stopPropagation(); this._handleViewOrders(customer); }}>
+              label=${`View orders for ${customerName}`}
+              @click=${() => this._handleViewOrders(customer)}>
               <uui-icon name="icon-receipt-dollar"></uui-icon>
             </uui-button>
           </div>
@@ -285,7 +295,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
             <uui-table-head-cell>Created</uui-table-head-cell>
             <uui-table-head-cell class="actions-header">Actions</uui-table-head-cell>
           </uui-table-head>
-          ${this._customers.map((c) => this._renderCustomerRow(c))}
+          ${this._customers.map((customer) => this._renderCustomerRow(customer))}
         </uui-table>
       </div>
     `;
@@ -308,13 +318,10 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="customers-container">
-          <!-- Search Box -->
           ${this._renderSearchBox()}
 
-          <!-- Content -->
           ${this._renderContent()}
 
-          <!-- Pagination -->
           ${this._customers.length > 0 && !this._isLoading
             ? html`
                 <merchello-pagination
@@ -348,7 +355,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
 
       .search-box uui-input {
         width: 100%;
-        max-width: 400px;
+        max-width: 420px;
       }
 
       .table-container {
@@ -373,21 +380,15 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
         text-align: center;
       }
 
-      uui-table-row.clickable {
-        cursor: pointer;
-      }
-
-      uui-table-row.clickable:hover {
-        background: var(--uui-color-surface-emphasis);
-      }
-
       .customer-info {
         display: flex;
         flex-direction: column;
         gap: var(--uui-size-space-1);
       }
 
-      .customer-name {
+      .customer-name-link {
+        justify-content: flex-start;
+        padding: 0;
         font-weight: 500;
         color: var(--uui-color-interactive);
       }
@@ -417,6 +418,12 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-danger-contrast);
         border-radius: var(--uui-border-radius);
         margin-bottom: var(--uui-size-space-4);
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+
+      .error-banner uui-icon {
+        flex-shrink: 0;
       }
     `,
   ];

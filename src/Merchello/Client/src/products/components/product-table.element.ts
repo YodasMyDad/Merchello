@@ -34,25 +34,50 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
 
   private _handleSelectAll(e: Event): void {
     const checked = (e.target as HTMLInputElement).checked;
-    const newSelection = checked ? this.products.map((p) => p.id) : [];
+    const visibleIds = this.products.map((p) => p.id);
+    const visibleIdSet = new Set(visibleIds);
+    const currentlySelected = this._getSelectedIdSet();
+
+    const nextSelection = checked
+      ? new Set([...currentlySelected, ...visibleIds])
+      : new Set([...currentlySelected].filter((id) => !visibleIdSet.has(id)));
+
+    const newSelection = Array.from(nextSelection);
     this._dispatchSelectionChange(newSelection);
   }
 
   private _handleSelectProduct(id: string, e: Event): void {
     e.stopPropagation();
     const checked = (e.target as HTMLInputElement).checked;
-    const newSelection = checked
-      ? [...this.selectedIds, id]
-      : this.selectedIds.filter((selectedId) => selectedId !== id);
+    const selection = this._getSelectedIdSet();
+
+    if (checked) {
+      selection.add(id);
+    } else {
+      selection.delete(id);
+    }
+
+    const newSelection = Array.from(selection);
     this._dispatchSelectionChange(newSelection);
   }
 
   private _dispatchSelectionChange(selectedIds: string[]): void {
+    const uniqueSelectedIds = Array.from(new Set(selectedIds));
+
     this.dispatchEvent(new CustomEvent("selection-change", {
-      detail: { selectedIds } as ProductSelectionChangeEventDetail,
+      detail: { selectedIds: uniqueSelectedIds } as ProductSelectionChangeEventDetail,
       bubbles: true,
       composed: true,
     }));
+  }
+
+  private _getSelectedIdSet(): Set<string> {
+    return new Set(this.selectedIds);
+  }
+
+  private _getVisibleSelectedCount(): number {
+    const selected = this._getSelectedIdSet();
+    return this.products.filter((product) => selected.has(product.id)).length;
   }
 
   private _isAnchorClick(e: Event): boolean {
@@ -70,7 +95,7 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
     if (!this.clickable) return;
     if (this._isAnchorClick(e)) return;
     this.dispatchEvent(new CustomEvent("product-click", {
-      detail: { productId: product.id, product } as ProductClickEventDetail,
+      detail: { productId: product.productRootId, product } as ProductClickEventDetail,
       bubbles: true,
       composed: true,
     }));
@@ -78,10 +103,18 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
 
   private _renderHeaderCell(column: ProductColumnKey): unknown {
     if (column === "select") {
+      const visibleSelectedCount = this._getVisibleSelectedCount();
+      const allVisibleSelected = this.products.length > 0 && visibleSelectedCount === this.products.length;
+      const partiallySelected = visibleSelectedCount > 0 && visibleSelectedCount < this.products.length;
+
       return html`
         <uui-table-head-cell class="checkbox-col">
-          <uui-checkbox aria-label="Select all" @change=${this._handleSelectAll}
-            ?checked=${this.selectedIds.length === this.products.length && this.products.length > 0}></uui-checkbox>
+          <uui-checkbox
+            aria-label="Select all products"
+            .indeterminate=${partiallySelected}
+            ?checked=${allVisibleSelected}
+            @change=${this._handleSelectAll}>
+          </uui-checkbox>
         </uui-table-head-cell>
       `;
     }
@@ -93,7 +126,9 @@ export class MerchelloProductTableElement extends UmbElementMixin(LitElement) {
       case "select":
         return html`
           <uui-table-cell class="checkbox-col">
-            <uui-checkbox aria-label="Select ${product.rootName}" ?checked=${this.selectedIds.includes(product.id)}
+            <uui-checkbox
+              aria-label="Select ${product.rootName || product.id}"
+              ?checked=${this.selectedIds.includes(product.id)}
               @change=${(e: Event) => this._handleSelectProduct(product.id, e)}
               @click=${(e: Event) => e.stopPropagation()}></uui-checkbox>
           </uui-table-cell>

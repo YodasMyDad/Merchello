@@ -4,6 +4,8 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { CollectionModalData, CollectionModalValue } from "@collections/modals/collection-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
+const COLLECTION_FORM_ID = "MerchelloCollectionForm";
+
 @customElement("merchello-collection-modal")
 export class MerchelloCollectionModalElement extends UmbModalBaseElement<
   CollectionModalData,
@@ -25,7 +27,20 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
     }
   }
 
+  private _handleNameInput(event: Event): void {
+    this._name = (event.target as HTMLInputElement).value;
+    if (this._errors.name || this._errors.general) {
+      this._errors = {};
+    }
+  }
+
   private _validate(): boolean {
+    const form = this.shadowRoot?.querySelector<HTMLFormElement>(`#${COLLECTION_FORM_ID}`);
+    if (form && !form.checkValidity()) {
+      form.reportValidity();
+      return false;
+    }
+
     const errors: Record<string, string> = {};
 
     if (!this._name.trim()) {
@@ -36,10 +51,14 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
     return Object.keys(errors).length === 0;
   }
 
-  private async _handleSave(): Promise<void> {
+  private async _handleSave(event?: Event): Promise<void> {
+    event?.preventDefault();
+    if (this._isSaving) return;
     if (!this._validate()) return;
 
     this._isSaving = true;
+    this._errors = {};
+    const trimmedName = this._name.trim();
 
     if (this._isEditMode) {
       // Update existing collection
@@ -51,7 +70,7 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
       }
 
       const { data, error } = await MerchelloApi.updateProductCollection(collectionId, {
-        name: this._name.trim(),
+        name: trimmedName,
       });
 
       this._isSaving = false;
@@ -66,7 +85,7 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
     } else {
       // Create new collection
       const { data, error } = await MerchelloApi.createProductCollection({
-        name: this._name.trim(),
+        name: trimmedName,
       });
 
       this._isSaving = false;
@@ -88,43 +107,56 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
   override render() {
     const headline = this._isEditMode ? "Edit Collection" : "Add Collection";
     const saveLabel = this._isEditMode ? "Save Changes" : "Create Collection";
-    const savingLabel = this._isEditMode ? "Saving..." : "Creating...";
+    const submitLabel = this._isSaving ? "Saving..." : saveLabel;
 
     return html`
       <umb-body-layout headline=${headline}>
         <div id="main">
           ${this._errors.general
-            ? html`<div class="error-banner">${this._errors.general}</div>`
+            ? html`
+                <div class="error-banner" role="alert">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errors.general}</span>
+                </div>
+              `
             : nothing}
 
-          <div class="form-row">
-            <label for="collection-name">Collection Name <span class="required">*</span></label>
-            <uui-input
-              id="collection-name"
-              maxlength="500"
-              .value=${this._name}
-              @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
-              placeholder="e.g., Summer Sale, New Arrivals"
-              label="Collection name">
-            </uui-input>
-            <span class="hint">A name to identify this collection of products</span>
-            ${this._errors.name ? html`<span class="error">${this._errors.name}</span>` : nothing}
-          </div>
+          <uui-box>
+            <uui-form>
+              <form id=${COLLECTION_FORM_ID} @submit=${this._handleSave}>
+                <uui-form-layout-item>
+                  <uui-label slot="label" for="collection-name" required>Collection Name</uui-label>
+                  <uui-input
+                    id="collection-name"
+                    name="collectionName"
+                    label="Collection name"
+                    maxlength="500"
+                    required
+                    placeholder="e.g., Summer Sale"
+                    .value=${this._name}
+                    @input=${this._handleNameInput}>
+                  </uui-input>
+                  <span class="hint">Use a clear, short name to identify this collection.</span>
+                  ${this._errors.name ? html`<span class="error" role="alert">${this._errors.name}</span>` : nothing}
+                </uui-form-layout-item>
+              </form>
+            </uui-form>
+          </uui-box>
         </div>
 
-        <div slot="actions">
-          <uui-button label="Cancel" look="secondary" @click=${this._handleCancel}>
-            Cancel
-          </uui-button>
-          <uui-button
-            label=${saveLabel}
-            look="primary"
-            color="positive"
-            ?disabled=${this._isSaving}
-            @click=${this._handleSave}>
-            ${this._isSaving ? savingLabel : saveLabel}
-          </uui-button>
-        </div>
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._handleCancel}>
+          Cancel
+        </uui-button>
+        <uui-button
+          slot="actions"
+          type="submit"
+          form=${COLLECTION_FORM_ID}
+          label=${saveLabel}
+          look="primary"
+          color="positive"
+          ?disabled=${this._isSaving}>
+          ${submitLabel}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -137,22 +169,7 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
     #main {
       display: flex;
       flex-direction: column;
-      gap: var(--uui-size-space-5);
-    }
-
-    .form-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    label {
-      font-weight: 600;
-      font-size: 0.8125rem;
-    }
-
-    .required {
-      color: var(--uui-color-danger);
+      gap: var(--uui-size-space-4);
     }
 
     uui-input {
@@ -160,29 +177,27 @@ export class MerchelloCollectionModalElement extends UmbModalBaseElement<
     }
 
     .hint {
-      font-size: 0.75rem;
+      display: block;
+      margin-top: var(--uui-size-space-2);
+      font-size: var(--uui-type-small-size);
       color: var(--uui-color-text-alt);
     }
 
     .error-banner {
       display: flex;
       align-items: center;
-      gap: var(--uui-size-space-2);
-      padding: var(--uui-size-space-3);
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-4);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
 
     .error {
+      display: block;
+      margin-top: var(--uui-size-space-2);
       color: var(--uui-color-danger);
-      font-size: 0.75rem;
-    }
-
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
+      font-size: var(--uui-type-small-size);
     }
   `;
 }

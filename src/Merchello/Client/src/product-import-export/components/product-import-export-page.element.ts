@@ -4,6 +4,7 @@ import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { formatNumber } from "@shared/utils/formatting.js";
 import {
   ProductSyncProfile,
   ProductSyncIssueSeverity,
@@ -72,10 +73,10 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
 
     const kb = bytes / 1024;
     if (kb < 1024) {
-      return `${kb.toFixed(1)} KB`;
+      return `${formatNumber(kb, 1)} KB`;
     }
 
-    return `${(kb / 1024).toFixed(1)} MB`;
+    return `${formatNumber(kb / 1024, 1)} MB`;
   }
 
   private async _validateImport(): Promise<void> {
@@ -281,6 +282,7 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
                 description="Shopify Strict is Shopify-compatible. Merchello Extended includes custom columns for round-trips.">
                 <uui-select
                   slot="editor"
+                  label="Import profile"
                   .options=${[
                     {
                       name: "Shopify Strict",
@@ -321,6 +323,7 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
                 description="Continue importing products when image downloads fail. Failures are logged as warnings.">
                 <uui-toggle
                   slot="editor"
+                  label="Continue on image failure"
                   .checked=${this._continueOnImageFailure}
                   @change=${(event: Event) => {
                     this._continueOnImageFailure = (event.target as HTMLInputElement).checked;
@@ -332,6 +335,7 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
             <div class="actions">
               <uui-button
                 look="secondary"
+                label="Validate import file"
                 ?disabled=${!this._selectedFile || this._isValidating || this._isStartingImport}
                 @click=${this._validateImport}>
                 <uui-icon name=${this._isValidating ? "icon-hourglass" : "icon-search"} slot="icon"></uui-icon>
@@ -340,6 +344,7 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
               <uui-button
                 look="primary"
                 color="positive"
+                label="Start import"
                 ?disabled=${!canStartImport}
                 @click=${this._startImport}>
                 <uui-icon name=${this._isStartingImport ? "icon-hourglass" : "icon-cloud-upload"} slot="icon"></uui-icon>
@@ -364,6 +369,7 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
                 description="Choose Shopify Strict for Shopify import compatibility, or Merchello Extended for full Merchello metadata.">
                 <uui-select
                   slot="editor"
+                  label="Export profile"
                   .options=${[
                     {
                       name: "Shopify Strict",
@@ -387,6 +393,7 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
               <uui-button
                 look="primary"
                 color="positive"
+                label="Start export"
                 ?disabled=${this._isStartingExport}
                 @click=${this._startExport}>
                 <uui-icon name=${this._isStartingExport ? "icon-hourglass" : "icon-page-up"} slot="icon"></uui-icon>

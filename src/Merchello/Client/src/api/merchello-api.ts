@@ -810,6 +810,7 @@ export const MerchelloApi = {
     accountCustomersOnly?: boolean;
     overdueOnly?: boolean;
     dueWithinDays?: number;
+    search?: string;
     sortBy?: string;
     sortDir?: string;
   }) => {
@@ -831,8 +832,8 @@ export const MerchelloApi = {
     dateReceived?: string | null;
   }) => apiPost<{
     successCount: number;
-    failureCount: number;
-    errors: Array<{ invoiceId: string; errorMessage: string }>;
+    messages: string[];
+    paymentIds: string[];
   }>('orders/batch-mark-paid', data),
 
   /** Get outstanding balance summary for a customer */

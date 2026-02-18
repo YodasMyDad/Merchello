@@ -85,6 +85,7 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
                         <uui-table-cell><strong>${ws.warehouseName}</strong></uui-table-cell>
                         <uui-table-cell>
                           <uui-input
+                            label="Stock for ${ws.warehouseName}"
                             type="number"
                             min="0"
                             class="stock-input"
@@ -95,6 +96,7 @@ export class MerchelloVariantStockDisplayElement extends UmbElementMixin(LitElem
                         </uui-table-cell>
                         <uui-table-cell>
                           <uui-input
+                            label="Reorder point for ${ws.warehouseName}"
                             type="number"
                             min="0"
                             class="stock-input"

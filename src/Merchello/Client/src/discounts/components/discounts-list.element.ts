@@ -168,8 +168,8 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
 
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
-        headline: "Delete Discounts",
-        content: `Are you sure you want to delete ${count} discount${count !== 1 ? "s" : ""}? This action cannot be undone.`,
+        headline: "Delete selected discounts",
+        content: `Delete ${count} discount${count !== 1 ? "s" : ""}. This action cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -240,7 +240,14 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderErrorState(): unknown {
-    return html`<div class="error">${this._errorMessage}</div>`;
+    return html`
+      <uui-box class="error-box" headline="Could not load discounts">
+        <div class="error-content">
+          <p>${this._errorMessage}</p>
+          <uui-button look="secondary" label="Retry" @click=${this._loadDiscounts}>Retry</uui-button>
+        </div>
+      </uui-box>
+    `;
   }
 
   private _renderEmptyState(): unknown {
@@ -447,11 +454,20 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
       padding: var(--uui-size-space-6);
     }
 
-    .error {
-      padding: var(--uui-size-space-4);
-      background: var(--uui-color-danger-standalone);
-      color: var(--uui-color-danger-contrast);
-      border-radius: var(--uui-border-radius);
+    .error-box {
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .error-content {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--uui-size-space-3);
+      color: var(--uui-color-danger);
+    }
+
+    .error-content p {
+      margin: 0;
     }
 
     merchello-pagination {

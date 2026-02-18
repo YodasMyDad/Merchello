@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type {
@@ -198,9 +198,31 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
   private async _handleDelete(): Promise<void> {
     if (!this._subscription) return;
 
-    if (!confirm(`Delete webhook "${this._subscription.name}"? This cannot be undone.`)) {
+    if (!this.#modalManager) {
+      this.#notificationContext?.peek("warning", {
+        data: {
+          headline: "Action unavailable",
+          message: "Delete confirmation is not available right now. Refresh and try again.",
+        },
+      });
       return;
     }
+
+    const modalContext = this.#modalManager.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete webhook",
+        content: `Delete "${this._subscription.name}"? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    try {
+      await modalContext.onSubmit();
+    } catch {
+      return;
+    }
+    if (!this.#isConnected) return;
 
     const { error } = await MerchelloApi.deleteWebhookSubscription(this._subscription.id);
 
@@ -215,6 +237,23 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
       data: { headline: "Deleted", message: `Webhook "${this._subscription.name}" has been deleted.` },
     });
     this._handleBack();
+  }
+
+  private _toggleSecretVisibility(): void {
+    this._showSecret = !this._showSecret;
+  }
+
+  private async _copySecret(secret: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(secret);
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Copied", message: "HMAC secret copied to clipboard." },
+      });
+    } catch {
+      this.#notificationContext?.peek("warning", {
+        data: { headline: "Copy failed", message: "Clipboard access is unavailable in this browser context." },
+      });
+    }
   }
 
   private async _handleViewDelivery(delivery: OutboundDeliveryDto): Promise<void> {
@@ -325,19 +364,19 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
                   <div class="info-item secret-item">
                     <span class="info-label">HMAC Secret</span>
                     <div class="secret-value">
-                      <code>${this._showSecret ? sub.secret : "••••••••••••••••"}</code>
+                      <code>${this._showSecret ? sub.secret : "****************"}</code>
                       <uui-button
                         look="secondary"
                         compact
                         label=${this._showSecret ? "Hide" : "Show"}
-                        @click=${() => (this._showSecret = !this._showSecret)}>
+                        @click=${this._toggleSecretVisibility}>
                         <uui-icon name=${this._showSecret ? "icon-eye" : "icon-eye-slash"}></uui-icon>
                       </uui-button>
                       <uui-button
                         look="secondary"
                         compact
                         label="Copy"
-                        @click=${() => navigator.clipboard.writeText(sub.secret ?? "")}>
+                        @click=${() => this._copySecret(sub.secret ?? "")}>
                         <uui-icon name="icon-documents"></uui-icon>
                       </uui-button>
                     </div>
@@ -415,7 +454,7 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
         <uui-table-cell class="center">
           ${delivery.responseStatusCode !== null
             ? html`<span class="status-code status-code-${Math.floor(delivery.responseStatusCode / 100)}">${delivery.responseStatusCode}</span>`
-            : "—"}
+            : "-"}
         </uui-table-cell>
         <uui-table-cell class="center">${delivery.durationMs}ms</uui-table-cell>
         <uui-table-cell class="center">#${delivery.attemptNumber}</uui-table-cell>
@@ -489,10 +528,17 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="detail-container">
+          <div class="detail-container">
           ${this._renderHeader()}
           ${this._errorMessage
-            ? html`<div class="error-banner"><uui-icon name="icon-alert"></uui-icon> ${this._errorMessage}</div>`
+            ? html`
+                <uui-box class="error-box" headline="Could not load delivery history">
+                  <div class="error-content">
+                    <p>${this._errorMessage}</p>
+                    <uui-button look="secondary" label="Retry" @click=${this._loadDeliveries}>Retry</uui-button>
+                  </div>
+                </uui-box>
+              `
             : nothing}
           ${this._renderSubscriptionInfo()}
 
@@ -744,7 +790,7 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
 
       .badge-warning {
         background: var(--merchello-color-warning-status-background, #8a6500);
-        color: var(--merchello-color-warning-status-contrast, #fff);
+        color: #fff;
       }
 
       .badge-default {
@@ -782,15 +828,31 @@ export class MerchelloWebhookDetailElement extends UmbElementMixin(LitElement) {
         padding: var(--uui-size-space-6);
       }
 
-      .error-banner {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
-        padding: var(--uui-size-space-3);
-        background: var(--uui-color-danger-standalone);
-        color: var(--uui-color-danger-contrast);
-        border-radius: var(--uui-border-radius);
+      .error-box {
         margin-bottom: var(--uui-size-space-4);
+      }
+
+      .error-content {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--uui-size-space-3);
+        color: var(--uui-color-danger);
+      }
+
+      .error-content p {
+        margin: 0;
+      }
+
+      @media (max-width: 1000px) {
+        .header {
+          flex-wrap: wrap;
+        }
+
+        .header-actions {
+          width: 100%;
+          flex-wrap: wrap;
+        }
       }
     `,
   ];
@@ -803,3 +865,4 @@ declare global {
     "merchello-webhook-detail": MerchelloWebhookDetailElement;
   }
 }
+

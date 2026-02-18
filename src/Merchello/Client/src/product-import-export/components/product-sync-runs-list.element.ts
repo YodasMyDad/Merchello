@@ -389,6 +389,7 @@ export class MerchelloProductSyncRunsListElement extends UmbElementMixin(LitElem
           <uui-button
             compact
             look="secondary"
+            label="Previous page"
             ?disabled=${this._page <= 1}
             @click=${() => this._handlePageChange(this._page - 1)}>
             Previous
@@ -397,6 +398,7 @@ export class MerchelloProductSyncRunsListElement extends UmbElementMixin(LitElem
           <uui-button
             compact
             look="secondary"
+            label="Next page"
             ?disabled=${this._page >= this._totalPages}
             @click=${() => this._handlePageChange(this._page + 1)}>
             Next
@@ -438,7 +440,11 @@ export class MerchelloProductSyncRunsListElement extends UmbElementMixin(LitElem
             }}>
           </uui-select>
 
-          <uui-button look="secondary" @click=${() => this.reload()} ?disabled=${this._isRefreshing}>
+          <uui-button
+            look="secondary"
+            label="Refresh run history"
+            @click=${() => this.reload()}
+            ?disabled=${this._isRefreshing}>
             <uui-icon name=${this._isRefreshing ? "icon-hourglass" : "icon-refresh"} slot="icon"></uui-icon>
             Refresh
           </uui-button>

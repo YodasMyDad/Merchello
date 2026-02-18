@@ -26,6 +26,7 @@ import {
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
 import { navigateToDiscountsList, getDiscountsListHref, replaceToDiscountDetail } from "@shared/utils/navigation.js";
+import { badgeStyles } from "@shared/styles/badge.styles.js";
 import "@discounts/components/discount-summary-card.element.js";
 import "@discounts/components/discount-performance.element.js";
 import "@discounts/components/eligibility-rule-builder.element.js";
@@ -136,6 +137,11 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     if (this._activePath.includes("tab/schedule")) return "schedule";
     if (this._activePath.includes("tab/performance")) return "performance";
     return "details";
+  }
+
+  private _getTabHref(tabName: string): string {
+    const basePath = this._routerPath?.replace(/\/$/, "") ?? "";
+    return basePath ? `${basePath}/tab/${tabName}` : `tab/${tabName}`;
   }
 
   /**
@@ -396,7 +402,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Discount",
-        content: `Are you sure you want to delete "${this._discount.name}"? This action cannot be undone.`,
+        content: `Delete "${this._discount.name}". This action cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -486,6 +492,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
             description="Internal description for this discount">
             <uui-textarea
               slot="editor"
+              label="Description"
               maxlength="1000"
               .value=${this._discount?.description ?? ""}
               @input=${(e: Event) => this._handleInputChange("description", (e.target as HTMLTextAreaElement).value)}
@@ -523,6 +530,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
                     ></uui-input>
                     <uui-button
                       look="secondary"
+                      label=${this._isGeneratingCode ? "Generating code" : "Generate code"}
                       @click=${this._handleGenerateCode}
                       ?disabled=${this._isGeneratingCode}
                     >
@@ -857,37 +865,37 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       <uui-tab-group slot="header">
         <uui-tab
           label="Details"
-          href="${this._routerPath}/tab/details"
+          href=${this._getTabHref("details")}
           ?active=${activeTab === "details"}>
           Details
         </uui-tab>
         <uui-tab
           label="Applies To"
-          href="${this._routerPath}/tab/targets"
+          href=${this._getTabHref("targets")}
           ?active=${activeTab === "targets"}>
           Applies To
         </uui-tab>
         <uui-tab
           label="Requirements"
-          href="${this._routerPath}/tab/requirements"
+          href=${this._getTabHref("requirements")}
           ?active=${activeTab === "requirements"}>
           Requirements
         </uui-tab>
         <uui-tab
           label="Eligibility"
-          href="${this._routerPath}/tab/eligibility"
+          href=${this._getTabHref("eligibility")}
           ?active=${activeTab === "eligibility"}>
           Eligibility
         </uui-tab>
         <uui-tab
           label="Combinations"
-          href="${this._routerPath}/tab/combinations"
+          href=${this._getTabHref("combinations")}
           ?active=${activeTab === "combinations"}>
           Combinations
         </uui-tab>
         <uui-tab
           label="Schedule"
-          href="${this._routerPath}/tab/schedule"
+          href=${this._getTabHref("schedule")}
           ?active=${activeTab === "schedule"}>
           Schedule
         </uui-tab>
@@ -895,7 +903,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
           ? html`
               <uui-tab
                 label="Performance"
-                href="${this._routerPath}/tab/performance"
+                href=${this._getTabHref("performance")}
                 ?active=${activeTab === "performance"}>
                 Performance
               </uui-tab>
@@ -948,7 +956,7 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
           <umb-icon name="icon-coin-dollar"></umb-icon>
           <span class="headline">${this._getHeadline()}</span>
           ${!this._isNew && this._discount
-            ? html`<uui-tag look="secondary" color=${statusColor}>${statusLabel}</uui-tag>`
+            ? html`<span class="badge ${statusColor}">${statusLabel}</span>`
             : nothing}
         </div>
 
@@ -1032,7 +1040,9 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    badgeStyles,
+    css`
     :host {
       display: block;
       height: 100%;
@@ -1205,7 +1215,8 @@ export class MerchelloDiscountDetailElement extends UmbElementMixin(LitElement) 
       max-width: 400px;
     }
 
-  `;
+    `,
+  ];
 }
 
 export default MerchelloDiscountDetailElement;

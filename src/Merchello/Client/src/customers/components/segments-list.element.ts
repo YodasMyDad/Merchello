@@ -9,6 +9,7 @@ import type { CustomerSegmentListItemDto } from "@customers/types/segment.types.
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getSegmentDetailHref, getSegmentCreateHref } from "@shared/utils/navigation.js";
 import "@shared/components/merchello-empty-state.element.js";
+import "@shared/components/merchello-status-badge.element.js";
 
 @customElement("merchello-segments-list")
 export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
@@ -73,9 +74,9 @@ export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
 
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
-        headline: "Delete Segment",
-        content: `Are you sure you want to delete "${segment.name}"? This action cannot be undone.`,
-        confirmLabel: "Delete",
+        headline: "Delete segment",
+        content: `Deleting "${segment.name}" removes this segment and cannot be undone.`,
+        confirmLabel: "Delete segment",
         color: "danger",
       },
     });
@@ -126,7 +127,7 @@ export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
 
   private _renderErrorState(): unknown {
     return html`
-      <div class="error-banner">
+      <div class="error-banner" role="alert">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._errorMessage}</span>
       </div>
@@ -175,9 +176,10 @@ export class MerchelloSegmentsListElement extends UmbElementMixin(LitElement) {
         </uui-table-cell>
         <uui-table-cell class="center">${segment.memberCount}</uui-table-cell>
         <uui-table-cell>
-          <uui-tag color=${segment.isActive ? "positive" : "warning"}>
-            ${segment.isActive ? "Active" : "Inactive"}
-          </uui-tag>
+          <merchello-status-badge
+            cssClass=${segment.isActive ? "positive" : "warning"}
+            label=${segment.isActive ? "Active" : "Inactive"}>
+          </merchello-status-badge>
         </uui-table-cell>
         <uui-table-cell>${this._formatDate(segment.dateCreated)}</uui-table-cell>
         <uui-table-cell>

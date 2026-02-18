@@ -1,6 +1,14 @@
 import { html, css } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import type {
+  UmbTableColumn,
+  UmbTableConfig,
+  UmbTableDeselectedEvent,
+  UmbTableElement,
+  UmbTableItem,
+  UmbTableSelectedEvent,
+} from "@umbraco-cms/backoffice/components";
 import type { CollectionPickerModalData, CollectionPickerModalValue } from "@collections/modals/collection-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductCollectionDto } from "@products/types/product.types.js";
@@ -11,11 +19,10 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
   CollectionPickerModalValue
 > {
   @state() private _selectedIds: string[] = [];
-  @state() private _selectedNames: string[] = [];
-  @state() private _selectedCounts: number[] = [];
   @state() private _collections: ProductCollectionDto[] = [];
   @state() private _isLoading = true;
   @state() private _errorMessage: string | null = null;
+  @state() private _searchTerm = "";
 
   #isConnected = false;
 
@@ -50,33 +57,97 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
     this._isLoading = false;
   }
 
-  private _toggleSelection(collection: ProductCollectionDto): void {
-    const multiSelect = this.data?.multiSelect !== false; // default to true
+  private get _isMultiSelect(): boolean {
+    return this.data?.multiSelect !== false;
+  }
 
-    if (this._selectedIds.includes(collection.id)) {
-      // Remove from selection - find the index and remove from all arrays
-      const index = this._selectedIds.indexOf(collection.id);
-      this._selectedIds = this._selectedIds.filter((_, i) => i !== index);
-      this._selectedNames = this._selectedNames.filter((_, i) => i !== index);
-      this._selectedCounts = this._selectedCounts.filter((_, i) => i !== index);
-    } else {
-      if (multiSelect) {
-        this._selectedIds = [...this._selectedIds, collection.id];
-        this._selectedNames = [...this._selectedNames, collection.name];
-        this._selectedCounts = [...this._selectedCounts, collection.productCount];
-      } else {
-        this._selectedIds = [collection.id];
-        this._selectedNames = [collection.name];
-        this._selectedCounts = [collection.productCount];
-      }
+  private get _filteredCollections(): ProductCollectionDto[] {
+    const sortedCollections = [...this._collections].sort((a, b) => a.name.localeCompare(b.name));
+    if (!this._searchTerm.trim()) {
+      return sortedCollections;
     }
+    const term = this._searchTerm.toLowerCase().trim();
+    return sortedCollections.filter((collection) => collection.name.toLowerCase().includes(term));
+  }
+
+  private get _tableConfig(): UmbTableConfig {
+    return {
+      allowSelection: true,
+    };
+  }
+
+  private get _tableColumns(): Array<UmbTableColumn> {
+    return [
+      { name: "Collection", alias: "collectionName" },
+      { name: "Products", alias: "productCount", width: "120px", align: "right" },
+    ];
+  }
+
+  private _createTableItems(collections: ProductCollectionDto[]): Array<UmbTableItem> {
+    return collections.map((collection) => ({
+      id: collection.id,
+      icon: "icon-folder",
+      data: [
+        {
+          columnAlias: "collectionName",
+          value: collection.name,
+        },
+        {
+          columnAlias: "productCount",
+          value: collection.productCount,
+        },
+      ],
+    }));
+  }
+
+  private _applySelection(selectedIds: string[]): void {
+    const visibleCollectionIds = new Set(this._collections.map((collection) => collection.id));
+    const nextSelection = selectedIds.filter((id) => visibleCollectionIds.has(id));
+    this._selectedIds = this._isMultiSelect ? nextSelection : nextSelection.slice(0, 1);
+  }
+
+  private _handleTableSelected(event: UmbTableSelectedEvent): void {
+    event.stopPropagation();
+    const table = event.target as UmbTableElement;
+
+    if (this._isMultiSelect) {
+      this._applySelection(table.selection);
+      return;
+    }
+
+    const addedId = table.selection.find((id) => !this._selectedIds.includes(id));
+    if (addedId) {
+      this._applySelection([addedId]);
+      return;
+    }
+
+    this._applySelection(table.selection.slice(0, 1));
+  }
+
+  private _handleTableDeselected(event: UmbTableDeselectedEvent): void {
+    event.stopPropagation();
+    const table = event.target as UmbTableElement;
+    this._applySelection(table.selection);
+  }
+
+  private _handleSearchInput(event: Event): void {
+    this._searchTerm = (event.target as HTMLInputElement).value;
+  }
+
+  private _handleSearchClear(): void {
+    this._searchTerm = "";
   }
 
   private _handleSubmit(): void {
+    const collectionById = new Map(this._collections.map((collection) => [collection.id, collection]));
+    const selectedCollections = this._selectedIds
+      .map((id) => collectionById.get(id))
+      .filter((collection): collection is ProductCollectionDto => Boolean(collection));
+
     this.value = {
-      selectedIds: this._selectedIds,
-      selectedNames: this._selectedNames,
-      selectedCounts: this._selectedCounts,
+      selectedIds: selectedCollections.map((collection) => collection.id),
+      selectedNames: selectedCollections.map((collection) => collection.name),
+      selectedCounts: selectedCollections.map((collection) => collection.productCount),
     };
     this.modalContext?.submit();
   }
@@ -85,55 +156,40 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
     this.modalContext?.reject();
   }
 
-  private _renderCollectionRow(collection: ProductCollectionDto): unknown {
-    const isSelected = this._selectedIds.includes(collection.id);
-
-    return html`
-      <uui-table-row
-        selectable
-        ?selected=${isSelected}
-        @click=${() => this._toggleSelection(collection)}>
-        <uui-table-cell style="width: 40px;">
-          <uui-checkbox
-            aria-label="Select ${collection.name}"
-            .checked=${isSelected}
-            @change=${(e: Event) => {
-              e.stopPropagation();
-              this._toggleSelection(collection);
-            }}>
-          </uui-checkbox>
-        </uui-table-cell>
-        <uui-table-cell>
-          <div class="collection-info">
-            <uui-icon name="icon-folder"></uui-icon>
-            <span class="collection-name">${collection.name}</span>
-          </div>
-        </uui-table-cell>
-      </uui-table-row>
-    `;
-  }
-
   private _renderContent(): unknown {
     if (this._isLoading) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
     }
 
     if (this._errorMessage) {
-      return html`<div class="error-banner">${this._errorMessage}</div>`;
+      return html`
+        <div class="error-banner" role="alert">
+          <uui-icon name="icon-alert"></uui-icon>
+          <span>${this._errorMessage}</span>
+          <uui-button look="secondary" label="Retry" @click=${() => this._loadCollections()}>
+            Retry
+          </uui-button>
+        </div>
+      `;
     }
 
     if (this._collections.length === 0) {
       return html`<p class="empty-state">No collections available.</p>`;
     }
 
+    if (this._filteredCollections.length === 0) {
+      return html`<p class="empty-state">No collections match your search.</p>`;
+    }
+
     return html`
-      <uui-table class="collections-table">
-        <uui-table-head>
-          <uui-table-head-cell style="width: 40px;"></uui-table-head-cell>
-          <uui-table-head-cell>Collection</uui-table-head-cell>
-        </uui-table-head>
-        ${this._collections.map((collection) => this._renderCollectionRow(collection))}
-      </uui-table>
+      <umb-table
+        .config=${this._tableConfig}
+        .columns=${this._tableColumns}
+        .items=${this._createTableItems(this._filteredCollections)}
+        .selection=${this._selectedIds}
+        @selected=${this._handleTableSelected}
+        @deselected=${this._handleTableDeselected}>
+      </umb-table>
     `;
   }
 
@@ -143,22 +199,43 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
     return html`
       <umb-body-layout headline="Select Collections">
         <div id="main">
+          <div class="toolbar">
+            <uui-input
+              type="search"
+              label="Search collections"
+              placeholder="Search collections"
+              .value=${this._searchTerm}
+              @input=${this._handleSearchInput}>
+              <uui-icon name="icon-search" slot="prepend"></uui-icon>
+              ${this._searchTerm
+                ? html`
+                    <uui-button
+                      slot="append"
+                      compact
+                      look="secondary"
+                      label="Clear search"
+                      @click=${this._handleSearchClear}>
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  `
+                : ""}
+            </uui-input>
+          </div>
           <div class="results-container">${this._renderContent()}</div>
         </div>
 
-        <div slot="actions">
-          <uui-button label="Cancel" look="secondary" @click=${this._handleCancel}>
-            Cancel
-          </uui-button>
-          <uui-button
-            label="Add Selected"
-            look="primary"
-            color="positive"
-            ?disabled=${selectedCount === 0}
-            @click=${this._handleSubmit}>
-            Add Selected (${selectedCount})
-          </uui-button>
-        </div>
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._handleCancel}>
+          Cancel
+        </uui-button>
+        <uui-button
+          slot="actions"
+          label="Add selected collections"
+          look="primary"
+          color="positive"
+          ?disabled=${selectedCount === 0}
+          @click=${this._handleSubmit}>
+          Add Selected (${selectedCount})
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -175,38 +252,14 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
       height: 100%;
     }
 
+    .toolbar uui-input {
+      width: 100%;
+    }
+
     .results-container {
       flex: 1;
       overflow-y: auto;
       min-height: 300px;
-    }
-
-    .collections-table {
-      width: 100%;
-    }
-
-    uui-table-row[selectable] {
-      cursor: pointer;
-    }
-
-    uui-table-row[selected] {
-      background: var(--uui-color-selected);
-      color: var(--uui-color-selected-contrast, #fff);
-      font-weight: 600;
-    }
-
-    uui-table-row[selected] uui-icon {
-      color: var(--uui-color-selected-contrast, #fff);
-    }
-
-    .collection-info {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-    }
-
-    .collection-name {
-      font-weight: 500;
     }
 
     .loading {
@@ -222,16 +275,14 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
     }
 
     .error-banner {
-      padding: var(--uui-size-space-3);
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex-wrap: wrap;
+      padding: var(--uui-size-space-4);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
-    }
-
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
     }
   `;
 }

@@ -44,10 +44,13 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
   @state() private _isSendingTest = false;
   @state() private _workspaceIsLoading = false;
   @state() private _workspaceError: string | null = null;
+  @state() private _metadataError: string | null = null;
+  @state() private _topicDataError: string | null = null;
 
   #workspaceContext?: MerchelloEmailsWorkspaceContext;
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
+  #isConnected = false;
 
   private _routes: UmbRoute[] = [
     { path: "tab/details", component: stubComponent },
@@ -68,7 +71,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
           this._formData = { ...email };
           // Load tokens for the selected topic
           if (email.topic) {
-            this._loadTokensForTopic(email.topic);
+            void this._loadTokensForTopic(email.topic);
           }
         }
       }, '_email');
@@ -89,40 +92,68 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this._loadMetadata();
+    this.#isConnected = true;
+    void this._loadMetadata();
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.#isConnected = false;
   }
 
   private async _loadMetadata(): Promise<void> {
     this._isLoadingMetadata = true;
+    this._metadataError = null;
 
     const [categoriesResult, templatesResult] = await Promise.all([
       MerchelloApi.getEmailTopicsGrouped(),
       MerchelloApi.getEmailTemplates(),
     ]);
+    if (!this.#isConnected) return;
 
     if (categoriesResult.data) {
       this._topicCategories = categoriesResult.data;
+    } else {
+      this._topicCategories = [];
     }
     if (templatesResult.data) {
       this._templates = templatesResult.data;
+    } else {
+      this._templates = [];
+    }
+
+    const metadataErrors = [categoriesResult.error?.message, templatesResult.error?.message]
+      .filter((message): message is string => Boolean(message));
+    if (metadataErrors.length > 0) {
+      this._metadataError = metadataErrors.join(" ");
     }
 
     this._isLoadingMetadata = false;
   }
 
   private async _loadTokensForTopic(topic: string): Promise<void> {
+    this._topicDataError = null;
     const [tokensResult, attachmentsResult] = await Promise.all([
       MerchelloApi.getTopicTokens(topic),
       MerchelloApi.getTopicAttachments(topic),
     ]);
+    if (!this.#isConnected) return;
 
     if (tokensResult.data) {
       this._availableTokens = tokensResult.data;
+    } else {
+      this._availableTokens = [];
     }
     if (attachmentsResult.data) {
       this._availableAttachments = attachmentsResult.data;
     } else {
       this._availableAttachments = [];
+    }
+
+    const topicDataErrors = [tokensResult.error?.message, attachmentsResult.error?.message]
+      .filter((message): message is string => Boolean(message));
+    if (topicDataErrors.length > 0) {
+      this._topicDataError = topicDataErrors.join(" ");
     }
   }
 
@@ -145,10 +176,11 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
     this._clearFieldError("topic");
     // Load tokens and attachments for the new topic
     if (topic) {
-      this._loadTokensForTopic(topic);
+      void this._loadTokensForTopic(topic);
     } else {
       this._availableTokens = [];
       this._availableAttachments = [];
+      this._topicDataError = null;
     }
   }
 
@@ -376,6 +408,48 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
     );
   }
 
+  private _handleRetryMetadata(): void {
+    void this._loadMetadata();
+  }
+
+  private _handleRetryTopicData(): void {
+    if (this._formData.topic) {
+      void this._loadTokensForTopic(this._formData.topic);
+    }
+  }
+
+  private _renderMetadataWarning(): unknown {
+    if (!this._metadataError) {
+      return nothing;
+    }
+
+    return html`
+      <div class="inline-warning" role="alert">
+        <uui-icon name="icon-alert"></uui-icon>
+        <span>${this._metadataError}</span>
+        <uui-button look="secondary" label="Retry metadata load" @click=${this._handleRetryMetadata}>
+          Retry
+        </uui-button>
+      </div>
+    `;
+  }
+
+  private _renderTopicDataWarning(): unknown {
+    if (!this._topicDataError || !this._formData.topic) {
+      return nothing;
+    }
+
+    return html`
+      <div class="inline-warning" role="alert">
+        <uui-icon name="icon-alert"></uui-icon>
+        <span>${this._topicDataError}</span>
+        <uui-button look="secondary" label="Retry topic data load" @click=${this._handleRetryTopicData}>
+          Retry
+        </uui-button>
+      </div>
+    `;
+  }
+
   private _renderTabs(): unknown {
     return html`
       <uui-tab-group slot="header">
@@ -445,6 +519,9 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
 
   private _renderDetailsTab(): unknown {
     return html`
+      ${this._renderMetadataWarning()}
+      ${this._renderTopicDataWarning()}
+
       <uui-box headline="Email Configuration">
         <umb-property-layout label="Description" description="Optional description for this email">
           <uui-textarea
@@ -482,6 +559,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
             <merchello-token-autocomplete
               .value=${this._formData.toExpression || ""}
               .tokens=${this._availableTokens}
+              label="To expression"
               placeholder="e.g., {{customer.email}}"
               @value-changed=${this._handleToExpressionChange}>
             </merchello-token-autocomplete>
@@ -499,6 +577,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
             <merchello-token-autocomplete
               .value=${this._formData.subjectExpression || ""}
               .tokens=${this._availableTokens}
+              label="Subject expression"
               placeholder="e.g., Order #{{order.orderNumber}} Confirmed"
               @value-changed=${this._handleSubjectExpressionChange}>
             </merchello-token-autocomplete>
@@ -551,6 +630,8 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
 
   private _renderAdvancedTab(): unknown {
     return html`
+      ${this._renderTopicDataWarning()}
+
       <uui-box headline="Sender & Recipients">
         <umb-property-layout
           label="From"
@@ -559,6 +640,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
             slot="editor"
             .value=${this._formData.fromExpression || ""}
             .tokens=${this._availableTokens}
+            label="From expression"
             placeholder="e.g., noreply@store.com or {{store.email}}"
             @value-changed=${this._handleFromExpressionChange}>
           </merchello-token-autocomplete>
@@ -571,6 +653,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
             slot="editor"
             .value=${this._formData.ccExpression || ""}
             .tokens=${this._availableTokens}
+            label="CC expression"
             placeholder="e.g., manager@store.com"
             @value-changed=${this._handleCcExpressionChange}>
           </merchello-token-autocomplete>
@@ -583,6 +666,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
             slot="editor"
             .value=${this._formData.bccExpression || ""}
             .tokens=${this._availableTokens}
+            label="BCC expression"
             placeholder="e.g., archive@store.com"
             @value-changed=${this._handleBccExpressionChange}>
           </merchello-token-autocomplete>
@@ -601,6 +685,8 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
                   (attachment) => html`
                     <label class="attachment-item">
                       <uui-checkbox
+                        label=${`Attach ${attachment.displayName}`}
+                        aria-label=${`Attach ${attachment.displayName}`}
                         .checked=${(this._formData.attachmentAliases || []).includes(attachment.alias)}
                         @change=${(e: Event) => {
                           const checkbox = e.target as HTMLInputElement;
@@ -733,6 +819,7 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
         <umb-footer-layout slot="footer">
           <uui-button
             slot="actions"
+            label=${this._isNew ? "Create email" : "Save changes"}
             look="primary"
             color="positive"
             @click=${this._handleSave}
@@ -824,6 +911,17 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-danger);
         font-size: var(--uui-type-small-size);
         margin-top: var(--uui-size-space-2);
+      }
+
+      .inline-warning {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-3);
+        flex-wrap: wrap;
+        padding: var(--uui-size-space-3);
+        background: var(--uui-color-warning-standalone);
+        color: var(--uui-color-warning-contrast);
+        border-radius: var(--uui-border-radius);
       }
 
       .test-email-row {
@@ -970,6 +1068,18 @@ export class MerchelloEmailEditorElement extends UmbElementMixin(LitElement) {
       .no-attachments {
         color: var(--uui-color-text-alt);
         font-style: italic;
+      }
+
+      @media (max-width: 767px) {
+        .test-email-row {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .test-email-row uui-button {
+          width: 100%;
+          justify-content: center;
+        }
       }
     `,
   ];

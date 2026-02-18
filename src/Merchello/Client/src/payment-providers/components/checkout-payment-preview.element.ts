@@ -9,22 +9,6 @@ import type {
 } from "@payment-providers/types/payment-providers.types.js";
 import { getBrandIconSvg } from "@payment-providers/utils/brand-icons.js";
 
-/** Map of country/region codes to flag emojis */
-const REGION_FLAGS: Record<string, string> = {
-  US: "🇺🇸",
-  NL: "🇳🇱",
-  BE: "🇧🇪",
-  AT: "🇦🇹",
-  PL: "🇵🇱",
-  EU: "🇪🇺",
-  DE: "🇩🇪",
-  FR: "🇫🇷",
-  ES: "🇪🇸",
-  IT: "🇮🇹",
-  GB: "🇬🇧",
-  UK: "🇬🇧",
-};
-
 @customElement("merchello-checkout-payment-preview")
 export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitElement) {
   @state() private _preview: CheckoutPaymentPreviewDto | null = null;
@@ -92,7 +76,7 @@ export class MerchelloCheckoutPaymentPreviewElement extends UmbElementMixin(LitE
     if (!regions || regions.length === 0) return nothing;
     return html`
       ${regions.map(
-        (r) => html`<span class="region-badge" title="${r.name}">${REGION_FLAGS[r.code] ?? "🌍"}</span>`
+        (r) => html`<span class="region-badge" title="${r.name}">${r.code}</span>`
       )}
     `;
   }

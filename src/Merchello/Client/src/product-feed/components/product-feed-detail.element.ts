@@ -1507,6 +1507,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                   const checked = config.productTypeIds.includes(productType.id);
                   return html`
                     <uui-checkbox
+                      label=${productType.name}
                       ?checked=${checked}
                       @change=${(event: Event) =>
                         onProductTypeChange(productType.id, (event.target as HTMLInputElement).checked)}>
@@ -1555,6 +1556,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                   const checked = config.collectionIds.includes(collection.id);
                   return html`
                     <uui-checkbox
+                      label=${collection.name}
                       ?checked=${checked}
                       @change=${(event: Event) =>
                         onCollectionChange(collection.id, (event.target as HTMLInputElement).checked)}>
@@ -1612,6 +1614,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                           const checked = selectedForGroup?.filterIds.includes(filter.id) ?? false;
                           return html`
                             <uui-checkbox
+                              label=${filter.name}
                               ?checked=${checked}
                               @change=${(event: Event) =>
                                 onFilterValueChange(group.id, filter.id, (event.target as HTMLInputElement).checked)}>
@@ -1720,6 +1723,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
           <umb-property-layout label="Description">
             <uui-textarea
               slot="editor"
+              label="Promotion description"
               .value=${promotion.description ?? ""}
               @input=${(event: Event) =>
                 this._updateManualPromotion(index, (item) => ({
@@ -1989,6 +1993,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                             <umb-property-layout label="Resolver Parameters (JSON)" class="full-row">
                               <uui-textarea
                                 slot="editor"
+                                label="Custom label resolver parameters"
                                 .value=${argsText}
                                 ?invalid=${!!argsError}
                                 @input=${(event: Event) =>
@@ -2146,6 +2151,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
                           <umb-property-layout label="Resolver Parameters (JSON)" class="full-row">
                             <uui-textarea
                               slot="editor"
+                              label="Custom field resolver parameters"
                               .value=${argsText}
                               ?invalid=${!!argsError}
                               @input=${(event: Event) =>

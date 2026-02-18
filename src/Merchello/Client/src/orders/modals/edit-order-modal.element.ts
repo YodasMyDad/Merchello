@@ -1621,17 +1621,16 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       font-weight: 500;
     }
 
-    .fulfillment-badge.unfulfilled {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
-    }
-
+    .fulfillment-badge.unfulfilled,
+    .fulfillment-badge.default,
+    .fulfillment-badge.warning,
     .fulfillment-badge.partial {
-      background: var(--uui-color-current-standalone);
-      color: var(--uui-color-current-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
-    .fulfillment-badge.fulfilled {
+    .fulfillment-badge.fulfilled,
+    .fulfillment-badge.positive {
       background: var(--uui-color-positive-standalone);
       color: var(--uui-color-positive-contrast);
     }
