@@ -79,7 +79,7 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Warehouse",
-        content: `Are you sure you want to delete warehouse "${warehouse.name || "Unnamed"}"? This action cannot be undone.`,
+        content: `Delete warehouse "${warehouse.name || "Unnamed"}". This action cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -115,14 +115,25 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
   }
 
   private _renderLoadingState(): unknown {
-    return html`<div class="loading"><uui-loader></uui-loader></div>`;
+    return html`
+      <div class="loading" role="status" aria-live="polite">
+        <uui-loader></uui-loader>
+        <span>Loading warehouses...</span>
+      </div>
+    `;
   }
 
   private _renderErrorState(): unknown {
     return html`
-      <div class="error-banner">
+      <div class="error-banner" role="alert">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._errorMessage}</span>
+        <uui-button
+          look="secondary"
+          label="Retry loading warehouses"
+          @click=${() => this._loadWarehouses()}>
+          Retry
+        </uui-button>
       </div>
     `;
   }
@@ -159,14 +170,14 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
     const isDeleting = this._isDeleting === warehouse.id;
 
     return html`
-      <uui-table-row class="clickable">
+      <uui-table-row>
         <uui-table-cell class="name-cell">
           <a href=${getWarehouseDetailHref(warehouse.id)} class="warehouse-link">
             <span class="warehouse-name">${warehouse.name || "Unnamed Warehouse"}</span>
             ${warehouse.code ? html`<span class="warehouse-code">${warehouse.code}</span>` : nothing}
           </a>
         </uui-table-cell>
-        <uui-table-cell>${warehouse.supplierName || "—"}</uui-table-cell>
+        <uui-table-cell>${warehouse.supplierName || "-"}</uui-table-cell>
         <uui-table-cell>
           <span class="count-cell">
             ${this._renderWarningBadge(warehouse.serviceRegionCount, "No shipping regions configured")}
@@ -179,17 +190,16 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
             <span>${warehouse.shippingOptionCount}</span>
           </span>
         </uui-table-cell>
-        <uui-table-cell class="address-cell">${warehouse.addressSummary || "—"}</uui-table-cell>
+        <uui-table-cell class="address-cell">${warehouse.addressSummary || "-"}</uui-table-cell>
         <uui-table-cell>
           <div class="actions-cell">
-            <a href=${getWarehouseDetailHref(warehouse.id)}>
-              <uui-button
-                look="secondary"
-                compact
-                label="Edit">
-                <uui-icon name="icon-edit"></uui-icon>
-              </uui-button>
-            </a>
+            <uui-button
+              href=${getWarehouseDetailHref(warehouse.id)}
+              look="secondary"
+              compact
+              label="Edit">
+              <uui-icon name="icon-edit"></uui-icon>
+            </uui-button>
             <uui-button
               look="primary"
               color="danger"
@@ -242,14 +252,13 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
         <div class="warehouses-container">
           <!-- Header Actions -->
           <div class="header-actions">
-            <a href=${getWarehouseCreateHref()}>
-              <uui-button
-                look="primary"
-                color="positive"
-                label="Add Warehouse">
-                Add Warehouse
-              </uui-button>
-            </a>
+            <uui-button
+              href=${getWarehouseCreateHref()}
+              look="primary"
+              color="positive"
+              label="Add Warehouse">
+              Add Warehouse
+            </uui-button>
           </div>
 
           <!-- Info Banner -->
@@ -287,10 +296,6 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
         margin-bottom: var(--uui-size-space-4);
       }
 
-      .header-actions a {
-        text-decoration: none;
-      }
-
       .info-banner {
         display: flex;
         gap: var(--uui-size-space-3);
@@ -318,14 +323,6 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
 
       .warehouse-table {
         width: 100%;
-      }
-
-      uui-table-row.clickable {
-        cursor: pointer;
-      }
-
-      uui-table-row.clickable:hover {
-        background: var(--uui-color-surface-emphasis);
       }
 
       .name-cell {
@@ -366,8 +363,8 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
         align-items: center;
         justify-content: center;
         padding: 2px;
-        background: var(--uui-color-warning-standalone);
-        color: var(--uui-color-warning-contrast);
+        background: var(--merchello-color-warning-status-background, #8a6500);
+        color: #fff;
         border-radius: 50%;
       }
 
@@ -390,20 +387,25 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
         justify-content: flex-end;
       }
 
-      .actions-cell a {
-        text-decoration: none;
-      }
-
       .loading {
         display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-2);
+        align-items: center;
         justify-content: center;
         padding: var(--uui-size-space-6);
+      }
+
+      .loading span {
+        color: var(--uui-color-text-alt);
+        font-size: 0.875rem;
       }
 
       .error-banner {
         display: flex;
         gap: var(--uui-size-space-3);
         align-items: center;
+        flex-wrap: wrap;
         padding: var(--uui-size-space-4);
         background: var(--uui-color-danger-standalone);
         color: var(--uui-color-danger-contrast);

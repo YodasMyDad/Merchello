@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
-import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type {
@@ -79,13 +79,17 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
     }
 
     // Load stats
+    await this._refreshStats();
+
+    this._loadSubscriptions();
+  }
+
+  private async _refreshStats(): Promise<void> {
     const { data: stats } = await MerchelloApi.getWebhookStats();
     if (!this.#isConnected) return;
     if (stats) {
       this._stats = stats;
     }
-
-    this._loadSubscriptions();
   }
 
   private async _loadSubscriptions(): Promise<void> {
@@ -180,9 +184,7 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
     const result = await modal.onSubmit().catch(() => undefined);
     if (result?.saved) {
       this._loadSubscriptions();
-      // Refresh stats
-      const { data: stats } = await MerchelloApi.getWebhookStats();
-      if (stats) this._stats = stats;
+      await this._refreshStats();
     }
   }
 
@@ -252,9 +254,31 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!confirm(`Delete webhook "${subscription.name}"? This cannot be undone.`)) {
+    if (!this.#modalManager) {
+      this.#notificationContext?.peek("warning", {
+        data: {
+          headline: "Action unavailable",
+          message: "Delete confirmation is not available right now. Refresh and try again.",
+        },
+      });
       return;
     }
+
+    const modalContext = this.#modalManager.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete webhook",
+        content: `Delete "${subscription.name}"? This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
+
+    try {
+      await modalContext.onSubmit();
+    } catch {
+      return;
+    }
+    if (!this.#isConnected) return;
 
     const { error } = await MerchelloApi.deleteWebhookSubscription(subscription.id);
 
@@ -271,9 +295,7 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
       data: { headline: "Deleted", message: `Webhook "${subscription.name}" has been deleted.` },
     });
     this._loadSubscriptions();
-    // Refresh stats
-    const { data: stats } = await MerchelloApi.getWebhookStats();
-    if (stats) this._stats = stats;
+    await this._refreshStats();
   }
 
   private _handleViewDeliveries(subscription: WebhookSubscriptionDto): void {
@@ -311,10 +333,12 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
 
   private _renderErrorState(): unknown {
     return html`
-      <div class="error-banner">
-        <uui-icon name="icon-alert"></uui-icon>
-        <span>${this._errorMessage}</span>
-      </div>
+      <uui-box class="error-box" headline="Could not load webhooks">
+        <div class="error-content">
+          <p>${this._errorMessage}</p>
+          <uui-button look="secondary" label="Retry" @click=${this._loadSubscriptions}>Retry</uui-button>
+        </div>
+      </uui-box>
     `;
   }
 
@@ -667,15 +691,20 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
         padding: var(--uui-size-space-6);
       }
 
-      .error-banner {
-        display: flex;
-        gap: var(--uui-size-space-3);
-        align-items: center;
-        padding: var(--uui-size-space-4);
-        background: var(--uui-color-danger-standalone);
-        color: var(--uui-color-danger-contrast);
-        border-radius: var(--uui-border-radius);
+      .error-box {
         margin-bottom: var(--uui-size-space-4);
+      }
+
+      .error-content {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--uui-size-space-3);
+        color: var(--uui-color-danger);
+      }
+
+      .error-content p {
+        margin: 0;
       }
     `,
   ];
@@ -688,3 +717,4 @@ declare global {
     "merchello-webhooks-list": MerchelloWebhooksListElement;
   }
 }
+

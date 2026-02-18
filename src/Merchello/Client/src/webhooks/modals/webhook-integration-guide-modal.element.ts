@@ -186,20 +186,18 @@ export class MerchelloWebhookIntegrationGuideModalElement extends UmbModalBaseEl
     return html`
       <umb-body-layout headline="Webhook Integration Guide">
         <div id="main">
-          <div class="markdown-content">
-            ${unsafeHTML(this._renderedContent)}
-          </div>
+          <uui-box>
+            <div class="markdown-content">
+              ${this._renderedContent
+                ? unsafeHTML(this._renderedContent)
+                : html`<div class="loading"><uui-loader></uui-loader></div>`}
+            </div>
+          </uui-box>
         </div>
 
-        <div slot="actions">
-          <uui-button
-            label="Close"
-            look="primary"
-            @click=${this._handleClose}
-          >
-            Close
-          </uui-button>
-        </div>
+        <uui-button slot="actions" label="Close" look="secondary" @click=${this._handleClose}>
+          Close
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -207,6 +205,12 @@ export class MerchelloWebhookIntegrationGuideModalElement extends UmbModalBaseEl
   static override readonly styles = css`
     :host {
       display: block;
+    }
+
+    .loading {
+      display: flex;
+      justify-content: center;
+      padding: var(--uui-size-space-6);
     }
 
     .markdown-content {
@@ -257,7 +261,7 @@ export class MerchelloWebhookIntegrationGuideModalElement extends UmbModalBaseEl
       background: var(--uui-color-surface-alt);
       padding: 2px 6px;
       border-radius: 4px;
-      font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
+      font-family: var(--uui-font-monospace, monospace);
       font-size: 0.875em;
     }
 
@@ -304,10 +308,10 @@ export class MerchelloWebhookIntegrationGuideModalElement extends UmbModalBaseEl
       font-weight: 600;
     }
 
-    [slot="actions"] {
+    #main {
       display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
+      flex-direction: column;
+      gap: var(--uui-size-space-4);
     }
   `;
 }
@@ -319,3 +323,4 @@ declare global {
     "merchello-webhook-integration-guide-modal": MerchelloWebhookIntegrationGuideModalElement;
   }
 }
+

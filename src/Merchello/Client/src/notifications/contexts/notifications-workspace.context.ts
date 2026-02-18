@@ -33,6 +33,9 @@ export class MerchelloNotificationsWorkspaceContext
   #loading = new UmbBooleanState(false);
   readonly loading = this.#loading.asObservable();
 
+  #loadError = new UmbObjectState<string | null>(null);
+  readonly loadError = this.#loadError.asObservable();
+
   #searchTerm = new UmbStringState("");
   readonly searchTerm = this.#searchTerm.asObservable();
 
@@ -67,17 +70,27 @@ export class MerchelloNotificationsWorkspaceContext
     return "notifications";
   }
 
-  async loadData(): Promise<void> {
+  async loadData(force = false): Promise<void> {
+    if (this.#loading.getValue()) {
+      return;
+    }
+
     // Skip if already loaded (cached on backend)
-    if (this.#data.getValue()) {
+    if (!force && this.#data.getValue()) {
       return;
     }
 
     this.#loading.setValue(true);
+    this.#loadError.setValue(null);
+
     const { data, error } = await MerchelloApi.getNotifications();
-    if (!error && data) {
-      this.#data.setValue(data);
+    if (error || !data) {
+      this.#loadError.setValue(error?.message ?? "Failed to load notifications.");
+      this.#loading.setValue(false);
+      return;
     }
+
+    this.#data.setValue(data);
     this.#loading.setValue(false);
   }
 

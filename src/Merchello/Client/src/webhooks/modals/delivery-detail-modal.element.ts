@@ -260,7 +260,12 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
       <umb-body-layout headline="Delivery Details">
         <div id="main">
           ${this._errorMessage
-            ? html`<div class="error-banner">${this._errorMessage}</div>`
+            ? html`
+                <div class="error-banner" role="alert">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errorMessage}</span>
+                </div>
+              `
             : nothing}
 
           ${this._isLoading
@@ -273,25 +278,25 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
               `}
         </div>
 
-        <div slot="actions">
-          ${this._canRetry()
-            ? html`
-                <uui-button
-                  look="primary"
-                  color="warning"
-                  label="Retry Delivery"
-                  ?disabled=${this._isRetrying}
-                  @click=${this._handleRetry}>
-                  ${this._isRetrying
-                    ? html`<uui-loader-bar></uui-loader-bar> Retrying...`
-                    : html`<uui-icon name="icon-refresh"></uui-icon> Retry`}
-                </uui-button>
-              `
-            : nothing}
-          <uui-button label="Close" look="secondary" @click=${this._handleClose}>
-            Close
-          </uui-button>
-        </div>
+        <uui-button slot="actions" type="button" label="Close" look="secondary" @click=${this._handleClose}>
+          Close
+        </uui-button>
+        ${this._canRetry()
+          ? html`
+              <uui-button
+                slot="actions"
+                type="button"
+                look="primary"
+                color="positive"
+                label="Retry Delivery"
+                ?disabled=${this._isRetrying}
+                @click=${this._handleRetry}>
+                ${this._isRetrying
+                  ? html`<uui-loader-bar></uui-loader-bar> Retrying...`
+                  : html`<uui-icon name="icon-refresh"></uui-icon> Retry`}
+              </uui-button>
+            `
+          : nothing}
       </umb-body-layout>
     `;
   }
@@ -393,7 +398,7 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
 
     .badge-warning {
       background: var(--merchello-color-warning-status-background, #8a6500);
-      color: var(--merchello-color-warning-status-contrast, #fff);
+      color: #fff;
     }
 
     .badge-default {
@@ -461,12 +466,6 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
       white-space: pre-wrap;
       word-break: break-word;
     }
-
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
-    }
   `;
 }
 
@@ -477,3 +476,4 @@ declare global {
     "merchello-delivery-detail-modal": MerchelloDeliveryDetailModalElement;
   }
 }
+

@@ -189,7 +189,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
 
           ${this._errors.general
             ? html`
-                <div class="error-banner">
+                <div class="error-banner" role="alert">
                   <uui-icon name="icon-alert"></uui-icon>
                   <span>${this._errors.general}</span>
                 </div>
@@ -197,7 +197,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
             : nothing}
           ${this._errors.duplicate
             ? html`
-                <div class="error-banner">
+                <div class="error-banner" role="alert">
                   <uui-icon name="icon-alert"></uui-icon>
                   <span>${this._errors.duplicate}</span>
                 </div>
@@ -221,7 +221,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
             <umb-property-layout
               label="State/Province"
               description=${this._regions.length === 0 && this._countryCode && !this._isLoadingRegions
-                ? "No subdivisions available — rule applies to entire country"
+                ? "No subdivisions available - rule applies to entire country"
                 : "Leave as 'All regions' to apply to entire country"}>
               <uui-select
                 slot="editor"
@@ -235,8 +235,10 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
 
           <uui-box headline="Shipping Mode">
             <div class="mode-cards">
-              <div
+              <button
+                type="button"
                 class="mode-card ${!this._isExcluded ? "active" : ""}"
+                aria-pressed=${!this._isExcluded}
                 @click=${() => (this._isExcluded = false)}>
                 <div class="mode-icon include">
                   <uui-icon name="icon-check"></uui-icon>
@@ -245,9 +247,11 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
                   <strong>Include</strong>
                   <span>Ship to this region</span>
                 </div>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 class="mode-card ${this._isExcluded ? "active" : ""}"
+                aria-pressed=${this._isExcluded}
                 @click=${() => (this._isExcluded = true)}>
                 <div class="mode-icon exclude">
                   <uui-icon name="icon-block"></uui-icon>
@@ -256,7 +260,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
                   <strong>Exclude</strong>
                   <span>Don't ship here</span>
                 </div>
-              </div>
+              </button>
             </div>
             ${this._isExcluded
               ? html`
@@ -274,19 +278,18 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
           </uui-box>
         </div>
 
-        <div slot="actions">
-          <uui-button label="Cancel" look="secondary" @click=${this._handleCancel}>
-            Cancel
-          </uui-button>
-          <uui-button
-            label="${isEditing ? "Save" : "Add Region"}"
-            look="primary"
-            color="positive"
-            ?disabled=${this._isSaving}
-            @click=${this._handleSave}>
-            ${this._isSaving ? "Saving..." : isEditing ? "Save" : "Add Region"}
-          </uui-button>
-        </div>
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._handleCancel}>
+          Cancel
+        </uui-button>
+        <uui-button
+          slot="actions"
+          label="${isEditing ? "Save" : "Add Region"}"
+          look="primary"
+          color="positive"
+          ?disabled=${this._isSaving}
+          @click=${this._handleSave}>
+          ${this._isSaving ? "Saving..." : isEditing ? "Save" : "Add Region"}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -360,16 +363,25 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
       .mode-card {
         display: flex;
         gap: var(--uui-size-space-3);
+        width: 100%;
         padding: var(--uui-size-space-4);
         background: var(--uui-color-surface);
         border: 2px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
         cursor: pointer;
         transition: all 0.15s ease;
+        text-align: left;
+        font: inherit;
+        color: inherit;
       }
 
       .mode-card:hover {
         border-color: var(--uui-color-border-emphasis);
+      }
+
+      .mode-card:focus-visible {
+        outline: 2px solid var(--uui-color-interactive);
+        outline-offset: 2px;
       }
 
       .mode-card.active {
@@ -447,11 +459,6 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
         font-size: 0.75rem;
       }
 
-      [slot="actions"] {
-        display: flex;
-        gap: var(--uui-size-space-2);
-        justify-content: flex-end;
-      }
     `,
   ];
 }
