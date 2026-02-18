@@ -48,10 +48,10 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
     if (!this._result) return nothing;
 
     return html`
-      <div class="result ${this._result.success ? 'success' : 'failure'}">
+      <uui-box class="result ${this._result.success ? "success" : "failure"}">
         <div class="result-header">
           <uui-icon name=${this._result.success ? "icon-check" : "icon-wrong"}></uui-icon>
-          <span class="result-title">${this._result.success ? "Test Successful" : "Test Failed"}</span>
+          <span class="result-title">${this._result.success ? "Test successful" : "Test failed"}</span>
         </div>
 
         <div class="result-details">
@@ -89,7 +89,7 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
               `
             : nothing}
         </div>
-      </div>
+      </uui-box>
     `;
   }
 
@@ -109,49 +109,58 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
       <umb-body-layout headline="Test Webhook">
         <div id="main">
           ${this._errorMessage
-            ? html`<div class="error-banner">${this._errorMessage}</div>`
+            ? html`
+                <div class="error-banner" role="alert">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errorMessage}</span>
+                </div>
+              `
             : nothing}
 
-          <div class="subscription-info">
-            <div class="info-row">
-              <span class="info-label">Name:</span>
-              <span class="info-value">${subscription?.name}</span>
+          <uui-box>
+            <div class="subscription-info">
+              <div class="info-row">
+                <span class="info-label">Name:</span>
+                <span class="info-value">${subscription?.name}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Topic:</span>
+                <span class="info-value">${subscription?.topicDisplayName || subscription?.topic}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">URL:</span>
+                <span class="info-value url">${subscription?.targetUrl}</span>
+              </div>
             </div>
-            <div class="info-row">
-              <span class="info-label">Topic:</span>
-              <span class="info-value">${subscription?.topicDisplayName || subscription?.topic}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">URL:</span>
-              <span class="info-value url">${subscription?.targetUrl}</span>
-            </div>
-          </div>
+          </uui-box>
 
-          <div class="test-section">
-            <p class="description">
-              Send a test webhook to verify your endpoint is configured correctly.
-              A sample payload for the "${subscription?.topicDisplayName || subscription?.topic}" event will be sent.
-            </p>
+          <uui-box>
+            <div class="test-section">
+              <p class="description">
+                Send a test webhook to verify your endpoint is configured correctly.
+                A sample payload for the "${subscription?.topicDisplayName || subscription?.topic}" event will be sent.
+              </p>
 
-            <uui-button
-              look="primary"
-              label="Send Test Webhook"
-              ?disabled=${this._isTesting}
-              @click=${this._handleSendTest}>
-              ${this._isTesting
-                ? html`<uui-loader-bar></uui-loader-bar> Sending...`
-                : html`<uui-icon name="icon-flash" slot="icon"></uui-icon> Send Test Webhook`}
-            </uui-button>
-          </div>
+              <uui-button
+                type="button"
+                look="primary"
+                color="positive"
+                label="Send Test Webhook"
+                ?disabled=${this._isTesting}
+                @click=${this._handleSendTest}>
+                ${this._isTesting
+                  ? html`<uui-loader-bar></uui-loader-bar> Sending...`
+                  : html`<uui-icon name="icon-flash" slot="icon"></uui-icon> Send Test Webhook`}
+              </uui-button>
+            </div>
+          </uui-box>
 
           ${this._renderResult()}
         </div>
 
-        <div slot="actions">
-          <uui-button label="Close" look="secondary" @click=${this._handleClose}>
-            Close
-          </uui-button>
-        </div>
+        <uui-button slot="actions" type="button" label="Close" look="secondary" @click=${this._handleClose}>
+          Close
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -168,9 +177,9 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
     }
 
     .subscription-info {
-      background: var(--uui-color-surface-alt);
-      border-radius: var(--uui-border-radius);
-      padding: var(--uui-size-space-4);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-1);
     }
 
     .info-row {
@@ -209,16 +218,15 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
     }
 
     .result {
-      border-radius: var(--uui-border-radius);
-      padding: var(--uui-size-space-4);
+      border: 1px solid var(--uui-color-border);
     }
 
     .result.success {
-      background: var(--uui-color-positive-standalone);
+      border-color: var(--uui-color-positive);
     }
 
     .result.failure {
-      background: var(--uui-color-danger-standalone);
+      border-color: var(--uui-color-danger);
     }
 
     .result-header {
@@ -229,11 +237,11 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
     }
 
     .result.success .result-header {
-      color: var(--uui-color-positive-contrast);
+      color: var(--uui-color-positive);
     }
 
     .result.failure .result-header {
-      color: var(--uui-color-danger-contrast);
+      color: var(--uui-color-danger);
     }
 
     .result-title {
@@ -248,11 +256,11 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
     }
 
     .result.success .result-details {
-      color: var(--uui-color-positive-contrast);
+      color: var(--uui-color-text);
     }
 
     .result.failure .result-details {
-      color: var(--uui-color-danger-contrast);
+      color: var(--uui-color-text);
     }
 
     .detail-row {
@@ -312,11 +320,6 @@ export class MerchelloWebhookTestModalElement extends UmbModalBaseElement<
       border-radius: var(--uui-border-radius);
     }
 
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
-    }
   `;
 }
 
@@ -327,3 +330,4 @@ declare global {
     "merchello-webhook-test-modal": MerchelloWebhookTestModalElement;
   }
 }
+

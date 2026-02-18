@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import type {
@@ -28,13 +30,19 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
   @state() private _totalPages = 0;
   @state() private _searchTerm = "";
   @state() private _selectedCategory: string | null = null;
+  @state() private _isDeletingEmailId: string | null = null;
+  @state() private _isTogglingEmailIds = new Set<string>();
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
 
   constructor() {
     super();
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
+    });
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
@@ -60,13 +68,18 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
     this._pageSize = settings.defaultPaginationPageSize;
 
     // Load categories for filter tabs
-    const { data: categories } = await MerchelloApi.getEmailTopicsGrouped();
+    const { data: categories, error: categoriesError } = await MerchelloApi.getEmailTopicsGrouped();
     if (!this.#isConnected) return;
     if (categories) {
       this._categories = categories;
     }
+    if (categoriesError) {
+      this.#notificationContext?.peek("warning", {
+        data: { headline: "Categories unavailable", message: categoriesError.message },
+      });
+    }
 
-    this._loadEmails();
+    await this._loadEmails();
   }
 
   private async _loadEmails(): Promise<void> {
@@ -126,6 +139,13 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
     this._loadEmails();
   }
 
+  private _handleClearFilters(): void {
+    this._searchTerm = "";
+    this._selectedCategory = null;
+    this._page = 1;
+    this._loadEmails();
+  }
+
   private _handleCategoryChange(category: string | null): void {
     this._selectedCategory = category;
     this._page = 1;
@@ -154,58 +174,100 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
     navigateToEmailDetail(email.id);
   }
 
+  private _setTogglingState(emailId: string, isToggling: boolean): void {
+    if (isToggling) {
+      this._isTogglingEmailIds = new Set([...this._isTogglingEmailIds, emailId]);
+      return;
+    }
+
+    const next = new Set(this._isTogglingEmailIds);
+    next.delete(emailId);
+    this._isTogglingEmailIds = next;
+  }
+
   private async _handleToggleEnabled(e: Event, email: EmailConfigurationDto): Promise<void> {
     e.preventDefault();
     e.stopPropagation();
+    if (this._isDeletingEmailId === email.id || this._isTogglingEmailIds.has(email.id)) {
+      return;
+    }
 
     // Optimistically update UI
     const idx = this._emails.findIndex((item) => item.id === email.id);
     if (idx === -1) return;
 
     const originalEmails = [...this._emails];
+    this._setTogglingState(email.id, true);
     this._emails = [
       ...this._emails.slice(0, idx),
       { ...email, enabled: !email.enabled },
       ...this._emails.slice(idx + 1),
     ];
 
-    const { error } = await MerchelloApi.toggleEmailConfiguration(email.id);
+    try {
+      const { error } = await MerchelloApi.toggleEmailConfiguration(email.id);
 
-    if (!this.#isConnected) return;
+      if (!this.#isConnected) return;
 
-    if (error) {
-      // Revert on error
-      this._emails = originalEmails;
-      this.#notificationContext?.peek("danger", {
-        data: { headline: "Failed", message: error.message },
-      });
+      if (error) {
+        // Revert on error
+        this._emails = originalEmails;
+        this.#notificationContext?.peek("danger", {
+          data: { headline: "Failed", message: error.message },
+        });
+      }
+    } finally {
+      this._setTogglingState(email.id, false);
     }
   }
 
   private async _handleDeleteEmail(e: Event, email: EmailConfigurationDto): Promise<void> {
     e.preventDefault();
     e.stopPropagation();
-
-    // Simple confirm
-    if (!confirm(`Delete email "${email.name}"? This cannot be undone.`)) {
+    if (this._isDeletingEmailId === email.id || this._isTogglingEmailIds.has(email.id)) {
       return;
     }
 
-    const { error } = await MerchelloApi.deleteEmailConfiguration(email.id);
+    const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+      data: {
+        headline: "Delete email",
+        content: `Delete "${email.name}". This action cannot be undone.`,
+        confirmLabel: "Delete",
+        color: "danger",
+      },
+    });
 
+    try {
+      await modalContext?.onSubmit();
+    } catch {
+      return;
+    }
     if (!this.#isConnected) return;
 
-    if (error) {
-      this.#notificationContext?.peek("danger", {
-        data: { headline: "Failed to delete", message: error.message },
-      });
-      return;
-    }
+    this._isDeletingEmailId = email.id;
 
-    this.#notificationContext?.peek("positive", {
-      data: { headline: "Deleted", message: `Email "${email.name}" has been deleted.` },
-    });
-    this._loadEmails();
+    try {
+      const { error } = await MerchelloApi.deleteEmailConfiguration(email.id);
+
+      if (!this.#isConnected) return;
+      this._isDeletingEmailId = null;
+
+      if (error) {
+        this.#notificationContext?.peek("danger", {
+          data: { headline: "Failed to delete", message: error.message },
+        });
+        return;
+      }
+
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Deleted", message: `Email "${email.name}" has been deleted.` },
+      });
+      this._loadEmails();
+    } finally {
+      if (this._isDeletingEmailId === email.id) {
+        this._isDeletingEmailId = null;
+      }
+    }
   }
 
   private _renderLoadingState(): unknown {
@@ -214,10 +276,15 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
 
   private _renderErrorState(): unknown {
     return html`
-      <div class="error-banner">
-        <uui-icon name="icon-alert"></uui-icon>
-        <span>${this._errorMessage}</span>
-      </div>
+      <uui-box>
+        <div class="error-banner" role="alert">
+          <uui-icon name="icon-alert"></uui-icon>
+          <span>${this._errorMessage}</span>
+          <uui-button look="secondary" label="Retry" @click=${() => this._loadEmails()}>
+            Retry
+          </uui-button>
+        </div>
+      </uui-box>
     `;
   }
 
@@ -228,6 +295,9 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
           icon="icon-search"
           headline="No emails found"
           message="Try adjusting your search or filter.">
+          <uui-button slot="actions" look="secondary" label="Clear filters" @click=${this._handleClearFilters}>
+            Clear Filters
+          </uui-button>
         </merchello-empty-state>
       `;
     }
@@ -238,8 +308,9 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
         headline="No emails configured"
         message="Create your first automated email to get started.">
         <uui-button
-          slot="action"
+          slot="actions"
           look="primary"
+          color="positive"
           label="Add Email"
           @click=${this._handleCreateEmail}>
           Add Email
@@ -253,7 +324,7 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
       <div class="toolbar">
         <div class="search-box">
           <uui-input
-            type="text"
+            type="search"
             placeholder="Search emails..."
             .value=${this._searchTerm}
             @input=${this._handleSearchInput}
@@ -276,6 +347,7 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
 
         <uui-button
           look="primary"
+          color="positive"
           label="Add Email"
           @click=${this._handleCreateEmail}>
           <uui-icon name="icon-add" slot="icon"></uui-icon>
@@ -309,8 +381,18 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderEmailRow(email: EmailConfigurationDto): unknown {
+    const isDeleting = this._isDeletingEmailId === email.id;
+    const isToggling = this._isTogglingEmailIds.has(email.id);
+    const isBusy = isDeleting || isToggling;
+
     return html`
-      <uui-table-row class="clickable" @click=${() => this._handleEditEmail(email)}>
+      <uui-table-row
+        class="clickable ${isBusy ? "busy" : ""}"
+        @click=${() => {
+          if (!isBusy) {
+            this._handleEditEmail(email);
+          }
+        }}>
         <uui-table-cell>
           <div class="email-info">
             <span class="email-name">${email.name}</span>
@@ -331,8 +413,9 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
         <uui-table-cell class="center">
           <uui-toggle
             .checked=${email.enabled}
-            @click=${(e: Event) => this._handleToggleEnabled(e, email)}
-            label="${email.enabled ? 'Enabled' : 'Disabled'}">
+            ?disabled=${isBusy}
+            @change=${(e: Event) => this._handleToggleEnabled(e, email)}
+            label=${`Toggle ${email.name} enabled status`}>
           </uui-toggle>
         </uui-table-cell>
         <uui-table-cell class="center">
@@ -343,15 +426,14 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
               : nothing}
           </div>
         </uui-table-cell>
-        <uui-table-cell>
-          ${email.lastSentUtc ? formatRelativeDate(email.lastSentUtc) : "—"}
-        </uui-table-cell>
+        <uui-table-cell>${email.lastSentUtc ? formatRelativeDate(email.lastSentUtc) : "-"}</uui-table-cell>
         <uui-table-cell>
           <div class="actions-cell">
             <uui-button
               look="secondary"
               compact
-              label="Edit"
+              ?disabled=${isBusy}
+              label=${`Edit email ${email.name}`}
               @click=${(e: Event) => {
                 e.stopPropagation();
                 this._handleEditEmail(email);
@@ -362,9 +444,14 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
               look="secondary"
               compact
               color="danger"
-              label="Delete"
+              ?disabled=${isBusy}
+              label=${`Delete email ${email.name}`}
               @click=${(e: Event) => this._handleDeleteEmail(e, email)}>
-              <uui-icon name="icon-trash"></uui-icon>
+              ${isDeleting
+                ? "Deleting..."
+                : html`
+                    <uui-icon name="icon-trash"></uui-icon>
+                  `}
             </uui-button>
           </div>
         </uui-table-cell>
@@ -436,18 +523,21 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
       .emails-container {
         max-width: 100%;
         padding: var(--uui-size-layout-1);
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
       }
 
       .toolbar {
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
         align-items: center;
         gap: var(--uui-size-space-4);
-        margin-bottom: var(--uui-size-space-4);
       }
 
       .search-box {
-        flex: 1;
+        flex: 1 1 280px;
         max-width: 400px;
       }
 
@@ -456,7 +546,7 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
       }
 
       .category-tabs {
-        margin-bottom: var(--uui-size-space-4);
+        width: 100%;
       }
 
       .table-container {
@@ -464,7 +554,6 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-surface);
         border: 1px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
       }
 
       .emails-table {
@@ -487,6 +576,10 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
 
       uui-table-row.clickable:hover {
         background: var(--uui-color-surface-emphasis);
+      }
+
+      uui-table-row.clickable.busy {
+        cursor: progress;
       }
 
       .email-info {
@@ -555,11 +648,26 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
         display: flex;
         gap: var(--uui-size-space-3);
         align-items: center;
+        flex-wrap: wrap;
         padding: var(--uui-size-space-4);
         background: var(--uui-color-danger-standalone);
         color: var(--uui-color-danger-contrast);
         border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
+      }
+
+      @media (max-width: 767px) {
+        .toolbar {
+          align-items: stretch;
+        }
+
+        .search-box {
+          max-width: 100%;
+        }
+
+        .toolbar > uui-button {
+          width: 100%;
+          justify-content: center;
+        }
       }
     `,
   ];
@@ -572,3 +680,4 @@ declare global {
     "merchello-email-list": MerchelloEmailListElement;
   }
 }
+

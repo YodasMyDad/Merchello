@@ -40,6 +40,8 @@ export class MerchelloEmptyStateElement extends UmbElementMixin(LitElement) {
         <uui-icon name=${this.icon}></uui-icon>
         <h3>${this.headline}</h3>
         ${this.message ? html`<p>${this.message}</p>` : nothing}
+        <slot name="actions"></slot>
+        <slot name="action"></slot>
       </div>
     `;
   }
@@ -67,6 +69,11 @@ export class MerchelloEmptyStateElement extends UmbElementMixin(LitElement) {
 
     .empty-state p {
       margin: 0;
+    }
+
+    ::slotted([slot="actions"]),
+    ::slotted([slot="action"]) {
+      margin-top: var(--uui-size-space-4);
     }
   `;
 }

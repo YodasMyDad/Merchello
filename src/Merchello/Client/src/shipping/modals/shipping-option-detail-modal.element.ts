@@ -287,7 +287,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Shipping Cost",
-        content: `Are you sure you want to delete the shipping cost for ${displayName}?`,
+        content: `Delete the shipping cost for ${displayName}.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -334,7 +334,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Weight Tier",
-        content: `Are you sure you want to delete the weight tier "${displayName}"?`,
+        content: `Delete weight tier "${displayName}".`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -450,7 +450,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Postcode Rule",
-        content: `Are you sure you want to delete the postcode rule "${displayName}"?`,
+        content: `Delete postcode rule "${displayName}".`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -1078,18 +1078,17 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
           <div class="tab-content">${this._renderActiveTabContent()}</div>
         </div>
 
-        <div slot="actions">
-          <uui-button label="Cancel" @click=${this._close}>Cancel</uui-button>
-          <uui-button
-            look="primary"
-            label="${isEditing ? 'Save' : 'Create'}"
-            ?disabled=${this._isSaving}
-            @click=${this._save}
-          >
-            ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
-            ${isEditing ? "Save" : "Create"}
-          </uui-button>
-        </div>
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._close}>Cancel</uui-button>
+        <uui-button
+          slot="actions"
+          look="primary"
+          color="positive"
+          label="${isEditing ? "Save" : "Create"}"
+          ?disabled=${this._isSaving}
+          @click=${this._save}>
+          ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+          ${isEditing ? "Save" : "Create"}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -1284,11 +1283,6 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       background: var(--uui-color-surface);
       border: 1px dashed var(--uui-color-border);
       border-radius: var(--uui-border-radius);
-    }
-
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-3);
     }
 
     [slot="description"] {
