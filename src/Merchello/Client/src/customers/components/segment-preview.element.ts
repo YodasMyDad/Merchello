@@ -131,19 +131,19 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
         <div class="statistics-grid">
           <div class="stat-card">
             <div class="stat-value">${this._statistics.totalMembers}</div>
-            <div class="stat-label">Total Members</div>
+            <div class="stat-label">Total members</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">${this._statistics.activeMembers}</div>
-            <div class="stat-label">Active Members</div>
+            <div class="stat-label">Active members</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">${this._formatCurrency(this._statistics.totalRevenue)}</div>
-            <div class="stat-label">Total Revenue</div>
+            <div class="stat-label">Total revenue</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">${this._formatCurrency(this._statistics.averageOrderValue)}</div>
-            <div class="stat-label">Average Order Value</div>
+            <div class="stat-label">Average order value</div>
           </div>
         </div>
       </uui-box>
@@ -156,7 +156,7 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
 
   private _renderErrorState(): unknown {
     return html`
-      <div class="error-banner">
+      <div class="error-banner" role="alert">
         <uui-icon name="icon-alert"></uui-icon>
         <span>${this._errorMessage}</span>
       </div>
@@ -177,7 +177,7 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
     return html`
       <uui-table-row>
         <uui-table-cell>
-          <span class="customer-name">${customer.name || "—"}</span>
+          <span class="customer-name">${customer.name || "N/A"}</span>
         </uui-table-cell>
         <uui-table-cell>${customer.email}</uui-table-cell>
         <uui-table-cell class="center">${customer.orderCount}</uui-table-cell>
@@ -194,9 +194,9 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
             <uui-table-head-cell>Name</uui-table-head-cell>
             <uui-table-head-cell>Email</uui-table-head-cell>
             <uui-table-head-cell class="center">Orders</uui-table-head-cell>
-            <uui-table-head-cell class="right">Total Spend</uui-table-head-cell>
+            <uui-table-head-cell class="right">Total spend</uui-table-head-cell>
           </uui-table-head>
-          ${this._customers.map((c) => this._renderCustomerRow(c))}
+          ${this._customers.map((customer) => this._renderCustomerRow(customer))}
         </uui-table>
       </div>
     `;
@@ -218,28 +218,24 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
   override render() {
     return html`
       <div class="preview-container">
-        <!-- Statistics -->
         ${this._renderStatisticsCard()}
 
-        <!-- Header -->
         <div class="header-actions">
           <span class="matching-count">
             ${this._totalItems} customer${this._totalItems !== 1 ? "s" : ""} match${this._totalItems === 1 ? "es" : ""} the criteria
           </span>
           <uui-button
             look="secondary"
-            label="Refresh"
+            label="Refresh preview"
             @click=${this._handleRefresh}
             ?disabled=${this._isLoading}>
             <uui-icon name="icon-sync"></uui-icon>
-            Refresh
+            Refresh preview
           </uui-button>
         </div>
 
-        <!-- Content -->
         ${this._renderContent()}
 
-        <!-- Pagination -->
         ${this._customers.length > 0 && !this._isLoading
           ? html`
               <merchello-pagination
@@ -298,6 +294,8 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: var(--uui-size-space-3);
+        flex-wrap: wrap;
       }
 
       .matching-count {
@@ -348,6 +346,10 @@ export class MerchelloSegmentPreviewElement extends UmbElementMixin(LitElement) 
         background: var(--uui-color-danger-standalone);
         color: var(--uui-color-danger-contrast);
         border-radius: var(--uui-border-radius);
+      }
+
+      .error-banner uui-icon {
+        flex-shrink: 0;
       }
     `,
   ];

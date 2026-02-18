@@ -5,6 +5,7 @@ import { UMB_MODAL_MANAGER_CONTEXT, type UmbModalManagerContext } from "@umbraco
 import { UpsellEligibilityType, type UpsellEligibilityRuleDto } from "@upsells/types/upsell.types.js";
 import { MERCHELLO_CUSTOMER_PICKER_MODAL } from "@customers/modals/customer-picker-modal.token.js";
 import { MERCHELLO_SEGMENT_PICKER_MODAL } from "@customers/modals/segment-picker-modal.token.js";
+import { MerchelloApi } from "@api/merchello-api.js";
 
 const ELIGIBILITY_TYPE_OPTIONS = [
   { value: UpsellEligibilityType.AllCustomers, label: "Everyone" },
@@ -74,6 +75,28 @@ export class MerchelloUpsellEligibilityRuleBuilderElement extends UmbElementMixi
     return type === UpsellEligibilityType.CustomerSegments || type === UpsellEligibilityType.SpecificCustomers;
   }
 
+  private _mergeSelections(
+    existingIds?: string[],
+    existingNames?: string[],
+    incomingIds?: string[],
+    incomingNames?: string[]
+  ): { ids: string[]; names: string[] } {
+    const merged = new Map<string, string>();
+
+    (existingIds ?? []).forEach((id, index) => {
+      merged.set(id, existingNames?.[index] ?? id);
+    });
+
+    (incomingIds ?? []).forEach((id, index) => {
+      merged.set(id, incomingNames?.[index] ?? id);
+    });
+
+    return {
+      ids: [...merged.keys()],
+      names: [...merged.values()],
+    };
+  }
+
   private async _openPicker(index: number, rule: UpsellEligibilityRuleDto): Promise<void> {
     if (!this.#modalManager) return;
 
@@ -83,9 +106,15 @@ export class MerchelloUpsellEligibilityRuleBuilderElement extends UmbElementMixi
       });
       const result = await modal.onSubmit().catch(() => undefined);
       if (result?.selectedIds?.length) {
+        const merged = this._mergeSelections(
+          rule.eligibilityIds,
+          rule.eligibilityNames,
+          result.selectedIds,
+          result.selectedNames
+        );
         this._handleUpdateRule(index, {
-          eligibilityIds: [...(rule.eligibilityIds ?? []), ...result.selectedIds],
-          eligibilityNames: [...(rule.eligibilityNames ?? []), ...result.selectedNames],
+          eligibilityIds: merged.ids,
+          eligibilityNames: merged.names,
         });
       }
     } else if (rule.eligibilityType === UpsellEligibilityType.SpecificCustomers) {
@@ -94,8 +123,22 @@ export class MerchelloUpsellEligibilityRuleBuilderElement extends UmbElementMixi
       });
       const result = await modal.onSubmit().catch(() => undefined);
       if (result?.selectedCustomerIds?.length) {
+        const customerNames = await Promise.all(result.selectedCustomerIds.map(async (customerId) => {
+          const { data } = await MerchelloApi.getCustomer(customerId);
+          if (!data) return customerId;
+          return [data.firstName, data.lastName].filter(Boolean).join(" ") || data.email || customerId;
+        }));
+
+        const merged = this._mergeSelections(
+          rule.eligibilityIds,
+          rule.eligibilityNames,
+          result.selectedCustomerIds,
+          customerNames
+        );
+
         this._handleUpdateRule(index, {
-          eligibilityIds: [...(rule.eligibilityIds ?? []), ...result.selectedCustomerIds],
+          eligibilityIds: merged.ids,
+          eligibilityNames: merged.names,
         });
       }
     }
@@ -118,6 +161,9 @@ export class MerchelloUpsellEligibilityRuleBuilderElement extends UmbElementMixi
 
   override render() {
     return html`
+      ${this.rules.length === 0
+        ? html`<div class="empty-state">No eligibility rules added. This upsell is available to everyone.</div>`
+        : nothing}
       ${this.rules.map((rule, index) => this._renderRule(rule, index))}
       <uui-button look="placeholder" @click=${this._handleAddRule} label="Add eligibility rule">
         <uui-icon name="icon-add"></uui-icon> Add eligibility rule
@@ -143,14 +189,16 @@ export class MerchelloUpsellEligibilityRuleBuilderElement extends UmbElementMixi
           ? html`
             <div class="rule-body">
               <div class="tags">
-                ${(rule.eligibilityNames ?? []).map((name, i) => html`
-                  <uui-tag look="secondary">
-                    ${name}
-                    <uui-button compact label="Remove" @click=${() => this._removeItem(index, rule, i)}>
-                      <uui-icon name="icon-wrong"></uui-icon>
-                    </uui-button>
-                  </uui-tag>
-                `)}
+                ${(rule.eligibilityNames ?? []).length > 0
+                  ? (rule.eligibilityNames ?? []).map((name, i) => html`
+                      <uui-tag look="secondary">
+                        ${name}
+                        <uui-button compact label="Remove" @click=${() => this._removeItem(index, rule, i)}>
+                          <uui-icon name="icon-wrong"></uui-icon>
+                        </uui-button>
+                      </uui-tag>
+                    `)
+                  : html`<span class="empty-selection">No items selected yet.</span>`}
               </div>
               <uui-button look="outline" @click=${() => this._openPicker(index, rule)} label=${this._getPickerLabel(rule.eligibilityType)}>
                 ${this._getPickerLabel(rule.eligibilityType)}
@@ -189,11 +237,25 @@ export class MerchelloUpsellEligibilityRuleBuilderElement extends UmbElementMixi
       margin-top: var(--uui-size-space-3);
     }
 
+    .empty-state {
+      margin-bottom: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
     .tags {
       display: flex;
       flex-wrap: wrap;
       gap: var(--uui-size-space-2);
       margin-bottom: var(--uui-size-space-2);
+    }
+
+    .empty-selection {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
     }
 
     uui-button[look="placeholder"] {

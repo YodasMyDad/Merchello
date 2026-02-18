@@ -111,6 +111,28 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
     ].includes(type);
   }
 
+  private _mergeSelections(
+    existingIds?: string[],
+    existingNames?: string[],
+    incomingIds?: string[],
+    incomingNames?: string[]
+  ): { ids: string[]; names: string[] } {
+    const merged = new Map<string, string>();
+
+    (existingIds ?? []).forEach((id, index) => {
+      merged.set(id, existingNames?.[index] ?? id);
+    });
+
+    (incomingIds ?? []).forEach((id, index) => {
+      merged.set(id, incomingNames?.[index] ?? id);
+    });
+
+    return {
+      ids: [...merged.keys()],
+      names: [...merged.values()],
+    };
+  }
+
   private async _openPicker(index: number, rule: UpsellTriggerRuleDto): Promise<void> {
     if (!this.#modalManager) return;
 
@@ -121,9 +143,15 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selections?.length) {
+          const merged = this._mergeSelections(
+            rule.triggerIds,
+            rule.triggerNames,
+            result.selections.map((s) => s.productId),
+            result.selections.map((s) => s.name)
+          );
           this._handleUpdateRule(index, {
-            triggerIds: [...(rule.triggerIds ?? []), ...result.selections.map((s) => s.productId)],
-            triggerNames: [...(rule.triggerNames ?? []), ...result.selections.map((s) => s.name)],
+            triggerIds: merged.ids,
+            triggerNames: merged.names,
           });
         }
         break;
@@ -134,9 +162,15 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedIds?.length) {
+          const merged = this._mergeSelections(
+            rule.triggerIds,
+            rule.triggerNames,
+            result.selectedIds,
+            result.selectedNames
+          );
           this._handleUpdateRule(index, {
-            triggerIds: [...(rule.triggerIds ?? []), ...result.selectedIds],
-            triggerNames: [...(rule.triggerNames ?? []), ...result.selectedNames],
+            triggerIds: merged.ids,
+            triggerNames: merged.names,
           });
         }
         break;
@@ -147,9 +181,15 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedIds?.length) {
+          const merged = this._mergeSelections(
+            rule.triggerIds,
+            rule.triggerNames,
+            result.selectedIds,
+            result.selectedNames
+          );
           this._handleUpdateRule(index, {
-            triggerIds: [...(rule.triggerIds ?? []), ...result.selectedIds],
-            triggerNames: [...(rule.triggerNames ?? []), ...result.selectedNames],
+            triggerIds: merged.ids,
+            triggerNames: merged.names,
           });
         }
         break;
@@ -160,9 +200,15 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedIds?.length) {
+          const merged = this._mergeSelections(
+            rule.triggerIds,
+            rule.triggerNames,
+            result.selectedIds,
+            result.selectedNames
+          );
           this._handleUpdateRule(index, {
-            triggerIds: [...(rule.triggerIds ?? []), ...result.selectedIds],
-            triggerNames: [...(rule.triggerNames ?? []), ...result.selectedNames],
+            triggerIds: merged.ids,
+            triggerNames: merged.names,
           });
         }
         break;
@@ -173,9 +219,15 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedFilterIds?.length) {
+          const merged = this._mergeSelections(
+            rule.triggerIds,
+            rule.triggerNames,
+            result.selectedFilterIds,
+            result.selectedFilterNames
+          );
           this._handleUpdateRule(index, {
-            triggerIds: [...(rule.triggerIds ?? []), ...result.selectedFilterIds],
-            triggerNames: [...(rule.triggerNames ?? []), ...result.selectedFilterNames],
+            triggerIds: merged.ids,
+            triggerNames: merged.names,
           });
         }
         break;
@@ -192,9 +244,15 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (result?.selectedFilterIds?.length) {
+      const merged = this._mergeSelections(
+        rule.extractFilterIds,
+        rule.extractFilterNames,
+        result.selectedFilterIds,
+        result.selectedFilterNames
+      );
       this._handleUpdateRule(index, {
-        extractFilterIds: [...(rule.extractFilterIds ?? []), ...result.selectedFilterIds],
-        extractFilterNames: [...(rule.extractFilterNames ?? []), ...result.selectedFilterNames],
+        extractFilterIds: merged.ids,
+        extractFilterNames: merged.names,
       });
     }
   }
@@ -240,6 +298,9 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
 
   override render() {
     return html`
+      ${this.rules.length === 0
+        ? html`<div class="empty-state">No trigger rules added. Add a rule to define when this upsell should appear.</div>`
+        : nothing}
       ${this.rules.map((rule, index) => this._renderRule(rule, index))}
       <uui-button look="placeholder" @click=${this._handleAddRule} label="Add trigger rule">
         <uui-icon name="icon-add"></uui-icon> Add trigger rule
@@ -265,14 +326,16 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
           ? html`
             <div class="rule-body">
               <div class="tags">
-                ${(rule.triggerNames ?? []).map((name, i) => html`
-                  <uui-tag look="secondary">
-                    ${name}
-                    <uui-button compact label="Remove" @click=${() => this._removeItem(index, rule, i)}>
-                      <uui-icon name="icon-wrong"></uui-icon>
-                    </uui-button>
-                  </uui-tag>
-                `)}
+                ${(rule.triggerNames ?? []).length > 0
+                  ? (rule.triggerNames ?? []).map((name, i) => html`
+                      <uui-tag look="secondary">
+                        ${name}
+                        <uui-button compact label="Remove" @click=${() => this._removeItem(index, rule, i)}>
+                          <uui-icon name="icon-wrong"></uui-icon>
+                        </uui-button>
+                      </uui-tag>
+                    `)
+                  : html`<span class="empty-selection">No trigger items selected yet.</span>`}
               </div>
               <uui-button look="outline" @click=${() => this._openPicker(index, rule)} label=${this._getPickerLabel(rule.triggerType)}>
                 ${this._getPickerLabel(rule.triggerType)}
@@ -284,14 +347,16 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
                 <div class="filter-extraction">
                   <label>Only match products with these filter values (optional):</label>
                   <div class="tags">
-                    ${(rule.extractFilterNames ?? []).map((name, i) => html`
-                      <uui-tag look="secondary" color="warning">
-                        ${name}
-                        <uui-button compact label="Remove" @click=${() => this._removeFilter(index, rule, i)}>
-                          <uui-icon name="icon-wrong"></uui-icon>
-                        </uui-button>
-                      </uui-tag>
-                    `)}
+                    ${(rule.extractFilterNames ?? []).length > 0
+                      ? (rule.extractFilterNames ?? []).map((name, i) => html`
+                          <uui-tag look="secondary" color="warning">
+                            ${name}
+                            <uui-button compact label="Remove" @click=${() => this._removeFilter(index, rule, i)}>
+                              <uui-icon name="icon-wrong"></uui-icon>
+                            </uui-button>
+                          </uui-tag>
+                        `)
+                      : html`<span class="empty-selection">No filter values selected.</span>`}
                   </div>
                   <uui-button look="outline" @click=${() => this._openFilterValuePicker(index, rule)} label="Select filter values">
                     Select filter values
@@ -373,11 +438,25 @@ export class MerchelloUpsellTriggerRuleBuilderElement extends UmbElementMixin(Li
       margin-top: var(--uui-size-space-3);
     }
 
+    .empty-state {
+      margin-bottom: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
     .tags {
       display: flex;
       flex-wrap: wrap;
       gap: var(--uui-size-space-2);
       margin-bottom: var(--uui-size-space-2);
+    }
+
+    .empty-selection {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
     }
 
     .filter-extraction {

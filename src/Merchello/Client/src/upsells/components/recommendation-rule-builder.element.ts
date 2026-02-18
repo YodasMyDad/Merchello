@@ -78,6 +78,28 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
     });
   }
 
+  private _mergeSelections(
+    existingIds?: string[],
+    existingNames?: string[],
+    incomingIds?: string[],
+    incomingNames?: string[]
+  ): { ids: string[]; names: string[] } {
+    const merged = new Map<string, string>();
+
+    (existingIds ?? []).forEach((id, index) => {
+      merged.set(id, existingNames?.[index] ?? id);
+    });
+
+    (incomingIds ?? []).forEach((id, index) => {
+      merged.set(id, incomingNames?.[index] ?? id);
+    });
+
+    return {
+      ids: [...merged.keys()],
+      names: [...merged.values()],
+    };
+  }
+
   private async _openPicker(index: number, rule: UpsellRecommendationRuleDto): Promise<void> {
     if (!this.#modalManager) return;
 
@@ -88,9 +110,15 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selections?.length) {
+          const merged = this._mergeSelections(
+            rule.recommendationIds,
+            rule.recommendationNames,
+            result.selections.map((s) => s.productId),
+            result.selections.map((s) => s.name)
+          );
           this._handleUpdateRule(index, {
-            recommendationIds: [...(rule.recommendationIds ?? []), ...result.selections.map((s) => s.productId)],
-            recommendationNames: [...(rule.recommendationNames ?? []), ...result.selections.map((s) => s.name)],
+            recommendationIds: merged.ids,
+            recommendationNames: merged.names,
           });
         }
         break;
@@ -101,9 +129,15 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedIds?.length) {
+          const merged = this._mergeSelections(
+            rule.recommendationIds,
+            rule.recommendationNames,
+            result.selectedIds,
+            result.selectedNames
+          );
           this._handleUpdateRule(index, {
-            recommendationIds: [...(rule.recommendationIds ?? []), ...result.selectedIds],
-            recommendationNames: [...(rule.recommendationNames ?? []), ...result.selectedNames],
+            recommendationIds: merged.ids,
+            recommendationNames: merged.names,
           });
         }
         break;
@@ -114,9 +148,15 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedIds?.length) {
+          const merged = this._mergeSelections(
+            rule.recommendationIds,
+            rule.recommendationNames,
+            result.selectedIds,
+            result.selectedNames
+          );
           this._handleUpdateRule(index, {
-            recommendationIds: [...(rule.recommendationIds ?? []), ...result.selectedIds],
-            recommendationNames: [...(rule.recommendationNames ?? []), ...result.selectedNames],
+            recommendationIds: merged.ids,
+            recommendationNames: merged.names,
           });
         }
         break;
@@ -127,9 +167,15 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedIds?.length) {
+          const merged = this._mergeSelections(
+            rule.recommendationIds,
+            rule.recommendationNames,
+            result.selectedIds,
+            result.selectedNames
+          );
           this._handleUpdateRule(index, {
-            recommendationIds: [...(rule.recommendationIds ?? []), ...result.selectedIds],
-            recommendationNames: [...(rule.recommendationNames ?? []), ...result.selectedNames],
+            recommendationIds: merged.ids,
+            recommendationNames: merged.names,
           });
         }
         break;
@@ -140,9 +186,15 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
         });
         const result = await modal.onSubmit().catch(() => undefined);
         if (result?.selectedFilterIds?.length) {
+          const merged = this._mergeSelections(
+            rule.recommendationIds,
+            rule.recommendationNames,
+            result.selectedFilterIds,
+            result.selectedFilterNames
+          );
           this._handleUpdateRule(index, {
-            recommendationIds: [...(rule.recommendationIds ?? []), ...result.selectedFilterIds],
-            recommendationNames: [...(rule.recommendationNames ?? []), ...result.selectedFilterNames],
+            recommendationIds: merged.ids,
+            recommendationNames: merged.names,
           });
         }
         break;
@@ -159,9 +211,15 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
 
     const result = await modal.onSubmit().catch(() => undefined);
     if (result?.selectedFilterIds?.length) {
+      const merged = this._mergeSelections(
+        rule.matchFilterIds,
+        rule.matchFilterNames,
+        result.selectedFilterIds,
+        result.selectedFilterNames
+      );
       this._handleUpdateRule(index, {
-        matchFilterIds: [...(rule.matchFilterIds ?? []), ...result.selectedFilterIds],
-        matchFilterNames: [...(rule.matchFilterNames ?? []), ...result.selectedFilterNames],
+        matchFilterIds: merged.ids,
+        matchFilterNames: merged.names,
       });
     }
   }
@@ -193,6 +251,9 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
 
   override render() {
     return html`
+      ${this.rules.length === 0
+        ? html`<div class="empty-state">No recommendation rules added. Add rules to define what products to show.</div>`
+        : nothing}
       ${this.rules.map((rule, index) => this._renderRule(rule, index))}
       <uui-button look="placeholder" @click=${this._handleAddRule} label="Add recommendation rule">
         <uui-icon name="icon-add"></uui-icon> Add recommendation rule
@@ -216,14 +277,16 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
 
         <div class="rule-body">
           <div class="tags">
-            ${(rule.recommendationNames ?? []).map((name, i) => html`
-              <uui-tag look="secondary">
-                ${name}
-                <uui-button compact label="Remove" @click=${() => this._removeItem(index, rule, i)}>
-                  <uui-icon name="icon-wrong"></uui-icon>
-                </uui-button>
-              </uui-tag>
-            `)}
+            ${(rule.recommendationNames ?? []).length > 0
+              ? (rule.recommendationNames ?? []).map((name, i) => html`
+                  <uui-tag look="secondary">
+                    ${name}
+                    <uui-button compact label="Remove" @click=${() => this._removeItem(index, rule, i)}>
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  </uui-tag>
+                `)
+              : html`<span class="empty-selection">No recommendation items selected yet.</span>`}
           </div>
           <uui-button look="outline" @click=${() => this._openPicker(index, rule)} label=${this._getPickerLabel(rule.recommendationType)}>
             ${this._getPickerLabel(rule.recommendationType)}
@@ -242,14 +305,16 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
               <div class="filter-values">
                 <label>Narrow to specific filter values (leave empty to match ALL extracted values):</label>
                 <div class="tags">
-                  ${(rule.matchFilterNames ?? []).map((name, i) => html`
-                    <uui-tag look="secondary" color="warning">
-                      ${name}
-                      <uui-button compact label="Remove" @click=${() => this._removeFilter(index, rule, i)}>
-                        <uui-icon name="icon-wrong"></uui-icon>
-                      </uui-button>
-                    </uui-tag>
-                  `)}
+                  ${(rule.matchFilterNames ?? []).length > 0
+                    ? (rule.matchFilterNames ?? []).map((name, i) => html`
+                        <uui-tag look="secondary" color="warning">
+                          ${name}
+                          <uui-button compact label="Remove" @click=${() => this._removeFilter(index, rule, i)}>
+                            <uui-icon name="icon-wrong"></uui-icon>
+                          </uui-button>
+                        </uui-tag>
+                      `)
+                    : html`<span class="empty-selection">No filter values selected.</span>`}
                 </div>
                 <uui-button look="outline" @click=${() => this._openFilterValuePicker(index, rule)} label="Select filter values">
                   Select filter values
@@ -289,11 +354,25 @@ export class MerchelloUpsellRecommendationRuleBuilderElement extends UmbElementM
       margin-top: var(--uui-size-space-3);
     }
 
+    .empty-state {
+      margin-bottom: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface-alt);
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
     .tags {
       display: flex;
       flex-wrap: wrap;
       gap: var(--uui-size-space-2);
       margin-bottom: var(--uui-size-space-2);
+    }
+
+    .empty-selection {
+      color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
     }
 
     .filter-match {

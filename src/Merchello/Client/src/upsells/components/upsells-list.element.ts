@@ -35,6 +35,7 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
   @state() private _selectedUpsells: Set<string> = new Set();
   @state() private _searchTerm = "";
   @state() private _isDeleting = false;
+  @state() private _isBulkActionRunning = false;
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #modalManager?: UmbModalManagerContext;
@@ -189,7 +190,7 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Upsells",
-        content: `Are you sure you want to delete ${count} upsell${count !== 1 ? "s" : ""}? This action cannot be undone.`,
+        content: `Delete ${count} upsell${count !== 1 ? "s" : ""} permanently. This action cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -209,7 +210,10 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
 
     for (const id of this._selectedUpsells) {
       const { error } = await MerchelloApi.deleteUpsell(id);
-      if (!this.#isConnected) return;
+      if (!this.#isConnected) {
+        this._isDeleting = false;
+        return;
+      }
       if (error) {
         errorCount++;
       } else {
@@ -234,25 +238,75 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
   }
 
   private async _handleActivateSelected(): Promise<void> {
+    const count = this._selectedUpsells.size;
+    if (count === 0 || this._isBulkActionRunning) return;
+
+    this._isBulkActionRunning = true;
+    let successCount = 0;
+    let errorCount = 0;
+
     for (const id of this._selectedUpsells) {
-      await MerchelloApi.activateUpsell(id);
-      if (!this.#isConnected) return;
+      const { error } = await MerchelloApi.activateUpsell(id);
+      if (!this.#isConnected) {
+        this._isBulkActionRunning = false;
+        return;
+      }
+      if (error) {
+        errorCount++;
+      } else {
+        successCount++;
+      }
     }
-    this.#notificationContext?.peek("positive", {
-      data: { headline: "Upsells activated", message: `${this._selectedUpsells.size} upsell(s) activated` },
-    });
+
+    this._isBulkActionRunning = false;
+
+    if (errorCount > 0) {
+      this.#notificationContext?.peek("warning", {
+        data: { headline: "Partial success", message: `Activated ${successCount} of ${count} upsells` },
+      });
+    } else {
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Upsells activated", message: `${count} upsell${count !== 1 ? "s" : ""} activated` },
+      });
+    }
+
     this._selectedUpsells = new Set();
     this._loadUpsells();
   }
 
   private async _handleDeactivateSelected(): Promise<void> {
+    const count = this._selectedUpsells.size;
+    if (count === 0 || this._isBulkActionRunning) return;
+
+    this._isBulkActionRunning = true;
+    let successCount = 0;
+    let errorCount = 0;
+
     for (const id of this._selectedUpsells) {
-      await MerchelloApi.deactivateUpsell(id);
-      if (!this.#isConnected) return;
+      const { error } = await MerchelloApi.deactivateUpsell(id);
+      if (!this.#isConnected) {
+        this._isBulkActionRunning = false;
+        return;
+      }
+      if (error) {
+        errorCount++;
+      } else {
+        successCount++;
+      }
     }
-    this.#notificationContext?.peek("positive", {
-      data: { headline: "Upsells deactivated", message: `${this._selectedUpsells.size} upsell(s) deactivated` },
-    });
+
+    this._isBulkActionRunning = false;
+
+    if (errorCount > 0) {
+      this.#notificationContext?.peek("warning", {
+        data: { headline: "Partial success", message: `Deactivated ${successCount} of ${count} upsells` },
+      });
+    } else {
+      this.#notificationContext?.peek("positive", {
+        data: { headline: "Upsells deactivated", message: `${count} upsell${count !== 1 ? "s" : ""} deactivated` },
+      });
+    }
+
     this._selectedUpsells = new Set();
     this._loadUpsells();
   }
@@ -281,6 +335,17 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
     return icons;
   }
 
+  private _getDisplayLocationIconLabel(icon: string): string {
+    switch (icon) {
+      case "icon-credit-card": return "Checkout";
+      case "icon-shopping-basket": return "Basket";
+      case "icon-box": return "Product page";
+      case "icon-mailbox": return "Email";
+      case "icon-check": return "Confirmation";
+      default: return "Display location";
+    }
+  }
+
   private _getCheckoutModeLabel(mode: CheckoutUpsellMode): string {
     switch (mode) {
       case CheckoutUpsellMode.Inline: return "Inline";
@@ -298,75 +363,83 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
 
   private _renderTable(): unknown {
     const allSelected = this._upsells.length > 0 && this._upsells.every((u) => this._selectedUpsells.has(u.id));
+    const someSelected = this._selectedUpsells.size > 0 && !allSelected;
 
     return html`
-      <uui-table>
-        <uui-table-head>
-          <uui-table-head-cell style="width: 40px;">
-            <uui-checkbox
-              aria-label="Select all"
-              .checked=${allSelected}
-              @change=${(e: Event) => this._handleSelectAll((e.target as HTMLInputElement).checked)}
-            ></uui-checkbox>
-          </uui-table-head-cell>
-          <uui-table-head-cell>Name</uui-table-head-cell>
-          <uui-table-head-cell>Status</uui-table-head-cell>
-          <uui-table-head-cell>Display</uui-table-head-cell>
-          <uui-table-head-cell>Rules</uui-table-head-cell>
-          <uui-table-head-cell style="text-align: right;">Impressions</uui-table-head-cell>
-          <uui-table-head-cell style="text-align: right;">CTR</uui-table-head-cell>
-          <uui-table-head-cell style="text-align: right;">Conversions</uui-table-head-cell>
-          <uui-table-head-cell style="text-align: right;">Revenue</uui-table-head-cell>
-        </uui-table-head>
+      <div class="table-wrapper">
+        <uui-table>
+          <uui-table-head>
+            <uui-table-head-cell style="width: 40px;">
+              <uui-checkbox
+                aria-label="Select all"
+                .checked=${allSelected}
+                .indeterminate=${someSelected}
+                @change=${(e: Event) => this._handleSelectAll((e.target as HTMLInputElement).checked)}
+              ></uui-checkbox>
+            </uui-table-head-cell>
+            <uui-table-head-cell>Name</uui-table-head-cell>
+            <uui-table-head-cell>Status</uui-table-head-cell>
+            <uui-table-head-cell>Display</uui-table-head-cell>
+            <uui-table-head-cell>Rules</uui-table-head-cell>
+            <uui-table-head-cell style="text-align: right;">Impressions</uui-table-head-cell>
+            <uui-table-head-cell style="text-align: right;">CTR</uui-table-head-cell>
+            <uui-table-head-cell style="text-align: right;">Conversions</uui-table-head-cell>
+            <uui-table-head-cell style="text-align: right;">Revenue</uui-table-head-cell>
+          </uui-table-head>
 
-        ${this._upsells.map(
-          (upsell) => html`
-            <uui-table-row
-              @click=${() => this._handleRowClick(upsell)}
-              style="cursor: pointer;"
-            >
-              <uui-table-cell @click=${(e: Event) => e.stopPropagation()}>
-                <uui-checkbox
-                  aria-label="Select ${upsell.name}"
-                  .checked=${this._selectedUpsells.has(upsell.id)}
-                  @change=${(e: Event) =>
-                    this._handleCheckboxChange(upsell.id, (e.target as HTMLInputElement).checked)}
-                ></uui-checkbox>
-              </uui-table-cell>
-              <uui-table-cell>
-                <div class="name-cell">
-                  <strong>${upsell.name}</strong>
-                  ${upsell.heading ? html`<small class="heading-preview">${upsell.heading}</small>` : nothing}
-                </div>
-              </uui-table-cell>
-              <uui-table-cell>
-                <uui-tag look="secondary" color=${upsell.statusColor}>${upsell.statusLabel}</uui-tag>
-              </uui-table-cell>
-              <uui-table-cell>
-                <div class="display-cell">
-                  <span class="checkout-mode-label">${this._getCheckoutModeLabel(upsell.checkoutMode)}</span>
-                  <div class="display-icons">
-                    ${this._getDisplayLocationIcons(upsell.displayLocation).map(
-                      (icon) => html`<uui-icon name=${icon}></uui-icon>`
-                    )}
+          ${this._upsells.map(
+            (upsell) => html`
+              <uui-table-row
+                @click=${() => this._handleRowClick(upsell)}
+                style="cursor: pointer;"
+              >
+                <uui-table-cell @click=${(e: Event) => e.stopPropagation()}>
+                  <uui-checkbox
+                    aria-label=${`Select ${upsell.name?.trim() || upsell.id}`}
+                    .checked=${this._selectedUpsells.has(upsell.id)}
+                    @change=${(e: Event) =>
+                      this._handleCheckboxChange(upsell.id, (e.target as HTMLInputElement).checked)}
+                  ></uui-checkbox>
+                </uui-table-cell>
+                <uui-table-cell>
+                  <div class="name-cell">
+                    <strong>${upsell.name}</strong>
+                    ${upsell.heading ? html`<small class="heading-preview">${upsell.heading}</small>` : nothing}
                   </div>
-                </div>
-              </uui-table-cell>
-              <uui-table-cell>
-                <span class="rules-summary">
-                  ${upsell.triggerRuleCount} trigger${upsell.triggerRuleCount !== 1 ? "s" : ""}
-                  &rarr;
-                  ${upsell.recommendationRuleCount} rec${upsell.recommendationRuleCount !== 1 ? "s" : ""}
-                </span>
-              </uui-table-cell>
-              <uui-table-cell style="text-align: right;">${formatNumber(upsell.totalImpressions)}</uui-table-cell>
-              <uui-table-cell style="text-align: right;">${this._formatCtr(upsell.totalImpressions, upsell.totalClicks)}</uui-table-cell>
-              <uui-table-cell style="text-align: right;">${formatNumber(upsell.totalConversions)}</uui-table-cell>
-              <uui-table-cell style="text-align: right;">${formatCurrency(upsell.totalRevenue, this.#currencyCode, this.#currencySymbol)}</uui-table-cell>
-            </uui-table-row>
-          `
-        )}
-      </uui-table>
+                </uui-table-cell>
+                <uui-table-cell>
+                  <uui-tag look="secondary" color=${upsell.statusColor}>${upsell.statusLabel}</uui-tag>
+                </uui-table-cell>
+                <uui-table-cell>
+                  <div class="display-cell">
+                    <span class="checkout-mode-label">${this._getCheckoutModeLabel(upsell.checkoutMode)}</span>
+                    <div class="display-icons">
+                      ${this._getDisplayLocationIcons(upsell.displayLocation).map(
+                        (icon) =>
+                          html`<uui-icon
+                            name=${icon}
+                            title=${this._getDisplayLocationIconLabel(icon)}
+                          ></uui-icon>`
+                      )}
+                    </div>
+                  </div>
+                </uui-table-cell>
+                <uui-table-cell>
+                  <span class="rules-summary">
+                    ${upsell.triggerRuleCount} trigger${upsell.triggerRuleCount !== 1 ? "s" : ""}
+                    &rarr;
+                    ${upsell.recommendationRuleCount} rec${upsell.recommendationRuleCount !== 1 ? "s" : ""}
+                  </span>
+                </uui-table-cell>
+                <uui-table-cell style="text-align: right;">${formatNumber(upsell.totalImpressions)}</uui-table-cell>
+                <uui-table-cell style="text-align: right;">${this._formatCtr(upsell.totalImpressions, upsell.totalClicks)}</uui-table-cell>
+                <uui-table-cell style="text-align: right;">${formatNumber(upsell.totalConversions)}</uui-table-cell>
+                <uui-table-cell style="text-align: right;">${formatCurrency(upsell.totalRevenue, this.#currencyCode, this.#currencySymbol)}</uui-table-cell>
+              </uui-table-row>
+            `
+          )}
+        </uui-table>
+      </div>
 
       <merchello-pagination
         .state=${this._getPaginationState()}
@@ -376,12 +449,21 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
     `;
   }
 
+  private _renderErrorState(): unknown {
+    return html`
+      <uui-box headline="Could not load upsells">
+        <p class="error-message">${this._errorMessage}</p>
+        <uui-button look="secondary" label="Retry" @click=${() => this._loadUpsells()}>Retry</uui-button>
+      </uui-box>
+    `;
+  }
+
   private _renderContent(): unknown {
     if (this._isLoading) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
     }
     if (this._errorMessage) {
-      return html`<div class="error">${this._errorMessage}</div>`;
+      return this._renderErrorState();
     }
     if (this._upsells.length === 0) {
       return html`
@@ -409,17 +491,28 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
           <div class="header-actions">
             ${this._selectedUpsells.size > 0
               ? html`
-                  <uui-button look="primary" color="positive" label="Activate" @click=${this._handleActivateSelected}>
-                    Activate (${this._selectedUpsells.size})
+                  <uui-button
+                    look="primary"
+                    color="positive"
+                    label="Activate"
+                    ?disabled=${this._isBulkActionRunning || this._isDeleting}
+                    @click=${this._handleActivateSelected}
+                  >
+                    ${this._isBulkActionRunning ? "Applying..." : `Activate (${this._selectedUpsells.size})`}
                   </uui-button>
-                  <uui-button look="secondary" label="Deactivate" @click=${this._handleDeactivateSelected}>
-                    Deactivate (${this._selectedUpsells.size})
+                  <uui-button
+                    look="secondary"
+                    label="Deactivate"
+                    ?disabled=${this._isBulkActionRunning || this._isDeleting}
+                    @click=${this._handleDeactivateSelected}
+                  >
+                    ${this._isBulkActionRunning ? "Applying..." : `Deactivate (${this._selectedUpsells.size})`}
                   </uui-button>
                   <uui-button
                     look="primary"
                     color="danger"
                     label="Delete"
-                    ?disabled=${this._isDeleting}
+                    ?disabled=${this._isDeleting || this._isBulkActionRunning}
                     @click=${this._handleDeleteSelected}
                   >
                     ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedUpsells.size})`}
@@ -485,6 +578,7 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
       align-items: center;
       justify-content: flex-end;
       margin-bottom: var(--uui-size-space-4);
+      flex-wrap: wrap;
     }
 
     .search-tabs-row {
@@ -513,6 +607,17 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
 
     .search-box uui-icon[slot="prepend"] {
       color: var(--uui-color-text-alt);
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
+      background: var(--uui-color-surface);
+    }
+
+    uui-table {
+      min-width: 980px;
     }
 
     .name-cell {
@@ -554,11 +659,9 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
       padding: var(--uui-size-space-6);
     }
 
-    .error {
-      padding: var(--uui-size-space-4);
-      background: var(--uui-color-danger-standalone);
-      color: var(--uui-color-danger-contrast);
-      border-radius: var(--uui-border-radius);
+    .error-message {
+      margin: 0 0 var(--uui-size-space-3) 0;
+      color: var(--uui-color-danger);
     }
 
     merchello-pagination {

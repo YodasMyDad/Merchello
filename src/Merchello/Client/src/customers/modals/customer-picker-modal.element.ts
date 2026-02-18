@@ -1,4 +1,4 @@
-import { html, css } from "@umbraco-cms/backoffice/external/lit";
+import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { CustomerPickerModalData, CustomerPickerModalValue } from "@customers/modals/customer-picker-modal.token.js";
@@ -19,6 +19,23 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
 
   private _searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #isConnected = false;
+
+  private get _isMultiSelect(): boolean {
+    return this.data?.multiSelect !== false;
+  }
+
+  private get _selectedCount(): number {
+    return this._selectedIds.length;
+  }
+
+  private get _isAllVisibleSelected(): boolean {
+    if (!this._customers.length) return false;
+    return this._customers.every((customer) => this._selectedIds.includes(customer.id));
+  }
+
+  private get _isPartiallySelected(): boolean {
+    return this._selectedCount > 0 && !this._isAllVisibleSelected;
+  }
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -41,24 +58,34 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
       clearTimeout(this._searchDebounceTimer);
     }
 
-    if (this._searchTerm.length >= 2) {
+    if (this._searchTerm.trim().length >= 2) {
       this._searchDebounceTimer = setTimeout(() => {
         this._performSearch();
       }, 300);
-    } else {
-      this._customers = [];
-      this._hasSearched = false;
+      return;
     }
+
+    this._customers = [];
+    this._hasSearched = false;
+    this._errorMessage = null;
+  }
+
+  private _handleSearchClear(): void {
+    this._searchTerm = "";
+    this._customers = [];
+    this._hasSearched = false;
+    this._errorMessage = null;
   }
 
   private async _performSearch(): Promise<void> {
-    if (this._searchTerm.length < 2) return;
+    const search = this._searchTerm.trim();
+    if (search.length < 2) return;
 
     this._isLoading = true;
     this._errorMessage = null;
 
     const { data, error } = await MerchelloApi.searchCustomersForSegment(
-      this._searchTerm,
+      search,
       this.data?.excludeCustomerIds,
       50
     );
@@ -68,6 +95,7 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
     if (error) {
       this._errorMessage = error.message;
       this._isLoading = false;
+      this._hasSearched = true;
       return;
     }
 
@@ -77,17 +105,32 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
   }
 
   private _toggleSelection(customerId: string): void {
-    const multiSelect = this.data?.multiSelect !== false; // default to true
-
     if (this._selectedIds.includes(customerId)) {
-      this._selectedIds = this._selectedIds.filter(id => id !== customerId);
-    } else {
-      if (multiSelect) {
-        this._selectedIds = [...this._selectedIds, customerId];
-      } else {
-        this._selectedIds = [customerId];
-      }
+      this._selectedIds = this._selectedIds.filter((id) => id !== customerId);
+      return;
     }
+
+    if (this._isMultiSelect) {
+      this._selectedIds = [...this._selectedIds, customerId];
+      return;
+    }
+
+    this._selectedIds = [customerId];
+  }
+
+  private _toggleSelectAll(): void {
+    if (!this._isMultiSelect) return;
+
+    const visibleIds = new Set(this._customers.map((customer) => customer.id));
+
+    if (this._isAllVisibleSelected) {
+      this._selectedIds = this._selectedIds.filter((id) => !visibleIds.has(id));
+      return;
+    }
+
+    const selectedIds = new Set(this._selectedIds);
+    this._customers.forEach((customer) => selectedIds.add(customer.id));
+    this._selectedIds = [...selectedIds];
   }
 
   private _handleSubmit(): void {
@@ -104,20 +147,63 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
     return name || customer.email;
   }
 
+  private _getSelectionLabel(customer: CustomerListItemDto): string {
+    const name = this._getCustomerName(customer);
+    return `${this._isMultiSelect ? "Select" : "Choose"} customer ${name}`;
+  }
+
+  private _renderSelectionCell(customer: CustomerListItemDto): unknown {
+    const isSelected = this._selectedIds.includes(customer.id);
+    const label = this._getSelectionLabel(customer);
+
+    if (this._isMultiSelect) {
+      return html`
+        <uui-checkbox
+          aria-label=${label}
+          .checked=${isSelected}
+          @click=${(e: Event) => e.stopPropagation()}
+          @change=${() => this._toggleSelection(customer.id)}>
+        </uui-checkbox>
+      `;
+    }
+
+    return html`
+      <uui-radio
+        aria-label=${label}
+        .checked=${isSelected}
+        @click=${(e: Event) => e.stopPropagation()}
+        @change=${() => this._toggleSelection(customer.id)}>
+      </uui-radio>
+    `;
+  }
+
   private _renderSearchBox(): unknown {
     return html`
-      <div class="search-container">
+      <uui-form-layout-item>
+        <uui-label slot="label" for="search-input">Search customers</uui-label>
         <uui-input
           id="search-input"
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Type at least 2 characters"
           .value=${this._searchTerm}
           @input=${this._handleSearchInput}
           label="Search customers">
           <uui-icon name="icon-search" slot="prepend"></uui-icon>
+          ${this._searchTerm
+            ? html`
+                <uui-button
+                  slot="append"
+                  compact
+                  look="secondary"
+                  label="Clear search"
+                  @click=${this._handleSearchClear}>
+                  <uui-icon name="icon-wrong"></uui-icon>
+                </uui-button>
+              `
+            : nothing}
         </uui-input>
-        <span class="search-hint">Enter at least 2 characters to search</span>
-      </div>
+        <div slot="description" class="hint">Search by customer name or email.</div>
+      </uui-form-layout-item>
     `;
   }
 
@@ -129,20 +215,11 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
         selectable
         ?selected=${isSelected}
         @click=${() => this._toggleSelection(customer.id)}>
-        <uui-table-cell style="width: 40px;">
-          <uui-checkbox
-            aria-label="Select customer"
-            .checked=${isSelected}
-            @change=${(e: Event) => {
-              e.stopPropagation();
-              this._toggleSelection(customer.id);
-            }}>
-          </uui-checkbox>
+        <uui-table-cell class="selection-cell">
+          ${this._renderSelectionCell(customer)}
         </uui-table-cell>
         <uui-table-cell>
-          <div class="customer-info">
-            <span class="customer-name">${this._getCustomerName(customer)}</span>
-          </div>
+          <span class="customer-name">${this._getCustomerName(customer)}</span>
         </uui-table-cell>
         <uui-table-cell>${customer.email}</uui-table-cell>
         <uui-table-cell class="center">${customer.orderCount}</uui-table-cell>
@@ -152,18 +229,29 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
 
   private _renderCustomerList(): unknown {
     if (this._customers.length === 0) {
-      return html`<p class="empty-state">No customers found matching "${this._searchTerm}"</p>`;
+      return html`<p class="empty-state">No customers found for "${this._searchTerm}".</p>`;
     }
 
     return html`
       <uui-table class="customers-table">
         <uui-table-head>
-          <uui-table-head-cell style="width: 40px;"></uui-table-head-cell>
+          <uui-table-head-cell class="selection-cell">
+            ${this._isMultiSelect
+              ? html`
+                  <uui-checkbox
+                    aria-label="Select all customers"
+                    .checked=${this._isAllVisibleSelected}
+                    .indeterminate=${this._isPartiallySelected}
+                    @change=${() => this._toggleSelectAll()}>
+                  </uui-checkbox>
+                `
+              : nothing}
+          </uui-table-head-cell>
           <uui-table-head-cell>Name</uui-table-head-cell>
           <uui-table-head-cell>Email</uui-table-head-cell>
           <uui-table-head-cell class="center">Orders</uui-table-head-cell>
         </uui-table-head>
-        ${this._customers.map(customer => this._renderCustomerRow(customer))}
+        ${this._customers.map((customer) => this._renderCustomerRow(customer))}
       </uui-table>
     `;
   }
@@ -174,41 +262,64 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
     }
 
     if (this._errorMessage) {
-      return html`<div class="error-banner">${this._errorMessage}</div>`;
+      return html`
+        <div class="error-banner" role="alert">
+          <uui-icon name="icon-alert"></uui-icon>
+          <span>${this._errorMessage}</span>
+        </div>
+      `;
     }
 
     if (!this._hasSearched) {
-      return html`<p class="hint">Search for customers to add to the segment.</p>`;
+      return html`<p class="hint-state">Search for customers to start selecting.</p>`;
     }
 
     return this._renderCustomerList();
   }
 
+  private _getPrimaryActionLabel(): string {
+    if (this._isMultiSelect) {
+      return `Add selected (${this._selectedCount})`;
+    }
+
+    return "Select customer";
+  }
+
   override render() {
-    const selectedCount = this._selectedIds.length;
-
     return html`
-      <umb-body-layout headline="Select Customers">
+      <umb-body-layout headline="Select customers">
         <div id="main">
-          ${this._renderSearchBox()}
-          <div class="results-container">
-            ${this._renderContent()}
-          </div>
+          <uui-box>
+            ${this._renderSearchBox()}
+          </uui-box>
+
+          <uui-box>
+            <div class="results-header">
+              <span class="results-count">
+                ${this._hasSearched
+                  ? `${this._customers.length} result${this._customers.length === 1 ? "" : "s"}`
+                  : "No search yet"}
+              </span>
+              <span class="selected-count">
+                ${this._selectedCount} selected
+              </span>
+            </div>
+            <div class="results-container">${this._renderContent()}</div>
+          </uui-box>
         </div>
 
-        <div slot="actions">
-          <uui-button label="Cancel" look="secondary" @click=${this._handleCancel}>
-            Cancel
-          </uui-button>
-          <uui-button
-            label="Add Selected"
-            look="primary"
-            color="positive"
-            ?disabled=${selectedCount === 0}
-            @click=${this._handleSubmit}>
-            Add Selected (${selectedCount})
-          </uui-button>
-        </div>
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._handleCancel}>
+          Cancel
+        </uui-button>
+        <uui-button
+          slot="actions"
+          label=${this._getPrimaryActionLabel()}
+          look="primary"
+          color="positive"
+          ?disabled=${this._selectedCount === 0 || this._isLoading}
+          @click=${this._handleSubmit}>
+          ${this._getPrimaryActionLabel()}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -225,29 +336,39 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
       height: 100%;
     }
 
-    .search-container {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    #search-input {
+    uui-input {
       width: 100%;
     }
 
-    .search-hint {
-      font-size: 0.75rem;
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-3);
+      font-size: var(--uui-type-small-size);
+    }
+
+    .results-count {
       color: var(--uui-color-text-alt);
     }
 
+    .selected-count {
+      font-weight: 600;
+    }
+
     .results-container {
-      flex: 1;
       overflow-y: auto;
       min-height: 300px;
     }
 
     .customers-table {
       width: 100%;
+    }
+
+    .selection-cell {
+      width: 44px;
+      text-align: center;
     }
 
     uui-table-head-cell.center,
@@ -265,13 +386,8 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
       font-weight: 600;
     }
 
-    uui-table-row[selected] uui-icon {
+    uui-table-row[selected] .customer-name {
       color: var(--uui-color-selected-contrast, #fff);
-    }
-
-    .customer-info {
-      display: flex;
-      flex-direction: column;
     }
 
     .customer-name {
@@ -284,23 +400,31 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
       padding: var(--uui-size-space-6);
     }
 
-    .hint, .empty-state {
+    .hint,
+    .hint-state,
+    .empty-state {
       color: var(--uui-color-text-alt);
+      font-size: var(--uui-type-small-size);
+    }
+
+    .hint-state,
+    .empty-state {
       text-align: center;
       padding: var(--uui-size-space-6);
     }
 
     .error-banner {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-3);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
 
-    [slot="actions"] {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      justify-content: flex-end;
+    .error-banner uui-icon {
+      flex-shrink: 0;
     }
   `;
 }
