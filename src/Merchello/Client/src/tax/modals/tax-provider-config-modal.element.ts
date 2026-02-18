@@ -211,7 +211,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Tax Group",
-        content: `Are you sure you want to delete tax group "${taxGroup.name}"? Products using this tax group will need to be reassigned.`,
+        content: `Delete tax group "${taxGroup.name}". Products using this tax group must be reassigned.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -281,7 +281,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Shipping Tax Override",
-        content: `Are you sure you want to delete the shipping tax override for ${regionLabel}?`,
+        content: `Delete the shipping tax override for ${regionLabel}.`,
         confirmLabel: "Delete",
         color: "danger",
       },

@@ -128,7 +128,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
   private get _destinationOptions(): Array<{ name: string; value: string; selected?: boolean }> {
     const options: Array<{ name: string; value: string; selected?: boolean }> = [
       { name: "Select a destination...", value: "", selected: !this._countryCode },
-      { name: "★ All Destinations (Default)", value: "*", selected: this._countryCode === "*" },
+      { name: "* All Destinations (Default)", value: "*", selected: this._countryCode === "*" },
     ];
 
     this._countries.forEach(c => {
@@ -252,6 +252,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
               : html`
                   <uui-select
                     id="countryCode"
+                    label="Destination country"
                     .options=${this._destinationOptions}
                     @change=${this._handleCountryChange}
                   ></uui-select>
@@ -269,6 +270,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
                       ? html`
                           <uui-select
                             id="stateCode"
+                            label="Destination region"
                             .options=${this._regionOptions}
                             @change=${(e: Event) => (this._regionCode = (e.target as HTMLSelectElement).value)}
                           ></uui-select>
@@ -276,6 +278,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
                       : html`
                           <uui-input
                             id="stateCode"
+                            label="Destination region code"
                             .value=${this._regionCode}
                             @input=${(e: InputEvent) => (this._regionCode = (e.target as HTMLInputElement).value)}
                             placeholder="Optional: CA, NY, etc."
@@ -291,6 +294,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
               <uui-label slot="label" for="minWeight" required>Min Weight (kg)</uui-label>
               <uui-input
                 id="minWeight"
+                label="Minimum weight"
                 type="number"
                 step="0.01"
                 min="0"
@@ -304,6 +308,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
               <uui-label slot="label" for="maxWeight">Max Weight (kg)</uui-label>
               <uui-input
                 id="maxWeight"
+                label="Maximum weight"
                 type="number"
                 step="0.01"
                 min="0"
@@ -323,6 +328,7 @@ export class MerchelloShippingWeightTierModalElement extends UmbModalBaseElement
               <span class="currency-symbol">${this._currencySymbol}</span>
               <uui-input
                 id="surcharge"
+                label="Weight surcharge"
                 type="number"
                 step="0.01"
                 min="0"

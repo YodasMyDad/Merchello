@@ -146,7 +146,7 @@ export class MerchelloAddressLookupProvidersListElement extends UmbElementMixin(
   }
 
   private _formatSupportedCountries(provider?: AddressLookupProviderDto): string {
-    if (!provider) return "—";
+    if (!provider) return "-";
     const countries = provider.supportedCountries;
     if (!countries || countries.length === 0) return "All countries";
     if (countries.some((c) => c === "*")) return "All countries";

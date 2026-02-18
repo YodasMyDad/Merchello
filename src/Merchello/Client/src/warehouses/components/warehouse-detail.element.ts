@@ -1596,6 +1596,7 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
       .badge-default {
         background: var(--uui-color-surface-alt);
         border: 1px solid var(--uui-color-border);
+        color: var(--uui-color-text);
       }
 
       .service-type {

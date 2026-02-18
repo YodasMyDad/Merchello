@@ -595,6 +595,7 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
                   <uui-label slot="label" for="warehouse" required>Warehouse</uui-label>
                   <uui-select
                     id="warehouse"
+                    label="Warehouse"
                     .options=${this._warehouseOptions}
                     @change=${(e: Event) => (this._warehouseId = (e.target as HTMLSelectElement).value)}
                   ></uui-select>
@@ -1369,8 +1370,8 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     }
 
     .rule-action-surcharge {
-      background: var(--uui-color-warning);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
   `;

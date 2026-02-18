@@ -134,8 +134,10 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
       <div class="filters">
         <div class="filter-row">
           <div class="filter-item">
-            <label>Provider</label>
+            <label for="sync-log-provider-filter">Provider</label>
             <uui-select
+              id="sync-log-provider-filter"
+              label="Provider filter"
               .options=${[
                 { name: "All Providers", value: "", selected: this._filterProviderConfigId === "" },
                 ...this._providers.map((p) => ({
@@ -152,8 +154,10 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
           </div>
 
           <div class="filter-item">
-            <label>Sync Type</label>
+            <label for="sync-log-type-filter">Sync Type</label>
             <uui-select
+              id="sync-log-type-filter"
+              label="Sync type filter"
               .options=${[
                 { name: "All Types", value: "", selected: this._filterSyncType === "" },
                 { name: "Products Out", value: "0", selected: this._filterSyncType === "0" },
@@ -167,8 +171,10 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
           </div>
 
           <div class="filter-item">
-            <label>Status</label>
+            <label for="sync-log-status-filter">Status</label>
             <uui-select
+              id="sync-log-status-filter"
+              label="Sync status filter"
               .options=${[
                 { name: "All Statuses", value: "", selected: this._filterStatus === "" },
                 { name: "Pending", value: "0", selected: this._filterStatus === "0" },
@@ -257,6 +263,7 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
           <uui-button
             compact
             look="secondary"
+            label="Previous page"
             ?disabled=${this._page <= 1}
             @click=${() => this._handlePageChange(this._page - 1)}
           >
@@ -266,6 +273,7 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
           <uui-button
             compact
             look="secondary"
+            label="Next page"
             ?disabled=${this._page >= this._totalPages}
             @click=${() => this._handlePageChange(this._page + 1)}
           >
@@ -358,8 +366,8 @@ export class MerchelloSyncLogsListElement extends UmbElementMixin(LitElement) {
     }
 
     .status-running {
-      background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
     }
 
     .status-completed {

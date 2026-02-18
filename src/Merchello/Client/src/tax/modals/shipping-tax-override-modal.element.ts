@@ -252,6 +252,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
               : html`
                   <uui-select
                     id="countryCode"
+                    label="Country"
                     .options=${this._countryOptions}
                     ?disabled=${isEditing}
                     @change=${this._handleCountryChange}
@@ -274,6 +275,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
                       ? html`
                           <uui-select
                             id="stateCode"
+                            label="Region/State"
                             .options=${this._regionOptions}
                             ?disabled=${isEditing}
                             @change=${(e: Event) =>
@@ -283,6 +285,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
                       : html`
                           <uui-input
                             id="stateCode"
+                            label="Region/State code"
                             .value=${this._regionCode}
                             ?disabled=${isEditing}
                             @input=${(e: InputEvent) =>
@@ -306,6 +309,7 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
               : html`
                   <uui-select
                     id="taxGroupId"
+                    label="Shipping tax group"
                     .options=${this._taxGroupOptions}
                     @change=${(e: Event) => {
                       const value = (e.target as HTMLSelectElement).value;

@@ -178,6 +178,7 @@ export class MerchelloShippingDestinationExclusionModalElement extends UmbModalB
               : html`
                   <uui-select
                     id="countryCode"
+                    label="Destination country"
                     .options=${this._destinationOptions}
                     @change=${this._handleCountryChange}
                   ></uui-select>
@@ -194,6 +195,7 @@ export class MerchelloShippingDestinationExclusionModalElement extends UmbModalB
                       ? html`
                           <uui-select
                             id="stateCode"
+                            label="Destination region"
                             .options=${this._regionOptions}
                             @change=${(e: Event) => (this._regionCode = (e.target as HTMLSelectElement).value)}
                           ></uui-select>
@@ -201,6 +203,7 @@ export class MerchelloShippingDestinationExclusionModalElement extends UmbModalB
                       : html`
                           <uui-input
                             id="stateCode"
+                            label="Destination region code"
                             .value=${this._regionCode}
                             @input=${(e: InputEvent) => (this._regionCode = (e.target as HTMLInputElement).value)}
                             placeholder="Optional region code"

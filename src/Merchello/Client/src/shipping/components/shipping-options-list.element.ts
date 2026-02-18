@@ -93,7 +93,7 @@ export class MerchelloShippingOptionsListElement extends UmbElementMixin(LitElem
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Shipping Option",
-        content: `Are you sure you want to delete "${option.name}"?`,
+        content: `Delete "${option.name}" and all of its configured rates and rules.`,
         confirmLabel: "Delete",
         color: "danger",
       },

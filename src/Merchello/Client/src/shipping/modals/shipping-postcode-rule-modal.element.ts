@@ -228,6 +228,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
               : html`
                   <uui-select
                     id="countryCode"
+                    label="Country"
                     .options=${this._countryOptions}
                     @change=${(e: Event) => (this._countryCode = (e.target as HTMLSelectElement).value)}
                   ></uui-select>
@@ -239,6 +240,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
             <uui-label slot="label" for="matchType" required>Match Type</uui-label>
             <uui-select
               id="matchType"
+              label="Match type"
               .options=${this._matchTypeOptions}
               @change=${(e: Event) => (this._matchType = (e.target as HTMLSelectElement).value as PostcodeMatchType)}
             ></uui-select>
@@ -249,6 +251,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
             <uui-label slot="label" for="pattern" required>Pattern</uui-label>
             <uui-input
               id="pattern"
+              label="Postcode pattern"
               .value=${this._pattern}
               @input=${(e: InputEvent) => (this._pattern = (e.target as HTMLInputElement).value)}
               placeholder=${this._patternPlaceholder}
@@ -260,6 +263,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
             <uui-label slot="label" for="action" required>Action</uui-label>
             <uui-select
               id="action"
+              label="Rule action"
               .options=${this._actionOptions}
               @change=${(e: Event) => (this._action = (e.target as HTMLSelectElement).value as PostcodeRuleAction)}
             ></uui-select>
@@ -274,6 +278,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
                     <span class="currency-symbol">${this._currencySymbol}</span>
                     <uui-input
                       id="surcharge"
+                      label="Surcharge amount"
                       type="number"
                       step="0.01"
                       min="0.01"
@@ -291,6 +296,7 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
             <uui-label slot="label" for="description">Description</uui-label>
             <uui-input
               id="description"
+              label="Rule description"
               .value=${this._description}
               @input=${(e: InputEvent) => (this._description = (e.target as HTMLInputElement).value)}
               placeholder="e.g., Scottish Highlands surcharge"

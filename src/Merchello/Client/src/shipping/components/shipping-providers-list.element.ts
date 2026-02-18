@@ -141,7 +141,7 @@ export class MerchelloShippingProvidersListElement extends UmbElementMixin(LitEl
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Remove Shipping Provider",
-        content: `Are you sure you want to remove ${configuration.displayName}?`,
+        content: `Remove ${configuration.displayName} from shipping providers.`,
         confirmLabel: "Remove",
         color: "danger",
       },

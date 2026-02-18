@@ -179,7 +179,7 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
     const confirm = this.#modalManager.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Tax Rate",
-        content: `Are you sure you want to delete the tax rate for ${locationLabel}?`,
+        content: `Delete the tax rate for ${locationLabel}.`,
         confirmLabel: "Delete",
         color: "danger",
       },

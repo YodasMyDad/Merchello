@@ -141,6 +141,7 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
               : nothing}
             <uui-input
               id="${field.key}"
+              label="${field.label}"
               type="${field.fieldType === "Url" ? "url" : "text"}"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -160,6 +161,7 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
               : nothing}
             <uui-input
               id="${field.key}"
+              label="${field.label}"
               type="password"
               .value=${value}
               placeholder="${field.placeholder ?? ""}"
@@ -219,6 +221,7 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
               : nothing}
             <uui-select
               id="${field.key}"
+              label="${field.label}"
               .options=${this._getSelectFieldOptions(field, value)}
               ?required=${field.isRequired}
               @change=${(e: Event) =>
@@ -238,6 +241,7 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
               : nothing}
             <uui-input
               id="${field.key}"
+              label="${field.label}"
               type="number"
               step=${field.fieldType === "Number" ? "1" : "0.01"}
               .value=${value}

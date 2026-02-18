@@ -928,6 +928,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
         ${this._renderAmountInput()}
 
         <uui-button
+          label="Create test session"
           look="primary"
           ?disabled=${this._isTesting}
           @click=${this._handleTestSession}
@@ -1059,6 +1060,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
         ${!this._paymentFormLoaded ? html`
           <uui-button
+            label="Load payment form"
             look="primary"
             ?disabled=${this._isLoadingPaymentForm}
             @click=${this._handleLoadPaymentForm}
@@ -1081,6 +1083,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
         ${this._paymentFormLoaded && !isWidgetIntegration ? html`
           <uui-button
+            label="Process test payment"
             look="primary"
             ?disabled=${this._isProcessingPayment}
             @click=${this._handleProcessTestPayment}
@@ -1150,6 +1153,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
                   <!-- Button will be rendered here -->
                 </div>
                 <uui-button
+                  label="Load express button"
                   look="secondary"
                   ?disabled=${this._loadingExpressMethod === method.methodAlias}
                   @click=${() => this._loadExpressButton(method)}
@@ -1179,6 +1183,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             <div class="form-row">
               <label>Event Type</label>
               <uui-select
+                label="Webhook event type"
                 .options=${this._webhookTemplates.map(t => ({ name: t.displayName, value: t.eventType, selected: this._selectedWebhookEvent === t.eventType }))}
                 .value=${this._selectedWebhookEvent || ''}
                 @change=${(e: Event) => this._selectedWebhookEvent = (e.target as HTMLSelectElement).value}
@@ -1213,6 +1218,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
           ${this._renderAmountInput()}
 
           <uui-button
+            label="Simulate webhook"
             look="primary"
             ?disabled=${this._isSimulatingWebhook || (!this._useCustomPayload && !this._selectedWebhookEvent)}
             @click=${this._handleSimulateWebhook}
@@ -1289,6 +1295,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
         ${this._renderAmountInput()}
 
         <uui-button
+          label="Generate test payment link"
           look="primary"
           ?disabled=${this._isGeneratingPaymentLink}
           @click=${this._handleGeneratePaymentLink}
@@ -1321,12 +1328,14 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
                 </div>
                 <div class="payment-link-actions">
                   <uui-button
+                    label="Copy payment link"
                     look="secondary"
                     @click=${() => this._copyPaymentLink()}
                   >
                     <uui-icon name="icon-documents"></uui-icon> Copy Link
                   </uui-button>
                   <uui-button
+                    label="Open payment link"
                     look="primary"
                     @click=${() => window.open(this._paymentLinkResult?.paymentUrl, '_blank')}
                   >
@@ -1378,6 +1387,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
           <p class="hint">Create a setup session to save a payment method for future use.</p>
 
           <uui-button
+            label="Create vault setup session"
             look="primary"
             ?disabled=${this._isCreatingVaultSetup}
             @click=${this._handleCreateVaultSetup}
@@ -1450,7 +1460,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
                 <p class="hint">Use a provider test token (e.g., Stripe pm_card_visa, Braintree fake-valid-nonce).</p>
               </div>
             ` : html`
-              <p class="hint">No token required. Complete the approval in the provider’s window before confirming.</p>
+              <p class="hint">No token required. Complete the approval in the provider's window before confirming.</p>
             `}
 
             <div id="vault-form-container" class="payment-form-container">
@@ -1459,6 +1469,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
             </div>
 
             <uui-button
+              label="Confirm and save payment method"
               look="primary"
               ?disabled=${this._isConfirmingVault}
               @click=${this._handleConfirmVaultSetup}
@@ -1540,6 +1551,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
 
             <div class="button-group">
               <uui-button
+                label="Test vault charge"
                 look="primary"
                 ?disabled=${this._isChargingVault}
                 @click=${this._handleTestVaultCharge}
@@ -1549,6 +1561,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
               </uui-button>
 
               <uui-button
+                label="Delete vaulted method"
                 look="secondary"
                 color="danger"
                 @click=${this._handleDeleteVaultedMethod}

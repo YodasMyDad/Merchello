@@ -180,7 +180,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Remove Payment Provider",
-        content: `Are you sure you want to remove ${setting.displayName}? This action cannot be undone.`,
+        content: `Remove ${setting.displayName} from payment providers. This action cannot be undone.`,
         confirmLabel: "Remove",
         color: "danger",
       },
