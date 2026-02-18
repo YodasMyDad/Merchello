@@ -93,6 +93,54 @@ public class ShipmentServiceTests
         result.Messages.ShouldContain(m => m.ResultMessageType == ResultMessageType.Error);
     }
 
+    [Fact]
+    public async Task CreateShipmentAsync_WithAddonLineItem_ReturnsError()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var warehouse = dataBuilder.CreateWarehouse("Add-on Warehouse", "GB");
+        var shippingOption = dataBuilder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 5.00m);
+        shippingOption.ShippingCosts.Add(new ShippingCost { CountryCode = "GB", Cost = 5.00m });
+        dataBuilder.AddServiceRegion(warehouse, "GB");
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Parent Product Root", taxGroup);
+        var product = dataBuilder.CreateProduct("Parent Product", productRoot, price: 80m);
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
+        product.ShippingOptions.Add(shippingOption);
+
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.ReadyToFulfill);
+        var parentLineItem = dataBuilder.CreateLineItem(order, product, quantity: 1, amount: 80m, taxRate: 20m);
+        var addonLineItem = dataBuilder.CreateAddonLineItem(
+            order,
+            parentLineItem,
+            name: "Premium Handle",
+            quantity: 1,
+            amount: 10m,
+            isTaxable: false,
+            taxRate: 0m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var parameters = new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { addonLineItem.Id, 1 } }
+        };
+
+        // Act
+        var result = await _shipmentService.CreateShipmentAsync(parameters);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.ResultObject.ShouldBeNull();
+        result.Messages.ShouldContain(m =>
+            m.Message.Contains("cannot be shipped", StringComparison.OrdinalIgnoreCase));
+    }
+
     #endregion
 
     #region CreateShipmentsFromOrderAsync - Allocation
@@ -159,6 +207,60 @@ public class ShipmentServiceTests
         result.ResultObject.TrackingNumber.ShouldBe("794644790132");
         result.ResultObject.ShippedDate.ShouldNotBeNull();
 
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Shipped);
+    }
+
+    [Fact]
+    public async Task UpdateShipmentStatusAsync_WithAddonOnOrder_ShippedStatusUsesShippableItemsOnly()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var warehouse = dataBuilder.CreateWarehouse("Status Warehouse", "GB");
+        var shippingOption = dataBuilder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 5.00m);
+        shippingOption.ShippingCosts.Add(new ShippingCost { CountryCode = "GB", Cost = 5.00m });
+        dataBuilder.AddServiceRegion(warehouse, "GB");
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Status Product Root", taxGroup);
+        var product = dataBuilder.CreateProduct("Status Product", productRoot, price: 40m);
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 100);
+        product.ShippingOptions.Add(shippingOption);
+
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+
+        var parentLineItem = dataBuilder.CreateLineItem(order, product, quantity: 1, amount: 40m, taxRate: 20m);
+        dataBuilder.CreateAddonLineItem(
+            order,
+            parentLineItem,
+            name: "Add-on Warranty",
+            quantity: 1,
+            amount: 5m,
+            isTaxable: false,
+            taxRate: 0m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var createShipmentResult = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { parentLineItem.Id, 1 } }
+        });
+        createShipmentResult.Success.ShouldBeTrue();
+
+        // Act
+        var updateResult = await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = createShipmentResult.ResultObject!.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
+
+        // Assert
+        updateResult.Success.ShouldBeTrue();
         _fixture.DbContext.ChangeTracker.Clear();
         var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
         updatedOrder.Status.ShouldBe(OrderStatus.Shipped);
@@ -290,7 +392,7 @@ public class ShipmentServiceTests
     #region GetFulfillmentSummaryAsync
 
     [Fact]
-    public async Task GetFulfillmentSummaryAsync_CustomAndAddonLineItems_AreReturned()
+    public async Task GetFulfillmentSummaryAsync_CustomAndAddonLineItems_ReturnsOnlyShippableItems()
     {
         // Arrange
         var dataBuilder = _fixture.CreateDataBuilder();
@@ -334,19 +436,15 @@ public class ShipmentServiceTests
 
         var orderSummary = summary.Orders.Single(o => o.OrderId == order.Id);
         var mappedCustomLineItem = orderSummary.LineItems.Single(li => li.Id == customLineItem.Id);
-        var mappedAddonLineItem = orderSummary.LineItems.Single(li => li.Id == addonLineItem.Id);
 
         mappedCustomLineItem.OrderedQuantity.ShouldBe(customLineItem.Quantity);
         mappedCustomLineItem.ShippedQuantity.ShouldBe(0);
         mappedCustomLineItem.RemainingQuantity.ShouldBe(customLineItem.Quantity);
-
-        mappedAddonLineItem.OrderedQuantity.ShouldBe(addonLineItem.Quantity);
-        mappedAddonLineItem.ShippedQuantity.ShouldBe(0);
-        mappedAddonLineItem.RemainingQuantity.ShouldBe(addonLineItem.Quantity);
+        orderSummary.LineItems.ShouldNotContain(li => li.Id == addonLineItem.Id);
     }
 
     [Fact]
-    public async Task GetFulfillmentSummaryAsync_MixedProductAndCustom_RemainingCustomStillShown()
+    public async Task GetFulfillmentSummaryAsync_MixedProductAndCustom_RemainingCustomStillShown_WithoutAddonRows()
     {
         // Arrange
         var dataBuilder = _fixture.CreateDataBuilder();
@@ -417,11 +515,10 @@ public class ShipmentServiceTests
         var orderSummary = summary.Orders.Single(o => o.OrderId == order.Id);
         var mappedProductLineItem = orderSummary.LineItems.Single(li => li.Id == productLineItem.Id);
         var mappedCustomLineItem = orderSummary.LineItems.Single(li => li.Id == customLineItem.Id);
-        var mappedAddonLineItem = orderSummary.LineItems.Single(li => li.Id == addonLineItem.Id);
 
         mappedProductLineItem.RemainingQuantity.ShouldBe(0);
         mappedCustomLineItem.RemainingQuantity.ShouldBeGreaterThan(0);
-        mappedAddonLineItem.RemainingQuantity.ShouldBeGreaterThan(0);
+        orderSummary.LineItems.ShouldNotContain(li => li.Id == addonLineItem.Id);
         orderSummary.LineItems.Any(li => li.RemainingQuantity > 0).ShouldBeTrue();
     }
 

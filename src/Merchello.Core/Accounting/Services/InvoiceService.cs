@@ -727,6 +727,19 @@ public class InvoiceService(
                 }
             }
 
+            // Supersede older unpaid checkout invoices for this basket so
+            // customers do not accumulate "ghost" orders while editing checkout details.
+            var supersededIds = await SupersedePreviousUnpaidInvoicesAsync(db, newInvoice, cancellationToken);
+
+            if (supersededIds.Count > 0)
+            {
+                logger.LogInformation(
+                    "Superseded {Count} previous unpaid invoice(s) for basket {BasketId} after creating invoice {InvoiceId}",
+                    supersededIds.Count,
+                    newInvoice.BasketId,
+                    newInvoice.Id);
+            }
+
             logger.LogInformation("Created invoice {InvoiceId} with {OrderCount} orders from {GroupCount} warehouse groups",
                 newInvoice.Id, orders.Count, shippingResult.WarehouseGroups.Count);
 
@@ -735,6 +748,11 @@ public class InvoiceService(
 
         if (invoice == null)
         {
+            if (result.Messages.Count == 0)
+            {
+                result.AddErrorMessage("Invoice creation pipeline returned no invoice.");
+            }
+
             return result;
         }
 
@@ -2996,6 +3014,120 @@ public class InvoiceService(
             invoice.Id, basketId);
 
         return invoice;
+    }
+
+    private async Task<List<Guid>> SupersedePreviousUnpaidInvoicesAsync(
+        MerchelloDbContext db,
+        Invoice newInvoice,
+        CancellationToken cancellationToken)
+    {
+        if (!newInvoice.BasketId.HasValue)
+        {
+            return [];
+        }
+
+        var supersededAt = DateTime.UtcNow;
+        var reason = $"Superseded by newer checkout invoice {newInvoice.InvoiceNumber}";
+
+        var staleInvoices = await db.Invoices
+            .Include(i => i.Payments)
+            .Include(i => i.Orders!)
+                .ThenInclude(o => o.LineItems)
+            .Where(i => i.BasketId == newInvoice.BasketId &&
+                        i.Id != newInvoice.Id &&
+                        !i.IsDeleted &&
+                        !i.IsCancelled)
+            .ToListAsync(cancellationToken);
+
+        if (staleInvoices.Count == 0)
+        {
+            return [];
+        }
+
+        var supersededIds = new List<Guid>();
+
+        foreach (var staleInvoice in staleInvoices)
+        {
+            if (HasSuccessfulPayment(staleInvoice.Payments))
+            {
+                logger.LogInformation(
+                    "Skipping supersede for invoice {InvoiceId}: successful payment already exists",
+                    staleInvoice.Id);
+                continue;
+            }
+
+            var activeOrders = (staleInvoice.Orders ?? [])
+                .Where(o => o.Status != OrderStatus.Cancelled)
+                .ToList();
+
+            if (activeOrders.Any(o => o.Status is OrderStatus.Shipped or OrderStatus.Completed))
+            {
+                logger.LogWarning(
+                    "Skipping supersede for invoice {InvoiceId}: contains shipped/completed orders",
+                    staleInvoice.Id);
+                continue;
+            }
+
+            foreach (var order in activeOrders)
+            {
+                foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
+                {
+                    var releaseResult = await inventoryService.ReleaseReservationAsync(
+                        lineItem.ProductId!.Value,
+                        order.WarehouseId,
+                        lineItem.Quantity,
+                        cancellationToken);
+
+                    if (!releaseResult.ResultObject)
+                    {
+                        logger.LogWarning(
+                            "Failed to release reservation for superseded invoice {InvoiceId}, order {OrderId}, line item {LineItemId}",
+                            staleInvoice.Id,
+                            order.Id,
+                            lineItem.Id);
+                    }
+                }
+
+                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
+                if (!canTransition)
+                {
+                    logger.LogWarning(
+                        "Skipping order status transition to Cancelled for superseded invoice {InvoiceId}, order {OrderId}",
+                        staleInvoice.Id,
+                        order.Id);
+                    continue;
+                }
+
+                var oldStatus = order.Status;
+                await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Cancelled, cancellationToken);
+                order.Status = OrderStatus.Cancelled;
+                order.CancellationReason = reason;
+                order.DateUpdated = supersededAt;
+                await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Cancelled, cancellationToken);
+            }
+
+            staleInvoice.IsCancelled = true;
+            staleInvoice.DateCancelled = supersededAt;
+            staleInvoice.CancellationReason = reason;
+            staleInvoice.CancelledBy = "System";
+            staleInvoice.DateUpdated = supersededAt;
+            staleInvoice.Notes.Add(new InvoiceNote
+            {
+                DateCreated = supersededAt,
+                Author = "System",
+                VisibleToCustomer = false,
+                Description = $"Invoice superseded by newer checkout attempt ({newInvoice.InvoiceNumber})."
+            });
+
+            supersededIds.Add(staleInvoice.Id);
+        }
+
+        if (supersededIds.Count > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return supersededIds;
     }
 
     /// <summary>

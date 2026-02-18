@@ -235,6 +235,7 @@ export function initSinglePageCheckout() {
             get addressLookupConfig() { return this.$store.checkout?.addressLookup ?? { isEnabled: false }; },
             get addressLookupMinQueryLength() { return this.addressLookupConfig?.minQueryLength ?? 3; },
             get addressLookupMaxSuggestions() { return this.addressLookupConfig?.maxSuggestions ?? 6; },
+            get isBillingPhoneRequired() { return this.$store.checkout?.billingPhoneRequired === true; },
 
             // Upsell store getters
             get upsellSuggestions() { return this.$store.checkout?.upsellSuggestions ?? []; },
@@ -284,6 +285,8 @@ export function initSinglePageCheckout() {
                                     this.form.billing.townCity &&
                                     this.form.billing.countryCode &&
                                     this.form.billing.postalCode;
+                const billingPhoneValid = !this.isBillingPhoneRequired ||
+                    !!(this.form.billing.phone && this.form.billing.phone.trim());
 
                 const shippingValid = this.hasRequiredShippingAddress();
 
@@ -309,6 +312,7 @@ export function initSinglePageCheckout() {
                        (this.selectedPaymentMethod !== null || this.selectedSavedMethod !== null) &&
                        this.form.email &&
                        billingValid &&
+                       billingPhoneValid &&
                        shippingValid;
             },
 
@@ -1694,9 +1698,15 @@ export function initSinglePageCheckout() {
                     if (requiredFields.includes(key) && !this.form[prefix][key]) {
                         store?.setError(field, 'This field is required.');
                     } else if (key === 'phone') {
-                        const result = validatePhone(this.form[prefix].phone);
-                        if (!result.isValid) {
-                            store?.setError(field, result.error);
+                        const phone = this.form[prefix].phone ?? '';
+                        const phoneRequired = prefix === 'billing' && this.isBillingPhoneRequired;
+                        if (phoneRequired && !phone.trim()) {
+                            store?.setError(field, 'Phone number is required.');
+                        } else if (phone.trim()) {
+                            const result = validatePhone(phone);
+                            if (!result.isValid) {
+                                store?.setError(field, result.error);
+                            }
                         }
                     }
                 }

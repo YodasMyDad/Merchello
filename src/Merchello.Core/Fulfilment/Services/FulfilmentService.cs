@@ -478,7 +478,7 @@ public class FulfilmentService(
                     var lineItem = order.LineItems?.FirstOrDefault(li =>
                         string.Equals(li.Sku, item.Sku, StringComparison.OrdinalIgnoreCase));
 
-                    if (lineItem != null)
+                    if (lineItem != null && IsShippableLineItem(lineItem))
                     {
                         shipment.LineItems.Add(LineItemFactory.CreateShipmentTrackingLineItem(lineItem, item.Quantity));
                     }
@@ -488,7 +488,7 @@ public class FulfilmentService(
             {
                 // Full shipment - assign all items
                 shipment.LineItems.AddRange(order.LineItems
-                    .Where(li => li.LineItemType != LineItemType.Discount)
+                    .Where(IsShippableLineItem)
                     .Select(li => LineItemFactory.CreateShipmentTrackingLineItem(li, li.Quantity)));
             }
 
@@ -833,13 +833,13 @@ public class FulfilmentService(
         }
 
         var totalOrdered = lineItems
-            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Where(IsShippableLineItem)
             .Sum(li => li.Quantity);
 
         var totalShipped = shipments
             .Where(s => s.Status == ShipmentStatus.Shipped || s.Status == ShipmentStatus.Delivered)
             .SelectMany(s => s.LineItems ?? [])
-            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Where(IsShippableLineItem)
             .Sum(li => li.Quantity);
 
         if (totalOrdered <= 0)
@@ -1027,4 +1027,7 @@ public class FulfilmentService(
 
         return SupplierDirectErrorClassifier.IsRetryable(classification);
     }
+
+    private static bool IsShippableLineItem(LineItem lineItem) =>
+        lineItem.LineItemType is LineItemType.Product or LineItemType.Custom;
 }

@@ -230,6 +230,16 @@ public class ShipmentService(
                     return false;
                 }
 
+                if (!IsShippableLineItem(lineItem))
+                {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = $"Line item {lineItem.Name ?? lineItemId.ToString()} cannot be shipped",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                    return false;
+                }
+
                 var alreadyShipped = order.Shipments?
                     .SelectMany(s => s.LineItems ?? [])
                     .Where(li => li.Id == lineItemId)
@@ -247,16 +257,11 @@ public class ShipmentService(
                 }
             }
 
-            // Create shipment line items (skip discount line items - they shouldn't be shipped)
+            // Create shipment line items from validated shippable line items.
             List<LineItem> shipmentLineItems = [];
             foreach (var (lineItemId, quantity) in parameters.LineItems)
             {
                 var sourceLineItem = order.LineItems!.First(li => li.Id == lineItemId);
-
-                // Skip discount line items
-                if (sourceLineItem.LineItemType == LineItemType.Discount)
-                    continue;
-
                 shipmentLineItems.Add(LineItemFactory.CreateShipmentTrackingLineItem(sourceLineItem, quantity));
             }
 
@@ -543,16 +548,16 @@ public class ShipmentService(
         var shipments = order.Shipments?.ToList() ?? [];
         if (!shipments.Any()) return;
 
-        // Calculate quantities (exclude discount line items)
+        // Calculate quantities from shippable line items only.
         var totalOrdered = order.LineItems?
-            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Where(IsShippableLineItem)
             .Sum(li => li.Quantity) ?? 0;
 
         // Count items in shipments that are Shipped or Delivered (not Preparing or Cancelled)
         var totalShipped = shipments
             .Where(s => s.Status == ShipmentStatus.Shipped || s.Status == ShipmentStatus.Delivered)
             .SelectMany(s => s.LineItems ?? [])
-            .Where(li => li.LineItemType != LineItemType.Discount)
+            .Where(IsShippableLineItem)
             .Sum(li => li.Quantity);
 
         // Check if all shipments are delivered
@@ -631,14 +636,14 @@ public class ShipmentService(
             var wasCompleted = order.Status == OrderStatus.Completed;
             db.Shipments.Remove(shipment);
 
-            // Recalculate order status (exclude discount line items)
+            // Recalculate order status from shippable line items only.
             var remainingShipments = order.Shipments?.Where(s => s.Id != shipmentId).ToList() ?? [];
             var totalOrdered = order.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Where(IsShippableLineItem)
                 .Sum(li => li.Quantity) ?? 0;
             var totalShipped = remainingShipments
                 .SelectMany(s => s.LineItems ?? [])
-                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Where(IsShippableLineItem)
                 .Sum(li => li.Quantity);
 
             if (totalShipped >= totalOrdered)
@@ -769,7 +774,7 @@ public class ShipmentService(
         }
 
         var lineItems = order.LineItems?
-            .Where(li => li != null && li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .Where(li => li != null && IsShippableLineItem(li))
             .Select(li => li!)
             .ToList() ?? [];
         var shipments = order.Shipments?
@@ -849,7 +854,7 @@ public class ShipmentService(
             CanMarkAsDelivered = shipment.Status == ShipmentStatus.Shipped,
             CanCancel = shipment.Status != ShipmentStatus.Delivered && shipment.Status != ShipmentStatus.Cancelled,
             LineItems = shipment.LineItems?
-                .Where(li => li.LineItemType != LineItemType.Discount)
+                .Where(IsShippableLineItem)
                 .Select(li => new ShipmentLineItemDto
                 {
                     Id = Guid.NewGuid(),
@@ -868,6 +873,9 @@ public class ShipmentService(
                 }).ToList() ?? []
         };
     }
+
+    private static bool IsShippableLineItem(LineItem lineItem) =>
+        lineItem.LineItemType is LineItemType.Product or LineItemType.Custom;
 
     #endregion
 }

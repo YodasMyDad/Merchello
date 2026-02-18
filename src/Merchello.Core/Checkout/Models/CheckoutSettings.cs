@@ -77,9 +77,18 @@ public class CheckoutSettings
     public bool ShowExpressCheckout { get; set; } = true;
 
     /// <summary>
-    /// Whether phone number is required during checkout.
+    /// Whether billing phone number is required during checkout.
     /// </summary>
-    public bool RequirePhone { get; set; } = false;
+    public bool BillingPhoneRequired { get; set; } = true;
+
+    /// <summary>
+    /// Backward-compatible alias for BillingPhoneRequired.
+    /// </summary>
+    public bool RequirePhone
+    {
+        get => BillingPhoneRequired;
+        set => BillingPhoneRequired = value;
+    }
 
     /// <summary>
     /// URL to redirect to after order confirmation.

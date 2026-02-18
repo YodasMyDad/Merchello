@@ -1,9 +1,11 @@
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
+using Merchello.Core.Locality.Dtos;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.Interfaces;
@@ -27,6 +29,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Shouldly;
+using Microsoft.EntityFrameworkCore;
 using Umbraco.Cms.Core.Media;
 using Umbraco.Cms.Core.PropertyEditors;
 using Umbraco.Cms.Core.Security;
@@ -120,6 +123,102 @@ public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<Servic
             !i.IsCancelled);
 
         invoiceCount.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task InitiatePaymentAsync_WhenCheckoutDetailsChange_SupersedesPreviousUnpaidInvoice()
+    {
+        ConfigureManualProviderForPaymentSession();
+        var service = CreateService();
+
+        var (basket, session) = await CreateCheckoutReadyBasketAsync();
+        await PersistBasketAndSessionAsync(basket, session);
+
+        var request = new InitiatePaymentDto
+        {
+            ProviderAlias = "manual",
+            MethodAlias = "manual",
+            ReturnUrl = "https://example.test/checkout/return",
+            CancelUrl = "https://example.test/checkout/cancel"
+        };
+
+        var firstResult = await service.InitiatePaymentAsync(request);
+        firstResult.StatusCode.ShouldBe(StatusCodes.Status200OK);
+        var firstPayload = firstResult.Payload.ShouldBeOfType<PaymentSessionResultDto>();
+        firstPayload.Success.ShouldBeTrue();
+        firstPayload.InvoiceId.ShouldNotBeNull();
+        var firstInvoiceId = firstPayload.InvoiceId.Value;
+
+        // Simulate staff editing checkout details after first payment-init.
+        var updatedBilling = ToAddressDto(session.BillingAddress);
+        updatedBilling.AddressTwo = "Suite 2";
+        var updatedShipping = ToAddressDto(session.ShippingAddress);
+        updatedShipping.AddressTwo = "Suite 2";
+
+        var saveAddressesResult = await _checkoutService.SaveAddressesAsync(new SaveAddressesParameters
+        {
+            Basket = basket,
+            Email = session.BillingAddress.Email,
+            BillingAddress = updatedBilling,
+            ShippingAddress = updatedShipping,
+            ShippingSameAsBilling = false
+        });
+
+        saveAddressesResult.Success.ShouldBeTrue();
+
+        // Ensure timestamp ordering is deterministic for stale-invoice detection.
+        _fixture.DbContext.ChangeTracker.Clear();
+        var firstInvoice = await _fixture.DbContext.Invoices
+            .AsNoTracking()
+            .SingleAsync(i => i.Id == firstInvoiceId);
+        var updatedBasket = await _fixture.DbContext.Baskets
+            .SingleAsync(b => b.Id == basket.Id);
+
+        if (updatedBasket.DateUpdated <= firstInvoice.DateCreated)
+        {
+            updatedBasket.DateUpdated = firstInvoice.DateCreated.AddSeconds(1);
+            await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = updatedBasket });
+        }
+
+        var secondResult = await service.InitiatePaymentAsync(request);
+        secondResult.StatusCode.ShouldBe(StatusCodes.Status200OK);
+        var secondPayload = secondResult.Payload.ShouldBeOfType<PaymentSessionResultDto>();
+        secondPayload.Success.ShouldBeTrue();
+        secondPayload.InvoiceId.ShouldNotBeNull();
+        secondPayload.InvoiceId.ShouldNotBe(firstInvoiceId);
+
+        var secondInvoiceId = secondPayload.InvoiceId.Value;
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var basketInvoices = await _fixture.DbContext.Invoices
+            .Where(i => i.BasketId == basket.Id && !i.IsDeleted)
+            .ToListAsync();
+
+        basketInvoices.Count.ShouldBe(2);
+        basketInvoices.Count(i => !i.IsCancelled).ShouldBe(1);
+        basketInvoices.Single(i => i.Id == firstInvoiceId).IsCancelled.ShouldBeTrue();
+        basketInvoices.Single(i => i.Id == secondInvoiceId).IsCancelled.ShouldBeFalse();
+
+        var cancelledOrders = await _fixture.DbContext.Orders
+            .Where(o => o.InvoiceId == firstInvoiceId)
+            .ToListAsync();
+
+        cancelledOrders.Count.ShouldBeGreaterThan(0);
+        cancelledOrders.All(o => o.Status == OrderStatus.Cancelled).ShouldBeTrue();
+
+        // Old invoice reservation should be released, leaving only the active invoice reservation.
+        var activeOrder = await _fixture.DbContext.Orders
+            .Include(o => o.LineItems)
+            .SingleAsync(o => o.InvoiceId == secondInvoiceId);
+
+        var productLineItem = activeOrder.LineItems!
+            .First(li => li.ProductId.HasValue);
+
+        var stock = await _fixture.DbContext.ProductWarehouses.SingleAsync(pw =>
+            pw.ProductId == productLineItem.ProductId!.Value &&
+            pw.WarehouseId == activeOrder.WarehouseId);
+
+        stock.ReservedStock.ShouldBe(productLineItem.Quantity);
     }
 
     [Fact]
@@ -498,6 +597,22 @@ public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<Servic
         CountyState = address.CountyState.RegionCode,
         PostalCode = address.PostalCode,
         CountryCode = address.CountryCode
+    };
+
+    private static AddressDto ToAddressDto(Address address) => new()
+    {
+        Name = address.Name,
+        Company = address.Company,
+        AddressOne = address.AddressOne,
+        AddressTwo = address.AddressTwo,
+        TownCity = address.TownCity,
+        CountyState = address.CountyState?.RegionCode,
+        RegionCode = address.CountyState?.RegionCode,
+        PostalCode = address.PostalCode,
+        Country = address.Country,
+        CountryCode = address.CountryCode,
+        Email = address.Email,
+        Phone = address.Phone
     };
 
     private static string BuildDeterministicTransactionId(string prefix, string seed)

@@ -173,6 +173,7 @@ function setInterstitialSeenForBasket(basketId, seen) {
  * @param {Object.<string, string>} [initialData.shippingSelections]
  * @param {PaymentMethod[]} [initialData.paymentMethods]
  * @param {AddressLookupConfig} [initialData.addressLookup]
+ * @param {boolean} [initialData.billingPhoneRequired]
  */
 export function initCheckoutStore(initialData = {}) {
     const announcer = createAnnouncer();
@@ -232,6 +233,9 @@ export function initCheckoutStore(initialData = {}) {
             password: '',
             acceptedTerms: false
         },
+
+        /** @type {boolean} Whether billing phone is required by checkout settings */
+        billingPhoneRequired: initialData.billingPhoneRequired ?? true,
 
         // ============================================
         // ADDRESS LOOKUP CONFIG

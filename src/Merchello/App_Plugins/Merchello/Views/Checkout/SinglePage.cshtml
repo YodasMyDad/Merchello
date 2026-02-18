@@ -135,6 +135,7 @@
     currencyDecimalPlaces = decimalPlaces,
     isLoggedIn = Model.IsLoggedIn,
     hasDigitalProducts = Model.HasDigitalProducts,
+    billingPhoneRequired = Model.Settings.BillingPhoneRequired,
     email = basket?.BillingAddress?.Email ?? "",
     billing = new {
         name = basket?.BillingAddress?.Name ?? "",
