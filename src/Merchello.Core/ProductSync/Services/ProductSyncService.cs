@@ -365,35 +365,40 @@ public class ProductSyncService(
         {
             claimedRunId = await scope.ExecuteWithContextAsync(async db =>
             {
-                var run = await db.ProductSyncRuns
+                var queuedRuns = await db.ProductSyncRuns
+                    .AsNoTracking()
+                    .Where(x => x.Status == ProductSyncRunStatus.Queued)
                     .OrderBy(x => x.DateCreatedUtc)
-                    .FirstOrDefaultAsync(x => x.Status == ProductSyncRunStatus.Queued, cancellationToken);
+                    .Select(x => new { x.Id, x.Direction })
+                    .ToListAsync(cancellationToken);
 
-                if (run == null)
+                foreach (var queuedRun in queuedRuns)
                 {
-                    return (Guid?)null;
-                }
+                    var claimQuery = db.ProductSyncRuns
+                        .Where(x => x.Id == queuedRun.Id && x.Status == ProductSyncRunStatus.Queued);
 
-                if (run.Direction == ProductSyncDirection.Import)
-                {
-                    var hasRunningImport = await db.ProductSyncRuns
-                        .AnyAsync(
-                            x => x.Id != run.Id &&
-                                 x.Direction == ProductSyncDirection.Import &&
-                                 x.Status == ProductSyncRunStatus.Running,
-                            cancellationToken);
-
-                    if (hasRunningImport)
+                    if (queuedRun.Direction == ProductSyncDirection.Import)
                     {
-                        return (Guid?)null;
+                        claimQuery = claimQuery.Where(_ =>
+                            !db.ProductSyncRuns.Any(x =>
+                                x.Direction == ProductSyncDirection.Import &&
+                                x.Status == ProductSyncRunStatus.Running));
+                    }
+
+                    var startedAtUtc = DateTime.UtcNow;
+                    var affectedRows = await claimQuery.ExecuteUpdateAsync(setters => setters
+                            .SetProperty(x => x.Status, ProductSyncRunStatus.Running)
+                            .SetProperty(x => x.StartedAtUtc, startedAtUtc)
+                            .SetProperty(x => x.ErrorMessage, (string?)null),
+                        cancellationToken);
+
+                    if (affectedRows == 1)
+                    {
+                        return (Guid?)queuedRun.Id;
                     }
                 }
 
-                run.Status = ProductSyncRunStatus.Running;
-                run.StartedAtUtc = DateTime.UtcNow;
-                run.ErrorMessage = null;
-                await db.SaveChangesAsync(cancellationToken);
-                return run.Id;
+                return (Guid?)null;
             });
             scope.Complete();
         }
@@ -507,6 +512,7 @@ public class ProductSyncService(
         }
 
         var artifactPathsToDelete = artifactRuns
+            .Concat(oldRuns)
             .SelectMany(x => new[] { x.InputFilePath, x.OutputFilePath })
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
