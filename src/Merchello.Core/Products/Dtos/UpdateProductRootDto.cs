@@ -9,6 +9,8 @@ public class UpdateProductRootDto
     public List<Guid>? RootImages { get; set; }
     public string? RootUrl { get; set; }
     public string? GoogleShoppingFeedCategory { get; set; }
+    public string? ShoppingFeedBrand { get; set; }
+    public string? ShoppingFeedCondition { get; set; }
     public bool? IsDigitalProduct { get; set; }
 
     // Digital product settings (mapped to/from ExtendedData)

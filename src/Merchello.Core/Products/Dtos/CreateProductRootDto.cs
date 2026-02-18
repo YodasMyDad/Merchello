@@ -7,6 +7,8 @@ public class CreateProductRootDto
 {
     public string RootName { get; set; } = string.Empty;
     public string? GoogleShoppingFeedCategory { get; set; }
+    public string? ShoppingFeedBrand { get; set; }
+    public string? ShoppingFeedCondition { get; set; }
     public Guid TaxGroupId { get; set; }
     public Guid ProductTypeId { get; set; }
     public List<Guid>? CollectionIds { get; set; }

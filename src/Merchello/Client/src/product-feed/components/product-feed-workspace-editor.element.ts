@@ -4,7 +4,7 @@ import { UmbLitElement } from "@umbraco-cms/backoffice/lit-element";
 @customElement("merchello-product-feed-workspace-editor")
 export class MerchelloProductFeedWorkspaceEditorElement extends UmbLitElement {
   override render() {
-    return html`<umb-workspace-editor headline="Product Feed"></umb-workspace-editor>`;
+    return html`<umb-workspace-editor headline="Product Feeds"></umb-workspace-editor>`;
   }
 
   static override styles = [

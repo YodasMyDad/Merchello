@@ -4,6 +4,7 @@ public static class Constants
 {
     public const string DefaultPagingVariable = "p";
     public const string ApiName = "merchello";
+    public const string StorefrontApiName = "merchello-storefront";
     public const string FallbackCountryCode = "US";
 
     public static class Cookies

@@ -47,6 +47,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
       { alias: "shoppingFeedColour", value: this.formData.shoppingFeedColour ?? "" },
       { alias: "shoppingFeedMaterial", value: this.formData.shoppingFeedMaterial ?? "" },
       { alias: "shoppingFeedSize", value: this.formData.shoppingFeedSize ?? "" },
+      { alias: "shoppingFeedBrand", value: this.formData.shoppingFeedBrand ?? "" },
+      { alias: "shoppingFeedCondition", value: this.formData.shoppingFeedCondition ?? "" },
       { alias: "shoppingFeedWidth", value: this.formData.shoppingFeedWidth ?? "" },
       { alias: "shoppingFeedHeight", value: this.formData.shoppingFeedHeight ?? "" },
     ];
@@ -64,6 +66,8 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
       shoppingFeedColour: this._getStringFromPropertyValue(values.shoppingFeedColour),
       shoppingFeedMaterial: this._getStringFromPropertyValue(values.shoppingFeedMaterial),
       shoppingFeedSize: this._getStringFromPropertyValue(values.shoppingFeedSize),
+      shoppingFeedBrand: this._getStringFromPropertyValue(values.shoppingFeedBrand),
+      shoppingFeedCondition: this._getStringFromPropertyValue(values.shoppingFeedCondition),
       shoppingFeedWidth: this._getStringFromPropertyValue(values.shoppingFeedWidth),
       shoppingFeedHeight: this._getStringFromPropertyValue(values.shoppingFeedHeight),
     };
@@ -124,6 +128,30 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
                   description="Product size for feed"
                   property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
                   .config=${[{ alias: "maxChars", value: 100 }]}>
+                </umb-property>
+
+                <umb-property
+                  alias="shoppingFeedBrand"
+                  label="Brand Override"
+                  description="Optional variant brand override. Leave blank to use product default."
+                  property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+                  .config=${[{ alias: "maxChars", value: 150 }]}>
+                </umb-property>
+
+                <umb-property
+                  alias="shoppingFeedCondition"
+                  label="Condition Override"
+                  description="Optional variant condition override. Leave blank to use product default."
+                  property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+                  .config=${[{
+                    alias: "items",
+                    value: [
+                      { name: "Use product default", value: "" },
+                      { name: "New", value: "new" },
+                      { name: "Used", value: "used" },
+                      { name: "Refurbished", value: "refurbished" },
+                    ],
+                  }]}>
                 </umb-property>
 
                 <umb-property

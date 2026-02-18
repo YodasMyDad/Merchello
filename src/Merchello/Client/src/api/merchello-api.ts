@@ -88,6 +88,37 @@ async function apiPost<T>(endpoint: string, body?: unknown): Promise<{ data?: T;
   }
 }
 
+async function apiPostMultipart<T>(endpoint: string, formData: FormData): Promise<{ data?: T; error?: Error }> {
+  try {
+    const headers = await getHeaders();
+    const requestHeaders = { ...(headers as Record<string, string>) };
+    delete requestHeaders['Content-Type'];
+    delete requestHeaders['content-type'];
+
+    const baseUrl = apiConfig.baseUrl || '';
+    const response = await fetch(`${baseUrl}${API_BASE}/${endpoint}`, {
+      method: 'POST',
+      credentials: apiConfig.credentials,
+      headers: requestHeaders,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { error: new Error(errorText || `HTTP ${response.status}: ${response.statusText}`) };
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      return { data };
+    }
+    return { data: undefined };
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error(String(error)) };
+  }
+}
+
 async function apiPut<T>(endpoint: string, body?: unknown): Promise<{ data?: T; error?: Error }> {
   try {
     const headers = await getHeaders();
@@ -265,6 +296,32 @@ import type {
   UpdateShippingExclusionsDto,
   VariantLookupDto,
 } from '@products/types/product.types.js';
+
+// Import product feed types
+import type {
+  ProductFeedListItemDto,
+  ProductFeedDetailDto,
+  CreateProductFeedDto,
+  UpdateProductFeedDto,
+  ProductFeedRebuildResultDto,
+  ProductFeedPreviewDto,
+  ProductFeedValidationDto,
+  ValidateProductFeedDto,
+  ProductFeedResolverDescriptorDto,
+} from '@product-feed/types/product-feed.types.js';
+
+// Import product import/export types
+import type {
+  ProductImportValidationDto,
+  ProductSyncIssuePageDto,
+  ProductSyncIssueQueryParams,
+  ProductSyncRunDto,
+  ProductSyncRunPageDto,
+  ProductSyncRunQueryParams,
+  StartProductExportDto,
+  StartProductImportDto,
+  ValidateProductImportDto,
+} from '@product-import-export/types/product-import-export.types.js';
 
 // Import element type types
 import type { ElementTypeDto } from '@products/types/element-type.types.js';
@@ -1194,6 +1251,134 @@ export const MerchelloApi = {
    */
   previewAddonPrice: (variantId: string, request: AddonPricePreviewRequestDto) =>
     apiPost<AddonPricePreviewDto>(`products/variants/${variantId}/preview-addon-price`, request),
+
+  // ============================================
+  // Product Feeds API
+  // ============================================
+
+  /** Get all configured product feeds */
+  getProductFeeds: () =>
+    apiGet<ProductFeedListItemDto[]>('product-feeds'),
+
+  /** Get a product feed by ID */
+  getProductFeed: (id: string) =>
+    apiGet<ProductFeedDetailDto>(`product-feeds/${id}`),
+
+  /** Create a product feed */
+  createProductFeed: (request: CreateProductFeedDto) =>
+    apiPost<ProductFeedDetailDto>('product-feeds', request),
+
+  /** Update a product feed */
+  updateProductFeed: (id: string, request: UpdateProductFeedDto) =>
+    apiPut<ProductFeedDetailDto>(`product-feeds/${id}`, request),
+
+  /** Delete a product feed */
+  deleteProductFeed: (id: string) =>
+    apiDelete(`product-feeds/${id}`),
+
+  /** Rebuild product and promotions XML snapshots for a feed */
+  rebuildProductFeed: (id: string) =>
+    apiPost<ProductFeedRebuildResultDto>(`product-feeds/${id}/rebuild`),
+
+  /** Preview feed generation diagnostics */
+  previewProductFeed: (id: string) =>
+    apiGet<ProductFeedPreviewDto>(`product-feeds/${id}/preview`),
+
+  /** Validate feed output and run Google spec checks */
+  validateProductFeed: (id: string, request: ValidateProductFeedDto) =>
+    apiPost<ProductFeedValidationDto>(`product-feeds/${id}/validate`, request),
+
+  /** Get available dynamic value resolvers for custom labels/fields */
+  getProductFeedResolvers: () =>
+    apiGet<ProductFeedResolverDescriptorDto[]>('product-feeds/resolvers'),
+
+  // ============================================
+  // Product Import / Export API
+  // ============================================
+
+  /** Validate an import CSV without mutating products. */
+  validateProductImport: (file: File, request: ValidateProductImportDto) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('profile', String(request.profile));
+    if (request.maxIssues !== null && request.maxIssues !== undefined) {
+      formData.append('maxIssues', String(request.maxIssues));
+    }
+
+    return apiPostMultipart<ProductImportValidationDto>('product-sync/imports/validate', formData);
+  },
+
+  /** Queue a product import run after validation. */
+  startProductImport: (file: File, request: StartProductImportDto) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('profile', String(request.profile));
+    formData.append('continueOnImageFailure', String(request.continueOnImageFailure));
+    if (request.maxIssues !== null && request.maxIssues !== undefined) {
+      formData.append('maxIssues', String(request.maxIssues));
+    }
+
+    return apiPostMultipart<ProductSyncRunDto>('product-sync/imports/start', formData);
+  },
+
+  /** Queue a product export run. */
+  startProductExport: (request: StartProductExportDto) =>
+    apiPost<ProductSyncRunDto>('product-sync/exports/start', request),
+
+  /** Get paginated sync run history. */
+  getProductSyncRuns: (params?: ProductSyncRunQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<ProductSyncRunPageDto>(`product-sync/runs${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Get a single sync run by id. */
+  getProductSyncRun: (id: string) =>
+    apiGet<ProductSyncRunDto>(`product-sync/runs/${id}`),
+
+  /** Get paginated issues for a run. */
+  getProductSyncRunIssues: (id: string, params?: ProductSyncIssueQueryParams) => {
+    const queryString = buildQueryString(params as Record<string, unknown>);
+    return apiGet<ProductSyncIssuePageDto>(`product-sync/runs/${id}/issues${queryString ? `?${queryString}` : ''}`);
+  },
+
+  /** Download completed export CSV artifact for a run. */
+  downloadProductSyncExport: async (
+    runId: string
+  ): Promise<{ blob?: Blob; fileName?: string; error?: Error }> => {
+    try {
+      const headers = await getHeaders();
+      const requestHeaders = { ...(headers as Record<string, string>) };
+      delete requestHeaders['Content-Type'];
+      delete requestHeaders['content-type'];
+
+      const baseUrl = apiConfig.baseUrl || '';
+      const response = await fetch(`${baseUrl}${API_BASE}/product-sync/runs/${runId}/download`, {
+        method: 'GET',
+        credentials: apiConfig.credentials,
+        headers: requestHeaders,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { error: new Error(errorText || `HTTP ${response.status}: ${response.statusText}`) };
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('content-disposition');
+      let fileName = `product-sync-${runId}.csv`;
+
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          fileName = match[1].replace(/['"]/g, '');
+        }
+      }
+
+      return { blob, fileName };
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error(String(error)) };
+    }
+  },
 
   // ============================================
   // Shipping Options API

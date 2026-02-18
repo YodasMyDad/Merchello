@@ -73,6 +73,16 @@ describe("navigation utilities", () => {
         "section/merchello/workspace/merchello-discounts/edit/discounts"
       );
 
+      expect(navigation.getProductFeedDetailHref("feed-1")).toBe(
+        "section/merchello/workspace/merchello-product-feed/edit/product-feeds/feed-1"
+      );
+      expect(navigation.getProductFeedCreateHref()).toBe(
+        "section/merchello/workspace/merchello-product-feed/edit/product-feeds/create"
+      );
+      expect(navigation.getProductFeedsListHref()).toBe(
+        "section/merchello/workspace/merchello-product-feed/edit/product-feeds"
+      );
+
       expect(navigation.getEmailDetailHref("email-1")).toBe(
         "section/merchello/workspace/merchello-emails/edit/emails/email-1"
       );
@@ -166,6 +176,13 @@ describe("navigation utilities", () => {
         "section/merchello/workspace/merchello-discounts/edit/discounts/create?category=2"
       );
 
+      navigation.navigateToProductFeedDetail("feed-1");
+      expect(pushStateSpy).toHaveBeenLastCalledWith(
+        {},
+        "",
+        "section/merchello/workspace/merchello-product-feed/edit/product-feeds/feed-1"
+      );
+
       navigation.navigateToEmailDetail("email-1");
       expect(pushStateSpy).toHaveBeenLastCalledWith(
         {},
@@ -215,6 +232,13 @@ describe("navigation utilities", () => {
         {},
         "",
         "section/merchello/workspace/merchello-upsells/edit/upsells/upsell-1"
+      );
+
+      navigation.replaceToProductFeedDetail("feed-1");
+      expect(replaceStateSpy).toHaveBeenLastCalledWith(
+        {},
+        "",
+        "section/merchello/workspace/merchello-product-feed/edit/product-feeds/feed-1"
       );
     });
   });

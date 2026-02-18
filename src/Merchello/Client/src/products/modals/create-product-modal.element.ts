@@ -8,9 +8,12 @@ import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-c
 import { UmbPropertyEditorConfigCollection } from "@umbraco-cms/backoffice/property-editor";
 import type { UmbPropertyEditorConfig } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/document-type";
+import "@products/components/product-warehouse-selector.element.js";
 import type { CreateProductRootDto, ElementTypeListItemDto, ProductTypeDto } from "@products/types/product.types.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
 import type { WarehouseListDto } from "@warehouses/types/warehouses.types.js";
+import type { WarehouseSelectionChangeDetail } from "@products/components/product-warehouse-selector.element.js";
+import { getSelectedWarehouseSetupSummary } from "@products/utils/warehouse-setup.js";
 
 interface FormData {
   rootName: string;
@@ -260,6 +263,10 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     }
   }
 
+  private _handleWarehouseSelectionChange(e: CustomEvent<WarehouseSelectionChangeDetail>): void {
+    this._handleWarehouseToggle(e.detail.warehouseId, e.detail.checked);
+  }
+
   private _getProductTypePropertyConfig(): UmbPropertyEditorConfig {
     return [
       {
@@ -360,17 +367,41 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
     const selectedWarehouseIds = this._formData.warehouseIds;
 
     return html`
-      <div class="warehouse-toggle-list">
-        ${this._warehouses.map((warehouse) => html`
-          <div class="toggle-field">
-            <uui-toggle
-              label="${warehouse.name || "Unnamed Warehouse"}"
-              .checked=${selectedWarehouseIds.includes(warehouse.id)}
-              @change=${(e: Event) => this._handleWarehouseToggle(warehouse.id, (e.target as HTMLInputElement).checked)}>
-            </uui-toggle>
-            <label>${warehouse.name || "Unnamed Warehouse"}${warehouse.code ? ` (${warehouse.code})` : ""}</label>
-          </div>
-        `)}
+      <merchello-product-warehouse-selector
+        .warehouses=${this._warehouses}
+        .selectedWarehouseIds=${selectedWarehouseIds}
+        .showConfigureLinks=${false}
+        @warehouse-selection-change=${this._handleWarehouseSelectionChange}>
+      </merchello-product-warehouse-selector>
+    `;
+  }
+
+  private _renderWarehouseSetupWarning(): unknown {
+    const summary = getSelectedWarehouseSetupSummary(this._warehouses, this._formData.warehouseIds);
+    if (summary.selectedNeedsSetupCount === 0 && summary.missingSelectedIdsCount === 0) {
+      return nothing;
+    }
+
+    const warnings: string[] = [];
+    if (summary.selectedNeedsSetupCount > 0) {
+      warnings.push(
+        `${summary.selectedNeedsSetupCount} selected warehouse${summary.selectedNeedsSetupCount === 1 ? "" : "s"} are missing regions or shipping options`
+      );
+    }
+    if (summary.missingSelectedIdsCount > 0) {
+      warnings.push(
+        `${summary.missingSelectedIdsCount} selected warehouse reference${summary.missingSelectedIdsCount === 1 ? "" : "s"} could not be found`
+      );
+    }
+
+    return html`
+      <div class="warehouse-setup-warning-banner" role="status">
+        <uui-icon name="icon-alert"></uui-icon>
+        <div>
+          <strong>Warehouse setup needs attention</strong>
+          <p>${warnings.join(". ")}.</p>
+          <p class="hint">Product creation is still allowed, but shipping availability may be incomplete.</p>
+        </div>
       </div>
     `;
   }
@@ -455,10 +486,7 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
           </div>
           ${this._errors.warehouseIds ? html`<span class="error-message">${this._errors.warehouseIds}</span>` : nothing}
         </umb-property-layout>
-
-        ${this._warehouses.length === 0
-          ? html`<p class="hint">No warehouses available. Create a warehouse first.</p>`
-          : nothing}
+        ${this._renderWarehouseSetupWarning()}
       </div>
     `;
   }
@@ -488,21 +516,28 @@ export class MerchelloCreateProductModalElement extends UmbModalBaseElement<
       width: 100%;
     }
 
-    .warehouse-toggle-list {
+    .warehouse-setup-warning-banner {
       display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-4);
-    }
-
-    .warehouse-toggle-list .toggle-field {
-      display: flex;
-      align-items: center;
       gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      margin-top: var(--uui-size-space-1);
+      border: 1px solid var(--uui-color-warning);
+      border-radius: var(--uui-border-radius);
+      background: color-mix(in srgb, var(--uui-color-warning) 8%, var(--uui-color-surface));
     }
 
-    .warehouse-toggle-list label {
-      color: var(--uui-color-text);
-      font-weight: normal;
+    .warehouse-setup-warning-banner uui-icon {
+      color: var(--uui-color-warning-emphasis);
+      flex-shrink: 0;
+    }
+
+    .warehouse-setup-warning-banner strong {
+      display: block;
+      margin-bottom: var(--uui-size-space-1);
+    }
+
+    .warehouse-setup-warning-banner p {
+      margin: 0;
     }
 
     .hint {
