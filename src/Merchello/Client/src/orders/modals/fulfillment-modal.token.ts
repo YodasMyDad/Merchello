@@ -2,6 +2,11 @@ import { UmbModalToken } from "@umbraco-cms/backoffice/modal";
 
 export interface FulfillmentModalData {
   invoiceId: string;
+  hasOutstandingBalance?: boolean;
+  paymentStatusDisplay?: string;
+  balanceDue?: number;
+  currencyCode?: string;
+  currencySymbol?: string;
 }
 
 export interface FulfillmentModalValue {

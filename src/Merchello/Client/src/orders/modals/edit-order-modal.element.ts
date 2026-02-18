@@ -659,7 +659,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
         addons: product.addons.map((addon) => ({
           optionId: addon.optionId,
           optionValueId: addon.valueId,
-          name: addon.valueName,
+          name: `${addon.optionName}: ${addon.valueName}`,
           priceAdjustment: addon.priceAdjustment,
           costAdjustment: addon.costAdjustment ?? 0,
           skuSuffix: addon.skuSuffix,

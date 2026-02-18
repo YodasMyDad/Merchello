@@ -2985,7 +2985,63 @@ public class InvoiceEditService(
             }
         }
 
-        return (normalizedAddons, null);
+        var addonsWithCanonicalNames = normalizedAddons
+            .Select(addon =>
+            {
+                if (!optionLookup.TryGetValue(addon.OptionId, out var option))
+                {
+                    return addon;
+                }
+
+                var optionValue = option.ProductOptionValues
+                    .FirstOrDefault(v => v.Id == addon.OptionValueId);
+
+                if (optionValue == null)
+                {
+                    return addon;
+                }
+
+                return new OrderAddonDto
+                {
+                    OptionId = addon.OptionId,
+                    OptionValueId = addon.OptionValueId,
+                    Name = BuildAddonDisplayName(option.Name, optionValue.Name, addon.Name),
+                    PriceAdjustment = addon.PriceAdjustment,
+                    CostAdjustment = addon.CostAdjustment,
+                    SkuSuffix = addon.SkuSuffix,
+                    WeightKg = addon.WeightKg,
+                    LengthCm = addon.LengthCm,
+                    WidthCm = addon.WidthCm,
+                    HeightCm = addon.HeightCm
+                };
+            })
+            .ToList();
+
+        return (addonsWithCanonicalNames, null);
+    }
+
+    private static string BuildAddonDisplayName(string? optionName, string? optionValueName, string? fallbackName)
+    {
+        var trimmedOptionName = optionName?.Trim();
+        var trimmedOptionValueName = optionValueName?.Trim();
+        var trimmedFallbackName = fallbackName?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(trimmedOptionName) && !string.IsNullOrWhiteSpace(trimmedOptionValueName))
+        {
+            return $"{trimmedOptionName}: {trimmedOptionValueName}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(trimmedOptionValueName))
+        {
+            return trimmedOptionValueName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(trimmedOptionName))
+        {
+            return trimmedOptionName;
+        }
+
+        return string.IsNullOrWhiteSpace(trimmedFallbackName) ? "Add-on" : trimmedFallbackName;
     }
 
     /// <summary>

@@ -168,8 +168,16 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     if (!this._order || !this.#modalManager) return;
 
     const orderId = this._order.id;
+    const hasOutstandingBalance = this._order.balanceDue > 0;
     const modal = this.#modalManager.open(this, MERCHELLO_FULFILLMENT_MODAL, {
-      data: { invoiceId: orderId },
+      data: {
+        invoiceId: orderId,
+        hasOutstandingBalance,
+        paymentStatusDisplay: this._order.paymentStatusDisplay,
+        balanceDue: this._order.balanceDue,
+        currencyCode: this._order.currencyCode,
+        currencySymbol: this._order.currencySymbol,
+      },
     });
 
     // Wait for modal to close (submit or reject)
@@ -591,11 +599,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           <div class="fulfillment-actions">
             <uui-button
               look="${canFulfill ? 'primary' : 'secondary'}"
-              label="${canFulfill ? 'Fulfil' : 'Fulfilled'}"
+              label="${canFulfill ? 'Fulfill' : 'Fulfilled'}"
               ?disabled=${!canFulfill}
               @click=${canFulfill ? this._openFulfillmentModal : nothing}
             >
-              ${canFulfill ? "Fulfil" : "Fulfilled"}
+              ${canFulfill ? "Fulfill" : "Fulfilled"}
             </uui-button>
           </div>
         </div>

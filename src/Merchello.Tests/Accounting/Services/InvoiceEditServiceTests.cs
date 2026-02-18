@@ -597,6 +597,115 @@ public class InvoiceEditServiceTests : IClassFixture<ServiceTestFixture>
         mappedCustomLine.ChildLineItems.All(li => li.ParentLineItemId == mappedCustomLine.Id).ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task EditInvoiceAsync_ProductAddonName_UsesOptionAndValueInLineItemAndTimelineNote()
+    {
+        // Arrange
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "CA");
+        var shippingOption = dataBuilder.CreateShippingOption("Ground", warehouse, fixedCost: 0m);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Pending);
+        dataBuilder.CreateLineItem(order, name: "Existing Item", quantity: 1, amount: 25m);
+
+        var taxGroup = dataBuilder.CreateTaxGroup("No Tax", 0m);
+        var productRoot = dataBuilder.CreateProductRoot("Storage Shed", taxGroup);
+        var product = dataBuilder.CreateProduct("5'0\" (150cm) x 6'3\" (190cm) - Platinum", productRoot, price: 120m);
+
+        var optionFactory = new ProductOptionFactory();
+        var addonOption = optionFactory.CreateEmpty();
+        addonOption.Name = "Choose Storage";
+        addonOption.IsVariant = false;
+        addonOption.IsMultiSelect = false;
+        addonOption.IsRequired = true;
+
+        var addonValue = optionFactory.CreateEmptyValue();
+        addonValue.Name = "(C) Conti Drawers";
+        addonValue.PriceAdjustment = 15m;
+        addonValue.CostAdjustment = 5m;
+        addonValue.SkuSuffix = "CDRAW";
+        addonOption.ProductOptionValues = [addonValue];
+        productRoot.ProductOptions = [addonOption];
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 50, trackStock: true);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var parameters = new EditInvoiceParameters
+        {
+            InvoiceId = invoice.Id,
+            Request = new EditInvoiceDto
+            {
+                LineItems = [],
+                RemovedLineItems = [],
+                RemovedOrderDiscounts = [],
+                CustomItems = [],
+                ProductsToAdd =
+                [
+                    new AddProductToOrderDto
+                    {
+                        ProductId = product.Id,
+                        Quantity = 1,
+                        WarehouseId = warehouse.Id,
+                        ShippingOptionId = shippingOption.Id,
+                        Addons =
+                        [
+                            new OrderAddonDto
+                            {
+                                OptionId = addonOption.Id,
+                                OptionValueId = addonValue.Id,
+                                // Simulate current UI payload that only sends value name.
+                                Name = addonValue.Name ?? string.Empty,
+                                PriceAdjustment = addonValue.PriceAdjustment,
+                                CostAdjustment = addonValue.CostAdjustment,
+                                SkuSuffix = addonValue.SkuSuffix
+                            }
+                        ]
+                    }
+                ],
+                OrderDiscounts = [],
+                OrderDiscountCodes = [],
+                OrderShippingUpdates = [],
+                EditReason = "Add product add-on with value-only name",
+                ShouldRemoveTax = false
+            },
+            AuthorId = Guid.NewGuid(),
+            AuthorName = "Test User"
+        };
+
+        // Act
+        var result = await _invoiceEditService.EditInvoiceAsync(parameters);
+
+        // Assert
+        result.Success.ShouldBeTrue(result.ErrorMessage);
+        result.Data.ShouldNotBeNull();
+        result.Data.IsSuccessful.ShouldBeTrue();
+
+        await using var db = _fixture.CreateDbContext();
+        var persistedInvoice = await db.Invoices
+            .Include(i => i.Orders!)
+                .ThenInclude(o => o.LineItems)
+            .FirstAsync(i => i.Id == invoice.Id);
+
+        var addedAddonLineItem = persistedInvoice.Orders!
+            .SelectMany(o => o.LineItems ?? [])
+            .FirstOrDefault(li => li.LineItemType == LineItemType.Addon && li.Name?.Contains("Conti Drawers", StringComparison.Ordinal) == true);
+
+        addedAddonLineItem.ShouldNotBeNull();
+        addedAddonLineItem.Name.ShouldBe("Choose Storage: (C) Conti Drawers");
+
+        var latestEditNote = (persistedInvoice.Notes ?? [])
+            .OrderByDescending(n => n.DateCreated)
+            .FirstOrDefault(n => n.Description is not null && n.Description.Contains("Invoice Edited", StringComparison.Ordinal));
+
+        latestEditNote.ShouldNotBeNull();
+        latestEditNote.Description.ShouldNotBeNull();
+        var latestEditNoteDescription = latestEditNote.Description;
+        latestEditNoteDescription.ShouldContain("Add-on: Choose Storage: (C) Conti Drawers");
+        latestEditNoteDescription.ShouldNotContain("Add-on: (C) Conti Drawers");
+    }
+
     private async Task<Invoice> CreateInvoiceWithDuplicateSkuProductsAsync()
     {
         var dataBuilder = _fixture.CreateDataBuilder();
