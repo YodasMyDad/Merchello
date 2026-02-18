@@ -42,6 +42,7 @@
       "@outstanding/*": [ "src/outstanding/*" ],
       "@payment-providers/*": [ "src/payment-providers/*" ],
       "@product-feed/*": [ "src/product-feed/*" ],
+      "@product-import-export/*": [ "src/product-import-export/*" ],
       "@property-editors/*": [ "src/property-editors/*" ],
       "@product-types/*": [ "src/product-types/*" ],
       "@products/*": [ "src/products/*" ],

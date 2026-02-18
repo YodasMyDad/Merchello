@@ -26,6 +26,8 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         builder.Property(x => x.ProductOptions).ToJsonConversion(null);
         builder.Property(x => x.RootImages).ToJsonConversion(null);
         builder.Property(x => x.GoogleShoppingFeedCategory).HasMaxLength(1000);
+        builder.Property(x => x.ShoppingFeedBrand).HasMaxLength(150);
+        builder.Property(x => x.ShoppingFeedCondition).HasMaxLength(20).HasDefaultValue("new");
         builder.Property(x => x.RootUrl).HasMaxLength(1000);
         builder.Property(x => x.DefaultPackageConfigurations).ToJsonConversion(4000);
 

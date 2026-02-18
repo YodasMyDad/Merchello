@@ -1737,6 +1737,233 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloSavedPaymentMethods", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.ProductFeeds.Models.ProductFeed", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CountryCode")
+                        .IsRequired()
+                        .HasMaxLength(2)
+                        .HasColumnType("nvarchar(2)");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("CustomFieldsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomLabelsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("DateCreated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FilterConfigJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool?>("IncludeTaxInPrice")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<DateTime?>("LastGeneratedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastGenerationError")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("LastSuccessfulProductFeedXml")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LastSuccessfulPromotionsFeedXml")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ManualPromotionsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsEnabled");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("merchelloProductFeeds", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncIssue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("DateCreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Field")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Handle")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("RowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Severity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Sku")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("Stage")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DateCreatedUtc");
+
+                    b.HasIndex("RunId");
+
+                    b.HasIndex("Severity");
+
+                    b.HasIndex("Stage");
+
+                    b.ToTable("merchelloProductSyncIssues", (string)null);
+                });
+
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateCreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ErrorCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("InputFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("InputFilePath")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("ItemsFailed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("ItemsProcessed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("ItemsSucceeded")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("OptionsJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OutputFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("OutputFilePath")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("Profile")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequestedByUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RequestedByUserName")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("WarningCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DateCreatedUtc");
+
+                    b.HasIndex("Direction");
+
+                    b.HasIndex("StartedAtUtc");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("merchelloProductSyncRuns", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1809,9 +2036,17 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(0);
 
+                    b.Property<string>("ShoppingFeedBrand")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("ShoppingFeedColour")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ShoppingFeedCondition")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("ShoppingFeedDescription")
                         .HasMaxLength(1000)
@@ -2013,6 +2248,17 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("RootUrl")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ShoppingFeedBrand")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("ShoppingFeedCondition")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("new");
 
                     b.Property<int?>("SubscriptionBillingInterval")
                         .HasColumnType("int");
@@ -3765,6 +4011,17 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Navigation("Customer");
                 });
 
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncIssue", b =>
+                {
+                    b.HasOne("Merchello.Core.ProductSync.Models.ProductSyncRun", "Run")
+                        .WithMany("Issues")
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Run");
+                });
+
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>
                 {
                     b.HasOne("Merchello.Core.Products.Models.ProductRoot", "ProductRoot")
@@ -4110,6 +4367,11 @@ namespace Merchello.Core.SqlServer.Migrations
             modelBuilder.Entity("Merchello.Core.GiftCards.Models.GiftCard", b =>
                 {
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("Merchello.Core.ProductSync.Models.ProductSyncRun", b =>
+                {
+                    b.Navigation("Issues");
                 });
 
             modelBuilder.Entity("Merchello.Core.Products.Models.Product", b =>

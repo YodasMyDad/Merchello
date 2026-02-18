@@ -23,7 +23,7 @@ namespace Merchello.Composers
     ///   <item><description>Calls AddMerch() to register all Merchello services, handlers, and content finders</description></item>
     ///   <item><description>Configures rate limiting for download endpoints</description></item>
     ///   <item><description>Configures Razor view locations for email templates</description></item>
-    ///   <item><description>Configures Swagger/OpenAPI for the backoffice API</description></item>
+    ///   <item><description>Configures Swagger/OpenAPI for backoffice and storefront APIs</description></item>
     /// </list>
     /// <para>
     /// All service registrations are centralized in Startup.AddMerch().
@@ -95,7 +95,7 @@ namespace Merchello.Composers
             // Custom operation ID handler for cleaner Swagger method names
             builder.Services.AddSingleton<IOperationIdHandler, CustomOperationHandler>();
 
-            // Configure Swagger/OpenAPI documentation for the Merchello backoffice API
+            // Configure Swagger/OpenAPI documentation for Merchello APIs
             builder.Services.Configure<SwaggerGenOptions>(opt =>
             {
                 // Related documentation:
@@ -104,13 +104,19 @@ namespace Merchello.Composers
                 // https://docs.umbraco.com/umbraco-cms/tutorials/creating-a-backoffice-api/versioning-your-api
                 // https://docs.umbraco.com/umbraco-cms/tutorials/creating-a-backoffice-api/access-policies
 
-                // Configure the Swagger generation options
-                // Add in a new Swagger API document solely for our own package that can be browsed via Swagger UI
-                // Along with having a generated swagger JSON file that we can use to auto generate a TypeScript client
+                // Backoffice API document (requires Umbraco backoffice auth)
                 opt.SwaggerDoc(Core.Constants.ApiName, new OpenApiInfo
                 {
                     Title = "Merchello Backoffice API",
                     Version = "1.0",
+                });
+
+                // Public/storefront API document for headless implementations
+                opt.SwaggerDoc(Core.Constants.StorefrontApiName, new OpenApiInfo
+                {
+                    Title = "Merchello Storefront API",
+                    Version = "1.0",
+                    Description = "Public checkout and storefront endpoints for headless clients."
                 });
 
                 // Enable Umbraco authentication for the Merchello Swagger document

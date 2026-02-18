@@ -65,6 +65,7 @@ export function downloadCsv(content: string, filename: string): void {
   link.style.visibility = "hidden";
 
   document.body.appendChild(link);
+  link.addEventListener("click", (event) => event.stopPropagation(), { once: true });
   link.click();
   document.body.removeChild(link);
 

@@ -33,6 +33,14 @@ using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.ProductFeeds;
+using Merchello.Core.ProductFeeds.Factories;
+using Merchello.Core.ProductFeeds.Services;
+using Merchello.Core.ProductFeeds.Services.Interfaces;
+using Merchello.Core.ProductSync;
+using Merchello.Core.ProductSync.Factories;
+using Merchello.Core.ProductSync.Services;
+using Merchello.Core.ProductSync.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
@@ -133,6 +141,7 @@ using Merchello.Tax.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
@@ -165,7 +174,7 @@ public static class Startup
     /// </list>
     /// </remarks>
     /// <param name="builder">The Umbraco builder to add services to.</param>
-    /// <param name="pluginAssemblies">Optional assemblies containing payment/shipping provider plugins.</param>
+    /// <param name="pluginAssemblies">Optional assemblies containing Merchello plugin extensions (providers, resolvers, etc.).</param>
     /// <returns>The builder for method chaining.</returns>
     public static IUmbracoBuilder AddMerch(this IUmbracoBuilder builder, IEnumerable<Assembly>? pluginAssemblies = null)
     {
@@ -197,6 +206,10 @@ public static class Startup
         builder.Services.Configure<CacheOptions>(builder.Config.GetSection("Merchello:Cache"));
         // Currency exchange rate provider and refresh intervals
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
+        // Product feed refresh cadence (automatic product/promotions snapshot rebuilds)
+        builder.Services.Configure<ProductFeedSettings>(builder.Config.GetSection("Merchello:ProductFeeds"));
+        // Product import/export sync settings (worker interval, retention, file/image limits)
+        builder.Services.Configure<ProductSyncSettings>(builder.Config.GetSection("Merchello:ProductSync"));
         // Outbound webhook delivery settings (retries, timeouts)
         builder.Services.Configure<WebhookSettings>(builder.Config.GetSection("Merchello:Webhooks"));
         // Email provider configuration (SMTP, templates)
@@ -256,6 +269,9 @@ public static class Startup
         builder.Services.AddSingleton<ProductFilterGroupFactory>();
         builder.Services.AddSingleton<ProductFilterFactory>();
         builder.Services.AddSingleton<ProductOptionFactory>();
+        builder.Services.AddSingleton<ProductFeedFactory>();
+        builder.Services.AddSingleton<ProductSyncRunFactory>();
+        builder.Services.AddSingleton<ProductSyncIssueFactory>();
 
         // Customers
         builder.Services.AddSingleton<CustomerFactory>();
@@ -319,6 +335,20 @@ public static class Startup
         builder.Services.AddScoped<IProductCollectionService, ProductCollectionService>();
         builder.Services.AddScoped<IGoogleShoppingCategoryService, GoogleShoppingCategoryService>();
         builder.Services.AddScoped<IInventoryService, InventoryService>();
+        builder.Services.AddScoped<IProductFeedService, ProductFeedService>();
+        builder.Services.AddScoped<IGoogleProductFeedGenerator, GoogleProductFeedGenerator>();
+        builder.Services.AddScoped<IGooglePromotionFeedGenerator, GooglePromotionFeedGenerator>();
+        builder.Services.AddScoped<IProductFeedResolverRegistry, ProductFeedResolverRegistry>();
+        builder.Services.AddScoped<IProductFeedMediaUrlResolver, ProductFeedMediaUrlResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedSupplierResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedStockStatusResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedOnSaleResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedProductTypeResolver>();
+        builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedCollectionsResolver>();
+        builder.Services.AddScoped<IShopifyCsvMapper, ShopifyCsvMapper>();
+        builder.Services.AddScoped<IShopifyCsvImportValidator, ShopifyCsvImportValidator>();
+        builder.Services.AddScoped<IProductSyncArtifactService, ProductSyncArtifactService>();
+        builder.Services.AddScoped<IProductSyncService, ProductSyncService>();
 
         // Digital Products
         builder.Services.AddSingleton<Core.DigitalProducts.Factories.DownloadLinkFactory>();
@@ -456,6 +486,9 @@ public static class Startup
         builder.Services.AddHostedService<FulfilmentPollingJob>();             // Polls 3PLs for order status updates
         builder.Services.AddHostedService<FulfilmentCleanupJob>();             // Cleans up old fulfilment sync/webhook logs
         builder.Services.AddHostedService<EmailAttachmentCleanupJob>();        // Cleans up orphaned email attachment temp files
+        builder.Services.AddHostedService<ProductFeedRefreshJob>();            // Rebuilds enabled product/promotions feeds on a schedule
+        builder.Services.AddHostedService<ProductSyncWorkerJob>();             // Processes queued product import/export runs
+        builder.Services.AddHostedService<ProductSyncCleanupJob>();            // Cleans up old product sync runs and artifacts
 
         // =====================================================
         // Notification Handlers
@@ -630,9 +663,22 @@ public static class Startup
         // Content Finders
         // =====================================================
         // Custom content finders for product and checkout URL routing.
+        var merchelloSettings = new MerchelloSettings();
+        builder.Config.GetSection("Merchello").Bind(merchelloSettings);
 
-        builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
-        builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
+        if (merchelloSettings.EnableProductRendering)
+        {
+            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, ProductContentFinder>();
+
+            if (merchelloSettings.EnableCheckout)
+            {
+                builder.ContentFinders().InsertAfter<ProductContentFinder, CheckoutContentFinder>();
+            }
+        }
+        else if (merchelloSettings.EnableCheckout)
+        {
+            builder.ContentFinders().InsertAfter<ContentFinderByUrlNew, CheckoutContentFinder>();
+        }
 
         // =====================================================
         // Plugin Assembly Discovery
@@ -654,7 +700,7 @@ public static class Startup
     }
 
     /// <summary>
-    /// Discovers assemblies containing provider, strategy, and protocol adapter implementations.
+    /// Discovers assemblies containing provider, strategy, resolver, and protocol adapter implementations.
     /// Scans all loaded assemblies for types implementing provider interfaces.
     /// </summary>
     private static IEnumerable<Assembly> DiscoverProviderAssemblies()
@@ -668,6 +714,7 @@ public static class Startup
         var addressLookupProviderType = typeof(IAddressLookupProvider);
         var emailAttachmentType = typeof(IEmailAttachment);
         var commerceProtocolAdapterType = typeof(ICommerceProtocolAdapter);
+        var productFeedResolverType = typeof(IProductFeedValueResolver);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -697,7 +744,8 @@ public static class Startup
                      taxProviderType.IsAssignableFrom(t) ||
                      addressLookupProviderType.IsAssignableFrom(t) ||
                      emailAttachmentType.IsAssignableFrom(t) ||
-                     commerceProtocolAdapterType.IsAssignableFrom(t)));
+                     commerceProtocolAdapterType.IsAssignableFrom(t) ||
+                     productFeedResolverType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

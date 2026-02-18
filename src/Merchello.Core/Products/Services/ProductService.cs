@@ -1485,6 +1485,14 @@ public class ProductService(
             {
                 productRoot.GoogleShoppingFeedCategory = request.GoogleShoppingFeedCategory.Trim();
             }
+            if (!string.IsNullOrWhiteSpace(request.ShoppingFeedBrand))
+            {
+                productRoot.ShoppingFeedBrand = request.ShoppingFeedBrand.Trim();
+            }
+            if (request.ShoppingFeedCondition != null)
+            {
+                productRoot.ShoppingFeedCondition = NormalizeShoppingFeedCondition(request.ShoppingFeedCondition);
+            }
 
             if (!string.IsNullOrWhiteSpace(elementTypeAlias))
             {
@@ -1624,6 +1632,15 @@ public class ProductService(
             }
             if (request.RootUrl != null) productRoot.RootUrl = request.RootUrl;
             if (request.GoogleShoppingFeedCategory != null) productRoot.GoogleShoppingFeedCategory = request.GoogleShoppingFeedCategory;
+            if (request.ShoppingFeedBrand != null)
+            {
+                var trimmedBrand = request.ShoppingFeedBrand.Trim();
+                productRoot.ShoppingFeedBrand = string.IsNullOrWhiteSpace(trimmedBrand) ? null : trimmedBrand;
+            }
+            if (request.ShoppingFeedCondition != null)
+            {
+                productRoot.ShoppingFeedCondition = NormalizeShoppingFeedCondition(request.ShoppingFeedCondition);
+            }
             if (request.DefaultPackageConfigurations != null)
             {
                 productRoot.DefaultPackageConfigurations = request.DefaultPackageConfigurations
@@ -1932,6 +1949,18 @@ public class ProductService(
                     if (request.ShoppingFeedColour != null) variant.ShoppingFeedColour = request.ShoppingFeedColour;
                     if (request.ShoppingFeedMaterial != null) variant.ShoppingFeedMaterial = request.ShoppingFeedMaterial;
                     if (request.ShoppingFeedSize != null) variant.ShoppingFeedSize = request.ShoppingFeedSize;
+                    if (request.ShoppingFeedBrand != null)
+                    {
+                        var trimmedBrand = request.ShoppingFeedBrand.Trim();
+                        variant.ShoppingFeedBrand = string.IsNullOrWhiteSpace(trimmedBrand) ? null : trimmedBrand;
+                    }
+                    if (request.ShoppingFeedCondition != null)
+                    {
+                        var trimmedCondition = request.ShoppingFeedCondition.Trim();
+                        variant.ShoppingFeedCondition = string.IsNullOrWhiteSpace(trimmedCondition)
+                            ? null
+                            : NormalizeShoppingFeedCondition(trimmedCondition);
+                    }
                     if (request.ShoppingFeedWidth != null) variant.ShoppingFeedWidth = request.ShoppingFeedWidth;
                     if (request.ShoppingFeedHeight != null) variant.ShoppingFeedHeight = request.ShoppingFeedHeight;
                     if (request.RemoveFromFeed.HasValue) variant.RemoveFromFeed = request.RemoveFromFeed.Value;
@@ -2393,6 +2422,8 @@ public class ProductService(
             RootImages = productRoot.RootImages.Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList(),
             RootUrl = productRoot.RootUrl,
             GoogleShoppingFeedCategory = productRoot.GoogleShoppingFeedCategory,
+            ShoppingFeedBrand = productRoot.ShoppingFeedBrand,
+            ShoppingFeedCondition = productRoot.ShoppingFeedCondition,
             IsDigitalProduct = productRoot.IsDigitalProduct,
             DigitalDeliveryMethod = productRoot.IsDigitalProduct ? productRoot.GetDigitalDeliveryMethod().ToString() : null,
             DigitalFileIds = productRoot.IsDigitalProduct ? productRoot.GetDigitalFileIds() : null,
@@ -2512,6 +2543,19 @@ public class ProductService(
         productRoot.ExtendedData.Remove(Constants.ExtendedDataKeys.DigitalFileIds);
         productRoot.ExtendedData.Remove(Constants.ExtendedDataKeys.DownloadLinkExpiryDays);
         productRoot.ExtendedData.Remove(Constants.ExtendedDataKeys.MaxDownloadsPerLink);
+    }
+
+    private static string NormalizeShoppingFeedCondition(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "new";
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized is "new" or "used" or "refurbished"
+            ? normalized
+            : "new";
     }
 
     /// <summary>
@@ -2714,6 +2758,8 @@ public class ProductService(
             ShoppingFeedColour = product.ShoppingFeedColour,
             ShoppingFeedMaterial = product.ShoppingFeedMaterial,
             ShoppingFeedSize = product.ShoppingFeedSize,
+            ShoppingFeedBrand = product.ShoppingFeedBrand,
+            ShoppingFeedCondition = product.ShoppingFeedCondition,
             ShoppingFeedWidth = product.ShoppingFeedWidth,
             ShoppingFeedHeight = product.ShoppingFeedHeight,
             RemoveFromFeed = product.RemoveFromFeed,

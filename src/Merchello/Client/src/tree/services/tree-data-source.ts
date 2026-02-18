@@ -17,6 +17,7 @@ import {
   MERCHELLO_FILTERS_ENTITY_TYPE,
   MERCHELLO_PRODUCT_TYPES_ENTITY_TYPE,
   MERCHELLO_PRODUCT_FEED_ENTITY_TYPE,
+  MERCHELLO_PRODUCT_IMPORT_EXPORT_ENTITY_TYPE,
   MERCHELLO_ANALYTICS_ENTITY_TYPE,
   MERCHELLO_DISCOUNTS_ENTITY_TYPE,
   MERCHELLO_SUPPLIERS_ENTITY_TYPE,
@@ -87,7 +88,7 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
       },
       {
         entityType: MERCHELLO_PRODUCT_FEED_ENTITY_TYPE,
-        unique: "product-feed",
+        unique: "product-feeds",
         name: "Product Feed",
         hasChildren: false,
         isFolder: false,
@@ -204,6 +205,15 @@ export class MerchelloTreeDataSource extends UmbControllerBase implements UmbTre
           hasChildren: false,
           isFolder: false,
           icon: "icon-chart-curve",
+          parent: { unique: "products", entityType: MERCHELLO_PRODUCTS_ENTITY_TYPE },
+        },
+        {
+          entityType: MERCHELLO_PRODUCT_IMPORT_EXPORT_ENTITY_TYPE,
+          unique: "import-export",
+          name: "Import & Export",
+          hasChildren: false,
+          isFolder: false,
+          icon: "icon-page-up",
           parent: { unique: "products", entityType: MERCHELLO_PRODUCTS_ENTITY_TYPE },
         },
       ];
