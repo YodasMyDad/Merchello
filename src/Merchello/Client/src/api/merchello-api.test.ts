@@ -422,4 +422,107 @@ describe("merchello api client", () => {
     expect(inventorySyncUrl).toBe("/umbraco/api/v1/fulfilment-providers/cfg-1/test/inventory-sync");
     expect(inventorySyncInit.method).toBe("POST");
   });
+
+  it("posts multipart form-data for product import validation and start", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { isValid: true } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { id: "run-1" } }));
+
+    const file = new File(["Handle,Title\nshirt,Shirt"], "products.csv", { type: "text/csv" });
+
+    await MerchelloApi.validateProductImport(file, {
+      profile: 0,
+      maxIssues: 50,
+    });
+    await MerchelloApi.startProductImport(file, {
+      profile: 1,
+      continueOnImageFailure: true,
+      maxIssues: null,
+    });
+
+    const [validateUrl, validateInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [startUrl, startInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+
+    expect(validateUrl).toBe("/umbraco/api/v1/product-sync/imports/validate");
+    expect(validateInit.method).toBe("POST");
+    expect(validateInit.body).toBeInstanceOf(FormData);
+    expect((validateInit.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+    const validateFormData = validateInit.body as FormData;
+    expect(validateFormData.get("profile")).toBe("0");
+    expect(validateFormData.get("maxIssues")).toBe("50");
+    expect(validateFormData.get("file")).toBe(file);
+
+    expect(startUrl).toBe("/umbraco/api/v1/product-sync/imports/start");
+    expect(startInit.method).toBe("POST");
+    expect(startInit.body).toBeInstanceOf(FormData);
+    expect((startInit.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+    const startFormData = startInit.body as FormData;
+    expect(startFormData.get("profile")).toBe("1");
+    expect(startFormData.get("continueOnImageFailure")).toBe("true");
+    expect(startFormData.get("file")).toBe(file);
+  });
+
+  it("builds product sync run and issue query parameters", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { items: [] } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { items: [] } }));
+
+    await MerchelloApi.getProductSyncRuns({
+      direction: 0,
+      status: 1,
+      page: 2,
+      pageSize: 25,
+    });
+    await MerchelloApi.getProductSyncRunIssues("run-1", {
+      severity: 2,
+      page: 3,
+      pageSize: 100,
+    });
+
+    const [runsUrl, runsInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [issuesUrl, issuesInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+
+    expect(runsUrl).toContain("/umbraco/api/v1/product-sync/runs?");
+    expect(runsUrl).toContain("direction=0");
+    expect(runsUrl).toContain("status=1");
+    expect(runsUrl).toContain("page=2");
+    expect(runsUrl).toContain("pageSize=25");
+    expect(runsInit.method).toBe("GET");
+
+    expect(issuesUrl).toContain("/umbraco/api/v1/product-sync/runs/run-1/issues?");
+    expect(issuesUrl).toContain("severity=2");
+    expect(issuesUrl).toContain("page=3");
+    expect(issuesUrl).toContain("pageSize=100");
+    expect(issuesInit.method).toBe("GET");
+  });
+
+  it("downloads product sync export artifacts and parses filename", async () => {
+    const blob = new Blob(["csv-data"], { type: "text/csv" });
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        get: (name: string) => {
+          if (name.toLowerCase() === "content-disposition") {
+            return 'attachment; filename="shopify-export.csv"';
+          }
+          return null;
+        },
+      } as Headers,
+      blob: vi.fn().mockResolvedValue(blob),
+      text: vi.fn().mockResolvedValue(""),
+    } as unknown as Response);
+
+    const result = await MerchelloApi.downloadProductSyncExport("run-1");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/umbraco/api/v1/product-sync/runs/run-1/download");
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+    expect(result.error).toBeUndefined();
+    expect(result.fileName).toBe("shopify-export.csv");
+    expect(result.blob).toBe(blob);
+  });
 });

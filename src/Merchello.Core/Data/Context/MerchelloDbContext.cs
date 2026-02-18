@@ -9,6 +9,7 @@ using Merchello.Core.ExchangeRates.Models;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.ProductFeeds.Models;
+using Merchello.Core.ProductSync.Models;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Protocols.Webhooks.Models;
 using Merchello.Core.Shared.Providers;
@@ -54,6 +55,8 @@ public class MerchelloDbContext : DbContext
     public DbSet<ProductWarehouse> ProductWarehouses => Set<ProductWarehouse>();
     public DbSet<ProductRootWarehouse> ProductRootWarehouses => Set<ProductRootWarehouse>();
     public DbSet<ProductFeed> ProductFeeds => Set<ProductFeed>();
+    public DbSet<ProductSyncRun> ProductSyncRuns => Set<ProductSyncRun>();
+    public DbSet<ProductSyncIssue> ProductSyncIssues => Set<ProductSyncIssue>();
 
     // Customer DbSets
     public DbSet<Customer> Customers => Set<Customer>();

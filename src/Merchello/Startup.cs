@@ -37,6 +37,10 @@ using Merchello.Core.ProductFeeds;
 using Merchello.Core.ProductFeeds.Factories;
 using Merchello.Core.ProductFeeds.Services;
 using Merchello.Core.ProductFeeds.Services.Interfaces;
+using Merchello.Core.ProductSync;
+using Merchello.Core.ProductSync.Factories;
+using Merchello.Core.ProductSync.Services;
+using Merchello.Core.ProductSync.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services;
@@ -204,6 +208,8 @@ public static class Startup
         builder.Services.Configure<ExchangeRateOptions>(builder.Config.GetSection("Merchello:ExchangeRates"));
         // Product feed refresh cadence (automatic product/promotions snapshot rebuilds)
         builder.Services.Configure<ProductFeedSettings>(builder.Config.GetSection("Merchello:ProductFeeds"));
+        // Product import/export sync settings (worker interval, retention, file/image limits)
+        builder.Services.Configure<ProductSyncSettings>(builder.Config.GetSection("Merchello:ProductSync"));
         // Outbound webhook delivery settings (retries, timeouts)
         builder.Services.Configure<WebhookSettings>(builder.Config.GetSection("Merchello:Webhooks"));
         // Email provider configuration (SMTP, templates)
@@ -264,6 +270,8 @@ public static class Startup
         builder.Services.AddSingleton<ProductFilterFactory>();
         builder.Services.AddSingleton<ProductOptionFactory>();
         builder.Services.AddSingleton<ProductFeedFactory>();
+        builder.Services.AddSingleton<ProductSyncRunFactory>();
+        builder.Services.AddSingleton<ProductSyncIssueFactory>();
 
         // Customers
         builder.Services.AddSingleton<CustomerFactory>();
@@ -337,6 +345,10 @@ public static class Startup
         builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedOnSaleResolver>();
         builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedProductTypeResolver>();
         builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedCollectionsResolver>();
+        builder.Services.AddScoped<IShopifyCsvMapper, ShopifyCsvMapper>();
+        builder.Services.AddScoped<IShopifyCsvImportValidator, ShopifyCsvImportValidator>();
+        builder.Services.AddScoped<IProductSyncArtifactService, ProductSyncArtifactService>();
+        builder.Services.AddScoped<IProductSyncService, ProductSyncService>();
 
         // Digital Products
         builder.Services.AddSingleton<Core.DigitalProducts.Factories.DownloadLinkFactory>();
@@ -475,6 +487,8 @@ public static class Startup
         builder.Services.AddHostedService<FulfilmentCleanupJob>();             // Cleans up old fulfilment sync/webhook logs
         builder.Services.AddHostedService<EmailAttachmentCleanupJob>();        // Cleans up orphaned email attachment temp files
         builder.Services.AddHostedService<ProductFeedRefreshJob>();            // Rebuilds enabled product/promotions feeds on a schedule
+        builder.Services.AddHostedService<ProductSyncWorkerJob>();             // Processes queued product import/export runs
+        builder.Services.AddHostedService<ProductSyncCleanupJob>();            // Cleans up old product sync runs and artifacts
 
         // =====================================================
         // Notification Handlers

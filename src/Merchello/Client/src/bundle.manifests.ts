@@ -10,6 +10,7 @@ import { manifests as collections } from "@collections/manifest.js";
 import { manifests as filters } from "@filters/manifest.js";
 import { manifests as productTypes } from "@product-types/manifest.js";
 import { manifests as productFeed } from "@product-feed/manifest.js";
+import { manifests as productImportExport } from "@product-import-export/manifest.js";
 import { manifests as providers } from "@providers/manifest.js";
 import { manifests as analytics } from "@analytics/manifest.js";
 import { manifests as discounts } from "@discounts/manifest.js";
@@ -50,6 +51,7 @@ export const manifests: Array<UmbExtensionManifest> = [
   ...filters,
   ...productTypes,
   ...productFeed,
+  ...productImportExport,
   ...providers,
   ...analytics,
   ...discounts,
