@@ -20,6 +20,7 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
   @state() private _criteriaRows: CriteriaRow[] = [];
   @state() private _availableFields: CriteriaFieldMetadataDto[] = [];
   @state() private _isLoadingFields = true;
+  @state() private _fieldLoadError: string | null = null;
 
   #isConnected = false;
   #rowIdCounter = 0;
@@ -51,12 +52,14 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
 
   private async _loadAvailableFields(): Promise<void> {
     this._isLoadingFields = true;
+    this._fieldLoadError = null;
 
     const { data, error } = await MerchelloApi.getCriteriaFields();
 
     if (!this.#isConnected) return;
 
     if (error) {
+      this._fieldLoadError = error.message;
       this._isLoadingFields = false;
       return;
     }
@@ -156,9 +159,10 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     );
   }
 
-  private _renderFieldSelect(row: CriteriaRow): unknown {
+  private _renderFieldSelect(row: CriteriaRow, rowIndex: number): unknown {
     return html`
       <uui-select
+        label=${`Criterion ${rowIndex + 1} field`}
         .options=${this._availableFields.map((f) => ({
           name: f.label,
           value: f.field,
@@ -172,11 +176,12 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     `;
   }
 
-  private _renderOperatorSelect(row: CriteriaRow): unknown {
+  private _renderOperatorSelect(row: CriteriaRow, rowIndex: number): unknown {
     const operators = this._getOperatorsForField(row.field);
 
     return html`
       <uui-select
+        label=${`Criterion ${rowIndex + 1} operator`}
         .options=${operators.map((op) => ({
           name: this._getOperatorLabel(op),
           value: op,
@@ -190,7 +195,7 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     `;
   }
 
-  private _renderValueInput(row: CriteriaRow): unknown {
+  private _renderValueInput(row: CriteriaRow, rowIndex: number): unknown {
     // No value needed for IsEmpty/IsNotEmpty
     if (row.operator === "IsEmpty" || row.operator === "IsNotEmpty") {
       return nothing;
@@ -201,8 +206,13 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
 
     const inputType = valueType === "Number" || valueType === "Currency" ? "number" : valueType === "Date" ? "date" : "text";
 
-    const renderInput = (value: unknown, onInput: (val: unknown) => void) => html`
+    const renderInput = (
+      value: unknown,
+      onInput: (val: unknown) => void,
+      inputLabel: string
+    ) => html`
       <uui-input
+        label=${inputLabel}
         type=${inputType}
         .value=${value ?? ""}
         @input=${(e: Event) => {
@@ -220,14 +230,26 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
     if (row.operator === "Between") {
       return html`
         <div class="between-inputs">
-          ${renderInput(row.value, (val) => this._updateCriterion(row.id, { value: val }))}
+          ${renderInput(
+            row.value,
+            (val) => this._updateCriterion(row.id, { value: val }),
+            `Criterion ${rowIndex + 1} value from`
+          )}
           <span class="between-and">and</span>
-          ${renderInput(row.value2, (val) => this._updateCriterion(row.id, { value2: val }))}
+          ${renderInput(
+            row.value2,
+            (val) => this._updateCriterion(row.id, { value2: val }),
+            `Criterion ${rowIndex + 1} value to`
+          )}
         </div>
       `;
     }
 
-    return renderInput(row.value, (val) => this._updateCriterion(row.id, { value: val }));
+    return renderInput(
+      row.value,
+      (val) => this._updateCriterion(row.id, { value: val }),
+      `Criterion ${rowIndex + 1} value`
+    );
   }
 
   private _renderCriterionRow(row: CriteriaRow, index: number): unknown {
@@ -235,9 +257,9 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
       <div class="criterion-row">
         <span class="row-prefix">${index === 0 ? "Where" : this.matchMode === "All" ? "AND" : "OR"}</span>
         <div class="row-inputs">
-          ${this._renderFieldSelect(row)}
-          ${this._renderOperatorSelect(row)}
-          ${this._renderValueInput(row)}
+          ${this._renderFieldSelect(row, index)}
+          ${this._renderOperatorSelect(row, index)}
+          ${this._renderValueInput(row, index)}
         </div>
         <uui-button
           compact
@@ -253,6 +275,23 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
   override render() {
     if (this._isLoadingFields) {
       return html`<div class="loading"><uui-loader></uui-loader></div>`;
+    }
+
+    if (this._fieldLoadError) {
+      return html`
+        <uui-box headline="Criteria rules">
+          <div class="error-banner" role="alert">
+            <uui-icon name="icon-alert"></uui-icon>
+            <span>${this._fieldLoadError}</span>
+          </div>
+          <uui-button
+            look="secondary"
+            label="Retry loading fields"
+            @click=${() => this._loadAvailableFields()}>
+            Retry
+          </uui-button>
+        </uui-box>
+      `;
     }
 
     return html`
@@ -277,6 +316,7 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
             <uui-button
               look="primary"
               label="Add Condition"
+              ?disabled=${this._availableFields.length === 0}
               @click=${this._addCriterion}>
               <uui-icon name="icon-add"></uui-icon>
               Add Condition
@@ -368,6 +408,21 @@ export class MerchelloSegmentCriteriaBuilderElement extends UmbElementMixin(LitE
         display: flex;
         justify-content: center;
         padding: var(--uui-size-space-4);
+      }
+
+      .error-banner {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+        padding: var(--uui-size-space-3);
+        margin-bottom: var(--uui-size-space-3);
+        background: var(--uui-color-danger-standalone);
+        color: var(--uui-color-danger-contrast);
+        border-radius: var(--uui-border-radius);
+      }
+
+      .error-banner uui-icon {
+        flex-shrink: 0;
       }
     `,
   ];

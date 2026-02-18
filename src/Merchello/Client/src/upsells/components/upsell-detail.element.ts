@@ -278,7 +278,7 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
     const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
       data: {
         headline: "Delete Upsell",
-        content: `Are you sure you want to delete "${this._upsell.name}"? This action cannot be undone.`,
+        content: `Delete "${this._upsell.name}" permanently. This action cannot be undone.`,
         confirmLabel: "Delete",
         color: "danger",
       },
@@ -782,16 +782,17 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
 
   private _renderTabs(): unknown {
     const activeTab = this._getActiveTab();
+    const routerPath = this._routerPath ? `${this._routerPath}/tab` : "tab";
 
     return html`
       <uui-tab-group slot="header">
-        <uui-tab label="Details" href="${this._routerPath}/tab/details" ?active=${activeTab === "details"}>Details</uui-tab>
-        <uui-tab label="Rules" href="${this._routerPath}/tab/rules" ?active=${activeTab === "rules"}>Rules</uui-tab>
-        <uui-tab label="Display" href="${this._routerPath}/tab/display" ?active=${activeTab === "display"}>Display</uui-tab>
-        <uui-tab label="Eligibility" href="${this._routerPath}/tab/eligibility" ?active=${activeTab === "eligibility"}>Eligibility</uui-tab>
-        <uui-tab label="Schedule" href="${this._routerPath}/tab/schedule" ?active=${activeTab === "schedule"}>Schedule</uui-tab>
+        <uui-tab label="Details" href="${routerPath}/details" ?active=${activeTab === "details"}>Details</uui-tab>
+        <uui-tab label="Rules" href="${routerPath}/rules" ?active=${activeTab === "rules"}>Rules</uui-tab>
+        <uui-tab label="Display" href="${routerPath}/display" ?active=${activeTab === "display"}>Display</uui-tab>
+        <uui-tab label="Eligibility" href="${routerPath}/eligibility" ?active=${activeTab === "eligibility"}>Eligibility</uui-tab>
+        <uui-tab label="Schedule" href="${routerPath}/schedule" ?active=${activeTab === "schedule"}>Schedule</uui-tab>
         ${!this._isNew
-          ? html`<uui-tab label="Performance" href="${this._routerPath}/tab/performance" ?active=${activeTab === "performance"}>Performance</uui-tab>`
+          ? html`<uui-tab label="Performance" href="${routerPath}/performance" ?active=${activeTab === "performance"}>Performance</uui-tab>`
           : nothing}
       </uui-tab-group>
     `;
@@ -840,7 +841,7 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
           ? html`
               <div slot="header" class="header-actions">
                 ${this._upsell?.status === UpsellStatus.Active
-                  ? html`<uui-button look="secondary" color="warning" label="Deactivate" @click=${this._handleDeactivate}>Deactivate</uui-button>`
+                  ? html`<uui-button look="secondary" label="Deactivate" @click=${this._handleDeactivate}>Deactivate</uui-button>`
                   : html`<uui-button look="secondary" color="positive" label="Activate" @click=${this._handleActivate}>Activate</uui-button>`}
                 <uui-button look="secondary" color="danger" label="Delete" @click=${this._handleDelete}>Delete</uui-button>
               </div>
@@ -921,6 +922,7 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
       gap: var(--uui-size-space-2);
       align-items: center;
       padding: var(--uui-size-space-4) 0;
+      flex-wrap: wrap;
     }
 
     .detail-layout {
@@ -1053,6 +1055,40 @@ export class MerchelloUpsellDetailElement extends UmbElementMixin(LitElement) {
 
     .events-table tbody tr:hover {
       background: var(--uui-color-surface-alt);
+    }
+
+    @media (max-width: 1024px) {
+      .perf-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 768px) {
+      #header {
+        padding: var(--uui-size-space-3) 0;
+      }
+
+      .detail-layout {
+        padding: var(--uui-size-space-3);
+      }
+
+      .style-actions {
+        flex-wrap: wrap;
+      }
+
+      .checkbox-group {
+        flex-direction: column;
+        gap: var(--uui-size-space-3);
+      }
+
+      .perf-stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .events-table th,
+      .events-table td {
+        padding: var(--uui-size-space-2) var(--uui-size-space-3);
+      }
     }
   `;
 }

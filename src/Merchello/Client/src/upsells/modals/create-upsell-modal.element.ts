@@ -14,6 +14,8 @@ export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElemen
   @state() private _heading = "";
   @state() private _isSaving = false;
 
+  private readonly _formId = "MerchelloCreateUpsellForm";
+
   #modalContext?: UmbModalContext<CreateUpsellModalData, CreateUpsellModalValue>;
   #notificationContext?: UmbNotificationContext;
 
@@ -37,6 +39,17 @@ export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElemen
 
   private _handleClose(): void {
     this.#modalContext?.reject();
+  }
+
+  private _handleSubmit(event: Event): void {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    void this._handleCreate();
   }
 
   private async _handleCreate(): Promise<void> {
@@ -71,44 +84,54 @@ export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElemen
   override render() {
     return html`
       <umb-body-layout headline="Create Upsell">
-        <div class="form">
-          <umb-property-layout label="Name" description="Internal name for this upsell rule">
-            <uui-input
-              slot="editor"
-              .value=${this._name}
-              @input=${this._handleNameInput}
-              placeholder="e.g. Bed to Pillow Upsell"
-              label="Name"
-            ></uui-input>
-          </umb-property-layout>
+        <uui-box>
+          <uui-form>
+            <form id=${this._formId} @submit=${this._handleSubmit}>
+              <uui-form-layout-item>
+                <uui-label slot="label" for="upsell-name" required>Name</uui-label>
+                <uui-input
+                  id="upsell-name"
+                  name="upsell-name"
+                  .value=${this._name}
+                  @input=${this._handleNameInput}
+                  placeholder="e.g. Bed to Pillow Upsell"
+                  label="Upsell name"
+                  required
+                ></uui-input>
+              </uui-form-layout-item>
 
-          <umb-property-layout label="Heading" description="Customer-facing heading shown with recommendations">
-            <uui-input
-              slot="editor"
-              .value=${this._heading}
-              @input=${this._handleHeadingInput}
-              placeholder="e.g. Complete your bedroom"
-              label="Heading"
-            ></uui-input>
-          </umb-property-layout>
-        </div>
+              <uui-form-layout-item>
+                <uui-label slot="label" for="upsell-heading">Heading</uui-label>
+                <uui-input
+                  id="upsell-heading"
+                  name="upsell-heading"
+                  .value=${this._heading}
+                  @input=${this._handleHeadingInput}
+                  placeholder="e.g. Complete your bedroom"
+                  label="Upsell heading"
+                ></uui-input>
+              </uui-form-layout-item>
+            </form>
+          </uui-form>
+        </uui-box>
 
-        <div slot="actions">
-          <uui-button
-            label="Cancel"
-            @click=${this._handleClose}
-            ?disabled=${this._isSaving}
-          >Cancel</uui-button>
-          <uui-button
-            look="primary"
-            color="positive"
-            label="Create"
-            @click=${this._handleCreate}
-            ?disabled=${!this._name.trim() || this._isSaving}
-          >
-            ${this._isSaving ? "Creating..." : "Create"}
-          </uui-button>
-        </div>
+        <uui-button
+          slot="actions"
+          label="Cancel"
+          @click=${this._handleClose}
+          ?disabled=${this._isSaving}
+        >Cancel</uui-button>
+        <uui-button
+          slot="actions"
+          form=${this._formId}
+          type="submit"
+          look="primary"
+          color="positive"
+          label="Create"
+          ?disabled=${this._isSaving}
+        >
+          ${this._isSaving ? "Creating..." : "Create"}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -118,11 +141,10 @@ export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElemen
       display: block;
     }
 
-    .form {
+    form {
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-4);
-      padding: var(--uui-size-space-4);
     }
 
     uui-input {

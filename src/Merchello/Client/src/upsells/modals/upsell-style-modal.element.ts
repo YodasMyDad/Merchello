@@ -269,6 +269,7 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
       <div class="field-row">
         <label>${label}</label>
         <uui-color-picker
+          label=${label}
           .value=${value ?? ""}
           @change=${(e: Event) => this._handleColorChange(surfaceKey, elementKey, field, e)}
         ></uui-color-picker>
@@ -293,6 +294,7 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
             <div class="field-row">
               <label>Border style</label>
               <uui-select
+                label="Border style"
                 .options=${BORDER_STYLE_OPTIONS.map((opt) => ({
                   name: opt.label,
                   value: opt.value,
@@ -308,6 +310,7 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
                 type="number"
                 min="0"
                 max="12"
+                label="Border width"
                 .value=${style.borderWidth != null ? String(style.borderWidth) : ""}
                 @input=${(e: Event) => this._handleNumberChange(surfaceKey, element.key, "borderWidth", e)}
               ></uui-input>
@@ -319,6 +322,7 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
                 type="number"
                 min="0"
                 max="64"
+                label="Border radius"
                 .value=${style.borderRadius != null ? String(style.borderRadius) : ""}
                 @input=${(e: Event) => this._handleNumberChange(surfaceKey, element.key, "borderRadius", e)}
               ></uui-input>
@@ -326,7 +330,12 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
           </div>
 
           <div class="element-actions">
-            <uui-button look="secondary" compact @click=${() => this._clearElement(surfaceKey, element.key)}>
+            <uui-button
+              look="secondary"
+              compact
+              label=${`Clear ${element.label}`}
+              @click=${() => this._clearElement(surfaceKey, element.key)}
+            >
               Clear ${element.label}
             </uui-button>
           </div>
@@ -425,10 +434,15 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
           <div class="layout">
             <div class="controls-column">
               <div class="control-actions">
-                <uui-button look="secondary" color="danger" @click=${() => this._clearSurface(this._activeSurface)}>
+                <uui-button
+                  look="secondary"
+                  color="danger"
+                  label="Clear active surface"
+                  @click=${() => this._clearSurface(this._activeSurface)}
+                >
                   Clear Surface
                 </uui-button>
-                <uui-button look="secondary" @click=${this._resetAllStyles}>
+                <uui-button look="secondary" label="Reset all styles" @click=${this._resetAllStyles}>
                   Reset All
                 </uui-button>
               </div>
@@ -442,7 +456,12 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
                   ${this._renderSurfacePreview()}
                 </div>
                 <div class="preview-actions">
-                  <uui-button look="secondary" compact @click=${() => { this._previewAddedState = !this._previewAddedState; }}>
+                  <uui-button
+                    look="secondary"
+                    compact
+                    label=${this._previewAddedState ? "Show default state" : "Show added state"}
+                    @click=${() => { this._previewAddedState = !this._previewAddedState; }}
+                  >
                     ${this._previewAddedState ? "Show Default State" : "Show Added State"}
                   </uui-button>
                 </div>
@@ -451,10 +470,8 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
           </div>
         </div>
 
-        <div slot="actions">
-          <uui-button look="secondary" @click=${this._handleCancel}>Cancel</uui-button>
-          <uui-button look="primary" color="positive" @click=${this._handleSave}>Apply Styles</uui-button>
-        </div>
+        <uui-button slot="actions" look="secondary" label="Cancel" @click=${this._handleCancel}>Cancel</uui-button>
+        <uui-button slot="actions" look="primary" color="positive" label="Apply styles" @click=${this._handleSave}>Apply Styles</uui-button>
       </umb-body-layout>
     `;
   }
@@ -462,14 +479,14 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
   static override readonly styles = css`
     :host {
       display: block;
-      min-width: 980px;
+      max-width: 100%;
     }
 
     #main {
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-4);
-      max-height: 80vh;
+      max-height: 82vh;
     }
 
     .surface-tabs {
@@ -671,10 +688,42 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
       justify-content: flex-end;
     }
 
-    [slot="actions"] {
-      display: flex;
-      justify-content: flex-end;
-      gap: var(--uui-size-space-2);
+    @media (max-width: 1200px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-column {
+        position: static;
+      }
+    }
+
+    @media (max-width: 768px) {
+      #main {
+        max-height: 78vh;
+      }
+
+      .control-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+      }
+
+      .element-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-buttons {
+        flex-wrap: wrap;
+      }
+
+      .preview-card {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-image {
+        width: 100%;
+        max-width: 120px;
+      }
     }
   `;
 }
