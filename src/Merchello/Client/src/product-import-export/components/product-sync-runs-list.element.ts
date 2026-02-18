@@ -52,8 +52,9 @@ export class MerchelloProductSyncRunsListElement extends UmbElementMixin(LitElem
     this.reload();
 
     this.#pollTimer = setInterval(() => {
-      const hasRunningRun = this._runs.some((run) => run.status === ProductSyncRunStatus.Running);
-      if (hasRunningRun) {
+      const hasActiveRun = this._runs.some((run) =>
+        run.status === ProductSyncRunStatus.Queued || run.status === ProductSyncRunStatus.Running);
+      if (hasActiveRun) {
         this.reload(true);
       }
     }, 5000);
@@ -191,6 +192,7 @@ export class MerchelloProductSyncRunsListElement extends UmbElementMixin(LitElem
     link.href = url;
     link.download = fileName ?? `product-sync-${run.id}.csv`;
     document.body.appendChild(link);
+    link.addEventListener("click", (event) => event.stopPropagation(), { once: true });
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
@@ -445,7 +447,12 @@ export class MerchelloProductSyncRunsListElement extends UmbElementMixin(LitElem
         ${this._isLoading
           ? html`<div class="loading"><uui-loader></uui-loader></div>`
           : this._errorMessage
-            ? html`<div class="error">${this._errorMessage}</div>`
+            ? html`
+                <div class="error">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>${this._errorMessage}</span>
+                </div>
+              `
             : this._runs.length === 0
               ? html`<p class="empty">No import/export runs found for the selected filters.</p>`
               : html`${this._renderTable()}${this._renderPagination()}`}
@@ -473,6 +480,9 @@ export class MerchelloProductSyncRunsListElement extends UmbElementMixin(LitElem
     }
 
     .error {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-4);
       border-radius: var(--uui-border-radius);
       background: var(--uui-color-danger-standalone);

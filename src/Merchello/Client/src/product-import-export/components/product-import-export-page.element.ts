@@ -65,6 +65,19 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
     this._validationError = null;
   }
 
+  private _formatFileSize(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+
+    const kb = bytes / 1024;
+    if (kb < 1024) {
+      return `${kb.toFixed(1)} KB`;
+    }
+
+    return `${(kb / 1024).toFixed(1)} MB`;
+  }
+
   private async _validateImport(): Promise<void> {
     if (!this._selectedFile) {
       this._validationError = "Select a CSV file before validating.";
@@ -198,7 +211,12 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
 
   private _renderValidationBlock(): unknown {
     if (this._validationError) {
-      return html`<div class="error-banner">${this._validationError}</div>`;
+      return html`
+        <div class="error-banner">
+          <uui-icon name="icon-alert"></uui-icon>
+          <span>${this._validationError}</span>
+        </div>
+      `;
     }
 
     if (!this._validationResult) {
@@ -250,6 +268,7 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
     const canStartImport = this._selectedFile !== null &&
       this._validationResult !== null &&
       this._validationResult.errorCount === 0 &&
+      !this._isValidating &&
       !this._isStartingImport;
 
     return html`
@@ -290,9 +309,10 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
                   class="file-input"
                   type="file"
                   accept=".csv,text/csv"
+                  aria-label="CSV file upload"
                   @change=${this._handleFileChange} />
                 ${this._selectedFile
-                  ? html`<p class="helper-text">${this._selectedFile.name}</p>`
+                  ? html`<p class="helper-text">${this._selectedFile.name} (${this._formatFileSize(this._selectedFile.size)})</p>`
                   : nothing}
               </umb-property-layout>
 
@@ -302,8 +322,8 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
                 <uui-toggle
                   slot="editor"
                   .checked=${this._continueOnImageFailure}
-                  @change=${() => {
-                    this._continueOnImageFailure = !this._continueOnImageFailure;
+                  @change=${(event: Event) => {
+                    this._continueOnImageFailure = (event.target as HTMLInputElement).checked;
                   }}>
                 </uui-toggle>
               </umb-property-layout>
@@ -326,6 +346,13 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
                 ${this._isStartingImport ? "Starting..." : "Start Import"}
               </uui-button>
             </div>
+
+            ${this._selectedFile && !this._validationResult
+              ? html`<p class="helper-text action-hint">Validate this file before starting import.</p>`
+              : nothing}
+            ${this._validationResult && this._validationResult.errorCount > 0
+              ? html`<p class="helper-text action-hint error-text">Resolve validation errors before starting import.</p>`
+              : nothing}
           </uui-box>
 
           ${this._renderValidationBlock()}
@@ -438,10 +465,21 @@ export class MerchelloProductImportExportPageElement extends UmbElementMixin(Lit
     }
 
     .error-banner {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-4);
       border-radius: var(--uui-border-radius);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
+    }
+
+    .action-hint {
+      margin-top: var(--uui-size-space-3);
+    }
+
+    .error-text {
+      color: var(--uui-color-danger-emphasis);
     }
   `;
 }

@@ -116,6 +116,58 @@ describe("product sync runs list", () => {
     vi.useRealTimers();
   });
 
+  it("polls every 5 seconds while a run is queued", async () => {
+    vi.useFakeTimers();
+    apiMocks.getProductSyncRuns.mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: "run-queued",
+            direction: ProductSyncDirection.Import,
+            profile: 0,
+            status: ProductSyncRunStatus.Queued,
+            statusLabel: "Queued",
+            statusCssClass: "warning",
+            requestedByUserName: "Admin",
+            requestedByUserId: "u1",
+            inputFileName: "products.csv",
+            outputFileName: null,
+            itemsProcessed: 0,
+            itemsSucceeded: 0,
+            itemsFailed: 0,
+            warningCount: 0,
+            errorCount: 0,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            dateCreatedUtc: "2026-02-18T10:00:00Z",
+            errorMessage: null,
+          },
+        ],
+        page: 1,
+        pageSize: 50,
+        totalItems: 1,
+        totalPages: 1,
+        hasPreviousPage: false,
+        hasNextPage: false,
+      },
+    });
+
+    const element = new MerchelloProductSyncRunsListElement();
+
+    element.connectedCallback();
+    await Promise.resolve();
+
+    expect(apiMocks.getProductSyncRuns).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(5000);
+    await Promise.resolve();
+
+    expect(apiMocks.getProductSyncRuns).toHaveBeenCalledTimes(2);
+
+    element.disconnectedCallback();
+    vi.useRealTimers();
+  });
+
   it("downloads export artifacts and applies server filename", async () => {
     const element = new MerchelloProductSyncRunsListElement();
     const downloadBlob = new Blob(["export"], { type: "text/csv" });
@@ -136,6 +188,7 @@ describe("product sync runs list", () => {
     const link = document.createElement("a");
     const clickSpy = vi.spyOn(link, "click").mockImplementation(() => {});
     const removeSpy = vi.spyOn(link, "remove").mockImplementation(() => {});
+    const addEventListenerSpy = vi.spyOn(link, "addEventListener");
     vi.spyOn(document, "createElement").mockReturnValue(link);
 
     await (element as any)._downloadExport({
@@ -147,6 +200,7 @@ describe("product sync runs list", () => {
     expect(apiMocks.downloadProductSyncExport).toHaveBeenCalledWith("run-2");
     expect(createObjectUrl).toHaveBeenCalledWith(downloadBlob);
     expect(link.download).toBe("shopify-export.csv");
+    expect(addEventListenerSpy).toHaveBeenCalledWith("click", expect.any(Function), { once: true });
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(appendChildSpy).toHaveBeenCalledWith(link);
