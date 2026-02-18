@@ -5,6 +5,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { getStoreSettings } from "@api/store-settings.js";
 import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
 import type { RefundModalData, RefundModalValue } from "@orders/modals/refund-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-refund-modal")
 export class MerchelloRefundModalElement extends UmbModalBaseElement<
@@ -281,7 +282,9 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -392,7 +395,8 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloRefundModalElement;
@@ -402,3 +406,4 @@ declare global {
     "merchello-refund-modal": MerchelloRefundModalElement;
   }
 }
+

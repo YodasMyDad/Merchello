@@ -3060,11 +3060,31 @@ public class InvoiceService(
                 .Where(o => o.Status != OrderStatus.Cancelled)
                 .ToList();
 
-            if (activeOrders.Any(o => o.Status is OrderStatus.Shipped or OrderStatus.Completed))
+            if (activeOrders.Any(o => o.Status is OrderStatus.Shipped or OrderStatus.PartiallyShipped or OrderStatus.Completed))
             {
                 logger.LogWarning(
-                    "Skipping supersede for invoice {InvoiceId}: contains shipped/completed orders",
+                    "Skipping supersede for invoice {InvoiceId}: contains shipped/partially shipped/completed orders",
                     staleInvoice.Id);
+                continue;
+            }
+
+            Order? nonCancellableOrder = null;
+            foreach (var order in activeOrders)
+            {
+                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
+                if (!canTransition)
+                {
+                    nonCancellableOrder = order;
+                    break;
+                }
+            }
+
+            if (nonCancellableOrder != null)
+            {
+                logger.LogWarning(
+                    "Skipping supersede for invoice {InvoiceId}: order {OrderId} cannot transition to Cancelled",
+                    staleInvoice.Id,
+                    nonCancellableOrder.Id);
                 continue;
             }
 
@@ -3086,16 +3106,6 @@ public class InvoiceService(
                             order.Id,
                             lineItem.Id);
                     }
-                }
-
-                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
-                if (!canTransition)
-                {
-                    logger.LogWarning(
-                        "Skipping order status transition to Cancelled for superseded invoice {InvoiceId}, order {OrderId}",
-                        staleInvoice.Id,
-                        order.Id);
-                    continue;
                 }
 
                 var oldStatus = order.Status;

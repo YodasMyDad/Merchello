@@ -13,6 +13,7 @@ import type {
   PaymentMethodEditModalValue,
 } from "@payment-providers/modals/payment-method-edit-modal.token.js";
 import { getBrandIconSvg } from "@payment-providers/utils/brand-icons.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-payment-method-edit-modal")
 export class MerchelloPaymentMethodEditModalElement extends UmbModalBaseElement<
@@ -451,7 +452,9 @@ export class MerchelloPaymentMethodEditModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -643,7 +646,8 @@ export class MerchelloPaymentMethodEditModalElement extends UmbModalBaseElement<
       justify-content: flex-end;
       gap: var(--uui-size-space-3);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloPaymentMethodEditModalElement;
@@ -653,3 +657,4 @@ declare global {
     "merchello-payment-method-edit-modal": MerchelloPaymentMethodEditModalElement;
   }
 }
+

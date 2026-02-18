@@ -19,6 +19,7 @@ import {
   PRIORITY_LEGEND,
 } from "@notifications/types/notifications.types.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-notifications-list")
 export class MerchelloNotificationsListElement extends UmbLitElement {
@@ -160,7 +161,7 @@ export class MerchelloNotificationsListElement extends UmbLitElement {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div id="main">
+        <div id="main" class="layout-container">
           ${this._loading
             ? this.#renderLoading()
             : this._loadError
@@ -263,32 +264,34 @@ export class MerchelloNotificationsListElement extends UmbLitElement {
       </uui-box>
 
       <uui-box>
-        <div class="controls-row">
-          <div class="search-control">
-            <uui-input
-              placeholder="Search notifications or handlers..."
-              @input=${this.#handleSearch}
-              .value=${this._searchTerm}
-              label="Search notifications and handlers">
-              <uui-icon name="icon-search" slot="prepend"></uui-icon>
-              ${this._searchTerm
-                ? html`
-                    <uui-button slot="append" compact look="secondary" label="Clear search" @click=${this.#clearSearch}>
-                      <uui-icon name="icon-wrong"></uui-icon>
-                    </uui-button>
-                  `
-                : nothing}
-            </uui-input>
-          </div>
-          <div class="control-buttons">
-            <uui-button look="secondary" label="Expand all domains" @click=${this.#expandAll}>
-              <uui-icon name="icon-navigation-down" slot="icon"></uui-icon>
-              Expand all
-            </uui-button>
-            <uui-button look="secondary" label="Collapse all domains" @click=${this.#collapseAll}>
-              <uui-icon name="icon-navigation-right" slot="icon"></uui-icon>
-              Collapse all
-            </uui-button>
+        <div class="filters">
+          <div class="filters-top">
+            <div class="search-box">
+              <uui-input
+                placeholder="Search notifications or handlers..."
+                @input=${this.#handleSearch}
+                .value=${this._searchTerm}
+                label="Search notifications and handlers">
+                <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                ${this._searchTerm
+                  ? html`
+                      <uui-button slot="append" compact look="secondary" label="Clear search" @click=${this.#clearSearch}>
+                        <uui-icon name="icon-wrong"></uui-icon>
+                      </uui-button>
+                    `
+                  : nothing}
+              </uui-input>
+            </div>
+            <div class="control-buttons">
+              <uui-button look="secondary" label="Expand all domains" @click=${this.#expandAll}>
+                <uui-icon name="icon-navigation-down" slot="icon"></uui-icon>
+                Expand all
+              </uui-button>
+              <uui-button look="secondary" label="Collapse all domains" @click=${this.#collapseAll}>
+                <uui-icon name="icon-navigation-right" slot="icon"></uui-icon>
+                Collapse all
+              </uui-button>
+            </div>
           </div>
         </div>
         <p class="results-summary">
@@ -442,19 +445,13 @@ export class MerchelloNotificationsListElement extends UmbLitElement {
   }
 
   static override styles = [
+    collectionLayoutStyles,
     css`
       :host {
         display: block;
         width: 100%;
         height: 100%;
         background: var(--uui-color-background);
-      }
-
-      #main {
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-        padding: var(--uui-size-layout-1);
       }
 
       .loading-container {
@@ -508,20 +505,8 @@ export class MerchelloNotificationsListElement extends UmbLitElement {
         color: var(--uui-color-text-alt);
       }
 
-      .controls-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-      }
-
-      .search-control {
-        flex: 1 1 320px;
-        min-width: 260px;
-      }
-
-      .search-control uui-input {
-        width: 100%;
+      .search-box {
+        max-width: 640px;
       }
 
       .control-buttons {
@@ -870,7 +855,7 @@ export class MerchelloNotificationsListElement extends UmbLitElement {
       }
 
       @media (max-width: 640px) {
-        .search-control {
+        .search-box {
           min-width: 100%;
         }
 

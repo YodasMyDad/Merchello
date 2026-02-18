@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   ShippingDestinationExclusionModalData,
   ShippingDestinationExclusionModalValue,
@@ -230,7 +231,9 @@ export class MerchelloShippingDestinationExclusionModalElement extends UmbModalB
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -267,7 +270,8 @@ export class MerchelloShippingDestinationExclusionModalElement extends UmbModalB
       display: flex;
       gap: var(--uui-size-space-3);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShippingDestinationExclusionModalElement;
@@ -277,3 +281,4 @@ declare global {
     "merchello-shipping-destination-exclusion-modal": MerchelloShippingDestinationExclusionModalElement;
   }
 }
+

@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   WebhookIntegrationGuideModalData,
   WebhookIntegrationGuideModalValue,
@@ -202,7 +203,9 @@ export class MerchelloWebhookIntegrationGuideModalElement extends UmbModalBaseEl
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -313,7 +316,8 @@ export class MerchelloWebhookIntegrationGuideModalElement extends UmbModalBaseEl
       flex-direction: column;
       gap: var(--uui-size-space-4);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloWebhookIntegrationGuideModalElement;
@@ -323,4 +327,5 @@ declare global {
     "merchello-webhook-integration-guide-modal": MerchelloWebhookIntegrationGuideModalElement;
   }
 }
+
 

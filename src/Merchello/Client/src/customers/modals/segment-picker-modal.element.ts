@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { SegmentPickerModalData, SegmentPickerModalValue } from "@customers/modals/segment-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CustomerSegmentListItemDto } from "@customers/types/segment.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-segment-picker-modal")
 export class MerchelloSegmentPickerModalElement extends UmbModalBaseElement<
@@ -244,7 +245,9 @@ export class MerchelloSegmentPickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -360,7 +363,8 @@ export class MerchelloSegmentPickerModalElement extends UmbModalBaseElement<
     .error-banner uui-icon {
       flex-shrink: 0;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloSegmentPickerModalElement;
@@ -370,3 +374,4 @@ declare global {
     "merchello-segment-picker-modal": MerchelloSegmentPickerModalElement;
   }
 }
+

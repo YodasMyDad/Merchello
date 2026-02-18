@@ -8,6 +8,7 @@ import type {
 import type { TestExchangeRateProviderResultDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatNumber } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-exchange-rate-provider-test-modal")
 export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseElement<
@@ -231,7 +232,9 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -439,7 +442,8 @@ export class MerchelloExchangeRateProviderTestModalElement extends UmbModalBaseE
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloExchangeRateProviderTestModalElement;
@@ -449,3 +453,4 @@ declare global {
     "merchello-exchange-rate-provider-test-modal": MerchelloExchangeRateProviderTestModalElement;
   }
 }
+

@@ -7,6 +7,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { CreateShippingPostcodeRuleDto, PostcodeMatchType, PostcodeRuleAction } from "@shipping/types/shipping.types.js";
 import type { ShippingPostcodeRuleModalData, ShippingPostcodeRuleModalValue } from "@shipping/modals/shipping-postcode-rule-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface CountryOption {
   code: string;
@@ -322,7 +323,9 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -382,7 +385,8 @@ export class MerchelloShippingPostcodeRuleModalElement extends UmbModalBaseEleme
       color: var(--uui-color-text-alt);
       margin-top: var(--uui-size-space-1);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShippingPostcodeRuleModalElement;
@@ -392,3 +396,4 @@ declare global {
     "merchello-shipping-postcode-rule-modal": MerchelloShippingPostcodeRuleModalElement;
   }
 }
+

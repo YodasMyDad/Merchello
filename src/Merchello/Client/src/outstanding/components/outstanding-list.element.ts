@@ -15,6 +15,7 @@ import { MERCHELLO_MARK_AS_PAID_MODAL } from "@outstanding/modals/mark-as-paid-m
 import { getOrderDetailHref, navigateToOrderDetail } from "@shared/utils/navigation.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 type FilterTab = "all" | "overdue" | "dueThisWeek" | "dueThisMonth";
 
@@ -285,75 +286,73 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
 
   private _renderFilterSection(): unknown {
     return html`
-      <uui-box>
-        <div class="filters">
-          <div class="filters-top">
-            <div class="search-box">
-              <uui-input
-                type="text"
-                .value=${this._pendingSearchTerm}
-                placeholder="Search by invoice number, customer name, or email..."
-                label="Search outstanding invoices"
-                @input=${this._handleSearchInput}
-              >
-                <uui-icon name="icon-search" slot="prepend"></uui-icon>
-                ${this._pendingSearchTerm
-                  ? html`
-                      <uui-button
-                        slot="append"
-                        compact
-                        look="secondary"
-                        label="Clear search"
-                        @click=${this._handleSearchClear}
-                      >
-                        <uui-icon name="icon-wrong"></uui-icon>
-                      </uui-button>
-                    `
-                  : nothing}
-              </uui-input>
-            </div>
-
-            <uui-toggle
-              label="Account customers only"
-              .checked=${this._accountCustomersOnly}
-              @change=${this._handleAccountToggle}
+      <div class="filters">
+        <div class="filters-top">
+          <div class="search-box">
+            <uui-input
+              type="text"
+              .value=${this._pendingSearchTerm}
+              placeholder="Search by invoice number, customer name, or email..."
+              label="Search outstanding invoices"
+              @input=${this._handleSearchInput}
             >
-              Account customers only
-            </uui-toggle>
+              <uui-icon name="icon-search" slot="prepend"></uui-icon>
+              ${this._pendingSearchTerm
+                ? html`
+                    <uui-button
+                      slot="append"
+                      compact
+                      look="secondary"
+                      label="Clear search"
+                      @click=${this._handleSearchClear}
+                    >
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  `
+                : nothing}
+            </uui-input>
           </div>
 
-          <uui-tab-group>
-            <uui-tab
-              label="All outstanding"
-              ?active=${this._activeTab === "all"}
-              @click=${() => this._handleTabClick("all")}
-            >
-              All outstanding
-            </uui-tab>
-            <uui-tab
-              label="Overdue"
-              ?active=${this._activeTab === "overdue"}
-              @click=${() => this._handleTabClick("overdue")}
-            >
-              Overdue
-            </uui-tab>
-            <uui-tab
-              label="Due this week"
-              ?active=${this._activeTab === "dueThisWeek"}
-              @click=${() => this._handleTabClick("dueThisWeek")}
-            >
-              Due this week
-            </uui-tab>
-            <uui-tab
-              label="Due this month"
-              ?active=${this._activeTab === "dueThisMonth"}
-              @click=${() => this._handleTabClick("dueThisMonth")}
-            >
-              Due this month
-            </uui-tab>
-          </uui-tab-group>
+          <uui-toggle
+            label="Account customers only"
+            .checked=${this._accountCustomersOnly}
+            @change=${this._handleAccountToggle}
+          >
+            Account customers only
+          </uui-toggle>
         </div>
-      </uui-box>
+
+        <uui-tab-group class="tabs">
+          <uui-tab
+            label="All outstanding"
+            ?active=${this._activeTab === "all"}
+            @click=${() => this._handleTabClick("all")}
+          >
+            All outstanding
+          </uui-tab>
+          <uui-tab
+            label="Overdue"
+            ?active=${this._activeTab === "overdue"}
+            @click=${() => this._handleTabClick("overdue")}
+          >
+            Overdue
+          </uui-tab>
+          <uui-tab
+            label="Due this week"
+            ?active=${this._activeTab === "dueThisWeek"}
+            @click=${() => this._handleTabClick("dueThisWeek")}
+          >
+            Due this week
+          </uui-tab>
+          <uui-tab
+            label="Due this month"
+            ?active=${this._activeTab === "dueThisMonth"}
+            @click=${() => this._handleTabClick("dueThisMonth")}
+          >
+            Due this month
+          </uui-tab>
+        </uui-tab-group>
+      </div>
     `;
   }
 
@@ -361,24 +360,22 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
     if (this._selectedInvoiceIds.size === 0) return nothing;
 
     return html`
-      <uui-box>
-        <div class="selection-bar">
-          <div class="selection-meta">
-            <span class="selection-count">${this._selectedInvoiceIds.size} selected</span>
-            <span class="selection-total"
-              >${formatCurrency(this._getSelectedTotal(), this._currencyCode)} total</span
-            >
-          </div>
-          <uui-button
-            look="primary"
-            color="positive"
-            label="Mark selected invoices as paid"
-            @click=${this._handleMarkAsPaid}
+      <div class="selection-bar">
+        <div class="selection-meta">
+          <span class="selection-count">${this._selectedInvoiceIds.size} selected</span>
+          <span class="selection-total"
+            >${formatCurrency(this._getSelectedTotal(), this._currencyCode)} total</span
           >
-            Mark as paid
-          </uui-button>
         </div>
-      </uui-box>
+        <uui-button
+          look="primary"
+          color="positive"
+          label="Mark selected invoices as paid"
+          @click=${this._handleMarkAsPaid}
+        >
+          Mark as paid
+        </uui-button>
+      </div>
     `;
   }
 
@@ -518,7 +515,7 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="outstanding-container">
+        <div class="outstanding-container layout-container">
           ${this._renderFilterSection()} ${this._renderSelectionBar()} ${this._renderContent()}
 
           <merchello-pagination
@@ -531,24 +528,20 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
     }
 
-    .outstanding-container {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-4);
-      padding: var(--uui-size-layout-1);
-    }
-
     .filters {
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-1);
     }
 
     .filters-top {
@@ -569,12 +562,20 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
       width: 100%;
     }
 
+    .tabs {
+      align-self: flex-start;
+    }
+
     .selection-bar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-border);
+      border-radius: var(--uui-border-radius);
     }
 
     .selection-meta {
@@ -708,7 +709,8 @@ export class MerchelloOutstandingListElement extends UmbElementMixin(LitElement)
       background: var(--uui-color-text-alt);
       color: #fff;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloOutstandingListElement;

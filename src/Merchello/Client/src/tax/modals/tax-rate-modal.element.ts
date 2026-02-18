@@ -5,6 +5,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { TaxRateModalData, TaxRateModalValue } from "@tax/modals/tax-rate-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface CountryOption {
   code: string;
@@ -308,7 +309,9 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -368,7 +371,8 @@ export class MerchelloTaxRateModalElement extends UmbModalBaseElement<
       color: var(--uui-color-text-alt);
       margin-top: var(--uui-size-space-1);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTaxRateModalElement;
@@ -378,3 +382,4 @@ declare global {
     "merchello-tax-rate-modal": MerchelloTaxRateModalElement;
   }
 }
+

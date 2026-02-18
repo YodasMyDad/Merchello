@@ -11,6 +11,7 @@ import type {
 } from "@webhooks/types/webhooks.types.js";
 import { WebhookAuthType, getAuthTypeOptions } from "@webhooks/types/webhooks.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const WEBHOOK_SUBSCRIPTION_FORM_ID = "MerchelloWebhookSubscriptionForm";
 
@@ -587,7 +588,9 @@ export class MerchelloWebhookSubscriptionModalElement extends UmbModalBaseElemen
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -669,7 +672,8 @@ export class MerchelloWebhookSubscriptionModalElement extends UmbModalBaseElemen
         width: 100%;
       }
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloWebhookSubscriptionModalElement;
@@ -679,4 +683,5 @@ declare global {
     "merchello-webhook-subscription-modal": MerchelloWebhookSubscriptionModalElement;
   }
 }
+
 

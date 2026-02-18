@@ -17,6 +17,7 @@ import type {
   CustomerOrdersModalValue,
 } from "@orders/modals/customer-orders-modal.token.js";
 import { MERCHELLO_GENERATE_STATEMENT_MODAL } from "@orders/modals/generate-statement-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface OutstandingBalance {
   totalOutstanding: number;
@@ -308,7 +309,9 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -479,7 +482,8 @@ export class MerchelloCustomerOrdersModalElement extends UmbModalBaseElement<
       margin-left: 0;
       margin-right: var(--uui-size-space-2);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloCustomerOrdersModalElement;
@@ -489,3 +493,4 @@ declare global {
     "merchello-customer-orders-modal": MerchelloCustomerOrdersModalElement;
   }
 }
+

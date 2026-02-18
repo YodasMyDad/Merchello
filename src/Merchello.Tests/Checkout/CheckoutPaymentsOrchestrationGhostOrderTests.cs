@@ -222,6 +222,87 @@ public class CheckoutPaymentsOrchestrationGhostOrderTests : IClassFixture<Servic
     }
 
     [Fact]
+    public async Task InitiatePaymentAsync_WhenPreviousInvoiceHasPartiallyShippedOrder_DoesNotCancelPreviousInvoice()
+    {
+        ConfigureManualProviderForPaymentSession();
+        var service = CreateService();
+
+        var (basket, session) = await CreateCheckoutReadyBasketAsync();
+        await PersistBasketAndSessionAsync(basket, session);
+
+        var request = new InitiatePaymentDto
+        {
+            ProviderAlias = "manual",
+            MethodAlias = "manual",
+            ReturnUrl = "https://example.test/checkout/return",
+            CancelUrl = "https://example.test/checkout/cancel"
+        };
+
+        var firstResult = await service.InitiatePaymentAsync(request);
+        firstResult.StatusCode.ShouldBe(StatusCodes.Status200OK);
+        var firstPayload = firstResult.Payload.ShouldBeOfType<PaymentSessionResultDto>();
+        firstPayload.Success.ShouldBeTrue();
+        firstPayload.InvoiceId.ShouldNotBeNull();
+        var firstInvoiceId = firstPayload.InvoiceId.Value;
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var firstOrder = await _fixture.DbContext.Orders
+            .SingleAsync(o => o.InvoiceId == firstInvoiceId);
+        firstOrder.Status = OrderStatus.PartiallyShipped;
+        firstOrder.ShippedDate = DateTime.UtcNow;
+        await _fixture.DbContext.SaveChangesAsync();
+
+        var updatedBilling = ToAddressDto(session.BillingAddress);
+        updatedBilling.AddressTwo = "Suite 2";
+        var updatedShipping = ToAddressDto(session.ShippingAddress);
+        updatedShipping.AddressTwo = "Suite 2";
+
+        var saveAddressesResult = await _checkoutService.SaveAddressesAsync(new SaveAddressesParameters
+        {
+            Basket = basket,
+            Email = session.BillingAddress.Email,
+            BillingAddress = updatedBilling,
+            ShippingAddress = updatedShipping,
+            ShippingSameAsBilling = false
+        });
+
+        saveAddressesResult.Success.ShouldBeTrue();
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var firstInvoice = await _fixture.DbContext.Invoices
+            .AsNoTracking()
+            .SingleAsync(i => i.Id == firstInvoiceId);
+        var updatedBasket = await _fixture.DbContext.Baskets
+            .SingleAsync(b => b.Id == basket.Id);
+
+        if (updatedBasket.DateUpdated <= firstInvoice.DateCreated)
+        {
+            updatedBasket.DateUpdated = firstInvoice.DateCreated.AddSeconds(1);
+            await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = updatedBasket });
+        }
+
+        var secondResult = await service.InitiatePaymentAsync(request);
+        secondResult.StatusCode.ShouldBe(StatusCodes.Status200OK);
+        var secondPayload = secondResult.Payload.ShouldBeOfType<PaymentSessionResultDto>();
+        secondPayload.Success.ShouldBeTrue();
+        secondPayload.InvoiceId.ShouldNotBeNull();
+        secondPayload.InvoiceId.ShouldNotBe(firstInvoiceId);
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var basketInvoices = await _fixture.DbContext.Invoices
+            .Where(i => i.BasketId == basket.Id && !i.IsDeleted)
+            .ToListAsync();
+
+        basketInvoices.Count.ShouldBe(2);
+        basketInvoices.Single(i => i.Id == firstInvoiceId).IsCancelled.ShouldBeFalse();
+        basketInvoices.Single(i => i.Id == secondPayload.InvoiceId.Value).IsCancelled.ShouldBeFalse();
+
+        var reloadedFirstOrder = await _fixture.DbContext.Orders
+            .SingleAsync(o => o.Id == firstOrder.Id);
+        reloadedFirstOrder.Status.ShouldBe(OrderStatus.PartiallyShipped);
+    }
+
+    [Fact]
     public async Task ProcessExpressCheckoutAsync_WhenProviderOmitsTransactionId_UsesDeterministicFallbackEverywhere()
     {
         const string providerAlias = "express-test";

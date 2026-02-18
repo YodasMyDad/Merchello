@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { FilterGroupModalData, FilterGroupModalValue } from "@filters/modals/filter-group-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const FILTER_GROUP_FORM_ID = "MerchelloFilterGroupForm";
 
@@ -156,7 +157,9 @@ export class MerchelloFilterGroupModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -194,7 +197,8 @@ export class MerchelloFilterGroupModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger);
       font-size: var(--uui-type-small-size);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloFilterGroupModalElement;
@@ -204,3 +208,4 @@ declare global {
     "merchello-filter-group-modal": MerchelloFilterGroupModalElement;
   }
 }
+

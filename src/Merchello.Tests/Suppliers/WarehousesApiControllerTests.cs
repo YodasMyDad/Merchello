@@ -149,6 +149,87 @@ public class WarehousesApiControllerTests
     }
 
     [Fact]
+    public async Task UpdateSupplier_OmittedSubmissionTrigger_PreservesExistingTrigger()
+    {
+        var supplierId = Guid.NewGuid();
+        var existingProfile = new SupplierDirectProfile
+        {
+            SubmissionTrigger = SupplierDirectSubmissionTrigger.ExplicitRelease,
+            DeliveryMethod = SupplierDirectDeliveryMethod.Email,
+            EmailSettings = new EmailDeliverySettings
+            {
+                RecipientEmail = "existing@supplier.test"
+            }
+        };
+
+        var existingSupplier = new Supplier
+        {
+            Id = supplierId,
+            Name = "Supplier",
+            ExtendedData =
+            {
+                [SupplierDirectExtendedDataKeys.Profile] = existingProfile.ToJson()
+            }
+        };
+
+        UpdateSupplierParameters? capturedParameters = null;
+        var supplierServiceMock = new Mock<ISupplierService>();
+        supplierServiceMock
+            .Setup(x => x.GetSupplierByIdAsync(supplierId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(existingSupplier);
+        supplierServiceMock
+            .Setup(x => x.UpdateSupplierAsync(It.IsAny<UpdateSupplierParameters>(), It.IsAny<CancellationToken>()))
+            .Callback<UpdateSupplierParameters, CancellationToken>((parameters, _) => capturedParameters = parameters)
+            .ReturnsAsync((UpdateSupplierParameters parameters, CancellationToken _) =>
+            {
+                var supplier = new Supplier
+                {
+                    Id = supplierId,
+                    Name = parameters.Name ?? "Supplier",
+                    Code = parameters.Code
+                };
+                foreach (var entry in parameters.ExtendedData ?? [])
+                {
+                    supplier.ExtendedData[entry.Key] = entry.Value;
+                }
+
+                return new CrudResult<Supplier>
+                {
+                    ResultObject = supplier
+                };
+            });
+
+        var controller = CreateController(supplierService: supplierServiceMock.Object);
+        var dto = new UpdateSupplierDto
+        {
+            Name = "Supplier",
+            SupplierDirectProfile = new SupplierDirectProfileDto
+            {
+                // Intentionally omitted to simulate legacy clients that do not send this field.
+                DeliveryMethod = "Email",
+                EmailSettings = new EmailDeliverySettingsDto
+                {
+                    RecipientEmail = "updated@supplier.test"
+                }
+            }
+        };
+
+        var result = await controller.UpdateSupplier(supplierId, dto, CancellationToken.None);
+
+        var ok = result.ShouldBeOfType<OkObjectResult>();
+        var response = ok.Value.ShouldBeOfType<SupplierDetailDto>();
+        response.SupplierDirectProfile.ShouldNotBeNull();
+        response.SupplierDirectProfile.SubmissionTrigger.ShouldBe("ExplicitRelease");
+
+        var parameters = capturedParameters.ShouldNotBeNull();
+        parameters.ExtendedData.ShouldNotBeNull();
+        parameters.ExtendedData.TryGetValue(SupplierDirectExtendedDataKeys.Profile, out var profileJson).ShouldBeTrue();
+        var profile = SupplierDirectProfile.FromJson(profileJson?.ToString());
+        profile.ShouldNotBeNull();
+        profile!.SubmissionTrigger.ShouldBe(SupplierDirectSubmissionTrigger.ExplicitRelease);
+    }
+
+    [Fact]
     public async Task TestSupplierFtpConnection_WithValidFtpPayload_ReturnsSuccess()
     {
         var ftpClientMock = new Mock<IFtpClient>();

@@ -697,12 +697,12 @@ public class WarehousesApiController(
         SupplierDirectProfileDto dto,
         SupplierDirectProfile? existingProfile = null)
     {
-        var submissionTrigger = Enum.TryParse<SupplierDirectSubmissionTrigger>(
-            dto.SubmissionTrigger,
-            true,
-            out var parsedTrigger)
-            ? parsedTrigger
-            : SupplierDirectSubmissionTrigger.OnPaid;
+        var submissionTrigger = existingProfile?.SubmissionTrigger ?? SupplierDirectSubmissionTrigger.OnPaid;
+        if (!string.IsNullOrWhiteSpace(dto.SubmissionTrigger) &&
+            Enum.TryParse<SupplierDirectSubmissionTrigger>(dto.SubmissionTrigger, true, out var parsedTrigger))
+        {
+            submissionTrigger = parsedTrigger;
+        }
 
         // Parse delivery method
         var deliveryMethod = Enum.TryParse<SupplierDirectDeliveryMethod>(dto.DeliveryMethod, true, out var method)

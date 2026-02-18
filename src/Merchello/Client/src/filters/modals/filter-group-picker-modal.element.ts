@@ -12,6 +12,7 @@ import type {
 import type { FilterGroupPickerModalData, FilterGroupPickerModalValue } from "@filters/modals/filter-group-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-filter-group-picker-modal")
 export class MerchelloFilterGroupPickerModalElement extends UmbModalBaseElement<
@@ -242,7 +243,9 @@ export class MerchelloFilterGroupPickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -286,7 +289,8 @@ export class MerchelloFilterGroupPickerModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloFilterGroupPickerModalElement;
@@ -296,3 +300,4 @@ declare global {
     "merchello-filter-group-picker-modal": MerchelloFilterGroupPickerModalElement;
   }
 }
+

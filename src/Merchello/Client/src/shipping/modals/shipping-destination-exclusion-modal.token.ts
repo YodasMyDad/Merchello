@@ -20,6 +20,6 @@ export const MERCHELLO_SHIPPING_DESTINATION_EXCLUSION_MODAL = new UmbModalToken<
 >("Merchello.ShippingDestinationExclusion.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

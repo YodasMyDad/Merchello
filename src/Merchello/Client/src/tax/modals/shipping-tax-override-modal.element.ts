@@ -5,6 +5,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { TaxGroupDto } from "@orders/types/order.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   ShippingTaxOverrideModalData,
   ShippingTaxOverrideModalValue,
@@ -341,7 +342,9 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -384,7 +387,8 @@ export class MerchelloShippingTaxOverrideModalElement extends UmbModalBaseElemen
       color: var(--uui-color-text-alt);
       margin-top: var(--uui-size-space-1);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShippingTaxOverrideModalElement;
@@ -394,3 +398,4 @@ declare global {
     "merchello-shipping-tax-override-modal": MerchelloShippingTaxOverrideModalElement;
   }
 }
+

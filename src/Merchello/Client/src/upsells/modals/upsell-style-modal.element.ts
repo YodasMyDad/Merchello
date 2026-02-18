@@ -1,6 +1,7 @@
 import { css, html } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   UpsellDisplayStylesDto,
   UpsellElementStyleDto,
@@ -476,7 +477,9 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
       max-width: 100%;
@@ -725,7 +728,8 @@ export class MerchelloUpsellStyleModalElement extends UmbModalBaseElement<
         max-width: 120px;
       }
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloUpsellStyleModalElement;
@@ -735,3 +739,4 @@ declare global {
     "merchello-upsell-style-modal": MerchelloUpsellStyleModalElement;
   }
 }
+

@@ -15,6 +15,7 @@ import type { PaginationState, PageChangeEventDetail } from "@shared/types/pagin
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
 import "@shared/components/merchello-status-badge.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 type FilterTab = "all" | "abandoned" | "recovered" | "converted";
 type RowAction = "copy" | "resend";
@@ -384,63 +385,32 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
 
   private _renderFilters(): unknown {
     return html`
-      <div class="filters-row">
-        <div class="search-box">
-          <uui-input
-            type="search"
-            .value=${this._searchInputValue}
-            placeholder="Search by customer email..."
-            label="Search abandoned checkouts"
-            @input=${this._handleSearchInput}
-          >
-            <uui-icon name="icon-search" slot="prepend"></uui-icon>
-            ${this._searchInputValue
-              ? html`
-                  <uui-button
-                    slot="append"
-                    compact
-                    look="secondary"
-                    label="Clear search"
-                    @click=${this._handleSearchClear}
-                  >
-                    <uui-icon name="icon-wrong"></uui-icon>
-                  </uui-button>
-                `
-              : nothing}
-          </uui-input>
-        </div>
-
-        <div class="tab-actions">
-          <uui-tab-group>
-            <uui-tab
-              label="All"
-              ?active=${this._activeTab === "all"}
-              @click=${() => this._handleTabClick("all")}
+      <div class="filters">
+        <div class="filters-top">
+          <div class="search-box">
+            <uui-input
+              type="search"
+              .value=${this._searchInputValue}
+              placeholder="Search by customer email..."
+              label="Search abandoned checkouts"
+              @input=${this._handleSearchInput}
             >
-              All
-            </uui-tab>
-            <uui-tab
-              label="Abandoned"
-              ?active=${this._activeTab === "abandoned"}
-              @click=${() => this._handleTabClick("abandoned")}
-            >
-              Abandoned
-            </uui-tab>
-            <uui-tab
-              label="Recovered"
-              ?active=${this._activeTab === "recovered"}
-              @click=${() => this._handleTabClick("recovered")}
-            >
-              Recovered
-            </uui-tab>
-            <uui-tab
-              label="Converted"
-              ?active=${this._activeTab === "converted"}
-              @click=${() => this._handleTabClick("converted")}
-            >
-              Converted
-            </uui-tab>
-          </uui-tab-group>
+              <uui-icon name="icon-search" slot="prepend"></uui-icon>
+              ${this._searchInputValue
+                ? html`
+                    <uui-button
+                      slot="append"
+                      compact
+                      look="secondary"
+                      label="Clear search"
+                      @click=${this._handleSearchClear}
+                    >
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  `
+                : nothing}
+            </uui-input>
+          </div>
 
           ${this._hasActiveFilters()
             ? html`
@@ -454,6 +424,37 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
               `
             : nothing}
         </div>
+
+        <uui-tab-group class="tabs">
+          <uui-tab
+            label="All"
+            ?active=${this._activeTab === "all"}
+            @click=${() => this._handleTabClick("all")}
+          >
+            All
+          </uui-tab>
+          <uui-tab
+            label="Abandoned"
+            ?active=${this._activeTab === "abandoned"}
+            @click=${() => this._handleTabClick("abandoned")}
+          >
+            Abandoned
+          </uui-tab>
+          <uui-tab
+            label="Recovered"
+            ?active=${this._activeTab === "recovered"}
+            @click=${() => this._handleTabClick("recovered")}
+          >
+            Recovered
+          </uui-tab>
+          <uui-tab
+            label="Converted"
+            ?active=${this._activeTab === "converted"}
+            @click=${() => this._handleTabClick("converted")}
+          >
+            Converted
+          </uui-tab>
+        </uui-tab-group>
       </div>
     `;
   }
@@ -611,7 +612,7 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="abandoned-checkouts-container">
+        <div class="abandoned-checkouts-container layout-container">
           ${this._renderStats()}
           ${this._renderFilters()}
           ${this._renderContent()}
@@ -629,19 +630,13 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
-    }
-
-    .abandoned-checkouts-container {
-      max-width: 100%;
-      padding: var(--uui-size-layout-1);
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-4);
     }
 
     .stats-grid {
@@ -676,34 +671,9 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
       font-size: var(--uui-type-small-size);
     }
 
-    .filters-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-    }
-
-    @media (min-width: 1024px) {
-      .filters-row {
-        flex-direction: row;
-        align-items: flex-end;
-        justify-content: space-between;
-      }
-    }
-
     .search-box {
       width: 100%;
       max-width: 460px;
-    }
-
-    .search-box uui-input {
-      width: 100%;
-    }
-
-    .tab-actions {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-2);
-      flex-wrap: wrap;
     }
 
     .table-container {
@@ -783,7 +753,8 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
     .error-banner span {
       flex: 1;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloAbandonedCheckoutsListElement;

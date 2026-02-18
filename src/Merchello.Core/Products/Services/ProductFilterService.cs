@@ -229,28 +229,54 @@ public class ProductFilterService(
     public async Task<CrudResult<bool>> ReorderFilterGroups(List<Guid> orderedIds, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
+        var idList = orderedIds.Distinct().ToList();
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        if (idList.Count == 0)
         {
-            var filterGroups = await db.ProductFilterGroups
-                .Where(fg => orderedIds.Contains(fg.Id))
-                .ToListAsync(cancellationToken);
+            result.AddErrorMessage("No filter group IDs were provided for reordering.");
+            return result;
+        }
 
-            for (var i = 0; i < orderedIds.Count; i++)
+        try
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
-                var filterGroup = filterGroups.FirstOrDefault(fg => fg.Id == orderedIds[i]);
-                if (filterGroup != null)
-                {
-                    filterGroup.SortOrder = i;
-                }
-            }
+                var filterGroups = await db.ProductFilterGroups
+                    .Where(fg => idList.Contains(fg.Id))
+                    .ToListAsync(cancellationToken);
 
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-            return true;
-        });
-        scope.Complete();
+                if (filterGroups.Count == 0)
+                {
+                    result.AddErrorMessage("No matching filter groups were found for reordering.");
+                    return false;
+                }
+
+                for (var i = 0; i < idList.Count; i++)
+                {
+                    var filterGroup = filterGroups.FirstOrDefault(fg => fg.Id == idList[i]);
+                    if (filterGroup != null)
+                    {
+                        filterGroup.SortOrder = i;
+                    }
+                }
+
+                await db.SaveChangesAsync(cancellationToken);
+                result.ResultObject = true;
+                return true;
+            });
+            scope.Complete();
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Failed to reorder filter groups.");
+            result.AddErrorMessage("Failed to reorder filter groups due to a database update error.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while reordering filter groups.");
+            result.AddErrorMessage("An unexpected error occurred while reordering filter groups.");
+        }
 
         return result;
     }
@@ -338,28 +364,54 @@ public class ProductFilterService(
     public async Task<CrudResult<bool>> ReorderFilters(Guid filterGroupId, List<Guid> orderedIds, CancellationToken cancellationToken = default)
     {
         var result = new CrudResult<bool>();
+        var idList = orderedIds.Distinct().ToList();
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        if (idList.Count == 0)
         {
-            var filters = await db.ProductFilters
-                .Where(f => f.ProductFilterGroupId == filterGroupId && orderedIds.Contains(f.Id))
-                .ToListAsync(cancellationToken);
+            result.AddErrorMessage("No filter IDs were provided for reordering.");
+            return result;
+        }
 
-            for (var i = 0; i < orderedIds.Count; i++)
+        try
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
-                var filter = filters.FirstOrDefault(f => f.Id == orderedIds[i]);
-                if (filter != null)
-                {
-                    filter.SortOrder = i;
-                }
-            }
+                var filters = await db.ProductFilters
+                    .Where(f => f.ProductFilterGroupId == filterGroupId && idList.Contains(f.Id))
+                    .ToListAsync(cancellationToken);
 
-            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
-            result.ResultObject = true;
-            return true;
-        });
-        scope.Complete();
+                if (filters.Count == 0)
+                {
+                    result.AddErrorMessage("No matching filters were found for reordering.");
+                    return false;
+                }
+
+                for (var i = 0; i < idList.Count; i++)
+                {
+                    var filter = filters.FirstOrDefault(f => f.Id == idList[i]);
+                    if (filter != null)
+                    {
+                        filter.SortOrder = i;
+                    }
+                }
+
+                await db.SaveChangesAsync(cancellationToken);
+                result.ResultObject = true;
+                return true;
+            });
+            scope.Complete();
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Failed to reorder filters for group {FilterGroupId}.", filterGroupId);
+            result.AddErrorMessage("Failed to reorder filters due to a database update error.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while reordering filters for group {FilterGroupId}.", filterGroupId);
+            result.AddErrorMessage("An unexpected error occurred while reordering filters.");
+        }
 
         return result;
     }

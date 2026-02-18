@@ -16,6 +16,6 @@ export const MERCHELLO_SHIPPING_TAX_OVERRIDE_MODAL = new UmbModalToken<
 >("Merchello.ShippingTaxOverride.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

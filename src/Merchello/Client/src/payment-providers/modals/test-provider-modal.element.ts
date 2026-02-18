@@ -13,6 +13,7 @@ import type {
 import { PaymentIntegrationType } from '@payment-providers/types/payment-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const STORAGE_KEY = "merchello-test-payment-provider-form";
 
@@ -1780,7 +1781,9 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -2210,7 +2213,8 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       display: flex;
       gap: var(--uui-size-space-2);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTestPaymentProviderModalElement;
@@ -2220,3 +2224,4 @@ declare global {
     "merchello-test-payment-provider-modal": MerchelloTestPaymentProviderModalElement;
   }
 }
+

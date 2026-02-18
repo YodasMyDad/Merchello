@@ -5,6 +5,7 @@ import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import type { FilterModalData, FilterModalValue } from "@filters/modals/filter-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "@umbraco-cms/backoffice/media";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const FILTER_FORM_ID = "MerchelloFilterForm";
 
@@ -313,7 +314,9 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -380,7 +383,8 @@ export class MerchelloFilterModalElement extends UmbModalBaseElement<
     .delete-action {
       margin-right: auto;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloFilterModalElement;
@@ -390,3 +394,4 @@ declare global {
     "merchello-filter-modal": MerchelloFilterModalElement;
   }
 }
+

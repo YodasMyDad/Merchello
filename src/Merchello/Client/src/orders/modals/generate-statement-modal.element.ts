@@ -6,6 +6,7 @@ import type {
   GenerateStatementModalValue,
 } from "@orders/modals/generate-statement-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 type PeriodOption = "last30" | "last60" | "last90" | "thisMonth" | "custom";
 
@@ -213,7 +214,9 @@ export class MerchelloGenerateStatementModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -292,7 +295,8 @@ export class MerchelloGenerateStatementModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloGenerateStatementModalElement;
@@ -302,3 +306,4 @@ declare global {
     "merchello-generate-statement-modal": MerchelloGenerateStatementModalElement;
   }
 }
+

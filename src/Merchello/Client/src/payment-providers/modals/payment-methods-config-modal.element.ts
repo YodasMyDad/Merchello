@@ -14,6 +14,7 @@ import type {
 } from "@payment-providers/modals/payment-methods-config-modal.token.js";
 import { MERCHELLO_PAYMENT_METHOD_EDIT_MODAL } from "@payment-providers/modals/payment-method-edit-modal.token.js";
 import { getBrandIconSvg } from "@payment-providers/utils/brand-icons.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-payment-methods-config-modal")
 export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseElement<
@@ -29,6 +30,9 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
   #isConnected = false;
   #notificationContext?: UmbNotificationContext;
   #modalManagerContext?: UmbModalManagerContext;
+  #isReorderInFlight = false;
+  #pendingReorderMethodAliases: string[] | null = null;
+  #reorderDebounceHandle?: number;
 
   // Sorter for payment methods
   #methodSorter = new UmbSorterController<PaymentMethodSettingDto>(this, {
@@ -39,7 +43,7 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
     containerSelector: ".methods-list",
     onChange: ({ model }) => {
       this._methods = model;
-      this._handleMethodReorder(model.map((m) => m.methodAlias));
+      this._queueMethodReorder(model.map((m) => m.methodAlias));
     },
   });
 
@@ -62,6 +66,10 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
+    if (this.#reorderDebounceHandle !== undefined) {
+      window.clearTimeout(this.#reorderDebounceHandle);
+      this.#reorderDebounceHandle = undefined;
+    }
   }
 
   private async _loadMethods(): Promise<void> {
@@ -90,22 +98,49 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
     this._isLoading = false;
   }
 
-  private async _handleMethodReorder(orderedMethodAliases: string[]): Promise<void> {
+  private _queueMethodReorder(orderedMethodAliases: string[]): void {
+    this.#pendingReorderMethodAliases = [...new Set(orderedMethodAliases)];
+
+    if (this.#reorderDebounceHandle !== undefined) {
+      window.clearTimeout(this.#reorderDebounceHandle);
+    }
+
+    this.#reorderDebounceHandle = window.setTimeout(() => {
+      this.#reorderDebounceHandle = undefined;
+      void this._flushMethodReorderQueue();
+    }, 200);
+  }
+
+  private async _flushMethodReorderQueue(): Promise<void> {
+    if (this.#isReorderInFlight) return;
+
     const setting = this.data?.setting;
     if (!setting) return;
 
-    const { error } = await MerchelloApi.reorderPaymentMethods(setting.id, orderedMethodAliases);
+    this.#isReorderInFlight = true;
+    try {
+      while (this.#pendingReorderMethodAliases && this.#isConnected) {
+        const orderedMethodAliases = this.#pendingReorderMethodAliases;
+        this.#pendingReorderMethodAliases = null;
 
-    if (!this.#isConnected) return;
+        const { error } = await MerchelloApi.reorderPaymentMethods(setting.id, orderedMethodAliases);
 
-    if (error) {
-      this.#notificationContext?.peek("danger", {
-        data: { headline: "Reorder failed", message: error.message },
-      });
-      // Reload to restore correct order
-      await this._loadMethods();
-    } else {
-      this._hasChanges = true;
+        if (!this.#isConnected) return;
+
+        if (error) {
+          this.#notificationContext?.peek("danger", {
+            data: { headline: "Reorder failed", message: error.message },
+          });
+          // Reload to restore persisted order and stop processing queued updates.
+          this.#pendingReorderMethodAliases = null;
+          await this._loadMethods();
+          break;
+        }
+
+        this._hasChanges = true;
+      }
+    } finally {
+      this.#isReorderInFlight = false;
     }
   }
 
@@ -284,7 +319,9 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -439,7 +476,8 @@ export class MerchelloPaymentMethodsConfigModalElement extends UmbModalBaseEleme
       display: flex;
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloPaymentMethodsConfigModalElement;
@@ -449,3 +487,4 @@ declare global {
     "merchello-payment-methods-config-modal": MerchelloPaymentMethodsConfigModalElement;
   }
 }
+

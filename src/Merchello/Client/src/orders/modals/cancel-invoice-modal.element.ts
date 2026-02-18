@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CancelInvoiceModalData, CancelInvoiceModalValue } from "@orders/modals/cancel-invoice-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-cancel-invoice-modal")
 export class MerchelloCancelInvoiceModalElement extends UmbModalBaseElement<
@@ -119,7 +120,9 @@ export class MerchelloCancelInvoiceModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -184,7 +187,8 @@ export class MerchelloCancelInvoiceModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloCancelInvoiceModalElement;
@@ -194,3 +198,4 @@ declare global {
     "merchello-cancel-invoice-modal": MerchelloCancelInvoiceModalElement;
   }
 }
+
