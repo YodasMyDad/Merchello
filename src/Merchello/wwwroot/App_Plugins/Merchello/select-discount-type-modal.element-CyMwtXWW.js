@@ -1,39 +1,26 @@
-import { html, css } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import {
-  DiscountCategory,
-  DISCOUNT_CATEGORIES,
-} from "@discounts/types/discount.types.js";
-import type {
-  SelectDiscountTypeModalData,
-  SelectDiscountTypeModalValue,
-} from "@discounts/modals/select-discount-type-modal.token.js";
-
-@customElement("merchello-select-discount-type-modal")
-export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement<
-  SelectDiscountTypeModalData,
-  SelectDiscountTypeModalValue
-> {
-  @state() private _selectedCategory: DiscountCategory | null = null;
-
-  private _handleCategorySelect(category: DiscountCategory): void {
-    this._selectedCategory = category;
+import { html as s, css as u, state as d, customElement as g } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement as p } from "@umbraco-cms/backoffice/modal";
+import { e as y } from "./discount.types-DX82Q6oV.js";
+var v = Object.defineProperty, m = Object.getOwnPropertyDescriptor, n = (e, r, a, i) => {
+  for (var t = i > 1 ? void 0 : i ? m(r, a) : r, c = e.length - 1, l; c >= 0; c--)
+    (l = e[c]) && (t = (i ? l(r, a, t) : l(t)) || t);
+  return i && t && v(r, a, t), t;
+};
+let o = class extends p {
+  constructor() {
+    super(...arguments), this._selectedCategory = null;
   }
-
-  private _handleContinue(): void {
-    if (this._selectedCategory === null) return;
-
-    this.value = { selectedCategory: this._selectedCategory };
-    this.modalContext?.submit();
+  _handleCategorySelect(e) {
+    this._selectedCategory = e;
   }
-
-  private _handleCancel(): void {
+  _handleContinue() {
+    this._selectedCategory !== null && (this.value = { selectedCategory: this._selectedCategory }, this.modalContext?.submit());
+  }
+  _handleCancel() {
     this.modalContext?.reject();
   }
-
-  override render() {
-    return html`
+  render() {
+    return s`
       <umb-body-layout headline="Create Discount">
         <div id="main">
           <p class="description">
@@ -41,24 +28,24 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
           </p>
 
           <div class="category-grid">
-            ${DISCOUNT_CATEGORIES.map(
-              (cat) => html`
+            ${y.map(
+      (e) => s`
                 <button
                   type="button"
-                  aria-pressed=${this._selectedCategory === cat.category}
-                  class="category-card ${this._selectedCategory === cat.category ? "selected" : ""}"
-                  @click=${() => this._handleCategorySelect(cat.category)}
+                  aria-pressed=${this._selectedCategory === e.category}
+                  class="category-card ${this._selectedCategory === e.category ? "selected" : ""}"
+                  @click=${() => this._handleCategorySelect(e.category)}
                 >
                   <div class="category-icon">
-                    <uui-icon name="${cat.icon}"></uui-icon>
+                    <uui-icon name="${e.icon}"></uui-icon>
                   </div>
                   <div class="category-content">
-                    <div class="category-label">${cat.label}</div>
-                    <div class="category-description">${cat.description}</div>
+                    <div class="category-label">${e.label}</div>
+                    <div class="category-description">${e.description}</div>
                   </div>
                 </button>
               `
-            )}
+    )}
           </div>
         </div>
 
@@ -83,8 +70,8 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
       </umb-body-layout>
     `;
   }
-
-  static override readonly styles = css`
+};
+o.styles = u`
     :host {
       display: block;
     }
@@ -171,12 +158,15 @@ export class MerchelloSelectDiscountTypeModalElement extends UmbModalBaseElement
       line-height: 1.4;
     }
   `;
-}
-
-export default MerchelloSelectDiscountTypeModalElement;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "merchello-select-discount-type-modal": MerchelloSelectDiscountTypeModalElement;
-  }
-}
+n([
+  d()
+], o.prototype, "_selectedCategory", 2);
+o = n([
+  g("merchello-select-discount-type-modal")
+], o);
+const C = o;
+export {
+  o as MerchelloSelectDiscountTypeModalElement,
+  C as default
+};
+//# sourceMappingURL=select-discount-type-modal.element-CyMwtXWW.js.map

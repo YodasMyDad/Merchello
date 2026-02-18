@@ -626,6 +626,26 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     this._csvStaticColumns = updated;
   }
 
+  private _renderFormLayoutItem(options: {
+    id: string;
+    label: string;
+    input: unknown;
+    required?: boolean;
+    hint?: string;
+    error?: string;
+  }): unknown {
+    return html`
+      <uui-form-layout-item>
+        <uui-label slot="label" for=${options.id} ?required=${options.required}>
+          ${options.label}
+        </uui-label>
+        ${options.input}
+        ${options.hint ? html`<span class="hint">${options.hint}</span>` : nothing}
+        ${options.error ? html`<span class="error" role="alert">${options.error}</span>` : nothing}
+      </uui-form-layout-item>
+    `;
+  }
+
   private _renderCsvSettingsSection(): unknown {
     return html`
       <div class="subsection">
@@ -777,36 +797,38 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     return html`
       <div class="subsection">
         <h5>Email Settings</h5>
-        <div class="form-row">
-          <label for="supplier-email">Supplier Recipient Email</label>
-          <uui-input
-            id="supplier-email"
-            type="email"
-            .value=${this._emailRecipient}
-            @input=${(e: Event) => (this._emailRecipient = (e.target as HTMLInputElement).value)}
-            placeholder="orders@supplier.com"
-            label="Supplier recipient email"
-          ></uui-input>
-          <span class="hint">If empty, supplier contact email is used</span>
-          ${this._errors.emailRecipient
-            ? html`<span class="error">${this._errors.emailRecipient}</span>`
-            : nothing}
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "supplier-email",
+          label: "Supplier recipient email",
+          input: html`
+            <uui-input
+              id="supplier-email"
+              type="email"
+              .value=${this._emailRecipient}
+              @input=${(e: Event) => (this._emailRecipient = (e.target as HTMLInputElement).value)}
+              placeholder="orders@supplier.com"
+              label="Supplier recipient email">
+            </uui-input>
+          `,
+          hint: "If empty, supplier contact email is used.",
+          error: this._errors.emailRecipient,
+        })}
 
-        <div class="form-row">
-          <label for="supplier-email-cc">CC Addresses</label>
-          <uui-textarea
-            id="supplier-email-cc"
-            .value=${this._emailCcAddresses}
-            @input=${(e: Event) => (this._emailCcAddresses = (e.target as HTMLTextAreaElement).value)}
-            placeholder="warehouse@supplier.com, ops@supplier.com"
-            label="CC addresses"
-          ></uui-textarea>
-          <span class="hint">Comma, semicolon, or newline separated email addresses</span>
-          ${this._errors.emailCcAddresses
-            ? html`<span class="error">${this._errors.emailCcAddresses}</span>`
-            : nothing}
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "supplier-email-cc",
+          label: "CC addresses",
+          input: html`
+            <uui-textarea
+              id="supplier-email-cc"
+              .value=${this._emailCcAddresses}
+              @input=${(e: Event) => (this._emailCcAddresses = (e.target as HTMLTextAreaElement).value)}
+              placeholder="warehouse@supplier.com, ops@supplier.com"
+              label="CC addresses">
+            </uui-textarea>
+          `,
+          hint: "Use comma, semicolon, or newline separators.",
+          error: this._errors.emailCcAddresses,
+        })}
       </div>
     `;
   }
@@ -815,97 +837,117 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     return html`
       <div class="subsection">
         <h5>FTP/SFTP Settings</h5>
-        <div class="form-row">
-          <label for="ftp-host">FTP/SFTP Host</label>
-          <uui-input
-            id="ftp-host"
-            .value=${this._ftpHost}
-            @input=${(e: Event) => {
-              this._ftpHost = (e.target as HTMLInputElement).value;
-              this._clearFtpConnectionTestState();
-            }}
-            placeholder="ftp.supplier.com"
-            label="FTP host"
-          ></uui-input>
-          ${this._errors.ftpHost ? html`<span class="error">${this._errors.ftpHost}</span>` : nothing}
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "ftp-host",
+          label: "FTP/SFTP host",
+          input: html`
+            <uui-input
+              id="ftp-host"
+              .value=${this._ftpHost}
+              @input=${(e: Event) => {
+                this._ftpHost = (e.target as HTMLInputElement).value;
+                this._clearFtpConnectionTestState();
+              }}
+              placeholder="ftp.supplier.com"
+              label="FTP host">
+            </uui-input>
+          `,
+          error: this._errors.ftpHost,
+        })}
 
-        <div class="form-row">
-          <label for="ftp-port">Port</label>
-          <uui-input
-            id="ftp-port"
-            type="number"
-            .value=${this._ftpPort}
-            @input=${(e: Event) => {
-              this._ftpPort = (e.target as HTMLInputElement).value;
-              this._clearFtpConnectionTestState();
-            }}
-            placeholder=${this._deliveryMethod === "Sftp" ? "22" : "21"}
-            label="Port"
-          ></uui-input>
-          ${this._errors.ftpPort ? html`<span class="error">${this._errors.ftpPort}</span>` : nothing}
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "ftp-port",
+          label: "Port",
+          input: html`
+            <uui-input
+              id="ftp-port"
+              type="number"
+              min="1"
+              .value=${this._ftpPort}
+              @input=${(e: Event) => {
+                this._ftpPort = (e.target as HTMLInputElement).value;
+                this._clearFtpConnectionTestState();
+              }}
+              placeholder=${this._deliveryMethod === "Sftp" ? "22" : "21"}
+              label="Port">
+            </uui-input>
+          `,
+          error: this._errors.ftpPort,
+        })}
 
-        <div class="form-row">
-          <label for="ftp-username">Username</label>
-          <uui-input
-            id="ftp-username"
-            .value=${this._ftpUsername}
-            @input=${(e: Event) => {
-              this._ftpUsername = (e.target as HTMLInputElement).value;
-              this._clearFtpConnectionTestState();
-            }}
-            label="Username"
-          ></uui-input>
-          ${this._errors.ftpUsername ? html`<span class="error">${this._errors.ftpUsername}</span>` : nothing}
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "ftp-username",
+          label: "Username",
+          input: html`
+            <uui-input
+              id="ftp-username"
+              .value=${this._ftpUsername}
+              @input=${(e: Event) => {
+                this._ftpUsername = (e.target as HTMLInputElement).value;
+                this._clearFtpConnectionTestState();
+              }}
+              label="Username">
+            </uui-input>
+          `,
+          error: this._errors.ftpUsername,
+        })}
 
-        <div class="form-row">
-          <label for="ftp-password">Password</label>
-          <uui-input
-            id="ftp-password"
-            type="password"
-            .value=${this._ftpPassword}
-            @input=${(e: Event) => {
-              this._ftpPassword = (e.target as HTMLInputElement).value;
-              this._clearFtpConnectionTestState();
-            }}
-            placeholder="Leave blank to keep existing password"
-            label="Password"
-          ></uui-input>
-          ${this._errors.ftpPassword ? html`<span class="error">${this._errors.ftpPassword}</span>` : nothing}
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "ftp-password",
+          label: "Password",
+          input: html`
+            <uui-input
+              id="ftp-password"
+              type="password"
+              .value=${this._ftpPassword}
+              @input=${(e: Event) => {
+                this._ftpPassword = (e.target as HTMLInputElement).value;
+                this._clearFtpConnectionTestState();
+              }}
+              placeholder="Leave blank to keep existing password"
+              label="Password">
+            </uui-input>
+          `,
+          hint: "Leave blank when editing to keep the existing password.",
+          error: this._errors.ftpPassword,
+        })}
 
-        <div class="form-row">
-          <label for="ftp-remote-path">Remote Path</label>
-          <uui-input
-            id="ftp-remote-path"
-            .value=${this._ftpRemotePath}
-            @input=${(e: Event) => {
-              this._ftpRemotePath = (e.target as HTMLInputElement).value;
-              this._clearFtpConnectionTestState();
-            }}
-            placeholder="/orders"
-            label="Remote path"
-          ></uui-input>
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "ftp-remote-path",
+          label: "Remote path",
+          input: html`
+            <uui-input
+              id="ftp-remote-path"
+              .value=${this._ftpRemotePath}
+              @input=${(e: Event) => {
+                this._ftpRemotePath = (e.target as HTMLInputElement).value;
+                this._clearFtpConnectionTestState();
+              }}
+              placeholder="/orders"
+              label="Remote path">
+            </uui-input>
+          `,
+        })}
 
         ${this._deliveryMethod === "Sftp"
           ? html`
-              <div class="form-row">
-                <label for="sftp-host-fingerprint">Host Fingerprint</label>
-                <uui-input
-                  id="sftp-host-fingerprint"
-                  .value=${this._ftpHostFingerprint}
-                  @input=${(e: Event) => {
-                    this._ftpHostFingerprint = (e.target as HTMLInputElement).value;
-                    this._clearFtpConnectionTestState();
-                  }}
-                  placeholder="Optional"
-                  label="SFTP host fingerprint"
-                ></uui-input>
-                <span class="hint">Recommended for strict host verification</span>
-              </div>
+              ${this._renderFormLayoutItem({
+                id: "sftp-host-fingerprint",
+                label: "Host fingerprint",
+                input: html`
+                  <uui-input
+                    id="sftp-host-fingerprint"
+                    .value=${this._ftpHostFingerprint}
+                    @input=${(e: Event) => {
+                      this._ftpHostFingerprint = (e.target as HTMLInputElement).value;
+                      this._clearFtpConnectionTestState();
+                    }}
+                    placeholder="Optional"
+                    label="SFTP host fingerprint">
+                  </uui-input>
+                `,
+                hint: "Recommended when strict host verification is enabled.",
+              })}
             `
           : nothing}
 
@@ -925,7 +967,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
           <span class="hint">Tests the current FTP/SFTP settings without saving supplier changes.</span>
 
           ${this._ftpConnectionTestError
-            ? html`<span class="error">${this._ftpConnectionTestError}</span>`
+            ? html`<span class="error" role="alert">${this._ftpConnectionTestError}</span>`
             : nothing}
 
           ${this._ftpConnectionTestResult
@@ -949,25 +991,40 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       <div class="section">
         <h4>Supplier Direct Profile</h4>
 
-        <div class="form-row">
-          <label for="delivery-method">Delivery Method</label>
-          <uui-select
-            id="delivery-method"
-            label="Delivery method"
-            .options=${this._getDeliveryMethodOptions()}
-            @change=${(e: Event) => {
-              this._deliveryMethod = (e.target as HTMLSelectElement).value as SupplierDirectDeliveryMethod;
-              this._clearFtpConnectionTestState();
-            }}
-          ></uui-select>
-          <span class="hint">Choose how this supplier receives fulfilment orders</span>
-        </div>
+        ${this._renderFormLayoutItem({
+          id: "delivery-method",
+          label: "Delivery method",
+          input: html`
+            <uui-select
+              id="delivery-method"
+              label="Delivery method"
+              .options=${this._getDeliveryMethodOptions()}
+              @change=${(e: Event) => {
+                this._deliveryMethod = (e.target as HTMLSelectElement)
+                  .value as SupplierDirectDeliveryMethod;
+                this._clearFtpConnectionTestState();
+              }}>
+            </uui-select>
+          `,
+          hint: "Choose how this supplier receives fulfilment orders.",
+        })}
 
         ${this._deliveryMethod === "Email"
           ? this._renderEmailSettingsSection()
           : this._renderFtpSettingsSection()}
       </div>
     `;
+  }
+
+  private _handleFormSubmit(event: Event): void {
+    event.preventDefault();
+    const form = event.currentTarget as HTMLFormElement;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    void this._handleSave();
   }
 
   override render() {
@@ -977,143 +1034,164 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
     return html`
       <umb-body-layout headline=${headline}>
-        <div id="main">
-          ${this._errors.general
-            ? html`<div class="error-banner">${this._errors.general}</div>`
-            : nothing}
+        <uui-form>
+          <form id="SupplierForm" @submit=${this._handleFormSubmit}>
+            <div id="main">
+              ${this._errors.general
+                ? html`<div class="error-banner" role="alert">${this._errors.general}</div>`
+                : nothing}
 
-          ${this._isLoading
-            ? html`
-                <div class="loading">
-                  <uui-loader></uui-loader>
-                </div>
-              `
-            : html`
-                <div class="section">
-                  <div class="form-row">
-                    <label for="supplier-name">Supplier Name <span class="required">*</span></label>
-                    <uui-input
-                      id="supplier-name"
-                      maxlength="250"
-                      .value=${this._name}
-                      @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
-                      placeholder="e.g., Acme Distribution Co."
-                      label="Supplier name"
-                    >
-                    </uui-input>
-                    <span class="hint">The name of the company or supplier</span>
-                    ${this._errors.name ? html`<span class="error">${this._errors.name}</span>` : nothing}
-                  </div>
+              ${this._isLoading
+                ? html`
+                    <div class="loading">
+                      <uui-loader></uui-loader>
+                      <span>Loading supplier settings...</span>
+                    </div>
+                  `
+                : html`
+                    <div class="section">
+                      <h4>Supplier Details</h4>
 
-                  <div class="form-row">
-                    <label for="supplier-code">Reference Code</label>
-                    <uui-input
-                      id="supplier-code"
-                      maxlength="100"
-                      .value=${this._code}
-                      @input=${(e: Event) => (this._code = (e.target as HTMLInputElement).value)}
-                      placeholder="e.g., SUP-001"
-                      label="Supplier code"
-                    >
-                    </uui-input>
-                  </div>
+                      ${this._renderFormLayoutItem({
+                        id: "supplier-name",
+                        label: "Supplier name",
+                        required: true,
+                        input: html`
+                          <uui-input
+                            id="supplier-name"
+                            maxlength="250"
+                            required
+                            .value=${this._name}
+                            @input=${(e: Event) => (this._name = (e.target as HTMLInputElement).value)}
+                            placeholder="e.g., Acme Distribution Co."
+                            label="Supplier name">
+                          </uui-input>
+                        `,
+                        hint: "The company or source that supplies inventory.",
+                        error: this._errors.name,
+                      })}
 
-                  <div class="form-row">
-                    <label for="contact-name">Contact Name</label>
-                    <uui-input
-                      id="contact-name"
-                      maxlength="250"
-                      .value=${this._contactName}
-                      @input=${(e: Event) => (this._contactName = (e.target as HTMLInputElement).value)}
-                      label="Contact name"
-                    >
-                    </uui-input>
-                  </div>
+                      ${this._renderFormLayoutItem({
+                        id: "supplier-code",
+                        label: "Reference code",
+                        input: html`
+                          <uui-input
+                            id="supplier-code"
+                            maxlength="100"
+                            .value=${this._code}
+                            @input=${(e: Event) => (this._code = (e.target as HTMLInputElement).value)}
+                            placeholder="e.g., SUP-001"
+                            label="Supplier code">
+                          </uui-input>
+                        `,
+                      })}
 
-                  <div class="form-row">
-                    <label for="contact-email">Contact Email</label>
-                    <uui-input
-                      id="contact-email"
-                      type="email"
-                      maxlength="250"
-                      .value=${this._contactEmail}
-                      @input=${(e: Event) => (this._contactEmail = (e.target as HTMLInputElement).value)}
-                      label="Contact email"
-                    >
-                    </uui-input>
-                    ${this._errors.contactEmail
-                      ? html`<span class="error">${this._errors.contactEmail}</span>`
-                      : nothing}
-                  </div>
+                      ${this._renderFormLayoutItem({
+                        id: "contact-name",
+                        label: "Contact name",
+                        input: html`
+                          <uui-input
+                            id="contact-name"
+                            maxlength="250"
+                            .value=${this._contactName}
+                            @input=${(e: Event) => (this._contactName = (e.target as HTMLInputElement).value)}
+                            label="Contact name">
+                          </uui-input>
+                        `,
+                      })}
 
-                  <div class="form-row">
-                    <label for="contact-phone">Contact Phone</label>
-                    <uui-input
-                      id="contact-phone"
-                      maxlength="50"
-                      .value=${this._contactPhone}
-                      @input=${(e: Event) => (this._contactPhone = (e.target as HTMLInputElement).value)}
-                      label="Contact phone"
-                    >
-                    </uui-input>
-                  </div>
-                </div>
+                      ${this._renderFormLayoutItem({
+                        id: "contact-email",
+                        label: "Contact email",
+                        input: html`
+                          <uui-input
+                            id="contact-email"
+                            type="email"
+                            maxlength="250"
+                            .value=${this._contactEmail}
+                            @input=${(e: Event) => (this._contactEmail = (e.target as HTMLInputElement).value)}
+                            label="Contact email">
+                          </uui-input>
+                        `,
+                        error: this._errors.contactEmail,
+                      })}
 
-                <div class="section">
-                  <div class="form-row">
-                    <label for="fulfilment-provider">Default Fulfilment Provider</label>
-                    <uui-select
-                      id="fulfilment-provider"
-                      label="Fulfilment provider"
-                      .options=${[
-                        {
-                          name: "None (manual fulfilment)",
-                          value: "",
-                          selected: !this._fulfilmentProviderConfigurationId,
-                        },
-                        ...this._fulfilmentProviderOptions
-                          .filter((p) => p.isEnabled)
-                          .map((p) => ({
-                            name: p.displayName,
-                            value: p.configurationId,
-                            selected: p.configurationId === this._fulfilmentProviderConfigurationId,
-                          })),
-                      ]}
-                      @change=${(e: Event) => {
-                        this._fulfilmentProviderConfigurationId = (e.target as HTMLSelectElement).value;
-                        this._clearFtpConnectionTestState();
-                      }}
-                    ></uui-select>
-                    <span class="hint">Used when warehouses under this supplier do not specify an override</span>
-                  </div>
-                </div>
+                      ${this._renderFormLayoutItem({
+                        id: "contact-phone",
+                        label: "Contact phone",
+                        input: html`
+                          <uui-input
+                            id="contact-phone"
+                            maxlength="50"
+                            .value=${this._contactPhone}
+                            @input=${(e: Event) => (this._contactPhone = (e.target as HTMLInputElement).value)}
+                            label="Contact phone">
+                          </uui-input>
+                        `,
+                      })}
+                    </div>
 
-                ${this._isSupplierDirectSelected()
-                  ? this._renderSupplierDirectFields()
-                  : html`
-                      <div class="section">
-                        <span class="hint">
-                          Select Supplier Direct as the default fulfilment provider to configure per-supplier Email/FTP/SFTP delivery.
-                        </span>
-                      </div>
-                    `}
-              `}
-        </div>
+                    <div class="section">
+                      <h4>Fulfilment</h4>
+                      ${this._renderFormLayoutItem({
+                        id: "fulfilment-provider",
+                        label: "Default fulfilment provider",
+                        input: html`
+                          <uui-select
+                            id="fulfilment-provider"
+                            label="Fulfilment provider"
+                            .options=${[
+                              {
+                                name: "None (manual fulfilment)",
+                                value: "",
+                                selected: !this._fulfilmentProviderConfigurationId,
+                              },
+                              ...this._fulfilmentProviderOptions
+                                .filter((p) => p.isEnabled)
+                                .map((p) => ({
+                                  name: p.displayName,
+                                  value: p.configurationId,
+                                  selected: p.configurationId === this._fulfilmentProviderConfigurationId,
+                                })),
+                            ]}
+                            @change=${(e: Event) => {
+                              this._fulfilmentProviderConfigurationId = (e.target as HTMLSelectElement).value;
+                              this._clearFtpConnectionTestState();
+                            }}>
+                          </uui-select>
+                        `,
+                        hint: "Used when warehouses under this supplier do not specify an override.",
+                      })}
+                    </div>
 
-        <div slot="actions">
-          <uui-button label="Cancel" look="secondary" @click=${this._handleCancel}>
-            Cancel
-          </uui-button>
-          <uui-button
-            label=${saveLabel}
-            look="primary"
-            color="positive"
-            ?disabled=${this._isSaving || this._isLoading}
-            @click=${this._handleSave}
-          >
-            ${this._isSaving ? savingLabel : saveLabel}
-          </uui-button>
-        </div>
+                    ${this._isSupplierDirectSelected()
+                      ? this._renderSupplierDirectFields()
+                      : html`
+                          <div class="section">
+                            <span class="hint">
+                              Select Supplier Direct as the default fulfilment provider to configure
+                              per-supplier Email, FTP, or SFTP delivery.
+                            </span>
+                          </div>
+                        `}
+                  `}
+            </div>
+          </form>
+        </uui-form>
+
+        <uui-button slot="actions" label="Cancel" look="secondary" @click=${this._handleCancel}>
+          Cancel
+        </uui-button>
+        <uui-button
+          slot="actions"
+          form="SupplierForm"
+          type="submit"
+          .label=${saveLabel}
+          look="primary"
+          color="positive"
+          ?disabled=${this._isSaving || this._isLoading}>
+          ${this._isSaving ? savingLabel : saveLabel}
+        </uui-button>
       </umb-body-layout>
     `;
   }
@@ -1151,13 +1229,6 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       border: 1px solid var(--uui-color-border);
     }
 
-    .form-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-1);
-    }
-
-    label,
     h4,
     h5,
     h6 {
@@ -1180,8 +1251,8 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       margin-top: var(--uui-size-space-1);
     }
 
-    .required {
-      color: var(--uui-color-danger);
+    uui-form-layout-item {
+      margin: 0;
     }
 
     uui-input,
@@ -1274,6 +1345,7 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       display: flex;
       align-items: center;
       gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
       padding: var(--uui-size-space-3);
       background: var(--uui-color-danger-standalone);
       color: var(--uui-color-danger-contrast);
@@ -1287,7 +1359,10 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
 
     .loading {
       display: flex;
+      flex-direction: column;
       justify-content: center;
+      align-items: center;
+      gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-6);
     }
 
