@@ -224,6 +224,8 @@ public class UcpOrderWebhookHandler(
                 version = _protocolSettings.Ucp.Version,
                 capabilities = new[] { UcpCapabilityNames.Order }
             },
+            event_id = Guid.NewGuid().ToString(),
+            created_time = DateTimeOffset.UtcNow.ToString("O"),
             @event = eventType,
             id = invoice.Id.ToString(),
             checkout_id = invoice.Source?.SessionId,

@@ -359,6 +359,12 @@ public class UcpOrderWebhookHandlerTests
         payload.RootElement.GetProperty("totals").GetProperty("subtotal").GetInt64().ShouldBe(3998);
         payload.RootElement.GetProperty("totals").GetProperty("tax").GetInt64().ShouldBe(400);
         payload.RootElement.GetProperty("totals").GetProperty("total").GetInt64().ShouldBe(4398);
+
+        // UCP Order spec: event_id (unique per event) and created_time (RFC 3339) are required at root
+        payload.RootElement.TryGetProperty("event_id", out var eventId).ShouldBeTrue();
+        Guid.TryParse(eventId.GetString(), out _).ShouldBeTrue();
+        payload.RootElement.TryGetProperty("created_time", out var createdTime).ShouldBeTrue();
+        DateTimeOffset.TryParse(createdTime.GetString(), out _).ShouldBeTrue();
     }
 
     #endregion

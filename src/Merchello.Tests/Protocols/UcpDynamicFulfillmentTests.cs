@@ -358,10 +358,5 @@ public class UcpDynamicFulfillmentTests : IClassFixture<ServiceTestFixture>
         return null;
     }
 
-    private static JsonElement GetEnvelopeData(JsonDocument document)
-    {
-        return document.RootElement.TryGetProperty("data", out var data)
-            ? data
-            : document.RootElement.GetProperty("Data");
-    }
+    private static JsonElement GetEnvelopeData(JsonDocument document) => document.RootElement;
 }

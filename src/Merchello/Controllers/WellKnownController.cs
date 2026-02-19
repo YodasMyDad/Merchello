@@ -2,6 +2,8 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
+using Merchello.Core.Protocols.UCP.Models;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Middleware;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +20,7 @@ namespace Merchello.Controllers;
 [AllowAnonymous]
 public class WellKnownController(
     ICommerceProtocolManager protocolManager,
+    ISigningKeyStore signingKeyStore,
     IOptions<ProtocolSettings> settings) : ControllerBase
 {
     /// <summary>
@@ -55,6 +58,55 @@ public class WellKnownController(
         Response.Headers.CacheControl = $"public, max-age={settings.Value.ManifestCacheDurationMinutes * 60}";
 
         return Ok(manifest);
+    }
+
+    [HttpGet("ucp-test-agent/{agentId}")]
+    [Produces("application/json")]
+    [ProducesResponseType(typeof(UcpAgentProfile), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetUcpTestAgentProfile(string agentId, CancellationToken ct)
+    {
+        var normalizedAgentId = string.IsNullOrWhiteSpace(agentId) ? null : agentId.Trim();
+        if (normalizedAgentId == null)
+        {
+            return BadRequest(new { error = "AgentId is required." });
+        }
+
+        var publicKeys = await signingKeyStore.GetPublicKeysAsync(ct);
+        var signingKeys = publicKeys
+            .Where(k =>
+                !string.IsNullOrWhiteSpace(k.Kid) &&
+                !string.IsNullOrWhiteSpace(k.Kty) &&
+                !string.IsNullOrWhiteSpace(k.Crv) &&
+                !string.IsNullOrWhiteSpace(k.X) &&
+                !string.IsNullOrWhiteSpace(k.Y))
+            .Select(k => new UcpSigningKey
+            {
+                Kty = k.Kty!,
+                Kid = k.Kid!,
+                Crv = k.Crv!,
+                X = k.X!,
+                Y = k.Y!,
+                Use = string.IsNullOrWhiteSpace(k.Use) ? "sig" : k.Use!,
+                Alg = string.IsNullOrWhiteSpace(k.Alg) ? "ES256" : k.Alg!
+            })
+            .ToList();
+
+        var capabilities = BuildSimulatedAgentCapabilities();
+        var profile = new UcpAgentProfile
+        {
+            Name = $"Merchello UCP Test Agent ({normalizedAgentId})",
+            Ucp = new UcpAgentProfileMetadata
+            {
+                Version = settings.Value.Ucp.Version,
+                Capabilities = capabilities,
+                SigningKeys = signingKeys
+            },
+            SigningKeys = signingKeys
+        };
+
+        Response.Headers.CacheControl = $"public, max-age={settings.Value.ManifestCacheDurationMinutes * 60}";
+        return Ok(profile);
     }
 
     /// <summary>
@@ -120,5 +172,76 @@ public class WellKnownController(
             Protocol = ProtocolAliases.Ucp,
             Capabilities = [] // Will be populated from profile fetch if needed
         };
+    }
+
+    private List<UcpAgentCapability> BuildSimulatedAgentCapabilities()
+    {
+        List<UcpAgentCapability> capabilities = [];
+        var protocolSettings = settings.Value.Ucp;
+
+        if (protocolSettings.Capabilities.Checkout)
+        {
+            capabilities.Add(new UcpAgentCapability
+            {
+                Name = UcpCapabilityNames.Checkout,
+                Version = protocolSettings.Version
+            });
+
+            if (protocolSettings.Extensions.Discount)
+            {
+                capabilities.Add(new UcpAgentCapability
+                {
+                    Name = UcpExtensionNames.Discount,
+                    Version = protocolSettings.Version
+                });
+            }
+
+            if (protocolSettings.Extensions.Fulfillment)
+            {
+                capabilities.Add(new UcpAgentCapability
+                {
+                    Name = UcpExtensionNames.Fulfillment,
+                    Version = protocolSettings.Version
+                });
+            }
+
+            if (protocolSettings.Extensions.BuyerConsent)
+            {
+                capabilities.Add(new UcpAgentCapability
+                {
+                    Name = UcpExtensionNames.BuyerConsent,
+                    Version = protocolSettings.Version
+                });
+            }
+
+            if (protocolSettings.Extensions.Ap2Mandates)
+            {
+                capabilities.Add(new UcpAgentCapability
+                {
+                    Name = UcpExtensionNames.Ap2Mandates,
+                    Version = protocolSettings.Version
+                });
+            }
+        }
+
+        if (protocolSettings.Capabilities.Order)
+        {
+            capabilities.Add(new UcpAgentCapability
+            {
+                Name = UcpCapabilityNames.Order,
+                Version = protocolSettings.Version
+            });
+        }
+
+        if (protocolSettings.Capabilities.IdentityLinking)
+        {
+            capabilities.Add(new UcpAgentCapability
+            {
+                Name = UcpCapabilityNames.IdentityLinking,
+                Version = protocolSettings.Version
+            });
+        }
+
+        return capabilities;
     }
 }

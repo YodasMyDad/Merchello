@@ -151,12 +151,12 @@ Idempotency-Key: abc123
 {
   "ucp": {
     "version": "2026-01-23",
-    "capabilities": {
-      "dev.ucp.shopping.checkout": "2026-01-23",
-      "dev.ucp.shopping.discount": "2026-01-23",
-      "dev.ucp.shopping.fulfillment": "2026-01-23",
-      "dev.ucp.shopping.order": "2026-01-23"
-    },
+    "capabilities": [
+      {"name": "dev.ucp.shopping.checkout", "version": "2026-01-23"},
+      {"name": "dev.ucp.shopping.discount", "version": "2026-01-23"},
+      {"name": "dev.ucp.shopping.fulfillment", "version": "2026-01-23"},
+      {"name": "dev.ucp.shopping.order", "version": "2026-01-23"}
+    ],
     "payment_handlers": [
       {
         "handler_id": "manual:manual",
@@ -165,30 +165,28 @@ Idempotency-Key: abc123
       }
     ]
   },
-  "data": {
-    "id": "chk_1234567890",
-    "status": "incomplete",
-    "currency": "USD",
-    "line_items": [...],
-    "totals": [
-      {"type": "subtotal", "amount": 5000, "currency": "USD"},
-      {"type": "tax", "amount": 400, "currency": "USD"},
-      {"type": "total", "amount": 5400, "currency": "USD"}
-    ],
-    "links": [
-      {"rel": "terms", "href": "https://merchant.example.com/terms"},
-      {"rel": "privacy", "href": "https://merchant.example.com/privacy"}
-    ],
-    "messages": [
-      {
-        "type": "error",
-        "code": "missing",
-        "path": "$.buyer",
-        "content": "Buyer information required",
-        "severity": "requires_buyer_input"
-      }
-    ]
-  }
+  "id": "chk_1234567890",
+  "status": "incomplete",
+  "currency": "USD",
+  "line_items": [...],
+  "totals": [
+    {"type": "subtotal", "amount": 5000, "currency": "USD"},
+    {"type": "tax", "amount": 400, "currency": "USD"},
+    {"type": "total", "amount": 5400, "currency": "USD"}
+  ],
+  "links": [
+    {"rel": "terms", "href": "https://merchant.example.com/terms"},
+    {"rel": "privacy", "href": "https://merchant.example.com/privacy"}
+  ],
+  "messages": [
+    {
+      "type": "error",
+      "code": "missing",
+      "path": "$.buyer",
+      "content": "Buyer information required",
+      "severity": "requires_buyer_input"
+    }
+  ]
 }
 ```
 
@@ -274,7 +272,9 @@ Published at `/.well-known/ucp`:
       "kid": "key-2026-01",
       "crv": "P-256",
       "x": "...",
-      "y": "..."
+      "y": "...",
+      "use": "sig",
+      "alg": "ES256"
     }
   ]
 }
@@ -1702,12 +1702,6 @@ public class ProtocolError
 /// UCP spec requires every response to include version and active capabilities.
 /// Wrap all protocol responses in this envelope.
 /// </summary>
-public class ProtocolResponseEnvelope
-{
-    public required UcpMetadata Ucp { get; init; }
-    public required object Data { get; init; }
-}
-
 /// <summary>
 /// UCP metadata included in every response per spec requirement.
 /// </summary>
@@ -1719,9 +1713,21 @@ public class UcpMetadata
     public required string Version { get; init; }
 
     /// <summary>
-    /// Active capabilities for this session (e.g., "dev.ucp.shopping.checkout").
+    /// Active capabilities for this session as an array of name/version objects.
     /// </summary>
-    public required IReadOnlyList<string> Capabilities { get; init; }
+    public required IReadOnlyList<UcpResponseCapability> Capabilities { get; init; }
+
+    [JsonPropertyName("payment_handlers")]
+    public IReadOnlyList<ProtocolPaymentHandler>? PaymentHandlers { get; init; }
+}
+
+/// <summary>
+/// A single capability entry in UCP response metadata.
+/// </summary>
+public record UcpResponseCapability
+{
+    public required string Name { get; init; }
+    public required string Version { get; init; }
 }
 ```
 
@@ -1988,19 +1994,15 @@ Request-Signature: eyJhbGciOiJFUzI1NiIsImtpZCI6ImtleS0yMDI2LTAxIn0...
 {
   "Merchello": {
     "Protocols": {
-      "Enabled": true,
-      "WellKnownPath": "/.well-known",
+      "PublicBaseUrl": null,
       "ManifestCacheDurationMinutes": 60,
       "RequireHttps": true,
       "MinimumTlsVersion": "1.3",
-      "UCP": {
-        "Enabled": false,
+      "Ucp": {
         "Version": "2026-01-23",
-        "RequireAuthentication": true,
         "AllowedAgents": ["*"],
         "SigningKeyRotationDays": 90,
         "WebhookTimeoutSeconds": 30,
-        "WebhookRetryCount": 3,
         "Capabilities": {
           "Checkout": true,
           "Order": true,
@@ -2010,7 +2012,7 @@ Request-Signature: eyJhbGciOiJFUzI1NiIsImtpZCI6ImtleS0yMDI2LTAxIn0...
           "Discount": true,
           "Fulfillment": true,
           "BuyerConsent": false,
-          "AP2Mandates": false
+          "Ap2Mandates": false
         }
       }
     }
@@ -2217,8 +2219,10 @@ UCP webhooks are signed with RFC 7797 detached JWTs:
 {
   "ucp": {
     "version": "2026-01-23",
-    "capabilities": ["dev.ucp.shopping.order"]
+    "capabilities": [{"name": "dev.ucp.shopping.order", "version": "2026-01-23"}]
   },
+  "event_id": "a3f1c2d4-e5b6-7890-abcd-ef1234567890",
+  "created_time": "2026-01-21T10:30:00.0000000+00:00",
   "event": "order.shipped",
   "id": "invoice-guid",
   "checkout_id": "session-id",
@@ -2411,7 +2415,7 @@ if (invoice.Source?.Type == Constants.InvoiceSources.Ucp)
 - [x] Fulfillment extension with shipping groups
 - [x] Order capability with webhook signatures
 - [x] TLS 1.3 minimum requirement
-- [x] `ucp` field in all responses (via `ProtocolResponseEnvelope`)
+- [x] `ucp` field merged at root level in all responses (flat JSON — no `data` wrapper)
 - [x] Version negotiation error handling (`version_unsupported`)
 - [x] UCP-Agent header parsing (RFC 8941)
 

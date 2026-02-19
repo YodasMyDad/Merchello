@@ -659,22 +659,12 @@ public class UcpCheckoutSmokeTests : IClassFixture<ServiceTestFixture>
         return (null, null);
     }
 
-    private static object? ExtractEnvelopeData(object? responseData)
-    {
-        if (responseData == null) return null;
-
-        var type = responseData.GetType();
-        var dataProperty = type.GetProperty("Data") ?? type.GetProperty("data");
-        return dataProperty?.GetValue(responseData) ?? responseData;
-    }
+    private static object? ExtractEnvelopeData(object? responseData) => responseData;
 
     private static string? ExtractSessionId(object? responseData)
     {
-        var data = ExtractEnvelopeData(responseData);
-        if (data == null) return null;
-
-        var dataType = data.GetType();
-        var idProperty = dataType.GetProperty("id") ?? dataType.GetProperty("Id") ?? dataType.GetProperty("sessionId") ?? dataType.GetProperty("SessionId");
-        return idProperty?.GetValue(data)?.ToString();
+        if (responseData == null) return null;
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(responseData));
+        return json.RootElement.TryGetProperty("id", out var id) ? id.GetString() : null;
     }
 }

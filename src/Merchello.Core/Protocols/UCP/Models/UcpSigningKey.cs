@@ -7,4 +7,6 @@ public record UcpSigningKey
     public required string Crv { get; init; }
     public required string X { get; init; }
     public required string Y { get; init; }
+    public string Use { get; init; } = "sig";
+    public string Alg { get; init; } = "ES256";
 }

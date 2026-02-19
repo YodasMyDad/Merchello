@@ -35,6 +35,8 @@ using Merchello.Core.Shipping.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 
 namespace Merchello.Core.Protocols.UCP;
 
@@ -1608,7 +1610,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         return capabilities;
     }
 
-    private async Task<ProtocolResponseEnvelope> WrapSessionInEnvelopeAsync(
+    private async Task<object> WrapSessionInEnvelopeAsync(
         CheckoutSessionState session,
         CancellationToken ct)
     {
@@ -1619,16 +1621,14 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
         var ucpSession = MapSessionToUcpSession(session);
 
-        return new ProtocolResponseEnvelope
+        var ucp = new UcpMetadata
         {
-            Ucp = new UcpMetadata
-            {
-                Version = _protocolSettings.Ucp.Version,
-                Capabilities = GetActiveCapabilities(),
-                PaymentHandlers = handlers
-            },
-            Data = ucpSession
+            Version = _protocolSettings.Ucp.Version,
+            Capabilities = GetActiveCapabilities(),
+            PaymentHandlers = handlers
         };
+
+        return MergeWithUcpMetadata(ucpSession, ucp);
     }
 
     private object MapSessionToUcpSession(CheckoutSessionState session)
@@ -1977,43 +1977,64 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         return true;
     }
 
-    private ProtocolResponseEnvelope WrapDataInEnvelope(object data)
+    // Serialize with camelCase for JSON merging so anonymous objects and DTOs use consistent casing.
+    private static readonly JsonSerializerOptions _ucpMergeOptions = new()
     {
-        return new ProtocolResponseEnvelope
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    /// <summary>
+    /// Merges <paramref name="data"/> and <paramref name="ucp"/> metadata into a single flat JSON object
+    /// so that <c>ucp</c> appears at the root level alongside the data fields, as required by the UCP spec.
+    /// </summary>
+    private static object MergeWithUcpMetadata(object data, UcpMetadata ucp)
+    {
+        var dataNode = JsonSerializer.SerializeToNode(data, _ucpMergeOptions) as JsonObject;
+        if (dataNode == null)
         {
-            Ucp = new UcpMetadata
-            {
-                Version = _protocolSettings.Ucp.Version,
-                Capabilities = GetActiveCapabilities(),
-                PaymentHandlers = null
-            },
-            Data = data
-        };
+            return data;
+        }
+
+        dataNode["ucp"] = JsonSerializer.SerializeToNode(ucp, _ucpMergeOptions);
+        return dataNode;
     }
 
-    private IReadOnlyDictionary<string, string> GetActiveCapabilities()
+    private object WrapDataInEnvelope(object data)
     {
-        var capabilities = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var ucp = new UcpMetadata
+        {
+            Version = _protocolSettings.Ucp.Version,
+            Capabilities = GetActiveCapabilities(),
+            PaymentHandlers = null
+        };
+
+        return MergeWithUcpMetadata(data, ucp);
+    }
+
+    private IReadOnlyList<UcpResponseCapability> GetActiveCapabilities()
+    {
+        var capabilities = new List<UcpResponseCapability>();
         var settings = _protocolSettings.Ucp;
 
         if (settings.Capabilities.Checkout)
         {
-            capabilities[UcpCapabilityNames.Checkout] = settings.Version;
+            capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.Checkout, Version = settings.Version });
 
             if (settings.Extensions.Discount)
-                capabilities[UcpExtensionNames.Discount] = settings.Version;
+                capabilities.Add(new UcpResponseCapability { Name = UcpExtensionNames.Discount, Version = settings.Version });
             if (settings.Extensions.Fulfillment)
-                capabilities[UcpExtensionNames.Fulfillment] = settings.Version;
+                capabilities.Add(new UcpResponseCapability { Name = UcpExtensionNames.Fulfillment, Version = settings.Version });
             if (settings.Extensions.BuyerConsent)
-                capabilities[UcpExtensionNames.BuyerConsent] = settings.Version;
+                capabilities.Add(new UcpResponseCapability { Name = UcpExtensionNames.BuyerConsent, Version = settings.Version });
             if (settings.Extensions.Ap2Mandates)
-                capabilities[UcpExtensionNames.Ap2Mandates] = settings.Version;
+                capabilities.Add(new UcpResponseCapability { Name = UcpExtensionNames.Ap2Mandates, Version = settings.Version });
         }
 
         if (settings.Capabilities.Order)
-            capabilities[UcpCapabilityNames.Order] = settings.Version;
+            capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.Order, Version = settings.Version });
         if (settings.Capabilities.IdentityLinking)
-            capabilities[UcpCapabilityNames.IdentityLinking] = settings.Version;
+            capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.IdentityLinking, Version = settings.Version });
 
         return capabilities;
     }
