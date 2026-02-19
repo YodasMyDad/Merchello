@@ -631,7 +631,8 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       gap: var(--uui-size-space-3);
       align-items: flex-start;
       background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      color: #fff;
+      --uui-icon-color: #fff;
       border-radius: var(--uui-border-radius);
       padding: var(--uui-size-space-3);
       margin-bottom: var(--uui-size-space-4);
@@ -641,16 +642,19 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       font-size: 1.25rem;
       flex-shrink: 0;
       margin-top: 2px;
+      color: inherit;
     }
 
     .payment-warning-content strong {
       display: block;
       margin-bottom: var(--uui-size-space-1);
+      color: inherit;
     }
 
     .payment-warning-content p {
       margin: 0;
       line-height: 1.4;
+      color: inherit;
     }
 
     .empty-state {
