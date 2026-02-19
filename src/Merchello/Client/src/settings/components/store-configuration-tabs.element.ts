@@ -208,6 +208,24 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     return fallback;
   }
 
+  private _getNullableBoolFromPropertyValue(value: unknown): boolean | null {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") return true;
+      if (value.toLowerCase() === "false") return false;
+    }
+    return null;
+  }
+
+  private _getNullableIntFromPropertyValue(value: unknown): number | null {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() !== "") {
+      const parsed = parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
+
   private _getFirstDropdownValue(value: unknown): string {
     if (Array.isArray(value)) {
       const first = value.find((x) => typeof x === "string");
@@ -719,9 +737,20 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
 
   private _getUcpDatasetValue(): UmbPropertyValueData[] {
     const configuration = this._configuration!;
+    const ucp = configuration.ucp;
     return [
-      { alias: "termsUrl", value: configuration.ucp.termsUrl ?? "" },
-      { alias: "privacyUrl", value: configuration.ucp.privacyUrl ?? "" },
+      { alias: "termsUrl", value: ucp.termsUrl ?? "" },
+      { alias: "privacyUrl", value: ucp.privacyUrl ?? "" },
+      { alias: "publicBaseUrl", value: ucp.publicBaseUrl ?? "" },
+      { alias: "allowedAgents", value: ucp.allowedAgents?.join("\n") ?? "" },
+      { alias: "capabilityCheckout", value: ucp.capabilityCheckout ?? true },
+      { alias: "capabilityOrder", value: ucp.capabilityOrder ?? true },
+      { alias: "capabilityIdentityLinking", value: ucp.capabilityIdentityLinking ?? false },
+      { alias: "extensionDiscount", value: ucp.extensionDiscount ?? true },
+      { alias: "extensionFulfillment", value: ucp.extensionFulfillment ?? true },
+      { alias: "extensionBuyerConsent", value: ucp.extensionBuyerConsent ?? false },
+      { alias: "extensionAp2Mandates", value: ucp.extensionAp2Mandates ?? false },
+      { alias: "webhookTimeoutSeconds", value: ucp.webhookTimeoutSeconds ?? "" },
     ];
   }
 
@@ -730,12 +759,27 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     const dataset = e.target as UmbPropertyDatasetElement;
     const values = this._toPropertyValueMap(dataset.value ?? []);
 
+    const rawAgents = this._getStringOrNullFromPropertyValue(values.allowedAgents);
+    const allowedAgents = rawAgents
+      ? rawAgents.split(/[\n,]+/).map((s) => s.trim()).filter((s) => s.length > 0)
+      : null;
+
     this._configuration = {
       ...this._configuration,
       ucp: {
         ...this._configuration.ucp,
         termsUrl: this._getStringOrNullFromPropertyValue(values.termsUrl),
         privacyUrl: this._getStringOrNullFromPropertyValue(values.privacyUrl),
+        publicBaseUrl: this._getStringOrNullFromPropertyValue(values.publicBaseUrl),
+        allowedAgents,
+        capabilityCheckout: this._getNullableBoolFromPropertyValue(values.capabilityCheckout),
+        capabilityOrder: this._getNullableBoolFromPropertyValue(values.capabilityOrder),
+        capabilityIdentityLinking: this._getNullableBoolFromPropertyValue(values.capabilityIdentityLinking),
+        extensionDiscount: this._getNullableBoolFromPropertyValue(values.extensionDiscount),
+        extensionFulfillment: this._getNullableBoolFromPropertyValue(values.extensionFulfillment),
+        extensionBuyerConsent: this._getNullableBoolFromPropertyValue(values.extensionBuyerConsent),
+        extensionAp2Mandates: this._getNullableBoolFromPropertyValue(values.extensionAp2Mandates),
+        webhookTimeoutSeconds: this._getNullableIntFromPropertyValue(values.webhookTimeoutSeconds),
       },
     };
   }
@@ -919,13 +963,48 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         <umb-property-dataset
           .value=${this._getAbandonedCheckoutDatasetValue()}
           @change=${this._handleAbandonedCheckoutDatasetChange}>
-          <umb-property alias="abandonmentThresholdHours" label="Abandonment Threshold Hours" property-editor-ui-alias="Umb.PropertyEditorUi.Decimal"></umb-property>
-          <umb-property alias="recoveryExpiryDays" label="Recovery Expiry Days" property-editor-ui-alias="Umb.PropertyEditorUi.Integer"></umb-property>
-          <umb-property alias="checkIntervalMinutes" label="Check Interval Minutes" property-editor-ui-alias="Umb.PropertyEditorUi.Integer"></umb-property>
-          <umb-property alias="firstEmailDelayHours" label="First Email Delay Hours" property-editor-ui-alias="Umb.PropertyEditorUi.Integer"></umb-property>
-          <umb-property alias="reminderEmailDelayHours" label="Reminder Email Delay Hours" property-editor-ui-alias="Umb.PropertyEditorUi.Integer"></umb-property>
-          <umb-property alias="finalEmailDelayHours" label="Final Email Delay Hours" property-editor-ui-alias="Umb.PropertyEditorUi.Integer"></umb-property>
-          <umb-property alias="maxRecoveryEmails" label="Max Recovery Emails" property-editor-ui-alias="Umb.PropertyEditorUi.Integer"></umb-property>
+          <umb-property
+            alias="abandonmentThresholdHours"
+            label="Abandonment Threshold Hours"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Decimal"
+            .config=${[{ alias: "min", value: 0.5 }]}>
+          </umb-property>
+          <umb-property
+            alias="recoveryExpiryDays"
+            label="Recovery Expiry Days"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
+            .config=${[{ alias: "min", value: 1 }]}>
+          </umb-property>
+          <umb-property
+            alias="checkIntervalMinutes"
+            label="Check Interval Minutes"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
+            .config=${[{ alias: "min", value: 5 }]}>
+          </umb-property>
+          <umb-property
+            alias="firstEmailDelayHours"
+            label="First Email Delay Hours"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
+            .config=${[{ alias: "min", value: 0 }]}>
+          </umb-property>
+          <umb-property
+            alias="reminderEmailDelayHours"
+            label="Reminder Email Delay Hours"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
+            .config=${[{ alias: "min", value: 0 }]}>
+          </umb-property>
+          <umb-property
+            alias="finalEmailDelayHours"
+            label="Final Email Delay Hours"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
+            .config=${[{ alias: "min", value: 0 }]}>
+          </umb-property>
+          <umb-property
+            alias="maxRecoveryEmails"
+            label="Max Recovery Emails"
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
+            .config=${[{ alias: "min", value: 0 }]}>
+          </umb-property>
         </umb-property-dataset>
       </uui-box>
       ${this._renderSaveActions()}
@@ -966,14 +1045,47 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
 
   private _renderUcpTab(): unknown {
     return html`
-      <uui-box .headline=${this._t("merchello_settingsUcpHeadline", "UCP")}>
-        <umb-property-dataset
-          .value=${this._getUcpDatasetValue()}
-          @change=${this._handleUcpDatasetChange}>
+      <umb-property-dataset
+        .value=${this._getUcpDatasetValue()}
+        @change=${this._handleUcpDatasetChange}>
+
+        <uui-box .headline=${this._t("merchello_settingsUcpHeadline", "UCP")}>
           <umb-property alias="termsUrl" .label=${this._t("merchello_settingsUcpTermsUrl", "Terms URL")} property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
           <umb-property alias="privacyUrl" .label=${this._t("merchello_settingsUcpPrivacyUrl", "Privacy URL")} property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-        </umb-property-dataset>
-      </uui-box>
+          <umb-property
+            alias="publicBaseUrl"
+            label="Public Base URL"
+            description="Override the public base URL used in UCP manifest URLs. Leave empty to use the store website URL."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          <umb-property
+            alias="allowedAgents"
+            label="Allowed Agents"
+            description="Restrict access to specific agent profile URIs (one per line). Use * to allow all agents. Leave empty to use the appsettings default."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextArea">
+          </umb-property>
+          <umb-property
+            alias="webhookTimeoutSeconds"
+            label="Webhook Timeout (seconds)"
+            description="Timeout for outbound webhook calls. Leave empty to use the appsettings default."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer">
+          </umb-property>
+        </uui-box>
+
+        <uui-box headline="Capabilities">
+          <umb-property alias="capabilityCheckout" label="Checkout" description="Enable the Checkout capability." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="capabilityOrder" label="Order" description="Enable the Order capability." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="capabilityIdentityLinking" label="Identity Linking" description="Enable the Identity Linking capability." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+        </uui-box>
+
+        <uui-box headline="Extensions">
+          <umb-property alias="extensionDiscount" label="Discount" description="Enable the Discount extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="extensionFulfillment" label="Fulfillment" description="Enable the Fulfillment extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="extensionBuyerConsent" label="Buyer Consent" description="Enable the Buyer Consent extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="extensionAp2Mandates" label="AP2 Mandates" description="Enable the AP2 Mandates extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+        </uui-box>
+
+      </umb-property-dataset>
 
       <uui-box .headline=${this._t("merchello_settingsUcpFlowTesterHeadline", "UCP Flow Tester")}>
         <merchello-ucp-flow-tester></merchello-ucp-flow-tester>
@@ -1066,6 +1178,11 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
       display: grid;
       gap: var(--uui-size-space-4);
       padding-bottom: var(--uui-size-space-4);
+    }
+
+    .tab-content > umb-property-dataset {
+      display: grid;
+      gap: var(--uui-size-space-4);
     }
 
     .tab-actions {

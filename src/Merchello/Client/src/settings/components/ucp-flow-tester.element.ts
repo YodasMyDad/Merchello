@@ -1,4 +1,4 @@
-﻿import {
+import {
   LitElement,
   css,
   html,
@@ -37,6 +37,7 @@ import { formatNumber } from "@shared/utils/formatting.js";
 
 type UcpFlowMode = "adapter" | "strict";
 type UcpFlowTemplatePreset = "physical" | "digital" | "incomplete" | "multi-item";
+type UcpStepStatus = "idle" | "running" | "success" | "error";
 
 interface UcpFlowSelectedProduct {
   key: string;
@@ -64,94 +65,47 @@ interface UcpFlowFulfillmentGroup {
   options: UcpFlowFulfillmentOption[];
 }
 
+interface UcpStepDefinition {
+  key: string;
+  label: string;
+  desc: string;
+  disabled: boolean;
+  action: () => Promise<void>;
+}
+
 @customElement("merchello-ucp-flow-tester")
 export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
-  @state()
-  private _isLoadingDiagnostics = true;
-
-  @state()
-  private _diagnosticsError: string | null = null;
-
-  @state()
-  private _diagnostics: UcpFlowDiagnosticsDto | null = null;
-
-  @state()
-  private _modeRequested: UcpFlowMode = "adapter";
-
-  @state()
-  private _templatePreset: UcpFlowTemplatePreset = "physical";
-
-  @state()
-  private _agentId = "";
-
-  @state()
-  private _dryRun = true;
-
-  @state()
-  private _realOrderConfirmed = false;
-
-  @state()
-  private _paymentHandlerId = "manual:manual";
-
-  @state()
-  private _availablePaymentHandlerIds: string[] = [];
-
-  @state()
-  private _selectedProducts: UcpFlowSelectedProduct[] = [];
-
-  @state()
-  private _buyerEmail = "buyer@example.com";
-
-  @state()
-  private _buyerPhone = "+14155550100";
-
-  @state()
-  private _buyerGivenName = "Alex";
-
-  @state()
-  private _buyerFamilyName = "Taylor";
-
-  @state()
-  private _buyerAddressLine1 = "1 Test Street";
-
-  @state()
-  private _buyerAddressLine2 = "";
-
-  @state()
-  private _buyerLocality = "New York";
-
-  @state()
-  private _buyerAdministrativeArea = "NY";
-
-  @state()
-  private _buyerPostalCode = "10001";
-
-  @state()
-  private _buyerCountryCode = "US";
-
-  @state()
-  private _discountCodesInput = "";
-
-  @state()
-  private _sessionId: string | null = null;
-
-  @state()
-  private _sessionStatus: string | null = null;
-
-  @state()
-  private _orderId: string | null = null;
-
-  @state()
-  private _fulfillmentGroups: UcpFlowFulfillmentGroup[] = [];
-
-  @state()
-  private _selectedFulfillmentOptionIds: Record<string, string> = {};
-
-  @state()
-  private _transcripts: UcpFlowStepResultDto[] = [];
-
-  @state()
-  private _activeStep: string | null = null;
+  @state() private _isLoadingDiagnostics = true;
+  @state() private _diagnosticsError: string | null = null;
+  @state() private _diagnostics: UcpFlowDiagnosticsDto | null = null;
+  @state() private _modeRequested: UcpFlowMode = "adapter";
+  @state() private _templatePreset: UcpFlowTemplatePreset = "physical";
+  @state() private _agentId = "";
+  @state() private _dryRun = true;
+  @state() private _realOrderConfirmed = false;
+  @state() private _paymentHandlerId = "manual:manual";
+  @state() private _availablePaymentHandlerIds: string[] = [];
+  @state() private _selectedProducts: UcpFlowSelectedProduct[] = [];
+  @state() private _buyerEmail = "buyer@example.com";
+  @state() private _buyerPhone = "+14155550100";
+  @state() private _buyerGivenName = "Alex";
+  @state() private _buyerFamilyName = "Taylor";
+  @state() private _buyerAddressLine1 = "1 Test Street";
+  @state() private _buyerAddressLine2 = "";
+  @state() private _buyerLocality = "New York";
+  @state() private _buyerAdministrativeArea = "NY";
+  @state() private _buyerPostalCode = "10001";
+  @state() private _buyerCountryCode = "US";
+  @state() private _discountCodesInput = "";
+  @state() private _sessionId: string | null = null;
+  @state() private _sessionStatus: string | null = null;
+  @state() private _orderId: string | null = null;
+  @state() private _fulfillmentGroups: UcpFlowFulfillmentGroup[] = [];
+  @state() private _selectedFulfillmentOptionIds: Record<string, string> = {};
+  @state() private _transcripts: UcpFlowStepResultDto[] = [];
+  @state() private _activeStep: string | null = null;
+  @state() private _expandedStep: string | null = null;
+  @state() private _openSections: Set<string> = new Set(["scenario", "products"]);
 
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
@@ -170,6 +124,8 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
     super.connectedCallback();
     void this._loadDiagnostics();
   }
+
+  // ─── Business Logic ───────────────────────────────────────────────────────
 
   private async _loadDiagnostics(): Promise<void> {
     this._isLoadingDiagnostics = true;
@@ -282,16 +238,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
     if (localize?.termOrDefault) {
       return localize.termOrDefault(key, fallback);
     }
-
     return fallback;
-  }
-
-  private _renderReadOnlyProperty(labelKey: string, labelFallback: string, value: string): unknown {
-    return html`
-      <umb-property-layout orientation="vertical" .label=${this._t(labelKey, labelFallback)}>
-        <span slot="editor" class="value">${value}</span>
-      </umb-property-layout>
-    `;
   }
 
   private _isStrictModeBlocked(): boolean {
@@ -315,6 +262,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
     this._transcripts = [];
     this._activeStep = null;
     this._realOrderConfirmed = false;
+    this._expandedStep = null;
   }
 
   private async _openProductPicker(): Promise<void> {
@@ -401,12 +349,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
     const quantity = Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1;
 
     this._selectedProducts = this._selectedProducts.map((item) =>
-      item.key === productKey
-        ? {
-            ...item,
-            quantity,
-          }
-        : item
+      item.key === productKey ? { ...item, quantity } : item
     );
   }
 
@@ -588,6 +531,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
     this._syncPaymentHandlers(result.responseData);
     this._syncFulfillmentGroups(result.responseData);
+    this._expandedStep = result.step ?? null;
   }
 
   private _syncPaymentHandlers(responseData: unknown): void {
@@ -760,9 +704,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
       return undefined;
     }
 
-    return {
-      codes,
-    };
+    return { codes };
   }
 
   private _buildCreateFulfillmentPayload(): UcpFlowTestFulfillmentDto | undefined {
@@ -780,9 +722,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
       ],
     };
 
-    return {
-      methods: [method],
-    };
+    return { methods: [method] };
   }
 
   private _buildUpdateFulfillmentPayload(): UcpFlowTestFulfillmentDto | undefined {
@@ -814,10 +754,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private _buildFulfillmentGroupSelections(): UcpFlowTestFulfillmentGroupSelectionDto[] {
     return Object.entries(this._selectedFulfillmentOptionIds)
-      .map(([id, selectedOptionId]) => ({
-        id,
-        selectedOptionId,
-      }))
+      .map(([id, selectedOptionId]) => ({ id, selectedOptionId }))
       .filter((entry) => !!entry.id && !!entry.selectedOptionId);
   }
 
@@ -907,91 +844,497 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
       },
     });
   }
-  private _renderDiagnosticsPanel(): unknown {
+
+  // ─── UX Helpers ───────────────────────────────────────────────────────────
+
+  private _getStepTranscript(stepKey: string): UcpFlowStepResultDto | null {
+    for (let i = this._transcripts.length - 1; i >= 0; i--) {
+      if (this._transcripts[i].step === stepKey) {
+        return this._transcripts[i];
+      }
+    }
+    return null;
+  }
+
+  private _getStepStatus(stepKey: string): UcpStepStatus {
+    if (this._activeStep === stepKey) return "running";
+    const transcript = this._getStepTranscript(stepKey);
+    if (!transcript) return "idle";
+    return transcript.success ? "success" : "error";
+  }
+
+  private _toggleSection(key: string): void {
+    const next = new Set(this._openSections);
+    if (next.has(key)) {
+      next.delete(key);
+    } else {
+      next.add(key);
+    }
+    this._openSections = next;
+  }
+
+  private _toggleStep(stepKey: string): void {
+    this._expandedStep = this._expandedStep === stepKey ? null : stepKey;
+  }
+
+  // ─── Option Helpers ───────────────────────────────────────────────────────
+
+  private _getExecutionModeOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: this._t("merchello_ucpFlowTesterAdapterMode", "Adapter Mode"), value: "adapter", selected: this._modeRequested === "adapter" },
+      { name: this._t("merchello_ucpFlowTesterStrictHttpMode", "Strict HTTP Mode"), value: "strict", selected: this._modeRequested === "strict" },
+    ];
+  }
+
+  private _getTemplateOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: this._t("merchello_ucpFlowTesterTemplatePhysical", "Physical Product"), value: "physical", selected: this._templatePreset === "physical" },
+      { name: this._t("merchello_ucpFlowTesterTemplateDigital", "Digital Product"), value: "digital", selected: this._templatePreset === "digital" },
+      { name: this._t("merchello_ucpFlowTesterTemplateIncompleteBuyer", "Incomplete Buyer"), value: "incomplete", selected: this._templatePreset === "incomplete" },
+      { name: this._t("merchello_ucpFlowTesterTemplateMultiItem", "Multi-item"), value: "multi-item", selected: this._templatePreset === "multi-item" },
+    ];
+  }
+
+  private _getPaymentHandlerOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return this._availablePaymentHandlerIds.map((handlerId) => ({
+      name: handlerId,
+      value: handlerId,
+      selected: handlerId === this._paymentHandlerId,
+    }));
+  }
+
+  private _getFulfillmentGroupOptions(group: UcpFlowFulfillmentGroup): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      { name: this._t("merchello_ucpFlowTesterSelectOption", "Select option"), value: "", selected: !this._selectedFulfillmentOptionIds[group.id] },
+      ...group.options.map((option) => ({
+        name: `${option.title}${option.amount != null ? ` (${option.currency || ""} ${option.amount})` : ""}`,
+        value: option.id,
+        selected: this._selectedFulfillmentOptionIds[group.id] === option.id,
+      })),
+    ];
+  }
+
+  // ─── Render: Diagnostics Bar ──────────────────────────────────────────────
+
+  private _renderDiagnosticsBar(): unknown {
     if (this._isLoadingDiagnostics) {
-      return html`<div class="loading-row"><uui-loader></uui-loader><span>${this._t("merchello_ucpFlowTesterLoadingDiagnostics", "Loading diagnostics...")}</span></div>`;
+      return html`
+        <div class="diagnostics-bar">
+          <div class="loading-row">
+            <uui-loader></uui-loader>
+            <span>${this._t("merchello_ucpFlowTesterLoadingDiagnostics", "Loading diagnostics...")}</span>
+          </div>
+        </div>
+      `;
     }
 
     if (this._diagnosticsError) {
       return html`
-        <div class="error-banner">
+        <div class="diagnostics-bar diagnostics-bar--error">
           <span>${this._diagnosticsError}</span>
-          <uui-button
-            .label=${this._t("merchello_ucpFlowTesterRetryDiagnostics", "Retry diagnostics")}
-            look="secondary"
-            @click=${this._loadDiagnostics}>
+          <uui-button look="secondary" .label=${this._t("general_retry", "Retry")} @click=${this._loadDiagnostics}>
             ${this._t("general_retry", "Retry")}
           </uui-button>
         </div>
       `;
     }
 
-    if (!this._diagnostics) {
+    if (!this._diagnostics) return nothing;
+
+    const d = this._diagnostics;
+    return html`
+      <div class="diagnostics-bar">
+        <span class="diag-chip diag-chip--neutral">Protocol ${d.protocolVersion || "–"}</span>
+        <span class="diag-chip ${d.strictModeAvailable ? "diag-chip--positive" : "diag-chip--warning"}">
+          Strict: ${d.strictModeAvailable ? "Available" : "Blocked"}
+        </span>
+        <span class="diag-chip ${d.requireHttps ? "diag-chip--positive" : "diag-chip--warning"}">
+          HTTPS: ${d.requireHttps ? "Required" : "Optional"}
+        </span>
+        <span class="diag-chip diag-chip--neutral">TLS ${d.minimumTlsVersion || "–"}</span>
+        <span class="diag-chip diag-chip--neutral">${d.capabilities.length} Capabilities</span>
+        <span class="diag-chip diag-chip--neutral">${d.extensions.length} Extensions</span>
+        ${d.publicBaseUrl ? html`<span class="diag-chip diag-chip--neutral diag-chip--url" title="${d.publicBaseUrl}">URL: ${d.publicBaseUrl}</span>` : nothing}
+      </div>
+    `;
+  }
+
+  // ─── Render: Setup Sidebar ────────────────────────────────────────────────
+
+  private _renderSetupSidebar(): unknown {
+    const productBadge = this._selectedProducts.length > 0
+      ? html`<span class="section-badge">${this._selectedProducts.length}</span>`
+      : nothing;
+
+    return html`
+      <div class="setup-sidebar">
+        ${this._renderAccordion("scenario", "Scenario", nothing, this._renderScenarioSection())}
+        ${this._renderAccordion("products", "Products", productBadge, this._renderProductsSection())}
+        ${this._renderAccordion("buyer", "Buyer Info", nothing, this._renderBuyerInfoSection())}
+        ${this._renderAccordion("advanced", "Advanced", nothing, this._renderAdvancedSection())}
+      </div>
+    `;
+  }
+
+  private _renderAccordion(key: string, title: string, badge: unknown, body: unknown): unknown {
+    const isOpen = this._openSections.has(key);
+    return html`
+      <div class="accordion-section">
+        <div class="accordion-header" @click=${() => this._toggleSection(key)}>
+          <span class="accordion-chevron ${isOpen ? "accordion-chevron--open" : ""}">›</span>
+          <span class="accordion-title">${title}</span>
+          ${badge}
+        </div>
+        ${isOpen ? html`<div class="accordion-body">${body}</div>` : nothing}
+      </div>
+    `;
+  }
+
+  private _renderScenarioSection(): unknown {
+    return html`
+      ${this._renderStrictBlockedBanner()}
+      <div class="field-group">
+        <label class="field-label">Execution Mode</label>
+        <uui-select
+          .label=${"Execution Mode"}
+          .options=${this._getExecutionModeOptions()}
+          @change=${this._handleModeChange}>
+        </uui-select>
+        <span class="field-hint">Adapter executes the protocol adapter directly. Strict executes signed HTTP calls.</span>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Template</label>
+        <uui-select
+          .label=${"Template"}
+          .options=${this._getTemplateOptions()}
+          @change=${this._handleTemplatePresetChange}>
+        </uui-select>
+        <span class="field-hint">Guided setup presets for common UCP scenarios.</span>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Agent ID</label>
+        <uui-input
+          .label=${"Agent ID"}
+          .value=${this._agentId}
+          @input=${this._handleAgentIdChange}>
+        </uui-input>
+        <span class="field-hint">Used to build the simulated test agent profile URL.</span>
+      </div>
+    `;
+  }
+
+  private _renderProductsSection(): unknown {
+    return html`
+      <uui-button
+        look="primary"
+        color="positive"
+        .label=${"Pick Products"}
+        @click=${this._openProductPicker}>
+        Pick Products
+      </uui-button>
+      ${this._selectedProducts.length === 0
+        ? html`<div class="empty-note">No products selected yet.</div>`
+        : html`
+          <div class="product-list">
+            ${this._selectedProducts.map((product) => html`
+              <div class="product-row">
+                <div class="product-main">
+                  <strong>${product.name}</strong>
+                  <span>${product.sku || "No SKU"} · $${formatNumber(product.price, 2)}</span>
+                </div>
+                <div class="product-qty">
+                  <uui-input
+                    type="number"
+                    min="1"
+                    .label=${"Qty"}
+                    .value=${String(product.quantity)}
+                    @input=${(e: Event) => this._updateProductQuantity(product.key, e)}>
+                  </uui-input>
+                </div>
+                <uui-button
+                  look="secondary"
+                  color="danger"
+                  .label=${"Remove"}
+                  @click=${() => this._removeProduct(product.key)}>
+                  ×
+                </uui-button>
+              </div>
+            `)}
+          </div>
+        `}
+    `;
+  }
+
+  private _renderBuyerInfoSection(): unknown {
+    return html`
+      <div class="buyer-grid buyer-grid--2col">
+        <div class="field-group">
+          <label class="field-label">Given Name</label>
+          <uui-input .label=${"Given Name"} .value=${this._buyerGivenName} @input=${this._handleBuyerGivenNameChange}></uui-input>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Family Name</label>
+          <uui-input .label=${"Family Name"} .value=${this._buyerFamilyName} @input=${this._handleBuyerFamilyNameChange}></uui-input>
+        </div>
+      </div>
+      <div class="buyer-grid buyer-grid--2col">
+        <div class="field-group">
+          <label class="field-label">Email</label>
+          <uui-input type="email" .label=${"Email"} .value=${this._buyerEmail} @input=${this._handleBuyerEmailChange}></uui-input>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Phone</label>
+          <uui-input type="tel" .label=${"Phone"} .value=${this._buyerPhone} @input=${this._handleBuyerPhoneChange}></uui-input>
+        </div>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Address Line 1</label>
+        <uui-input .label=${"Address Line 1"} .value=${this._buyerAddressLine1} @input=${this._handleBuyerAddressLine1Change}></uui-input>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Address Line 2</label>
+        <uui-input .label=${"Address Line 2"} .value=${this._buyerAddressLine2} @input=${this._handleBuyerAddressLine2Change}></uui-input>
+      </div>
+      <div class="buyer-grid buyer-grid--3col">
+        <div class="field-group">
+          <label class="field-label">City</label>
+          <uui-input .label=${"City"} .value=${this._buyerLocality} @input=${this._handleBuyerLocalityChange}></uui-input>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Region</label>
+          <uui-input .label=${"Region"} .value=${this._buyerAdministrativeArea} @input=${this._handleBuyerAdministrativeAreaChange}></uui-input>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Postal Code</label>
+          <uui-input .label=${"Postal Code"} .value=${this._buyerPostalCode} @input=${this._handleBuyerPostalCodeChange}></uui-input>
+        </div>
+      </div>
+      <div class="field-group field-group--short">
+        <label class="field-label">Country Code</label>
+        <uui-input maxlength="2" .label=${"Country Code"} .value=${this._buyerCountryCode} @input=${this._handleBuyerCountryCodeChange}></uui-input>
+      </div>
+    `;
+  }
+
+  private _renderAdvancedSection(): unknown {
+    return html`
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <span class="toggle-label">Dry Run</span>
+          <span class="field-hint">Returns a preview without creating a real order.</span>
+        </div>
+        <uui-toggle .label=${"Dry Run"} ?checked=${this._dryRun} @change=${this._handleDryRunChange}></uui-toggle>
+      </div>
+      <div class="toggle-row ${this._dryRun ? "toggle-row--disabled" : ""}">
+        <div class="toggle-info">
+          <span class="toggle-label">Confirm Real Order</span>
+          <span class="field-hint">Required before completing with dry run disabled.</span>
+        </div>
+        <uui-toggle
+          .label=${"Confirm Real Order"}
+          ?disabled=${this._dryRun}
+          ?checked=${this._realOrderConfirmed}
+          @change=${this._handleRealOrderConfirmedChange}>
+        </uui-toggle>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Payment Handler</label>
+        ${this._availablePaymentHandlerIds.length > 0
+          ? html`<uui-select .label=${"Payment Handler"} .options=${this._getPaymentHandlerOptions()} @change=${this._handlePaymentHandlerIdChange}></uui-select>`
+          : html`<uui-input .label=${"Payment Handler"} .value=${this._paymentHandlerId} @input=${this._handlePaymentHandlerIdChange}></uui-input>`}
+      </div>
+      <div class="field-group">
+        <label class="field-label">Discount Codes</label>
+        <uui-input
+          .label=${"Discount Codes"}
+          .value=${this._discountCodesInput}
+          @input=${this._handleDiscountCodesChange}
+          placeholder="code1, code2">
+        </uui-input>
+        <span class="field-hint">Comma-separated promotional codes.</span>
+      </div>
+    `;
+  }
+
+  // ─── Render: Flow Panel ───────────────────────────────────────────────────
+
+  private _renderFlowPanel(): unknown {
+    return html`
+      <div class="flow-panel">
+        ${this._renderSessionState()}
+        <div class="flow-toolbar">
+          <uui-button look="secondary" .label=${"Start New Run"} @click=${this._startNewRun}>
+            Start New Run
+          </uui-button>
+        </div>
+        ${this._renderStepTimeline()}
+      </div>
+    `;
+  }
+
+  private _renderSessionState(): unknown {
+    const sessionDisplay = this._sessionId ? `${this._sessionId.substring(0, 12)}…` : "–";
+    const orderDisplay = this._orderId ? `${this._orderId.substring(0, 12)}…` : "–";
+    const statusCss = !this._sessionStatus ? "neutral"
+      : this._sessionStatus.includes("ready") ? "positive"
+      : this._sessionStatus.includes("cancel") ? "warning"
+      : "neutral";
+
+    return html`
+      <div class="session-state">
+        <div
+          class="session-chip ${this._sessionId ? "session-chip--active" : ""}"
+          title="${this._sessionId ?? ""}"
+          @click=${this._sessionId ? () => void this._copyText(this._sessionId!, "Session ID") : nothing}>
+          <span class="session-chip-label">Session</span>
+          <span class="session-chip-value">${sessionDisplay}</span>
+        </div>
+        <div class="session-chip session-chip--status-${statusCss}">
+          <span class="session-chip-label">Status</span>
+          <span class="session-chip-value">${this._sessionStatus || "–"}</span>
+        </div>
+        <div
+          class="session-chip ${this._orderId ? "session-chip--active" : ""}"
+          title="${this._orderId ?? ""}"
+          @click=${this._orderId ? () => void this._copyText(this._orderId!, "Order ID") : nothing}>
+          <span class="session-chip-label">Order</span>
+          <span class="session-chip-value">${orderDisplay}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  private _renderStepTimeline(): unknown {
+    const completeDisabled = !this._sessionId || (!this._dryRun && !this._realOrderConfirmed);
+
+    const steps: UcpStepDefinition[] = [
+      { key: "manifest",         label: "Manifest",         desc: "Fetch the manifest to verify protocol configuration and capabilities",  disabled: false,                               action: () => this._executeManifestStep() },
+      { key: "create_session",   label: "Create Session",   desc: "Initialize a checkout session with the selected products and buyer info", disabled: this._selectedProducts.length === 0, action: () => this._executeCreateSessionStep() },
+      { key: "get_session",      label: "Get Session",      desc: "Retrieve the current session state and available shipping options",       disabled: !this._sessionId,                    action: () => this._executeGetSessionStep() },
+      { key: "update_session",   label: "Update Session",   desc: "Apply a shipping selection and confirm buyer information",                disabled: !this._sessionId,                    action: () => this._executeUpdateSessionStep() },
+      { key: "complete_session", label: "Complete Session", desc: "Process payment and finalize the order",                                 disabled: completeDisabled,                    action: () => this._executeCompleteSessionStep() },
+      { key: "get_order",        label: "Get Order",        desc: "Retrieve the created order details after successful completion",          disabled: !this._orderId,                      action: () => this._executeGetOrderStep() },
+      { key: "cancel_session",   label: "Cancel Session",   desc: "Cancel the current session without placing an order",                    disabled: !this._sessionId,                    action: () => this._executeCancelSessionStep() },
+    ];
+
+    return html`
+      <div class="step-timeline">
+        ${steps.map((step, index) => this._renderStepCard(step, index))}
+      </div>
+    `;
+  }
+
+  private _renderStepCard(step: UcpStepDefinition, index: number): unknown {
+    const status = this._getStepStatus(step.key);
+    const isExpanded = this._expandedStep === step.key;
+    const hasTranscript = this._getStepTranscript(step.key) !== null;
+    const isClickable = hasTranscript;
+
+    const stepIcon = status === "running"
+      ? html`<uui-loader style="--uui-loader-default-stroke-color:#fff"></uui-loader>`
+      : status === "success" ? "✓"
+      : status === "error" ? "✕"
+      : index + 1;
+
+    return html`
+      <div
+        class="step-card step-card--${status} ${isClickable ? "step-card--clickable" : ""}"
+        @click=${isClickable ? () => this._toggleStep(step.key) : nothing}>
+        <div class="step-card-header">
+          <div class="step-number step-number--${status}">${stepIcon}</div>
+          <div class="step-info">
+            <span class="step-name">${step.label}</span>
+            <span class="step-desc">${step.desc}</span>
+            ${step.key === "update_session" && this._fulfillmentGroups.length > 0
+              ? this._renderFulfillmentSelections()
+              : nothing}
+          </div>
+          <div class="step-actions" @click=${(e: Event) => e.stopPropagation()}>
+            ${hasTranscript
+              ? html`<span class="step-expand-hint">${isExpanded ? "▲" : "▼"}</span>`
+              : nothing}
+            <uui-button
+              look="secondary"
+              .label=${step.label}
+              ?disabled=${step.disabled || !!this._activeStep}
+              @click=${() => void step.action()}>
+              ${status === "running" ? "Running…" : "Run"}
+            </uui-button>
+          </div>
+        </div>
+        ${isExpanded ? this._renderInlineTranscript(step.key) : nothing}
+      </div>
+    `;
+  }
+
+  private _renderFulfillmentSelections(): unknown {
+    if (this._fulfillmentGroups.length === 0) {
       return nothing;
     }
 
     return html`
-      <div class="diagnostics-grid">
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterProtocolVersion",
-          "Protocol Version",
-          this._diagnostics.protocolVersion || "-"
-        )}
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterStrictMode",
-          "Strict Mode",
-          this._diagnostics.strictModeAvailable
-            ? this._t("merchello_ucpFlowTesterStatusAvailable", "Available")
-            : this._t("merchello_ucpFlowTesterStatusBlocked", "Blocked")
-        )}
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterPublicBaseUrl",
-          "Public Base URL",
-          this._diagnostics.publicBaseUrl || "-"
-        )}
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterEffectiveBaseUrl",
-          "Effective Base URL",
-          this._diagnostics.effectiveBaseUrl || "-"
-        )}
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterRequireHttps",
-          "Require HTTPS",
-          this._diagnostics.requireHttps ? this._t("general_yes", "Yes") : this._t("general_no", "No")
-        )}
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterMinimumTls",
-          "Minimum TLS",
-          this._diagnostics.minimumTlsVersion || "-"
-        )}
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterAgentProfileUrl",
-          "Agent Profile URL",
-          this._diagnostics.simulatedAgentProfileUrl || "-"
-        )}
-        ${this._renderReadOnlyProperty(
-          "merchello_ucpFlowTesterFallbackMode",
-          "Fallback Mode",
-          this._diagnostics.strictFallbackMode || "-"
-        )}
+      <div class="fulfillment-groups">
+        ${this._fulfillmentGroups.map((group) => html`
+          <div class="fulfillment-row">
+            <span class="fulfillment-name">${group.name}</span>
+            <uui-select
+              .label=${group.name}
+              .options=${this._getFulfillmentGroupOptions(group)}
+              @change=${(e: Event) => this._updateFulfillmentGroupSelection(group.id, e)}>
+            </uui-select>
+          </div>
+        `)}
       </div>
+    `;
+  }
 
-      <div class="diagnostics-meta-grid">
-        <umb-property-layout orientation="vertical" .label=${this._t("merchello_ucpFlowTesterCapabilities", "Capabilities")}>
-          <div slot="editor" class="token-row">
-            ${this._diagnostics.capabilities.length === 0
-              ? html`<span class="value">${this._t("merchello_ucpFlowTesterNone", "None")}</span>`
-              : this._diagnostics.capabilities.map((capability) => html`<uui-tag>${capability}</uui-tag>`)}
-          </div>
-        </umb-property-layout>
+  private _renderInlineTranscript(stepKey: string): unknown {
+    const entry = this._getStepTranscript(stepKey);
+    if (!entry) {
+      return html`<div class="transcript-inline"><div class="empty-note">No data for this step yet.</div></div>`;
+    }
 
-        <umb-property-layout orientation="vertical" .label=${this._t("merchello_ucpFlowTesterExtensions", "Extensions")}>
-          <div slot="editor" class="token-row">
-            ${this._diagnostics.extensions.length === 0
-              ? html`<span class="value">${this._t("merchello_ucpFlowTesterNone", "None")}</span>`
-              : this._diagnostics.extensions.map((extension) => html`<uui-tag>${extension}</uui-tag>`)}
+    const requestBody = this._formatSnapshotBody(entry.request?.body);
+    const responseBody = this._formatSnapshotBody(entry.response?.body);
+    const requestHeaderJson = JSON.stringify(entry.request?.headers ?? {}, null, 2);
+    const responseHeaderJson = JSON.stringify(entry.response?.headers ?? {}, null, 2);
+    const modeLabel = `${entry.modeRequested} → ${entry.modeExecuted}`;
+
+    return html`
+      <div class="transcript-inline">
+        <div class="transcript-meta">
+          <span class="badge ${entry.success ? "positive" : "danger"}">${entry.success ? "Success" : "Failed"}</span>
+          <span class="badge neutral">${modeLabel}</span>
+          ${entry.fallbackApplied ? html`<span class="badge warning">Fallback</span>` : nothing}
+          <span class="badge neutral">HTTP ${entry.response?.statusCode ?? "–"}</span>
+        </div>
+        ${entry.fallbackReason ? html`<div class="fallback-reason">${entry.fallbackReason}</div>` : nothing}
+        <div class="transcript-copy-row">
+          <uui-button
+            look="secondary"
+            .label=${"Copy Request"}
+            @click=${() => void this._copyText(`Headers:\n${requestHeaderJson}\n\nBody:\n${requestBody}`, "Request")}>
+            Copy Request
+          </uui-button>
+          <uui-button
+            look="secondary"
+            .label=${"Copy Response"}
+            @click=${() => void this._copyText(`Headers:\n${responseHeaderJson}\n\nBody:\n${responseBody}`, "Response")}>
+            Copy Response
+          </uui-button>
+        </div>
+        <div class="transcript-grid">
+          <div>
+            <div class="transcript-col-header">Request</div>
+            <div class="code-block">${requestHeaderJson}</div>
+            <div class="code-block">${requestBody}</div>
           </div>
-        </umb-property-layout>
+          <div>
+            <div class="transcript-col-header">Response</div>
+            <div class="code-block">${responseHeaderJson}</div>
+            <div class="code-block">${responseBody}</div>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -1008,9 +1351,9 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
           <div>${this._diagnostics?.strictModeBlockReason || this._t("merchello_ucpFlowTesterStrictUnavailable", "Strict mode is unavailable in this runtime.")}</div>
         </div>
         <uui-button
-          .label=${this._t("merchello_ucpFlowTesterSwitchToAdapter", "Switch to adapter mode")}
           look="primary"
           color="positive"
+          .label=${this._t("merchello_ucpFlowTesterSwitchToAdapter", "Switch to adapter mode")}
           @click=${this._switchToAdapterMode}>
           ${this._t("merchello_ucpFlowTesterSwitchToAdapterButton", "Switch to Adapter")}
         </uui-button>
@@ -1018,593 +1361,583 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  private _getExecutionModeOptions(): Array<{ name: string; value: string; selected: boolean }> {
-    return [
-      {
-        name: this._t("merchello_ucpFlowTesterAdapterMode", "Adapter Mode"),
-        value: "adapter",
-        selected: this._modeRequested === "adapter",
-      },
-      {
-        name: this._t("merchello_ucpFlowTesterStrictHttpMode", "Strict HTTP Mode"),
-        value: "strict",
-        selected: this._modeRequested === "strict",
-      },
-    ];
-  }
-
-  private _getTemplateOptions(): Array<{ name: string; value: string; selected: boolean }> {
-    return [
-      {
-        name: this._t("merchello_ucpFlowTesterTemplatePhysical", "Physical Product"),
-        value: "physical",
-        selected: this._templatePreset === "physical",
-      },
-      {
-        name: this._t("merchello_ucpFlowTesterTemplateDigital", "Digital Product"),
-        value: "digital",
-        selected: this._templatePreset === "digital",
-      },
-      {
-        name: this._t("merchello_ucpFlowTesterTemplateIncompleteBuyer", "Incomplete Buyer"),
-        value: "incomplete",
-        selected: this._templatePreset === "incomplete",
-      },
-      {
-        name: this._t("merchello_ucpFlowTesterTemplateMultiItem", "Multi-item"),
-        value: "multi-item",
-        selected: this._templatePreset === "multi-item",
-      },
-    ];
-  }
-
-  private _getPaymentHandlerOptions(): Array<{ name: string; value: string; selected: boolean }> {
-    return this._availablePaymentHandlerIds.map((handlerId) => ({
-      name: handlerId,
-      value: handlerId,
-      selected: handlerId === this._paymentHandlerId,
-    }));
-  }
-
-  private _getFulfillmentGroupOptions(group: UcpFlowFulfillmentGroup): Array<{ name: string; value: string; selected: boolean }> {
-    return [
-      {
-        name: this._t("merchello_ucpFlowTesterSelectOption", "Select option"),
-        value: "",
-        selected: !this._selectedFulfillmentOptionIds[group.id],
-      },
-      ...group.options.map((option) => ({
-        name: `${option.title}${option.amount != null ? ` (${option.currency || ""} ${option.amount})` : ""}`,
-        value: option.id,
-        selected: this._selectedFulfillmentOptionIds[group.id] === option.id,
-      })),
-    ];
-  }
-
-  private _renderSetupPanel(): unknown {
-    return html`
-      ${this._renderStrictBlockedBanner()}
-
-      <div class="setup-grid">
-        <umb-property-layout
-          .label=${this._t("merchello_ucpFlowTesterExecutionModeLabel", "Execution Mode")}
-          .description=${this._t("merchello_ucpFlowTesterExecutionModeDescription", "Adapter executes the protocol adapter directly. Strict executes signed HTTP calls.")}>
-          <uui-select
-            slot="editor"
-            .label=${this._t("merchello_ucpFlowTesterExecutionModeLabel", "Execution Mode")}
-            .options=${this._getExecutionModeOptions()}
-            @change=${this._handleModeChange}>
-          </uui-select>
-        </umb-property-layout>
-
-        <umb-property-layout
-          .label=${this._t("merchello_ucpFlowTesterTemplateLabel", "Template")}
-          .description=${this._t("merchello_ucpFlowTesterTemplateDescription", "Guided setup presets for common UCP scenarios.")}>
-          <uui-select
-            slot="editor"
-            .label=${this._t("merchello_ucpFlowTesterTemplateLabel", "Template")}
-            .options=${this._getTemplateOptions()}
-            @change=${this._handleTemplatePresetChange}>
-          </uui-select>
-        </umb-property-layout>
-
-        <umb-property-layout
-          .label=${this._t("merchello_ucpFlowTesterAgentIdLabel", "Agent ID")}
-          .description=${this._t("merchello_ucpFlowTesterAgentIdDescription", "Used to build the simulated test agent profile URL.")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterAgentIdLabel", "Agent ID")} .value=${this._agentId} @input=${this._handleAgentIdChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout
-          .label=${this._t("merchello_ucpFlowTesterDryRunLabel", "Dry Run Complete")}
-          .description=${this._t("merchello_ucpFlowTesterDryRunDescription", "When enabled, complete returns a preview and does not create an order.")}>
-          <uui-toggle slot="editor" .label=${this._t("merchello_ucpFlowTesterDryRunLabel", "Dry Run Complete")} ?checked=${this._dryRun} @change=${this._handleDryRunChange}></uui-toggle>
-        </umb-property-layout>
-
-        <umb-property-layout
-          .label=${this._t("merchello_ucpFlowTesterRealOrderConfirmationLabel", "Real Order Confirmation")}
-          .description=${this._t("merchello_ucpFlowTesterRealOrderConfirmationDescription", "Required before running complete with dry-run disabled.")}>
-          <uui-toggle
-            slot="editor"
-            .label=${this._t("merchello_ucpFlowTesterRealOrderConfirmationLabel", "Real Order Confirmation")}
-            ?disabled=${this._dryRun}
-            ?checked=${this._realOrderConfirmed}
-            @change=${this._handleRealOrderConfirmedChange}>
-          </uui-toggle>
-        </umb-property-layout>
-
-        <umb-property-layout
-          .label=${this._t("merchello_ucpFlowTesterPaymentHandlerLabel", "Payment Handler ID")}
-          .description=${this._t("merchello_ucpFlowTesterPaymentHandlerDescription", "Used for complete session requests in real mode.")}>
-          ${this._availablePaymentHandlerIds.length > 0
-            ? html`
-                <uui-select
-                  slot="editor"
-                  .label=${this._t("merchello_ucpFlowTesterPaymentHandlerLabel", "Payment Handler ID")}
-                  .options=${this._getPaymentHandlerOptions()}
-                  @change=${this._handlePaymentHandlerIdChange}>
-                </uui-select>
-              `
-            : html`
-                <uui-input
-                  slot="editor"
-                  .label=${this._t("merchello_ucpFlowTesterPaymentHandlerLabel", "Payment Handler ID")}
-                  .value=${this._paymentHandlerId}
-                  @input=${this._handlePaymentHandlerIdChange}>
-                </uui-input>
-              `}
-        </umb-property-layout>
-      </div>
-
-      <div class="section-toolbar">
-        <uui-button
-          .label=${this._t("merchello_ucpFlowTesterAddProducts", "Add products")}
-          look="primary"
-          color="positive"
-          @click=${this._openProductPicker}>
-          ${this._t("merchello_ucpFlowTesterPickProducts", "Pick Products")}
-        </uui-button>
-        <uui-button
-          .label=${this._t("merchello_ucpFlowTesterStartNewRun", "Start a new run")}
-          look="secondary"
-          @click=${this._startNewRun}>
-          ${this._t("merchello_ucpFlowTesterStartNewRunButton", "Start New Run")}
-        </uui-button>
-      </div>
-
-      ${this._renderSelectedProducts()}
-      ${this._renderBuyerAndDiscountSetup()}
-      ${this._renderFulfillmentSelections()}
-    `;
-  }
-
-  private _renderSelectedProducts(): unknown {
-    if (this._selectedProducts.length === 0) {
-      return html`<div class="empty-note">${this._t("merchello_ucpFlowTesterNoProductsSelected", "No products selected yet.")}</div>`;
-    }
-
-    return html`
-      <div class="product-list">
-        ${this._selectedProducts.map((product) => html`
-          <div class="product-row">
-            <div class="product-main">
-              <strong>${product.name}</strong>
-              <span>${product.sku || this._t("merchello_ucpFlowTesterNoSku", "No SKU")} · $${formatNumber(product.price, 2)}</span>
-            </div>
-            <uui-input
-              class="qty-input"
-              type="number"
-              min="1"
-              .label=${this._t("merchello_ucpFlowTesterQuantity", "Quantity")}
-              .value=${String(product.quantity)}
-              @input=${(event: Event) => this._updateProductQuantity(product.key, event)}>
-            </uui-input>
-            <uui-button
-              look="secondary"
-              color="danger"
-              .label=${this._t("merchello_ucpFlowTesterRemoveProduct", "Remove product")}
-              @click=${() => this._removeProduct(product.key)}>
-              ${this._t("general_remove", "Remove")}
-            </uui-button>
-          </div>
-        `)}
-      </div>
-    `;
-  }
-
-  private _renderBuyerAndDiscountSetup(): unknown {
-    return html`
-      <div class="setup-grid">
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterBuyerEmail", "Buyer Email")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterBuyerEmail", "Buyer Email")} .value=${this._buyerEmail} @input=${this._handleBuyerEmailChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterBuyerPhone", "Buyer Phone")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterBuyerPhone", "Buyer Phone")} .value=${this._buyerPhone} @input=${this._handleBuyerPhoneChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterGivenName", "Given Name")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterGivenName", "Given Name")} .value=${this._buyerGivenName} @input=${this._handleBuyerGivenNameChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterFamilyName", "Family Name")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterFamilyName", "Family Name")} .value=${this._buyerFamilyName} @input=${this._handleBuyerFamilyNameChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterAddressLine1", "Address Line 1")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterAddressLine1", "Address Line 1")} .value=${this._buyerAddressLine1} @input=${this._handleBuyerAddressLine1Change}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterAddressLine2", "Address Line 2")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterAddressLine2", "Address Line 2")} .value=${this._buyerAddressLine2} @input=${this._handleBuyerAddressLine2Change}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterTownCity", "Town/City")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterTownCity", "Town/City")} .value=${this._buyerLocality} @input=${this._handleBuyerLocalityChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterRegion", "Region")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterRegion", "Region")} .value=${this._buyerAdministrativeArea} @input=${this._handleBuyerAdministrativeAreaChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterPostalCode", "Postal Code")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterPostalCode", "Postal Code")} .value=${this._buyerPostalCode} @input=${this._handleBuyerPostalCodeChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterCountryCode", "Country Code")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterCountryCode", "Country Code")} maxlength="2" .value=${this._buyerCountryCode} @input=${this._handleBuyerCountryCodeChange}></uui-input>
-        </umb-property-layout>
-
-        <umb-property-layout
-          .label=${this._t("merchello_ucpFlowTesterDiscountCodes", "Discount Codes")}
-          .description=${this._t("merchello_ucpFlowTesterDiscountCodesDescription", "Comma-separated promotional codes.")}>
-          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterDiscountCodes", "Discount Codes")} .value=${this._discountCodesInput} @input=${this._handleDiscountCodesChange}></uui-input>
-        </umb-property-layout>
-      </div>
-    `;
-  }
-
-  private _renderFulfillmentSelections(): unknown {
-    if (this._fulfillmentGroups.length === 0) {
-      return html`<div class="empty-note">${this._t("merchello_ucpFlowTesterNoFulfillmentGroups", "No fulfillment groups available yet. Run create/get/update first.")}</div>`;
-    }
-
-    return html`
-      <div class="group-list">
-        ${this._fulfillmentGroups.map((group) => html`
-          <div class="group-row">
-            <div class="group-main">
-              <strong>${group.name}</strong>
-              <span>${group.id}</span>
-            </div>
-            <uui-select
-              .label=${this._t("merchello_ucpFlowTesterFulfillmentOption", "Fulfillment option")}
-              .options=${this._getFulfillmentGroupOptions(group)}
-              @change=${(event: Event) => this._updateFulfillmentGroupSelection(group.id, event)}>
-            </uui-select>
-          </div>
-        `)}
-      </div>
-    `;
-  }
-
-  private _renderWizardSteps(): unknown {
-    const sessionReady = !!this._sessionId;
-    const orderReady = !!this._orderId;
-    const completeDisabled = !sessionReady || (!this._dryRun && !this._realOrderConfirmed);
-
-    return html`
-      <div class="steps">
-        ${this._renderStep(this._t("merchello_ucpFlowTesterStepManifest", "Manifest"), "manifest", this._executeManifestStep, false)}
-        ${this._renderStep(this._t("merchello_ucpFlowTesterStepCreateSession", "Create Session"), "create_session", this._executeCreateSessionStep, this._selectedProducts.length === 0)}
-        ${this._renderStep(this._t("merchello_ucpFlowTesterStepGetSession", "Get Session"), "get_session", this._executeGetSessionStep, !sessionReady)}
-        ${this._renderStep(this._t("merchello_ucpFlowTesterStepUpdateSession", "Update Session"), "update_session", this._executeUpdateSessionStep, !sessionReady)}
-        ${this._renderStep(this._t("merchello_ucpFlowTesterStepCompleteSession", "Complete Session"), "complete_session", this._executeCompleteSessionStep, completeDisabled)}
-        ${this._renderStep(this._t("merchello_ucpFlowTesterStepGetOrder", "Get Order"), "get_order", this._executeGetOrderStep, !orderReady)}
-        ${this._renderStep(this._t("merchello_ucpFlowTesterStepCancelSession", "Cancel Session"), "cancel_session", this._executeCancelSessionStep, !sessionReady)}
-      </div>
-    `;
-  }
-
-  private _renderStep(
-    label: string,
-    stepKey: string,
-    action: () => Promise<void>,
-    disabled: boolean
-  ): unknown {
-    const isRunning = this._activeStep === stepKey;
-    return html`
-      <div class="step-row">
-        <div class="step-label">${label}</div>
-        <uui-button
-          look="primary"
-          color="positive"
-          .label=${label}
-          ?disabled=${disabled || !!this._activeStep}
-          @click=${action}>
-          ${isRunning ? this._t("merchello_ucpFlowTesterRunning", "Running...") : label}
-        </uui-button>
-      </div>
-    `;
-  }
-
-  private _renderRunState(): unknown {
-    return html`
-      <div class="runtime-state">
-        ${this._renderReadOnlyProperty("merchello_ucpFlowTesterSessionId", "Session ID", this._sessionId || "-")}
-        ${this._renderReadOnlyProperty("merchello_ucpFlowTesterSessionStatus", "Session Status", this._sessionStatus || "-")}
-        ${this._renderReadOnlyProperty("merchello_ucpFlowTesterOrderId", "Order ID", this._orderId || "-")}
-      </div>
-    `;
-  }
-
-  private _renderTranscriptPanel(): unknown {
-    if (this._transcripts.length === 0) {
-      return html`<div class="empty-note">${this._t("merchello_ucpFlowTesterNoTranscripts", "Run wizard steps to capture request/response transcripts.")}</div>`;
-    }
-
-    return html`
-      <div class="transcripts">
-        ${[...this._transcripts].reverse().map((entry) => {
-          const requestBody = this._formatSnapshotBody(entry.request?.body);
-          const responseBody = this._formatSnapshotBody(entry.response?.body);
-          const requestHeaderJson = JSON.stringify(entry.request?.headers ?? {}, null, 2);
-          const responseHeaderJson = JSON.stringify(entry.response?.headers ?? {}, null, 2);
-          const modeLabel = `${entry.modeRequested} -> ${entry.modeExecuted}`;
-          return html`
-            <details class="transcript-item">
-              <summary>
-                <span class="summary-step">${entry.step}</span>
-                <span class=${entry.success ? "badge positive" : "badge danger"}>${entry.success ? this._t("general_success", "Success") : this._t("general_failed", "Failed")}</span>
-                <span class="badge neutral">${modeLabel}</span>
-                ${entry.fallbackApplied ? html`<span class="badge warning">${this._t("merchello_ucpFlowTesterFallback", "Fallback")}</span>` : nothing}
-                <span class="badge neutral">${this._t("merchello_ucpFlowTesterHttpPrefix", "HTTP")} ${entry.response?.statusCode ?? "-"}</span>
-              </summary>
-
-              ${entry.fallbackReason ? html`<div class="fallback-reason">${entry.fallbackReason}</div>` : nothing}
-
-              <div class="transcript-actions">
-                <uui-button
-                  look="secondary"
-                  .label=${this._t("merchello_ucpFlowTesterCopyRequest", "Copy Request")}
-                  @click=${() => this._copyText(`Headers:\n${requestHeaderJson}\n\nBody:\n${requestBody}`, this._t("merchello_ucpFlowTesterRequest", "Request"))}>
-                  ${this._t("merchello_ucpFlowTesterCopyRequest", "Copy Request")}
-                </uui-button>
-                <uui-button
-                  look="secondary"
-                  .label=${this._t("merchello_ucpFlowTesterCopyResponse", "Copy Response")}
-                  @click=${() => this._copyText(`Headers:\n${responseHeaderJson}\n\nBody:\n${responseBody}`, this._t("merchello_ucpFlowTesterResponse", "Response"))}>
-                  ${this._t("merchello_ucpFlowTesterCopyResponse", "Copy Response")}
-                </uui-button>
-              </div>
-
-              <div class="transcript-grid">
-                <div>
-                  <h5>${this._t("merchello_ucpFlowTesterRequest", "Request")}</h5>
-                  <div class="code-block">${requestHeaderJson}</div>
-                  <div class="code-block">${requestBody}</div>
-                </div>
-                <div>
-                  <h5>${this._t("merchello_ucpFlowTesterResponse", "Response")}</h5>
-                  <div class="code-block">${responseHeaderJson}</div>
-                  <div class="code-block">${responseBody}</div>
-                </div>
-              </div>
-            </details>
-          `;
-        })}
-      </div>
-    `;
-  }
+  // ─── Main Render ──────────────────────────────────────────────────────────
 
   override render() {
     return html`
-      <uui-box .headline=${this._t("merchello_ucpFlowTesterRuntimeDiagnostics", "Runtime Diagnostics")}>
-        ${this._renderDiagnosticsPanel()}
-      </uui-box>
-
-      <uui-box .headline=${this._t("merchello_ucpFlowTesterRunSetup", "Run Setup")}>
-        ${this._renderSetupPanel()}
-      </uui-box>
-
-      <uui-box .headline=${this._t("merchello_ucpFlowTesterWizardSteps", "Wizard Steps")}>
-        ${this._renderRunState()}
-        ${this._renderWizardSteps()}
-      </uui-box>
-
-      <uui-box .headline=${this._t("merchello_ucpFlowTesterStepTranscript", "Step Transcript")}>
-        ${this._renderTranscriptPanel()}
-      </uui-box>
+      ${this._renderDiagnosticsBar()}
+      <div class="tester-layout">
+        ${this._renderSetupSidebar()}
+        ${this._renderFlowPanel()}
+      </div>
     `;
   }
 
-  static override readonly styles = css`    :host {
+  // ─── Styles ───────────────────────────────────────────────────────────────
+
+  static override readonly styles = css`
+    :host {
       display: block;
       width: 100%;
+    }
+
+    /* ── Diagnostics Bar ── */
+
+    .diagnostics-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      background: var(--uui-color-surface);
+      border: 1px solid var(--uui-color-divider);
+      border-radius: 8px;
+      margin-bottom: var(--uui-size-space-4);
+    }
+
+    .diagnostics-bar--error {
+      border-color: var(--uui-color-danger-standalone);
+      background: color-mix(in srgb, var(--uui-color-danger-standalone) 8%, white);
+    }
+
+    .diag-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .diag-chip--neutral {
+      background: color-mix(in srgb, var(--uui-color-divider) 50%, transparent);
+      color: var(--uui-color-text);
+      border-color: var(--uui-color-divider);
+    }
+
+    .diag-chip--positive {
+      background: color-mix(in srgb, var(--uui-color-positive-standalone) 12%, white);
+      color: var(--uui-color-positive-standalone);
+      border-color: color-mix(in srgb, var(--uui-color-positive-standalone) 40%, transparent);
+    }
+
+    .diag-chip--warning {
+      background: color-mix(in srgb, var(--uui-color-warning-standalone) 15%, white);
+      color: #8a5c00;
+      border-color: color-mix(in srgb, var(--uui-color-warning-standalone) 50%, transparent);
+    }
+
+    .diag-chip--url {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .loading-row {
       display: flex;
       align-items: center;
       gap: var(--uui-size-space-2);
-    }
-
-    .diagnostics-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: var(--uui-size-space-4);
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    .diagnostics-meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-2);
-    }
-
-    .setup-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: var(--uui-size-space-3);
-    }
-
-    .setup-grid uui-input,
-    .setup-grid uui-select,
-    .setup-grid uui-toggle {
-      width: 100%;
-    }
-
-    .runtime-state {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    .label {
-      display: block;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       color: var(--uui-color-text-alt);
-      margin-bottom: 2px;
     }
 
-    .value {
-      display: block;
-      font-size: 0.95rem;
-      word-break: break-word;
-    }
+    /* ── Two-Column Layout ── */
 
-    .token-row {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-    }
-
-    .warning-banner,
-    .error-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--uui-size-space-3);
-      border-radius: 8px;
-      border: 1px solid var(--uui-color-warning-standalone);
-      padding: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-4);
-      background: color-mix(in srgb, var(--uui-color-warning-standalone) 12%, white);
-    }
-
-    .error-banner {
-      border-color: var(--uui-color-danger-standalone);
-      background: color-mix(in srgb, var(--uui-color-danger-standalone) 10%, white);
-    }
-
-    .section-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-      margin: var(--uui-size-space-4) 0;
-    }
-
-    .product-list,
-    .group-list {
+    .tester-layout {
       display: grid;
-      gap: var(--uui-size-space-2);
-      margin-bottom: var(--uui-size-space-4);
+      grid-template-columns: 320px 1fr;
+      gap: var(--uui-size-space-5);
+      align-items: start;
     }
 
-    .product-row,
-    .group-row {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      align-items: center;
+    /* ── Setup Sidebar ── */
+
+    .setup-sidebar {
+      display: flex;
+      flex-direction: column;
       gap: var(--uui-size-space-2);
+      position: sticky;
+      top: var(--uui-size-space-4);
+    }
+
+    .accordion-section {
       border: 1px solid var(--uui-color-divider);
       border-radius: 8px;
-      padding: var(--uui-size-space-2);
+      overflow: hidden;
       background: var(--uui-color-surface);
     }
 
-    .group-row {
-      grid-template-columns: 1fr minmax(220px, 320px);
+    .accordion-header {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      cursor: pointer;
+      user-select: none;
+      font-weight: 600;
+      font-size: 0.85rem;
     }
 
-    .group-row uui-select {
+    .accordion-header:hover {
+      background: color-mix(in srgb, var(--uui-color-focus) 5%, var(--uui-color-surface));
+    }
+
+    .accordion-chevron {
+      display: inline-block;
+      font-size: 1rem;
+      color: var(--uui-color-text-alt);
+      transition: transform 0.15s ease;
+      transform: rotate(0deg);
+      width: 16px;
+      text-align: center;
+    }
+
+    .accordion-chevron--open {
+      transform: rotate(90deg);
+    }
+
+    .accordion-title {
+      flex: 1;
+    }
+
+    .accordion-body {
+      padding: var(--uui-size-space-3);
+      border-top: 1px solid var(--uui-color-divider);
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
+    }
+
+    .section-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: var(--uui-color-positive-standalone);
+      color: #fff;
+    }
+
+    /* ── Field Groups ── */
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field-group--short uui-input {
+      width: 80px;
+    }
+
+    .field-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .field-hint {
+      font-size: 0.73rem;
+      color: var(--uui-color-text-alt);
+      line-height: 1.35;
+    }
+
+    .field-group uui-input,
+    .field-group uui-select {
       width: 100%;
     }
 
-    .product-main,
-    .group-main {
+    /* ── Buyer Grid ── */
+
+    .buyer-grid {
       display: grid;
+      gap: var(--uui-size-space-2);
+    }
+
+    .buyer-grid--2col {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .buyer-grid--3col {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    /* ── Toggle Rows ── */
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-2) 0;
+      border-bottom: 1px solid var(--uui-color-divider);
+    }
+
+    .toggle-row:last-of-type {
+      border-bottom: none;
+    }
+
+    .toggle-row--disabled {
+      opacity: 0.5;
+    }
+
+    .toggle-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+    }
+
+    .toggle-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    /* ── Products ── */
+
+    .product-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .product-row {
+      display: grid;
+      grid-template-columns: 1fr 64px auto;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-2);
+      border: 1px solid var(--uui-color-divider);
+      border-radius: 6px;
+      background: var(--uui-color-surface);
+    }
+
+    .product-main {
+      display: flex;
+      flex-direction: column;
       gap: 2px;
       min-width: 0;
     }
 
-    .product-main span,
-    .group-main span {
-      color: var(--uui-color-text-alt);
+    .product-main strong {
       font-size: 0.85rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .qty-input {
-      width: 88px;
+    .product-main span {
+      font-size: 0.75rem;
+      color: var(--uui-color-text-alt);
     }
 
-    .steps {
-      display: grid;
-      gap: var(--uui-size-space-2);
+    .product-qty uui-input {
+      width: 100%;
     }
 
-    .step-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: var(--uui-size-space-2);
+    /* ── Warning Banner ── */
+
+    .warning-banner {
+      display: flex;
       align-items: center;
-      border: 1px solid var(--uui-color-divider);
-      border-radius: 8px;
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
-    }
-
-    .step-label {
-      font-weight: 600;
+      justify-content: space-between;
+      gap: var(--uui-size-space-3);
+      border-radius: 6px;
+      border: 1px solid var(--uui-color-warning-standalone);
+      padding: var(--uui-size-space-3);
+      background: color-mix(in srgb, var(--uui-color-warning-standalone) 12%, white);
+      font-size: 0.85rem;
     }
 
     .empty-note {
       color: var(--uui-color-text-alt);
+      font-size: 0.85rem;
       padding: var(--uui-size-space-2) 0;
     }
 
-    .transcripts {
-      display: grid;
+    /* ── Flow Panel ── */
+
+    .flow-panel {
+      display: flex;
+      flex-direction: column;
       gap: var(--uui-size-space-3);
     }
 
-    .transcript-item {
+    .flow-toolbar {
+      display: flex;
+      gap: var(--uui-size-space-2);
+    }
+
+    /* ── Session State ── */
+
+    .session-state {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .session-chip {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: var(--uui-size-space-2) var(--uui-size-space-3);
       border: 1px solid var(--uui-color-divider);
       border-radius: 8px;
-      padding: var(--uui-size-space-2) var(--uui-size-space-3);
       background: var(--uui-color-surface);
+      min-width: 130px;
+      flex: 1;
     }
 
-    .transcript-item summary {
+    .session-chip--active {
+      border-color: var(--uui-color-positive-standalone);
+      background: color-mix(in srgb, var(--uui-color-positive-standalone) 6%, white);
+      cursor: pointer;
+    }
+
+    .session-chip--active:hover {
+      background: color-mix(in srgb, var(--uui-color-positive-standalone) 12%, white);
+    }
+
+    .session-chip--status-positive {
+      border-color: var(--uui-color-positive-standalone);
+    }
+
+    .session-chip--status-warning {
+      border-color: var(--uui-color-warning-standalone);
+    }
+
+    .session-chip-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--uui-color-text-alt);
+    }
+
+    .session-chip-value {
+      font-size: 0.82rem;
+      font-weight: 500;
+      font-family: var(--uui-font-family-monospace, monospace);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Step Timeline ── */
+
+    .step-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+    }
+
+    .step-card {
+      border: 1px solid var(--uui-color-divider);
+      border-left: 3px solid var(--uui-color-divider);
+      border-radius: 8px;
+      background: var(--uui-color-surface);
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .step-card--clickable {
+      cursor: pointer;
+    }
+
+    .step-card--running {
+      border-left-color: var(--uui-color-focus, #1a73e8);
+      background: color-mix(in srgb, var(--uui-color-focus, #1a73e8) 4%, white);
+    }
+
+    .step-card--success {
+      border-left-color: var(--uui-color-positive-standalone);
+      background: color-mix(in srgb, var(--uui-color-positive-standalone) 4%, white);
+    }
+
+    .step-card--success.step-card--clickable:hover {
+      background: color-mix(in srgb, var(--uui-color-positive-standalone) 8%, white);
+    }
+
+    .step-card--error {
+      border-left-color: var(--uui-color-danger-standalone);
+      background: color-mix(in srgb, var(--uui-color-danger-standalone) 4%, white);
+    }
+
+    .step-card--error.step-card--clickable:hover {
+      background: color-mix(in srgb, var(--uui-color-danger-standalone) 8%, white);
+    }
+
+    .step-card-header {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      padding: var(--uui-size-space-3);
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
       display: flex;
       align-items: center;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-      cursor: pointer;
-      list-style: none;
+      justify-content: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      color: #fff;
+      transition: background 0.15s ease;
     }
 
-    .summary-step {
-      font-weight: 600;
+    .step-number--idle {
+      background: var(--uui-color-disabled, #ccc);
+      color: var(--uui-color-text-alt);
     }
+
+    .step-number--running {
+      background: var(--uui-color-focus, #1a73e8);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .step-number--success {
+      background: var(--uui-color-positive-standalone);
+    }
+
+    .step-number--error {
+      background: var(--uui-color-danger-standalone);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
+    .step-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .step-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .step-desc {
+      font-size: 0.77rem;
+      color: var(--uui-color-text-alt);
+      line-height: 1.35;
+    }
+
+    .step-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      flex-shrink: 0;
+    }
+
+    .step-expand-hint {
+      font-size: 0.7rem;
+      color: var(--uui-color-text-alt);
+    }
+
+    /* ── Fulfillment Groups (inside step card) ── */
+
+    .fulfillment-groups {
+      display: flex;
+      flex-direction: column;
+      gap: var(--uui-size-space-2);
+      margin-top: var(--uui-size-space-2);
+      padding-top: var(--uui-size-space-2);
+      border-top: 1px solid var(--uui-color-divider);
+    }
+
+    .fulfillment-row {
+      display: grid;
+      grid-template-columns: 1fr minmax(180px, 260px);
+      align-items: center;
+      gap: var(--uui-size-space-2);
+    }
+
+    .fulfillment-name {
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+
+    .fulfillment-row uui-select {
+      width: 100%;
+    }
+
+    /* ── Inline Transcript ── */
+
+    .transcript-inline {
+      border-top: 1px solid var(--uui-color-divider);
+      padding: var(--uui-size-space-3);
+    }
+
+    .transcript-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--uui-size-space-2);
+      margin-bottom: var(--uui-size-space-2);
+    }
+
+    .transcript-copy-row {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+      margin-bottom: var(--uui-size-space-2);
+    }
+
+    .transcript-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--uui-size-space-3);
+    }
+
+    .transcript-col-header {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--uui-color-text-alt);
+      margin-bottom: var(--uui-size-space-1);
+    }
+
+    .code-block {
+      white-space: pre-wrap;
+      font-family: var(--uui-font-family-monospace, "Consolas", "Courier New", monospace);
+      font-size: 0.75rem;
+      line-height: 1.35;
+      border: 1px solid var(--uui-color-divider);
+      border-radius: 6px;
+      padding: var(--uui-size-space-2);
+      background: color-mix(in srgb, var(--uui-color-surface) 70%, #f4f7fa);
+      max-height: 280px;
+      overflow: auto;
+      margin-bottom: var(--uui-size-space-2);
+    }
+
+    .fallback-reason {
+      margin-top: var(--uui-size-space-1);
+      margin-bottom: var(--uui-size-space-2);
+      color: var(--uui-color-text-alt);
+      font-size: 0.82rem;
+    }
+
+    /* ── Badges ── */
 
     .badge {
       display: inline-flex;
       align-items: center;
       padding: 2px 8px;
       border-radius: 999px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 600;
     }
 
@@ -1628,59 +1961,33 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
       background: color-mix(in srgb, var(--uui-color-divider) 60%, white);
     }
 
-    .fallback-reason {
-      margin-top: var(--uui-size-space-2);
-      color: var(--uui-color-text-alt);
-      font-size: 0.85rem;
+    .value {
+      display: block;
+      font-size: 0.95rem;
+      word-break: break-word;
     }
 
-    .transcript-actions {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      margin-top: var(--uui-size-space-2);
-      margin-bottom: var(--uui-size-space-2);
-      flex-wrap: wrap;
-    }
+    /* ── Responsive ── */
 
-    .transcript-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--uui-size-space-3);
-    }
-
-    .transcript-grid h5 {
-      margin: 0 0 var(--uui-size-space-1) 0;
-      font-size: 0.9rem;
-    }
-
-    .code-block {
-      white-space: pre-wrap;
-      font-family: var(--uui-font-family-monospace, "Consolas", "Courier New", monospace);
-      font-size: 0.75rem;
-      line-height: 1.35;
-      border: 1px solid var(--uui-color-divider);
-      border-radius: 6px;
-      padding: var(--uui-size-space-2);
-      background: color-mix(in srgb, var(--uui-color-surface) 70%, #f4f7fa);
-      max-height: 280px;
-      overflow: auto;
-      margin-bottom: var(--uui-size-space-2);
-    }
-
-    @media (max-width: 900px) {
-      .product-row {
+    @media (max-width: 960px) {
+      .tester-layout {
         grid-template-columns: 1fr;
       }
 
-      .group-row {
-        grid-template-columns: 1fr;
-      }
-
-      .step-row {
-        grid-template-columns: 1fr;
+      .setup-sidebar {
+        position: static;
       }
 
       .transcript-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .buyer-grid--2col,
+      .buyer-grid--3col {
+        grid-template-columns: 1fr;
+      }
+
+      .fulfillment-row {
         grid-template-columns: 1fr;
       }
     }

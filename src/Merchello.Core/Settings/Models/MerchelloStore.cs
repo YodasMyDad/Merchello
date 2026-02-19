@@ -33,9 +33,7 @@ public class MerchelloStore
 
     public string StoreAddress { get; set; } = "123 Commerce Street\nNew York, NY 10001\nUnited States";
 
-    public string? UcpTermsUrl { get; set; }
-
-    public string? UcpPrivacyUrl { get; set; }
+    public MerchelloStoreUcpSettings Ucp { get; set; } = new();
 
     public MerchelloStoreInvoiceRemindersSettings InvoiceReminders { get; set; } = new();
 

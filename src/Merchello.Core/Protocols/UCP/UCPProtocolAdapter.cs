@@ -26,6 +26,7 @@ using Merchello.Core.Protocols.UCP.Services;
 using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
+using Merchello.Core.Settings.Models;
 using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Security;
@@ -1523,7 +1524,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     private List<UcpCapability> BuildCapabilities()
     {
         var capabilities = new List<UcpCapability>();
-        var settings = _protocolSettings.Ucp;
+        var settings = GetEffectiveUcp();
 
         if (settings.Capabilities.Checkout)
         {
@@ -1923,6 +1924,12 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
     private Uri ResolvePublicBaseUri()
     {
+        var ucpStore = GetEffectiveUcpStoreSettings();
+        if (TryResolveConfiguredPublicBaseUri(ucpStore.PublicBaseUrl, out var dbUri))
+        {
+            return dbUri;
+        }
+
         if (TryResolveConfiguredPublicBaseUri(_protocolSettings.PublicBaseUrl, out var configured))
         {
             return configured;
@@ -2015,7 +2022,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     private IReadOnlyList<UcpResponseCapability> GetActiveCapabilities()
     {
         var capabilities = new List<UcpResponseCapability>();
-        var settings = _protocolSettings.Ucp;
+        var settings = GetEffectiveUcp();
 
         if (settings.Capabilities.Checkout)
         {
@@ -2037,5 +2044,50 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.IdentityLinking, Version = settings.Version });
 
         return capabilities;
+    }
+
+    private MerchelloStoreUcpSettings GetEffectiveUcpStoreSettings()
+    {
+        if (_storeSettingsService == null)
+        {
+            return new MerchelloStoreUcpSettings();
+        }
+
+        try
+        {
+            return _storeSettingsService.GetRuntimeSettings().Ucp;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to resolve UCP store settings, falling back to appsettings.");
+            return new MerchelloStoreUcpSettings();
+        }
+    }
+
+    private UcpSettings GetEffectiveUcp()
+    {
+        var db = GetEffectiveUcpStoreSettings();
+        var cfg = _protocolSettings.Ucp;
+
+        return new UcpSettings
+        {
+            Version = cfg.Version,
+            AllowedAgents = db.AllowedAgents ?? cfg.AllowedAgents,
+            SigningKeyRotationDays = cfg.SigningKeyRotationDays,
+            WebhookTimeoutSeconds = db.WebhookTimeoutSeconds ?? cfg.WebhookTimeoutSeconds,
+            Capabilities = new UcpCapabilitySettings
+            {
+                Checkout = db.CapabilityCheckout ?? cfg.Capabilities.Checkout,
+                Order = db.CapabilityOrder ?? cfg.Capabilities.Order,
+                IdentityLinking = db.CapabilityIdentityLinking ?? cfg.Capabilities.IdentityLinking
+            },
+            Extensions = new UcpExtensionSettings
+            {
+                Discount = db.ExtensionDiscount ?? cfg.Extensions.Discount,
+                Fulfillment = db.ExtensionFulfillment ?? cfg.Extensions.Fulfillment,
+                BuyerConsent = db.ExtensionBuyerConsent ?? cfg.Extensions.BuyerConsent,
+                Ap2Mandates = db.ExtensionAp2Mandates ?? cfg.Extensions.Ap2Mandates
+            }
+        };
     }
 }

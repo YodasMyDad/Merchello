@@ -41,8 +41,9 @@ public class MerchelloStoreDbMapping : IEntityTypeConfiguration<MerchelloStore>
             .IsRequired()
             .HasMaxLength(2000)
             .HasDefaultValue("123 Commerce Street\nNew York, NY 10001\nUnited States");
-        builder.Property(x => x.UcpTermsUrl).HasMaxLength(500);
-        builder.Property(x => x.UcpPrivacyUrl).HasMaxLength(500);
+        builder.Property(x => x.Ucp)
+            .HasColumnName("UcpJson")
+            .ToJsonConversion(null);
 
         builder.Property(x => x.InvoiceReminders)
             .HasColumnName("InvoiceRemindersJson")
