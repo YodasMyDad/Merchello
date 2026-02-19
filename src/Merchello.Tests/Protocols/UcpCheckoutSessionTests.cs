@@ -965,46 +965,8 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
     private static string ExtractSessionId(object? responseData)
     {
         if (responseData == null) return string.Empty;
-
-        var type = responseData.GetType();
-
-        // For ProtocolResponseEnvelope, extract Data property first
-        var dataProperty = type.GetProperty("Data") ?? type.GetProperty("data");
-        if (dataProperty != null)
-        {
-            var data = dataProperty.GetValue(responseData);
-            if (data != null)
-            {
-                // CheckoutSessionState has SessionId property
-                var dataType = data.GetType();
-                var sessionIdProperty = dataType.GetProperty("SessionId")
-                    ?? dataType.GetProperty("sessionId")
-                    ?? dataType.GetProperty("Id")
-                    ?? dataType.GetProperty("id");
-                if (sessionIdProperty != null)
-                {
-                    return sessionIdProperty.GetValue(data)?.ToString() ?? string.Empty;
-                }
-            }
-        }
-
-        // Try direct SessionId property
-        var directSessionIdProperty = type.GetProperty("SessionId") ?? type.GetProperty("sessionId");
-        if (directSessionIdProperty != null)
-        {
-            var idValue = directSessionIdProperty.GetValue(responseData);
-            return idValue?.ToString() ?? string.Empty;
-        }
-
-        // Fallback: try Id property
-        var idProperty = type.GetProperty("Id") ?? type.GetProperty("id");
-        if (idProperty != null)
-        {
-            var idValue = idProperty.GetValue(responseData);
-            return idValue?.ToString() ?? string.Empty;
-        }
-
-        return string.Empty;
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(responseData));
+        return json.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? string.Empty : string.Empty;
     }
 
     private static IReadOnlyList<string> ExtractDiscountCodes(object? responseData)
@@ -1015,13 +977,9 @@ public class UcpCheckoutSessionTests : IClassFixture<ServiceTestFixture>
         }
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(responseData));
-        if (!document.RootElement.TryGetProperty("data", out var dataElement) &&
-            !document.RootElement.TryGetProperty("Data", out dataElement))
-        {
-            return [];
-        }
+        var root = document.RootElement;
 
-        if (!dataElement.TryGetProperty("discounts", out var discountsElement) ||
+        if (!root.TryGetProperty("discounts", out var discountsElement) ||
             discountsElement.ValueKind != JsonValueKind.Object)
         {
             return [];

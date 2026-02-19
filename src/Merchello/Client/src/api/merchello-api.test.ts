@@ -256,6 +256,96 @@ describe("merchello api client", () => {
     );
   });
 
+  it("calls UCP flow tester endpoints with expected routes, verbs, and payloads", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { strictModeAvailable: false } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "manifest" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "create_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "get_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "update_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "complete_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "cancel_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "get_order" } }));
+
+    const manifestRequest = { modeRequested: "strict", agentId: "agent-1" };
+    const createRequest = {
+      modeRequested: "strict",
+      request: {
+        currency: "USD",
+        lineItems: [{ id: "li-1", quantity: 1, item: { id: "prod-1", title: "Test", price: 1000 } }],
+      },
+    };
+    const getRequest = { modeRequested: "adapter", sessionId: "session-1" };
+    const updateRequest = {
+      modeRequested: "adapter",
+      sessionId: "session-1",
+      request: {
+        buyer: {
+          email: "buyer@example.com",
+        },
+      },
+    };
+    const completeRequest = {
+      modeRequested: "adapter",
+      sessionId: "session-1",
+      dryRun: true,
+      request: {
+        paymentHandlerId: "manual:manual",
+      },
+    };
+    const cancelRequest = { modeRequested: "adapter", sessionId: "session-1" };
+    const orderRequest = { modeRequested: "adapter", orderId: "order-1" };
+
+    await MerchelloApi.getUcpFlowDiagnostics();
+    await MerchelloApi.ucpTestManifest(manifestRequest);
+    await MerchelloApi.ucpTestCreateSession(createRequest);
+    await MerchelloApi.ucpTestGetSession(getRequest);
+    await MerchelloApi.ucpTestUpdateSession(updateRequest);
+    await MerchelloApi.ucpTestCompleteSession(completeRequest);
+    await MerchelloApi.ucpTestCancelSession(cancelRequest);
+    await MerchelloApi.ucpTestGetOrder(orderRequest);
+
+    const [diagnosticsUrl, diagnosticsInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [manifestUrl, manifestInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [createUrl, createInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const [getUrl, getInit] = fetchMock.mock.calls[3] as [string, RequestInit];
+    const [updateUrl, updateInit] = fetchMock.mock.calls[4] as [string, RequestInit];
+    const [completeUrl, completeInit] = fetchMock.mock.calls[5] as [string, RequestInit];
+    const [cancelUrl, cancelInit] = fetchMock.mock.calls[6] as [string, RequestInit];
+    const [orderUrl, orderInit] = fetchMock.mock.calls[7] as [string, RequestInit];
+
+    expect(diagnosticsUrl).toBe("/umbraco/api/v1/ucp-test/diagnostics");
+    expect(diagnosticsInit.method).toBe("GET");
+
+    expect(manifestUrl).toBe("/umbraco/api/v1/ucp-test/manifest");
+    expect(manifestInit.method).toBe("POST");
+    expect(manifestInit.body).toBe(JSON.stringify(manifestRequest));
+
+    expect(createUrl).toBe("/umbraco/api/v1/ucp-test/sessions/create");
+    expect(createInit.method).toBe("POST");
+    expect(createInit.body).toBe(JSON.stringify(createRequest));
+
+    expect(getUrl).toBe("/umbraco/api/v1/ucp-test/sessions/get");
+    expect(getInit.method).toBe("POST");
+    expect(getInit.body).toBe(JSON.stringify(getRequest));
+
+    expect(updateUrl).toBe("/umbraco/api/v1/ucp-test/sessions/update");
+    expect(updateInit.method).toBe("POST");
+    expect(updateInit.body).toBe(JSON.stringify(updateRequest));
+
+    expect(completeUrl).toBe("/umbraco/api/v1/ucp-test/sessions/complete");
+    expect(completeInit.method).toBe("POST");
+    expect(completeInit.body).toBe(JSON.stringify(completeRequest));
+
+    expect(cancelUrl).toBe("/umbraco/api/v1/ucp-test/sessions/cancel");
+    expect(cancelInit.method).toBe("POST");
+    expect(cancelInit.body).toBe(JSON.stringify(cancelRequest));
+
+    expect(orderUrl).toBe("/umbraco/api/v1/ucp-test/orders/get");
+    expect(orderInit.method).toBe("POST");
+    expect(orderInit.body).toBe(JSON.stringify(orderRequest));
+  });
+
   it("parses plain text responses for GET endpoints", async () => {
     fetchMock.mockResolvedValueOnce(
       createMockResponse({

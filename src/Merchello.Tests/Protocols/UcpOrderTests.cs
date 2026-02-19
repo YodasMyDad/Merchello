@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Merchello.Core;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Protocols;
@@ -207,10 +208,9 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         response.Success.ShouldBeTrue();
         response.Data.ShouldNotBeNull();
 
-        // Verify response has data property (UCP envelope format)
-        var envelopeType = response.Data.GetType();
-        var dataProperty = envelopeType.GetProperty("data") ?? envelopeType.GetProperty("Data");
-        dataProperty.ShouldNotBeNull("Response should contain data property");
+        // Verify response has id at root (UCP flat envelope format)
+        using var envelope1 = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
+        envelope1.RootElement.TryGetProperty("id", out _).ShouldBeTrue("Response should contain id at root");
     }
 
     [Fact]
@@ -242,13 +242,10 @@ public class UcpOrderTests : IClassFixture<ServiceTestFixture>
         response.Success.ShouldBeTrue();
         response.Data.ShouldNotBeNull();
 
-        // Verify envelope has data with fulfillment_status
-        var envelopeType = response.Data.GetType();
-        var dataProperty = envelopeType.GetProperty("data") ?? envelopeType.GetProperty("Data");
-        dataProperty.ShouldNotBeNull("Response should contain data property");
-
-        var orderData = dataProperty.GetValue(response.Data);
-        orderData.ShouldNotBeNull("Order data should be present");
+        // Verify response has id and fulfillment at root (UCP flat envelope format)
+        using var envelope2 = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
+        envelope2.RootElement.TryGetProperty("id", out _).ShouldBeTrue("Response should contain id at root");
+        envelope2.RootElement.TryGetProperty("fulfillment", out _).ShouldBeTrue("Order data should be present");
     }
 
     #endregion

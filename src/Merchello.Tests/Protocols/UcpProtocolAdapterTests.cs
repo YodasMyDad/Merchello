@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
@@ -368,15 +369,20 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
 
         // Assert
         response.Success.ShouldBeTrue();
-        var envelope = response.Data as ProtocolResponseEnvelope;
-        envelope.ShouldNotBeNull();
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.Checkout);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.Order);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.IdentityLinking);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Discount);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Fulfillment);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.BuyerConsent);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Ap2Mandates);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
+        var root = json.RootElement;
+        root.TryGetProperty("ucp", out var ucp).ShouldBeTrue();
+        ucp.TryGetProperty("capabilities", out var capabilities).ShouldBeTrue();
+        var names = capabilities.EnumerateArray()
+            .Select(c => c.GetProperty("name").GetString())
+            .ToList();
+        names.ShouldContain(UcpCapabilityNames.Checkout);
+        names.ShouldContain(UcpCapabilityNames.Order);
+        names.ShouldContain(UcpCapabilityNames.IdentityLinking);
+        names.ShouldContain(UcpExtensionNames.Discount);
+        names.ShouldContain(UcpExtensionNames.Fulfillment);
+        names.ShouldContain(UcpExtensionNames.BuyerConsent);
+        names.ShouldContain(UcpExtensionNames.Ap2Mandates);
     }
 
     [Fact]

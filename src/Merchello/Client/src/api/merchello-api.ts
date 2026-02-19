@@ -664,6 +664,194 @@ export interface StoreConfigurationDto {
   ucp: StoreConfigurationUcpDto;
 }
 
+export interface UcpFlowDiagnosticsDto {
+  protocolVersion: string;
+  capabilities: string[];
+  extensions: string[];
+  requireHttps: boolean;
+  minimumTlsVersion: string;
+  publicBaseUrl?: string | null;
+  effectiveBaseUrl?: string | null;
+  strictModeAvailable: boolean;
+  strictModeBlockReason?: string | null;
+  strictFallbackMode: string;
+  simulatedAgentId: string;
+  simulatedAgentProfileUrl?: string | null;
+  timestampUtc: string;
+}
+
+export interface UcpFlowRequestSnapshotDto {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: string | null;
+  timestampUtc: string;
+}
+
+export interface UcpFlowResponseSnapshotDto {
+  statusCode: number;
+  headers: Record<string, string>;
+  body?: string | null;
+  timestampUtc: string;
+}
+
+export interface UcpFlowStepResultDto {
+  step: string;
+  success: boolean;
+  modeRequested: string;
+  modeExecuted: string;
+  fallbackApplied: boolean;
+  fallbackReason?: string | null;
+  dryRun: boolean;
+  dryRunSkippedExecution: boolean;
+  timestampUtc: string;
+  durationMs: number;
+  request?: UcpFlowRequestSnapshotDto | null;
+  response?: UcpFlowResponseSnapshotDto | null;
+  sessionId?: string | null;
+  status?: string | null;
+  orderId?: string | null;
+  responseData?: unknown;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface UcpFlowTestAddressDto {
+  givenName?: string | null;
+  familyName?: string | null;
+  organization?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  locality?: string | null;
+  administrativeArea?: string | null;
+  postalCode?: string | null;
+  countryCode?: string | null;
+  phone?: string | null;
+}
+
+export interface UcpFlowTestBuyerInfoDto {
+  email?: string | null;
+  phone?: string | null;
+  billingAddress?: UcpFlowTestAddressDto | null;
+  shippingAddress?: UcpFlowTestAddressDto | null;
+  shippingSameAsBilling?: boolean | null;
+}
+
+export interface UcpFlowTestDiscountsDto {
+  codes?: string[] | null;
+}
+
+export interface UcpFlowTestFulfillmentDestinationDto {
+  type?: string | null;
+  address?: UcpFlowTestAddressDto | null;
+}
+
+export interface UcpFlowTestFulfillmentGroupSelectionDto {
+  id?: string | null;
+  selectedOptionId?: string | null;
+}
+
+export interface UcpFlowTestFulfillmentMethodDto {
+  type?: string | null;
+  destinations?: UcpFlowTestFulfillmentDestinationDto[] | null;
+  groups?: UcpFlowTestFulfillmentGroupSelectionDto[] | null;
+}
+
+export interface UcpFlowTestFulfillmentDto {
+  methods?: UcpFlowTestFulfillmentMethodDto[] | null;
+  groups?: UcpFlowTestFulfillmentGroupSelectionDto[] | null;
+}
+
+export interface UcpFlowTestItemOptionDto {
+  name?: string | null;
+  value?: string | null;
+}
+
+export interface UcpFlowTestItemInfoDto {
+  id?: string | null;
+  title?: string | null;
+  price: number;
+  imageUrl?: string | null;
+  url?: string | null;
+  options?: UcpFlowTestItemOptionDto[] | null;
+}
+
+export interface UcpFlowTestLineItemDto {
+  id?: string | null;
+  item?: UcpFlowTestItemInfoDto | null;
+  quantity: number;
+}
+
+export interface UcpFlowTestPaymentInstrumentDto {
+  type?: string | null;
+  token?: string | null;
+  data?: Record<string, unknown> | null;
+}
+
+export interface UcpFlowTestCreateSessionPayloadDto {
+  lineItems?: UcpFlowTestLineItemDto[] | null;
+  currency?: string | null;
+  buyer?: UcpFlowTestBuyerInfoDto | null;
+  discounts?: UcpFlowTestDiscountsDto | null;
+  fulfillment?: UcpFlowTestFulfillmentDto | null;
+}
+
+export interface UcpFlowTestUpdateSessionPayloadDto {
+  lineItems?: UcpFlowTestLineItemDto[] | null;
+  buyer?: UcpFlowTestBuyerInfoDto | null;
+  discounts?: UcpFlowTestDiscountsDto | null;
+  fulfillment?: UcpFlowTestFulfillmentDto | null;
+}
+
+export interface UcpFlowTestCompleteSessionPayloadDto {
+  paymentHandlerId?: string | null;
+  paymentInstrument?: UcpFlowTestPaymentInstrumentDto | null;
+}
+
+export interface UcpTestManifestRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+}
+
+export interface UcpTestCreateSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  request?: UcpFlowTestCreateSessionPayloadDto | null;
+}
+
+export interface UcpTestGetSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+}
+
+export interface UcpTestUpdateSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+  request?: UcpFlowTestUpdateSessionPayloadDto | null;
+}
+
+export interface UcpTestCompleteSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+  dryRun?: boolean;
+  request?: UcpFlowTestCompleteSessionPayloadDto | null;
+}
+
+export interface UcpTestCancelSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+}
+
+export interface UcpTestGetOrderRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  orderId: string;
+}
+
 // Country type for dropdowns
 export interface CountryDto {
   code: string;
@@ -680,6 +868,21 @@ export const MerchelloApi = {
   saveStoreConfiguration: (configuration: StoreConfigurationDto) =>
     apiPut<StoreConfigurationDto>('settings/store-configuration', configuration),
   getCountries: () => apiGet<CountryDto[]>('countries'),
+  getUcpFlowDiagnostics: () => apiGet<UcpFlowDiagnosticsDto>('ucp-test/diagnostics'),
+  ucpTestManifest: (request: UcpTestManifestRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/manifest', request),
+  ucpTestCreateSession: (request: UcpTestCreateSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/create', request),
+  ucpTestGetSession: (request: UcpTestGetSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/get', request),
+  ucpTestUpdateSession: (request: UcpTestUpdateSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/update', request),
+  ucpTestCompleteSession: (request: UcpTestCompleteSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/complete', request),
+  ucpTestCancelSession: (request: UcpTestCancelSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/cancel', request),
+  ucpTestGetOrder: (request: UcpTestGetOrderRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/orders/get', request),
 
   // Seed Data
   getSeedDataStatus: () => apiGet<SeedDataStatusDto>('seed-data/status'),

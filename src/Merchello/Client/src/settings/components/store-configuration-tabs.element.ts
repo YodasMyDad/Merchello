@@ -23,6 +23,7 @@ import type {
   StoreConfigurationDto,
 } from "@settings/types/store-configuration.types.js";
 import "@umbraco-cms/backoffice/tiptap";
+import "@settings/components/ucp-flow-tester.element.js";
 
 type CheckoutColorField = "headerBackgroundColor" | "primaryColor" | "accentColor" | "backgroundColor" | "textColor" | "errorColor";
 type EmailThemeColorField = "primaryColor" | "textColor" | "backgroundColor" | "secondaryTextColor" | "contentBackgroundColor";
@@ -964,6 +965,11 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           <umb-property alias="privacyUrl" label="Privacy URL" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
         </umb-property-dataset>
       </uui-box>
+
+      <uui-box headline="UCP Flow Tester">
+        <merchello-ucp-flow-tester></merchello-ucp-flow-tester>
+      </uui-box>
+
       ${this._renderSaveActions()}
     `;
   }

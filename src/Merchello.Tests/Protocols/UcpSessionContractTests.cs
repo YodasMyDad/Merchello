@@ -3,7 +3,6 @@ using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.UCP.Dtos;
-using Merchello.Core.Protocols.UCP.Models;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
 using Xunit;
@@ -50,11 +49,10 @@ public class UcpSessionContractTests : IClassFixture<ServiceTestFixture>
 
         response.Success.ShouldBeTrue();
         using var envelopeJson = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
-        var data = envelopeJson.RootElement.TryGetProperty("data", out var dataNode)
-            ? dataNode
-            : envelopeJson.RootElement.GetProperty("Data");
+        // Per UCP spec, session fields are at root alongside ucp metadata — no data wrapper
+        var root = envelopeJson.RootElement;
 
-        data.TryGetProperty("links", out var links).ShouldBeTrue();
+        root.TryGetProperty("links", out var links).ShouldBeTrue();
         links.ValueKind.ShouldBe(JsonValueKind.Array);
         links.GetArrayLength().ShouldBeGreaterThanOrEqualTo(2);
         links.EnumerateArray().Any(link =>
@@ -64,7 +62,7 @@ public class UcpSessionContractTests : IClassFixture<ServiceTestFixture>
             link.GetProperty("rel").GetString() == "privacy" &&
             link.GetProperty("href").GetString() == "https://test.example.com/privacy").ShouldBeTrue();
 
-        data.TryGetProperty("totals", out var totals).ShouldBeTrue();
+        root.TryGetProperty("totals", out var totals).ShouldBeTrue();
         totals.ValueKind.ShouldBe(JsonValueKind.Array);
         totals.EnumerateArray().Any(total =>
             total.GetProperty("type").GetString() == "total" &&
@@ -82,19 +80,63 @@ public class UcpSessionContractTests : IClassFixture<ServiceTestFixture>
         }, CreateAgentIdentity());
 
         response.Success.ShouldBeTrue();
-        var envelope = response.Data as ProtocolResponseEnvelope;
-        envelope.ShouldNotBeNull();
-        envelope!.Ucp.PaymentHandlers.ShouldNotBeNull();
-
         using var envelopeJson = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
-        var ucp = envelopeJson.RootElement.TryGetProperty("ucp", out var ucpNode)
-            ? ucpNode
-            : envelopeJson.RootElement.GetProperty("Ucp");
+        var root = envelopeJson.RootElement;
+
+        // ucp metadata is at root alongside session fields
+        root.TryGetProperty("ucp", out var ucp).ShouldBeTrue();
         ucp.TryGetProperty("payment_handlers", out _).ShouldBeTrue();
-        var data = envelopeJson.RootElement.TryGetProperty("data", out var dataNode)
-            ? dataNode
-            : envelopeJson.RootElement.GetProperty("Data");
-        data.TryGetProperty("payment", out _).ShouldBeFalse();
+
+        // payment should not be embedded in session fields
+        root.TryGetProperty("payment", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task SessionResponse_IsFlat_UcpAtRootAlongsideSessionFields()
+    {
+        var response = await _adapter.CreateSessionAsync(new UcpCreateSessionRequestDto
+        {
+            Currency = "USD",
+            LineItems = []
+        }, CreateAgentIdentity());
+
+        response.Success.ShouldBeTrue();
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
+        var root = json.RootElement;
+
+        // UCP spec: ucp metadata and session fields must be at root level — no data wrapper
+        root.TryGetProperty("ucp", out _).ShouldBeTrue();
+        root.TryGetProperty("id", out _).ShouldBeTrue();
+        root.TryGetProperty("status", out _).ShouldBeTrue();
+        root.TryGetProperty("data", out _).ShouldBeFalse();
+        root.TryGetProperty("Data", out _).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task SessionResponse_UcpCapabilities_IsArrayOfNameVersionObjects()
+    {
+        var response = await _adapter.CreateSessionAsync(new UcpCreateSessionRequestDto
+        {
+            Currency = "USD",
+            LineItems = []
+        }, CreateAgentIdentity());
+
+        response.Success.ShouldBeTrue();
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
+        var root = json.RootElement;
+
+        root.TryGetProperty("ucp", out var ucp).ShouldBeTrue();
+        ucp.TryGetProperty("capabilities", out var capabilities).ShouldBeTrue();
+        capabilities.ValueKind.ShouldBe(JsonValueKind.Array);
+        capabilities.GetArrayLength().ShouldBeGreaterThan(0);
+
+        foreach (var capability in capabilities.EnumerateArray())
+        {
+            capability.TryGetProperty("name", out var name).ShouldBeTrue();
+            capability.TryGetProperty("version", out var version).ShouldBeTrue();
+            name.GetString().ShouldNotBeNullOrWhiteSpace();
+            version.GetString().ShouldNotBeNullOrWhiteSpace();
+        }
     }
 
     private async Task<Core.Products.Models.Product> CreateTestProductAsync()

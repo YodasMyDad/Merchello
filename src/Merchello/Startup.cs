@@ -238,6 +238,18 @@ public static class Startup
             // Keep HttpClient timeout uncapped to avoid a hidden global 100s ceiling.
             client.Timeout = Timeout.InfiniteTimeSpan;
         });
+        builder.Services.AddHttpClient("UcpWebhooks", client =>
+        {
+            // Per-request UCP webhook timeout is enforced in UcpOrderWebhookHandler via client.Timeout.
+            // Keep the factory default uncapped so the per-request assignment is the effective ceiling.
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        });
+        builder.Services.AddHttpClient("UcpFlowStrict", client =>
+        {
+            // Strict UCP flow tester executes real signed HTTP calls to local API routes.
+            // Keep a bounded timeout for predictable developer feedback in the backoffice.
+            client.Timeout = TimeSpan.FromSeconds(45);
+        });
 
         // Register Merchello cache refresher for distributed cache invalidation
         builder.CacheRefreshers().Add<MerchelloCacheRefresher>();
@@ -453,6 +465,7 @@ public static class Startup
         builder.Services.AddScoped<ISigningKeyStore, SigningKeyStore>();
         builder.Services.AddScoped<IWebhookSigner, WebhookSigner>();
         builder.Services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
+        builder.Services.AddScoped<IUcpFlowTestService, UcpFlowTestService>();
         builder.Services.AddScoped<IAgentAuthenticator, UcpAgentAuthenticator>();
         // UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
 
