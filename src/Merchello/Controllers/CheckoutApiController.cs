@@ -20,6 +20,7 @@ using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
@@ -60,9 +61,11 @@ public class CheckoutApiController(
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger,
     IAbandonedCheckoutService? abandonedCheckoutService = null,
-    ICustomerService? customerService = null) : ControllerBase
+    ICustomerService? customerService = null,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     private const int MaxRecoveryAttemptsPerMinute = 10;
     private static readonly TimeSpan RecoveryRateLimitWindow = TimeSpan.FromMinutes(1);
@@ -757,13 +760,39 @@ public class CheckoutApiController(
         string key,
         [FromServices] IRazorViewEngine razorViewEngine,
         [FromServices] IModelMetadataProvider modelMetadataProvider,
-        [FromServices] ITempDataDictionaryFactory tempDataDictionaryFactory)
+        [FromServices] ITempDataDictionaryFactory tempDataDictionaryFactory,
+        [FromServices] IRichTextRenderer richTextRenderer,
+        CancellationToken ct)
     {
         // Sanitize key to alpha characters only
         var sanitized = new string(key.Where(char.IsLetter).ToArray());
         if (string.IsNullOrEmpty(sanitized))
         {
             return Ok(new { success = false, message = "Invalid terms key." });
+        }
+
+        var normalizedKey = sanitized.ToLowerInvariant();
+
+        // Prefer DB-backed policy content for checkout terms/privacy.
+        if (_storeSettingsService != null && (normalizedKey == "terms" || normalizedKey == "privacy"))
+        {
+            try
+            {
+                var runtime = await _storeSettingsService.GetRuntimeSettingsAsync(ct);
+                var richTextJson = normalizedKey == "terms"
+                    ? runtime.Policies.TermsContent
+                    : runtime.Policies.PrivacyContent;
+
+                if (!string.IsNullOrWhiteSpace(richTextJson))
+                {
+                    var html = await richTextRenderer.RenderAsync(richTextJson);
+                    return Ok(new { success = true, html = html.ToHtmlString() });
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to render DB policy content for key: {PolicyKey}", normalizedKey);
+            }
         }
 
         // PascalCase the key

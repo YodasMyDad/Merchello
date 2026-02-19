@@ -286,7 +286,6 @@ public class ServiceTestFixture : IDisposable
             CacheDurationSeconds = 60,
             EventRetentionDays = 30,
             EnablePostPurchase = true,
-            PostPurchaseTimeoutSeconds = 60,
             PostPurchaseFulfillmentHoldMinutes = 5
         };
         services.AddSingleton(Options.Create(upsellSettings));
@@ -625,14 +624,12 @@ public class ServiceTestFixture : IDisposable
         // Protocol settings
         var protocolSettings = new ProtocolSettings
         {
-            WellKnownPath = "/.well-known",
             ManifestCacheDurationMinutes = 60,
             RequireHttps = false, // Allow HTTP in tests
             PublicBaseUrl = "https://test.example.com",
             Ucp = new UcpSettings
             {
                 Version = "2026-01-23",
-                RequireAuthentication = false,
                 AllowedAgents = ["*"],
                 SigningKeyRotationDays = 90,
                 Capabilities = new UcpCapabilitySettings
@@ -701,8 +698,6 @@ public class ServiceTestFixture : IDisposable
             PollingIntervalMinutes = 15,
             MaxRetryAttempts = 5,
             RetryDelaysMinutes = [5, 15, 30, 60, 120],
-            InventorySyncIntervalMinutes = 60,
-            ProductSyncOnSave = false,
             SyncLogRetentionDays = 30,
             WebhookLogRetentionDays = 7
         };

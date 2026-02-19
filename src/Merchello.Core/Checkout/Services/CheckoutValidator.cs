@@ -4,6 +4,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Strategies.Models;
 using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Settings.Services.Interfaces;
 using Microsoft.Extensions.Options;
 
 namespace Merchello.Core.Checkout.Services;
@@ -11,9 +12,12 @@ namespace Merchello.Core.Checkout.Services;
 /// <summary>
 /// Service for validating checkout-related data.
 /// </summary>
-public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettings) : ICheckoutValidator
+public partial class CheckoutValidator(
+    IOptions<CheckoutSettings> checkoutSettings,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : ICheckoutValidator
 {
     private readonly CheckoutSettings _checkoutSettings = checkoutSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <inheritdoc />
     public Dictionary<string, string> ValidateAddressRequest(SaveAddressesRequestDto request)
@@ -101,7 +105,7 @@ public partial class CheckoutValidator(IOptions<CheckoutSettings> checkoutSettin
     }
 
     private bool IsBillingPhoneRequired(string prefix) =>
-        _checkoutSettings.BillingPhoneRequired &&
+        (_storeSettingsService?.GetRuntimeSettings().Checkout.BillingPhoneRequired ?? _checkoutSettings.BillingPhoneRequired) &&
         prefix.Equals("billing", StringComparison.OrdinalIgnoreCase);
 
     /// <inheritdoc />

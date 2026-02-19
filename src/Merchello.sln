@@ -3,13 +3,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.4.33020.496
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{C31D73E7-117E-41BA-89FF-FD6ED17C3975}"
-	ProjectSection(SolutionItems) = preProject
-		..\.github\CONTRIBUTING.md = ..\.github\CONTRIBUTING.md
-		..\.github\README.md = ..\.github\README.md
-		..\umbraco-marketplace.json = ..\umbraco-marketplace.json
-	EndProjectSection
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.Site", "Merchello.Site\Merchello.Site.csproj", "{52C685A8-B742-4B80-B282-D8FBDD539443}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello", "Merchello\Merchello.csproj", "{89581362-A4D3-4B97-8A9E-44B273703324}"
@@ -23,7 +16,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Scripts", "Scripts", "{0319B1CD-CE56-462E-93B5-77F87B9564F0}"
 	ProjectSection(SolutionItems) = preProject
 		..\scripts\add-migration.ps1 = ..\scripts\add-migration.ps1
-		..\scripts\release.ps1 = ..\scripts\release.ps1
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.Tests", "Merchello.Tests\Merchello.Tests.csproj", "{8A3B9DF8-3680-4715-B49D-A880F11BA45A}"

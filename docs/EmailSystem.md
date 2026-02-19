@@ -521,28 +521,20 @@ The `EmailTokenResolver` uses reflection to:
 
 ### appsettings.json
 
+> Note: email defaults/theme and store identity fields are now DB-backed and edited in the Merchello root workspace tabs (`Store` and `Email`).  
+> Keep only delivery/infra options in `Merchello:Email`.
+
 ```json
 {
   "Merchello": {
     "Email": {
-      "Enabled": true,
       "TemplateViewLocations": [
         "/App_Plugins/Merchello/Views/Emails/{0}.cshtml",
         "/Views/Emails/{0}.cshtml"
       ],
-      "DefaultFromAddress": null,
-      "DefaultFromName": null,
       "MaxRetries": 3,
       "RetryDelaysSeconds": [60, 300, 900],
-      "DeliveryRetentionDays": 30,
-      "Store": {
-        "Name": "My Store",
-        "Email": "store@example.com",
-        "LogoUrl": null,
-        "WebsiteUrl": null,
-        "SupportEmail": null,
-        "Phone": null
-      }
+      "DeliveryRetentionDays": 30
     }
   }
 }

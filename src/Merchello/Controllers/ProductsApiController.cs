@@ -3,6 +3,7 @@ using Merchello.Core.Products.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -24,9 +25,11 @@ public class ProductsApiController(
     IShippingService shippingService,
     IContentTypeService contentTypeService,
     IDataTypeService dataTypeService,
-    IOptions<MerchelloSettings> merchelloSettings) : MerchelloApiControllerBase
+    IOptions<MerchelloSettings> merchelloSettings,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : MerchelloApiControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
     #region Product Detail Endpoints
 
     /// <summary>
@@ -348,6 +351,12 @@ public class ProductsApiController(
     [ProducesResponseType<ProductPageDto>(StatusCodes.Status200OK)]
     public async Task<ProductPageDto> GetProducts([FromQuery] ProductQueryDto query, CancellationToken ct)
     {
+        var lowStockThreshold = _settings.LowStockThreshold;
+        if (_storeSettingsService != null)
+        {
+            lowStockThreshold = (await _storeSettingsService.GetRuntimeSettingsAsync(ct)).Merchello.LowStockThreshold;
+        }
+
         var parameters = new ProductQueryParameters
         {
             CurrentPage = query.Page,
@@ -356,7 +365,7 @@ public class ProductsApiController(
             Search = query.Search,
             AvailabilityFilter = MapAvailabilityFilter(query.Availability),
             StockStatusFilter = MapStockStatusFilter(query.StockStatus),
-            LowStockThreshold = _settings.LowStockThreshold,
+            LowStockThreshold = lowStockThreshold,
             OrderBy = ProductOrderBy.ProductRoot
         };
 

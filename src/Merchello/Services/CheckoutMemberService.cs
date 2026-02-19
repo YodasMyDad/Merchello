@@ -5,6 +5,7 @@ using Merchello.Core.Customers.Factories;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Notifications.CustomerNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
@@ -31,10 +32,12 @@ public class CheckoutMemberService(
     IOptions<MerchelloSettings> settings,
     IOptions<IdentityOptions> identityOptions,
     IHttpContextAccessor httpContextAccessor,
-    ILogger<CheckoutMemberService> logger) : ICheckoutMemberService
+    ILogger<CheckoutMemberService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : ICheckoutMemberService
 {
     private readonly MerchelloSettings _settings = settings.Value;
     private readonly IdentityOptions _identityOptions = identityOptions.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <summary>
     /// Number of failed login attempts before showing forgot password link.
@@ -236,7 +239,10 @@ public class CheckoutMemberService(
     /// </summary>
     private string BuildSafePasswordResetBaseUrl(string? requestedBaseUrl)
     {
-        var defaultBaseUrl = $"{(_settings.Store.WebsiteUrl ?? string.Empty).TrimEnd('/')}/checkout/reset-password";
+        var websiteUrl = _storeSettingsService?.GetRuntimeSettings().Merchello.Store.WebsiteUrl ??
+                         _settings.Store.WebsiteUrl ??
+                         string.Empty;
+        var defaultBaseUrl = $"{websiteUrl.TrimEnd('/')}/checkout/reset-password";
 
         if (string.IsNullOrWhiteSpace(requestedBaseUrl))
         {

@@ -75,6 +75,187 @@ describe("merchello api client", () => {
     );
   });
 
+  it("calls store-configuration GET endpoint with expected path", async () => {
+    const configuration = {
+      storeKey: "default",
+      store: {
+        invoiceNumberPrefix: "INV-",
+        name: "Acme Store",
+        email: null,
+        supportEmail: null,
+        phone: null,
+        websiteUrl: null,
+        address: "123 Commerce Street\nNew York, NY 10001\nUnited States",
+        logoMediaKey: null,
+        logoUrl: null,
+        displayPricesIncTax: true,
+        showStockLevels: true,
+        lowStockThreshold: 5,
+      },
+      invoiceReminders: {
+        reminderDaysBeforeDue: 7,
+        overdueReminderIntervalDays: 7,
+        maxOverdueReminders: 3,
+        checkIntervalHours: 24,
+      },
+      policies: {
+        termsContent: null,
+        privacyContent: null,
+      },
+      checkout: {
+        headerBackgroundImageMediaKey: null,
+        headerBackgroundImageUrl: null,
+        headerBackgroundColor: null,
+        logoPosition: "Left",
+        logoMaxWidth: 200,
+        primaryColor: "#000000",
+        accentColor: "#0066FF",
+        backgroundColor: "#FFFFFF",
+        textColor: "#333333",
+        errorColor: "#DC2626",
+        headingFontFamily: "system-ui",
+        bodyFontFamily: "system-ui",
+        showExpressCheckout: true,
+        billingPhoneRequired: true,
+        confirmationRedirectUrl: null,
+        customScriptUrl: "/js/checkout-analytics.js",
+        orderTerms: {
+          showCheckbox: true,
+          checkboxText: "I agree to terms",
+          checkboxRequired: true,
+        },
+      },
+      abandonedCheckout: {
+        abandonmentThresholdHours: 1,
+        recoveryExpiryDays: 30,
+        checkIntervalMinutes: 15,
+        firstEmailDelayHours: 1,
+        reminderEmailDelayHours: 24,
+        finalEmailDelayHours: 48,
+        maxRecoveryEmails: 3,
+      },
+      email: {
+        defaultFromAddress: null,
+        defaultFromName: null,
+        theme: {
+          primaryColor: "#007bff",
+          textColor: "#333333",
+          backgroundColor: "#f4f4f4",
+          fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+          secondaryTextColor: "#666666",
+          contentBackgroundColor: "#ffffff",
+        },
+      },
+      ucp: {
+        termsUrl: null,
+        privacyUrl: null,
+      },
+    };
+
+    fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: configuration }));
+
+    const result = await MerchelloApi.getStoreConfiguration();
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual(configuration);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/umbraco/api/v1/settings/store-configuration",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("calls store-configuration PUT endpoint with a serialized payload", async () => {
+    const payload = {
+      storeKey: "default",
+      store: {
+        invoiceNumberPrefix: "INV-",
+        name: "Updated Store",
+        email: "test@example.com",
+        supportEmail: null,
+        phone: null,
+        websiteUrl: "https://example.com",
+        address: "123 Commerce Street\nNew York, NY 10001\nUnited States",
+        logoMediaKey: null,
+        logoUrl: null,
+        displayPricesIncTax: true,
+        showStockLevels: true,
+        lowStockThreshold: 5,
+      },
+      invoiceReminders: {
+        reminderDaysBeforeDue: 7,
+        overdueReminderIntervalDays: 7,
+        maxOverdueReminders: 3,
+        checkIntervalHours: 24,
+      },
+      policies: {
+        termsContent: null,
+        privacyContent: null,
+      },
+      checkout: {
+        headerBackgroundImageMediaKey: null,
+        headerBackgroundImageUrl: null,
+        headerBackgroundColor: null,
+        logoPosition: "Left",
+        logoMaxWidth: 200,
+        primaryColor: "#000000",
+        accentColor: "#0066FF",
+        backgroundColor: "#FFFFFF",
+        textColor: "#333333",
+        errorColor: "#DC2626",
+        headingFontFamily: "system-ui",
+        bodyFontFamily: "system-ui",
+        showExpressCheckout: true,
+        billingPhoneRequired: true,
+        confirmationRedirectUrl: null,
+        customScriptUrl: "/js/checkout-analytics.js",
+        orderTerms: {
+          showCheckbox: true,
+          checkboxText: "I agree to terms",
+          checkboxRequired: true,
+        },
+      },
+      abandonedCheckout: {
+        abandonmentThresholdHours: 1,
+        recoveryExpiryDays: 30,
+        checkIntervalMinutes: 15,
+        firstEmailDelayHours: 1,
+        reminderEmailDelayHours: 24,
+        finalEmailDelayHours: 48,
+        maxRecoveryEmails: 3,
+      },
+      email: {
+        defaultFromAddress: null,
+        defaultFromName: null,
+        theme: {
+          primaryColor: "#007bff",
+          textColor: "#333333",
+          backgroundColor: "#f4f4f4",
+          fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+          secondaryTextColor: "#666666",
+          contentBackgroundColor: "#ffffff",
+        },
+      },
+      ucp: {
+        termsUrl: null,
+        privacyUrl: null,
+      },
+    };
+
+    fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: payload }));
+
+    const result = await MerchelloApi.saveStoreConfiguration(payload);
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/umbraco/api/v1/settings/store-configuration",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
+    );
+  });
+
   it("parses plain text responses for GET endpoints", async () => {
     fetchMock.mockResolvedValueOnce(
       createMockResponse({

@@ -236,6 +236,50 @@ public class SigningKeyStore(
         await cacheService.RemoveByTagAsync("protocols", ct);
     }
 
+    /// <inheritdoc />
+    public async Task<bool> RotateKeysIfDueAsync(int rotationDays, CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (rotationDays <= 0)
+        {
+            logger.LogDebug(
+                "Signing key auto-rotation disabled because configured rotation days is {RotationDays}",
+                rotationDays);
+            return false;
+        }
+
+        await EnsureInitializedAsync(ct);
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var activeKey = await scope.ExecuteWithContextAsync(async db =>
+            await db.SigningKeys
+                .AsNoTracking()
+                .FirstOrDefaultAsync(k => k.IsActive, ct));
+        scope.Complete();
+
+        if (activeKey == null)
+        {
+            logger.LogWarning("No active signing key found when checking rotation policy; rotating now.");
+            await RotateKeysAsync(ct);
+            return true;
+        }
+
+        var dueAt = activeKey.CreatedAt.AddDays(rotationDays);
+        if (DateTimeOffset.UtcNow < dueAt)
+        {
+            return false;
+        }
+
+        logger.LogInformation(
+            "Signing key {KeyId} reached rotation threshold ({RotationDays} days); rotating.",
+            activeKey.KeyId,
+            rotationDays);
+
+        await RotateKeysAsync(ct);
+        return true;
+    }
+
     private async Task EnsureInitializedAsync(CancellationToken ct = default)
     {
         if (_initialized)

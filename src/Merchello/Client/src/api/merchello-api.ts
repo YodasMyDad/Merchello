@@ -570,6 +570,100 @@ export interface StoreSettingsDto {
   refundQuickAmountPercentages: number[];
 }
 
+export interface StoreConfigurationStorePanelDto {
+  invoiceNumberPrefix: string;
+  name: string;
+  email?: string | null;
+  supportEmail?: string | null;
+  phone?: string | null;
+  websiteUrl?: string | null;
+  address: string;
+  logoMediaKey?: string | null;
+  logoUrl?: string | null;
+  displayPricesIncTax: boolean;
+  showStockLevels: boolean;
+  lowStockThreshold: number;
+}
+
+export interface StoreConfigurationInvoiceRemindersDto {
+  reminderDaysBeforeDue: number;
+  overdueReminderIntervalDays: number;
+  maxOverdueReminders: number;
+  checkIntervalHours: number;
+}
+
+export interface StoreConfigurationPoliciesDto {
+  termsContent?: string | null;
+  privacyContent?: string | null;
+}
+
+export interface StoreConfigurationOrderTermsDto {
+  showCheckbox: boolean;
+  checkboxText: string;
+  checkboxRequired: boolean;
+}
+
+export interface StoreConfigurationCheckoutDto {
+  headerBackgroundImageMediaKey?: string | null;
+  headerBackgroundImageUrl?: string | null;
+  headerBackgroundColor?: string | null;
+  logoPosition: string;
+  logoMaxWidth: number;
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  textColor: string;
+  errorColor: string;
+  headingFontFamily: string;
+  bodyFontFamily: string;
+  showExpressCheckout: boolean;
+  billingPhoneRequired: boolean;
+  confirmationRedirectUrl?: string | null;
+  customScriptUrl?: string | null;
+  orderTerms: StoreConfigurationOrderTermsDto;
+}
+
+export interface StoreConfigurationAbandonedCheckoutDto {
+  abandonmentThresholdHours: number;
+  recoveryExpiryDays: number;
+  checkIntervalMinutes: number;
+  firstEmailDelayHours: number;
+  reminderEmailDelayHours: number;
+  finalEmailDelayHours: number;
+  maxRecoveryEmails: number;
+}
+
+export interface StoreConfigurationEmailThemeDto {
+  primaryColor: string;
+  textColor: string;
+  backgroundColor: string;
+  fontFamily: string;
+  secondaryTextColor: string;
+  contentBackgroundColor: string;
+}
+
+export interface StoreConfigurationEmailDto {
+  defaultFromAddress?: string | null;
+  defaultFromName?: string | null;
+  theme: StoreConfigurationEmailThemeDto;
+}
+
+export interface StoreConfigurationUcpDto {
+  termsUrl?: string | null;
+  privacyUrl?: string | null;
+}
+
+export interface StoreConfigurationDto {
+  storeKey: string;
+  store: StoreConfigurationStorePanelDto;
+  invoiceReminders: StoreConfigurationInvoiceRemindersDto;
+  policies: StoreConfigurationPoliciesDto;
+  checkout: StoreConfigurationCheckoutDto;
+  abandonedCheckout: StoreConfigurationAbandonedCheckoutDto;
+  email: StoreConfigurationEmailDto;
+  ucp: StoreConfigurationUcpDto;
+}
+
 // Country type for dropdowns
 export interface CountryDto {
   code: string;
@@ -582,6 +676,9 @@ export const MerchelloApi = {
 
   // Store Settings
   getSettings: () => apiGet<StoreSettingsDto>('settings'),
+  getStoreConfiguration: () => apiGet<StoreConfigurationDto>('settings/store-configuration'),
+  saveStoreConfiguration: (configuration: StoreConfigurationDto) =>
+    apiPut<StoreConfigurationDto>('settings/store-configuration', configuration),
   getCountries: () => apiGet<CountryDto[]>('countries'),
 
   // Seed Data

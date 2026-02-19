@@ -22,16 +22,6 @@ public class FulfilmentSettings
     public int[] RetryDelaysMinutes { get; set; } = [5, 15, 30, 60, 120];
 
     /// <summary>
-    /// Interval in minutes for inventory sync.
-    /// </summary>
-    public int InventorySyncIntervalMinutes { get; set; } = 60;
-
-    /// <summary>
-    /// Whether to automatically sync products when they are saved.
-    /// </summary>
-    public bool ProductSyncOnSave { get; set; }
-
-    /// <summary>
     /// Number of days to retain sync logs.
     /// </summary>
     public int SyncLogRetentionDays { get; set; } = 30;

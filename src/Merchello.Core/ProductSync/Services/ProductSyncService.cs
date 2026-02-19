@@ -715,7 +715,9 @@ public class ProductSyncService(
             : null;
 
         var firstRow = rows[0];
-        string title = Normalize(firstRow[ShopifyCsvSchema.Title]) ?? existingRoot?.RootName ?? handle;
+        var resolvedTitle = Normalize(firstRow[ShopifyCsvSchema.Title]) ?? existingRoot?.RootName;
+        var title = ResolveRequiredTitle(resolvedTitle, handle);
+        var safeTitle = title ?? string.Empty;
         var bodyHtml = Normalize(firstRow[ShopifyCsvSchema.BodyHtml]) ?? string.Empty;
         var vendor = Normalize(firstRow[ShopifyCsvSchema.Vendor]);
         var tags = Normalize(firstRow[ShopifyCsvSchema.Tags]);
@@ -790,7 +792,7 @@ public class ProductSyncService(
         if (!string.IsNullOrWhiteSpace(_settings.MediaImportRootFolderName))
         {
             var rootFolderId = GetOrCreateMediaFolder(_settings.MediaImportRootFolderName, global::Umbraco.Cms.Core.Constants.System.Root);
-            productMediaFolderId = GetOrCreateMediaFolder(title ?? handle, rootFolderId);
+            productMediaFolderId = GetOrCreateMediaFolder(safeTitle, rootFolderId);
         }
 
         foreach (var imageUrl in rows
@@ -863,13 +865,13 @@ public class ProductSyncService(
             var createResult = await productService.CreateProductRoot(
                 new CreateProductRootDto
                 {
-                    RootName = title,
+                    RootName = safeTitle,
                     TaxGroupId = taxGroup.Id,
                     ProductTypeId = productType.Id,
                     RootImages = rootImages,
                     DefaultVariant = new CreateVariantDto
                     {
-                        Name = title,
+                        Name = safeTitle,
                         Price = defaultPrice,
                         CostOfGoods = defaultCost,
                         Sku = defaultSku,
@@ -905,7 +907,7 @@ public class ProductSyncService(
             productRootId,
             new UpdateProductRootDto
             {
-                RootName = title,
+                RootName = safeTitle,
                 RootUrl = handle,
                 Description = ToTipTapJson(bodyHtml),
                 RootImages = rootImages,
@@ -984,7 +986,7 @@ public class ProductSyncService(
                 continue;
             }
 
-            var variantName = BuildVariantName(row, title);
+            var variantName = BuildVariantName(row, safeTitle);
             var sku = Normalize(row[ShopifyCsvSchema.VariantSku]);
             var gtin = Normalize(row[ShopifyCsvSchema.VariantBarcode]);
             var price = ParseDecimal(row[ShopifyCsvSchema.VariantPrice]);
@@ -2180,6 +2182,16 @@ public class ProductSyncService(
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string ResolveRequiredTitle(string? resolvedTitle, string handle)
+    {
+        if (resolvedTitle is null)
+        {
+            return handle;
+        }
+
+        return string.IsNullOrWhiteSpace(resolvedTitle) ? handle : resolvedTitle;
+    }
 
     private ProductSyncImportRunOptions DeserializeImportOptions(string? optionsJson)
     {

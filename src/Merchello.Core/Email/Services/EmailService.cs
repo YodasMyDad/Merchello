@@ -7,6 +7,7 @@ using Merchello.Core.Email.Dtos;
 using Merchello.Core.Email.Models;
 using Merchello.Core.Email.Services.Interfaces;
 using Merchello.Core.Notifications.Base;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -34,10 +35,12 @@ public class EmailService(
     ISampleNotificationFactory sampleNotificationFactory,
     IOptions<EmailSettings> emailSettings,
     IOptions<MerchelloSettings> merchelloSettings,
-    ILogger<EmailService> logger) : IEmailService
+    ILogger<EmailService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IEmailService
 {
     private readonly EmailSettings _settings = emailSettings.Value;
     private readonly StoreSettings _store = merchelloSettings.Value.Store;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
     private static readonly MethodInfo ResolveTokensGenericMethod =
         typeof(IEmailTokenResolver).GetMethod(nameof(IEmailTokenResolver.ResolveTokens))
         ?? throw new InvalidOperationException("Could not locate ResolveTokens<TNotification> method");
@@ -544,14 +547,16 @@ public class EmailService(
 
     public EmailStoreContext GetStoreContext()
     {
+        var store = GetEffectiveStoreSettings();
+
         return new EmailStoreContext
         {
-            Name = _store.Name ?? string.Empty,
-            Email = _store.Email ?? string.Empty,
-            LogoUrl = _store.LogoUrl,
-            WebsiteUrl = _store.WebsiteUrl,
-            SupportEmail = _store.SupportEmail ?? _store.Email,
-            Phone = _store.Phone
+            Name = store.Name ?? string.Empty,
+            Email = store.Email ?? string.Empty,
+            LogoUrl = store.LogoUrl,
+            WebsiteUrl = store.WebsiteUrl,
+            SupportEmail = store.SupportEmail ?? store.Email,
+            Phone = store.Phone
         };
     }
 
@@ -594,9 +599,10 @@ public class EmailService(
         var bcc = includeCcBcc && !string.IsNullOrWhiteSpace(config.BccExpression)
             ? ResolveTokensRuntime(config.BccExpression, context.EmailModel, context.NotificationType)
             : null;
+        var effectiveEmail = GetEffectiveEmailSettings();
         var from = !string.IsNullOrWhiteSpace(config.FromExpression)
             ? ResolveTokensRuntime(config.FromExpression, context.EmailModel, context.NotificationType)
-            : _settings.DefaultFromAddress ?? context.StoreContext.Email ?? "noreply@example.com";
+            : effectiveEmail.DefaultFromAddress ?? context.StoreContext.Email ?? "noreply@example.com";
         var subject = ResolveTokensRuntime(config.SubjectExpression, context.EmailModel, context.NotificationType);
         if (!string.IsNullOrWhiteSpace(subjectPrefix))
         {
@@ -719,5 +725,45 @@ public class EmailService(
 
         var context = CreateRuntimeEmailContext(config, sampleNotification);
         return (config, context, null);
+    }
+
+    private EmailSettings GetEffectiveEmailSettings()
+    {
+        if (_storeSettingsService == null)
+        {
+            return _settings;
+        }
+
+        try
+        {
+            var runtime = _storeSettingsService.GetRuntimeSettings();
+            return runtime.Email;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to resolve DB-backed email settings, falling back to appsettings.");
+            return _settings;
+        }
+    }
+
+    private StoreSettings GetEffectiveStoreSettings()
+    {
+        if (_storeSettingsService == null)
+        {
+            return _store;
+        }
+
+        try
+        {
+            var runtime = _storeSettingsService.GetRuntimeSettings();
+            return runtime.Merchello.Store ?? _store;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to resolve DB-backed store settings for email context, falling back to appsettings.");
+            return _store;
+        }
     }
 }

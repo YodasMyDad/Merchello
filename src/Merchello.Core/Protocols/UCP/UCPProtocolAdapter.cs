@@ -26,6 +26,7 @@ using Merchello.Core.Protocols.UCP.Services;
 using Merchello.Core.Protocols.UCP.Services.Interfaces;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Security;
 using Merchello.Core.Shared.Models;
@@ -57,6 +58,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     private readonly ILogger<UCPProtocolAdapter> _logger;
     private readonly ProtocolSettings _protocolSettings;
     private readonly MerchelloSettings _merchelloSettings;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService;
 
     public UCPProtocolAdapter(
         ICheckoutService checkoutService,
@@ -72,7 +74,8 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         IMerchelloNotificationPublisher notificationPublisher,
         ILogger<UCPProtocolAdapter> logger,
         IOptions<ProtocolSettings> protocolSettings,
-        IOptions<MerchelloSettings> merchelloSettings)
+        IOptions<MerchelloSettings> merchelloSettings,
+        IMerchelloStoreSettingsService? storeSettingsService = null)
     {
         _checkoutService = checkoutService;
         _checkoutSessionService = checkoutSessionService;
@@ -88,6 +91,7 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
         _logger = logger;
         _protocolSettings = protocolSettings.Value;
         _merchelloSettings = merchelloSettings.Value;
+        _storeSettingsService = storeSettingsService;
     }
 
     /// <inheritdoc />
@@ -1861,14 +1865,15 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
     private IReadOnlyList<object> BuildLegalLinks()
     {
         var links = new List<object>();
+        var store = GetEffectiveStoreSettings();
 
-        var termsUrl = NormalizeAbsoluteUrl(_merchelloSettings.Store.TermsUrl);
+        var termsUrl = NormalizeAbsoluteUrl(store.TermsUrl);
         if (!string.IsNullOrWhiteSpace(termsUrl))
         {
             links.Add(new { rel = "terms", href = termsUrl });
         }
 
-        var privacyUrl = NormalizeAbsoluteUrl(_merchelloSettings.Store.PrivacyUrl);
+        var privacyUrl = NormalizeAbsoluteUrl(store.PrivacyUrl);
         if (!string.IsNullOrWhiteSpace(privacyUrl))
         {
             links.Add(new { rel = "privacy", href = privacyUrl });
@@ -1923,12 +1928,34 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             return configured;
         }
 
-        if (TryResolveConfiguredPublicBaseUri(_merchelloSettings.Store.WebsiteUrl, out var storeWebsite))
+        var store = GetEffectiveStoreSettings();
+        if (TryResolveConfiguredPublicBaseUri(store.WebsiteUrl, out var storeWebsite))
         {
             return storeWebsite;
         }
 
         return new Uri("https://localhost");
+    }
+
+    private StoreSettings GetEffectiveStoreSettings()
+    {
+        var fallback = _merchelloSettings.Store ?? new StoreSettings();
+        if (_storeSettingsService == null)
+        {
+            return fallback;
+        }
+
+        try
+        {
+            var runtime = _storeSettingsService.GetRuntimeSettings();
+            return runtime.Merchello.Store ?? fallback;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to resolve DB-backed store settings for UCP adapter, falling back to appsettings.");
+            return fallback;
+        }
     }
 
     private static bool TryResolveConfiguredPublicBaseUri(string? configuredValue, out Uri uri)

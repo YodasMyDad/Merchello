@@ -30,12 +30,6 @@ public class UpsellSettings
     public bool EnablePostPurchase { get; set; } = true;
 
     /// <summary>
-    /// Timeout in seconds before auto-redirecting from post-purchase page to confirmation.
-    /// Default: 60 seconds (0 = no auto-redirect).
-    /// </summary>
-    public int PostPurchaseTimeoutSeconds { get; set; } = 60;
-
-    /// <summary>
     /// Maximum duration in minutes for the post-purchase window.
     /// After this time, the post-purchase page will redirect to confirmation.
     /// Default: 5 minutes.
