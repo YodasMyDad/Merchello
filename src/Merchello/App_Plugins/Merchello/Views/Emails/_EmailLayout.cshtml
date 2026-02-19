@@ -1,9 +1,8 @@
-@using Microsoft.Extensions.Options
-@inject IOptions<EmailSettings> EmailSettingsOptions
+@using Merchello.Core.Settings.Services.Interfaces
+@inject IMerchelloStoreSettingsService StoreSettingsService
 @{
     Layout = null;
-    var settings = EmailSettingsOptions.Value;
-    var theme = settings.Theme;
+    var theme = StoreSettingsService.GetRuntimeSettings().Email.Theme;
 }
 <mjml>
   <mj-head>

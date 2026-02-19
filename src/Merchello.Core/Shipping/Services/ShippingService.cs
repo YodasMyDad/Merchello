@@ -9,6 +9,7 @@ using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.OrderGrouping;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Dtos;
 using Merchello.Core.Shipping.Models;
@@ -30,9 +31,11 @@ public class ShippingService(
     IShippingOptionEligibilityService shippingOptionEligibilityService,
     IShippingProviderManager providerManager,
     IOptions<MerchelloSettings> settings,
-    ILogger<ShippingService> logger) : IShippingService
+    ILogger<ShippingService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IShippingService
 {
     private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <summary>
     /// Calculates the aggregate stock status based on available stock, track stock setting, and threshold.
@@ -185,11 +188,12 @@ public class ShippingService(
         }
 
         var stockResult = CalculateWarehouseStock(product, destinationCountryCode, destinationStateCode);
+        var lowStockThreshold = await GetLowStockThresholdAsync(cancellationToken);
 
         var aggregateStockStatus = CalculateAggregateStockStatus(
             stockResult.TotalAvailableStock,
             stockResult.HasAnyTrackingWarehouse,
-            _settings.LowStockThreshold);
+            lowStockThreshold);
 
         return (product, stockResult, aggregateStockStatus);
     }
@@ -205,6 +209,17 @@ public class ShippingService(
             AggregateStockStatusLabel = missingStatus.ToLabel(),
             AggregateStockStatusCssClass = missingStatus.ToCssClass()
         };
+    }
+
+    private async Task<int> GetLowStockThresholdAsync(CancellationToken ct)
+    {
+        if (_storeSettingsService == null)
+        {
+            return _settings.LowStockThreshold;
+        }
+
+        var runtime = await _storeSettingsService.GetRuntimeSettingsAsync(ct);
+        return runtime.Merchello.LowStockThreshold;
     }
 
     /// <summary>

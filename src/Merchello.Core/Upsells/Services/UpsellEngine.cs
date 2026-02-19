@@ -5,6 +5,7 @@ using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
@@ -30,10 +31,12 @@ public class UpsellEngine(
     ITaxService taxService,
     IOptions<MerchelloSettings> merchelloSettings,
     IOptions<UpsellSettings> upsellSettings,
-    ILogger<UpsellEngine> logger) : IUpsellEngine
+    ILogger<UpsellEngine> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IUpsellEngine
 {
     private readonly UpsellSettings _settings = upsellSettings.Value;
     private readonly MerchelloSettings _storeSettings = merchelloSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <inheritdoc />
     public async Task<List<UpsellSuggestion>> GetSuggestionsAsync(UpsellContext context, CancellationToken ct = default)
@@ -592,10 +595,11 @@ public class UpsellEngine(
             return context.DisplayContext;
         }
 
-        var currencyCode = _storeSettings.StoreCurrencyCode;
+        var effectiveStoreSettings = GetEffectiveStoreSettings();
+        var currencyCode = effectiveStoreSettings.StoreCurrencyCode;
         var currencyInfo = currencyService.GetCurrency(currencyCode);
         var countryCode = context.CountryCode
-            ?? _storeSettings.DefaultShippingCountry
+            ?? effectiveStoreSettings.DefaultShippingCountry
             ?? "US";
 
         return new StorefrontDisplayContext(
@@ -603,16 +607,17 @@ public class UpsellEngine(
             currencyInfo.Symbol,
             currencyInfo.DecimalPlaces,
             1m,
-            _storeSettings.StoreCurrencyCode,
-            _storeSettings.DisplayPricesIncTax,
+            effectiveStoreSettings.StoreCurrencyCode,
+            effectiveStoreSettings.DisplayPricesIncTax,
             countryCode,
             context.RegionCode);
     }
 
     private StorefrontDisplayContext BuildInvoiceDisplayContext(Invoice invoice)
     {
+        var effectiveStoreSettings = GetEffectiveStoreSettings();
         var storeCurrencyCode = string.IsNullOrWhiteSpace(invoice.StoreCurrencyCode)
-            ? _storeSettings.StoreCurrencyCode
+            ? effectiveStoreSettings.StoreCurrencyCode
             : invoice.StoreCurrencyCode;
 
         var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode)
@@ -635,7 +640,7 @@ public class UpsellEngine(
 
         var taxCountryCode = invoice.ShippingAddress?.CountryCode
             ?? invoice.BillingAddress?.CountryCode
-            ?? _storeSettings.DefaultShippingCountry
+            ?? effectiveStoreSettings.DefaultShippingCountry
             ?? "US";
 
         return new StorefrontDisplayContext(
@@ -644,7 +649,7 @@ public class UpsellEngine(
             currencyInfo.DecimalPlaces,
             exchangeRate,
             storeCurrencyCode,
-            _storeSettings.DisplayPricesIncTax,
+            effectiveStoreSettings.DisplayPricesIncTax,
             taxCountryCode,
             invoice.ShippingAddress?.CountyState?.RegionCode);
     }
@@ -826,11 +831,15 @@ public class UpsellEngine(
             return url;
         }
 
-        if (string.IsNullOrWhiteSpace(_storeSettings.Store.WebsiteUrl))
+        var storeWebsiteUrl = GetEffectiveStoreSettings().Store.WebsiteUrl;
+        if (string.IsNullOrWhiteSpace(storeWebsiteUrl))
         {
             return url;
         }
 
-        return $"{_storeSettings.Store.WebsiteUrl.TrimEnd('/')}/{url.TrimStart('/')}";
+        return $"{storeWebsiteUrl.TrimEnd('/')}/{url.TrimStart('/')}";
     }
+
+    private MerchelloSettings GetEffectiveStoreSettings() =>
+        _storeSettingsService?.GetRuntimeSettings().Merchello ?? _storeSettings;
 }

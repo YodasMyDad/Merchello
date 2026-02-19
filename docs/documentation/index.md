@@ -48,9 +48,6 @@ Minimum settings to validate for your site:
   "Merchello": {
     "StoreCurrencyCode": "GBP",
     "DefaultShippingCountry": "GB",
-    "DisplayPricesIncTax": true,
-    "ShowStockLevels": true,
-    "LowStockThreshold": 5,
     "ProductViewLocations": [
       "~/Views/Products/"
     ]
@@ -60,11 +57,29 @@ Minimum settings to validate for your site:
 
 Recommended for production readiness:
 - `Merchello:DownloadTokenSecret`
-- `Merchello:Store:*` metadata
 - `Merchello:ExchangeRates:*`
 - `Merchello:Webhooks:*`
-- `Merchello:Email:*`
 - `Merchello:Protocols:*` (if used)
+
+### 3.1 DB-backed Store Configuration
+
+Store/checkout/email/policy configuration is now DB-backed and managed in the backoffice root workspace tabs:
+- `Store`
+- `Policies`
+- `Checkout`
+- `Email`
+- `UCP`
+
+These values are no longer expected in `appsettings.json` for normal runtime use:
+- `Merchello:InvoiceNumberPrefix`
+- `Merchello:Store:*` identity/policy URL fields
+- `Merchello:DisplayPricesIncTax`
+- `Merchello:ShowStockLevels`
+- `Merchello:LowStockThreshold`
+- `Merchello:Checkout` branding/order-terms fields
+- `Merchello:Email` default from/theme fields
+- `Merchello:Invoices:Reminders:*`
+- `Merchello:AbandonedCheckout` cadence/limits (except `RecoveryUrlBase`)
 
 ## 4. Storefront Architecture in This Sample
 

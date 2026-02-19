@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Merchello.Core.Protocols.Webhooks;
 using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Tests.TestInfrastructure;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Xunit;
@@ -230,5 +231,63 @@ public class SigningKeyStoreTests : IAsyncLifetime
         // Assert
         keyIdFromNewScope.ShouldBe(newKeyId);
         keyIdFromNewScope.ShouldNotBe(originalKeyId);
+    }
+
+    [Fact]
+    public async Task RotateKeysIfDueAsync_WithNonPositiveDays_DoesNotRotate()
+    {
+        // Arrange
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
+
+        // Act
+        var rotated = await _keyStore.RotateKeysIfDueAsync(0);
+        var currentKeyId = await _keyStore.GetCurrentKeyIdAsync();
+
+        // Assert
+        rotated.ShouldBeFalse();
+        currentKeyId.ShouldBe(originalKeyId);
+    }
+
+    [Fact]
+    public async Task RotateKeysIfDueAsync_WhenActiveKeyNotDue_DoesNotRotate()
+    {
+        // Arrange
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
+        await SetActiveKeyCreatedAtAsync(DateTimeOffset.UtcNow);
+
+        // Act
+        var rotated = await _keyStore.RotateKeysIfDueAsync(90);
+        var currentKeyId = await _keyStore.GetCurrentKeyIdAsync();
+
+        // Assert
+        rotated.ShouldBeFalse();
+        currentKeyId.ShouldBe(originalKeyId);
+    }
+
+    [Fact]
+    public async Task RotateKeysIfDueAsync_WhenActiveKeyIsDue_RotatesAndPreservesOverlapKeys()
+    {
+        // Arrange
+        var originalKeyId = await _keyStore.GetCurrentKeyIdAsync();
+        await SetActiveKeyCreatedAtAsync(DateTimeOffset.UtcNow.AddDays(-91));
+
+        // Act
+        var rotated = await _keyStore.RotateKeysIfDueAsync(90);
+        var newKeyId = await _keyStore.GetCurrentKeyIdAsync();
+        var publicKeys = await _keyStore.GetPublicKeysAsync();
+
+        // Assert
+        rotated.ShouldBeTrue();
+        newKeyId.ShouldNotBe(originalKeyId);
+        publicKeys.ShouldContain(k => k.Kid == originalKeyId);
+        publicKeys.ShouldContain(k => k.Kid == newKeyId);
+    }
+
+    private async Task SetActiveKeyCreatedAtAsync(DateTimeOffset createdAtUtc)
+    {
+        using var db = _fixture.CreateDbContext();
+        var activeKey = await db.SigningKeys.FirstAsync(k => k.IsActive);
+        activeKey.CreatedAt = createdAtUtc;
+        await db.SaveChangesAsync();
     }
 }

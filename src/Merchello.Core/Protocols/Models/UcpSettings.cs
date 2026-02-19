@@ -11,11 +11,6 @@ public class UcpSettings
     public string Version { get; set; } = ProtocolVersions.CurrentUcpVersion;
 
     /// <summary>
-    /// Whether to require agent authentication.
-    /// </summary>
-    public bool RequireAuthentication { get; set; } = true;
-
-    /// <summary>
     /// Allowed agent profile URIs ("*" for all).
     /// </summary>
     public List<string> AllowedAgents { get; set; } = ["*"];
@@ -29,11 +24,6 @@ public class UcpSettings
     /// Webhook delivery timeout in seconds.
     /// </summary>
     public int WebhookTimeoutSeconds { get; set; } = 30;
-
-    /// <summary>
-    /// Number of times to retry failed webhooks.
-    /// </summary>
-    public int WebhookRetryCount { get; set; } = 3;
 
     /// <summary>
     /// Enabled capabilities.

@@ -27,4 +27,10 @@ public interface ISigningKeyStore
     /// Rotates the signing keys (creates new key, marks old as expired).
     /// </summary>
     Task RotateKeysAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Rotates signing keys when the active key age meets the configured threshold.
+    /// Returns true when a rotation occurred.
+    /// </summary>
+    Task<bool> RotateKeysIfDueAsync(int rotationDays, CancellationToken ct = default);
 }

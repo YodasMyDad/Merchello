@@ -10,6 +10,7 @@ using Merchello.Core.Products.Factories;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Products.Extensions;
@@ -38,13 +39,15 @@ public class ProductService(
     IWebHostEnvironment webHostEnvironment,
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<MerchelloSettings> settings,
-    ILogger<ProductService> logger) : IProductService
+    ILogger<ProductService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IProductService
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false
     };
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <summary>
     /// Updates stock levels for a variant at a specific warehouse.
@@ -1384,6 +1387,8 @@ public class ProductService(
     /// </summary>
     public async Task<ProductRootDetailDto?> GetProductRootWithDetails(Guid productRootId, CancellationToken cancellationToken = default)
     {
+        var lowStockThreshold = await GetLowStockThresholdAsync(cancellationToken);
+
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
@@ -1408,7 +1413,7 @@ public class ProductService(
                 return null;
             }
 
-            return MapToProductRootDetailDto(productRoot);
+            return MapToProductRootDetailDto(productRoot, lowStockThreshold);
         });
         scope.Complete();
         return result;
@@ -2405,11 +2410,11 @@ public class ProductService(
     /// <summary>
     /// Maps a ProductRoot entity to a ProductRootDetailDto
     /// </summary>
-    private ProductRootDetailDto MapToProductRootDetailDto(ProductRoot productRoot)
+    private ProductRootDetailDto MapToProductRootDetailDto(ProductRoot productRoot, int lowStockThreshold)
     {
         // Build variants first so we can calculate aggregate stock status
         var variants = productRoot.Products.OrderByDescending(p => p.Default).ThenBy(p => p.Name)
-            .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses, settings.Value.LowStockThreshold)).ToList();
+            .Select(p => MapToProductVariantDto(p, productRoot.ProductRootWarehouses, lowStockThreshold)).ToList();
 
         var aggregateStockStatus = CalculateProductRootAggregateStockStatus(productRoot.IsDigitalProduct, variants);
         var aggregateStockStatusLabel = productRoot.IsDigitalProduct ? "Digital" : aggregateStockStatus.ToLabel();
@@ -2458,6 +2463,17 @@ public class ProductService(
             ElementTypeAlias = productRoot.ElementTypeAlias,
             ViewAlias = productRoot.ViewAlias
         };
+    }
+
+    private async Task<int> GetLowStockThresholdAsync(CancellationToken ct)
+    {
+        if (_storeSettingsService == null)
+        {
+            return settings.Value.LowStockThreshold;
+        }
+
+        var runtime = await _storeSettingsService.GetRuntimeSettingsAsync(ct);
+        return runtime.Merchello.LowStockThreshold;
     }
 
     /// <summary>

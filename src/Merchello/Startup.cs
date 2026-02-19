@@ -103,6 +103,8 @@ using Merchello.Core.Webhooks.Handlers;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services;
 using Merchello.Core.Webhooks.Services.Interfaces;
+using Merchello.Core.Settings.Services;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Authentication.Interfaces;
@@ -438,6 +440,7 @@ public static class Startup
 
         // Other Scoped
         builder.Services.AddScoped<DbSeeder>();
+        builder.Services.AddScoped<IMerchelloStoreSettingsService, MerchelloStoreSettingsService>();
         builder.Services.AddSingleton<ExtensionManager>();
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
 
@@ -464,6 +467,7 @@ public static class Startup
         builder.Services.AddScoped<ICheckoutPaymentsOrchestrationService, CheckoutPaymentsOrchestrationService>();
         builder.Services.AddScoped<IOrdersDtoMapper, OrdersDtoMapper>();
         builder.Services.AddScoped<IOrdersRequestMapper, OrdersRequestMapper>();
+        builder.Services.AddScoped<IMediaUrlResolver, MediaUrlResolver>();
 
 
         // Front-End Rendering
@@ -481,6 +485,7 @@ public static class Startup
         builder.Services.AddHostedService<DiscountStatusJob>();             // Marks expired discounts as inactive
         builder.Services.AddHostedService<UpsellStatusJob>();               // Transitions scheduled/expired upsells, cleans up old events
         builder.Services.AddHostedService<OutboundDeliveryJob>();           // Retries failed webhook/email deliveries, cleans up old logs
+        builder.Services.AddHostedService<UcpSigningKeyRotationJob>();      // Rotates UCP webhook signing keys on configured policy interval
         builder.Services.AddHostedService<InvoiceReminderJob>();            // Sends payment reminder and overdue notifications
         builder.Services.AddHostedService<AbandonedCheckoutDetectionJob>(); // Detects abandoned carts and triggers recovery emails
         builder.Services.AddHostedService<FulfilmentRetryJob>();              // Retries failed fulfilment submissions to 3PLs

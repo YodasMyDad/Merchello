@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Xml.Linq;
 using Merchello.Core.ProductFeeds.Models;
 using Merchello.Core.ProductFeeds.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
@@ -14,8 +15,11 @@ public class GooglePromotionFeedGenerator(
     IHttpContextAccessor httpContextAccessor,
     ICurrencyService currencyService,
     IOptions<MerchelloSettings> settings,
-    ILogger<GooglePromotionFeedGenerator> logger) : IGooglePromotionFeedGenerator
+    ILogger<GooglePromotionFeedGenerator> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IGooglePromotionFeedGenerator
 {
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
+
     public Task<ProductPromotionFeedGenerationResult> GenerateAsync(
         ProductFeed feed,
         ProductFeedGenerationResult productFeedResult,
@@ -25,12 +29,13 @@ public class GooglePromotionFeedGenerator(
         var warnings = new List<string>();
         var baseUrl = ResolveBaseUrl();
         var feedCurrency = feed.CurrencyCode.Trim().ToUpperInvariant();
+        var storeName = ResolveStoreName();
 
         XNamespace g = "http://base.google.com/ns/1.0";
         var channel = new XElement("channel",
-            new XElement("title", $"{settings.Value.Store.Name ?? "Merchello"} Promotions Feed"),
+            new XElement("title", $"{storeName} Promotions Feed"),
             new XElement("link", baseUrl),
-            new XElement("description", $"{settings.Value.Store.Name ?? "Merchello"} Google Promotions Feed"));
+            new XElement("description", $"{storeName} Google Promotions Feed"));
 
         var promotions = productFeedResult.ReferencedPromotions
             .OrderBy(x => x.Priority)
@@ -140,8 +145,14 @@ public class GooglePromotionFeedGenerator(
             return $"{request.Scheme}://{request.Host}{request.PathBase}".TrimEnd('/');
         }
 
-        return settings.Value.Store.WebsiteUrl?.TrimEnd('/') ?? "https://localhost";
+        return ResolveStoreWebsiteUrl()?.TrimEnd('/') ?? "https://localhost";
     }
+
+    private string ResolveStoreName() =>
+        _storeSettingsService?.GetRuntimeSettings().Merchello.Store.Name ?? settings.Value.Store.Name ?? "Merchello";
+
+    private string? ResolveStoreWebsiteUrl() =>
+        _storeSettingsService?.GetRuntimeSettings().Merchello.Store.WebsiteUrl ?? settings.Value.Store.WebsiteUrl;
 
     private static string FormatUtc(DateTime value)
     {

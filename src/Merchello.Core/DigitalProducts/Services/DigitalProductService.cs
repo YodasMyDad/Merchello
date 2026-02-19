@@ -10,6 +10,7 @@ using Merchello.Core.DigitalProducts.Services.Parameters;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -30,9 +31,11 @@ public class DigitalProductService(
     IMediaService mediaService,
     DownloadLinkFactory factory,
     IOptions<MerchelloSettings> settings,
-    ILogger<DigitalProductService> logger) : IDigitalProductService
+    ILogger<DigitalProductService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IDigitalProductService
 {
     private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <inheritdoc />
     public async Task<CrudResult<List<DownloadLink>>> CreateDownloadLinksAsync(
@@ -493,7 +496,7 @@ public class DigitalProductService(
     /// </summary>
     private void PopulateDownloadUrls(IEnumerable<DownloadLink> links)
     {
-        var baseUrl = (_settings.Store.WebsiteUrl ?? string.Empty).TrimEnd('/');
+        var baseUrl = (GetWebsiteUrl() ?? string.Empty).TrimEnd('/');
         foreach (var link in links)
         {
             link.DownloadUrl = $"{baseUrl}/api/merchello/downloads/{link.Token}";
@@ -545,7 +548,7 @@ public class DigitalProductService(
     /// </summary>
     private string? ValidateConfiguration()
     {
-        if (string.IsNullOrEmpty(_settings.Store.WebsiteUrl))
+        if (string.IsNullOrEmpty(GetWebsiteUrl()))
         {
             logger.LogError(
                 "Digital products require Merchello:Store:WebsiteUrl to be configured (e.g., \"https://shop.example.com\")");
@@ -561,4 +564,7 @@ public class DigitalProductService(
 
         return null;
     }
+
+    private string? GetWebsiteUrl() =>
+        _storeSettingsService?.GetRuntimeSettings().Merchello.Store.WebsiteUrl ?? _settings.Store.WebsiteUrl;
 }

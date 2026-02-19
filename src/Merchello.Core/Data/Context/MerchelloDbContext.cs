@@ -23,6 +23,7 @@ using Merchello.Core.Auditing.Models;
 using Merchello.Core.GiftCards.Models;
 using Merchello.Core.Returns.Models;
 using Merchello.Core.Search.Models;
+using Merchello.Core.Settings.Models;
 using Merchello.Core.Subscriptions.Models;
 using Merchello.Core.Webhooks.Models;
 using Microsoft.EntityFrameworkCore;
@@ -129,6 +130,9 @@ public class MerchelloDbContext : DbContext
 
     // Search DbSets
     public DbSet<SearchProviderSetting> SearchProviderSettings => Set<SearchProviderSetting>();
+
+    // Store Settings DbSets
+    public DbSet<MerchelloStore> MerchelloStores => Set<MerchelloStore>();
 
     // Returns DbSets
     public DbSet<Return> Returns => Set<Return>();
