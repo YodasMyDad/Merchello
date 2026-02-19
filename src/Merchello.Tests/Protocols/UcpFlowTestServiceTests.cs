@@ -199,6 +199,48 @@ public class UcpFlowTestServiceTests
         httpHandler.ReceivedRequests[0].Headers.Contains(ProtocolHeaders.UcpAgent).ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task ExecuteGetSessionAsync_WhenAdapterThrows_ReturnsStructuredFailureResult()
+    {
+        var adapterMock = new Mock<ICommerceProtocolAdapter>();
+        adapterMock
+            .Setup(x => x.GetSessionAsync(
+                It.IsAny<string>(),
+                It.IsAny<Core.Protocols.Authentication.AgentIdentity>(),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("adapter boom"));
+
+        var protocolManagerMock = new Mock<ICommerceProtocolManager>();
+        protocolManagerMock
+            .Setup(x => x.GetAdaptersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([adapterMock.Object]);
+        protocolManagerMock
+            .Setup(x => x.GetAdapter(ProtocolAliases.Ucp))
+            .Returns(adapterMock.Object);
+
+        var service = CreateService(
+            protocolManagerMock: protocolManagerMock,
+            protocolSettings: new ProtocolSettings
+            {
+                PublicBaseUrl = "https://localhost",
+                RequireHttps = true,
+                Ucp = new UcpSettings { Version = "2026-01-23" }
+            });
+
+        var result = await service.ExecuteGetSessionAsync(new UcpTestGetSessionRequestDto
+        {
+            ModeRequested = "adapter",
+            SessionId = "session-1"
+        });
+
+        result.Success.ShouldBeFalse();
+        result.ErrorCode.ShouldBe("adapter_execution_error");
+        result.ErrorMessage.ShouldNotBeNull();
+        result.ErrorMessage.ShouldContain("adapter boom");
+        result.Response.ShouldNotBeNull();
+        result.Response.StatusCode.ShouldBe(500);
+    }
+
     private static UcpFlowTestService CreateService(
         Mock<ICommerceProtocolManager>? protocolManagerMock = null,
         Mock<IHttpClientFactory>? httpClientFactoryMock = null,

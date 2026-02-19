@@ -402,42 +402,75 @@ public class UcpFlowTestService(
                 errorMessage: "UCP protocol adapter is not available.");
         }
 
-        var adapterResponse = await adapterExecutor(adapter, agentIdentity, ct);
-        var adapterResponseData = adapterResponse.Success
-            ? adapterResponse.Data
-            : new
+        try
+        {
+            var adapterResponse = await adapterExecutor(adapter, agentIdentity, ct);
+            var adapterResponseData = adapterResponse.Success
+                ? adapterResponse.Data
+                : new
+                {
+                    error = adapterResponse.Error?.Code,
+                    message = adapterResponse.Error?.Message,
+                    details = adapterResponse.Error?.Details
+                };
+
+            var adapterResponseBody = SerializeSnapshotBody(adapterResponseData);
+            var adapterSnapshot = new UcpFlowResponseSnapshotDto
             {
-                error = adapterResponse.Error?.Code,
-                message = adapterResponse.Error?.Message,
-                details = adapterResponse.Error?.Details
+                StatusCode = adapterResponse.StatusCode,
+                Headers = [],
+                Body = adapterResponseBody,
+                TimestampUtc = DateTime.UtcNow
             };
 
-        var adapterResponseBody = SerializeSnapshotBody(adapterResponseData);
-        var adapterSnapshot = new UcpFlowResponseSnapshotDto
+            stopwatch.Stop();
+
+            return BuildStepResult(
+                step,
+                adapterResponse.Success,
+                modeRequested,
+                modeExecuted,
+                fallbackReason,
+                dryRun,
+                dryRunSkippedExecution: false,
+                timestampUtc,
+                stopwatch.ElapsedMilliseconds,
+                requestSnapshot,
+                adapterSnapshot,
+                adapterResponseData,
+                adapterResponse.Error?.Code,
+                adapterResponse.Error?.Message);
+        }
+        catch (Exception ex)
         {
-            StatusCode = adapterResponse.StatusCode,
-            Headers = [],
-            Body = adapterResponseBody,
-            TimestampUtc = DateTime.UtcNow
-        };
+            logger.LogWarning(ex, "UCP adapter flow test step {Step} failed", step);
 
-        stopwatch.Stop();
+            var responseSnapshot = new UcpFlowResponseSnapshotDto
+            {
+                StatusCode = StatusCodes.Status500InternalServerError,
+                Headers = [],
+                Body = ex.Message,
+                TimestampUtc = DateTime.UtcNow
+            };
 
-        return BuildStepResult(
-            step,
-            adapterResponse.Success,
-            modeRequested,
-            modeExecuted,
-            fallbackReason,
-            dryRun,
-            dryRunSkippedExecution: false,
-            timestampUtc,
-            stopwatch.ElapsedMilliseconds,
-            requestSnapshot,
-            adapterSnapshot,
-            adapterResponseData,
-            adapterResponse.Error?.Code,
-            adapterResponse.Error?.Message);
+            stopwatch.Stop();
+
+            return BuildStepResult(
+                step,
+                success: false,
+                modeRequested,
+                modeExecuted,
+                fallbackReason,
+                dryRun,
+                dryRunSkippedExecution: false,
+                timestampUtc,
+                stopwatch.ElapsedMilliseconds,
+                requestSnapshot,
+                responseSnapshot,
+                responseData: null,
+                errorCode: "adapter_execution_error",
+                errorMessage: ex.Message);
+        }
     }
 
     private async Task<(Dictionary<string, string> RequestHeaders, Dictionary<string, string> ResponseHeaders, int StatusCode, string ResponseBody)> ExecuteStrictHttpStepAsync(
