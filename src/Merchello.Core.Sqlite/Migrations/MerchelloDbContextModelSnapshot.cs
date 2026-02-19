@@ -2766,13 +2766,10 @@ namespace Merchello.Core.Sqlite.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("UcpPrivacyUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UcpTermsUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Ucp")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("UcpJson");
 
                     b.HasKey("Id");
 

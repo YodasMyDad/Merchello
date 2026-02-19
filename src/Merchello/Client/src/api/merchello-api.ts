@@ -651,6 +651,16 @@ export interface StoreConfigurationEmailDto {
 export interface StoreConfigurationUcpDto {
   termsUrl?: string | null;
   privacyUrl?: string | null;
+  publicBaseUrl?: string | null;
+  allowedAgents?: string[] | null;
+  capabilityCheckout?: boolean | null;
+  capabilityOrder?: boolean | null;
+  capabilityIdentityLinking?: boolean | null;
+  extensionDiscount?: boolean | null;
+  extensionFulfillment?: boolean | null;
+  extensionBuyerConsent?: boolean | null;
+  extensionAp2Mandates?: boolean | null;
+  webhookTimeoutSeconds?: number | null;
 }
 
 export interface StoreConfigurationDto {

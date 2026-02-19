@@ -67,8 +67,8 @@ public class MerchelloStoreSettingsService(
         merchello.Store.LogoUrl = mediaUrlResolver.ResolveMediaUrl(store.StoreLogoMediaKey);
         merchello.Store.WebsiteUrl = store.StoreWebsiteUrl;
         merchello.Store.Address = store.StoreAddress;
-        merchello.Store.TermsUrl = store.UcpTermsUrl;
-        merchello.Store.PrivacyUrl = store.UcpPrivacyUrl;
+        merchello.Store.TermsUrl = store.Ucp?.TermsUrl;
+        merchello.Store.PrivacyUrl = store.Ucp?.PrivacyUrl;
 
         var checkout = CloneOptions(checkoutOptions.CurrentValue);
         checkout.HeaderBackgroundImageUrl = mediaUrlResolver.ResolveMediaUrl(store.Checkout.HeaderBackgroundImageMediaKey);
@@ -124,7 +124,8 @@ public class MerchelloStoreSettingsService(
             AbandonedCheckout = abandonedCheckout,
             InvoiceReminders = invoiceReminders,
             Email = email,
-            Policies = CloneOptions(store.Policies)
+            Policies = CloneOptions(store.Policies),
+            Ucp = store.Ucp ?? new MerchelloStoreUcpSettings()
         };
     }
 
@@ -301,8 +302,18 @@ public class MerchelloStoreSettingsService(
             },
             Ucp = new StoreConfigurationUcpDto
             {
-                TermsUrl = store.UcpTermsUrl,
-                PrivacyUrl = store.UcpPrivacyUrl
+                TermsUrl = store.Ucp?.TermsUrl,
+                PrivacyUrl = store.Ucp?.PrivacyUrl,
+                PublicBaseUrl = store.Ucp?.PublicBaseUrl,
+                AllowedAgents = store.Ucp?.AllowedAgents,
+                CapabilityCheckout = store.Ucp?.CapabilityCheckout,
+                CapabilityOrder = store.Ucp?.CapabilityOrder,
+                CapabilityIdentityLinking = store.Ucp?.CapabilityIdentityLinking,
+                ExtensionDiscount = store.Ucp?.ExtensionDiscount,
+                ExtensionFulfillment = store.Ucp?.ExtensionFulfillment,
+                ExtensionBuyerConsent = store.Ucp?.ExtensionBuyerConsent,
+                ExtensionAp2Mandates = store.Ucp?.ExtensionAp2Mandates,
+                WebhookTimeoutSeconds = store.Ucp?.WebhookTimeoutSeconds
             }
         };
     }
@@ -336,13 +347,26 @@ public class MerchelloStoreSettingsService(
             ? "123 Commerce Street\nNew York, NY 10001\nUnited States"
             : storePanel.Address;
         store.StoreLogoMediaKey = storePanel.LogoMediaKey;
-        store.UcpTermsUrl = NullIfWhiteSpace(ucp.TermsUrl);
-        store.UcpPrivacyUrl = NullIfWhiteSpace(ucp.PrivacyUrl);
+        store.Ucp = new MerchelloStoreUcpSettings
+        {
+            TermsUrl = NullIfWhiteSpace(ucp.TermsUrl),
+            PrivacyUrl = NullIfWhiteSpace(ucp.PrivacyUrl),
+            PublicBaseUrl = NullIfWhiteSpace(ucp.PublicBaseUrl),
+            AllowedAgents = ucp.AllowedAgents is { Count: > 0 } ? ucp.AllowedAgents : null,
+            CapabilityCheckout = ucp.CapabilityCheckout,
+            CapabilityOrder = ucp.CapabilityOrder,
+            CapabilityIdentityLinking = ucp.CapabilityIdentityLinking,
+            ExtensionDiscount = ucp.ExtensionDiscount,
+            ExtensionFulfillment = ucp.ExtensionFulfillment,
+            ExtensionBuyerConsent = ucp.ExtensionBuyerConsent,
+            ExtensionAp2Mandates = ucp.ExtensionAp2Mandates,
+            WebhookTimeoutSeconds = ucp.WebhookTimeoutSeconds
+        };
 
         store.InvoiceReminders = new MerchelloStoreInvoiceRemindersSettings
         {
             ReminderDaysBeforeDue = Math.Max(0, reminders.ReminderDaysBeforeDue),
-            OverdueReminderIntervalDays = Math.Max(0, reminders.OverdueReminderIntervalDays),
+            OverdueReminderIntervalDays = Math.Max(1, reminders.OverdueReminderIntervalDays),
             MaxOverdueReminders = Math.Max(0, reminders.MaxOverdueReminders),
             CheckIntervalHours = Math.Max(1, reminders.CheckIntervalHours)
         };
@@ -382,9 +406,9 @@ public class MerchelloStoreSettingsService(
 
         store.AbandonedCheckout = new MerchelloStoreAbandonedCheckoutSettings
         {
-            AbandonmentThresholdHours = Math.Max(0.1, abandoned.AbandonmentThresholdHours),
+            AbandonmentThresholdHours = Math.Max(0.5, abandoned.AbandonmentThresholdHours),
             RecoveryExpiryDays = Math.Max(1, abandoned.RecoveryExpiryDays),
-            CheckIntervalMinutes = Math.Max(1, abandoned.CheckIntervalMinutes),
+            CheckIntervalMinutes = Math.Max(5, abandoned.CheckIntervalMinutes),
             FirstEmailDelayHours = Math.Max(0, abandoned.FirstEmailDelayHours),
             ReminderEmailDelayHours = Math.Max(0, abandoned.ReminderEmailDelayHours),
             FinalEmailDelayHours = Math.Max(0, abandoned.FinalEmailDelayHours),
@@ -422,6 +446,7 @@ public class MerchelloStoreSettingsService(
 
     private static void EnsureStoreSections(MerchelloStore store)
     {
+        store.Ucp ??= new MerchelloStoreUcpSettings();
         store.InvoiceReminders ??= new MerchelloStoreInvoiceRemindersSettings();
         store.Policies ??= new MerchelloStorePoliciesSettings();
         store.Checkout ??= new MerchelloStoreCheckoutSettings();

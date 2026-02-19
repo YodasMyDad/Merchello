@@ -22,4 +22,6 @@ public class MerchelloStoreRuntimeSettings
     public EmailSettings Email { get; init; } = new();
 
     public MerchelloStorePoliciesSettings Policies { get; init; } = new();
+
+    public MerchelloStoreUcpSettings Ucp { get; init; } = new();
 }

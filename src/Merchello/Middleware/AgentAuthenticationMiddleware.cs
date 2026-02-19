@@ -6,6 +6,7 @@ using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Authentication.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.Notifications;
+using Merchello.Core.Settings.Services.Interfaces;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http;
@@ -38,7 +39,8 @@ public class AgentAuthenticationMiddleware(
     public async Task InvokeAsync(
         HttpContext context,
         IMerchelloNotificationPublisher notificationPublisher,
-        IEnumerable<IAgentAuthenticator> authenticators)
+        IEnumerable<IAgentAuthenticator> authenticators,
+        IMerchelloStoreSettingsService? storeSettingsService = null)
     {
         var path = context.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
         if (!IsProtocolPath(path))
@@ -208,7 +210,7 @@ public class AgentAuthenticationMiddleware(
             }
         }
 
-        if (agentInfo != null && !IsAgentAllowed(agentInfo, protocol))
+        if (agentInfo != null && !IsAgentAllowed(agentInfo, ResolveAllowedAgents(storeSettingsService, protocol)))
         {
             logger.LogWarning("Agent {AgentId} not in allowed list for protocol {Protocol}",
                 agentInfo.AgentId,
@@ -378,14 +380,33 @@ public class AgentAuthenticationMiddleware(
         return maxVersion;
     }
 
-    private bool IsAgentAllowed(AgentIdentity agent, string protocol)
+    private List<string> ResolveAllowedAgents(IMerchelloStoreSettingsService? storeSettingsService, string protocol)
     {
-        var allowedAgents = protocol switch
+        if (protocol == ProtocolAliases.Ucp && storeSettingsService != null)
+        {
+            try
+            {
+                var dbAgents = storeSettingsService.GetRuntimeSettings().Ucp.AllowedAgents;
+                if (dbAgents != null)
+                {
+                    return dbAgents;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to resolve allowed agents from store settings, falling back to appsettings.");
+            }
+        }
+
+        return protocol switch
         {
             ProtocolAliases.Ucp => settings.Value.Ucp.AllowedAgents,
             _ => ["*"]
         };
+    }
 
+    private static bool IsAgentAllowed(AgentIdentity agent, List<string> allowedAgents)
+    {
         if (allowedAgents.Contains("*"))
         {
             return true;
