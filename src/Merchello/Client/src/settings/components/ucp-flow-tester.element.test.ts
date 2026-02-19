@@ -193,4 +193,20 @@ describe("ucp flow tester element", () => {
     const payload = element._buildLineItemsPayload();
     expect(payload).toHaveLength(2);
   });
+
+  it("clears active step when execution throws unexpectedly", async () => {
+    const element = new MerchelloUcpFlowTesterElement() as unknown as {
+      _activeStep: string | null;
+      _executeStep: (
+        stepName: string,
+        runner: () => Promise<{ data?: unknown; error?: Error }>
+      ) => Promise<void>;
+    };
+
+    await element._executeStep("manifest", async () => {
+      throw new Error("boom");
+    });
+
+    expect(element._activeStep).toBeNull();
+  });
 });

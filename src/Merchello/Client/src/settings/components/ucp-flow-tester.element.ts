@@ -177,7 +177,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
     const { data, error } = await MerchelloApi.getUcpFlowDiagnostics();
     if (error || !data) {
-      this._diagnosticsError = error?.message ?? "Unable to load UCP flow diagnostics.";
+      this._diagnosticsError = error?.message ?? this._t("merchello_ucpFlowTesterDiagnosticsLoadFailed", "Unable to load UCP flow diagnostics.");
       this._isLoadingDiagnostics = false;
       return;
     }
@@ -275,6 +275,23 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
   private _readChecked(event: Event): boolean {
     const target = event.target as { checked?: boolean };
     return target.checked === true;
+  }
+
+  private _t(key: string, fallback: string): string {
+    const localize = (this as { localize?: { termOrDefault?: (termKey: string, defaultValue: string) => string } }).localize;
+    if (localize?.termOrDefault) {
+      return localize.termOrDefault(key, fallback);
+    }
+
+    return fallback;
+  }
+
+  private _renderReadOnlyProperty(labelKey: string, labelFallback: string, value: string): unknown {
+    return html`
+      <umb-property-layout orientation="vertical" .label=${this._t(labelKey, labelFallback)}>
+        <span slot="editor" class="value">${value}</span>
+      </umb-property-layout>
+    `;
   }
 
   private _isStrictModeBlocked(): boolean {
@@ -416,7 +433,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private async _executeCreateSessionStep(): Promise<void> {
     if (this._selectedProducts.length === 0) {
-      this._notify("warning", "Select at least one product before creating a session.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterSelectProductWarning", "Select at least one product before creating a session."));
       return;
     }
 
@@ -439,7 +456,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private async _executeGetSessionStep(): Promise<void> {
     if (!this._sessionId) {
-      this._notify("warning", "Create a new session first.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterCreateSessionFirstWarning", "Create a new session first."));
       return;
     }
 
@@ -454,7 +471,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private async _executeUpdateSessionStep(): Promise<void> {
     if (!this._sessionId) {
-      this._notify("warning", "Create a new session first.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterCreateSessionFirstWarning", "Create a new session first."));
       return;
     }
 
@@ -477,12 +494,12 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private async _executeCompleteSessionStep(): Promise<void> {
     if (!this._sessionId) {
-      this._notify("warning", "Create a new session first.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterCreateSessionFirstWarning", "Create a new session first."));
       return;
     }
 
     if (!this._dryRun && !this._realOrderConfirmed) {
-      this._notify("warning", "Confirm real order creation before running complete.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterConfirmRealOrderWarning", "Confirm real order creation before running complete."));
       return;
     }
 
@@ -503,7 +520,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private async _executeGetOrderStep(): Promise<void> {
     if (!this._orderId) {
-      this._notify("warning", "No order ID is available yet.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterNoOrderIdWarning", "No order ID is available yet."));
       return;
     }
 
@@ -518,7 +535,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private async _executeCancelSessionStep(): Promise<void> {
     if (!this._sessionId) {
-      this._notify("warning", "No session is active.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterNoActiveSessionWarning", "No session is active."));
       return;
     }
 
@@ -540,16 +557,20 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
     }
 
     this._activeStep = stepName;
+    try {
+      const { data, error } = await runner();
+      if (error || !data) {
+        this._notify("danger", error?.message ?? this._t("merchello_ucpFlowTesterStepFailed", `Step ${stepName} failed.`));
+        return;
+      }
 
-    const { data, error } = await runner();
-    if (error || !data) {
-      this._notify("danger", error?.message ?? `Step ${stepName} failed.`);
+      this._applyStepResult(data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : this._t("merchello_ucpFlowTesterStepFailed", `Step ${stepName} failed.`);
+      this._notify("danger", message);
+    } finally {
       this._activeStep = null;
-      return;
     }
-
-    this._applyStepResult(data);
-    this._activeStep = null;
   }
 
   private _applyStepResult(result: UcpFlowStepResultDto): void {
@@ -627,7 +648,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
             const firstTotal = this._asObject(totals[0]);
             return {
               id: this._asString(option.id) ?? "",
-              title: this._asString(option.title) ?? "Option",
+              title: this._asString(option.title) ?? this._t("merchello_ucpFlowTesterOptionLabel", "Option"),
               amount: this._asNumber(firstTotal?.amount),
               currency: this._asString(firstTotal?.currency),
             } satisfies UcpFlowFulfillmentOption;
@@ -859,7 +880,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
   private _formatSnapshotBody(body: string | null | undefined): string {
     const normalized = body?.trim();
     if (!normalized) {
-      return "(empty)";
+      return this._t("merchello_ucpFlowTesterEmptySnapshot", "(empty)");
     }
 
     try {
@@ -872,30 +893,35 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
   private async _copyText(value: string, label: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(value);
-      this._notify("positive", `${label} copied.`);
+      this._notify("positive", this._t("merchello_ucpFlowTesterCopied", `${label} copied.`));
     } catch {
-      this._notify("warning", "Clipboard write failed.");
+      this._notify("warning", this._t("merchello_ucpFlowTesterClipboardFailed", "Clipboard write failed."));
     }
   }
 
   private _notify(color: "positive" | "warning" | "danger", message: string): void {
     this.#notificationContext?.peek(color, {
       data: {
-        headline: "UCP Flow Tester",
+        headline: this._t("merchello_ucpFlowTesterHeadline", "UCP Flow Tester"),
         message,
       },
     });
   }
   private _renderDiagnosticsPanel(): unknown {
     if (this._isLoadingDiagnostics) {
-      return html`<div class="loading-row"><uui-loader></uui-loader><span>Loading diagnostics...</span></div>`;
+      return html`<div class="loading-row"><uui-loader></uui-loader><span>${this._t("merchello_ucpFlowTesterLoadingDiagnostics", "Loading diagnostics...")}</span></div>`;
     }
 
     if (this._diagnosticsError) {
       return html`
         <div class="error-banner">
           <span>${this._diagnosticsError}</span>
-          <uui-button label="Retry diagnostics" look="secondary" @click=${this._loadDiagnostics}>Retry</uui-button>
+          <uui-button
+            .label=${this._t("merchello_ucpFlowTesterRetryDiagnostics", "Retry diagnostics")}
+            look="secondary"
+            @click=${this._loadDiagnostics}>
+            ${this._t("general_retry", "Retry")}
+          </uui-button>
         </div>
       `;
     }
@@ -906,28 +932,66 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
     return html`
       <div class="diagnostics-grid">
-        <div><span class="label">Protocol Version</span><span class="value">${this._diagnostics.protocolVersion}</span></div>
-        <div><span class="label">Strict Mode</span><span class="value">${this._diagnostics.strictModeAvailable ? "Available" : "Blocked"}</span></div>
-        <div><span class="label">Public Base URL</span><span class="value">${this._diagnostics.publicBaseUrl || "-"}</span></div>
-        <div><span class="label">Effective Base URL</span><span class="value">${this._diagnostics.effectiveBaseUrl || "-"}</span></div>
-        <div><span class="label">Require HTTPS</span><span class="value">${this._diagnostics.requireHttps ? "Yes" : "No"}</span></div>
-        <div><span class="label">Minimum TLS</span><span class="value">${this._diagnostics.minimumTlsVersion}</span></div>
-        <div><span class="label">Agent Profile URL</span><span class="value">${this._diagnostics.simulatedAgentProfileUrl || "-"}</span></div>
-        <div><span class="label">Fallback Mode</span><span class="value">${this._diagnostics.strictFallbackMode}</span></div>
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterProtocolVersion",
+          "Protocol Version",
+          this._diagnostics.protocolVersion || "-"
+        )}
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterStrictMode",
+          "Strict Mode",
+          this._diagnostics.strictModeAvailable
+            ? this._t("merchello_ucpFlowTesterStatusAvailable", "Available")
+            : this._t("merchello_ucpFlowTesterStatusBlocked", "Blocked")
+        )}
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterPublicBaseUrl",
+          "Public Base URL",
+          this._diagnostics.publicBaseUrl || "-"
+        )}
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterEffectiveBaseUrl",
+          "Effective Base URL",
+          this._diagnostics.effectiveBaseUrl || "-"
+        )}
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterRequireHttps",
+          "Require HTTPS",
+          this._diagnostics.requireHttps ? this._t("general_yes", "Yes") : this._t("general_no", "No")
+        )}
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterMinimumTls",
+          "Minimum TLS",
+          this._diagnostics.minimumTlsVersion || "-"
+        )}
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterAgentProfileUrl",
+          "Agent Profile URL",
+          this._diagnostics.simulatedAgentProfileUrl || "-"
+        )}
+        ${this._renderReadOnlyProperty(
+          "merchello_ucpFlowTesterFallbackMode",
+          "Fallback Mode",
+          this._diagnostics.strictFallbackMode || "-"
+        )}
       </div>
 
-      <div class="token-row">
-        <span class="label">Capabilities</span>
-        ${this._diagnostics.capabilities.length === 0
-          ? html`<span class="value">None</span>`
-          : this._diagnostics.capabilities.map((capability) => html`<uui-tag>${capability}</uui-tag>`)}
-      </div>
+      <div class="diagnostics-meta-grid">
+        <umb-property-layout orientation="vertical" .label=${this._t("merchello_ucpFlowTesterCapabilities", "Capabilities")}>
+          <div slot="editor" class="token-row">
+            ${this._diagnostics.capabilities.length === 0
+              ? html`<span class="value">${this._t("merchello_ucpFlowTesterNone", "None")}</span>`
+              : this._diagnostics.capabilities.map((capability) => html`<uui-tag>${capability}</uui-tag>`)}
+          </div>
+        </umb-property-layout>
 
-      <div class="token-row">
-        <span class="label">Extensions</span>
-        ${this._diagnostics.extensions.length === 0
-          ? html`<span class="value">None</span>`
-          : this._diagnostics.extensions.map((extension) => html`<uui-tag>${extension}</uui-tag>`)}
+        <umb-property-layout orientation="vertical" .label=${this._t("merchello_ucpFlowTesterExtensions", "Extensions")}>
+          <div slot="editor" class="token-row">
+            ${this._diagnostics.extensions.length === 0
+              ? html`<span class="value">${this._t("merchello_ucpFlowTesterNone", "None")}</span>`
+              : this._diagnostics.extensions.map((extension) => html`<uui-tag>${extension}</uui-tag>`)}
+          </div>
+        </umb-property-layout>
       </div>
     `;
   }
@@ -940,18 +1004,81 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
     return html`
       <div class="warning-banner">
         <div>
-          <strong>Strict mode is blocked.</strong>
-          <div>${this._diagnostics?.strictModeBlockReason || "Strict mode is unavailable in this runtime."}</div>
+          <strong>${this._t("merchello_ucpFlowTesterStrictBlockedTitle", "Strict mode is blocked.")}</strong>
+          <div>${this._diagnostics?.strictModeBlockReason || this._t("merchello_ucpFlowTesterStrictUnavailable", "Strict mode is unavailable in this runtime.")}</div>
         </div>
         <uui-button
-          label="Switch to adapter mode"
+          .label=${this._t("merchello_ucpFlowTesterSwitchToAdapter", "Switch to adapter mode")}
           look="primary"
           color="positive"
           @click=${this._switchToAdapterMode}>
-          Switch to Adapter
+          ${this._t("merchello_ucpFlowTesterSwitchToAdapterButton", "Switch to Adapter")}
         </uui-button>
       </div>
     `;
+  }
+
+  private _getExecutionModeOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      {
+        name: this._t("merchello_ucpFlowTesterAdapterMode", "Adapter Mode"),
+        value: "adapter",
+        selected: this._modeRequested === "adapter",
+      },
+      {
+        name: this._t("merchello_ucpFlowTesterStrictHttpMode", "Strict HTTP Mode"),
+        value: "strict",
+        selected: this._modeRequested === "strict",
+      },
+    ];
+  }
+
+  private _getTemplateOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      {
+        name: this._t("merchello_ucpFlowTesterTemplatePhysical", "Physical Product"),
+        value: "physical",
+        selected: this._templatePreset === "physical",
+      },
+      {
+        name: this._t("merchello_ucpFlowTesterTemplateDigital", "Digital Product"),
+        value: "digital",
+        selected: this._templatePreset === "digital",
+      },
+      {
+        name: this._t("merchello_ucpFlowTesterTemplateIncompleteBuyer", "Incomplete Buyer"),
+        value: "incomplete",
+        selected: this._templatePreset === "incomplete",
+      },
+      {
+        name: this._t("merchello_ucpFlowTesterTemplateMultiItem", "Multi-item"),
+        value: "multi-item",
+        selected: this._templatePreset === "multi-item",
+      },
+    ];
+  }
+
+  private _getPaymentHandlerOptions(): Array<{ name: string; value: string; selected: boolean }> {
+    return this._availablePaymentHandlerIds.map((handlerId) => ({
+      name: handlerId,
+      value: handlerId,
+      selected: handlerId === this._paymentHandlerId,
+    }));
+  }
+
+  private _getFulfillmentGroupOptions(group: UcpFlowFulfillmentGroup): Array<{ name: string; value: string; selected: boolean }> {
+    return [
+      {
+        name: this._t("merchello_ucpFlowTesterSelectOption", "Select option"),
+        value: "",
+        selected: !this._selectedFulfillmentOptionIds[group.id],
+      },
+      ...group.options.map((option) => ({
+        name: `${option.title}${option.amount != null ? ` (${option.currency || ""} ${option.amount})` : ""}`,
+        value: option.id,
+        selected: this._selectedFulfillmentOptionIds[group.id] === option.id,
+      })),
+    ];
   }
 
   private _renderSetupPanel(): unknown {
@@ -959,56 +1086,89 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
       ${this._renderStrictBlockedBanner()}
 
       <div class="setup-grid">
-        <umb-property-layout label="Execution Mode" description="Adapter executes the protocol adapter directly. Strict executes signed HTTP calls.">
-          <uui-select slot="editor" label="Execution Mode" .value=${this._modeRequested} @change=${this._handleModeChange}>
-            <option value="adapter">Adapter Mode</option>
-            <option value="strict">Strict HTTP Mode</option>
+        <umb-property-layout
+          .label=${this._t("merchello_ucpFlowTesterExecutionModeLabel", "Execution Mode")}
+          .description=${this._t("merchello_ucpFlowTesterExecutionModeDescription", "Adapter executes the protocol adapter directly. Strict executes signed HTTP calls.")}>
+          <uui-select
+            slot="editor"
+            .label=${this._t("merchello_ucpFlowTesterExecutionModeLabel", "Execution Mode")}
+            .options=${this._getExecutionModeOptions()}
+            @change=${this._handleModeChange}>
           </uui-select>
         </umb-property-layout>
 
-        <umb-property-layout label="Template" description="Guided setup presets for common UCP scenarios.">
-          <uui-select slot="editor" label="Template" .value=${this._templatePreset} @change=${this._handleTemplatePresetChange}>
-            <option value="physical">Physical Product</option>
-            <option value="digital">Digital Product</option>
-            <option value="incomplete">Incomplete Buyer</option>
-            <option value="multi-item">Multi-item</option>
+        <umb-property-layout
+          .label=${this._t("merchello_ucpFlowTesterTemplateLabel", "Template")}
+          .description=${this._t("merchello_ucpFlowTesterTemplateDescription", "Guided setup presets for common UCP scenarios.")}>
+          <uui-select
+            slot="editor"
+            .label=${this._t("merchello_ucpFlowTesterTemplateLabel", "Template")}
+            .options=${this._getTemplateOptions()}
+            @change=${this._handleTemplatePresetChange}>
           </uui-select>
         </umb-property-layout>
 
-        <umb-property-layout label="Agent ID" description="Used to build the simulated test agent profile URL.">
-          <uui-input slot="editor" label="Agent ID" .value=${this._agentId} @input=${this._handleAgentIdChange}></uui-input>
+        <umb-property-layout
+          .label=${this._t("merchello_ucpFlowTesterAgentIdLabel", "Agent ID")}
+          .description=${this._t("merchello_ucpFlowTesterAgentIdDescription", "Used to build the simulated test agent profile URL.")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterAgentIdLabel", "Agent ID")} .value=${this._agentId} @input=${this._handleAgentIdChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Dry Run Complete" description="When enabled, complete returns a preview and does not create an order.">
-          <uui-toggle slot="editor" label="Dry Run Complete" ?checked=${this._dryRun} @change=${this._handleDryRunChange}></uui-toggle>
+        <umb-property-layout
+          .label=${this._t("merchello_ucpFlowTesterDryRunLabel", "Dry Run Complete")}
+          .description=${this._t("merchello_ucpFlowTesterDryRunDescription", "When enabled, complete returns a preview and does not create an order.")}>
+          <uui-toggle slot="editor" .label=${this._t("merchello_ucpFlowTesterDryRunLabel", "Dry Run Complete")} ?checked=${this._dryRun} @change=${this._handleDryRunChange}></uui-toggle>
         </umb-property-layout>
 
-        <umb-property-layout label="Real Order Confirmation" description="Required before running complete with dry-run disabled.">
+        <umb-property-layout
+          .label=${this._t("merchello_ucpFlowTesterRealOrderConfirmationLabel", "Real Order Confirmation")}
+          .description=${this._t("merchello_ucpFlowTesterRealOrderConfirmationDescription", "Required before running complete with dry-run disabled.")}>
           <uui-toggle
             slot="editor"
-            label="Real Order Confirmation"
+            .label=${this._t("merchello_ucpFlowTesterRealOrderConfirmationLabel", "Real Order Confirmation")}
             ?disabled=${this._dryRun}
             ?checked=${this._realOrderConfirmed}
             @change=${this._handleRealOrderConfirmedChange}>
           </uui-toggle>
         </umb-property-layout>
 
-        <umb-property-layout label="Payment Handler ID" description="Used for complete session requests in real mode.">
+        <umb-property-layout
+          .label=${this._t("merchello_ucpFlowTesterPaymentHandlerLabel", "Payment Handler ID")}
+          .description=${this._t("merchello_ucpFlowTesterPaymentHandlerDescription", "Used for complete session requests in real mode.")}>
           ${this._availablePaymentHandlerIds.length > 0
             ? html`
-                <uui-select slot="editor" label="Payment Handler ID" .value=${this._paymentHandlerId} @change=${this._handlePaymentHandlerIdChange}>
-                  ${this._availablePaymentHandlerIds.map((handlerId) => html`<option value=${handlerId}>${handlerId}</option>`)}
+                <uui-select
+                  slot="editor"
+                  .label=${this._t("merchello_ucpFlowTesterPaymentHandlerLabel", "Payment Handler ID")}
+                  .options=${this._getPaymentHandlerOptions()}
+                  @change=${this._handlePaymentHandlerIdChange}>
                 </uui-select>
               `
             : html`
-                <uui-input slot="editor" label="Payment Handler ID" .value=${this._paymentHandlerId} @input=${this._handlePaymentHandlerIdChange}></uui-input>
+                <uui-input
+                  slot="editor"
+                  .label=${this._t("merchello_ucpFlowTesterPaymentHandlerLabel", "Payment Handler ID")}
+                  .value=${this._paymentHandlerId}
+                  @input=${this._handlePaymentHandlerIdChange}>
+                </uui-input>
               `}
         </umb-property-layout>
       </div>
 
       <div class="section-toolbar">
-        <uui-button label="Add products" look="primary" color="positive" @click=${this._openProductPicker}>Pick Products</uui-button>
-        <uui-button label="Start a new run" look="secondary" @click=${this._startNewRun}>Start New Run</uui-button>
+        <uui-button
+          .label=${this._t("merchello_ucpFlowTesterAddProducts", "Add products")}
+          look="primary"
+          color="positive"
+          @click=${this._openProductPicker}>
+          ${this._t("merchello_ucpFlowTesterPickProducts", "Pick Products")}
+        </uui-button>
+        <uui-button
+          .label=${this._t("merchello_ucpFlowTesterStartNewRun", "Start a new run")}
+          look="secondary"
+          @click=${this._startNewRun}>
+          ${this._t("merchello_ucpFlowTesterStartNewRunButton", "Start New Run")}
+        </uui-button>
       </div>
 
       ${this._renderSelectedProducts()}
@@ -1019,7 +1179,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private _renderSelectedProducts(): unknown {
     if (this._selectedProducts.length === 0) {
-      return html`<div class="empty-note">No products selected yet.</div>`;
+      return html`<div class="empty-note">${this._t("merchello_ucpFlowTesterNoProductsSelected", "No products selected yet.")}</div>`;
     }
 
     return html`
@@ -1028,22 +1188,22 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
           <div class="product-row">
             <div class="product-main">
               <strong>${product.name}</strong>
-              <span>${product.sku || "No SKU"} · $${formatNumber(product.price, 2)}</span>
+              <span>${product.sku || this._t("merchello_ucpFlowTesterNoSku", "No SKU")} · $${formatNumber(product.price, 2)}</span>
             </div>
             <uui-input
               class="qty-input"
               type="number"
               min="1"
-              label="Quantity"
+              .label=${this._t("merchello_ucpFlowTesterQuantity", "Quantity")}
               .value=${String(product.quantity)}
               @input=${(event: Event) => this._updateProductQuantity(product.key, event)}>
             </uui-input>
             <uui-button
               look="secondary"
               color="danger"
-              label="Remove product"
+              .label=${this._t("merchello_ucpFlowTesterRemoveProduct", "Remove product")}
               @click=${() => this._removeProduct(product.key)}>
-              Remove
+              ${this._t("general_remove", "Remove")}
             </uui-button>
           </div>
         `)}
@@ -1054,48 +1214,50 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
   private _renderBuyerAndDiscountSetup(): unknown {
     return html`
       <div class="setup-grid">
-        <umb-property-layout label="Buyer Email">
-          <uui-input slot="editor" label="Buyer Email" .value=${this._buyerEmail} @input=${this._handleBuyerEmailChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterBuyerEmail", "Buyer Email")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterBuyerEmail", "Buyer Email")} .value=${this._buyerEmail} @input=${this._handleBuyerEmailChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Buyer Phone">
-          <uui-input slot="editor" label="Buyer Phone" .value=${this._buyerPhone} @input=${this._handleBuyerPhoneChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterBuyerPhone", "Buyer Phone")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterBuyerPhone", "Buyer Phone")} .value=${this._buyerPhone} @input=${this._handleBuyerPhoneChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Given Name">
-          <uui-input slot="editor" label="Given Name" .value=${this._buyerGivenName} @input=${this._handleBuyerGivenNameChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterGivenName", "Given Name")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterGivenName", "Given Name")} .value=${this._buyerGivenName} @input=${this._handleBuyerGivenNameChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Family Name">
-          <uui-input slot="editor" label="Family Name" .value=${this._buyerFamilyName} @input=${this._handleBuyerFamilyNameChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterFamilyName", "Family Name")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterFamilyName", "Family Name")} .value=${this._buyerFamilyName} @input=${this._handleBuyerFamilyNameChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Address Line 1">
-          <uui-input slot="editor" label="Address Line 1" .value=${this._buyerAddressLine1} @input=${this._handleBuyerAddressLine1Change}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterAddressLine1", "Address Line 1")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterAddressLine1", "Address Line 1")} .value=${this._buyerAddressLine1} @input=${this._handleBuyerAddressLine1Change}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Address Line 2">
-          <uui-input slot="editor" label="Address Line 2" .value=${this._buyerAddressLine2} @input=${this._handleBuyerAddressLine2Change}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterAddressLine2", "Address Line 2")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterAddressLine2", "Address Line 2")} .value=${this._buyerAddressLine2} @input=${this._handleBuyerAddressLine2Change}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Town/City">
-          <uui-input slot="editor" label="Town/City" .value=${this._buyerLocality} @input=${this._handleBuyerLocalityChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterTownCity", "Town/City")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterTownCity", "Town/City")} .value=${this._buyerLocality} @input=${this._handleBuyerLocalityChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Region">
-          <uui-input slot="editor" label="Region" .value=${this._buyerAdministrativeArea} @input=${this._handleBuyerAdministrativeAreaChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterRegion", "Region")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterRegion", "Region")} .value=${this._buyerAdministrativeArea} @input=${this._handleBuyerAdministrativeAreaChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Postal Code">
-          <uui-input slot="editor" label="Postal Code" .value=${this._buyerPostalCode} @input=${this._handleBuyerPostalCodeChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterPostalCode", "Postal Code")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterPostalCode", "Postal Code")} .value=${this._buyerPostalCode} @input=${this._handleBuyerPostalCodeChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Country Code">
-          <uui-input slot="editor" label="Country Code" maxlength="2" .value=${this._buyerCountryCode} @input=${this._handleBuyerCountryCodeChange}></uui-input>
+        <umb-property-layout .label=${this._t("merchello_ucpFlowTesterCountryCode", "Country Code")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterCountryCode", "Country Code")} maxlength="2" .value=${this._buyerCountryCode} @input=${this._handleBuyerCountryCodeChange}></uui-input>
         </umb-property-layout>
 
-        <umb-property-layout label="Discount Codes" description="Comma-separated promotional codes.">
-          <uui-input slot="editor" label="Discount Codes" .value=${this._discountCodesInput} @input=${this._handleDiscountCodesChange}></uui-input>
+        <umb-property-layout
+          .label=${this._t("merchello_ucpFlowTesterDiscountCodes", "Discount Codes")}
+          .description=${this._t("merchello_ucpFlowTesterDiscountCodesDescription", "Comma-separated promotional codes.")}>
+          <uui-input slot="editor" .label=${this._t("merchello_ucpFlowTesterDiscountCodes", "Discount Codes")} .value=${this._discountCodesInput} @input=${this._handleDiscountCodesChange}></uui-input>
         </umb-property-layout>
       </div>
     `;
@@ -1103,7 +1265,7 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   private _renderFulfillmentSelections(): unknown {
     if (this._fulfillmentGroups.length === 0) {
-      return html`<div class="empty-note">No fulfillment groups available yet. Run create/get/update first.</div>`;
+      return html`<div class="empty-note">${this._t("merchello_ucpFlowTesterNoFulfillmentGroups", "No fulfillment groups available yet. Run create/get/update first.")}</div>`;
     }
 
     return html`
@@ -1115,15 +1277,9 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
               <span>${group.id}</span>
             </div>
             <uui-select
-              label="Fulfillment option"
-              .value=${this._selectedFulfillmentOptionIds[group.id] ?? ""}
+              .label=${this._t("merchello_ucpFlowTesterFulfillmentOption", "Fulfillment option")}
+              .options=${this._getFulfillmentGroupOptions(group)}
               @change=${(event: Event) => this._updateFulfillmentGroupSelection(group.id, event)}>
-              <option value="">Select option</option>
-              ${group.options.map((option) => html`
-                <option value=${option.id}>
-                  ${option.title}${option.amount != null ? ` (${option.currency || ""} ${option.amount})` : ""}
-                </option>
-              `)}
             </uui-select>
           </div>
         `)}
@@ -1138,13 +1294,13 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
     return html`
       <div class="steps">
-        ${this._renderStep("Manifest", "manifest", this._executeManifestStep, false)}
-        ${this._renderStep("Create Session", "create_session", this._executeCreateSessionStep, this._selectedProducts.length === 0)}
-        ${this._renderStep("Get Session", "get_session", this._executeGetSessionStep, !sessionReady)}
-        ${this._renderStep("Update Session", "update_session", this._executeUpdateSessionStep, !sessionReady)}
-        ${this._renderStep("Complete Session", "complete_session", this._executeCompleteSessionStep, completeDisabled)}
-        ${this._renderStep("Get Order", "get_order", this._executeGetOrderStep, !orderReady)}
-        ${this._renderStep("Cancel Session", "cancel_session", this._executeCancelSessionStep, !sessionReady)}
+        ${this._renderStep(this._t("merchello_ucpFlowTesterStepManifest", "Manifest"), "manifest", this._executeManifestStep, false)}
+        ${this._renderStep(this._t("merchello_ucpFlowTesterStepCreateSession", "Create Session"), "create_session", this._executeCreateSessionStep, this._selectedProducts.length === 0)}
+        ${this._renderStep(this._t("merchello_ucpFlowTesterStepGetSession", "Get Session"), "get_session", this._executeGetSessionStep, !sessionReady)}
+        ${this._renderStep(this._t("merchello_ucpFlowTesterStepUpdateSession", "Update Session"), "update_session", this._executeUpdateSessionStep, !sessionReady)}
+        ${this._renderStep(this._t("merchello_ucpFlowTesterStepCompleteSession", "Complete Session"), "complete_session", this._executeCompleteSessionStep, completeDisabled)}
+        ${this._renderStep(this._t("merchello_ucpFlowTesterStepGetOrder", "Get Order"), "get_order", this._executeGetOrderStep, !orderReady)}
+        ${this._renderStep(this._t("merchello_ucpFlowTesterStepCancelSession", "Cancel Session"), "cancel_session", this._executeCancelSessionStep, !sessionReady)}
       </div>
     `;
   }
@@ -1162,10 +1318,10 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
         <uui-button
           look="primary"
           color="positive"
-          label=${label}
+          .label=${label}
           ?disabled=${disabled || !!this._activeStep}
           @click=${action}>
-          ${isRunning ? "Running..." : label}
+          ${isRunning ? this._t("merchello_ucpFlowTesterRunning", "Running...") : label}
         </uui-button>
       </div>
     `;
@@ -1174,16 +1330,16 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
   private _renderRunState(): unknown {
     return html`
       <div class="runtime-state">
-        <div><span class="label">Session ID</span><span class="value">${this._sessionId || "-"}</span></div>
-        <div><span class="label">Session Status</span><span class="value">${this._sessionStatus || "-"}</span></div>
-        <div><span class="label">Order ID</span><span class="value">${this._orderId || "-"}</span></div>
+        ${this._renderReadOnlyProperty("merchello_ucpFlowTesterSessionId", "Session ID", this._sessionId || "-")}
+        ${this._renderReadOnlyProperty("merchello_ucpFlowTesterSessionStatus", "Session Status", this._sessionStatus || "-")}
+        ${this._renderReadOnlyProperty("merchello_ucpFlowTesterOrderId", "Order ID", this._orderId || "-")}
       </div>
     `;
   }
 
   private _renderTranscriptPanel(): unknown {
     if (this._transcripts.length === 0) {
-      return html`<div class="empty-note">Run wizard steps to capture request/response transcripts.</div>`;
+      return html`<div class="empty-note">${this._t("merchello_ucpFlowTesterNoTranscripts", "Run wizard steps to capture request/response transcripts.")}</div>`;
     }
 
     return html`
@@ -1198,10 +1354,10 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
             <details class="transcript-item">
               <summary>
                 <span class="summary-step">${entry.step}</span>
-                <span class=${entry.success ? "badge positive" : "badge danger"}>${entry.success ? "Success" : "Failed"}</span>
+                <span class=${entry.success ? "badge positive" : "badge danger"}>${entry.success ? this._t("general_success", "Success") : this._t("general_failed", "Failed")}</span>
                 <span class="badge neutral">${modeLabel}</span>
-                ${entry.fallbackApplied ? html`<span class="badge warning">Fallback</span>` : nothing}
-                <span class="badge neutral">HTTP ${entry.response?.statusCode ?? "-"}</span>
+                ${entry.fallbackApplied ? html`<span class="badge warning">${this._t("merchello_ucpFlowTesterFallback", "Fallback")}</span>` : nothing}
+                <span class="badge neutral">${this._t("merchello_ucpFlowTesterHttpPrefix", "HTTP")} ${entry.response?.statusCode ?? "-"}</span>
               </summary>
 
               ${entry.fallbackReason ? html`<div class="fallback-reason">${entry.fallbackReason}</div>` : nothing}
@@ -1209,26 +1365,26 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
               <div class="transcript-actions">
                 <uui-button
                   look="secondary"
-                  label="Copy Request"
-                  @click=${() => this._copyText(`Headers:\n${requestHeaderJson}\n\nBody:\n${requestBody}`, "Request")}>
-                  Copy Request
+                  .label=${this._t("merchello_ucpFlowTesterCopyRequest", "Copy Request")}
+                  @click=${() => this._copyText(`Headers:\n${requestHeaderJson}\n\nBody:\n${requestBody}`, this._t("merchello_ucpFlowTesterRequest", "Request"))}>
+                  ${this._t("merchello_ucpFlowTesterCopyRequest", "Copy Request")}
                 </uui-button>
                 <uui-button
                   look="secondary"
-                  label="Copy Response"
-                  @click=${() => this._copyText(`Headers:\n${responseHeaderJson}\n\nBody:\n${responseBody}`, "Response")}>
-                  Copy Response
+                  .label=${this._t("merchello_ucpFlowTesterCopyResponse", "Copy Response")}
+                  @click=${() => this._copyText(`Headers:\n${responseHeaderJson}\n\nBody:\n${responseBody}`, this._t("merchello_ucpFlowTesterResponse", "Response"))}>
+                  ${this._t("merchello_ucpFlowTesterCopyResponse", "Copy Response")}
                 </uui-button>
               </div>
 
               <div class="transcript-grid">
                 <div>
-                  <h5>Request</h5>
+                  <h5>${this._t("merchello_ucpFlowTesterRequest", "Request")}</h5>
                   <div class="code-block">${requestHeaderJson}</div>
                   <div class="code-block">${requestBody}</div>
                 </div>
                 <div>
-                  <h5>Response</h5>
+                  <h5>${this._t("merchello_ucpFlowTesterResponse", "Response")}</h5>
                   <div class="code-block">${responseHeaderJson}</div>
                   <div class="code-block">${responseBody}</div>
                 </div>
@@ -1242,20 +1398,20 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
   override render() {
     return html`
-      <uui-box headline="Runtime Diagnostics">
+      <uui-box .headline=${this._t("merchello_ucpFlowTesterRuntimeDiagnostics", "Runtime Diagnostics")}>
         ${this._renderDiagnosticsPanel()}
       </uui-box>
 
-      <uui-box headline="Run Setup">
+      <uui-box .headline=${this._t("merchello_ucpFlowTesterRunSetup", "Run Setup")}>
         ${this._renderSetupPanel()}
       </uui-box>
 
-      <uui-box headline="Wizard Steps">
+      <uui-box .headline=${this._t("merchello_ucpFlowTesterWizardSteps", "Wizard Steps")}>
         ${this._renderRunState()}
         ${this._renderWizardSteps()}
       </uui-box>
 
-      <uui-box headline="Step Transcript">
+      <uui-box .headline=${this._t("merchello_ucpFlowTesterStepTranscript", "Step Transcript")}>
         ${this._renderTranscriptPanel()}
       </uui-box>
     `;
@@ -1279,10 +1435,23 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
       margin-bottom: var(--uui-size-space-4);
     }
 
+    .diagnostics-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: var(--uui-size-space-3);
+      margin-bottom: var(--uui-size-space-2);
+    }
+
     .setup-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: var(--uui-size-space-3);
+    }
+
+    .setup-grid uui-input,
+    .setup-grid uui-select,
+    .setup-grid uui-toggle {
+      width: 100%;
     }
 
     .runtime-state {
@@ -1310,7 +1479,6 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
       align-items: center;
       flex-wrap: wrap;
       gap: var(--uui-size-space-2);
-      margin-bottom: var(--uui-size-space-2);
     }
 
     .warning-banner,
@@ -1359,6 +1527,10 @@ export class MerchelloUcpFlowTesterElement extends UmbElementMixin(LitElement) {
 
     .group-row {
       grid-template-columns: 1fr minmax(220px, 320px);
+    }
+
+    .group-row uui-select {
+      width: 100%;
     }
 
     .product-main,

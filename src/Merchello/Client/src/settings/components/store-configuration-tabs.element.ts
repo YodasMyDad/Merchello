@@ -300,6 +300,15 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     return (e.target as HTMLInputElement).value?.trim() ?? "";
   }
 
+  private _t(key: string, fallback: string): string {
+    const localize = (this as { localize?: { termOrDefault?: (termKey: string, defaultValue: string) => string } }).localize;
+    if (localize?.termOrDefault) {
+      return localize.termOrDefault(key, fallback);
+    }
+
+    return fallback;
+  }
+
   private _handleCheckoutColorChange(field: CheckoutColorField, e: Event): void {
     if (!this._configuration) return;
     const value = this._getColorValueFromEvent(e);
@@ -957,16 +966,16 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
 
   private _renderUcpTab(): unknown {
     return html`
-      <uui-box headline="UCP">
+      <uui-box .headline=${this._t("merchello_settingsUcpHeadline", "UCP")}>
         <umb-property-dataset
           .value=${this._getUcpDatasetValue()}
           @change=${this._handleUcpDatasetChange}>
-          <umb-property alias="termsUrl" label="Terms URL" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="privacyUrl" label="Privacy URL" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
+          <umb-property alias="termsUrl" .label=${this._t("merchello_settingsUcpTermsUrl", "Terms URL")} property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
+          <umb-property alias="privacyUrl" .label=${this._t("merchello_settingsUcpPrivacyUrl", "Privacy URL")} property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
         </umb-property-dataset>
       </uui-box>
 
-      <uui-box headline="UCP Flow Tester">
+      <uui-box .headline=${this._t("merchello_settingsUcpFlowTesterHeadline", "UCP Flow Tester")}>
         <merchello-ucp-flow-tester></merchello-ucp-flow-tester>
       </uui-box>
 
@@ -1032,7 +1041,9 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         <uui-tab label="Policies" ?active=${this._activeTab === "policies"} @click=${() => (this._activeTab = "policies")}>Policies</uui-tab>
         <uui-tab label="Checkout" ?active=${this._activeTab === "checkout"} @click=${() => (this._activeTab = "checkout")}>Checkout</uui-tab>
         <uui-tab label="Email" ?active=${this._activeTab === "email"} @click=${() => (this._activeTab = "email")}>Email</uui-tab>
-        <uui-tab label="UCP" ?active=${this._activeTab === "ucp"} @click=${() => (this._activeTab = "ucp")}>UCP</uui-tab>
+        <uui-tab .label=${this._t("merchello_settingsUcpTab", "UCP")} ?active=${this._activeTab === "ucp"} @click=${() => (this._activeTab = "ucp")}>
+          ${this._t("merchello_settingsUcpTab", "UCP")}
+        </uui-tab>
       </uui-tab-group>
 
       <div class="tab-content">
