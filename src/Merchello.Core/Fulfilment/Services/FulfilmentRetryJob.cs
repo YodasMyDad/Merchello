@@ -56,7 +56,11 @@ public class FulfilmentRetryJob(
         {
             try
             {
-                await ProcessRetryQueueAsync(stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => ProcessRetryQueueAsync(stoppingToken),
+                    logger,
+                    "fulfilment retry processing",
+                    stoppingToken);
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {
@@ -182,6 +186,10 @@ public class FulfilmentRetryJob(
                             stoppingToken);
                     }
                 }
+            }
+            catch (Exception ex) when (HostedServiceRuntimeGate.IsTransientSqliteLockException(ex))
+            {
+                throw;
             }
             catch (Exception ex)
             {

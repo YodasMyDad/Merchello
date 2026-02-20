@@ -68,7 +68,11 @@ public class ProductFeedRefreshJob(
                 }
                 else
                 {
-                    await RefreshEnabledFeedsAsync(stoppingToken);
+                    await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                        () => RefreshEnabledFeedsAsync(stoppingToken),
+                        logger,
+                        "product feed refresh",
+                        stoppingToken);
                 }
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))

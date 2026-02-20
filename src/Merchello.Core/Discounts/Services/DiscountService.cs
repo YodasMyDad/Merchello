@@ -9,6 +9,7 @@ using Merchello.Core.Notifications.Interfaces;
 using Merchello.Core.Notifications.DiscountNotifications;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Persistence.EFCore.Scoping;
@@ -25,6 +26,7 @@ public class DiscountService(
     ILogger<DiscountService> logger) : IDiscountService
 {
     private const string CodeChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private const int SqliteLockRetryAttempts = 4;
 
     #region CRUD Operations
 
@@ -674,71 +676,74 @@ public class DiscountService(
     public async Task UpdateExpiredDiscountsAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
-        var expiredDiscountsToNotify = new List<Discount>();
-        var activatedDiscountsToNotify = new List<Discount>();
-
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        var (expiredDiscountsToNotify, activatedDiscountsToNotify) = await ExecuteWithSqliteLockRetryAsync(async () =>
         {
-            // Expire discounts that have passed their end date
-            var expiredDiscounts = await db.Discounts
-                .Where(d =>
-                    d.Status == DiscountStatus.Active &&
-                    d.EndsAt.HasValue &&
-                    d.EndsAt < now)
-                .ToListAsync(ct);
+            var expiredToNotify = new List<Discount>();
+            var activatedToNotify = new List<Discount>();
 
-            var expiredCount = 0;
-            foreach (var discount in expiredDiscounts)
+            using var scope = efCoreScopeProvider.CreateScope();
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
-                var changingNotification = new DiscountStatusChangingNotification(discount, DiscountStatus.Active, DiscountStatus.Expired);
-                if (await notificationPublisher.PublishCancelableAsync(changingNotification, ct))
+                // Expire discounts that have passed their end date
+                var expiredDiscounts = await db.Discounts
+                    .Where(d =>
+                        d.Status == DiscountStatus.Active &&
+                        d.EndsAt.HasValue &&
+                        d.EndsAt < now)
+                    .ToListAsync(ct);
+
+                var expiredCount = 0;
+                foreach (var discount in expiredDiscounts)
                 {
-                    continue;
+                    var changingNotification = new DiscountStatusChangingNotification(discount, DiscountStatus.Active, DiscountStatus.Expired);
+                    if (await notificationPublisher.PublishCancelableAsync(changingNotification, ct))
+                    {
+                        continue;
+                    }
+
+                    discount.Status = DiscountStatus.Expired;
+                    discount.DateUpdated = now;
+                    expiredCount++;
+                    expiredToNotify.Add(discount);
                 }
 
-                discount.Status = DiscountStatus.Expired;
-                discount.DateUpdated = now;
-                expiredCount++;
-                expiredDiscountsToNotify.Add(discount);
-            }
+                // Activate scheduled discounts that have reached their start date
+                var scheduledDiscounts = await db.Discounts
+                    .Where(d =>
+                        d.Status == DiscountStatus.Scheduled &&
+                        d.StartsAt <= now)
+                    .ToListAsync(ct);
 
-            // Activate scheduled discounts that have reached their start date
-            var scheduledDiscounts = await db.Discounts
-                .Where(d =>
-                    d.Status == DiscountStatus.Scheduled &&
-                    d.StartsAt <= now)
-                .ToListAsync(ct);
-
-            var activatedCount = 0;
-            foreach (var discount in scheduledDiscounts)
-            {
-                var changingNotification = new DiscountStatusChangingNotification(discount, DiscountStatus.Scheduled, DiscountStatus.Active);
-                if (await notificationPublisher.PublishCancelableAsync(changingNotification, ct))
+                var activatedCount = 0;
+                foreach (var discount in scheduledDiscounts)
                 {
-                    continue;
+                    var changingNotification = new DiscountStatusChangingNotification(discount, DiscountStatus.Scheduled, DiscountStatus.Active);
+                    if (await notificationPublisher.PublishCancelableAsync(changingNotification, ct))
+                    {
+                        continue;
+                    }
+
+                    discount.Status = DiscountStatus.Active;
+                    discount.DateUpdated = now;
+                    activatedCount++;
+                    activatedToNotify.Add(discount);
                 }
 
-                discount.Status = DiscountStatus.Active;
-                discount.DateUpdated = now;
-                activatedCount++;
-                activatedDiscountsToNotify.Add(discount);
-            }
+                if (expiredCount > 0 || activatedCount > 0)
+                {
+                    await db.SaveChangesAsync(ct);
+                    logger.LogInformation(
+                        "Discount status update: {ExpiredCount} expired, {ActivatedCount} activated",
+                        expiredCount,
+                        activatedCount);
+                }
 
-            if (expiredCount > 0 || activatedCount > 0)
-            {
-                await db.SaveChangesAsync(ct);
-                logger.LogInformation(
-                    "Discount status update: {ExpiredCount} expired, {ActivatedCount} activated",
-                    expiredCount,
-                    activatedCount);
-            }
+                return true;
+            });
 
-            return true;
-        });
-
-        scope.Complete();
+            scope.Complete();
+            return (expiredToNotify, activatedToNotify);
+        }, ct);
 
         // Publish notifications AFTER scope completion to avoid nested scope issues
         foreach (var discount in expiredDiscountsToNotify)
@@ -1210,6 +1215,55 @@ public class DiscountService(
     }
 
     #endregion
+
+    private async Task<T> ExecuteWithSqliteLockRetryAsync<T>(
+        Func<Task<T>> operation,
+        CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                return await operation();
+            }
+            catch (Exception ex) when (IsTransientSqliteLockException(ex) && attempt < SqliteLockRetryAttempts)
+            {
+                var delay = GetSqliteLockRetryDelay(attempt);
+                logger.LogWarning(
+                    ex,
+                    "SQLite lock contention during discount status updates (attempt {Attempt}/{MaxAttempts}). Retrying in {DelayMs}ms.",
+                    attempt,
+                    SqliteLockRetryAttempts,
+                    (int)delay.TotalMilliseconds);
+                await Task.Delay(delay, ct);
+            }
+        }
+    }
+
+    private static bool IsTransientSqliteLockException(Exception exception)
+    {
+        if (exception is DbUpdateException dbUpdateException &&
+            dbUpdateException.InnerException is SqliteException dbUpdateSqliteException)
+        {
+            return dbUpdateSqliteException.SqliteErrorCode is 5 or 6 ||
+                   dbUpdateSqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   dbUpdateSqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (exception is SqliteException sqliteException)
+        {
+            return sqliteException.SqliteErrorCode is 5 or 6 ||
+                   sqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   sqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return exception.InnerException is not null && IsTransientSqliteLockException(exception.InnerException);
+    }
+
+    private static TimeSpan GetSqliteLockRetryDelay(int attempt)
+        => TimeSpan.FromMilliseconds(Math.Min(1200, 200 * attempt));
 
     #region Private Validation Helpers
 

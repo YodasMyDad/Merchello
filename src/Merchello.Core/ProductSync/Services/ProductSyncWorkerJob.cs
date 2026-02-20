@@ -57,7 +57,11 @@ public class ProductSyncWorkerJob(
                 {
                     using var scope = serviceScopeFactory.CreateScope();
                     var productSyncService = scope.ServiceProvider.GetRequiredService<IProductSyncService>();
-                    var processed = await productSyncService.TryProcessNextQueuedRunAsync(stoppingToken);
+                    var processed = await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                        () => productSyncService.TryProcessNextQueuedRunAsync(stoppingToken),
+                        logger,
+                        "product sync worker cycle",
+                        stoppingToken);
                     if (processed)
                     {
                         continue;
@@ -67,6 +71,10 @@ public class ProductSyncWorkerJob(
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {
                 logger.LogDebug("Database not ready yet, skipping product sync worker cycle.");
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
             catch (Exception ex)
             {

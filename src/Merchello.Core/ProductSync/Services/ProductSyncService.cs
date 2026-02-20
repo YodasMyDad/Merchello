@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -176,12 +177,30 @@ public class ProductSyncService(
 
         using (var scope = efCoreScopeProvider.CreateScope())
         {
-            await scope.ExecuteWithContextAsync(async db =>
+            var queued = await scope.ExecuteWithContextAsync(async db =>
             {
+                var hasActiveImport = await db.ProductSyncRuns
+                    .AnyAsync(
+                        x => x.Direction == ProductSyncDirection.Import &&
+                             (x.Status == ProductSyncRunStatus.Queued || x.Status == ProductSyncRunStatus.Running),
+                        cancellationToken);
+
+                if (hasActiveImport)
+                {
+                    return false;
+                }
+
                 db.ProductSyncRuns.Add(run);
                 await db.SaveChangesAsync(cancellationToken);
                 return true;
             });
+
+            if (!queued)
+            {
+                result.AddErrorMessage("An import is already queued or running.");
+                return result;
+            }
+
             scope.Complete();
         }
 
@@ -457,6 +476,10 @@ public class ProductSyncService(
                     cancellationToken);
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Product sync run {RunId} failed unexpectedly.", run.Id);
@@ -653,6 +676,10 @@ public class ProductSyncService(
                         itemsFailed++;
                     }
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Import failed for handle {Handle} in run {RunId}.", handle, run.Id);
@@ -792,7 +819,7 @@ public class ProductSyncService(
         if (!string.IsNullOrWhiteSpace(_settings.MediaImportRootFolderName))
         {
             var rootFolderId = GetOrCreateMediaFolder(_settings.MediaImportRootFolderName, global::Umbraco.Cms.Core.Constants.System.Root);
-            productMediaFolderId = GetOrCreateMediaFolder(safeTitle, rootFolderId);
+            productMediaFolderId = GetOrCreateMediaFolder(handle, rootFolderId);
         }
 
         foreach (var imageUrl in rows
@@ -974,8 +1001,24 @@ public class ProductSyncService(
             .ThenBy(x => x.Id)
             .ToList();
 
+        var variantRows = rows
+            .Where(HasVariantRowData)
+            .ToList();
+
+        if (variantRows.Count == 0)
+        {
+            issues.Add(issueFactory.Create(
+                run.Id,
+                ProductSyncIssueSeverity.Error,
+                ProductSyncStage.Mapping,
+                "missing_variant_rows",
+                "No variant rows were found for this handle. Include at least one row with variant data.",
+                handle: handle));
+            return false;
+        }
+
         var rowFailures = 0;
-        foreach (var row in rows)
+        foreach (var row in variantRows)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -1825,14 +1868,28 @@ public class ProductSyncService(
 
     private int GetOrCreateMediaFolder(string name, int parentId)
     {
-        var existing = mediaService.GetPagedChildren(parentId, 0, int.MaxValue, out _)
-            .FirstOrDefault(m =>
-                m.ContentType.Alias == FolderMediaTypeAlias &&
-                string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+        var normalizedName = Normalize(name) ?? "Imported";
+        const int pageSize = 500;
+        long total;
+        var pageIndex = 0L;
 
-        if (existing != null) return existing.Id;
+        do
+        {
+            var page = mediaService.GetPagedChildren(parentId, pageIndex, pageSize, out total)
+                .Where(m => m.ContentType.Alias == FolderMediaTypeAlias);
 
-        return mediaService.CreateMediaWithIdentity(name, parentId, FolderMediaTypeAlias).Id;
+            var existing = page.FirstOrDefault(m =>
+                string.Equals(m.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
+
+            if (existing != null)
+            {
+                return existing.Id;
+            }
+
+            pageIndex++;
+        } while (pageIndex * pageSize < total);
+
+        return mediaService.CreateMediaWithIdentity(normalizedName, parentId, FolderMediaTypeAlias).Id;
     }
 
     private async Task<Guid?> ImportImageAsync(
@@ -1886,32 +1943,55 @@ public class ProductSyncService(
 
         try
         {
+            var maxImageBytes = Math.Max(1024, _settings.MaxImageBytes);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(5, _settings.ImageDownloadTimeoutSeconds)));
             var token = timeoutCts.Token;
 
             var client = httpClientFactory.CreateClient(nameof(ProductSyncService));
-            using var response = await client.GetAsync(safeUri, HttpCompletionOption.ResponseHeadersRead, token);
+            using var response = await SendImageRequestFollowingRedirectsAsync(client, safeUri, token);
             if (!response.IsSuccessStatusCode)
             {
                 throw new InvalidOperationException($"HTTP {(int)response.StatusCode} when downloading image.");
             }
 
-            var contentLength = response.Content.Headers.ContentLength;
-            if (contentLength.HasValue && contentLength.Value > _settings.MaxImageBytes)
+            var finalRequestUri = response.RequestMessage?.RequestUri ?? safeUri;
+            if (!UrlSecurityValidator.TryValidatePublicHttpUrl(finalRequestUri.ToString(), requireHttps: false, out var finalSafeUri, out var finalValidationError) ||
+                finalSafeUri == null)
+            {
+                throw new InvalidOperationException($"Final image URL '{finalRequestUri}' was rejected: {finalValidationError}");
+            }
+
+            var resolvedFinalUri = finalSafeUri;
+
+            var mediaType = Normalize(response.Content.Headers.ContentType?.MediaType);
+            if (!string.IsNullOrWhiteSpace(mediaType) &&
+                !mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    $"Image exceeded max size ({contentLength.Value} bytes > {_settings.MaxImageBytes} bytes).");
+                    $"Downloaded content type '{mediaType}' is not an image.");
+            }
+
+            var contentLength = response.Content.Headers.ContentLength;
+            if (contentLength.HasValue && contentLength.Value > maxImageBytes)
+            {
+                throw new InvalidOperationException(
+                    $"Image exceeded max size ({contentLength.Value} bytes > {maxImageBytes} bytes).");
             }
 
             await using var sourceStream = await response.Content.ReadAsStreamAsync(token);
-            var bytes = await ReadStreamWithLimitAsync(sourceStream, _settings.MaxImageBytes, token);
+            var bytes = await ReadStreamWithLimitAsync(sourceStream, maxImageBytes, token);
             if (bytes == null)
             {
-                throw new InvalidOperationException($"Image exceeded max size ({_settings.MaxImageBytes} bytes).");
+                throw new InvalidOperationException($"Image exceeded max size ({maxImageBytes} bytes).");
             }
 
-            var fileName = BuildImageFileName(safeUri, response.Content.Headers.ContentType);
+            if (!TryDetectImageFileExtension(bytes, out var detectedFileExtension))
+            {
+                throw new InvalidOperationException("Downloaded content is not a supported image format.");
+            }
+
+            var fileName = BuildImageFileName(resolvedFinalUri, detectedFileExtension);
             var mediaName = Path.GetFileNameWithoutExtension(fileName);
             if (string.IsNullOrWhiteSpace(mediaName))
             {
@@ -1939,6 +2019,10 @@ public class ProductSyncService(
             cache[imageUrl] = media.Key;
             return media.Key;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             var severity = continueOnImageFailure ? ProductSyncIssueSeverity.Warning : ProductSyncIssueSeverity.Error;
@@ -1954,6 +2038,154 @@ public class ProductSyncService(
             cache[imageUrl] = null;
             return null;
         }
+    }
+
+    private async Task<HttpResponseMessage> SendImageRequestFollowingRedirectsAsync(
+        HttpClient client,
+        Uri initialUri,
+        CancellationToken cancellationToken)
+    {
+        var maxRedirects = Math.Max(0, _settings.MaxImageRedirects);
+        var visitedUris = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            initialUri.AbsoluteUri
+        };
+
+        var currentUri = initialUri;
+        for (var redirectCount = 0; ; redirectCount++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, currentUri);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/*"));
+
+            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (!IsRedirectStatusCode(response.StatusCode))
+            {
+                return response;
+            }
+
+            if (redirectCount >= maxRedirects)
+            {
+                response.Dispose();
+                throw new InvalidOperationException($"Image download exceeded max redirects ({maxRedirects}).");
+            }
+
+            var location = response.Headers.Location;
+            response.Dispose();
+            if (location == null)
+            {
+                throw new InvalidOperationException("Image redirect response did not include a Location header.");
+            }
+
+            var redirectedUri = location.IsAbsoluteUri
+                ? location
+                : new Uri(currentUri, location);
+
+            if (!UrlSecurityValidator.TryValidatePublicHttpUrl(redirectedUri.ToString(), requireHttps: false, out var safeRedirectUri, out var redirectValidationError) ||
+                safeRedirectUri == null)
+            {
+                throw new InvalidOperationException(
+                    $"Image redirect URL '{redirectedUri}' was rejected: {redirectValidationError}");
+            }
+
+            if (!visitedUris.Add(safeRedirectUri.AbsoluteUri))
+            {
+                throw new InvalidOperationException("Image download encountered a redirect loop.");
+            }
+
+            currentUri = safeRedirectUri;
+        }
+    }
+
+    private static bool IsRedirectStatusCode(HttpStatusCode statusCode)
+        => statusCode is HttpStatusCode.Moved
+            or HttpStatusCode.Redirect
+            or HttpStatusCode.RedirectMethod
+            or HttpStatusCode.TemporaryRedirect
+            or HttpStatusCode.PermanentRedirect;
+
+    private static bool TryDetectImageFileExtension(byte[] bytes, out string extension)
+    {
+        extension = ".jpg";
+        if (bytes.Length >= 3 &&
+            bytes[0] == 0xFF &&
+            bytes[1] == 0xD8 &&
+            bytes[2] == 0xFF)
+        {
+            extension = ".jpg";
+            return true;
+        }
+
+        if (bytes.Length >= 8 &&
+            bytes[0] == 0x89 &&
+            bytes[1] == 0x50 &&
+            bytes[2] == 0x4E &&
+            bytes[3] == 0x47 &&
+            bytes[4] == 0x0D &&
+            bytes[5] == 0x0A &&
+            bytes[6] == 0x1A &&
+            bytes[7] == 0x0A)
+        {
+            extension = ".png";
+            return true;
+        }
+
+        if (bytes.Length >= 6 &&
+            bytes[0] == 0x47 &&
+            bytes[1] == 0x49 &&
+            bytes[2] == 0x46 &&
+            bytes[3] == 0x38 &&
+            (bytes[4] == 0x37 || bytes[4] == 0x39) &&
+            bytes[5] == 0x61)
+        {
+            extension = ".gif";
+            return true;
+        }
+
+        if (bytes.Length >= 12 &&
+            bytes[0] == 0x52 &&
+            bytes[1] == 0x49 &&
+            bytes[2] == 0x46 &&
+            bytes[3] == 0x46 &&
+            bytes[8] == 0x57 &&
+            bytes[9] == 0x45 &&
+            bytes[10] == 0x42 &&
+            bytes[11] == 0x50)
+        {
+            extension = ".webp";
+            return true;
+        }
+
+        if (bytes.Length >= 2 &&
+            bytes[0] == 0x42 &&
+            bytes[1] == 0x4D)
+        {
+            extension = ".bmp";
+            return true;
+        }
+
+        if (bytes.Length >= 4 &&
+            ((bytes[0] == 0x49 && bytes[1] == 0x49 && bytes[2] == 0x2A && bytes[3] == 0x00) ||
+             (bytes[0] == 0x4D && bytes[1] == 0x4D && bytes[2] == 0x00 && bytes[3] == 0x2A)))
+        {
+            extension = ".tif";
+            return true;
+        }
+
+        if (bytes.Length >= 12 &&
+            bytes[4] == 0x66 &&
+            bytes[5] == 0x74 &&
+            bytes[6] == 0x79 &&
+            bytes[7] == 0x70 &&
+            bytes[8] == 0x61 &&
+            bytes[9] == 0x76 &&
+            bytes[10] == 0x69 &&
+            bytes[11] == 0x66)
+        {
+            extension = ".avif";
+            return true;
+        }
+
+        return false;
     }
 
     private async Task<byte[]?> ReadStreamWithLimitAsync(Stream stream, int maxBytes, CancellationToken cancellationToken)
@@ -2177,6 +2409,20 @@ public class ProductSyncService(
             : fallback;
     }
 
+    internal static bool HasVariantRowData(ProductSyncCsvRow row)
+    {
+        return !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.Option1Value])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.Option2Value])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.Option3Value])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.VariantSku])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.VariantPrice])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.VariantCompareAtPrice])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.CostPerItem])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.VariantBarcode])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.Published])) ||
+               !string.IsNullOrWhiteSpace(Normalize(row[ShopifyCsvSchema.VariantImage]));
+    }
+
     private static string FormatDecimal(decimal value)
         => value.ToString("0.####", CultureInfo.InvariantCulture);
 
@@ -2211,30 +2457,26 @@ public class ProductSyncService(
         }
     }
 
-    private static string BuildImageFileName(Uri safeUri, MediaTypeHeaderValue? contentType)
+    private static string BuildImageFileName(Uri safeUri, string fileExtension)
     {
         var fileName = Path.GetFileName(safeUri.LocalPath);
         fileName = string.IsNullOrWhiteSpace(fileName)
             ? $"image-{DateTime.UtcNow:yyyyMMddHHmmss}"
             : fileName;
 
-        fileName = SanitizeFileName(fileName);
-        if (Path.HasExtension(fileName))
+        var safeBaseName = SanitizeFileName(Path.GetFileNameWithoutExtension(fileName));
+        if (string.IsNullOrWhiteSpace(safeBaseName))
         {
-            return fileName;
+            safeBaseName = $"image-{DateTime.UtcNow:yyyyMMddHHmmss}";
         }
 
-        var extension = contentType?.MediaType?.ToLowerInvariant() switch
+        var extension = Normalize(fileExtension) ?? ".jpg";
+        if (!extension.StartsWith('.'))
         {
-            "image/jpeg" => ".jpg",
-            "image/png" => ".png",
-            "image/webp" => ".webp",
-            "image/gif" => ".gif",
-            "image/svg+xml" => ".svg",
-            _ => ".jpg"
-        };
+            extension = "." + extension;
+        }
 
-        return $"{fileName}{extension}";
+        return $"{safeBaseName}{extension.ToLowerInvariant()}";
     }
 
     private static string SanitizeFileName(string fileName)

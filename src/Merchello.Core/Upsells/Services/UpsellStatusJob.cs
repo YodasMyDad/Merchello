@@ -66,12 +66,20 @@ public class UpsellStatusJob(
                 }
                 else
                 {
-                    await UpdateExpiredUpsellsAsync(stoppingToken);
+                    await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                        () => UpdateExpiredUpsellsAsync(stoppingToken),
+                        logger,
+                        "upsell status update",
+                        stoppingToken);
 
                     // Run event cleanup once per hour
                     if (DateTime.UtcNow - _lastCleanup > TimeSpan.FromHours(1))
                     {
-                        await CleanupOldEventsAsync(stoppingToken);
+                        await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                            () => CleanupOldEventsAsync(stoppingToken),
+                            logger,
+                            "upsell event cleanup",
+                            stoppingToken);
                         _lastCleanup = DateTime.UtcNow;
                     }
                 }

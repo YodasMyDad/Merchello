@@ -74,7 +74,11 @@ public class FulfilmentCleanupJob(
 
             try
             {
-                await CleanupOldLogsAsync(stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => CleanupOldLogsAsync(stoppingToken),
+                    logger,
+                    "fulfilment log cleanup",
+                    stoppingToken);
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {

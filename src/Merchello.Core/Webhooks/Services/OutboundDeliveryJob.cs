@@ -6,6 +6,7 @@ using Merchello.Core.Shared.Services;
 using Merchello.Core.Shared.Models.Enums;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services.Interfaces;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,6 +32,7 @@ public class OutboundDeliveryJob(
     private readonly WebhookSettings _webhookSettings = webhookOptions.Value;
     private readonly EmailSettings _emailSettings = emailOptions.Value;
     private readonly TimeSpan _initialDelay = TimeSpan.FromSeconds(30);
+    private const int SqliteLockRetryAttempts = 4;
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
         => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
@@ -71,8 +73,16 @@ public class OutboundDeliveryJob(
                 }
                 else
                 {
-                    await ProcessPendingRetriesAsync(stoppingToken);
-                    await CleanupOldDeliveriesAsync(stoppingToken);
+                    await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                        () => ProcessPendingRetriesAsync(stoppingToken),
+                        logger,
+                        "outbound delivery retry processing",
+                        stoppingToken);
+                    await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                        () => CleanupOldDeliveriesAsync(stoppingToken),
+                        logger,
+                        "outbound delivery cleanup",
+                        stoppingToken);
                 }
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
@@ -139,21 +149,25 @@ public class OutboundDeliveryJob(
         var webhookCutoff = now.AddDays(-webhookRetentionDays);
         var emailCutoff = now.AddDays(-emailRetentionDays);
 
-        using var scope = efCoreScopeProvider.CreateScope();
-        var deletedWebhookRows = await scope.ExecuteWithContextAsync(async db =>
-            await db.OutboundDeliveries
-                .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
-                            d.DateCreated < webhookCutoff &&
-                            !activeStatuses.Contains(d.Status))
-                .ExecuteDeleteAsync(stoppingToken));
+        var (deletedWebhookRows, deletedEmailRows) = await ExecuteWithSqliteLockRetryAsync(async () =>
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            var deletedWebhookRows = await scope.ExecuteWithContextAsync(async db =>
+                await db.OutboundDeliveries
+                    .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
+                                d.DateCreated < webhookCutoff &&
+                                !activeStatuses.Contains(d.Status))
+                    .ExecuteDeleteAsync(stoppingToken));
 
-        var deletedEmailRows = await scope.ExecuteWithContextAsync(async db =>
-            await db.OutboundDeliveries
-                .Where(d => d.DeliveryType == OutboundDeliveryType.Email &&
-                            d.DateCreated < emailCutoff &&
-                            !activeStatuses.Contains(d.Status))
-                .ExecuteDeleteAsync(stoppingToken));
-        scope.Complete();
+            var deletedEmailRows = await scope.ExecuteWithContextAsync(async db =>
+                await db.OutboundDeliveries
+                    .Where(d => d.DeliveryType == OutboundDeliveryType.Email &&
+                                d.DateCreated < emailCutoff &&
+                                !activeStatuses.Contains(d.Status))
+                    .ExecuteDeleteAsync(stoppingToken));
+            scope.Complete();
+            return (deletedWebhookRows, deletedEmailRows);
+        }, stoppingToken);
 
         if (deletedWebhookRows > 0 || deletedEmailRows > 0)
         {
@@ -165,4 +179,53 @@ public class OutboundDeliveryJob(
                 emailRetentionDays);
         }
     }
+
+    private async Task<T> ExecuteWithSqliteLockRetryAsync<T>(
+        Func<Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                return await operation();
+            }
+            catch (Exception ex) when (IsTransientSqliteLockException(ex) && attempt < SqliteLockRetryAttempts)
+            {
+                var delay = GetSqliteLockRetryDelay(attempt);
+                logger.LogWarning(
+                    ex,
+                    "SQLite lock contention during outbound delivery cleanup (attempt {Attempt}/{MaxAttempts}). Retrying in {DelayMs}ms.",
+                    attempt,
+                    SqliteLockRetryAttempts,
+                    (int)delay.TotalMilliseconds);
+                await Task.Delay(delay, cancellationToken);
+            }
+        }
+    }
+
+    private static bool IsTransientSqliteLockException(Exception exception)
+    {
+        if (exception is DbUpdateException dbUpdateException &&
+            dbUpdateException.InnerException is SqliteException dbUpdateSqliteException)
+        {
+            return dbUpdateSqliteException.SqliteErrorCode is 5 or 6 ||
+                   dbUpdateSqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   dbUpdateSqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (exception is SqliteException sqliteException)
+        {
+            return sqliteException.SqliteErrorCode is 5 or 6 ||
+                   sqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   sqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return exception.InnerException is not null && IsTransientSqliteLockException(exception.InnerException);
+    }
+
+    private static TimeSpan GetSqliteLockRetryDelay(int attempt)
+        => TimeSpan.FromMilliseconds(Math.Min(1200, 200 * attempt));
 }

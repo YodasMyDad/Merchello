@@ -58,7 +58,11 @@ public class AbandonedCheckoutDetectionJob(
                 var abandonmentThreshold = TimeSpan.FromHours(Math.Max(0.5, effectiveSettings.AbandonmentThresholdHours));
                 var expiryThreshold = TimeSpan.FromDays(Math.Max(1, effectiveSettings.RecoveryExpiryDays));
 
-                await RunDetectionCycleAsync(abandonmentThreshold, expiryThreshold, stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => RunDetectionCycleAsync(abandonmentThreshold, expiryThreshold, stoppingToken),
+                    logger,
+                    "abandoned checkout detection cycle",
+                    stoppingToken);
                 await Task.Delay(checkInterval, stoppingToken);
             }
         }
@@ -87,6 +91,10 @@ public class AbandonedCheckoutDetectionJob(
 
             // Step 3: Expire old recoveries
             await service.ExpireOldRecoveriesAsync(expiryThreshold, ct);
+        }
+        catch (Exception ex) when (HostedServiceRuntimeGate.IsTransientSqliteLockException(ex))
+        {
+            throw;
         }
         catch (Exception ex)
         {

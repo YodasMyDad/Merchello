@@ -55,7 +55,11 @@ public class InvoiceReminderJob(
 
             try
             {
-                await ProcessInvoiceRemindersAsync(effectiveSettings, stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => ProcessInvoiceRemindersAsync(effectiveSettings, stoppingToken),
+                    logger,
+                    "invoice reminder processing",
+                    stoppingToken);
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {
