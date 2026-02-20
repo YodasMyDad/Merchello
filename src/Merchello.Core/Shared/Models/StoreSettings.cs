@@ -17,12 +17,6 @@ public class StoreSettings
     public string? Email { get; set; }
 
     /// <summary>
-    /// Customer support email address displayed in checkout and email footers.
-    /// Falls back to Email if not set.
-    /// </summary>
-    public string? SupportEmail { get; set; }
-
-    /// <summary>
     /// Store phone number displayed in checkout and email footers.
     /// </summary>
     public string? Phone { get; set; }

@@ -120,16 +120,16 @@ public class MjmlHelper : IMjmlHelper
         sb.AppendLine("    </mj-text>");
 
         // Contact info
-        if (!string.IsNullOrEmpty(store.SupportEmail) || !string.IsNullOrEmpty(store.Phone))
+        if (!string.IsNullOrEmpty(store.Email) || !string.IsNullOrEmpty(store.Phone))
         {
             sb.AppendLine($"    <mj-text align=\"center\" color=\"{HtmlEncode(_theme.SecondaryTextColor)}\" font-size=\"12px\">");
-            if (!string.IsNullOrEmpty(store.SupportEmail))
+            if (!string.IsNullOrEmpty(store.Email))
             {
-                sb.AppendLine($"      Email: <a href=\"mailto:{HtmlEncode(store.SupportEmail)}\" style=\"color: {HtmlEncode(_theme.PrimaryColor)};\">{HtmlEncode(store.SupportEmail)}</a>");
+                sb.AppendLine($"      Email: <a href=\"mailto:{HtmlEncode(store.Email)}\" style=\"color: {HtmlEncode(_theme.PrimaryColor)};\">{HtmlEncode(store.Email)}</a>");
             }
             if (!string.IsNullOrEmpty(store.Phone))
             {
-                sb.AppendLine($"      {(!string.IsNullOrEmpty(store.SupportEmail) ? " | " : "")}Phone: {HtmlEncode(store.Phone)}");
+                sb.AppendLine($"      {(!string.IsNullOrEmpty(store.Email) ? " | " : "")}Phone: {HtmlEncode(store.Phone)}");
             }
             sb.AppendLine("    </mj-text>");
         }
