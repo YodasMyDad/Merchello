@@ -574,7 +574,6 @@ export interface StoreConfigurationStorePanelDto {
   invoiceNumberPrefix: string;
   name: string;
   email?: string | null;
-  supportEmail?: string | null;
   phone?: string | null;
   websiteUrl?: string | null;
   address: string;

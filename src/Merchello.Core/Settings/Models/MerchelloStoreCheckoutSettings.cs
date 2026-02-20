@@ -32,7 +32,7 @@ public class MerchelloStoreCheckoutSettings
 
     public string? ConfirmationRedirectUrl { get; set; }
 
-    public string? CustomScriptUrl { get; set; } = "/js/checkout-analytics.js";
+    public string? CustomScriptUrl { get; set; }
 
     public OrderTermsSettings OrderTerms { get; set; } = new()
     {

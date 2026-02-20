@@ -32,7 +32,7 @@ public class StoreConfigurationCheckoutDto
 
     public string? ConfirmationRedirectUrl { get; set; }
 
-    public string? CustomScriptUrl { get; set; } = "/js/checkout-analytics.js";
+    public string? CustomScriptUrl { get; set; }
 
     public StoreConfigurationOrderTermsDto OrderTerms { get; set; } = new();
 }

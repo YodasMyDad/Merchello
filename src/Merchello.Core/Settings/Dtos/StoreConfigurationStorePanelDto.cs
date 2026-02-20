@@ -8,8 +8,6 @@ public class StoreConfigurationStorePanelDto
 
     public string? Email { get; set; }
 
-    public string? SupportEmail { get; set; }
-
     public string? Phone { get; set; }
 
     public string? WebsiteUrl { get; set; }
