@@ -39,19 +39,17 @@ export class MerchelloSettingsWorkspaceElement extends UmbElementMixin(LitElemen
     if (this._isLoading) return nothing;
 
     return html`
-      <umb-body-layout header-fit-height main-no-padding>
-        <div class="content">
-          ${this._showSeedData
-            ? html`
-                <merchello-seed-data-workspace
-                  @seed-data-installed=${this._onSeedDataInstalled}
-                ></merchello-seed-data-workspace>
-              `
-            : nothing}
+      <div class="content">
+        ${this._showSeedData
+          ? html`
+              <merchello-seed-data-workspace
+                @seed-data-installed=${this._onSeedDataInstalled}
+              ></merchello-seed-data-workspace>
+            `
+          : nothing}
 
-          <merchello-store-configuration-tabs></merchello-store-configuration-tabs>
-        </div>
-      </umb-body-layout>
+        <merchello-store-configuration-tabs></merchello-store-configuration-tabs>
+      </div>
     `;
   }
 
