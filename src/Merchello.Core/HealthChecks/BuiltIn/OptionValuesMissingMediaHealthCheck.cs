@@ -80,7 +80,7 @@ public class OptionValuesMissingMediaHealthCheck(
                             Id = $"{r.Id}:{o.Id}:{v.Id}",
                             Name = r.RootName ?? "Unnamed product",
                             Description = $"Option: {o.Name ?? "Unnamed"} | Value: {v.Name ?? "Unnamed"}",
-                            EditPath = $"section/merchello/workspace/merchello-product-root/{r.Id}",
+                            EditPath = $"section/merchello/workspace/merchello-products/edit/products/{r.Id}",
                         })))
                 .ToList();
 

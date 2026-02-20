@@ -287,12 +287,6 @@ export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="container layout-container">
-          <div class="header-actions">
-            <uui-button look="primary" color="positive" label="Add product type" @click=${this._handleAddProductType}>
-              Add Product Type
-            </uui-button>
-          </div>
-
           <div class="filters">
             <div class="filters-top">
               <div class="search-box">
@@ -311,6 +305,11 @@ export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement
                       `
                     : ""}
                 </uui-input>
+              </div>
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" label="Add product type" @click=${this._handleAddProductType}>
+                  Add Product Type
+                </uui-button>
               </div>
             </div>
           </div>
@@ -344,10 +343,6 @@ export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement
       display: block;
       height: 100%;
       background: var(--uui-color-background);
-    }
-
-    .header-actions {
-      margin: 0;
     }
 
     .search-box {

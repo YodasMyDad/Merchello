@@ -13,7 +13,7 @@ public class UnpublishedProductsHealthCheck(
         Alias = "unpublished-products",
         Name = "Unpublished Products",
         Description = "Products or variants that are not available for purchase or have purchasing disabled.",
-        Icon = "icon-untitled-content",
+        Icon = "icon-block",
         SortOrder = 200,
     };
 
@@ -84,7 +84,7 @@ public class UnpublishedProductsHealthCheck(
                     Id = p.Id.ToString(),
                     Name = $"{p.RootName} - {p.VariantName}",
                     Description = $"SKU: {p.Sku ?? "N/A"} | {string.Join(", ", reasons)}",
-                    EditPath = $"section/merchello/workspace/merchello-product-root/{p.ProductRootId}",
+                    EditPath = $"section/merchello/workspace/merchello-products/edit/products/{p.ProductRootId}/variant/{p.Id}",
                 };
             }).ToList();
 

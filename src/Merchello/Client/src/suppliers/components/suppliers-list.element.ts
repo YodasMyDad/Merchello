@@ -290,12 +290,6 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="suppliers-container layout-container">
-          <div class="header-actions">
-            <uui-button look="primary" color="positive" label="Add Supplier" @click=${this._handleAddSupplier}>
-              Add Supplier
-            </uui-button>
-          </div>
-
           <div class="filters">
             <div class="filters-top">
               <div class="search-box">
@@ -325,6 +319,11 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
                   ? "Loading suppliers..."
                   : `${filteredCount} of ${supplierCount} supplier${supplierCount === 1 ? "" : "s"}`}
               </span>
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" label="Add Supplier" @click=${this._handleAddSupplier}>
+                  Add Supplier
+                </uui-button>
+              </div>
             </div>
           </div>
 

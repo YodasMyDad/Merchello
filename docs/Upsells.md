@@ -3625,9 +3625,9 @@ var taxAmount = currencyService.Round(
 ```
 
 **Shipping tax (separate from product tax):**
-- Use `ITaxProviderManager.IsShippingTaxedForLocationAsync()` and
-  `GetShippingTaxRateForLocationAsync()` for shipping tax rate.
-- If provider returns **null** (proportional mode), use `invoice.EffectiveShippingTaxRate`.
+- Use `ITaxProviderManager.GetShippingTaxConfigurationAsync()` to resolve shipping tax behavior.
+- If `Mode = FixedRate`, use the returned `Rate`.
+- If `Mode = Proportional` or `Mode = ProviderCalculated`, use `invoice.EffectiveShippingTaxRate`.
 - Exclude shipping amounts from providers where `RatesIncludeTax = true`
   (see `InvoiceEditService.GetTaxableShippingTotalAsync`).
 
@@ -3700,8 +3700,8 @@ For dynamic providers, the order uses `ShippingOptionId = Guid.Empty` with
 6. Pass updated shipping costs via `EditInvoiceAsync` (`OrderShippingUpdates`)
 
 **Tax implications:**
-- Shipping tax rate is **separate** from product tax. Use the provider rate via
-  `ITaxProviderManager.GetShippingTaxRateForLocationAsync()`.
+- Shipping tax rate is **separate** from product tax. Use
+  `ITaxProviderManager.GetShippingTaxConfigurationAsync()` and apply mode semantics.
 - If provider metadata `RatesIncludeTax = true`, treat its shipping amounts as tax-inclusive
   and exclude from taxable shipping (handled in `InvoiceEditService.GetTaxableShippingTotalAsync`).
 

@@ -489,42 +489,6 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="upsells-container layout-container">
-          <div class="header-actions">
-            ${this._selectedUpsells.size > 0
-              ? html`
-                  <uui-button
-                    look="primary"
-                    color="positive"
-                    label="Activate"
-                    ?disabled=${this._isBulkActionRunning || this._isDeleting}
-                    @click=${this._handleActivateSelected}
-                  >
-                    ${this._isBulkActionRunning ? "Applying..." : `Activate (${this._selectedUpsells.size})`}
-                  </uui-button>
-                  <uui-button
-                    look="secondary"
-                    label="Deactivate"
-                    ?disabled=${this._isBulkActionRunning || this._isDeleting}
-                    @click=${this._handleDeactivateSelected}
-                  >
-                    ${this._isBulkActionRunning ? "Applying..." : `Deactivate (${this._selectedUpsells.size})`}
-                  </uui-button>
-                  <uui-button
-                    look="primary"
-                    color="danger"
-                    label="Delete"
-                    ?disabled=${this._isDeleting || this._isBulkActionRunning}
-                    @click=${this._handleDeleteSelected}
-                  >
-                    ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedUpsells.size})`}
-                  </uui-button>
-                `
-              : nothing}
-            <uui-button look="primary" color="positive" label="Create upsell" @click=${this._handleCreateUpsell}>
-              Create upsell
-            </uui-button>
-          </div>
-
           <div class="filters">
             <div class="filters-top">
               <div class="search-box">
@@ -544,6 +508,41 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
                       `
                     : nothing}
                 </uui-input>
+              </div>
+              <div class="header-actions">
+                ${this._selectedUpsells.size > 0
+                  ? html`
+                      <uui-button
+                        look="primary"
+                        color="positive"
+                        label="Activate"
+                        ?disabled=${this._isBulkActionRunning || this._isDeleting}
+                        @click=${this._handleActivateSelected}
+                      >
+                        ${this._isBulkActionRunning ? "Applying..." : `Activate (${this._selectedUpsells.size})`}
+                      </uui-button>
+                      <uui-button
+                        look="secondary"
+                        label="Deactivate"
+                        ?disabled=${this._isBulkActionRunning || this._isDeleting}
+                        @click=${this._handleDeactivateSelected}
+                      >
+                        ${this._isBulkActionRunning ? "Applying..." : `Deactivate (${this._selectedUpsells.size})`}
+                      </uui-button>
+                      <uui-button
+                        look="primary"
+                        color="danger"
+                        label="Delete"
+                        ?disabled=${this._isDeleting || this._isBulkActionRunning}
+                        @click=${this._handleDeleteSelected}
+                      >
+                        ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedUpsells.size})`}
+                      </uui-button>
+                    `
+                  : nothing}
+                <uui-button look="primary" color="positive" label="Create upsell" @click=${this._handleCreateUpsell}>
+                  Create upsell
+                </uui-button>
               </div>
             </div>
 

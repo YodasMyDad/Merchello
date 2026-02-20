@@ -463,13 +463,6 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="product-feeds-container layout-container">
-          <div class="header-actions">
-            <uui-button look="primary" color="positive" href=${getProductFeedCreateHref()}>
-              <uui-icon name="icon-add" slot="icon"></uui-icon>
-              Create Feed
-            </uui-button>
-          </div>
-
           <div class="filters">
             <div class="filters-top">
               <div class="search-box">
@@ -493,6 +486,12 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
                       `
                     : nothing}
                 </uui-input>
+              </div>
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" href=${getProductFeedCreateHref()}>
+                  <uui-icon name="icon-add" slot="icon"></uui-icon>
+                  Create Feed
+                </uui-button>
               </div>
             </div>
 

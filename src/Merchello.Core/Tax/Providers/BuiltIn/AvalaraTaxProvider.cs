@@ -32,6 +32,7 @@ public class AvalaraTaxProvider : TaxProviderBase
     /// Include line/detail payload so line mapping is deterministic.
     /// </summary>
     private const string TransactionResponseIncludes = "Lines,Details";
+    private const string AuthoritativeAdjustmentDescription = "Merchello authoritative tax calculation";
 
     public override TaxProviderMetadata Metadata => new(
         Alias: "avalara",
@@ -224,6 +225,10 @@ public class AvalaraTaxProvider : TaxProviderBase
         try
         {
             // Build the transaction model
+            var normalizedReferenceNumber = string.IsNullOrWhiteSpace(request.ReferenceNumber)
+                ? null
+                : request.ReferenceNumber.Trim();
+
             var transaction = new CreateTransactionModel
             {
                 type = request.IsEstimate ? DocumentType.SalesOrder : DocumentType.SalesInvoice,
@@ -231,13 +236,19 @@ public class AvalaraTaxProvider : TaxProviderBase
                 customerCode = request.CustomerId?.ToString() ?? request.CustomerEmail ?? "GUEST",
                 date = request.TransactionDate ?? DateTime.UtcNow,
                 currencyCode = request.CurrencyCode,
-                referenceCode = request.ReferenceNumber,
+                referenceCode = normalizedReferenceNumber,
                 addresses = new AddressesModel
                 {
                     shipTo = MapAddress(request.ShippingAddress)
                 },
                 lines = []
             };
+
+            // Set transaction code from reference for idempotent authoritative retries/adjustments.
+            if (!string.IsNullOrWhiteSpace(normalizedReferenceNumber))
+            {
+                transaction.code = normalizedReferenceNumber;
+            }
 
             // Add exemption certificate if provided
             if (!string.IsNullOrWhiteSpace(request.TaxExemptionNumber))
@@ -282,8 +293,18 @@ public class AvalaraTaxProvider : TaxProviderBase
                 });
             }
 
-            // Call Avalara API
-            var result = await _client.CreateTransactionAsync(TransactionResponseIncludes, transaction);
+            // Call Avalara API. For authoritative flows, prefer CreateOrAdjust with a deterministic code.
+            var useCreateOrAdjust = !request.IsEstimate && !string.IsNullOrWhiteSpace(transaction.code);
+            var result = useCreateOrAdjust
+                ? await _client.CreateOrAdjustTransactionAsync(
+                    TransactionResponseIncludes,
+                    new CreateOrAdjustTransactionModel
+                    {
+                        adjustmentReason = AdjustmentReason.NotAdjusted,
+                        adjustmentDescription = AuthoritativeAdjustmentDescription,
+                        createTransactionModel = transaction
+                    })
+                : await _client.CreateTransactionAsync(TransactionResponseIncludes, transaction);
 
             // Check for successful response
             if (result.status == DocumentStatus.Saved ||

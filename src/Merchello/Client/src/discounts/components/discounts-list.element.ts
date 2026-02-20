@@ -310,25 +310,6 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="discounts-container layout-container">
-          <div class="header-actions">
-            ${this._selectedDiscounts.size > 0
-              ? html`
-                  <uui-button
-                    look="primary"
-                    color="danger"
-                    label="Delete"
-                    ?disabled=${this._isDeleting}
-                    @click=${this._handleDeleteSelected}
-                  >
-                    ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedDiscounts.size})`}
-                  </uui-button>
-                `
-              : ""}
-            <uui-button look="primary" color="positive" label="Create discount" @click=${this._handleCreateDiscount}>
-              Create discount
-            </uui-button>
-          </div>
-
           <div class="filters">
             <div class="filters-top">
               <div class="search-box">
@@ -354,6 +335,24 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
                       `
                     : ""}
                 </uui-input>
+              </div>
+              <div class="header-actions">
+                ${this._selectedDiscounts.size > 0
+                  ? html`
+                      <uui-button
+                        look="primary"
+                        color="danger"
+                        label="Delete"
+                        ?disabled=${this._isDeleting}
+                        @click=${this._handleDeleteSelected}
+                      >
+                        ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedDiscounts.size})`}
+                      </uui-button>
+                    `
+                  : ""}
+                <uui-button look="primary" color="positive" label="Create discount" @click=${this._handleCreateDiscount}>
+                  Create discount
+                </uui-button>
               </div>
             </div>
 
@@ -422,12 +421,6 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
 
     .search-box uui-icon[slot="prepend"] {
       color: var(--uui-color-text-alt);
-    }
-
-    @media (max-width: 768px) {
-      .header-actions {
-        justify-content: flex-start;
-      }
     }
 
     .loading {

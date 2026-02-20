@@ -396,6 +396,15 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
                 : nothing}
             </uui-input>
           </div>
+          <div class="header-actions">
+            <uui-button
+              look="primary"
+              label="Add Webhook"
+              @click=${this._handleCreateSubscription}>
+              <uui-icon name="icon-add" slot="icon"></uui-icon>
+              Add Webhook
+            </uui-button>
+          </div>
         </div>
 
       <uui-tab-group class="tabs">
@@ -516,16 +525,6 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="webhooks-container layout-container">
-          <div class="header-actions">
-            <uui-button
-              look="primary"
-              label="Add Webhook"
-              @click=${this._handleCreateSubscription}>
-              <uui-icon name="icon-add" slot="icon"></uui-icon>
-              Add Webhook
-            </uui-button>
-          </div>
-
           ${this._renderStats()}
           ${this._renderSearchAndFilters()}
           ${this._renderContent()}

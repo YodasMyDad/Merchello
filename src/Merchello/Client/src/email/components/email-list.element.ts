@@ -346,6 +346,16 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
                 : nothing}
             </uui-input>
           </div>
+          <div class="header-actions">
+            <uui-button
+              look="primary"
+              color="positive"
+              label="Add Email"
+              @click=${this._handleCreateEmail}>
+              <uui-icon name="icon-add" slot="icon"></uui-icon>
+              Add Email
+            </uui-button>
+          </div>
         </div>
 
       ${this._categories.length > 0
@@ -488,17 +498,6 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="emails-container layout-container">
-          <div class="header-actions">
-            <uui-button
-              look="primary"
-              color="positive"
-              label="Add Email"
-              @click=${this._handleCreateEmail}>
-              <uui-icon name="icon-add" slot="icon"></uui-icon>
-              Add Email
-            </uui-button>
-          </div>
-
           ${this._renderSearchAndFilters()}
           ${this._renderContent()}
 

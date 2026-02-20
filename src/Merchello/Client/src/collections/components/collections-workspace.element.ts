@@ -284,16 +284,10 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="collections-container layout-container">
-          <div class="header-actions">
-            <uui-button look="primary" color="positive" label="Add collection" @click=${this._handleAddCollection}>
-              Add Collection
-            </uui-button>
-          </div>
-
-          ${showSearch
-            ? html`
-                <div class="filters">
-                  <div class="filters-top">
+          <div class="filters">
+            <div class="filters-top">
+              ${showSearch
+                ? html`
                     <div class="search-box">
                       <uui-input
                         id="search-input"
@@ -317,10 +311,15 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
                           : nothing}
                       </uui-input>
                     </div>
-                  </div>
-                </div>
-              `
-            : nothing}
+                  `
+                : nothing}
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" label="Add collection" @click=${this._handleAddCollection}>
+                  Add Collection
+                </uui-button>
+              </div>
+            </div>
+          </div>
 
           <uui-box>
             <p class="helper-text">

@@ -371,25 +371,6 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
       <div class="orders-container layout-container">
-        <!-- Header Actions -->
-        <div class="header-actions">
-          ${this._selectedOrders.size > 0
-            ? html`
-                <uui-button
-                  look="primary"
-                  color="danger"
-                  label="Delete"
-                  ?disabled=${this._isDeleting}
-                  @click=${this._handleDeleteSelected}
-                >
-                  ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
-                </uui-button>
-              `
-            : ""}
-          <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
-          <uui-button look="primary" color="positive" label="Create order" @click=${this._handleCreateOrder}>Create order</uui-button>
-        </div>
-
         <!-- Stats Grid -->
         <div class="stats-grid">
           <uui-box>
@@ -472,6 +453,23 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
                     `
                   : ""}
               </uui-input>
+            </div>
+            <div class="header-actions">
+              ${this._selectedOrders.size > 0
+                ? html`
+                    <uui-button
+                      look="primary"
+                      color="danger"
+                      label="Delete"
+                      ?disabled=${this._isDeleting}
+                      @click=${this._handleDeleteSelected}
+                    >
+                      ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
+                    </uui-button>
+                  `
+                : ""}
+              <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
+              <uui-button look="primary" color="positive" label="Create order" @click=${this._handleCreateOrder}>Create order</uui-button>
             </div>
           </div>
 

@@ -617,18 +617,6 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="filters-container layout-container">
-          <div class="header-actions">
-            <uui-button look="secondary" label="Expand all groups" @click=${this._expandAllGroups}>
-              Expand all
-            </uui-button>
-            <uui-button look="secondary" label="Collapse all groups" @click=${this._collapseAllGroups}>
-              Collapse all
-            </uui-button>
-            <uui-button look="primary" color="positive" label="Add filter group" @click=${this._handleAddFilterGroup}>
-              Add Filter Group
-            </uui-button>
-          </div>
-
           <div class="filters">
             <div class="filters-top">
               <div class="search-box">
@@ -652,6 +640,17 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
                       `
                     : nothing}
                 </uui-input>
+              </div>
+              <div class="header-actions">
+                <uui-button look="secondary" label="Expand all groups" @click=${this._expandAllGroups}>
+                  Expand all
+                </uui-button>
+                <uui-button look="secondary" label="Collapse all groups" @click=${this._collapseAllGroups}>
+                  Collapse all
+                </uui-button>
+                <uui-button look="primary" color="positive" label="Add filter group" @click=${this._handleAddFilterGroup}>
+                  Add Filter Group
+                </uui-button>
               </div>
             </div>
           </div>
@@ -696,10 +695,6 @@ export class MerchelloFiltersListElement extends UmbElementMixin(LitElement) {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
-    }
-
-    .header-actions {
-      justify-content: flex-start;
     }
 
     .info-banner {

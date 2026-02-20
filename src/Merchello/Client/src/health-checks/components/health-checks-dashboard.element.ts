@@ -243,7 +243,6 @@ export class MerchelloHealthChecksDashboardElement extends UmbElementMixin(LitEl
       display: flex;
       flex-direction: column;
       gap: var(--uui-size-space-5);
-      max-width: 1200px;
     }
 
     .header {

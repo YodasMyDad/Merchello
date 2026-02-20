@@ -15,6 +15,8 @@ export const collectionLayoutStyles = css`
     justify-content: flex-end;
     flex-wrap: wrap;
     gap: var(--uui-size-space-2);
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
   .filters {
@@ -32,13 +34,14 @@ export const collectionLayoutStyles = css`
   @media (min-width: 768px) {
     .filters-top {
       flex-direction: row;
-      align-items: flex-end;
+      flex-wrap: wrap;
+      align-items: center;
       gap: var(--uui-size-space-3);
     }
   }
 
   .search-box {
-    width: 100%;
+    flex: 1 1 auto;
     min-width: 240px;
     max-width: 520px;
   }

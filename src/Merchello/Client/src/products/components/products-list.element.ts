@@ -397,23 +397,6 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
         <div class="products-container layout-container">
-          <div class="header-actions">
-            ${this._selectedProducts.size > 0
-              ? html`
-                  <uui-button
-                    look="primary"
-                    color="danger"
-                    label="Delete products"
-                    ?disabled=${this._isDeleting}
-                    @click=${this._handleDeleteSelected}>
-                    ${this._isDeleting
-                      ? "Deleting..."
-                      : `Delete (${this._selectedProducts.size})`}
-                  </uui-button>
-                `
-              : ""}
-            <uui-button look="primary" color="positive" label="Add Product" @click=${this._handleAddProduct}>Add Product</uui-button>
-          </div>
           <div class="filters">
             <div class="filters-top">
               <div class="search-box">
@@ -426,6 +409,23 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
                       </uui-button>`
                     : ""}
                 </uui-input>
+              </div>
+              <div class="header-actions">
+                ${this._selectedProducts.size > 0
+                  ? html`
+                      <uui-button
+                        look="primary"
+                        color="danger"
+                        label="Delete products"
+                        ?disabled=${this._isDeleting}
+                        @click=${this._handleDeleteSelected}>
+                        ${this._isDeleting
+                          ? "Deleting..."
+                          : `Delete (${this._selectedProducts.size})`}
+                      </uui-button>
+                    `
+                  : ""}
+                <uui-button look="primary" color="positive" label="Add Product" @click=${this._handleAddProduct}>Add Product</uui-button>
               </div>
               <div class="filter-dropdowns">
                 <uui-select label="Product Type" .options=${this._getProductTypeOptions()} @change=${this._handleProductTypeChange}></uui-select>

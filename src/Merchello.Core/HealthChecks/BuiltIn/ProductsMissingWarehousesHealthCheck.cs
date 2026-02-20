@@ -65,7 +65,7 @@ public class ProductsMissingWarehousesHealthCheck(
                 {
                     Id = pr.Id.ToString(),
                     Name = pr.RootName ?? "Unnamed product",
-                    EditPath = $"section/merchello/workspace/merchello-product-root/{pr.Id}",
+                    EditPath = $"section/merchello/workspace/merchello-products/edit/products/{pr.Id}",
                 })
                 .ToListAsync(ct);
 

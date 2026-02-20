@@ -5,7 +5,6 @@ import {
   nothing,
   customElement,
   property,
-  state,
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import type {
@@ -23,9 +22,6 @@ export class MerchelloHealthCheckCardElement extends UmbElementMixin(LitElement)
 
   @property({ type: Boolean, attribute: "is-running" })
   isRunning = false;
-
-  @state()
-  private _isHovered = false;
 
   private _onClick(): void {
     if (!this.metadata || this.isRunning) return;
@@ -77,8 +73,6 @@ export class MerchelloHealthCheckCardElement extends UmbElementMixin(LitElement)
         class="card"
         style="--status-color: ${statusColor}"
         @click=${this._onClick}
-        @mouseenter=${() => { this._isHovered = true; }}
-        @mouseleave=${() => { this._isHovered = false; }}
         ?disabled=${this.isRunning}>
 
         <div class="card-header">
@@ -118,10 +112,6 @@ export class MerchelloHealthCheckCardElement extends UmbElementMixin(LitElement)
           : nothing
         }
 
-        ${this._isHovered && hasResult && this.result!.affectedCount > 0
-          ? html`<div class="card-action-hint">Click for details</div>`
-          : nothing
-        }
       </button>
     `;
   }
@@ -129,6 +119,7 @@ export class MerchelloHealthCheckCardElement extends UmbElementMixin(LitElement)
   static override readonly styles = css`
     :host {
       display: block;
+      height: 100%;
     }
 
     .card {
@@ -147,6 +138,7 @@ export class MerchelloHealthCheckCardElement extends UmbElementMixin(LitElement)
       position: relative;
       text-align: left;
       width: 100%;
+      height: 100%;
     }
 
     .card:hover:not([disabled]) {
@@ -249,15 +241,6 @@ export class MerchelloHealthCheckCardElement extends UmbElementMixin(LitElement)
       font-size: var(--uui-type-small-size);
       font-weight: 600;
       flex-shrink: 0;
-    }
-
-    .card-action-hint {
-      position: absolute;
-      bottom: var(--uui-size-space-2);
-      right: var(--uui-size-space-3);
-      font-size: 11px;
-      color: var(--uui-color-text-alt);
-      opacity: 0.7;
     }
 
     uui-loader-circle {
