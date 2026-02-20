@@ -60,8 +60,18 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
 
   override connectedCallback(): void {
     super.connectedCallback();
+    window.addEventListener("merchello:trigger-settings-save", this.#onExternalSave);
     void this._loadConfiguration();
   }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.removeEventListener("merchello:trigger-settings-save", this.#onExternalSave);
+  }
+
+  #onExternalSave = (): void => {
+    void this._handleSave();
+  };
 
   private async _loadConfiguration(): Promise<void> {
     this._isLoading = true;
@@ -80,6 +90,7 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     }
 
     this._configuration = configurationResult.data;
+    this.#dispatchSaveState();
 
     if (editorSettingsResult.data?.dataTypeKey) {
       await this._loadDataTypeConfig(editorSettingsResult.data.dataTypeKey);
@@ -149,6 +160,7 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     }
 
     this._isSaving = true;
+    this.#dispatchSaveState();
     const { data, error } = await MerchelloApi.saveStoreConfiguration(this._configuration);
     if (error || !data) {
       this.#notificationContext?.peek("danger", {
@@ -158,6 +170,7 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         },
       });
       this._isSaving = false;
+      this.#dispatchSaveState();
       return;
     }
 
@@ -171,6 +184,15 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     });
 
     this._isSaving = false;
+    this.#dispatchSaveState();
+  }
+
+  #dispatchSaveState(): void {
+    window.dispatchEvent(
+      new CustomEvent("merchello:settings-save-state", {
+        detail: { isSaving: this._isSaving, canSave: !!this._configuration },
+      }),
+    );
   }
 
   private _toPropertyValueMap(values: UmbPropertyValueData[]): Record<string, unknown> {
@@ -817,21 +839,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     };
   }
 
-  private _renderSaveActions(): unknown {
-    return html`
-      <div class="tab-actions">
-        <uui-button
-          look="primary"
-          color="positive"
-          label="Save settings"
-          ?disabled=${this._isSaving}
-          @click=${this._handleSave}>
-          ${this._isSaving ? "Saving..." : "Save settings"}
-        </uui-button>
-      </div>
-    `;
-  }
-
   private _renderStoreTab(): unknown {
     return html`
       <uui-box headline="Store">
@@ -943,7 +950,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         </umb-property-dataset>
       </uui-box>
 
-      ${this._renderSaveActions()}
     `;
   }
 
@@ -969,7 +975,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           </umb-property>
         </umb-property-dataset>
       </uui-box>
-      ${this._renderSaveActions()}
     `;
   }
 
@@ -1151,7 +1156,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           </umb-property>
         </umb-property-dataset>
       </uui-box>
-      ${this._renderSaveActions()}
     `;
   }
 
@@ -1214,7 +1218,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           )}
         </umb-property-dataset>
       </uui-box>
-      ${this._renderSaveActions()}
     `;
   }
 
@@ -1276,7 +1279,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         <merchello-ucp-flow-tester></merchello-ucp-flow-tester>
       </uui-box>
 
-      ${this._renderSaveActions()}
     `;
   }
 
@@ -1324,7 +1326,7 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     if (!this._configuration) {
       return html`
         ${this._renderErrorBanner()}
-        <div class="tab-actions">
+        <div class="retry-actions">
           <uui-button label="Retry" look="secondary" @click=${this._loadConfiguration}>Retry</uui-button>
         </div>
       `;
@@ -1370,7 +1372,7 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
       gap: var(--uui-size-space-4);
     }
 
-    .tab-actions {
+    .retry-actions {
       display: flex;
       justify-content: flex-end;
       gap: var(--uui-size-space-3);
