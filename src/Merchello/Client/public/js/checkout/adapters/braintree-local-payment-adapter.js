@@ -184,12 +184,8 @@
                     }
                 }
 
-                // Route to appropriate renderer based on method type
-                if (methodAlias === 'sepa') {
-                    await this.renderSepaForm(container, session, config);
-                } else {
-                    await this.renderLocalPaymentButton(container, session, config);
-                }
+                // All local methods (including SEPA) use Braintree local payment flow.
+                await this.renderLocalPaymentButton(container, session, config);
 
                 console.log(`Braintree Local Payment (${methodAlias}) initialized successfully`);
             } catch (error) {
@@ -208,7 +204,8 @@
                 'ideal': 'iDEAL',
                 'bancontact': 'Bancontact',
                 'eps': 'eps',
-                'p24': 'Przelewy24'
+                'p24': 'Przelewy24',
+                'sepa': 'SEPA Direct Debit'
             };
             const displayName = displayNames[methodAlias] || methodAlias;
 
@@ -367,201 +364,11 @@
         },
 
         /**
-         * Render SEPA Direct Debit form
-         */
-        async renderSepaForm(container, session, config) {
-            container.innerHTML = `
-                <div class="braintree-sepa-wrapper">
-                    <div class="braintree-form-field">
-                        <label for="braintree-iban" class="braintree-label">IBAN</label>
-                        <input type="text" id="braintree-iban" class="braintree-input"
-                               placeholder="DE89 3704 0044 0532 0130 00"
-                               autocomplete="off" />
-                    </div>
-                    <div class="braintree-form-field">
-                        <label for="braintree-account-holder" class="braintree-label">Account Holder Name</label>
-                        <input type="text" id="braintree-account-holder" class="braintree-input"
-                               placeholder="John Doe"
-                               autocomplete="name" />
-                    </div>
-                    <div class="braintree-form-field braintree-mandate-field">
-                        <label class="braintree-checkbox-label">
-                            <input type="checkbox" id="braintree-mandate" class="braintree-checkbox" />
-                            <span class="braintree-mandate-text">
-                                I authorize the debit of the specified bank account for the payment of this purchase.
-                            </span>
-                        </label>
-                    </div>
-                    <div id="braintree-sepa-error" class="braintree-error-message"></div>
-                </div>
-                <style>
-                    .braintree-sepa-wrapper {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 1rem;
-                    }
-                    .braintree-form-field {
-                        display: flex;
-                        flex-direction: column;
-                        gap: 0.25rem;
-                    }
-                    .braintree-label {
-                        font-size: 0.875rem;
-                        font-weight: 500;
-                        color: #374151;
-                    }
-                    .braintree-input {
-                        height: 44px;
-                        padding: 0 0.75rem;
-                        border: 1px solid #d1d5db;
-                        border-radius: 0.375rem;
-                        font-size: 1rem;
-                        background: white;
-                        transition: border-color 0.15s ease, box-shadow 0.15s ease;
-                    }
-                    .braintree-input:hover {
-                        border-color: #9ca3af;
-                    }
-                    .braintree-input:focus {
-                        outline: none;
-                        border-color: #3b82f6;
-                        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-                    }
-                    .braintree-mandate-field {
-                        margin-top: 0.5rem;
-                    }
-                    .braintree-checkbox-label {
-                        display: flex;
-                        gap: 0.5rem;
-                        cursor: pointer;
-                    }
-                    .braintree-checkbox {
-                        width: 1rem;
-                        height: 1rem;
-                        margin-top: 0.125rem;
-                        flex-shrink: 0;
-                    }
-                    .braintree-mandate-text {
-                        font-size: 0.75rem;
-                        color: #6b7280;
-                        line-height: 1.4;
-                    }
-                    .braintree-error-message {
-                        color: #dc2626;
-                        font-size: 0.875rem;
-                    }
-                    .braintree-error-message:empty {
-                        display: none;
-                    }
-                </style>
-            `;
-
-            // Format IBAN input
-            const ibanInput = container.querySelector('#braintree-iban');
-            ibanInput.addEventListener('input', (e) => {
-                let value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-                // Add spaces every 4 characters
-                value = value.match(/.{1,4}/g)?.join(' ') || value;
-                e.target.value = value;
-            });
-        },
-
-        /**
-         * Submit SEPA payment (called from checkout)
+         * Submit local payment (called from checkout)
          */
         async submit(invoiceId, options = {}) {
-            const methodAlias = currentSession?.methodAlias?.toLowerCase();
-
-            if (methodAlias === 'sepa') {
-                return this.submitSepa(invoiceId, options);
-            }
-
-            // For redirect methods, the submit is handled by startLocalPayment
+            // Local payment methods complete via the adapter payment button.
             return { success: false, error: 'Use the payment button to complete payment.' };
-        },
-
-        /**
-         * Submit SEPA Direct Debit
-         */
-        async submitSepa(invoiceId, options = {}) {
-            const errorContainer = currentContainer?.querySelector('#braintree-sepa-error');
-            if (errorContainer) errorContainer.textContent = '';
-
-            try {
-                const ibanInput = currentContainer?.querySelector('#braintree-iban');
-                const accountHolderInput = currentContainer?.querySelector('#braintree-account-holder');
-                const mandateCheckbox = currentContainer?.querySelector('#braintree-mandate');
-
-                const iban = ibanInput?.value?.replace(/\s/g, '') || '';
-                const accountHolder = accountHolderInput?.value?.trim() || '';
-                const mandateAccepted = mandateCheckbox?.checked || false;
-
-                // Validate
-                if (!iban) {
-                    throw new Error('Please enter your IBAN.');
-                }
-                if (!this.validateIban(iban)) {
-                    throw new Error('Please enter a valid IBAN.');
-                }
-                if (!accountHolder) {
-                    throw new Error('Please enter the account holder name.');
-                }
-                if (!mandateAccepted) {
-                    throw new Error('Please accept the mandate authorization.');
-                }
-
-                // Get vault settings from checkout store
-                const vaultSettings = MerchelloPayment.getVaultSettings();
-
-                // For SEPA, we need to create a different flow
-                // SEPA requires server-side processing with bank account details
-                const response = await MerchelloPayment.fetchWithTimeout('/api/merchello/checkout/process-payment', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        invoiceId: invoiceId,
-                        providerAlias: currentSession?.providerAlias || 'braintree',
-                        methodAlias: 'sepa',
-                        formData: {
-                            iban: iban,
-                            accountHolder: accountHolder,
-                            mandateAccepted: mandateAccepted,
-                            deviceData: dataCollectorInstance?.deviceData || ''
-                        },
-                        savePaymentMethod: vaultSettings.savePaymentMethod,
-                        setAsDefaultMethod: vaultSettings.setAsDefaultMethod
-                    })
-                });
-
-                const result = await response.json();
-
-                if (!result.success) {
-                    throw new Error(result.errorMessage || 'Payment processing failed');
-                }
-
-                return result;
-            } catch (error) {
-                if (errorContainer) {
-                    errorContainer.textContent = error.message;
-                }
-                return { success: false, error: error.message };
-            }
-        },
-
-        /**
-         * Validate IBAN format (basic validation)
-         */
-        validateIban(iban) {
-            // Remove spaces and convert to uppercase
-            const cleanIban = iban.replace(/\s/g, '').toUpperCase();
-            // Basic length check (varies by country, typically 15-34)
-            if (cleanIban.length < 15 || cleanIban.length > 34) {
-                return false;
-            }
-            // Check format: 2 letters + 2 digits + alphanumeric
-            return /^[A-Z]{2}[0-9]{2}[A-Z0-9]+$/.test(cleanIban);
         },
 
         /**

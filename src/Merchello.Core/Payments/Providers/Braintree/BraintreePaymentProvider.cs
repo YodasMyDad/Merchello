@@ -1148,6 +1148,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                 "transaction_settlement_declined" => WebhookEventType.PaymentFailed,
                 "dispute_opened" => WebhookEventType.DisputeOpened,
                 "dispute_won" or "dispute_lost" => WebhookEventType.DisputeResolved,
+                "local_payment_funded" => WebhookEventType.PaymentCompleted,
                 "local_payment_completed" => WebhookEventType.PaymentCompleted,
                 "local_payment_reversed" => WebhookEventType.RefundCompleted,
                 "local_payment_expired" => WebhookEventType.PaymentFailed,
@@ -1450,6 +1451,14 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             },
             new()
             {
+                EventType = "local_payment_funded",
+                DisplayName = "Local Payment Funded",
+                Description = "Fired when a local payment method has been funded and a transaction is available.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
                 EventType = "local_payment_reversed",
                 DisplayName = "Local Payment Reversed",
                 Description = "Fired when a local payment is reversed (e.g., SEPA direct debit reversal).",
@@ -1522,6 +1531,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             "dispute_opened" => "dispute_opened",
             "dispute_won" => "dispute_won",
             "dispute_lost" => "dispute_lost",
+            "local_payment_funded" => "local_payment_funded",
             "local_payment_completed" => "local_payment_completed",
             "local_payment_reversed" => "local_payment_reversed",
             "local_payment_expired" => "local_payment_expired",
@@ -1606,7 +1616,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                     </subject>
                 </notification>
                 """,
-            "local_payment_completed" or "local_payment_reversed" or "local_payment_expired" => $"""
+            "local_payment_funded" or "local_payment_completed" or "local_payment_reversed" or "local_payment_expired" => $"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <notification>
                     <kind>{kind}</kind>
@@ -1619,7 +1629,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                             <payment-method-nonce>fake-valid-nonce</payment-method-nonce>
                             <transaction>
                                 <id>{transactionId}</id>
-                                <status>{(kind == "local_payment_completed" ? "settled" : kind == "local_payment_reversed" ? "voided" : "failed")}</status>
+                                <status>{(kind == "local_payment_completed" ? "settled" : kind == "local_payment_funded" ? "submitted_for_settlement" : kind == "local_payment_reversed" ? "voided" : "failed")}</status>
                                 <amount>{amount:F2}</amount>
                                 <currency-iso-code>EUR</currency-iso-code>
                             </transaction>
