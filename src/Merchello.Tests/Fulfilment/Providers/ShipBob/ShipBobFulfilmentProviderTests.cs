@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Fulfilment.Models;
 using Merchello.Core.Fulfilment.Providers;
 using Merchello.Core.Fulfilment.Providers.ShipBob;
@@ -114,7 +115,7 @@ public class ShipBobFulfilmentProviderTests
         var apiVersionField = fields.FirstOrDefault(f => f.Key == "ApiVersion");
         apiVersionField.ShouldNotBeNull();
         apiVersionField.IsRequired.ShouldBeFalse();
-        apiVersionField.DefaultValue.ShouldBe("2025-07");
+        apiVersionField.DefaultValue.ShouldBe("2026-01");
 
         var debugField = fields.FirstOrDefault(f => f.Key == "EnableDebugLogging");
         debugField.ShouldNotBeNull();
@@ -280,7 +281,7 @@ public class ShipBobFulfilmentProviderTests
         {
             PersonalAccessToken = "pat_test_token",
             ChannelId = 12345,
-            ApiVersion = "2025-07"
+            ApiVersion = "2026-01"
         };
         var apiClient = new ShipBobApiClient(
             new HttpClient(handler) { BaseAddress = new Uri("https://api.shipbob.test") },
@@ -378,14 +379,144 @@ public class ShipBobFulfilmentProviderTests
         parsed.Success.ShouldBeTrue();
         parsed.EventType.ShouldNotBeNullOrWhiteSpace();
         parsed.StatusUpdates.Count.ShouldBe(1);
-        parsed.StatusUpdates[0].ProviderReference.ShouldBe("REF-123");
+        parsed.StatusUpdates[0].ProviderReference.ShouldBe("12345");
+        parsed.StatusUpdates[0].ExtendedData["ShipBobReferenceId"].ToString().ShouldBe("REF-123");
         parsed.ShipmentUpdates.Count.ShouldBe(1);
+        parsed.ShipmentUpdates[0].ProviderReference.ShouldBe("12345");
         parsed.ShipmentUpdates[0].TrackingNumber.ShouldBe("TRACK-123");
         var shippedItems = parsed.ShipmentUpdates[0].Items;
         shippedItems.ShouldNotBeNull();
         shippedItems!.Count.ShouldBe(1);
         shippedItems[0].Sku.ShouldBe("TEST-SKU-001");
         headers.ContainsKey("x-webhook-topic").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ProcessWebhookAsync_PrefersOrderIdAsProviderReference_WhenBothOrderIdAndReferenceIdExist()
+    {
+        await _provider.ConfigureAsync(new FulfilmentProviderConfiguration
+        {
+            Id = Guid.NewGuid(),
+            ProviderKey = "shipbob",
+            SettingsJson = new ShipBobSettings
+            {
+                PersonalAccessToken = "pat_test_token",
+                ChannelId = 12345
+            }.ToJson()
+        });
+
+        const string payload = """
+            {
+              "topic": "order.shipped",
+              "data": {
+                "id": 555,
+                "order_id": 777,
+                "reference_id": "ORDER-GUID-ABC",
+                "status": "shipped",
+                "shipment": {
+                  "id": 555,
+                  "tracking": {
+                    "tracking_number": "TRACK-777",
+                    "tracking_url": "https://tracking.example.com/TRACK-777",
+                    "carrier": "UPS"
+                  },
+                  "products": [
+                    {
+                      "sku": "TEST-SKU-001",
+                      "quantity": 1
+                    }
+                  ]
+                }
+              }
+            }
+            """;
+
+        var request = BuildRequest(payload, new Dictionary<string, string>
+        {
+            ["x-webhook-topic"] = "order.shipped"
+        });
+
+        var parsed = await _provider.ProcessWebhookAsync(request);
+
+        parsed.Success.ShouldBeTrue();
+        parsed.StatusUpdates.Count.ShouldBe(1);
+        parsed.StatusUpdates[0].ProviderReference.ShouldBe("777");
+        parsed.StatusUpdates[0].ExtendedData["ShipBobReferenceId"].ToString().ShouldBe("ORDER-GUID-ABC");
+        parsed.ShipmentUpdates.Count.ShouldBe(1);
+        parsed.ShipmentUpdates[0].ProviderReference.ShouldBe("777");
+    }
+
+    [Fact]
+    public async Task PollOrderStatusAsync_WithNumericProviderReferences_UsesOrderIdEndpoint()
+    {
+        await _provider.ConfigureAsync(new FulfilmentProviderConfiguration
+        {
+            Id = Guid.NewGuid(),
+            ProviderKey = "shipbob",
+            SettingsJson = new ShipBobSettings
+            {
+                PersonalAccessToken = "pat_test_token",
+                ChannelId = 12345,
+                ApiBaseUrl = "https://api.shipbob.test",
+                ApiVersion = "2026-01"
+            }.ToJson()
+        });
+
+        var handler = new SequenceJsonHandler(
+        [
+            """
+            {
+              "id": 123,
+              "reference_id": "ORDER-GUID-123",
+              "status": "in_transit"
+            }
+            """,
+            """
+            {
+              "id": 456,
+              "reference_id": "ORDER-GUID-456",
+              "status": "processing",
+              "shipments": [
+                {
+                  "id": 4561,
+                  "status": "delivered",
+                  "status_details": [
+                    { "id": 203 }
+                  ],
+                  "created_date": "2026-01-01T00:00:00Z"
+                }
+              ]
+            }
+            """
+        ]);
+
+        var settings = new ShipBobSettings
+        {
+            PersonalAccessToken = "pat_test_token",
+            ChannelId = 12345,
+            ApiVersion = "2026-01"
+        };
+        var apiClient = new ShipBobApiClient(
+            new HttpClient(handler) { BaseAddress = new Uri("https://api.shipbob.test") },
+            settings,
+            NullLogger.Instance);
+        SetProviderApiClientForTest(_provider, apiClient);
+
+        var updates = await _provider.PollOrderStatusAsync(["123", "456"]);
+
+        updates.Count.ShouldBe(2);
+        updates.ShouldContain(x =>
+            x.ProviderReference == "123" &&
+            x.MappedStatus == OrderStatus.Shipped &&
+            x.ExtendedData["ShipBobReferenceId"].ToString() == "ORDER-GUID-123");
+        updates.ShouldContain(x =>
+            x.ProviderReference == "456" &&
+            x.MappedStatus == OrderStatus.Completed &&
+            x.ExtendedData["ShipBobReferenceId"].ToString() == "ORDER-GUID-456");
+
+        handler.Requests.Count.ShouldBe(2);
+        handler.Requests[0].RequestUri!.PathAndQuery.ShouldBe("/2026-01/order/123");
+        handler.Requests[1].RequestUri!.PathAndQuery.ShouldBe("/2026-01/order/456");
     }
 
     #endregion
@@ -414,7 +545,7 @@ public class ShipBobFulfilmentProviderTests
         var settings = new ShipBobSettings();
 
         settings.ApiBaseUrl.ShouldBe("https://api.shipbob.com");
-        settings.ApiVersion.ShouldBe("2025-07");
+        settings.ApiVersion.ShouldBe("2026-01");
         settings.TimeoutSeconds.ShouldBe(30);
         settings.EnableDebugLogging.ShouldBeFalse();
     }
@@ -425,10 +556,10 @@ public class ShipBobFulfilmentProviderTests
         var settings = new ShipBobSettings
         {
             ApiBaseUrl = "https://api.shipbob.com",
-            ApiVersion = "2025-07"
+            ApiVersion = "2026-01"
         };
 
-        settings.GetVersionedBaseUrl().ShouldBe("https://api.shipbob.com/2025-07");
+        settings.GetVersionedBaseUrl().ShouldBe("https://api.shipbob.com/2026-01");
     }
 
     [Fact]
@@ -437,10 +568,10 @@ public class ShipBobFulfilmentProviderTests
         var settings = new ShipBobSettings
         {
             ApiBaseUrl = "https://api.shipbob.com/",
-            ApiVersion = "2025-07"
+            ApiVersion = "2026-01"
         };
 
-        settings.GetVersionedBaseUrl().ShouldBe("https://api.shipbob.com/2025-07");
+        settings.GetVersionedBaseUrl().ShouldBe("https://api.shipbob.com/2026-01");
     }
 
     [Fact]
@@ -452,7 +583,7 @@ public class ShipBobFulfilmentProviderTests
                 "personalAccessToken": "pat_test_123",
                 "channelId": 12345,
                 "webhookSecret": "whsec_test",
-                "apiVersion": "2025-07",
+                "apiVersion": "2026-01",
                 "enableDebugLogging": true
             }
             """;
@@ -465,7 +596,7 @@ public class ShipBobFulfilmentProviderTests
         settings.PersonalAccessToken.ShouldBe("pat_test_123");
         settings.ChannelId.ShouldBe(12345);
         settings.WebhookSecret.ShouldBe("whsec_test");
-        settings.ApiVersion.ShouldBe("2025-07");
+        settings.ApiVersion.ShouldBe("2026-01");
         settings.EnableDebugLogging.ShouldBeTrue();
     }
 
@@ -589,6 +720,27 @@ public class ShipBobFulfilmentProviderTests
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json")
             });
+        }
+    }
+
+    private sealed class SequenceJsonHandler(IReadOnlyList<string> bodies) : HttpMessageHandler
+    {
+        private int _index;
+
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+
+            var index = Math.Min(_index, bodies.Count - 1);
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(bodies[index], Encoding.UTF8, "application/json")
+            };
+
+            _index++;
+            return Task.FromResult(response);
         }
     }
 

@@ -465,6 +465,35 @@ public class FulfilmentServiceTests
     }
 
     [Fact]
+    public async Task ProcessStatusUpdateAsync_GuidProviderReference_FallsBackToOrderId()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var order = _dataBuilder.CreateSubmittedFulfilmentOrder(providerConfig: config, providerReference: "SHIPBOB-ORDER-123");
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateFulfilmentService();
+        var statusUpdate = new FulfilmentStatusUpdate
+        {
+            ProviderReference = order.Id.ToString(),
+            ProviderStatus = "DELIVERED",
+            MappedStatus = OrderStatus.Completed,
+            StatusDate = DateTime.UtcNow
+        };
+
+        // Act
+        var result = await service.ProcessStatusUpdateAsync(statusUpdate);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+
+        var updatedOrder = await _fixture.DbContext.Orders.FindAsync(order.Id);
+        updatedOrder.ShouldNotBeNull();
+        updatedOrder.Status.ShouldBe(OrderStatus.Completed);
+    }
+
+    [Fact]
     public async Task ProcessStatusUpdateAsync_OrderNotFound_ReturnsError()
     {
         // Arrange
@@ -523,6 +552,42 @@ public class FulfilmentServiceTests
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject!.TrackingNumber.ShouldBe("TRACK-123456");
         result.ResultObject.Carrier.ShouldBe("Test Carrier");
+    }
+
+    [Fact]
+    public async Task ProcessShipmentUpdateAsync_GuidProviderReference_FallsBackToOrderId()
+    {
+        // Arrange
+        var config = _dataBuilder.CreateFulfilmentProviderConfiguration();
+        var warehouse = _dataBuilder.CreateWarehouse();
+        _dataBuilder.AssignFulfilmentProviderToWarehouse(warehouse, config);
+        var shippingOption = _dataBuilder.CreateShippingOption(warehouse: warehouse);
+        var invoice = _dataBuilder.CreateInvoice();
+        var order = _dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+        order.FulfilmentProviderConfigurationId = config.Id;
+        order.FulfilmentProviderReference = "SHIPBOB-ORDER-456";
+        _dataBuilder.CreateLineItem(order, name: "Test Product", amount: 25.00m);
+        await _dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var service = CreateFulfilmentService();
+        var shipmentUpdate = new FulfilmentShipmentUpdate
+        {
+            ProviderReference = order.Id.ToString(),
+            ProviderShipmentId = "SHIP-GUID-FALLBACK",
+            TrackingNumber = "TRACK-GUID-123",
+            Carrier = "Fallback Carrier",
+            ShippedDate = DateTime.UtcNow
+        };
+
+        // Act
+        var result = await service.ProcessShipmentUpdateAsync(shipmentUpdate);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject!.TrackingNumber.ShouldBe("TRACK-GUID-123");
+        result.ResultObject.Carrier.ShouldBe("Fallback Carrier");
     }
 
     [Fact]

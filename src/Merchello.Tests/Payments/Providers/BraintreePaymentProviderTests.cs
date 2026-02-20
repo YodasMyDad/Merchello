@@ -329,7 +329,7 @@ public class BraintreePaymentProviderTests
 
         // Assert
         templates.ShouldNotBeNull();
-        templates.Count.ShouldBe(10);
+        templates.Count.ShouldBe(11);
 
         // Verify transaction events
         templates.ShouldContain(t => t.EventType == "transaction_settled" &&
@@ -346,6 +346,8 @@ public class BraintreePaymentProviderTests
                                      t.MerchelloEventType == WebhookEventType.DisputeResolved);
 
         // Verify local payment events
+        templates.ShouldContain(t => t.EventType == "local_payment_funded" &&
+                                     t.MerchelloEventType == WebhookEventType.PaymentCompleted);
         templates.ShouldContain(t => t.EventType == "local_payment_completed" &&
                                      t.MerchelloEventType == WebhookEventType.PaymentCompleted);
         templates.ShouldContain(t => t.EventType == "local_payment_reversed" &&
@@ -362,6 +364,7 @@ public class BraintreePaymentProviderTests
     [InlineData("transaction_settled")]
     [InlineData("transaction_settlement_declined")]
     [InlineData("dispute_opened")]
+    [InlineData("local_payment_funded")]
     public async Task GenerateTestWebhookPayloadAsync_GeneratesValidPayload(string eventType)
     {
         // Arrange
@@ -386,5 +389,30 @@ public class BraintreePaymentProviderTests
         var decodedPayload = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
         decodedPayload.ShouldContain("<?xml");
         decodedPayload.ShouldContain($"<kind>{eventType}</kind>");
+    }
+
+    [Fact]
+    public async Task ProcessWebhookAsync_WithSkipValidation_MapsLocalPaymentFundedToPaymentCompleted()
+    {
+        // Arrange
+        var parameters = new TestWebhookParameters
+        {
+            EventType = "local_payment_funded",
+            TransactionId = "test_txn_funded_123",
+            InvoiceId = Guid.NewGuid(),
+            Amount = 54.32m
+        };
+
+        var (payload, headers) = await _provider.GenerateTestWebhookPayloadAsync(parameters);
+        headers["X-Merchello-Skip-Validation"] = "true";
+
+        // Act
+        var result = await _provider.ProcessWebhookAsync(payload, headers);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.EventType.ShouldBe(WebhookEventType.PaymentCompleted);
+        result.TransactionId.ShouldBe("test_txn_funded_123");
+        result.Amount.ShouldBe(54.32m);
     }
 }

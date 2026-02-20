@@ -361,6 +361,14 @@ public class FulfilmentService(
         var order = await scope.ExecuteWithContextAsync(async db =>
             await db.Orders.FirstOrDefaultAsync(o => o.FulfilmentProviderReference == update.ProviderReference, cancellationToken));
 
+        if (order == null && Guid.TryParse(update.ProviderReference, out var orderId))
+        {
+            // Some providers emit our internal order ID in webhooks instead of the provider reference.
+            // Fallback so those events still resolve to the correct order.
+            order = await scope.ExecuteWithContextAsync(async db =>
+                await db.Orders.FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken));
+        }
+
         if (order == null)
         {
             scope.Complete();
@@ -425,6 +433,15 @@ public class FulfilmentService(
                 .Include(o => o.Shipments)
                 .Include(o => o.LineItems)
                 .FirstOrDefaultAsync(o => o.FulfilmentProviderReference == update.ProviderReference, cancellationToken));
+
+        if (order == null && Guid.TryParse(update.ProviderReference, out var orderId))
+        {
+            order = await scope.ExecuteWithContextAsync(async db =>
+                await db.Orders
+                    .Include(o => o.Shipments)
+                    .Include(o => o.LineItems)
+                    .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken));
+        }
 
         if (order == null)
         {

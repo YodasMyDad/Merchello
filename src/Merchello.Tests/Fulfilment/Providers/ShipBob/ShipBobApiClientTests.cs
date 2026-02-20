@@ -17,7 +17,7 @@ public class ShipBobApiClientTests
         {
             PersonalAccessToken = "pat_test",
             ChannelId = 12345,
-            ApiVersion = "2025-07"
+            ApiVersion = "2026-01"
         };
 
         var handler = new SequenceHttpMessageHandler(
@@ -43,9 +43,9 @@ public class ShipBobApiClientTests
         result.Data.ShouldBeTrue();
         handler.Requests.Count.ShouldBe(2);
         handler.Requests[0].Method.ShouldBe(HttpMethod.Post);
-        handler.Requests[0].RequestUri!.PathAndQuery.ShouldBe("/2025-07/shipment/123:cancel");
+        handler.Requests[0].RequestUri!.PathAndQuery.ShouldBe("/2026-01/shipment/123:cancel");
         handler.Requests[1].Method.ShouldBe(HttpMethod.Post);
-        handler.Requests[1].RequestUri!.PathAndQuery.ShouldBe("/2025-07/shipment/123/cancel");
+        handler.Requests[1].RequestUri!.PathAndQuery.ShouldBe("/2026-01/shipment/123/cancel");
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class ShipBobApiClientTests
         {
             PersonalAccessToken = "pat_test",
             ChannelId = 12345,
-            ApiVersion = "2025-07"
+            ApiVersion = "2026-01"
         };
 
         var handler = new SequenceHttpMessageHandler(
@@ -77,7 +77,7 @@ public class ShipBobApiClientTests
         result.Success.ShouldBeFalse();
         result.Data.ShouldBeFalse();
         handler.Requests.Count.ShouldBe(1);
-        handler.Requests[0].RequestUri!.PathAndQuery.ShouldBe("/2025-07/shipment/987:cancel");
+        handler.Requests[0].RequestUri!.PathAndQuery.ShouldBe("/2026-01/shipment/987:cancel");
     }
 
     private sealed class SequenceHttpMessageHandler(IReadOnlyList<HttpResponseMessage> responses) : HttpMessageHandler
