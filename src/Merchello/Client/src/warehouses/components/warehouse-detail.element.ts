@@ -1630,6 +1630,10 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
         width: min(100%, 360px);
       }
 
+      .search-bar uui-icon[slot="prepend"] {
+        margin-left: 2px;
+      }
+
       .table-container {
         background: var(--uui-color-surface);
         border: 1px solid var(--uui-color-border);

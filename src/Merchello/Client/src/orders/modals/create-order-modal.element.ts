@@ -957,6 +957,10 @@ export class MerchelloCreateOrderModalElement extends UmbModalBaseElement<
       position: relative;
     }
 
+    .search-input-wrapper uui-icon[slot="prepend"] {
+      margin-left: 2px;
+    }
+
     .customer-dropdown {
       position: absolute;
       top: 100%;

@@ -343,6 +343,10 @@ export class MerchelloCustomerPickerModalElement extends UmbModalBaseElement<
       width: 100%;
     }
 
+    uui-icon[slot="prepend"] {
+      margin-left: 2px;
+    }
+
     .results-header {
       display: flex;
       justify-content: space-between;

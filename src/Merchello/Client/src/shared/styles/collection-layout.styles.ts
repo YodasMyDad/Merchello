@@ -50,6 +50,11 @@ export const collectionLayoutStyles = css`
     width: 100%;
   }
 
+  .search-box uui-icon[slot="prepend"] {
+    margin-left: 2px;
+    color: var(--uui-color-text-alt);
+  }
+
   .tabs {
     align-self: flex-start;
   }

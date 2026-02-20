@@ -313,6 +313,10 @@ export class MerchelloFilterPickerModalElement extends UmbModalBaseElement<
       width: 100%;
     }
 
+    .toolbar uui-icon[slot="prepend"] {
+      margin-left: 2px;
+    }
+
     .results-container {
       flex: 1;
       overflow-y: auto;
