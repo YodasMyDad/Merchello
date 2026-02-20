@@ -20,6 +20,7 @@ export default defineConfig({
       "@exchange-rate-providers": resolve(__dirname, "src/exchange-rate-providers"),
       "@filters": resolve(__dirname, "src/filters"),
       "@fulfilment-providers": resolve(__dirname, "src/fulfilment-providers"),
+      "@health-checks": resolve(__dirname, "src/health-checks"),
       "@marketing": resolve(__dirname, "src/marketing"),
       "@notifications": resolve(__dirname, "src/notifications"),
       "@orders": resolve(__dirname, "src/orders"),

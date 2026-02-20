@@ -43,15 +43,15 @@ export const manifests: Array<UmbExtensionManifest> = [
     ],
   },
 
-  // Stats Dashboard
+  // Health Checks Dashboard
   {
     type: "dashboard",
-    alias: "Merchello.Dashboard.Stats",
-    name: "Merchello Stats Dashboard",
-    element: () => import("@section/components/stats-dashboard.element.js"),
+    alias: "Merchello.Dashboard.HealthChecks",
+    name: "Merchello Health Checks Dashboard",
+    element: () => import("@health-checks/components/health-checks-dashboard.element.js"),
     meta: {
-      label: "Stats",
-      pathname: "stats",
+      label: "Health Checks",
+      pathname: "health-checks",
     },
     conditions: [
       {

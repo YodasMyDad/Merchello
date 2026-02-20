@@ -376,6 +376,13 @@ import type {
   CustomerSegmentBadgeDto,
 } from '@customers/types/segment.types.js';
 
+// Import health check types
+import type {
+  HealthCheckMetadataDto,
+  HealthCheckResultDto,
+  HealthCheckDetailPageDto,
+} from '@health-checks/types/health-check.types.js';
+
 // Import analytics types
 import type {
   AnalyticsSummaryDto,
@@ -2504,4 +2511,21 @@ export const MerchelloApi = {
   /** Get all notifications and handlers for developer view */
   getNotifications: () =>
     apiGet<NotificationDiscoveryResultDto>('notifications'),
+
+  // ============================================
+  // Health Checks API
+  // ============================================
+
+  /** Get available health checks */
+  getHealthChecks: () =>
+    apiGet<HealthCheckMetadataDto[]>('health-checks'),
+
+  /** Run a single health check */
+  runHealthCheck: (alias: string) =>
+    apiPost<HealthCheckResultDto>(`health-checks/${encodeURIComponent(alias)}/run`),
+
+  /** Get paginated detail items for a health check */
+  getHealthCheckDetail: (alias: string, page: number = 1, pageSize: number = 25) =>
+    apiGet<HealthCheckDetailPageDto>(
+      `health-checks/${encodeURIComponent(alias)}/details?page=${page}&pageSize=${pageSize}`),
 };
