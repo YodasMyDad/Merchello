@@ -11,6 +11,7 @@ using Merchello.Core.Caching.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -26,6 +27,7 @@ public class MerchelloStoreSettingsService(
     IOptionsMonitor<AbandonedCheckoutSettings> abandonedCheckoutOptions,
     IOptionsMonitor<InvoiceReminderSettings> invoiceReminderOptions,
     IOptionsMonitor<EmailSettings> emailOptions,
+    IHttpContextAccessor httpContextAccessor,
     IMediaUrlResolver mediaUrlResolver,
     ILogger<MerchelloStoreSettingsService> logger) : IMerchelloStoreSettingsService
 {
@@ -62,10 +64,10 @@ public class MerchelloStoreSettingsService(
         merchello.LowStockThreshold = store.LowStockThreshold;
         merchello.Store.Name = store.StoreName;
         merchello.Store.Email = store.StoreEmail;
-        merchello.Store.SupportEmail = store.StoreSupportEmail;
+        merchello.Store.SupportEmail = store.StoreEmail ?? merchello.Store.Email;
         merchello.Store.Phone = store.StorePhone;
         merchello.Store.LogoUrl = mediaUrlResolver.ResolveMediaUrl(store.StoreLogoMediaKey);
-        merchello.Store.WebsiteUrl = store.StoreWebsiteUrl;
+        merchello.Store.WebsiteUrl = ResolveWebsiteUrl(store.StoreWebsiteUrl, merchello.Store.WebsiteUrl);
         merchello.Store.Address = store.StoreAddress;
         merchello.Store.TermsUrl = store.Ucp?.TermsUrl;
         merchello.Store.PrivacyUrl = store.Ucp?.PrivacyUrl;
@@ -229,9 +231,8 @@ public class MerchelloStoreSettingsService(
                 InvoiceNumberPrefix = store.InvoiceNumberPrefix,
                 Name = store.StoreName,
                 Email = store.StoreEmail,
-                SupportEmail = store.StoreSupportEmail,
                 Phone = store.StorePhone,
-                WebsiteUrl = store.StoreWebsiteUrl,
+                WebsiteUrl = ResolveWebsiteUrl(store.StoreWebsiteUrl, merchelloOptions.CurrentValue.Store.WebsiteUrl),
                 Address = store.StoreAddress,
                 LogoMediaKey = store.StoreLogoMediaKey,
                 LogoUrl = mediaUrlResolver.ResolveMediaUrl(store.StoreLogoMediaKey),
@@ -340,7 +341,7 @@ public class MerchelloStoreSettingsService(
             ? "Acme Store"
             : storePanel.Name.Trim();
         store.StoreEmail = NullIfWhiteSpace(storePanel.Email);
-        store.StoreSupportEmail = NullIfWhiteSpace(storePanel.SupportEmail);
+        store.StoreSupportEmail = null;
         store.StorePhone = NullIfWhiteSpace(storePanel.Phone);
         store.StoreWebsiteUrl = NullIfWhiteSpace(storePanel.WebsiteUrl);
         store.StoreAddress = string.IsNullOrWhiteSpace(storePanel.Address)
@@ -454,6 +455,26 @@ public class MerchelloStoreSettingsService(
         store.AbandonedCheckout ??= new MerchelloStoreAbandonedCheckoutSettings();
         store.Email ??= new MerchelloStoreEmailSettings();
         store.Email.Theme ??= new MerchelloStoreEmailThemeSettings();
+    }
+
+    private string? ResolveWebsiteUrl(string? configuredWebsiteUrl, string? fallbackWebsiteUrl)
+    {
+        var normalizedConfigured = NullIfWhiteSpace(configuredWebsiteUrl);
+        if (!string.IsNullOrWhiteSpace(normalizedConfigured))
+        {
+            return normalizedConfigured;
+        }
+
+        var request = httpContextAccessor.HttpContext?.Request;
+        if (request?.Host.HasValue == true)
+        {
+            var pathBase = request.PathBase.HasValue
+                ? request.PathBase.Value?.TrimEnd('/')
+                : string.Empty;
+            return $"{request.Scheme}://{request.Host.Value}{pathBase}";
+        }
+
+        return NullIfWhiteSpace(fallbackWebsiteUrl);
     }
 
     private static string? NullIfWhiteSpace(string? value) =>

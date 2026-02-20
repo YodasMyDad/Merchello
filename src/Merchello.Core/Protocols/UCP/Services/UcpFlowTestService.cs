@@ -46,6 +46,7 @@ public class UcpFlowTestService(
     {
         var strictAvailability = await ResolveStrictAvailabilityAsync(ct);
         var agentId = NormalizeAgentId(null);
+        var configuredBaseUrl = await ResolveConfiguredPublicBaseUrlAsync(ct);
 
         return new UcpFlowDiagnosticsDto
         {
@@ -54,7 +55,7 @@ public class UcpFlowTestService(
             Extensions = GetConfiguredExtensions(),
             RequireHttps = _protocolSettings.RequireHttps,
             MinimumTlsVersion = _protocolSettings.MinimumTlsVersion,
-            PublicBaseUrl = NormalizeOriginalBaseUrl(_protocolSettings.PublicBaseUrl),
+            PublicBaseUrl = NormalizeOriginalBaseUrl(configuredBaseUrl),
             EffectiveBaseUrl = strictAvailability.EffectiveBaseUrl,
             StrictModeAvailable = strictAvailability.Available,
             StrictModeBlockReason = strictAvailability.Reason,
@@ -590,14 +591,23 @@ public class UcpFlowTestService(
 
     private async Task<string?> ResolveEffectiveBaseUrlAsync(CancellationToken ct)
     {
-        if (TryNormalizeBaseUrl(_protocolSettings.PublicBaseUrl, out var protocolBaseUrl))
-        {
-            return protocolBaseUrl;
-        }
-
         try
         {
             var runtime = await storeSettingsService.GetRuntimeSettingsAsync(ct);
+
+            // 1. DB UCP Public Base URL (set on the UCP settings tab)
+            if (TryNormalizeBaseUrl(runtime.Ucp?.PublicBaseUrl, out var ucpDbBaseUrl))
+            {
+                return ucpDbBaseUrl;
+            }
+
+            // 2. appsettings Protocol PublicBaseUrl
+            if (TryNormalizeBaseUrl(_protocolSettings.PublicBaseUrl, out var protocolBaseUrl))
+            {
+                return protocolBaseUrl;
+            }
+
+            // 3. DB Store Website URL
             if (TryNormalizeBaseUrl(runtime.Merchello.Store.WebsiteUrl, out var runtimeStoreBaseUrl))
             {
                 return runtimeStoreBaseUrl;
@@ -605,9 +615,15 @@ public class UcpFlowTestService(
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Unable to resolve runtime store website URL for UCP flow tester diagnostics.");
+            logger.LogDebug(ex, "Unable to resolve runtime settings for UCP flow tester diagnostics.");
+
+            if (TryNormalizeBaseUrl(_protocolSettings.PublicBaseUrl, out var protocolBaseUrl))
+            {
+                return protocolBaseUrl;
+            }
         }
 
+        // 4. appsettings Store Website URL (final fallback)
         return TryNormalizeBaseUrl(_merchelloSettings.Store?.WebsiteUrl, out var appSettingsBaseUrl)
             ? appSettingsBaseUrl
             : null;
@@ -634,6 +650,24 @@ public class UcpFlowTestService(
 
         normalized = builder.Uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
         return true;
+    }
+
+    private async Task<string?> ResolveConfiguredPublicBaseUrlAsync(CancellationToken ct)
+    {
+        try
+        {
+            var runtime = await storeSettingsService.GetRuntimeSettingsAsync(ct);
+            if (!string.IsNullOrWhiteSpace(runtime.Ucp?.PublicBaseUrl))
+            {
+                return runtime.Ucp.PublicBaseUrl;
+            }
+        }
+        catch
+        {
+            // Fall through to appsettings
+        }
+
+        return _protocolSettings.PublicBaseUrl;
     }
 
     private static string NormalizeOriginalBaseUrl(string? value)

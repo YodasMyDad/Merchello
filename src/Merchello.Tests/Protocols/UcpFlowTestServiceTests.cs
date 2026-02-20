@@ -241,9 +241,112 @@ public class UcpFlowTestServiceTests
         result.Response.StatusCode.ShouldBe(500);
     }
 
+    [Fact]
+    public async Task GetDiagnosticsAsync_WhenDbUcpPublicBaseUrlIsSet_UsesItAsEffectiveBaseUrl()
+    {
+        var storeSettingsServiceMock = new Mock<IMerchelloStoreSettingsService>();
+        storeSettingsServiceMock
+            .Setup(x => x.GetRuntimeSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MerchelloStoreRuntimeSettings
+            {
+                Merchello = new MerchelloSettings
+                {
+                    Store = new StoreSettings
+                    {
+                        WebsiteUrl = "https://store.example.com"
+                    }
+                },
+                Ucp = new MerchelloStoreUcpSettings
+                {
+                    PublicBaseUrl = "https://ucp-override.example.com"
+                }
+            });
+
+        var service = CreateService(
+            storeSettingsServiceMock: storeSettingsServiceMock,
+            protocolSettings: new ProtocolSettings
+            {
+                PublicBaseUrl = "https://appsettings-protocol.example.com",
+                RequireHttps = true,
+                Ucp = new UcpSettings { Version = "2026-01-23" }
+            });
+
+        var diagnostics = await service.GetDiagnosticsAsync();
+
+        diagnostics.EffectiveBaseUrl.ShouldBe("https://ucp-override.example.com");
+        diagnostics.PublicBaseUrl.ShouldBe("https://ucp-override.example.com");
+        diagnostics.StrictModeAvailable.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetDiagnosticsAsync_WhenDbUcpPublicBaseUrlIsEmpty_FallsBackToProtocolSettings()
+    {
+        var storeSettingsServiceMock = new Mock<IMerchelloStoreSettingsService>();
+        storeSettingsServiceMock
+            .Setup(x => x.GetRuntimeSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MerchelloStoreRuntimeSettings
+            {
+                Merchello = new MerchelloSettings
+                {
+                    Store = new StoreSettings
+                    {
+                        WebsiteUrl = "https://store.example.com"
+                    }
+                },
+                Ucp = new MerchelloStoreUcpSettings()
+            });
+
+        var service = CreateService(
+            storeSettingsServiceMock: storeSettingsServiceMock,
+            protocolSettings: new ProtocolSettings
+            {
+                PublicBaseUrl = "https://protocol.example.com",
+                RequireHttps = true,
+                Ucp = new UcpSettings { Version = "2026-01-23" }
+            });
+
+        var diagnostics = await service.GetDiagnosticsAsync();
+
+        diagnostics.EffectiveBaseUrl.ShouldBe("https://protocol.example.com");
+        diagnostics.StrictModeAvailable.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GetDiagnosticsAsync_WhenNoUcpOrProtocolBaseUrl_FallsBackToStoreWebsiteUrl()
+    {
+        var storeSettingsServiceMock = new Mock<IMerchelloStoreSettingsService>();
+        storeSettingsServiceMock
+            .Setup(x => x.GetRuntimeSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MerchelloStoreRuntimeSettings
+            {
+                Merchello = new MerchelloSettings
+                {
+                    Store = new StoreSettings
+                    {
+                        WebsiteUrl = "https://store.example.com"
+                    }
+                },
+                Ucp = new MerchelloStoreUcpSettings()
+            });
+
+        var service = CreateService(
+            storeSettingsServiceMock: storeSettingsServiceMock,
+            protocolSettings: new ProtocolSettings
+            {
+                RequireHttps = true,
+                Ucp = new UcpSettings { Version = "2026-01-23" }
+            });
+
+        var diagnostics = await service.GetDiagnosticsAsync();
+
+        diagnostics.EffectiveBaseUrl.ShouldBe("https://store.example.com");
+        diagnostics.StrictModeAvailable.ShouldBeTrue();
+    }
+
     private static UcpFlowTestService CreateService(
         Mock<ICommerceProtocolManager>? protocolManagerMock = null,
         Mock<IHttpClientFactory>? httpClientFactoryMock = null,
+        Mock<IMerchelloStoreSettingsService>? storeSettingsServiceMock = null,
         ProtocolSettings? protocolSettings = null,
         MerchelloSettings? merchelloSettings = null)
     {
@@ -260,19 +363,22 @@ public class UcpFlowTestServiceTests
             .Setup(x => x.SignAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("signed");
 
-        var storeSettingsServiceMock = new Mock<IMerchelloStoreSettingsService>();
-        storeSettingsServiceMock
-            .Setup(x => x.GetRuntimeSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new MerchelloStoreRuntimeSettings
-            {
-                Merchello = new MerchelloSettings
+        if (storeSettingsServiceMock == null)
+        {
+            storeSettingsServiceMock = new Mock<IMerchelloStoreSettingsService>();
+            storeSettingsServiceMock
+                .Setup(x => x.GetRuntimeSettingsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new MerchelloStoreRuntimeSettings
                 {
-                    Store = new StoreSettings
+                    Merchello = new MerchelloSettings
                     {
-                        WebsiteUrl = "https://runtime.example.com"
+                        Store = new StoreSettings
+                        {
+                            WebsiteUrl = "https://runtime.example.com"
+                        }
                     }
-                }
-            });
+                });
+        }
 
         protocolSettings ??= new ProtocolSettings
         {

@@ -314,6 +314,41 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     ];
   }
 
+  private _getFontFamilyConfig(): UmbPropertyEditorConfig {
+    return [
+      {
+        alias: "items",
+        value: [
+          { name: "System Default", value: "system-ui" },
+          { name: "Arial", value: "Arial, 'Helvetica Neue', Helvetica, sans-serif" },
+          { name: "Georgia", value: "Georgia, 'Times New Roman', Times, serif" },
+          { name: "Helvetica", value: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
+          { name: "Palatino", value: "'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif" },
+          { name: "Segoe UI", value: "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" },
+          { name: "Times New Roman", value: "'Times New Roman', Times, Georgia, serif" },
+          { name: "Trebuchet MS", value: "'Trebuchet MS', 'Lucida Grande', 'Lucida Sans', sans-serif" },
+          { name: "Verdana", value: "Verdana, Geneva, Tahoma, sans-serif" },
+        ],
+      },
+    ];
+  }
+
+  private _getEmailFontFamilyConfig(): UmbPropertyEditorConfig {
+    return [
+      {
+        alias: "items",
+        value: [
+          { name: "Helvetica Neue", value: "'Helvetica Neue', Helvetica, Arial, sans-serif" },
+          { name: "Arial", value: "Arial, Helvetica, sans-serif" },
+          { name: "Georgia", value: "Georgia, 'Times New Roman', Times, serif" },
+          { name: "Verdana", value: "Verdana, Geneva, sans-serif" },
+          { name: "Trebuchet MS", value: "'Trebuchet MS', Helvetica, sans-serif" },
+          { name: "Tahoma", value: "Tahoma, Geneva, sans-serif" },
+        ],
+      },
+    ];
+  }
+
   private _getColorValueFromEvent(e: Event): string {
     return (e.target as HTMLInputElement).value?.trim() ?? "";
   }
@@ -458,9 +493,9 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
     }
   }
 
-  private _renderColorProperty(label: string, value: string, onChange: (event: Event) => void): unknown {
+  private _renderColorProperty(label: string, value: string, onChange: (event: Event) => void, description?: string): unknown {
     return html`
-      <umb-property-layout .label=${label}>
+      <umb-property-layout .label=${label} .description=${description ?? ""}>
         <div slot="editor" class="color-picker-field">
           <uui-color-picker .label=${label} .value=${value} @change=${onChange}></uui-color-picker>
         </div>
@@ -474,7 +509,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
       { alias: "invoiceNumberPrefix", value: configuration.store.invoiceNumberPrefix },
       { alias: "name", value: configuration.store.name },
       { alias: "email", value: configuration.store.email ?? "" },
-      { alias: "supportEmail", value: configuration.store.supportEmail ?? "" },
       { alias: "phone", value: configuration.store.phone ?? "" },
       {
         alias: "logoMediaKey",
@@ -502,7 +536,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         invoiceNumberPrefix: this._getStringFromPropertyValue(values.invoiceNumberPrefix),
         name: this._getStringFromPropertyValue(values.name),
         email: this._getStringOrNullFromPropertyValue(values.email),
-        supportEmail: this._getStringOrNullFromPropertyValue(values.supportEmail),
         phone: this._getStringOrNullFromPropertyValue(values.phone),
         logoMediaKey: this._getSingleMediaPickerValue(values.logoMediaKey),
         websiteUrl: this._getStringOrNullFromPropertyValue(values.websiteUrl),
@@ -819,9 +852,18 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
             property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
           </umb-property>
 
-          <umb-property alias="email" label="Store Email" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="supportEmail" label="Support Email" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="phone" label="Phone" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
+          <umb-property
+            alias="email"
+            label="Store Email"
+            description="Primary contact email used for store communications and support contact links."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          <umb-property
+            alias="phone"
+            label="Phone"
+            description="Store contact number shown in customer-facing checkout and email footer areas."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
 
           <umb-property
             alias="logoMediaKey"
@@ -831,14 +873,35 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
             .config=${[{ alias: "multiple", value: false }]}>
           </umb-property>
 
-          <umb-property alias="websiteUrl" label="Website URL" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="address" label="Address" property-editor-ui-alias="Umb.PropertyEditorUi.TextArea"></umb-property>
+          <umb-property
+            alias="websiteUrl"
+            label="Website URL"
+            description="Public storefront base URL. Leave blank to automatically use the current store URL from the active request."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          <umb-property
+            alias="address"
+            label="Address"
+            description="Store address shown in email footers and customer statement PDFs."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextArea">
+          </umb-property>
 
-          <umb-property alias="displayPricesIncTax" label="Display Prices Inc Tax" property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="showStockLevels" label="Show Stock Levels" property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property
+            alias="displayPricesIncTax"
+            label="Display Prices Inc Tax"
+            description="Controls whether storefront prices are shown including tax by default."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
+          <umb-property
+            alias="showStockLevels"
+            label="Show Stock Levels"
+            description="Shows available stock quantities on product-facing views when enabled."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
           <umb-property
             alias="lowStockThreshold"
             label="Low Stock Threshold"
+            description="Inventory count at or below this value is considered low stock."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 0 }]}>
           </umb-property>
@@ -852,24 +915,28 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           <umb-property
             alias="reminderDaysBeforeDue"
             label="Reminder Days Before Due"
+            description="How many days before an invoice due date to send the first reminder."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 0 }]}>
           </umb-property>
           <umb-property
             alias="overdueReminderIntervalDays"
             label="Overdue Reminder Interval Days"
+            description="Number of days between overdue reminder emails."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 1 }]}>
           </umb-property>
           <umb-property
             alias="maxOverdueReminders"
             label="Max Overdue Reminders"
+            description="Maximum number of overdue reminders to send per invoice."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 0 }]}>
           </umb-property>
           <umb-property
             alias="checkIntervalHours"
             label="Check Interval Hours"
+            description="How often the reminder job checks for invoices that need reminder emails."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 1 }]}>
           </umb-property>
@@ -917,6 +984,7 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           <umb-property
             alias="headerBackgroundImageMediaKey"
             label="Header Background Image"
+            description="Background image displayed behind the checkout header area."
             property-editor-ui-alias="Umb.PropertyEditorUi.MediaPicker"
             .config=${[{ alias: "multiple", value: false }]}>
           </umb-property>
@@ -924,38 +992,107 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
             "Header Background Color",
             configuration.checkout.headerBackgroundColor ?? "",
             (e: Event) => this._handleCheckoutColorChange("headerBackgroundColor", e),
+            "Background color for the checkout header. Used when no image is set.",
           )}
           <umb-property
             alias="logoPosition"
             label="Logo Position"
+            description="Horizontal alignment of the store logo in the checkout header."
             property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
             .config=${this._getLogoPositionConfig()}>
           </umb-property>
-          <umb-property alias="logoMaxWidth" label="Logo Max Width" property-editor-ui-alias="Umb.PropertyEditorUi.Integer"></umb-property>
-          ${this._renderColorProperty("Primary Color", configuration.checkout.primaryColor, (e: Event) =>
-            this._handleCheckoutColorChange("primaryColor", e),
+          <umb-property
+            alias="logoMaxWidth"
+            label="Logo Max Width"
+            description="Maximum width in pixels for the store logo image."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Integer">
+          </umb-property>
+          ${this._renderColorProperty(
+            "Primary Color",
+            configuration.checkout.primaryColor,
+            (e: Event) => this._handleCheckoutColorChange("primaryColor", e),
+            "Main brand color used for buttons and primary interactive elements.",
           )}
-          ${this._renderColorProperty("Accent Color", configuration.checkout.accentColor, (e: Event) =>
-            this._handleCheckoutColorChange("accentColor", e),
+          ${this._renderColorProperty(
+            "Accent Color",
+            configuration.checkout.accentColor,
+            (e: Event) => this._handleCheckoutColorChange("accentColor", e),
+            "Secondary color used for links, focus states, and highlighted elements.",
           )}
-          ${this._renderColorProperty("Background Color", configuration.checkout.backgroundColor, (e: Event) =>
-            this._handleCheckoutColorChange("backgroundColor", e),
+          ${this._renderColorProperty(
+            "Background Color",
+            configuration.checkout.backgroundColor,
+            (e: Event) => this._handleCheckoutColorChange("backgroundColor", e),
+            "Page background color for the checkout.",
           )}
-          ${this._renderColorProperty("Text Color", configuration.checkout.textColor, (e: Event) =>
-            this._handleCheckoutColorChange("textColor", e),
+          ${this._renderColorProperty(
+            "Text Color",
+            configuration.checkout.textColor,
+            (e: Event) => this._handleCheckoutColorChange("textColor", e),
+            "Default text color used throughout the checkout.",
           )}
-          ${this._renderColorProperty("Error Color", configuration.checkout.errorColor, (e: Event) =>
-            this._handleCheckoutColorChange("errorColor", e),
+          ${this._renderColorProperty(
+            "Error Color",
+            configuration.checkout.errorColor,
+            (e: Event) => this._handleCheckoutColorChange("errorColor", e),
+            "Color used for error messages and validation feedback.",
           )}
-          <umb-property alias="headingFontFamily" label="Heading Font Family" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="bodyFontFamily" label="Body Font Family" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="showExpressCheckout" label="Show Express Checkout" property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="billingPhoneRequired" label="Billing Phone Required" property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="confirmationRedirectUrl" label="Confirmation Redirect URL" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="customScriptUrl" label="Custom Script URL" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="orderTermsShowCheckbox" label="Order Terms Checkbox" property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="orderTermsCheckboxText" label="Order Terms Checkbox Text" property-editor-ui-alias="Umb.PropertyEditorUi.TextArea"></umb-property>
-          <umb-property alias="orderTermsCheckboxRequired" label="Order Terms Checkbox Required" property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property
+            alias="headingFontFamily"
+            label="Heading Font Family"
+            description="Font used for headings, section titles, and the store name."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+            .config=${this._getFontFamilyConfig()}>
+          </umb-property>
+          <umb-property
+            alias="bodyFontFamily"
+            label="Body Font Family"
+            description="Font used for body text, form labels, and all other checkout text."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+            .config=${this._getFontFamilyConfig()}>
+          </umb-property>
+          <umb-property
+            alias="showExpressCheckout"
+            label="Show Express Checkout"
+            description="Display express payment options (e.g. Apple Pay, Google Pay) at the top of checkout when available."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
+          <umb-property
+            alias="billingPhoneRequired"
+            label="Billing Phone Required"
+            description="Require a phone number in the billing address form."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
+          <umb-property
+            alias="confirmationRedirectUrl"
+            label="Confirmation Redirect URL"
+            description="Redirect customers to this URL after order confirmation. Leave empty to use the built-in confirmation page."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          <umb-property
+            alias="customScriptUrl"
+            label="Custom Script URL"
+            description="URL to a custom JavaScript file loaded on checkout pages. Useful for analytics or tracking scripts."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          <umb-property
+            alias="orderTermsShowCheckbox"
+            label="Order Terms Checkbox"
+            description="Show a terms and conditions checkbox before payment."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
+          <umb-property
+            alias="orderTermsCheckboxText"
+            label="Order Terms Checkbox Text"
+            description="Text next to the terms checkbox. Use {terms:Link Text} and {privacy:Link Text} to insert policy links."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextArea">
+          </umb-property>
+          <umb-property
+            alias="orderTermsCheckboxRequired"
+            label="Order Terms Checkbox Required"
+            description="Require customers to accept terms before completing payment."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
+          </umb-property>
         </umb-property-dataset>
       </uui-box>
 
@@ -966,42 +1103,49 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           <umb-property
             alias="abandonmentThresholdHours"
             label="Abandonment Threshold Hours"
+            description="Time after last activity before a checkout is considered abandoned."
             property-editor-ui-alias="Umb.PropertyEditorUi.Decimal"
             .config=${[{ alias: "min", value: 0.5 }]}>
           </umb-property>
           <umb-property
             alias="recoveryExpiryDays"
             label="Recovery Expiry Days"
+            description="Days after abandonment before recovery attempts stop."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 1 }]}>
           </umb-property>
           <umb-property
             alias="checkIntervalMinutes"
             label="Check Interval Minutes"
+            description="How often the system checks for newly abandoned checkouts."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 5 }]}>
           </umb-property>
           <umb-property
             alias="firstEmailDelayHours"
             label="First Email Delay Hours"
+            description="Hours after abandonment before the first recovery email is sent."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 0 }]}>
           </umb-property>
           <umb-property
             alias="reminderEmailDelayHours"
             label="Reminder Email Delay Hours"
+            description="Hours after the first email before a follow-up reminder is sent."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 0 }]}>
           </umb-property>
           <umb-property
             alias="finalEmailDelayHours"
             label="Final Email Delay Hours"
+            description="Hours after the reminder before the final recovery email is sent."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 0 }]}>
           </umb-property>
           <umb-property
             alias="maxRecoveryEmails"
             label="Max Recovery Emails"
+            description="Maximum number of recovery emails sent per abandoned checkout."
             property-editor-ui-alias="Umb.PropertyEditorUi.Integer"
             .config=${[{ alias: "min", value: 0 }]}>
           </umb-property>
@@ -1019,23 +1163,54 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         <umb-property-dataset
           .value=${this._getEmailSettingsDatasetValue()}
           @change=${this._handleEmailSettingsDatasetChange}>
-          <umb-property alias="defaultFromAddress" label="Default From Address" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="defaultFromName" label="Default From Name" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          ${this._renderColorProperty("Primary Color", configuration.email.theme.primaryColor, (e: Event) =>
-            this._handleEmailThemeColorChange("primaryColor", e),
+          <umb-property
+            alias="defaultFromAddress"
+            label="Default From Address"
+            description="Email address used as the sender for all outgoing store emails."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          <umb-property
+            alias="defaultFromName"
+            label="Default From Name"
+            description="Display name shown alongside the from address in customer emails."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          ${this._renderColorProperty(
+            "Primary Color",
+            configuration.email.theme.primaryColor,
+            (e: Event) => this._handleEmailThemeColorChange("primaryColor", e),
+            "Brand color used for buttons, links, and key highlights in emails.",
           )}
-          ${this._renderColorProperty("Text Color", configuration.email.theme.textColor, (e: Event) =>
-            this._handleEmailThemeColorChange("textColor", e),
+          ${this._renderColorProperty(
+            "Text Color",
+            configuration.email.theme.textColor,
+            (e: Event) => this._handleEmailThemeColorChange("textColor", e),
+            "Default text color used throughout email templates.",
           )}
-          ${this._renderColorProperty("Background Color", configuration.email.theme.backgroundColor, (e: Event) =>
-            this._handleEmailThemeColorChange("backgroundColor", e),
+          ${this._renderColorProperty(
+            "Background Color",
+            configuration.email.theme.backgroundColor,
+            (e: Event) => this._handleEmailThemeColorChange("backgroundColor", e),
+            "Outer background color surrounding the email content area.",
           )}
-          <umb-property alias="themeFontFamily" label="Font Family" property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          ${this._renderColorProperty("Secondary Text Color", configuration.email.theme.secondaryTextColor, (e: Event) =>
-            this._handleEmailThemeColorChange("secondaryTextColor", e),
+          <umb-property
+            alias="themeFontFamily"
+            label="Font Family"
+            description="Font used for all text in email templates."
+            property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
+            .config=${this._getEmailFontFamilyConfig()}>
+          </umb-property>
+          ${this._renderColorProperty(
+            "Secondary Text Color",
+            configuration.email.theme.secondaryTextColor,
+            (e: Event) => this._handleEmailThemeColorChange("secondaryTextColor", e),
+            "Color used for supporting text such as footers and captions.",
           )}
-          ${this._renderColorProperty("Content Background Color", configuration.email.theme.contentBackgroundColor, (e: Event) =>
-            this._handleEmailThemeColorChange("contentBackgroundColor", e),
+          ${this._renderColorProperty(
+            "Content Background Color",
+            configuration.email.theme.contentBackgroundColor,
+            (e: Event) => this._handleEmailThemeColorChange("contentBackgroundColor", e),
+            "Background color of the main content area within emails.",
           )}
         </umb-property-dataset>
       </uui-box>
@@ -1050,12 +1225,22 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         @change=${this._handleUcpDatasetChange}>
 
         <uui-box .headline=${this._t("merchello_settingsUcpHeadline", "UCP")}>
-          <umb-property alias="termsUrl" .label=${this._t("merchello_settingsUcpTermsUrl", "Terms URL")} property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
-          <umb-property alias="privacyUrl" .label=${this._t("merchello_settingsUcpPrivacyUrl", "Privacy URL")} property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"></umb-property>
+          <umb-property
+            alias="termsUrl"
+            .label=${this._t("merchello_settingsUcpTermsUrl", "Terms URL")}
+            description="URL to the store terms of service. Included as a legal link in UCP session responses."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
+          <umb-property
+            alias="privacyUrl"
+            .label=${this._t("merchello_settingsUcpPrivacyUrl", "Privacy URL")}
+            description="URL to the store privacy policy. Included as a legal link in UCP session responses."
+            property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+          </umb-property>
           <umb-property
             alias="publicBaseUrl"
             label="Public Base URL"
-            description="Override the public base URL used in UCP manifest URLs. Leave empty to use the store website URL."
+            description="Override the public base URL used in UCP manifest URLs and strict mode. Leave empty to use the store website URL."
             property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
           </umb-property>
           <umb-property
@@ -1073,16 +1258,16 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
         </uui-box>
 
         <uui-box headline="Capabilities">
-          <umb-property alias="capabilityCheckout" label="Checkout" description="Enable the Checkout capability." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="capabilityOrder" label="Order" description="Enable the Order capability." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="capabilityIdentityLinking" label="Identity Linking" description="Enable the Identity Linking capability." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="capabilityCheckout" label="Checkout" description="Allow agents to create and manage checkout sessions." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="capabilityOrder" label="Order" description="Allow agents to retrieve order details and status after checkout." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="capabilityIdentityLinking" label="Identity Linking" description="Allow agents to link external buyer identities to customer accounts." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
         </uui-box>
 
         <uui-box headline="Extensions">
-          <umb-property alias="extensionDiscount" label="Discount" description="Enable the Discount extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="extensionFulfillment" label="Fulfillment" description="Enable the Fulfillment extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="extensionBuyerConsent" label="Buyer Consent" description="Enable the Buyer Consent extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
-          <umb-property alias="extensionAp2Mandates" label="AP2 Mandates" description="Enable the AP2 Mandates extension." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="extensionDiscount" label="Discount" description="Expose discount and promotional code support to agents during checkout." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="extensionFulfillment" label="Fulfillment" description="Expose shipping and fulfillment options to agents during checkout." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="extensionBuyerConsent" label="Buyer Consent" description="Require agents to present terms and privacy consent during checkout." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
+          <umb-property alias="extensionAp2Mandates" label="AP2 Mandates" description="Enable AP2 regulatory mandate compliance for applicable transactions." property-editor-ui-alias="Umb.PropertyEditorUi.Toggle"></umb-property>
         </uui-box>
 
       </umb-property-dataset>
