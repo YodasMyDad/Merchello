@@ -30,6 +30,7 @@ import { MERCHELLO_PRODUCT_PICKER_MODAL } from "@shared/product-picker/product-p
 // Import shared components
 import "@shared/components/line-item-identity.element.js";
 import { formatNumber } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface EditableLineItem extends LineItemForEditDto {
   isRemoved: boolean;
@@ -1554,7 +1555,9 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -2322,7 +2325,8 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       padding: 2px 6px;
       border-radius: 4px;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloEditOrderModalElement;
@@ -2332,3 +2336,4 @@ declare global {
     "merchello-edit-order-modal": MerchelloEditOrderModalElement;
   }
 }
+

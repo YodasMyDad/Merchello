@@ -13,6 +13,7 @@ import type {
 } from "@tax/modals/tax-provider-config-modal.token.js";
 import { MERCHELLO_TAX_GROUP_MODAL } from "@tax/modals/tax-group-modal.token.js";
 import { MERCHELLO_SHIPPING_TAX_OVERRIDE_MODAL } from "@tax/modals/shipping-tax-override-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 type TabType = "product" | "shipping";
 
@@ -951,7 +952,9 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -1215,7 +1218,8 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTaxProviderConfigModalElement;
@@ -1225,3 +1229,4 @@ declare global {
     "merchello-tax-provider-config-modal": MerchelloTaxProviderConfigModalElement;
   }
 }
+

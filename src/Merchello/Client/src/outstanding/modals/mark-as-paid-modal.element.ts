@@ -5,6 +5,7 @@ import type { MarkAsPaidModalData, MarkAsPaidModalValue } from "@outstanding/mod
 import { MerchelloApi } from "@api/merchello-api.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import { getCurrencyCode } from "@api/store-settings.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface UuiSelectOption {
   name: string;
@@ -271,7 +272,9 @@ export class MerchelloMarkAsPaidModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -413,7 +416,8 @@ export class MerchelloMarkAsPaidModalElement extends UmbModalBaseElement<
         align-self: flex-end;
       }
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloMarkAsPaidModalElement;
@@ -423,3 +427,4 @@ declare global {
     "merchello-mark-as-paid-modal": MerchelloMarkAsPaidModalElement;
   }
 }
+

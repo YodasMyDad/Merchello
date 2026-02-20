@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Merchello.Core.Protocols.Models;
+using Merchello.Core.Protocols.UCP.Models;
 
 namespace Merchello.Core.Protocols;
 
@@ -14,9 +15,9 @@ public class UcpMetadata
     public required string Version { get; init; }
 
     /// <summary>
-    /// Active capabilities with their resolved versions.
+    /// Active capabilities. Per UCP spec, this is an array of {name, version} objects.
     /// </summary>
-    public required IReadOnlyDictionary<string, string> Capabilities { get; init; }
+    public required IReadOnlyList<UcpResponseCapability> Capabilities { get; init; }
 
     /// <summary>
     /// Available payment handlers for the current protocol response context.

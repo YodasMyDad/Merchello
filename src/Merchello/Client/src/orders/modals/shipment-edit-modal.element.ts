@@ -8,6 +8,7 @@ import type { UpdateShipmentDto } from "@orders/types/order.types.js";
 
 // Import shared components
 import "@shared/components/line-item-identity.element.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-shipment-edit-modal")
 export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
@@ -164,7 +165,9 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -258,7 +261,8 @@ export class MerchelloShipmentEditModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShipmentEditModalElement;
@@ -268,3 +272,4 @@ declare global {
     "merchello-shipment-edit-modal": MerchelloShipmentEditModalElement;
   }
 }
+

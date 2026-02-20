@@ -103,6 +103,8 @@ using Merchello.Core.Webhooks.Handlers;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services;
 using Merchello.Core.Webhooks.Services.Interfaces;
+using Merchello.Core.Settings.Services;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Authentication;
 using Merchello.Core.Protocols.Authentication.Interfaces;
@@ -131,6 +133,9 @@ using Merchello.Core.Upsells.Factories;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services;
 using Merchello.Core.Upsells.Services.Interfaces;
+using Merchello.Core.HealthChecks.Interfaces;
+using Merchello.Core.HealthChecks.Services;
+using Merchello.Core.HealthChecks.Services.Interfaces;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Email.Services;
@@ -235,6 +240,18 @@ public static class Startup
             // Per-subscription webhook timeout is enforced via cancellation tokens in WebhookDispatcher.
             // Keep HttpClient timeout uncapped to avoid a hidden global 100s ceiling.
             client.Timeout = Timeout.InfiniteTimeSpan;
+        });
+        builder.Services.AddHttpClient("UcpWebhooks", client =>
+        {
+            // Per-request UCP webhook timeout is enforced in UcpOrderWebhookHandler via client.Timeout.
+            // Keep the factory default uncapped so the per-request assignment is the effective ceiling.
+            client.Timeout = Timeout.InfiniteTimeSpan;
+        });
+        builder.Services.AddHttpClient("UcpFlowStrict", client =>
+        {
+            // Strict UCP flow tester executes real signed HTTP calls to local API routes.
+            // Keep a bounded timeout for predictable developer feedback in the backoffice.
+            client.Timeout = TimeSpan.FromSeconds(45);
         });
 
         // Register Merchello cache refresher for distributed cache invalidation
@@ -415,6 +432,9 @@ public static class Startup
         // Reporting
         builder.Services.AddScoped<IReportingService, ReportingService>();
 
+        // Health Checks
+        builder.Services.AddScoped<IHealthCheckService, HealthCheckService>();
+
         // Webhooks
         builder.Services.AddSingleton<IWebhookTopicRegistry, WebhookTopicRegistry>();
         builder.Services.AddScoped<IWebhookDispatcher, WebhookDispatcher>();
@@ -438,6 +458,7 @@ public static class Startup
 
         // Other Scoped
         builder.Services.AddScoped<DbSeeder>();
+        builder.Services.AddScoped<IMerchelloStoreSettingsService, MerchelloStoreSettingsService>();
         builder.Services.AddSingleton<ExtensionManager>();
         builder.Services.AddScoped<IMerchelloNotificationPublisher, MerchelloNotificationPublisher>();
 
@@ -450,6 +471,7 @@ public static class Startup
         builder.Services.AddScoped<ISigningKeyStore, SigningKeyStore>();
         builder.Services.AddScoped<IWebhookSigner, WebhookSigner>();
         builder.Services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
+        builder.Services.AddScoped<IUcpFlowTestService, UcpFlowTestService>();
         builder.Services.AddScoped<IAgentAuthenticator, UcpAgentAuthenticator>();
         // UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
 
@@ -464,6 +486,7 @@ public static class Startup
         builder.Services.AddScoped<ICheckoutPaymentsOrchestrationService, CheckoutPaymentsOrchestrationService>();
         builder.Services.AddScoped<IOrdersDtoMapper, OrdersDtoMapper>();
         builder.Services.AddScoped<IOrdersRequestMapper, OrdersRequestMapper>();
+        builder.Services.AddScoped<IMediaUrlResolver, MediaUrlResolver>();
 
 
         // Front-End Rendering
@@ -481,6 +504,7 @@ public static class Startup
         builder.Services.AddHostedService<DiscountStatusJob>();             // Marks expired discounts as inactive
         builder.Services.AddHostedService<UpsellStatusJob>();               // Transitions scheduled/expired upsells, cleans up old events
         builder.Services.AddHostedService<OutboundDeliveryJob>();           // Retries failed webhook/email deliveries, cleans up old logs
+        builder.Services.AddHostedService<UcpSigningKeyRotationJob>();      // Rotates UCP webhook signing keys on configured policy interval
         builder.Services.AddHostedService<InvoiceReminderJob>();            // Sends payment reminder and overdue notifications
         builder.Services.AddHostedService<AbandonedCheckoutDetectionJob>(); // Detects abandoned carts and triggers recovery emails
         builder.Services.AddHostedService<FulfilmentRetryJob>();              // Retries failed fulfilment submissions to 3PLs
@@ -716,6 +740,7 @@ public static class Startup
         var emailAttachmentType = typeof(IEmailAttachment);
         var commerceProtocolAdapterType = typeof(ICommerceProtocolAdapter);
         var productFeedResolverType = typeof(IProductFeedValueResolver);
+        var healthCheckType = typeof(IHealthCheck);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -746,7 +771,8 @@ public static class Startup
                      addressLookupProviderType.IsAssignableFrom(t) ||
                      emailAttachmentType.IsAssignableFrom(t) ||
                      commerceProtocolAdapterType.IsAssignableFrom(t) ||
-                     productFeedResolverType.IsAssignableFrom(t)));
+                     productFeedResolverType.IsAssignableFrom(t) ||
+                     healthCheckType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

@@ -8,6 +8,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Models.Enums;
@@ -23,10 +24,12 @@ public class AbandonedCheckoutService(
     IMerchelloNotificationPublisher notificationPublisher,
     IOptions<AbandonedCheckoutSettings> settings,
     IOptions<MerchelloSettings> merchelloSettings,
-    ILogger<AbandonedCheckoutService> logger) : IAbandonedCheckoutService
+    ILogger<AbandonedCheckoutService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IAbandonedCheckoutService
 {
     private readonly AbandonedCheckoutSettings _settings = settings.Value;
     private readonly MerchelloSettings _merchelloSettings = merchelloSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     // =====================================================
     // Activity Tracking
@@ -349,6 +352,8 @@ public class AbandonedCheckoutService(
 
     public async Task<string> GenerateRecoveryLinkAsync(Guid id, CancellationToken ct = default)
     {
+        var abandonedSettings = GetEffectiveAbandonedSettings();
+
         using var scope = efCoreScopeProvider.CreateScope();
         var token = await scope.ExecuteWithContextAsync(async db =>
         {
@@ -360,7 +365,7 @@ public class AbandonedCheckoutService(
                 record.RecoveryTokenExpiresUtc < DateTime.UtcNow)
             {
                 record.RecoveryToken = GenerateRecoveryToken();
-                record.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(_settings.RecoveryExpiryDays);
+                record.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(abandonedSettings.RecoveryExpiryDays);
                 await db.SaveChangesAsync(ct);
             }
 
@@ -570,6 +575,7 @@ public class AbandonedCheckoutService(
 
     public async Task DetectAbandonedCheckoutsAsync(TimeSpan abandonmentThreshold, CancellationToken ct = default)
     {
+        var abandonedSettings = GetEffectiveAbandonedSettings();
         var cutoffTime = DateTime.UtcNow - abandonmentThreshold;
         var abandonedCheckouts = new List<AbandonedCheckout>();
 
@@ -588,7 +594,7 @@ public class AbandonedCheckoutService(
 
                 // Generate recovery token
                 checkout.RecoveryToken = GenerateRecoveryToken();
-                checkout.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(_settings.RecoveryExpiryDays);
+                checkout.RecoveryTokenExpiresUtc = DateTime.UtcNow.AddDays(abandonedSettings.RecoveryExpiryDays);
             }
 
             await db.SaveChangesAsync(ct);
@@ -624,17 +630,19 @@ public class AbandonedCheckoutService(
 
     public async Task SendScheduledRecoveryEmailsAsync(CancellationToken ct = default)
     {
+        var abandonedSettings = GetEffectiveAbandonedSettings();
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
             var checkouts = await db.AbandonedCheckouts
                 .Where(ac => ac.Status == AbandonedCheckoutStatus.Abandoned)
-                .Where(ac => ac.RecoveryEmailsSent < _settings.MaxRecoveryEmails)
+                .Where(ac => ac.RecoveryEmailsSent < abandonedSettings.MaxRecoveryEmails)
                 .ToListAsync(ct);
 
             foreach (var checkout in checkouts)
             {
-                var (shouldSend, notification) = GetNextEmailIfDue(checkout);
+                var (shouldSend, notification) = GetNextEmailIfDue(checkout, abandonedSettings);
 
                 if (shouldSend && notification != null)
                 {
@@ -696,22 +704,64 @@ public class AbandonedCheckoutService(
     // Private Helpers
     // =====================================================
 
-    private (bool ShouldSend, CheckoutAbandonedNotificationBase? Notification) GetNextEmailIfDue(AbandonedCheckout checkout)
+    private AbandonedCheckoutSettings GetEffectiveAbandonedSettings()
+    {
+        if (_storeSettingsService == null)
+        {
+            return _settings;
+        }
+
+        try
+        {
+            var runtime = _storeSettingsService.GetRuntimeSettings();
+            return runtime.AbandonedCheckout;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to resolve DB-backed abandoned checkout settings, falling back to appsettings defaults.");
+            return _settings;
+        }
+    }
+
+    private StoreSettings GetEffectiveStoreSettings()
+    {
+        if (_storeSettingsService == null)
+        {
+            return _merchelloSettings.Store ?? new StoreSettings();
+        }
+
+        try
+        {
+            var runtime = _storeSettingsService.GetRuntimeSettings();
+            return runtime.Merchello.Store ?? _merchelloSettings.Store ?? new StoreSettings();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to resolve DB-backed store settings, falling back to appsettings defaults.");
+            return _merchelloSettings.Store ?? new StoreSettings();
+        }
+    }
+
+    private (bool ShouldSend, CheckoutAbandonedNotificationBase? Notification) GetNextEmailIfDue(
+        AbandonedCheckout checkout,
+        AbandonedCheckoutSettings settings)
     {
         var now = DateTime.UtcNow;
 
         return checkout.RecoveryEmailsSent switch
         {
             // First email: X hours after DateAbandoned
-            0 when checkout.DateAbandoned?.AddHours(_settings.FirstEmailDelayHours) <= now
+            0 when checkout.DateAbandoned?.AddHours(settings.FirstEmailDelayHours) <= now
                 => (true, BuildNotification<CheckoutAbandonedFirstNotification>(checkout, 1)),
 
             // Reminder: X hours after first email was sent
-            1 when checkout.LastRecoveryEmailSentUtc?.AddHours(_settings.ReminderEmailDelayHours) <= now
+            1 when checkout.LastRecoveryEmailSentUtc?.AddHours(settings.ReminderEmailDelayHours) <= now
                 => (true, BuildNotification<CheckoutAbandonedReminderNotification>(checkout, 2)),
 
             // Final: X hours after reminder was sent
-            2 when checkout.LastRecoveryEmailSentUtc?.AddHours(_settings.FinalEmailDelayHours) <= now
+            2 when checkout.LastRecoveryEmailSentUtc?.AddHours(settings.FinalEmailDelayHours) <= now
                 => (true, BuildNotification<CheckoutAbandonedFinalNotification>(checkout, 3)),
 
             _ => (false, null)
@@ -858,7 +908,8 @@ public class AbandonedCheckoutService(
             return absolute.ToString();
         }
 
-        if (Uri.TryCreate(_merchelloSettings.Store.WebsiteUrl, UriKind.Absolute, out var websiteUri))
+        var storeSettings = GetEffectiveStoreSettings();
+        if (Uri.TryCreate(storeSettings.WebsiteUrl, UriKind.Absolute, out var websiteUri))
         {
             var relative = tokenPath.StartsWith('/') ? tokenPath : $"/{tokenPath}";
             return new Uri(websiteUri, relative).ToString();

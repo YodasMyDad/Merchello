@@ -1,6 +1,7 @@
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.UCP.Models;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Tests.TestInfrastructure;
 using Shouldly;
 using Xunit;
@@ -48,6 +49,25 @@ public class UcpManifestContractTests : IClassFixture<ServiceTestFixture>
             capability.Schema.ShouldNotBeNullOrWhiteSpace();
             capability.Spec.ShouldStartWith("https://ucp.dev/specification/");
             capability.Schema.ShouldStartWith("https://ucp.dev/schemas/");
+        }
+    }
+
+    [Fact]
+    public async Task Manifest_SigningKeys_IncludeUseAndAlgJwkFields()
+    {
+        // Ensure a signing key exists (ResetDatabase clears the key store)
+        var keyStore = _fixture.GetService<ISigningKeyStore>();
+        await keyStore.RotateKeysAsync();
+
+        var manifest = await _adapter.GenerateManifestAsync() as UcpManifest;
+
+        manifest.ShouldNotBeNull();
+        manifest!.SigningKeys.ShouldNotBeEmpty();
+
+        foreach (var key in manifest.SigningKeys)
+        {
+            key.Use.ShouldBe("sig");
+            key.Alg.ShouldBe("ES256");
         }
     }
 }

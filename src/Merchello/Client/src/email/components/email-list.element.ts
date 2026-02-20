@@ -17,6 +17,7 @@ import { formatRelativeDate } from "@shared/utils/formatting.js";
 import { navigateToEmailCreate, navigateToEmailDetail } from "@shared/utils/navigation.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-email-list")
 export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
@@ -321,43 +322,45 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
 
   private _renderSearchAndFilters(): unknown {
     return html`
-      <div class="toolbar">
-        <div class="search-box">
-          <uui-input
-            type="search"
-            placeholder="Search emails..."
-            .value=${this._searchTerm}
-            @input=${this._handleSearchInput}
-            label="Search emails">
-            <uui-icon name="icon-search" slot="prepend"></uui-icon>
-            ${this._searchTerm
-              ? html`
-                  <uui-button
-                    slot="append"
-                    compact
-                    look="secondary"
-                    label="Clear search"
-                    @click=${this._handleSearchClear}>
-                    <uui-icon name="icon-wrong"></uui-icon>
-                  </uui-button>
-                `
-              : nothing}
-          </uui-input>
+      <div class="filters">
+        <div class="filters-top">
+          <div class="search-box">
+            <uui-input
+              type="search"
+              placeholder="Search emails..."
+              .value=${this._searchTerm}
+              @input=${this._handleSearchInput}
+              label="Search emails">
+              <uui-icon name="icon-search" slot="prepend"></uui-icon>
+              ${this._searchTerm
+                ? html`
+                    <uui-button
+                      slot="append"
+                      compact
+                      look="secondary"
+                      label="Clear search"
+                      @click=${this._handleSearchClear}>
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  `
+                : nothing}
+            </uui-input>
+          </div>
+          <div class="header-actions">
+            <uui-button
+              look="primary"
+              color="positive"
+              label="Add Email"
+              @click=${this._handleCreateEmail}>
+              <uui-icon name="icon-add" slot="icon"></uui-icon>
+              Add Email
+            </uui-button>
+          </div>
         </div>
-
-        <uui-button
-          look="primary"
-          color="positive"
-          label="Add Email"
-          @click=${this._handleCreateEmail}>
-          <uui-icon name="icon-add" slot="icon"></uui-icon>
-          Add Email
-        </uui-button>
-      </div>
 
       ${this._categories.length > 0
         ? html`
-            <uui-tab-group class="category-tabs">
+            <uui-tab-group class="tabs">
               <uui-tab
                 label="All"
                 ?active=${!this._selectedCategory}
@@ -494,7 +497,7 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="emails-container">
+        <div class="emails-container layout-container">
           ${this._renderSearchAndFilters()}
           ${this._renderContent()}
 
@@ -513,6 +516,7 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
   }
 
   static override readonly styles = [
+    collectionLayoutStyles,
     css`
       :host {
         display: block;
@@ -520,33 +524,8 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-background);
       }
 
-      .emails-container {
-        max-width: 100%;
-        padding: var(--uui-size-layout-1);
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-      }
-
-      .toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        align-items: center;
-        gap: var(--uui-size-space-4);
-      }
-
       .search-box {
-        flex: 1 1 280px;
         max-width: 400px;
-      }
-
-      .search-box uui-input {
-        width: 100%;
-      }
-
-      .category-tabs {
-        width: 100%;
       }
 
       .table-container {
@@ -653,21 +632,6 @@ export class MerchelloEmailListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-danger-standalone);
         color: var(--uui-color-danger-contrast);
         border-radius: var(--uui-border-radius);
-      }
-
-      @media (max-width: 767px) {
-        .toolbar {
-          align-items: stretch;
-        }
-
-        .search-box {
-          max-width: 100%;
-        }
-
-        .toolbar > uui-button {
-          width: 100%;
-          justify-content: center;
-        }
       }
     `,
   ];

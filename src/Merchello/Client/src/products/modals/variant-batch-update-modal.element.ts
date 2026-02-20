@@ -4,6 +4,7 @@ import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductVariantDto, UpdateVariantDto } from "@products/types/product.types.js";
 import type { SelectOption } from "@shared/types/index.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   VariantBatchEditableField,
   VariantBatchUpdateModalData,
@@ -805,7 +806,9 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -976,7 +979,8 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
         align-items: stretch;
       }
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloVariantBatchUpdateModalElement;
@@ -986,3 +990,4 @@ declare global {
     "merchello-variant-batch-update-modal": MerchelloVariantBatchUpdateModalElement;
   }
 }
+

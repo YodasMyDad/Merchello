@@ -7,6 +7,7 @@ import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { CreateUpsellModalData, CreateUpsellModalValue } from "@upsells/modals/create-upsell-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-create-upsell-modal")
 export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElement) {
@@ -136,11 +137,9 @@ export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElemen
     `;
   }
 
-  static override readonly styles = css`
-    :host {
-      display: block;
-    }
-
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     form {
       display: flex;
       flex-direction: column;
@@ -150,7 +149,8 @@ export class MerchelloCreateUpsellModalElement extends UmbElementMixin(LitElemen
     uui-input {
       width: 100%;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloCreateUpsellModalElement;

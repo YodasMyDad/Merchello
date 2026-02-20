@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Merchello.Core.Email;
+using Merchello.Core.Settings.Services.Interfaces;
 
 namespace Merchello.Email.Services;
 
@@ -27,7 +28,22 @@ public class MjmlHelper : IMjmlHelper
     public MjmlHelper(IHtmlHelper html)
     {
         _html = html;
-        // Try to get theme settings from DI, fall back to defaults
+
+        // Try DB-backed settings first, then appsettings fallback.
+        var storeSettingsService = html.ViewContext.HttpContext.RequestServices.GetService<IMerchelloStoreSettingsService>();
+        if (storeSettingsService != null)
+        {
+            try
+            {
+                _theme = storeSettingsService.GetRuntimeSettings().Email.Theme;
+                return;
+            }
+            catch
+            {
+                // Fall back below.
+            }
+        }
+
         var settings = html.ViewContext.HttpContext.RequestServices.GetService<IOptions<EmailSettings>>();
         _theme = settings?.Value.Theme ?? new EmailThemeSettings();
     }

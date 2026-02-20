@@ -1,4 +1,6 @@
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Reflection;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Providers.Interfaces;
@@ -199,35 +201,69 @@ public class ShippingProviderManager(
         return success;
     }
 
-    public async Task UpdateSortOrderAsync(IEnumerable<Guid> orderedIds, CancellationToken cancellationToken = default)
+    public async Task<CrudResult<bool>> UpdateSortOrderAsync(IEnumerable<Guid> orderedIds, CancellationToken cancellationToken = default)
     {
-        var idList = orderedIds.ToList();
+        var result = new CrudResult<bool>();
+        var idList = orderedIds.Distinct().ToList();
 
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        if (idList.Count == 0)
         {
-            var configurations = await db.ProviderConfigurations
-                .OfType<ShippingProviderConfiguration>()
-                .Where(c => idList.Contains(c.Id))
-                .ToListAsync(cancellationToken);
+            result.AddErrorMessage("No shipping provider IDs were provided for reordering.");
+            return result;
+        }
 
-            for (var i = 0; i < idList.Count; i++)
+        try
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            var success = await scope.ExecuteWithContextAsync<bool>(async db =>
             {
-                var config = configurations.FirstOrDefault(c => c.Id == idList[i]);
-                if (config != null)
+                var configurations = await db.ProviderConfigurations
+                    .OfType<ShippingProviderConfiguration>()
+                    .Where(c => idList.Contains(c.Id))
+                    .ToListAsync(cancellationToken);
+
+                if (configurations.Count == 0)
                 {
-                    config.SortOrder = i;
-                    config.UpdateDate = DateTime.UtcNow;
+                    result.AddErrorMessage("No matching shipping provider configurations were found for reordering.");
+                    return false;
                 }
+
+                for (var i = 0; i < idList.Count; i++)
+                {
+                    var config = configurations.FirstOrDefault(c => c.Id == idList[i]);
+                    if (config != null)
+                    {
+                        config.SortOrder = i;
+                        config.UpdateDate = DateTime.UtcNow;
+                    }
+                }
+
+                await db.SaveChangesAsync(cancellationToken);
+                result.ResultObject = true;
+                return true;
+            });
+
+            if (!success)
+            {
+                return result;
             }
 
-            await db.SaveChangesAsync(cancellationToken);
-            return true;
-        });
+            scope.Complete();
+            ClearCache();
+            return result;
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Failed to reorder shipping providers.");
+            result.AddErrorMessage("Failed to reorder shipping providers due to a database update error.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while reordering shipping providers.");
+            result.AddErrorMessage("An unexpected error occurred while reordering shipping providers.");
+        }
 
-        scope.Complete();
-        ClearCache();
+        return result;
     }
 
     public async Task<bool> DeleteConfigurationAsync(Guid configurationId, CancellationToken cancellationToken = default)

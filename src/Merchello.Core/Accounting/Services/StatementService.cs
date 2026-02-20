@@ -7,6 +7,7 @@ using Merchello.Core.Data;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -26,9 +27,11 @@ public class StatementService(
     IPaymentService paymentService,
     ICurrencyService currencyService,
     IPdfService pdfService,
-    IOptions<MerchelloSettings> settings) : IStatementService
+    IOptions<MerchelloSettings> settings,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IStatementService
 {
     private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <inheritdoc />
     public async Task<CustomerStatementDto> GetStatementDataAsync(
@@ -185,6 +188,7 @@ public class StatementService(
 
     private byte[] GeneratePdf(CustomerStatementDto statement, string? companyName, string? companyAddress)
     {
+        var effectiveStore = _storeSettingsService?.GetRuntimeSettings().Merchello.Store ?? _settings.Store;
         var document = pdfService.CreateDocument("Customer Statement");
         var (page, graphics) = pdfService.AddPage(document);
 
@@ -192,8 +196,8 @@ public class StatementService(
             graphics,
             page,
             "Customer Statement",
-            companyName ?? _settings.Store.Name ?? "Store",
-            companyAddress);
+            companyName ?? effectiveStore.Name ?? "Store",
+            companyAddress ?? effectiveStore.Address);
 
         // Statement info section
         y = DrawStatementInfo(graphics, page, statement, y);

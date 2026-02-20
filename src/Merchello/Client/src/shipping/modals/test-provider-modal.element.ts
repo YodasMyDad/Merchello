@@ -8,6 +8,7 @@ import { MerchelloApi } from "@api/merchello-api.js";
 import { getCurrencySymbol, getStoreSettings } from "@api/store-settings.js";
 import type { SelectOption } from "@shared/types/index.js";
 import { formatNumber } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const STORAGE_KEY = "merchello-test-provider-form";
 
@@ -537,7 +538,9 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -692,7 +695,8 @@ export class MerchelloTestProviderModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTestProviderModalElement;
@@ -702,3 +706,4 @@ declare global {
     "merchello-test-provider-modal": MerchelloTestProviderModalElement;
   }
 }
+

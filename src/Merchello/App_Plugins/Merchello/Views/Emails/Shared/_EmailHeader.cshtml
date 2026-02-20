@@ -1,8 +1,8 @@
-@using Microsoft.Extensions.Options
+@using Merchello.Core.Settings.Services.Interfaces
 @model EmailStoreContext
-@inject IOptions<EmailSettings> EmailSettingsOptions
+@inject IMerchelloStoreSettingsService StoreSettingsService
 @{
-    var theme = EmailSettingsOptions.Value.Theme;
+    var theme = StoreSettingsService.GetRuntimeSettings().Email.Theme;
 }
 <mj-section background-color="@theme.PrimaryColor" padding="20px">
   <mj-column>

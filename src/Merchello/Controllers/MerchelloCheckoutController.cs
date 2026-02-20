@@ -9,6 +9,8 @@ using Merchello.Core.Discounts.Services.Interfaces;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Settings.Models;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
@@ -41,11 +43,13 @@ public class MerchelloCheckoutController(
     IAddressLookupService addressLookupService,
     ICurrencyService currencyService,
     IMemberManager memberManager,
-    IAbandonedCheckoutService? abandonedCheckoutService = null)
+    IAbandonedCheckoutService? abandonedCheckoutService = null,
+    IMerchelloStoreSettingsService? storeSettingsService = null)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
 {
     private readonly CheckoutSettings _settings = checkoutSettings.Value;
     private readonly MerchelloSettings _merchelloSettings = merchelloSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     /// <summary>
     /// Renders the checkout view for the current step.
@@ -57,6 +61,10 @@ public class MerchelloCheckoutController(
 
     private async Task<IActionResult> IndexAsync(CancellationToken ct)
     {
+        var runtimeSettings = await GetRuntimeSettingsAsync(ct);
+        var checkoutSettings = runtimeSettings.Checkout;
+        var merchelloSettings = runtimeSettings.Merchello;
+
         if (CurrentPage is not MerchelloCheckoutPage checkoutPage)
         {
             logger.LogWarning("CurrentPage is not a MerchelloCheckoutPage");
@@ -91,8 +99,8 @@ public class MerchelloCheckoutController(
                 // Show "order not found" instead of revealing whether the invoice exists
                 var unauthorizedViewModel = new CheckoutViewModel(
                     checkoutPage.Step,
-                    _settings,
-                    _merchelloSettings.Store,
+                    checkoutSettings,
+                    merchelloSettings.Store,
                     basket: null,
                     session: null,
                     billingCountries: null,
@@ -114,10 +122,10 @@ public class MerchelloCheckoutController(
             }
 
             // Check if we should redirect to custom confirmation URL
-            if (confirmation != null && !string.IsNullOrWhiteSpace(_settings.ConfirmationRedirectUrl))
+            if (confirmation != null && !string.IsNullOrWhiteSpace(checkoutSettings.ConfirmationRedirectUrl))
             {
                 var encodedNumber = Uri.EscapeDataString((string)confirmation.InvoiceNumber);
-                var redirectUrl = _settings.ConfirmationRedirectUrl + "?invoiceId=" + confirmation.InvoiceId + "&invoiceNumber=" + encodedNumber;
+                var redirectUrl = checkoutSettings.ConfirmationRedirectUrl + "?invoiceId=" + confirmation.InvoiceId + "&invoiceNumber=" + encodedNumber;
                 return Redirect(redirectUrl);
             }
 
@@ -294,8 +302,8 @@ public class MerchelloCheckoutController(
 
             var confirmationViewModel = new CheckoutViewModel(
                 checkoutPage.Step,
-                _settings,
-                _merchelloSettings.Store,
+                checkoutSettings,
+                merchelloSettings.Store,
                 basket: null,
                 session: null,
                 billingCountries: null,
@@ -319,8 +327,8 @@ public class MerchelloCheckoutController(
 
             var postPurchaseViewModel = new CheckoutViewModel(
                 checkoutPage.Step,
-                _settings,
-                _merchelloSettings.Store);
+                checkoutSettings,
+                merchelloSettings.Store);
 
             if (!checkoutPage.InvoiceId.HasValue)
             {
@@ -350,22 +358,25 @@ public class MerchelloCheckoutController(
         // Handle payment return/cancel steps
         if (checkoutPage.Step == CheckoutStep.PaymentReturn)
         {
-            return View("~/App_Plugins/Merchello/Views/Checkout/Return.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
+            return View("~/App_Plugins/Merchello/Views/Checkout/Return.cshtml", new CheckoutViewModel(checkoutPage.Step, checkoutSettings, merchelloSettings.Store));
         }
 
         if (checkoutPage.Step == CheckoutStep.PaymentCancelled)
         {
-            return View("~/App_Plugins/Merchello/Views/Checkout/Cancel.cshtml", new CheckoutViewModel(checkoutPage.Step, _settings, _merchelloSettings.Store));
+            return View("~/App_Plugins/Merchello/Views/Checkout/Cancel.cshtml", new CheckoutViewModel(checkoutPage.Step, checkoutSettings, merchelloSettings.Store));
         }
 
         // For all other steps (Information, Shipping, Payment), render single-page checkout
-        return await RenderSinglePageCheckoutAsync(ct);
+        return await RenderSinglePageCheckoutAsync(checkoutSettings, merchelloSettings, ct);
     }
 
     /// <summary>
     /// Renders the single-page checkout view.
     /// </summary>
-    private async Task<IActionResult> RenderSinglePageCheckoutAsync(CancellationToken ct)
+    private async Task<IActionResult> RenderSinglePageCheckoutAsync(
+        CheckoutSettings checkoutSettings,
+        MerchelloSettings merchelloSettings,
+        CancellationToken ct)
     {
         // Load basket
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
@@ -401,7 +412,7 @@ public class MerchelloCheckoutController(
         var defaultCountryCode = storefrontLocation.CountryCode
             ?? session?.ShippingAddress?.CountryCode
             ?? basket.ShippingAddress?.CountryCode
-            ?? _merchelloSettings.DefaultShippingCountry
+            ?? merchelloSettings.DefaultShippingCountry
             ?? "US";
 
         var defaultStateCode = storefrontLocation.RegionCode
@@ -460,8 +471,8 @@ public class MerchelloCheckoutController(
 
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
-            _settings,
-            _merchelloSettings.Store,
+            checkoutSettings,
+            merchelloSettings.Store,
             basket,
             session,
             billingCountries,
@@ -492,6 +503,20 @@ public class MerchelloCheckoutController(
         };
 
         return View("~/App_Plugins/Merchello/Views/Checkout/SinglePage.cshtml", viewModel);
+    }
+
+    private async Task<MerchelloStoreRuntimeSettings> GetRuntimeSettingsAsync(CancellationToken ct)
+    {
+        if (_storeSettingsService == null)
+        {
+            return new MerchelloStoreRuntimeSettings
+            {
+                Checkout = _settings,
+                Merchello = _merchelloSettings
+            };
+        }
+
+        return await _storeSettingsService.GetRuntimeSettingsAsync(ct);
     }
 
     private bool TryGetRecoveryTokenFromPath(out string token)

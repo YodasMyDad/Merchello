@@ -20,6 +20,6 @@ export const MERCHELLO_CANCEL_INVOICE_MODAL = new UmbModalToken<
 >("Merchello.CancelInvoice.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

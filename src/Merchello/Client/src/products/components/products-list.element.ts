@@ -21,6 +21,7 @@ import { navigateToProductDetail } from "@shared/utils/navigation.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
 import "@products/components/product-table.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 import type {
   ProductClickEventDetail,
   ProductSelectionChangeEventDetail,
@@ -395,48 +396,50 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="products-container">
-          <div class="header-actions">
-            ${this._selectedProducts.size > 0
-              ? html`
-                  <uui-button
-                    look="primary"
-                    color="danger"
-                    label="Delete products"
-                    ?disabled=${this._isDeleting}
-                    @click=${this._handleDeleteSelected}>
-                    ${this._isDeleting
-                      ? "Deleting..."
-                      : `Delete (${this._selectedProducts.size})`}
-                  </uui-button>
-                `
-              : ""}
-            <uui-button look="primary" color="positive" label="Add Product" @click=${this._handleAddProduct}>Add Product</uui-button>
-          </div>
-          <div class="filters-row">
-            <div class="search-box">
-              <uui-input type="text" placeholder="Search by name or SKU..." .value=${this._searchTerm}
-                @input=${this._handleSearchInput} label="Search products">
-                <uui-icon name="icon-search" slot="prepend"></uui-icon>
-                ${this._searchTerm
-                  ? html`<uui-button slot="append" compact look="secondary" label="Clear search" @click=${this._handleSearchClear}>
-                      <uui-icon name="icon-wrong"></uui-icon>
-                    </uui-button>`
+        <div class="products-container layout-container">
+          <div class="filters">
+            <div class="filters-top">
+              <div class="search-box">
+                <uui-input type="text" placeholder="Search by name or SKU..." .value=${this._searchTerm}
+                  @input=${this._handleSearchInput} label="Search products">
+                  <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                  ${this._searchTerm
+                    ? html`<uui-button slot="append" compact look="secondary" label="Clear search" @click=${this._handleSearchClear}>
+                        <uui-icon name="icon-wrong"></uui-icon>
+                      </uui-button>`
+                    : ""}
+                </uui-input>
+              </div>
+              <div class="header-actions">
+                ${this._selectedProducts.size > 0
+                  ? html`
+                      <uui-button
+                        look="primary"
+                        color="danger"
+                        label="Delete products"
+                        ?disabled=${this._isDeleting}
+                        @click=${this._handleDeleteSelected}>
+                        ${this._isDeleting
+                          ? "Deleting..."
+                          : `Delete (${this._selectedProducts.size})`}
+                      </uui-button>
+                    `
                   : ""}
-              </uui-input>
-            </div>
-            <div class="filter-dropdowns">
-              <uui-select label="Product Type" .options=${this._getProductTypeOptions()} @change=${this._handleProductTypeChange}></uui-select>
-              <uui-select label="Collection" .options=${this._getCollectionOptions()} @change=${this._handleCollectionChange}></uui-select>
-              <uui-select label="Availability" .options=${this._getAvailabilityOptions()} @change=${this._handleAvailabilityChange}></uui-select>
-              <uui-select label="Stock Status" .options=${this._getStockStatusOptions()} @change=${this._handleStockStatusChange}></uui-select>
-              ${this._hasActiveFilters()
-                ? html`
-                    <uui-button look="secondary" label="Reset filters" @click=${this._handleResetFilters}>
-                      Reset
-                    </uui-button>
-                  `
-                : ""}
+                <uui-button look="primary" color="positive" label="Add Product" @click=${this._handleAddProduct}>Add Product</uui-button>
+              </div>
+              <div class="filter-dropdowns">
+                <uui-select label="Product Type" .options=${this._getProductTypeOptions()} @change=${this._handleProductTypeChange}></uui-select>
+                <uui-select label="Collection" .options=${this._getCollectionOptions()} @change=${this._handleCollectionChange}></uui-select>
+                <uui-select label="Availability" .options=${this._getAvailabilityOptions()} @change=${this._handleAvailabilityChange}></uui-select>
+                <uui-select label="Stock Status" .options=${this._getStockStatusOptions()} @change=${this._handleStockStatusChange}></uui-select>
+                ${this._hasActiveFilters()
+                  ? html`
+                      <uui-button look="secondary" label="Reset filters" @click=${this._handleResetFilters}>
+                        Reset
+                      </uui-button>
+                    `
+                  : ""}
+              </div>
             </div>
           </div>
           ${this._renderProductsContent()}
@@ -445,14 +448,11 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host { display: block; height: 100%; background: var(--uui-color-background); }
-    .products-container { max-width: 100%; padding: var(--uui-size-layout-1); }
-    .header-actions { display: flex; gap: var(--uui-size-space-2); align-items: center; justify-content: flex-end; margin-bottom: var(--uui-size-space-4); }
-    .filters-row { display: flex; flex-direction: column; gap: var(--uui-size-space-3); margin-bottom: var(--uui-size-space-4); }
-    @media (min-width: 768px) { .filters-row { flex-direction: row; align-items: flex-end; justify-content: space-between; } }
-    .search-box { flex: 1; max-width: 300px; }
-    .search-box uui-input { width: 100%; }
+    .search-box { max-width: 320px; }
     .search-box uui-icon[slot="prepend"] { color: var(--uui-color-text-alt); }
     .filter-dropdowns { display: flex; gap: var(--uui-size-space-2); flex-wrap: wrap; }
     .filter-dropdowns uui-select { min-width: 140px; }
@@ -460,7 +460,8 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     .loading { display: flex; justify-content: center; padding: var(--uui-size-space-6); }
     .error { padding: var(--uui-size-space-4); background: var(--uui-color-danger-standalone); color: var(--uui-color-danger-contrast); border-radius: var(--uui-border-radius); }
     merchello-pagination { padding: var(--uui-size-space-3); border-top: 1px solid var(--uui-color-border); }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloProductsListElement;

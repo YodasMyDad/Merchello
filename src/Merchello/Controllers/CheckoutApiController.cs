@@ -20,9 +20,11 @@ using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
 using Merchello.Core.Shared.RateLimiting.Interfaces;
 using Merchello.Core.Shared.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
+using Merchello.Extensions;
 using Merchello.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -60,9 +62,11 @@ public class CheckoutApiController(
     IOptions<MerchelloSettings> merchelloSettings,
     ILogger<CheckoutApiController> logger,
     IAbandonedCheckoutService? abandonedCheckoutService = null,
-    ICustomerService? customerService = null) : ControllerBase
+    ICustomerService? customerService = null,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     private const int MaxRecoveryAttemptsPerMinute = 10;
     private static readonly TimeSpan RecoveryRateLimitWindow = TimeSpan.FromMinutes(1);
@@ -749,15 +753,18 @@ public class CheckoutApiController(
     }
 
     /// <summary>
-    /// Render a terms/policy Razor view by key.
-    /// The key maps to ~/App_Plugins/Merchello/Views/Checkout/{Key}.cshtml (PascalCase).
+    /// Render terms/policy content by key.
+    /// For "terms" and "privacy", content is sourced from DB-backed store policies.
+    /// Other keys can map to ~/App_Plugins/Merchello/Views/Checkout/{Key}.cshtml (PascalCase).
     /// </summary>
     [HttpGet("terms/{key}")]
     public async Task<IActionResult> GetTermsContent(
         string key,
         [FromServices] IRazorViewEngine razorViewEngine,
         [FromServices] IModelMetadataProvider modelMetadataProvider,
-        [FromServices] ITempDataDictionaryFactory tempDataDictionaryFactory)
+        [FromServices] ITempDataDictionaryFactory tempDataDictionaryFactory,
+        [FromServices] IRichTextRenderer richTextRenderer,
+        CancellationToken ct)
     {
         // Sanitize key to alpha characters only
         var sanitized = new string(key.Where(char.IsLetter).ToArray());
@@ -766,6 +773,43 @@ public class CheckoutApiController(
             return Ok(new { success = false, message = "Invalid terms key." });
         }
 
+        var normalizedKey = sanitized.ToLowerInvariant();
+
+        // DB-backed policy content is the source of truth for checkout terms/privacy.
+        if (normalizedKey is "terms" or "privacy")
+        {
+            if (_storeSettingsService == null)
+            {
+                logger.LogWarning("Store settings service is unavailable while loading policy key: {PolicyKey}", normalizedKey);
+                return Ok(new { success = false, message = "Policy content is unavailable." });
+            }
+
+            try
+            {
+                var runtime = await _storeSettingsService.GetRuntimeSettingsAsync(ct);
+                var richTextJson = normalizedKey == "terms"
+                    ? runtime.Policies.TermsContent
+                    : runtime.Policies.PrivacyContent;
+
+                if (string.IsNullOrWhiteSpace(richTextJson))
+                {
+                    var missingMessage = normalizedKey == "terms"
+                        ? "Terms content has not been configured."
+                        : "Privacy content has not been configured.";
+                    return Ok(new { success = false, message = missingMessage });
+                }
+
+                var html = richTextJson.ToTipTapHtml(richTextRenderer);
+                return Ok(new { success = true, html = html.ToHtmlString() });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to render DB policy content for key: {PolicyKey}", normalizedKey);
+                return Ok(new { success = false, message = "Failed to load policy content." });
+            }
+        }
+
+        // Legacy/custom-key fallback: render Razor view for non-policy keys.
         // PascalCase the key
         var viewName = char.ToUpperInvariant(sanitized[0]) + sanitized[1..].ToLowerInvariant();
         var viewPath = $"~/App_Plugins/Merchello/Views/Checkout/{viewName}.cshtml";

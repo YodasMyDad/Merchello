@@ -350,6 +350,37 @@ Canonical usage:
 
 Use raw `uui-table` only for simple ad-hoc static tables (for example dashboard detail displays), not standard collection pages.
 
+### Collection toolbar layout
+Search input and action buttons must share the same row on collection/list pages.
+
+Shared styles: `src/Merchello/Client/src/shared/styles/collection-layout.styles.ts`.
+
+Structure:
+```ts
+<div class="filters">
+  <div class="filters-top">
+    <div class="search-box">
+      <uui-input type="search" ...></uui-input>
+    </div>
+    <div class="header-actions">
+      <uui-button look="primary" color="positive" ...>Add Item</uui-button>
+    </div>
+  </div>
+  <!-- optional: uui-tab-group below -->
+</div>
+```
+
+Rules:
+- `.header-actions` goes inside `.filters-top`, not as a standalone sibling above `.filters`.
+- `.header-actions` uses `margin-left: auto` and `flex-shrink: 0` (provided by shared styles) to push buttons to the right.
+- `.search-box` uses `flex: 1 1 auto` with `max-width` to share the row.
+- On mobile (`< 768px`), `.filters-top` is column layout and items stack naturally.
+- On desktop (`>= 768px`), `.filters-top` is row layout with `flex-wrap: wrap`.
+- If search is conditionally rendered, always render `.filters-top` with `.header-actions`; conditionally render `.search-box` inside it.
+- Optional filter dropdowns and tab groups remain siblings within `.filters-top` or `.filters` respectively.
+
+Do not place `.header-actions` as a separate block above `.filters` in collection views.
+
 ### Sorter quirk
 If using `UmbSorterController`:
 - Keep the configured `containerSelector` element present in DOM whenever sorter is enabled.

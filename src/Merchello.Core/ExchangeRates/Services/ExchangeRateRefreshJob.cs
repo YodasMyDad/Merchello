@@ -43,9 +43,16 @@ public class ExchangeRateRefreshJob(
         var interval = TimeSpan.FromMinutes(Math.Max(1, _options.RefreshIntervalMinutes));
         using var timer = new PeriodicTimer(interval);
 
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        try
         {
-            await RefreshOnceAsync(stoppingToken);
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await RefreshOnceAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown.
         }
     }
 
@@ -110,6 +117,10 @@ public class ExchangeRateRefreshJob(
                 active.Metadata.Alias,
                 result.Rates.Count,
                 result.BaseCurrency);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Expected during shutdown.
         }
         catch (Exception ex)
         {

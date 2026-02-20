@@ -35,8 +35,8 @@
             --color-primary: @settings.PrimaryColor;
             --color-accent: @settings.AccentColor;
             --color-error: @settings.ErrorColor;
-            --font-heading: '@settings.HeadingFontFamily', system-ui, sans-serif;
-            --font-body: '@settings.BodyFontFamily', system-ui, sans-serif;
+            --font-heading: @Html.Raw(settings.HeadingFontFamily), system-ui, sans-serif;
+            --font-body: @Html.Raw(settings.BodyFontFamily), system-ui, sans-serif;
         }
 
         [x-cloak] { display: none !important; }

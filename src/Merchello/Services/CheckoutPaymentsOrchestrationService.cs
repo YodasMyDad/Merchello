@@ -19,6 +19,7 @@ using Merchello.Core.Payments.Services.Interfaces;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Providers;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
@@ -61,8 +62,10 @@ public class CheckoutPaymentsOrchestrationService(
     AddressFactory addressFactory,
     IOptions<MerchelloSettings> settings,
     IHttpContextAccessor httpContextAccessor,
-    ILogger<CheckoutPaymentsOrchestrationService> logger) : ICheckoutPaymentsOrchestrationService
+    ILogger<CheckoutPaymentsOrchestrationService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : ICheckoutPaymentsOrchestrationService
 {
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
     private HttpContext CurrentHttpContext =>
         httpContextAccessor.HttpContext ?? throw new InvalidOperationException("No active HTTP context.");
 
@@ -2644,7 +2647,10 @@ public class CheckoutPaymentsOrchestrationService(
         // Validate the merchant session
         var merchantSession = await worldPayProvider.ValidateApplePayMerchantAsync(
             request.ValidationUrl,
-            request.DisplayName ?? settings.Value.Store.Name ?? "Store",
+            request.DisplayName ??
+            _storeSettingsService?.GetRuntimeSettings().Merchello.Store.Name ??
+            settings.Value.Store.Name ??
+            "Store",
             cancellationToken);
 
         if (merchantSession == null)

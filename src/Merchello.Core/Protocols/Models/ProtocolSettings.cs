@@ -6,11 +6,6 @@ namespace Merchello.Core.Protocols.Models;
 public class ProtocolSettings
 {
     /// <summary>
-    /// Base path for well-known endpoints.
-    /// </summary>
-    public string WellKnownPath { get; set; } = "/.well-known";
-
-    /// <summary>
     /// How long to cache manifests in minutes.
     /// </summary>
     public int ManifestCacheDurationMinutes { get; set; } = 60;

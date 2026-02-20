@@ -15,6 +15,7 @@ import { MERCHELLO_TEST_PAYMENT_PROVIDER_MODAL } from "@payment-providers/modals
 import type { MerchelloCheckoutPaymentPreviewElement } from "@payment-providers/components/checkout-payment-preview.element.js";
 import "@payment-providers/components/checkout-payment-preview.element.js";
 import { getProviderIconSvg } from "@payment-providers/utils/brand-icons.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-payment-providers-list")
 export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitElement) {
@@ -29,6 +30,9 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
   #modalManager?: UmbModalManagerContext;
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
+  #isReorderInFlight = false;
+  #pendingReorderIds: string[] | null = null;
+  #reorderDebounceHandle?: number;
 
   // Sorter for configured payment providers
   #providerSorter = new UmbSorterController<PaymentProviderSettingDto>(this, {
@@ -39,7 +43,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     containerSelector: ".providers-list.configured",
     onChange: ({ model }) => {
       this._configuredProviders = model;
-      this._handleProviderReorder(model.map((p) => p.id));
+      this._queueProviderReorder(model.map((p) => p.id));
     },
   });
 
@@ -62,6 +66,10 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#isConnected = false;
+    if (this.#reorderDebounceHandle !== undefined) {
+      window.clearTimeout(this.#reorderDebounceHandle);
+      this.#reorderDebounceHandle = undefined;
+    }
   }
 
   private async _loadProviders(): Promise<void> {
@@ -104,20 +112,47 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     await this._previewElement?.loadPreview();
   }
 
-  private async _handleProviderReorder(orderedIds: string[]): Promise<void> {
-    const { error } = await MerchelloApi.reorderPaymentProviders(orderedIds);
+  private _queueProviderReorder(orderedIds: string[]): void {
+    this.#pendingReorderIds = [...new Set(orderedIds)];
 
-    if (!this.#isConnected) return;
+    if (this.#reorderDebounceHandle !== undefined) {
+      window.clearTimeout(this.#reorderDebounceHandle);
+    }
 
-    if (error) {
-      this.#notificationContext?.peek("danger", {
-        data: { headline: "Reorder failed", message: error.message },
-      });
-      // Reload to restore correct order
-      await this._loadProviders();
-    } else {
-      // Refresh checkout preview to reflect new order
-      await this._previewElement?.loadPreview();
+    this.#reorderDebounceHandle = window.setTimeout(() => {
+      this.#reorderDebounceHandle = undefined;
+      void this._flushProviderReorderQueue();
+    }, 200);
+  }
+
+  private async _flushProviderReorderQueue(): Promise<void> {
+    if (this.#isReorderInFlight) return;
+
+    this.#isReorderInFlight = true;
+    try {
+      while (this.#pendingReorderIds && this.#isConnected) {
+        const orderedIds = this.#pendingReorderIds;
+        this.#pendingReorderIds = null;
+
+        const { error } = await MerchelloApi.reorderPaymentProviders(orderedIds);
+
+        if (!this.#isConnected) return;
+
+        if (error) {
+          this.#notificationContext?.peek("danger", {
+            data: { headline: "Reorder failed", message: error.message },
+          });
+          // Reload to restore persisted order and stop processing queued updates.
+          this.#pendingReorderIds = null;
+          await this._loadProviders();
+          break;
+        }
+
+        // Refresh checkout preview to reflect new order.
+        await this._previewElement?.loadPreview();
+      }
+    } finally {
+      this.#isReorderInFlight = false;
     }
   }
 
@@ -366,7 +401,7 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-      <div class="content">
+      <div class="content layout-container">
         ${this._isLoading
           ? html`<div class="loading">
               <uui-loader></uui-loader>
@@ -427,18 +462,12 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
-    }
-
-    .content {
-      padding: var(--uui-size-layout-1);
-    }
-
-    uui-box {
-      margin-bottom: var(--uui-size-layout-1);
     }
 
     .loading {
@@ -620,7 +649,8 @@ export class MerchelloPaymentProvidersListElement extends UmbElementMixin(LitEle
       font-size: 16px;
     }
 
-  `;
+  `,
+  ];
 }
 
 export default MerchelloPaymentProvidersListElement;

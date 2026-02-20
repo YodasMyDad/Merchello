@@ -6,6 +6,7 @@ import { generateCsv, downloadCsv, formatDateForCsv, type CsvColumn } from "@sha
 import { formatNumber } from "@shared/utils/formatting.js";
 import type { OrderExportItemDto } from "@orders/types/order.types.js";
 import type { ExportModalData, ExportModalValue } from "@orders/modals/export-modal.token.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-export-modal")
 export class MerchelloExportModalElement extends UmbModalBaseElement<
@@ -162,7 +163,9 @@ export class MerchelloExportModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -208,7 +211,8 @@ export class MerchelloExportModalElement extends UmbModalBaseElement<
     uui-button uui-loader-circle {
       margin-right: var(--uui-size-space-2);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloExportModalElement;
@@ -218,3 +222,4 @@ declare global {
     "merchello-export-modal": MerchelloExportModalElement;
   }
 }
+

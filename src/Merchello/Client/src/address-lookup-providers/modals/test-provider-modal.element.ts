@@ -7,6 +7,7 @@ import type {
 } from "@address-lookup-providers/modals/test-provider-modal.token.js";
 import type { TestAddressLookupProviderResultDto, AddressLookupProviderDto } from '@address-lookup-providers/types/address-lookup-providers.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-address-lookup-provider-test-modal")
 export class MerchelloAddressLookupProviderTestModalElement extends UmbModalBaseElement<
@@ -195,7 +196,9 @@ export class MerchelloAddressLookupProviderTestModalElement extends UmbModalBase
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -369,7 +372,8 @@ export class MerchelloAddressLookupProviderTestModalElement extends UmbModalBase
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloAddressLookupProviderTestModalElement;
@@ -379,3 +383,4 @@ declare global {
     "merchello-address-lookup-provider-test-modal": MerchelloAddressLookupProviderTestModalElement;
   }
 }
+

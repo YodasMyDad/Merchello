@@ -12,6 +12,7 @@ import type {
 import type { WarehousePickerModalData, WarehousePickerModalValue } from "@warehouses/modals/warehouse-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { WarehouseListDto } from "@warehouses/types/warehouses.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-warehouse-picker-modal")
 export class MerchelloWarehousePickerModalElement extends UmbModalBaseElement<
@@ -262,7 +263,9 @@ export class MerchelloWarehousePickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -306,7 +309,8 @@ export class MerchelloWarehousePickerModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloWarehousePickerModalElement;
@@ -316,3 +320,4 @@ declare global {
     "merchello-warehouse-picker-modal": MerchelloWarehousePickerModalElement;
   }
 }
+

@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { AddressLookupProviderFieldDto } from '@address-lookup-providers/types/address-lookup-providers.types.js';
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   AddressLookupProviderConfigModalData,
   AddressLookupProviderConfigModalValue,
@@ -350,7 +351,9 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -464,7 +467,8 @@ export class MerchelloAddressLookupProviderConfigModalElement extends UmbModalBa
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloAddressLookupProviderConfigModalElement;
@@ -474,3 +478,4 @@ declare global {
     "merchello-address-lookup-provider-config-modal": MerchelloAddressLookupProviderConfigModalElement;
   }
 }
+

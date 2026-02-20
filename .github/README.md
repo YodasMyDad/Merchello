@@ -15,6 +15,16 @@ dotnet add package Umbraco.Community.Merchello
 
 The `Merchello.Site` project in this repo is a working example store with seed data (products, collections, tax groups, shipping, discounts) so you can see everything running immediately. Clone it, run it, and start building.
 
+## appSettings
+
+It's important you set some starting settings to your preference before installing, these are the defaults
+
+  "Merchello": {
+    "InstallSeedData": true,
+    "StoreCurrencyCode": "USD",
+    "DefaultShippingCountry": "US"
+  }
+
 ## What's Included
 
 ### Integrated Checkout

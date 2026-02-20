@@ -11,6 +11,7 @@ import { MERCHELLO_TAX_RATE_MODAL } from "@tax/modals/tax-rate-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { TaxGroupRateDto } from "@tax/types/tax.types.js";
 import { formatNumber } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-tax-group-modal")
 export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
@@ -353,7 +354,9 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -479,7 +482,8 @@ export class MerchelloTaxGroupModalElement extends UmbModalBaseElement<
       --uui-button-padding-left-factor: 1;
       --uui-button-padding-right-factor: 1;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTaxGroupModalElement;
@@ -489,3 +493,4 @@ declare global {
     "merchello-tax-group-modal": MerchelloTaxGroupModalElement;
   }
 }
+

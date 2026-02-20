@@ -14,6 +14,7 @@ import { formatRelativeDate } from "@shared/utils/formatting.js";
 import { getProductFeedCreateHref, getProductFeedDetailHref } from "@shared/utils/navigation.js";
 import "@shared/components/merchello-empty-state.element.js";
 import "@shared/components/pagination.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 type FeedFilterTab = "all" | "enabled" | "disabled";
 type FeedHealthStatus = {
@@ -100,6 +101,15 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
       this._search = value;
       this._page = 1;
     }, 250);
+  }
+
+  private _clearSearch(): void {
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+      this._searchDebounceTimer = null;
+    }
+    this._search = "";
+    this._page = 1;
   }
 
   private _setFilter(tab: FeedFilterTab): void {
@@ -428,7 +438,7 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     }
 
     return html`
-      <div class="table-wrap">
+      <div class="table-container">
         <uui-table>
           <uui-table-head>
             <uui-table-head-cell>Name</uui-table-head-cell>
@@ -452,42 +462,60 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="container">
-          <div class="toolbar">
-            <uui-input
-              class="search"
-              type="text"
-              label="Search feeds"
-              placeholder="Search by name, slug, country, or currency"
-              @input=${this._onSearchInput}>
-              <uui-icon slot="prepend" name="icon-search"></uui-icon>
-            </uui-input>
-            <uui-button look="primary" color="positive" href=${getProductFeedCreateHref()}>
-              <uui-icon name="icon-add" slot="icon"></uui-icon>
-              Create Feed
-            </uui-button>
-          </div>
+        <div class="product-feeds-container layout-container">
+          <div class="filters">
+            <div class="filters-top">
+              <div class="search-box">
+                <uui-input
+                  type="text"
+                  label="Search feeds"
+                  .value=${this._search}
+                  placeholder="Search by name, slug, country, or currency"
+                  @input=${this._onSearchInput}>
+                  <uui-icon slot="prepend" name="icon-search"></uui-icon>
+                  ${this._search
+                    ? html`
+                        <uui-button
+                          slot="append"
+                          compact
+                          look="secondary"
+                          label="Clear search"
+                          @click=${this._clearSearch}>
+                          <uui-icon name="icon-wrong"></uui-icon>
+                        </uui-button>
+                      `
+                    : nothing}
+                </uui-input>
+              </div>
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" href=${getProductFeedCreateHref()}>
+                  <uui-icon name="icon-add" slot="icon"></uui-icon>
+                  Create Feed
+                </uui-button>
+              </div>
+            </div>
 
-          <uui-tab-group class="tabs">
-            <uui-tab
-              label="All"
-              ?active=${this._filterTab === "all"}
-              @click=${() => this._setFilter("all")}>
-              All
-            </uui-tab>
-            <uui-tab
-              label="Enabled"
-              ?active=${this._filterTab === "enabled"}
-              @click=${() => this._setFilter("enabled")}>
-              Enabled
-            </uui-tab>
-            <uui-tab
-              label="Disabled"
-              ?active=${this._filterTab === "disabled"}
-              @click=${() => this._setFilter("disabled")}>
-              Disabled
-            </uui-tab>
-          </uui-tab-group>
+            <uui-tab-group class="tabs">
+              <uui-tab
+                label="All"
+                ?active=${this._filterTab === "all"}
+                @click=${() => this._setFilter("all")}>
+                All
+              </uui-tab>
+              <uui-tab
+                label="Enabled"
+                ?active=${this._filterTab === "enabled"}
+                @click=${() => this._setFilter("enabled")}>
+                Enabled
+              </uui-tab>
+              <uui-tab
+                label="Disabled"
+                ?active=${this._filterTab === "disabled"}
+                @click=${() => this._setFilter("disabled")}>
+                Disabled
+              </uui-tab>
+            </uui-tab-group>
+          </div>
 
           ${this._isLoading
             ? this._renderLoading()
@@ -508,35 +536,25 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     `;
   }
 
-  static override styles = css`
+  static override styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
     }
 
-    .container {
-      max-width: 100%;
-      padding: var(--uui-size-layout-1);
-    }
-
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    .search {
+    .search-box {
       flex: 1;
       max-width: 520px;
     }
 
-    .tabs {
-      margin-bottom: var(--uui-size-space-4);
+    .search-box uui-input {
+      width: 100%;
     }
 
-    .table-wrap {
+    .table-container {
       background: var(--uui-color-surface);
       border: 1px solid var(--uui-color-border);
       border-radius: var(--uui-border-radius);
@@ -607,16 +625,12 @@ export class MerchelloProductFeedsListElement extends UmbElementMixin(LitElement
     }
 
     @media (max-width: 900px) {
-      .toolbar {
-        flex-direction: column;
-        align-items: stretch;
-      }
-
-      .search {
-        max-width: none;
+      .header-actions {
+        justify-content: flex-start;
       }
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloProductFeedsListElement;

@@ -376,6 +376,13 @@ import type {
   CustomerSegmentBadgeDto,
 } from '@customers/types/segment.types.js';
 
+// Import health check types
+import type {
+  HealthCheckMetadataDto,
+  HealthCheckResultDto,
+  HealthCheckDetailPageDto,
+} from '@health-checks/types/health-check.types.js';
+
 // Import analytics types
 import type {
   AnalyticsSummaryDto,
@@ -570,6 +577,297 @@ export interface StoreSettingsDto {
   refundQuickAmountPercentages: number[];
 }
 
+export interface StoreConfigurationStorePanelDto {
+  invoiceNumberPrefix: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  websiteUrl?: string | null;
+  address: string;
+  logoMediaKey?: string | null;
+  logoUrl?: string | null;
+  displayPricesIncTax: boolean;
+  showStockLevels: boolean;
+  lowStockThreshold: number;
+}
+
+export interface StoreConfigurationInvoiceRemindersDto {
+  reminderDaysBeforeDue: number;
+  overdueReminderIntervalDays: number;
+  maxOverdueReminders: number;
+  checkIntervalHours: number;
+}
+
+export interface StoreConfigurationPoliciesDto {
+  termsContent?: string | null;
+  privacyContent?: string | null;
+}
+
+export interface StoreConfigurationOrderTermsDto {
+  showCheckbox: boolean;
+  checkboxText: string;
+  checkboxRequired: boolean;
+}
+
+export interface StoreConfigurationCheckoutDto {
+  headerBackgroundImageMediaKey?: string | null;
+  headerBackgroundImageUrl?: string | null;
+  headerBackgroundColor?: string | null;
+  logoPosition: string;
+  logoMaxWidth: number;
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  textColor: string;
+  errorColor: string;
+  headingFontFamily: string;
+  bodyFontFamily: string;
+  showExpressCheckout: boolean;
+  billingPhoneRequired: boolean;
+  confirmationRedirectUrl?: string | null;
+  customScriptUrl?: string | null;
+  orderTerms: StoreConfigurationOrderTermsDto;
+}
+
+export interface StoreConfigurationAbandonedCheckoutDto {
+  abandonmentThresholdHours: number;
+  recoveryExpiryDays: number;
+  checkIntervalMinutes: number;
+  firstEmailDelayHours: number;
+  reminderEmailDelayHours: number;
+  finalEmailDelayHours: number;
+  maxRecoveryEmails: number;
+}
+
+export interface StoreConfigurationEmailThemeDto {
+  primaryColor: string;
+  textColor: string;
+  backgroundColor: string;
+  fontFamily: string;
+  secondaryTextColor: string;
+  contentBackgroundColor: string;
+}
+
+export interface StoreConfigurationEmailDto {
+  defaultFromAddress?: string | null;
+  defaultFromName?: string | null;
+  theme: StoreConfigurationEmailThemeDto;
+}
+
+export interface StoreConfigurationUcpDto {
+  termsUrl?: string | null;
+  privacyUrl?: string | null;
+  publicBaseUrl?: string | null;
+  allowedAgents?: string[] | null;
+  capabilityCheckout?: boolean | null;
+  capabilityOrder?: boolean | null;
+  capabilityIdentityLinking?: boolean | null;
+  extensionDiscount?: boolean | null;
+  extensionFulfillment?: boolean | null;
+  extensionBuyerConsent?: boolean | null;
+  extensionAp2Mandates?: boolean | null;
+  webhookTimeoutSeconds?: number | null;
+}
+
+export interface StoreConfigurationDto {
+  storeKey: string;
+  store: StoreConfigurationStorePanelDto;
+  invoiceReminders: StoreConfigurationInvoiceRemindersDto;
+  policies: StoreConfigurationPoliciesDto;
+  checkout: StoreConfigurationCheckoutDto;
+  abandonedCheckout: StoreConfigurationAbandonedCheckoutDto;
+  email: StoreConfigurationEmailDto;
+  ucp: StoreConfigurationUcpDto;
+}
+
+export interface UcpFlowDiagnosticsDto {
+  protocolVersion: string;
+  capabilities: string[];
+  extensions: string[];
+  requireHttps: boolean;
+  minimumTlsVersion: string;
+  publicBaseUrl?: string | null;
+  effectiveBaseUrl?: string | null;
+  strictModeAvailable: boolean;
+  strictModeBlockReason?: string | null;
+  strictFallbackMode: string;
+  simulatedAgentId: string;
+  simulatedAgentProfileUrl?: string | null;
+  timestampUtc: string;
+}
+
+export interface UcpFlowRequestSnapshotDto {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: string | null;
+  timestampUtc: string;
+}
+
+export interface UcpFlowResponseSnapshotDto {
+  statusCode: number;
+  headers: Record<string, string>;
+  body?: string | null;
+  timestampUtc: string;
+}
+
+export interface UcpFlowStepResultDto {
+  step: string;
+  success: boolean;
+  modeRequested: string;
+  modeExecuted: string;
+  fallbackApplied: boolean;
+  fallbackReason?: string | null;
+  dryRun: boolean;
+  dryRunSkippedExecution: boolean;
+  timestampUtc: string;
+  durationMs: number;
+  request?: UcpFlowRequestSnapshotDto | null;
+  response?: UcpFlowResponseSnapshotDto | null;
+  sessionId?: string | null;
+  status?: string | null;
+  orderId?: string | null;
+  responseData?: unknown;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
+export interface UcpFlowTestAddressDto {
+  givenName?: string | null;
+  familyName?: string | null;
+  organization?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  locality?: string | null;
+  administrativeArea?: string | null;
+  postalCode?: string | null;
+  countryCode?: string | null;
+  phone?: string | null;
+}
+
+export interface UcpFlowTestBuyerInfoDto {
+  email?: string | null;
+  phone?: string | null;
+  billingAddress?: UcpFlowTestAddressDto | null;
+  shippingAddress?: UcpFlowTestAddressDto | null;
+  shippingSameAsBilling?: boolean | null;
+}
+
+export interface UcpFlowTestDiscountsDto {
+  codes?: string[] | null;
+}
+
+export interface UcpFlowTestFulfillmentDestinationDto {
+  type?: string | null;
+  address?: UcpFlowTestAddressDto | null;
+}
+
+export interface UcpFlowTestFulfillmentGroupSelectionDto {
+  id?: string | null;
+  selectedOptionId?: string | null;
+}
+
+export interface UcpFlowTestFulfillmentMethodDto {
+  type?: string | null;
+  destinations?: UcpFlowTestFulfillmentDestinationDto[] | null;
+  groups?: UcpFlowTestFulfillmentGroupSelectionDto[] | null;
+}
+
+export interface UcpFlowTestFulfillmentDto {
+  methods?: UcpFlowTestFulfillmentMethodDto[] | null;
+  groups?: UcpFlowTestFulfillmentGroupSelectionDto[] | null;
+}
+
+export interface UcpFlowTestItemOptionDto {
+  name?: string | null;
+  value?: string | null;
+}
+
+export interface UcpFlowTestItemInfoDto {
+  id?: string | null;
+  title?: string | null;
+  price: number;
+  imageUrl?: string | null;
+  url?: string | null;
+  options?: UcpFlowTestItemOptionDto[] | null;
+}
+
+export interface UcpFlowTestLineItemDto {
+  id?: string | null;
+  item?: UcpFlowTestItemInfoDto | null;
+  quantity: number;
+}
+
+export interface UcpFlowTestPaymentInstrumentDto {
+  type?: string | null;
+  token?: string | null;
+  data?: Record<string, unknown> | null;
+}
+
+export interface UcpFlowTestCreateSessionPayloadDto {
+  lineItems?: UcpFlowTestLineItemDto[] | null;
+  currency?: string | null;
+  buyer?: UcpFlowTestBuyerInfoDto | null;
+  discounts?: UcpFlowTestDiscountsDto | null;
+  fulfillment?: UcpFlowTestFulfillmentDto | null;
+}
+
+export interface UcpFlowTestUpdateSessionPayloadDto {
+  lineItems?: UcpFlowTestLineItemDto[] | null;
+  buyer?: UcpFlowTestBuyerInfoDto | null;
+  discounts?: UcpFlowTestDiscountsDto | null;
+  fulfillment?: UcpFlowTestFulfillmentDto | null;
+}
+
+export interface UcpFlowTestCompleteSessionPayloadDto {
+  paymentHandlerId?: string | null;
+  paymentInstrument?: UcpFlowTestPaymentInstrumentDto | null;
+}
+
+export interface UcpTestManifestRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+}
+
+export interface UcpTestCreateSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  request?: UcpFlowTestCreateSessionPayloadDto | null;
+}
+
+export interface UcpTestGetSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+}
+
+export interface UcpTestUpdateSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+  request?: UcpFlowTestUpdateSessionPayloadDto | null;
+}
+
+export interface UcpTestCompleteSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+  dryRun?: boolean;
+  request?: UcpFlowTestCompleteSessionPayloadDto | null;
+}
+
+export interface UcpTestCancelSessionRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  sessionId: string;
+}
+
+export interface UcpTestGetOrderRequestDto {
+  modeRequested?: string | null;
+  agentId?: string | null;
+  orderId: string;
+}
+
 // Country type for dropdowns
 export interface CountryDto {
   code: string;
@@ -582,7 +880,25 @@ export const MerchelloApi = {
 
   // Store Settings
   getSettings: () => apiGet<StoreSettingsDto>('settings'),
+  getStoreConfiguration: () => apiGet<StoreConfigurationDto>('settings/store-configuration'),
+  saveStoreConfiguration: (configuration: StoreConfigurationDto) =>
+    apiPut<StoreConfigurationDto>('settings/store-configuration', configuration),
   getCountries: () => apiGet<CountryDto[]>('countries'),
+  getUcpFlowDiagnostics: () => apiGet<UcpFlowDiagnosticsDto>('ucp-test/diagnostics'),
+  ucpTestManifest: (request: UcpTestManifestRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/manifest', request),
+  ucpTestCreateSession: (request: UcpTestCreateSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/create', request),
+  ucpTestGetSession: (request: UcpTestGetSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/get', request),
+  ucpTestUpdateSession: (request: UcpTestUpdateSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/update', request),
+  ucpTestCompleteSession: (request: UcpTestCompleteSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/complete', request),
+  ucpTestCancelSession: (request: UcpTestCancelSessionRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/sessions/cancel', request),
+  ucpTestGetOrder: (request: UcpTestGetOrderRequestDto) =>
+    apiPost<UcpFlowStepResultDto>('ucp-test/orders/get', request),
 
   // Seed Data
   getSeedDataStatus: () => apiGet<SeedDataStatusDto>('seed-data/status'),
@@ -2195,4 +2511,21 @@ export const MerchelloApi = {
   /** Get all notifications and handlers for developer view */
   getNotifications: () =>
     apiGet<NotificationDiscoveryResultDto>('notifications'),
+
+  // ============================================
+  // Health Checks API
+  // ============================================
+
+  /** Get available health checks */
+  getHealthChecks: () =>
+    apiGet<HealthCheckMetadataDto[]>('health-checks'),
+
+  /** Run a single health check */
+  runHealthCheck: (alias: string) =>
+    apiPost<HealthCheckResultDto>(`health-checks/${encodeURIComponent(alias)}/run`),
+
+  /** Get paginated detail items for a health check */
+  getHealthCheckDetail: (alias: string, page: number = 1, pageSize: number = 25) =>
+    apiGet<HealthCheckDetailPageDto>(
+      `health-checks/${encodeURIComponent(alias)}/details?page=${page}&pageSize=${pageSize}`),
 };

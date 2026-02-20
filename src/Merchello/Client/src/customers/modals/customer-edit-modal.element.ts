@@ -5,6 +5,7 @@ import type { CustomerEditModalData, CustomerEditModalValue } from "@customers/m
 import { MerchelloApi } from "@api/merchello-api.js";
 import "@umbraco-cms/backoffice/member";
 import "@shared/components/tag-input.element.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const CUSTOMER_EDIT_FORM_ID = "MerchelloCustomerEditForm";
 
@@ -401,7 +402,9 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -451,7 +454,8 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     .error-banner uui-icon {
       flex-shrink: 0;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloCustomerEditModalElement;
@@ -461,3 +465,4 @@ declare global {
     "merchello-customer-edit-modal": MerchelloCustomerEditModalElement;
   }
 }
+

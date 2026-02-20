@@ -11,4 +11,5 @@ public class ProductSyncSettings
     public int MaxImageBytes { get; set; } = 20 * 1024 * 1024;
 
     public string ArtifactStoragePath { get; set; } = "App_Data/ProductSync";
+    public string MediaImportRootFolderName { get; set; } = "Products";
 }

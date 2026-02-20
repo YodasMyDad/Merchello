@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Protocols;
@@ -642,66 +643,23 @@ public class UcpCheckoutFlowIntegrationTests : IClassFixture<ServiceTestFixture>
     private static string ExtractSessionId(object? responseData)
     {
         if (responseData == null) return string.Empty;
-
-        var data = ExtractSessionData(responseData);
-        if (data != null)
-        {
-            var dataType = data.GetType();
-            var sessionIdProperty = dataType.GetProperty("SessionId")
-                ?? dataType.GetProperty("sessionId")
-                ?? dataType.GetProperty("Id")
-                ?? dataType.GetProperty("id");
-            if (sessionIdProperty != null)
-            {
-                return sessionIdProperty.GetValue(data)?.ToString() ?? string.Empty;
-            }
-        }
-
-        // Try direct SessionId property
-        var type = responseData.GetType();
-        var directSessionIdProperty = type.GetProperty("SessionId") ?? type.GetProperty("sessionId");
-        if (directSessionIdProperty != null)
-        {
-            var idValue = directSessionIdProperty.GetValue(responseData);
-            return idValue?.ToString() ?? string.Empty;
-        }
-
-        var idProperty = type.GetProperty("Id") ?? type.GetProperty("id");
-        if (idProperty != null)
-        {
-            var idValue = idProperty.GetValue(responseData);
-            return idValue?.ToString() ?? string.Empty;
-        }
-
-        return string.Empty;
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(responseData));
+        return json.RootElement.TryGetProperty("id", out var id) ? id.GetString() ?? string.Empty : string.Empty;
     }
 
     private static SessionSnapshot? ExtractSessionState(object? responseData)
     {
         if (responseData == null) return null;
-
-        var data = ExtractSessionData(responseData);
-        if (data == null) return null;
-
-        var dataType = data.GetType();
-        var statusProperty = dataType.GetProperty("status") ?? dataType.GetProperty("Status");
-        var totalsProperty = dataType.GetProperty("totals") ?? dataType.GetProperty("Totals");
-
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(responseData));
+        var root = doc.RootElement;
         return new SessionSnapshot
         {
-            Status = statusProperty?.GetValue(data)?.ToString(),
-            Totals = totalsProperty?.GetValue(data)
+            Status = root.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null,
+            Totals = root.TryGetProperty("totals", out var totalsEl) ? totalsEl.Clone() : (object?)null
         };
     }
 
-    private static object? ExtractSessionData(object? responseData)
-    {
-        if (responseData == null) return null;
-
-        var type = responseData.GetType();
-        var dataProperty = type.GetProperty("Data") ?? type.GetProperty("data");
-        return dataProperty?.GetValue(responseData) ?? responseData;
-    }
+    private static object? ExtractSessionData(object? responseData) => responseData;
 
     #endregion
 }

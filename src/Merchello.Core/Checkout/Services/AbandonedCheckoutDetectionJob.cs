@@ -1,4 +1,5 @@
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -37,28 +38,28 @@ public class AbandonedCheckoutDetectionJob(
             return;
         }
 
-        // Ensure reasonable minimum values
-        var checkInterval = TimeSpan.FromMinutes(Math.Max(5, _settings.CheckIntervalMinutes));
-        var abandonmentThreshold = TimeSpan.FromHours(Math.Max(0.5, _settings.AbandonmentThresholdHours));
-        var expiryThreshold = TimeSpan.FromDays(Math.Max(1, _settings.RecoveryExpiryDays));
-
-        logger.LogInformation(
-            "Abandoned checkout detection started. Check interval: {Interval}min, Abandonment threshold: {Threshold}h",
-            _settings.CheckIntervalMinutes, _settings.AbandonmentThresholdHours);
-
-        // Wait a bit before first run to allow app startup to complete
-        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-
-        using var timer = new PeriodicTimer(checkInterval);
+        // Wait a bit before first run to allow app startup to complete.
+        // Cancellation can happen during startup/shutdown transitions, which is expected.
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
 
         try
         {
-            // Run immediately on startup, then on interval
-            await RunDetectionCycleAsync(abandonmentThreshold, expiryThreshold, stoppingToken);
-
-            while (await timer.WaitForNextTickAsync(stoppingToken))
+            while (!stoppingToken.IsCancellationRequested)
             {
+                var effectiveSettings = await GetEffectiveSettingsAsync(stoppingToken);
+                var checkInterval = TimeSpan.FromMinutes(Math.Max(5, effectiveSettings.CheckIntervalMinutes));
+                var abandonmentThreshold = TimeSpan.FromHours(Math.Max(0.5, effectiveSettings.AbandonmentThresholdHours));
+                var expiryThreshold = TimeSpan.FromDays(Math.Max(1, effectiveSettings.RecoveryExpiryDays));
+
                 await RunDetectionCycleAsync(abandonmentThreshold, expiryThreshold, stoppingToken);
+                await Task.Delay(checkInterval, stoppingToken);
             }
         }
         catch (OperationCanceledException)
@@ -90,6 +91,28 @@ public class AbandonedCheckoutDetectionJob(
         catch (Exception ex)
         {
             logger.LogError(ex, "Error in abandoned checkout detection cycle");
+        }
+    }
+
+    private async Task<AbandonedCheckoutSettings> GetEffectiveSettingsAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var storeSettingsService = scope.ServiceProvider.GetService<IMerchelloStoreSettingsService>();
+            if (storeSettingsService == null)
+            {
+                return _settings;
+            }
+
+            var runtime = await storeSettingsService.GetRuntimeSettingsAsync(ct);
+            return runtime.AbandonedCheckout;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to resolve DB-backed abandoned checkout settings, falling back to appsettings.");
+            return _settings;
         }
     }
 }

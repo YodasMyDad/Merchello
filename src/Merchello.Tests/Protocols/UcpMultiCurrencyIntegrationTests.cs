@@ -290,10 +290,5 @@ public class UcpMultiCurrencyIntegrationTests : IClassFixture<ServiceTestFixture
         throw new InvalidOperationException("No fulfillment options found in session response.");
     }
 
-    private static JsonElement GetEnvelopeData(JsonDocument document)
-    {
-        return document.RootElement.TryGetProperty("data", out var data)
-            ? data
-            : document.RootElement.GetProperty("Data");
-    }
+    private static JsonElement GetEnvelopeData(JsonDocument document) => document.RootElement;
 }

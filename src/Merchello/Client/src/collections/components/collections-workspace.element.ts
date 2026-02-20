@@ -9,6 +9,7 @@ import type { ProductCollectionDto } from '@products/types/product.types.js';
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_COLLECTION_MODAL } from "@collections/modals/collection-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-collections-workspace")
 export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitElement) {
@@ -282,12 +283,12 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="collections-container">
-          <uui-box>
-            <div class="header-actions">
-              <div class="search-box">
-                ${showSearch
-                  ? html`
+        <div class="collections-container layout-container">
+          <div class="filters">
+            <div class="filters-top">
+              ${showSearch
+                ? html`
+                    <div class="search-box">
                       <uui-input
                         id="search-input"
                         type="search"
@@ -309,15 +310,18 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
                             `
                           : nothing}
                       </uui-input>
-                    `
-                  : nothing}
+                    </div>
+                  `
+                : nothing}
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" label="Add collection" @click=${this._handleAddCollection}>
+                  Add Collection
+                </uui-button>
               </div>
-
-              <uui-button look="primary" color="positive" label="Add collection" @click=${this._handleAddCollection}>
-                Add Collection
-              </uui-button>
             </div>
+          </div>
 
+          <uui-box>
             <p class="helper-text">
               Collections group products for merchandising, filtering, and storefront browsing.
             </p>
@@ -330,6 +334,7 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
   }
 
   static override readonly styles = [
+    collectionLayoutStyles,
     css`
       :host {
         display: block;
@@ -337,33 +342,8 @@ export class MerchelloCollectionsWorkspaceElement extends UmbElementMixin(LitEle
         background: var(--uui-color-background);
       }
 
-      .collections-container {
-        max-width: 100%;
-        padding: var(--uui-size-layout-1);
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-      }
-
-      .header-actions {
-        display: flex;
-        gap: var(--uui-size-space-3);
-        align-items: center;
-        justify-content: space-between;
-        flex-wrap: wrap;
-      }
-
-      .search-box {
-        flex: 1 1 320px;
-        min-width: 240px;
-      }
-
-      .search-box uui-input {
-        width: 100%;
-      }
-
       .helper-text {
-        margin: var(--uui-size-space-3) 0 0;
+        margin: 0;
         color: var(--uui-color-text-alt);
       }
 

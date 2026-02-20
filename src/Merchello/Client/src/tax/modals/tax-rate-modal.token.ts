@@ -18,6 +18,6 @@ export const MERCHELLO_TAX_RATE_MODAL = new UmbModalToken<
 >("Merchello.TaxRate.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "medium",
   },
 });

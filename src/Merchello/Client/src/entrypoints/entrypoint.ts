@@ -11,14 +11,15 @@ const MERCHELLO_MODAL_DIALOG_SELECTOR = "uui-modal-dialog";
 const MERCHELLO_MODAL_DIALOG_MARKER_ATTRIBUTE = "data-merchello-dialog";
 const MERCHELLO_MODAL_WIDTH_STYLES = `
   :host([data-merchello-dialog]) dialog {
-    max-width: calc(100vw - 2rem);
-    min-width: min(var(--merchello-modal-min-width, 46rem), calc(100vw - 2rem));
+    box-sizing: border-box;
+    max-width: 100%;
+    min-width: min(var(--merchello-modal-min-width, 46rem), 100%);
   }
 
   @media (max-width: 768px) {
     :host([data-merchello-dialog]) dialog {
-      max-width: calc(100vw - 1rem);
-      min-width: calc(100vw - 1rem);
+      max-width: 100%;
+      min-width: 100%;
     }
   }
 `;

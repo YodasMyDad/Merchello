@@ -10,6 +10,7 @@ import type { UmbPropertyEditorConfig } from "@umbraco-cms/backoffice/property-e
 import "@umbraco-cms/backoffice/imaging";
 import type { OptionEditorModalData, OptionEditorModalValue } from "@products/modals/option-editor-modal.token.js";
 import type { ProductOptionDto, ProductOptionValueDto } from "@products/types/product.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-option-editor-modal")
 export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
@@ -570,7 +571,9 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -799,7 +802,8 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     umb-property uui-select {
       width: 100%;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloOptionEditorModalElement;
@@ -809,4 +813,5 @@ declare global {
     "merchello-option-editor-modal": MerchelloOptionEditorModalElement;
   }
 }
+
 

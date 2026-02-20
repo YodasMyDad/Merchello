@@ -2667,6 +2667,118 @@ namespace Merchello.Core.Sqlite.Migrations
                     b.ToTable("merchelloSearchProviderSettings", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Settings.Models.MerchelloStore", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AbandonedCheckout")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("AbandonedCheckoutJson");
+
+                    b.Property<string>("Checkout")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("CheckoutJson");
+
+                    b.Property<DateTime>("DateCreatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DateUpdatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("DisplayPricesIncTax")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("EmailJson");
+
+                    b.Property<string>("InvoiceNumberPrefix")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("INV-");
+
+                    b.Property<string>("InvoiceReminders")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("InvoiceRemindersJson");
+
+                    b.Property<int>("LowStockThreshold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(5);
+
+                    b.Property<string>("Policies")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("PoliciesJson");
+
+                    b.Property<bool>("ShowStockLevels")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("StoreAddress")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("123 Commerce Street\nNew York, NY 10001\nUnited States");
+
+                    b.Property<string>("StoreEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoreKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("default");
+
+                    b.Property<Guid?>("StoreLogoMediaKey")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoreName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Acme Store");
+
+                    b.Property<string>("StorePhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoreSupportEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StoreWebsiteUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Ucp")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("UcpJson");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoreKey")
+                        .IsUnique();
+
+                    b.ToTable("merchelloStores", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Shared.Providers.ProviderConfiguration", b =>
                 {
                     b.Property<Guid>("Id")

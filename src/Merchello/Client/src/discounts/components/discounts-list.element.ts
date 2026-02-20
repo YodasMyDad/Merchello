@@ -18,6 +18,7 @@ import "@shared/components/merchello-empty-state.element.js";
 import "@discounts/components/discount-table.element.js";
 import { MERCHELLO_SELECT_DISCOUNT_TYPE_MODAL } from "@discounts/modals/select-discount-type-modal.token.js";
 import { navigateToDiscountDetail, navigateToDiscountCreate } from "@shared/utils/navigation.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-discounts-list")
 export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
@@ -138,6 +139,10 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
   }
 
   private _handleSearchClear(): void {
+    if (this._searchDebounceTimer) {
+      clearTimeout(this._searchDebounceTimer);
+      this._searchDebounceTimer = null;
+    }
     this._searchTerm = "";
     this._page = 1;
     this._loadDiscounts();
@@ -304,140 +309,110 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-      <div class="discounts-container">
-        <!-- Header Actions -->
-        <div class="header-actions">
-          ${this._selectedDiscounts.size > 0
-            ? html`
-                <uui-button
-                  look="primary"
-                  color="danger"
-                  label="Delete"
-                  ?disabled=${this._isDeleting}
-                  @click=${this._handleDeleteSelected}
+        <div class="discounts-container layout-container">
+          <div class="filters">
+            <div class="filters-top">
+              <div class="search-box">
+                <uui-input
+                  type="text"
+                  placeholder="Search discounts by name or code..."
+                  .value=${this._searchTerm}
+                  @input=${this._handleSearchInput}
+                  label="Search discounts"
                 >
-                  ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedDiscounts.size})`}
+                  <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                  ${this._searchTerm
+                    ? html`
+                        <uui-button
+                          slot="append"
+                          compact
+                          look="secondary"
+                          label="Clear search"
+                          @click=${this._handleSearchClear}
+                        >
+                          <uui-icon name="icon-wrong"></uui-icon>
+                        </uui-button>
+                      `
+                    : ""}
+                </uui-input>
+              </div>
+              <div class="header-actions">
+                ${this._selectedDiscounts.size > 0
+                  ? html`
+                      <uui-button
+                        look="primary"
+                        color="danger"
+                        label="Delete"
+                        ?disabled=${this._isDeleting}
+                        @click=${this._handleDeleteSelected}
+                      >
+                        ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedDiscounts.size})`}
+                      </uui-button>
+                    `
+                  : ""}
+                <uui-button look="primary" color="positive" label="Create discount" @click=${this._handleCreateDiscount}>
+                  Create discount
                 </uui-button>
-              `
-            : ""}
-          <uui-button look="primary" color="positive" label="Create discount" @click=${this._handleCreateDiscount}>
-            Create discount
-          </uui-button>
-        </div>
+              </div>
+            </div>
 
-        <!-- Search and Tabs Row -->
-        <div class="search-tabs-row">
-          <!-- Search Box -->
-          <div class="search-box">
-            <uui-input
-              type="text"
-              placeholder="Search discounts by name or code..."
-              .value=${this._searchTerm}
-              @input=${this._handleSearchInput}
-              label="Search discounts"
-            >
-              <uui-icon name="icon-search" slot="prepend"></uui-icon>
-              ${this._searchTerm
-                ? html`
-                    <uui-button
-                      slot="append"
-                      compact
-                      look="secondary"
-                      label="Clear search"
-                      @click=${this._handleSearchClear}
-                    >
-                      <uui-icon name="icon-wrong"></uui-icon>
-                    </uui-button>
-                  `
-                : ""}
-            </uui-input>
+            <uui-tab-group class="tabs">
+              <uui-tab
+                label="All"
+                ?active=${this._activeTab === "all"}
+                @click=${() => this._handleTabClick("all")}
+              >
+                All
+              </uui-tab>
+              <uui-tab
+                label="Active"
+                ?active=${this._activeTab === "active"}
+                @click=${() => this._handleTabClick("active")}
+              >
+                Active
+              </uui-tab>
+              <uui-tab
+                label="Scheduled"
+                ?active=${this._activeTab === "scheduled"}
+                @click=${() => this._handleTabClick("scheduled")}
+              >
+                Scheduled
+              </uui-tab>
+              <uui-tab
+                label="Expired"
+                ?active=${this._activeTab === "expired"}
+                @click=${() => this._handleTabClick("expired")}
+              >
+                Expired
+              </uui-tab>
+              <uui-tab
+                label="Draft"
+                ?active=${this._activeTab === "draft"}
+                @click=${() => this._handleTabClick("draft")}
+              >
+                Draft
+              </uui-tab>
+            </uui-tab-group>
           </div>
 
-          <!-- Tabs -->
-          <uui-tab-group>
-            <uui-tab
-              label="All"
-              ?active=${this._activeTab === "all"}
-              @click=${() => this._handleTabClick("all")}
-            >
-              All
-            </uui-tab>
-            <uui-tab
-              label="Active"
-              ?active=${this._activeTab === "active"}
-              @click=${() => this._handleTabClick("active")}
-            >
-              Active
-            </uui-tab>
-            <uui-tab
-              label="Scheduled"
-              ?active=${this._activeTab === "scheduled"}
-              @click=${() => this._handleTabClick("scheduled")}
-            >
-              Scheduled
-            </uui-tab>
-            <uui-tab
-              label="Expired"
-              ?active=${this._activeTab === "expired"}
-              @click=${() => this._handleTabClick("expired")}
-            >
-              Expired
-            </uui-tab>
-            <uui-tab
-              label="Draft"
-              ?active=${this._activeTab === "draft"}
-              @click=${() => this._handleTabClick("draft")}
-            >
-              Draft
-            </uui-tab>
-          </uui-tab-group>
+          ${this._renderDiscountsContent()}
         </div>
-
-        <!-- Discounts Table -->
-        ${this._renderDiscountsContent()}
-      </div>
       </umb-body-layout>
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
     }
 
-    .discounts-container {
-      max-width: 100%;
-      padding: var(--uui-size-layout-1);
-    }
-
-    .header-actions {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      align-items: center;
-      justify-content: flex-end;
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    .search-tabs-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    @media (min-width: 768px) {
-      .search-tabs-row {
-        flex-direction: row;
-        align-items: flex-end;
-        justify-content: space-between;
-      }
-    }
-
     .search-box {
       flex: 1;
-      max-width: 400px;
+      max-width: 520px;
     }
 
     .search-box uui-input {
@@ -474,7 +449,8 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
       padding: var(--uui-size-space-3);
       border-top: 1px solid var(--uui-color-border);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloDiscountsListElement;

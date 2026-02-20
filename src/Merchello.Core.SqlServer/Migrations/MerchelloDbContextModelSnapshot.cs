@@ -2674,6 +2674,118 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.ToTable("merchelloSearchProviderSettings", (string)null);
                 });
 
+            modelBuilder.Entity("Merchello.Core.Settings.Models.MerchelloStore", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AbandonedCheckout")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("AbandonedCheckoutJson");
+
+                    b.Property<string>("Checkout")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("CheckoutJson");
+
+                    b.Property<DateTime>("DateCreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("DateUpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("DisplayPricesIncTax")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("EmailJson");
+
+                    b.Property<string>("InvoiceNumberPrefix")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("INV-");
+
+                    b.Property<string>("InvoiceReminders")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("InvoiceRemindersJson");
+
+                    b.Property<int>("LowStockThreshold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(5);
+
+                    b.Property<string>("Policies")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("PoliciesJson");
+
+                    b.Property<bool>("ShowStockLevels")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("StoreAddress")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasDefaultValue("123 Commerce Street\nNew York, NY 10001\nUnited States");
+
+                    b.Property<string>("StoreEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("StoreKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)")
+                        .HasDefaultValue("default");
+
+                    b.Property<Guid?>("StoreLogoMediaKey")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("StoreName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasDefaultValue("Acme Store");
+
+                    b.Property<string>("StorePhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("StoreSupportEmail")
+                        .HasMaxLength(254)
+                        .HasColumnType("nvarchar(254)");
+
+                    b.Property<string>("StoreWebsiteUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Ucp")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("UcpJson");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StoreKey")
+                        .IsUnique();
+
+                    b.ToTable("merchelloStores", (string)null);
+                });
+
             modelBuilder.Entity("Merchello.Core.Shared.Providers.ProviderConfiguration", b =>
                 {
                     b.Property<Guid>("Id")

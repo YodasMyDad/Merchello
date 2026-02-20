@@ -9,6 +9,7 @@ import type { SupplierListItemDto } from "@suppliers/types/suppliers.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_SUPPLIER_MODAL } from "@suppliers/modals/supplier-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-suppliers-list")
 export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
@@ -288,7 +289,44 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="suppliers-container">
+        <div class="suppliers-container layout-container">
+          <div class="filters">
+            <div class="filters-top">
+              <div class="search-box">
+                <uui-input
+                  type="search"
+                  label="Search suppliers"
+                  placeholder="Search by supplier name or code"
+                  .value=${this._searchTerm}
+                  @input=${this._handleSearchInput}>
+                  <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                  ${this._searchTerm
+                    ? html`
+                        <uui-button
+                          slot="append"
+                          compact
+                          look="secondary"
+                          label="Clear supplier search"
+                          @click=${this._handleSearchClear}>
+                          <uui-icon name="icon-wrong"></uui-icon>
+                        </uui-button>
+                      `
+                    : nothing}
+                </uui-input>
+              </div>
+              <span class="results-summary">
+                ${this._isLoading
+                  ? "Loading suppliers..."
+                  : `${filteredCount} of ${supplierCount} supplier${supplierCount === 1 ? "" : "s"}`}
+              </span>
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" label="Add Supplier" @click=${this._handleAddSupplier}>
+                  Add Supplier
+                </uui-button>
+              </div>
+            </div>
+          </div>
+
           <uui-box>
             <div class="header-content">
               <div class="header-copy">
@@ -298,36 +336,6 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
                   warehouses to track where your stock comes from.
                 </p>
               </div>
-              <uui-button look="primary" color="positive" label="Add Supplier" @click=${this._handleAddSupplier}>
-                Add Supplier
-              </uui-button>
-            </div>
-            <div class="toolbar">
-              <uui-input
-                type="search"
-                label="Search suppliers"
-                placeholder="Search by supplier name or code"
-                .value=${this._searchTerm}
-                @input=${this._handleSearchInput}>
-                <uui-icon name="icon-search" slot="prepend"></uui-icon>
-                ${this._searchTerm
-                  ? html`
-                      <uui-button
-                        slot="append"
-                        compact
-                        look="secondary"
-                        label="Clear supplier search"
-                        @click=${this._handleSearchClear}>
-                        <uui-icon name="icon-wrong"></uui-icon>
-                      </uui-button>
-                    `
-                  : nothing}
-              </uui-input>
-              <span class="results-summary">
-                ${this._isLoading
-                  ? "Loading suppliers..."
-                  : `${filteredCount} of ${supplierCount} supplier${supplierCount === 1 ? "" : "s"}`}
-              </span>
             </div>
           </uui-box>
 
@@ -340,6 +348,7 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
   }
 
   static override readonly styles = [
+    collectionLayoutStyles,
     css`
       :host {
         display: block;
@@ -347,20 +356,8 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-background);
       }
 
-      .suppliers-container {
-        max-width: 100%;
-        padding: var(--uui-size-layout-1);
-        display: flex;
-        flex-direction: column;
-        gap: var(--uui-size-space-4);
-      }
-
       .header-content {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: var(--uui-size-space-3);
-        margin-bottom: var(--uui-size-space-4);
+        display: block;
       }
 
       .header-copy h2 {
@@ -373,21 +370,14 @@ export class MerchelloSuppliersListElement extends UmbElementMixin(LitElement) {
         color: var(--uui-color-text-alt);
       }
 
-      .toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-      }
-
-      .toolbar uui-input {
-        flex: 1;
-        min-width: 220px;
+      .search-box {
+        max-width: 420px;
       }
 
       .results-summary {
         color: var(--uui-color-text-alt);
         font-size: 0.8125rem;
+        align-self: flex-end;
       }
 
       .table-container {

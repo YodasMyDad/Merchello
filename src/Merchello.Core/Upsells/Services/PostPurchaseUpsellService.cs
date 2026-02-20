@@ -24,6 +24,7 @@ using Merchello.Core.Shipping.Extensions;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 using Merchello.Core.Products.Models;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Upsells.Dtos;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
@@ -57,9 +58,11 @@ public class PostPurchaseUpsellService(
     IInventoryService inventoryService,
     IOptions<MerchelloSettings> merchelloSettings,
     IOptions<UpsellSettings> upsellSettings,
-    ILogger<PostPurchaseUpsellService> logger) : IPostPurchaseUpsellService
+    ILogger<PostPurchaseUpsellService> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IPostPurchaseUpsellService
 {
     private readonly MerchelloSettings _storeSettings = merchelloSettings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
     private const string PostPurchaseEligibleKey = "PostPurchaseEligible";
     private const string PostPurchaseWindowStartKey = "PostPurchaseWindowStartUtc";
     private const string PostPurchaseWindowEndsKey = "PostPurchaseWindowEndsUtc";
@@ -335,12 +338,12 @@ public class PostPurchaseUpsellService(
         var totalDelta = currencyService.Round(subTotalDelta + taxDelta + shippingDelta, invoice.CurrencyCode);
 
         var unitPriceNet = parameters.Quantity > 0 ? subTotalDelta / parameters.Quantity : subTotalDelta;
-        var priceIncludesTax = _storeSettings.DisplayPricesIncTax;
+        var priceIncludesTax = GetEffectiveStoreSettings().DisplayPricesIncTax;
         var displaySubTotal = priceIncludesTax ? subTotalDelta + taxDelta : subTotalDelta;
         var displayUnitPrice = parameters.Quantity > 0 ? displaySubTotal / parameters.Quantity : displaySubTotal;
 
         var taxRate = subTotalDelta > 0
-            ? Math.Round((taxDelta / subTotalDelta) * 100m, 2, _storeSettings.DefaultRounding)
+            ? Math.Round((taxDelta / subTotalDelta) * 100m, 2, GetEffectiveStoreSettings().DefaultRounding)
             : 0m;
         var taxLabel = taxDelta > 0
             ? priceIncludesTax ? "inc tax" : "plus tax"
@@ -630,7 +633,7 @@ public class PostPurchaseUpsellService(
 
         var countryCode = invoice.ShippingAddress?.CountryCode
             ?? invoice.BillingAddress?.CountryCode
-            ?? _storeSettings.DefaultShippingCountry
+            ?? GetEffectiveStoreSettings().DefaultShippingCountry
             ?? "US";
 
         var regionCode = invoice.ShippingAddress?.CountyState?.RegionCode
@@ -650,7 +653,7 @@ public class PostPurchaseUpsellService(
     private StorefrontDisplayContext BuildInvoiceDisplayContext(Invoice invoice)
     {
         var storeCurrencyCode = string.IsNullOrWhiteSpace(invoice.StoreCurrencyCode)
-            ? _storeSettings.StoreCurrencyCode
+            ? GetEffectiveStoreSettings().StoreCurrencyCode
             : invoice.StoreCurrencyCode;
 
         var currencyCode = string.IsNullOrWhiteSpace(invoice.CurrencyCode)
@@ -673,7 +676,7 @@ public class PostPurchaseUpsellService(
 
         var taxCountryCode = invoice.ShippingAddress?.CountryCode
             ?? invoice.BillingAddress?.CountryCode
-            ?? _storeSettings.DefaultShippingCountry
+            ?? GetEffectiveStoreSettings().DefaultShippingCountry
             ?? "US";
 
         return new StorefrontDisplayContext(
@@ -682,7 +685,7 @@ public class PostPurchaseUpsellService(
             currencyInfo.DecimalPlaces,
             exchangeRate,
             storeCurrencyCode,
-            _storeSettings.DisplayPricesIncTax,
+            GetEffectiveStoreSettings().DisplayPricesIncTax,
             taxCountryCode,
             invoice.ShippingAddress?.CountyState?.RegionCode);
     }
@@ -892,7 +895,7 @@ public class PostPurchaseUpsellService(
         }
 
         var storeCurrency = string.IsNullOrWhiteSpace(invoice.StoreCurrencyCode)
-            ? _storeSettings.StoreCurrencyCode
+            ? GetEffectiveStoreSettings().StoreCurrencyCode
             : invoice.StoreCurrencyCode;
 
         var currencySymbol = currencyService.GetCurrency(storeCurrency).Symbol;
@@ -1037,7 +1040,7 @@ public class PostPurchaseUpsellService(
     private decimal ConvertStoreToPresentmentCurrency(Invoice invoice, decimal storeAmount)
     {
         var presentmentCurrency = string.IsNullOrWhiteSpace(invoice.CurrencyCode)
-            ? _storeSettings.StoreCurrencyCode
+            ? GetEffectiveStoreSettings().StoreCurrencyCode
             : invoice.CurrencyCode;
 
         if (string.IsNullOrWhiteSpace(invoice.CurrencyCode) ||
@@ -1065,7 +1068,7 @@ public class PostPurchaseUpsellService(
     private decimal ConvertPresentmentToStoreCurrency(Invoice invoice, decimal presentmentAmount)
     {
         var storeCurrency = string.IsNullOrWhiteSpace(invoice.StoreCurrencyCode)
-            ? _storeSettings.StoreCurrencyCode
+            ? GetEffectiveStoreSettings().StoreCurrencyCode
             : invoice.StoreCurrencyCode;
 
         if (string.IsNullOrWhiteSpace(invoice.CurrencyCode) ||
@@ -1149,6 +1152,9 @@ public class PostPurchaseUpsellService(
             return new Dictionary<Guid, OrderStatus>();
         }
     }
+
+    private MerchelloSettings GetEffectiveStoreSettings() =>
+        _storeSettingsService?.GetRuntimeSettings().Merchello ?? _storeSettings;
 
     private static UpsellSuggestionDto MapSuggestionToDto(UpsellSuggestion s) => new()
     {

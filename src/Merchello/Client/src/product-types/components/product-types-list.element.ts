@@ -9,6 +9,7 @@ import type { ProductTypeDto } from "@product-types/types/product-types.types.js
 import { MerchelloApi } from "@api/merchello-api.js";
 import { MERCHELLO_PRODUCT_TYPE_MODAL } from "@product-types/modals/product-type-modal.token.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-product-types-list")
 export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement) {
@@ -285,26 +286,32 @@ export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="container">
-          <div class="toolbar">
-            <uui-input
-              type="search"
-              label="Search product types"
-              placeholder="Search by name or alias"
-              .value=${this._searchTerm}
-              @input=${this._handleSearchInput}>
-              <uui-icon name="icon-search" slot="prepend"></uui-icon>
-              ${this._searchTerm
-                ? html`
-                    <uui-button slot="append" compact look="secondary" label="Clear search" @click=${this._handleSearchClear}>
-                      <uui-icon name="icon-wrong"></uui-icon>
-                    </uui-button>
-                  `
-                : ""}
-            </uui-input>
-            <uui-button look="primary" color="positive" label="Add product type" @click=${this._handleAddProductType}>
-              Add Product Type
-            </uui-button>
+        <div class="container layout-container">
+          <div class="filters">
+            <div class="filters-top">
+              <div class="search-box">
+                <uui-input
+                  type="search"
+                  label="Search product types"
+                  placeholder="Search by name or alias"
+                  .value=${this._searchTerm}
+                  @input=${this._handleSearchInput}>
+                  <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                  ${this._searchTerm
+                    ? html`
+                        <uui-button slot="append" compact look="secondary" label="Clear search" @click=${this._handleSearchClear}>
+                          <uui-icon name="icon-wrong"></uui-icon>
+                        </uui-button>
+                      `
+                    : ""}
+                </uui-input>
+              </div>
+              <div class="header-actions">
+                <uui-button look="primary" color="positive" label="Add product type" @click=${this._handleAddProductType}>
+                  Add Product Type
+                </uui-button>
+              </div>
+            </div>
           </div>
 
           <uui-box>
@@ -330,38 +337,16 @@ export class MerchelloProductTypesListElement extends UmbElementMixin(LitElement
   }
 
   static override readonly styles = css`
+    ${collectionLayoutStyles}
+
     :host {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
     }
 
-    .container {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-layout-1);
-      padding: var(--uui-size-layout-1);
-    }
-
-    .toolbar {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-    }
-
-    @media (min-width: 900px) {
-      .toolbar {
-        align-items: flex-end;
-        flex-direction: row;
-      }
-
-      .toolbar uui-input {
-        flex: 1;
-      }
-    }
-
-    .toolbar uui-input {
-      width: 100%;
+    .search-box {
+      max-width: 520px;
     }
 
     .intro {

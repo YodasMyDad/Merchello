@@ -1,4 +1,5 @@
 using Merchello.Core.Accounting.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -47,14 +48,14 @@ public class InvoiceReminderJob(
             return;
         }
 
-        var checkInterval = TimeSpan.FromHours(_settings.CheckIntervalHours);
-        using var timer = new PeriodicTimer(checkInterval);
-
         while (!stoppingToken.IsCancellationRequested)
         {
+            var effectiveSettings = await GetEffectiveSettingsAsync(stoppingToken);
+            var checkInterval = TimeSpan.FromHours(Math.Max(1, effectiveSettings.CheckIntervalHours));
+
             try
             {
-                await ProcessInvoiceRemindersAsync(stoppingToken);
+                await ProcessInvoiceRemindersAsync(effectiveSettings, stoppingToken);
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {
@@ -67,7 +68,7 @@ public class InvoiceReminderJob(
 
             try
             {
-                await timer.WaitForNextTickAsync(stoppingToken);
+                await Task.Delay(checkInterval, stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -86,18 +87,42 @@ public class InvoiceReminderJob(
                ex.InnerException?.Message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) == true;
     }
 
-    private async Task ProcessInvoiceRemindersAsync(CancellationToken stoppingToken)
+    private async Task ProcessInvoiceRemindersAsync(
+        InvoiceReminderSettings settings,
+        CancellationToken stoppingToken)
     {
         using var scope = serviceScopeFactory.CreateScope();
         var reminderService = scope.ServiceProvider.GetRequiredService<IInvoiceReminderService>();
 
-        var result = await reminderService.ProcessRemindersAsync(_settings, stoppingToken);
+        var result = await reminderService.ProcessRemindersAsync(settings, stoppingToken);
 
         if (result.DueSoonRemindersSent > 0 || result.OverdueRemindersSent > 0)
         {
             logger.LogInformation(
                 "Invoice reminder job complete: {RemindersSent} due-soon reminders, {OverdueRemindersSent} overdue reminders sent",
                 result.DueSoonRemindersSent, result.OverdueRemindersSent);
+        }
+    }
+
+    private async Task<InvoiceReminderSettings> GetEffectiveSettingsAsync(CancellationToken ct)
+    {
+        try
+        {
+            using var scope = serviceScopeFactory.CreateScope();
+            var storeSettingsService = scope.ServiceProvider.GetService<IMerchelloStoreSettingsService>();
+            if (storeSettingsService == null)
+            {
+                return _settings;
+            }
+
+            var runtime = await storeSettingsService.GetRuntimeSettingsAsync(ct);
+            return runtime.InvoiceReminders;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to resolve DB-backed invoice reminder settings, falling back to appsettings.");
+            return _settings;
         }
     }
 }

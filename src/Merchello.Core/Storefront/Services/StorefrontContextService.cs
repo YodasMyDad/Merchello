@@ -6,6 +6,7 @@ using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Products.Extensions;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shipping.Services.Interfaces;
@@ -31,11 +32,13 @@ public class StorefrontContextService(
     ICheckoutService checkoutService,
     IProductService productService,
     ITaxProviderManager taxProviderManager,
-    IShippingOptionEligibilityService shippingOptionEligibilityService) : IStorefrontContextService
+    IShippingOptionEligibilityService shippingOptionEligibilityService,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IStorefrontContextService
 {
     private const int CookieExpiryDays = 30;
 
     private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     public async Task<ShippingLocation> GetShippingLocationAsync(CancellationToken ct = default)
     {
@@ -270,7 +273,7 @@ public class StorefrontContextService(
                 HasStock: false,
                 AvailableStock: 0,
                 StatusMessage: $"Not available in {countryName}",
-                ShowStockLevels: _settings.ShowStockLevels);
+                ShowStockLevels: GetShowStockLevels());
         }
 
         var availableStock = await GetAvailableStockForLocationAsync(new GetStockForLocationParameters
@@ -305,7 +308,7 @@ public class StorefrontContextService(
             HasStock: hasStock,
             AvailableStock: hasUnlimitedStock ? 0 : availableStock, // Don't expose int.MaxValue
             StatusMessage: statusMessage,
-            ShowStockLevels: _settings.ShowStockLevels);
+            ShowStockLevels: GetShowStockLevels());
     }
 
     private bool CanShipToLocation(Product product, string countryCode, string? regionCode)
@@ -427,6 +430,12 @@ public class StorefrontContextService(
         var shippingTaxRate = shippingTaxConfiguration.Mode == Tax.Providers.Models.ShippingTaxMode.FixedRate
             ? shippingTaxConfiguration.Rate
             : null;
+        var displayPricesIncTax = _settings.DisplayPricesIncTax;
+        if (_storeSettingsService != null)
+        {
+            var runtime = await _storeSettingsService.GetRuntimeSettingsAsync(ct);
+            displayPricesIncTax = runtime.Merchello.DisplayPricesIncTax;
+        }
 
         var displayContext = new StorefrontDisplayContext(
             currencyContext.CurrencyCode,
@@ -434,7 +443,7 @@ public class StorefrontContextService(
             currencyContext.DecimalPlaces,
             currencyContext.ExchangeRate,
             currencyContext.StoreCurrencyCode,
-            _settings.DisplayPricesIncTax,
+            displayPricesIncTax,
             shippingLocation.CountryCode,
             shippingLocation.RegionCode,
             IsShippingTaxable: isShippingTaxed,
@@ -543,5 +552,19 @@ public class StorefrontContextService(
         }
 
         return new BasketLocationAvailability(AllItemsAvailable: allAvailable, Items: items);
+    }
+
+    private bool GetShowStockLevels()
+    {
+        const string cacheKey = "merchello:ShowStockLevels";
+        var httpContext = httpContextAccessor.HttpContext;
+        if (httpContext?.Items.TryGetValue(cacheKey, out var cached) == true && cached is bool cachedValue)
+        {
+            return cachedValue;
+        }
+
+        var showStockLevels = _storeSettingsService?.GetRuntimeSettings().Merchello.ShowStockLevels ?? _settings.ShowStockLevels;
+        httpContext?.Items[cacheKey] = showStockLevels;
+        return showStockLevels;
     }
 }

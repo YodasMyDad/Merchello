@@ -1,9 +1,10 @@
 ﻿@inherits Umbraco.Cms.Web.Common.Views.UmbracoViewPage
-@inject Microsoft.Extensions.Options.IOptions<Merchello.Core.Shared.Models.MerchelloSettings> Settings
+@inject Merchello.Core.Settings.Services.Interfaces.IMerchelloStoreSettingsService StoreSettingsService
 @{
     Layout = null;
 
-    var configuredStoreName = Settings.Value.Store.Name;
+    var runtimeSettings = await StoreSettingsService.GetRuntimeSettingsAsync(Context.RequestAborted);
+    var configuredStoreName = runtimeSettings.Merchello.Store.Name;
     var storeName = string.IsNullOrWhiteSpace(configuredStoreName) ? "Store" : configuredStoreName;
 
     var root = Umbraco.ContentAtRoot().FirstOrDefault();

@@ -12,6 +12,7 @@ import type {
 import type { FilterPickerModalData, FilterPickerModalValue } from "@filters/modals/filter-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface FilterOption {
   id: string;
@@ -294,7 +295,9 @@ export class MerchelloFilterPickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -338,7 +341,8 @@ export class MerchelloFilterPickerModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloFilterPickerModalElement;
@@ -348,3 +352,4 @@ declare global {
     "merchello-filter-picker-modal": MerchelloFilterPickerModalElement;
   }
 }
+

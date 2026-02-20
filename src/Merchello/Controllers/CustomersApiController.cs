@@ -5,6 +5,7 @@ using Merchello.Core.Accounting.Services.Parameters;
 using Merchello.Core.Customers.Dtos;
 using Merchello.Core.Customers.Services.Interfaces;
 using Merchello.Core.Customers.Services.Parameters;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,8 @@ public class CustomersApiController(
     ICustomerService customerService,
     ICustomerSegmentService segmentService,
     IStatementService statementService,
-    IOptions<MerchelloSettings> settings) : MerchelloApiControllerBase
+    IOptions<MerchelloSettings> settings,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Get paginated list of customers with optional search
@@ -222,14 +224,14 @@ public class CustomersApiController(
             return NotFound("Customer not found");
         }
 
-        var merchelloSettings = settings.Value;
+        var effectiveStore = storeSettingsService?.GetRuntimeSettings().Merchello.Store ?? settings.Value.Store;
         var parameters = new GenerateStatementParameters
         {
             CustomerId = id,
             PeriodStart = periodStart,
             PeriodEnd = periodEnd,
-            CompanyName = merchelloSettings.Store.Name,
-            CompanyAddress = merchelloSettings.Store.Address
+            CompanyName = effectiveStore.Name,
+            CompanyAddress = effectiveStore.Address
         };
 
         var pdf = await statementService.GenerateStatementPdfAsync(parameters, ct);

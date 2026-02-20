@@ -8,6 +8,7 @@ import type {
 } from "@webhooks/types/webhooks.types.js";
 import { OutboundDeliveryStatus } from "@webhooks/types/webhooks.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-delivery-detail-modal")
 export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
@@ -301,7 +302,9 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -466,7 +469,8 @@ export class MerchelloDeliveryDetailModalElement extends UmbModalBaseElement<
       white-space: pre-wrap;
       word-break: break-word;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloDeliveryDetailModalElement;
@@ -476,4 +480,5 @@ declare global {
     "merchello-delivery-detail-modal": MerchelloDeliveryDetailModalElement;
   }
 }
+
 

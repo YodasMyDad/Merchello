@@ -12,6 +12,7 @@ import type {
 import type { CollectionPickerModalData, CollectionPickerModalValue } from "@collections/modals/collection-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductCollectionDto } from "@products/types/product.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-collection-picker-modal")
 export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
@@ -240,7 +241,9 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -284,7 +287,8 @@ export class MerchelloCollectionPickerModalElement extends UmbModalBaseElement<
       color: var(--uui-color-danger-contrast);
       border-radius: var(--uui-border-radius);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloCollectionPickerModalElement;
@@ -294,3 +298,4 @@ declare global {
     "merchello-collection-picker-modal": MerchelloCollectionPickerModalElement;
   }
 }
+

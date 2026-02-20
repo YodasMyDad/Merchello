@@ -75,6 +75,275 @@ describe("merchello api client", () => {
     );
   });
 
+  it("calls store-configuration GET endpoint with expected path", async () => {
+    const configuration = {
+      storeKey: "default",
+      store: {
+        invoiceNumberPrefix: "INV-",
+        name: "Acme Store",
+        email: null,
+        phone: null,
+        websiteUrl: null,
+        address: "123 Commerce Street\nNew York, NY 10001\nUnited States",
+        logoMediaKey: null,
+        logoUrl: null,
+        displayPricesIncTax: true,
+        showStockLevels: true,
+        lowStockThreshold: 5,
+      },
+      invoiceReminders: {
+        reminderDaysBeforeDue: 7,
+        overdueReminderIntervalDays: 7,
+        maxOverdueReminders: 3,
+        checkIntervalHours: 24,
+      },
+      policies: {
+        termsContent: null,
+        privacyContent: null,
+      },
+      checkout: {
+        headerBackgroundImageMediaKey: null,
+        headerBackgroundImageUrl: null,
+        headerBackgroundColor: null,
+        logoPosition: "Left",
+        logoMaxWidth: 200,
+        primaryColor: "#000000",
+        accentColor: "#0066FF",
+        backgroundColor: "#FFFFFF",
+        textColor: "#333333",
+        errorColor: "#DC2626",
+        headingFontFamily: "system-ui",
+        bodyFontFamily: "system-ui",
+        showExpressCheckout: true,
+        billingPhoneRequired: true,
+        confirmationRedirectUrl: null,
+        customScriptUrl: "/js/checkout-analytics.js",
+        orderTerms: {
+          showCheckbox: true,
+          checkboxText: "I agree to terms",
+          checkboxRequired: true,
+        },
+      },
+      abandonedCheckout: {
+        abandonmentThresholdHours: 1,
+        recoveryExpiryDays: 30,
+        checkIntervalMinutes: 15,
+        firstEmailDelayHours: 1,
+        reminderEmailDelayHours: 24,
+        finalEmailDelayHours: 48,
+        maxRecoveryEmails: 3,
+      },
+      email: {
+        defaultFromAddress: null,
+        defaultFromName: null,
+        theme: {
+          primaryColor: "#007bff",
+          textColor: "#333333",
+          backgroundColor: "#f4f4f4",
+          fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+          secondaryTextColor: "#666666",
+          contentBackgroundColor: "#ffffff",
+        },
+      },
+      ucp: {
+        termsUrl: null,
+        privacyUrl: null,
+      },
+    };
+
+    fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: configuration }));
+
+    const result = await MerchelloApi.getStoreConfiguration();
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual(configuration);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/umbraco/api/v1/settings/store-configuration",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("calls store-configuration PUT endpoint with a serialized payload", async () => {
+    const payload = {
+      storeKey: "default",
+      store: {
+        invoiceNumberPrefix: "INV-",
+        name: "Updated Store",
+        email: "test@example.com",
+        phone: null,
+        websiteUrl: "https://example.com",
+        address: "123 Commerce Street\nNew York, NY 10001\nUnited States",
+        logoMediaKey: null,
+        logoUrl: null,
+        displayPricesIncTax: true,
+        showStockLevels: true,
+        lowStockThreshold: 5,
+      },
+      invoiceReminders: {
+        reminderDaysBeforeDue: 7,
+        overdueReminderIntervalDays: 7,
+        maxOverdueReminders: 3,
+        checkIntervalHours: 24,
+      },
+      policies: {
+        termsContent: null,
+        privacyContent: null,
+      },
+      checkout: {
+        headerBackgroundImageMediaKey: null,
+        headerBackgroundImageUrl: null,
+        headerBackgroundColor: null,
+        logoPosition: "Left",
+        logoMaxWidth: 200,
+        primaryColor: "#000000",
+        accentColor: "#0066FF",
+        backgroundColor: "#FFFFFF",
+        textColor: "#333333",
+        errorColor: "#DC2626",
+        headingFontFamily: "system-ui",
+        bodyFontFamily: "system-ui",
+        showExpressCheckout: true,
+        billingPhoneRequired: true,
+        confirmationRedirectUrl: null,
+        customScriptUrl: "/js/checkout-analytics.js",
+        orderTerms: {
+          showCheckbox: true,
+          checkboxText: "I agree to terms",
+          checkboxRequired: true,
+        },
+      },
+      abandonedCheckout: {
+        abandonmentThresholdHours: 1,
+        recoveryExpiryDays: 30,
+        checkIntervalMinutes: 15,
+        firstEmailDelayHours: 1,
+        reminderEmailDelayHours: 24,
+        finalEmailDelayHours: 48,
+        maxRecoveryEmails: 3,
+      },
+      email: {
+        defaultFromAddress: null,
+        defaultFromName: null,
+        theme: {
+          primaryColor: "#007bff",
+          textColor: "#333333",
+          backgroundColor: "#f4f4f4",
+          fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+          secondaryTextColor: "#666666",
+          contentBackgroundColor: "#ffffff",
+        },
+      },
+      ucp: {
+        termsUrl: null,
+        privacyUrl: null,
+      },
+    };
+
+    fetchMock.mockResolvedValueOnce(createMockResponse({ jsonData: payload }));
+
+    const result = await MerchelloApi.saveStoreConfiguration(payload);
+
+    expect(result.error).toBeUndefined();
+    expect(result.data).toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/umbraco/api/v1/settings/store-configuration",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
+    );
+  });
+
+  it("calls UCP flow tester endpoints with expected routes, verbs, and payloads", async () => {
+    fetchMock
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { strictModeAvailable: false } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "manifest" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "create_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "get_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "update_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "complete_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "cancel_session" } }))
+      .mockResolvedValueOnce(createMockResponse({ jsonData: { step: "get_order" } }));
+
+    const manifestRequest = { modeRequested: "strict", agentId: "agent-1" };
+    const createRequest = {
+      modeRequested: "strict",
+      request: {
+        currency: "USD",
+        lineItems: [{ id: "li-1", quantity: 1, item: { id: "prod-1", title: "Test", price: 1000 } }],
+      },
+    };
+    const getRequest = { modeRequested: "adapter", sessionId: "session-1" };
+    const updateRequest = {
+      modeRequested: "adapter",
+      sessionId: "session-1",
+      request: {
+        buyer: {
+          email: "buyer@example.com",
+        },
+      },
+    };
+    const completeRequest = {
+      modeRequested: "adapter",
+      sessionId: "session-1",
+      dryRun: true,
+      request: {
+        paymentHandlerId: "manual:manual",
+      },
+    };
+    const cancelRequest = { modeRequested: "adapter", sessionId: "session-1" };
+    const orderRequest = { modeRequested: "adapter", orderId: "order-1" };
+
+    await MerchelloApi.getUcpFlowDiagnostics();
+    await MerchelloApi.ucpTestManifest(manifestRequest);
+    await MerchelloApi.ucpTestCreateSession(createRequest);
+    await MerchelloApi.ucpTestGetSession(getRequest);
+    await MerchelloApi.ucpTestUpdateSession(updateRequest);
+    await MerchelloApi.ucpTestCompleteSession(completeRequest);
+    await MerchelloApi.ucpTestCancelSession(cancelRequest);
+    await MerchelloApi.ucpTestGetOrder(orderRequest);
+
+    const [diagnosticsUrl, diagnosticsInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [manifestUrl, manifestInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [createUrl, createInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    const [getUrl, getInit] = fetchMock.mock.calls[3] as [string, RequestInit];
+    const [updateUrl, updateInit] = fetchMock.mock.calls[4] as [string, RequestInit];
+    const [completeUrl, completeInit] = fetchMock.mock.calls[5] as [string, RequestInit];
+    const [cancelUrl, cancelInit] = fetchMock.mock.calls[6] as [string, RequestInit];
+    const [orderUrl, orderInit] = fetchMock.mock.calls[7] as [string, RequestInit];
+
+    expect(diagnosticsUrl).toBe("/umbraco/api/v1/ucp-test/diagnostics");
+    expect(diagnosticsInit.method).toBe("GET");
+
+    expect(manifestUrl).toBe("/umbraco/api/v1/ucp-test/manifest");
+    expect(manifestInit.method).toBe("POST");
+    expect(manifestInit.body).toBe(JSON.stringify(manifestRequest));
+
+    expect(createUrl).toBe("/umbraco/api/v1/ucp-test/sessions/create");
+    expect(createInit.method).toBe("POST");
+    expect(createInit.body).toBe(JSON.stringify(createRequest));
+
+    expect(getUrl).toBe("/umbraco/api/v1/ucp-test/sessions/get");
+    expect(getInit.method).toBe("POST");
+    expect(getInit.body).toBe(JSON.stringify(getRequest));
+
+    expect(updateUrl).toBe("/umbraco/api/v1/ucp-test/sessions/update");
+    expect(updateInit.method).toBe("POST");
+    expect(updateInit.body).toBe(JSON.stringify(updateRequest));
+
+    expect(completeUrl).toBe("/umbraco/api/v1/ucp-test/sessions/complete");
+    expect(completeInit.method).toBe("POST");
+    expect(completeInit.body).toBe(JSON.stringify(completeRequest));
+
+    expect(cancelUrl).toBe("/umbraco/api/v1/ucp-test/sessions/cancel");
+    expect(cancelInit.method).toBe("POST");
+    expect(cancelInit.body).toBe(JSON.stringify(cancelRequest));
+
+    expect(orderUrl).toBe("/umbraco/api/v1/ucp-test/orders/get");
+    expect(orderInit.method).toBe("POST");
+    expect(orderInit.body).toBe(JSON.stringify(orderRequest));
+  });
+
   it("parses plain text responses for GET endpoints", async () => {
     fetchMock.mockResolvedValueOnce(
       createMockResponse({

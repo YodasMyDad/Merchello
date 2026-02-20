@@ -1,9 +1,12 @@
+using System.Text.Json;
 using Merchello.Core.Protocols;
 using Merchello.Core.Protocols.Interfaces;
 using Merchello.Core.Protocols.Models;
 using Merchello.Core.Protocols.UCP;
 using Merchello.Core.Protocols.UCP.Models;
+using Merchello.Core.Protocols.Webhooks.Interfaces;
 using Merchello.Tests.TestInfrastructure;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Shouldly;
@@ -366,14 +369,46 @@ public class UcpProtocolAdapterTests : IAsyncLifetime
 
         // Assert
         response.Success.ShouldBeTrue();
-        var envelope = response.Data as ProtocolResponseEnvelope;
-        envelope.ShouldNotBeNull();
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.Checkout);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.Order);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpCapabilityNames.IdentityLinking);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Discount);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Fulfillment);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.BuyerConsent);
-        envelope.Ucp.Capabilities.Keys.ShouldContain(UcpExtensionNames.Ap2Mandates);
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(response.Data));
+        var root = json.RootElement;
+        root.TryGetProperty("ucp", out var ucp).ShouldBeTrue();
+        ucp.TryGetProperty("capabilities", out var capabilities).ShouldBeTrue();
+        var names = capabilities.EnumerateArray()
+            .Select(c => c.GetProperty("name").GetString())
+            .ToList();
+        names.ShouldContain(UcpCapabilityNames.Checkout);
+        names.ShouldContain(UcpCapabilityNames.Order);
+        names.ShouldContain(UcpCapabilityNames.IdentityLinking);
+        names.ShouldContain(UcpExtensionNames.Discount);
+        names.ShouldContain(UcpExtensionNames.Fulfillment);
+        names.ShouldContain(UcpExtensionNames.BuyerConsent);
+        names.ShouldContain(UcpExtensionNames.Ap2Mandates);
+    }
+
+    [Fact]
+    public async Task GenerateManifestAsync_AfterDueRotation_IncludesNewAndGracePeriodKeys()
+    {
+        // Arrange
+        var keyStore = _scope.ServiceProvider.GetRequiredService<ISigningKeyStore>();
+        var originalKeyId = await keyStore.GetCurrentKeyIdAsync();
+
+        using (var db = _fixture.CreateDbContext())
+        {
+            var activeKey = await db.SigningKeys.FirstAsync(k => k.IsActive);
+            activeKey.CreatedAt = DateTimeOffset.UtcNow.AddDays(-91);
+            await db.SaveChangesAsync();
+        }
+
+        var rotated = await keyStore.RotateKeysIfDueAsync(90);
+        rotated.ShouldBeTrue();
+        var newKeyId = await keyStore.GetCurrentKeyIdAsync();
+
+        // Act
+        var manifest = await _adapter.GenerateManifestAsync() as UcpManifest;
+
+        // Assert
+        manifest.ShouldNotBeNull();
+        manifest.SigningKeys.ShouldContain(k => k.Kid == originalKeyId);
+        manifest.SigningKeys.ShouldContain(k => k.Kid == newKeyId);
     }
 }

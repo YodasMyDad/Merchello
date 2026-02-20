@@ -6,6 +6,7 @@ import type { CountryInfo, SubdivisionInfo } from "@warehouses/types/warehouses.
 import { MerchelloApi } from "@api/merchello-api.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
 import type { SelectOption } from "@shared/types/index.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-service-region-modal")
 export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
@@ -295,6 +296,7 @@ export class MerchelloServiceRegionModalElement extends UmbModalBaseElement<
   }
 
   static override readonly styles = [
+    modalLayoutStyles,
     badgeStyles,
     css`
       :host {
@@ -470,3 +472,4 @@ declare global {
     "merchello-service-region-modal": MerchelloServiceRegionModalElement;
   }
 }
+

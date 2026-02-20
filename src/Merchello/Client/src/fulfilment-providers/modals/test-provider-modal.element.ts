@@ -2,6 +2,7 @@ import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import {
   FulfilmentSyncStatus,
   type TestFulfilmentProviderResultDto,
@@ -774,7 +775,9 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -967,7 +970,9 @@ export class MerchelloTestFulfilmentProviderModalElement extends UmbModalBaseEle
         grid-template-columns: 1fr;
       }
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloTestFulfilmentProviderModalElement;
+

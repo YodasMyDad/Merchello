@@ -1,4 +1,5 @@
 using Merchello.Core.Shipping.Models;
+using Merchello.Core.Shared.Models;
 
 namespace Merchello.Core.Shipping.Providers.Interfaces;
 
@@ -32,7 +33,7 @@ public interface IShippingProviderManager
     /// <summary>
     /// Updates the sort order of providers.
     /// </summary>
-    Task UpdateSortOrderAsync(IEnumerable<Guid> orderedIds, CancellationToken cancellationToken = default);
+    Task<CrudResult<bool>> UpdateSortOrderAsync(IEnumerable<Guid> orderedIds, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Deletes a provider configuration.

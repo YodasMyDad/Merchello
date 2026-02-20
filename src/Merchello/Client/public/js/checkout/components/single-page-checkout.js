@@ -1975,7 +1975,7 @@ export function initSinglePageCheckout() {
                         this._termsCache[key] = data.html;
                         this.termsContent = data.html;
                     } else {
-                        this.termsContent = `<p class="text-gray-500">${data.message || 'No terms view found.'}</p>`;
+                        this.termsContent = `<p class="text-gray-500">${data.message || 'No content available.'}</p>`;
                     }
                 } catch (error) {
                     console.error('Failed to load terms content:', error);

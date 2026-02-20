@@ -243,7 +243,7 @@ Shared Calculation Logic:
 | Tax pro-rating | ITaxCalculationService.CalculateOrderTax() |
 | Rounding | ICurrencyService.Round() |
 
-Difference: Basket resolves rates from TaxGroupRate by location (accurate for ManualTaxProvider); Invoice additionally supports external tax providers (Avalara, TaxJar) for street-level precision.
+Difference: Basket resolves rates from TaxGroupRate by location (accurate for ManualTaxProvider); Invoice additionally supports external tax providers (for example Avalara and custom providers) for street-level precision.
 
 Order Lifecycle:
 ```
@@ -310,8 +310,7 @@ ITaxService:
 
 ITaxProviderManager:
 - GetActiveProviderAsync() - Get active tax provider
-- IsShippingTaxedForLocationAsync() - Check if shipping is taxable
-- GetShippingTaxRateForLocationAsync() - Get shipping tax rate
+- GetShippingTaxConfigurationAsync() - Get shipping tax mode/rate for a location
 
 See [Section 3: Tax System](#3-tax-system) for detailed shipping tax documentation.
 
@@ -530,34 +529,34 @@ Shipping tax is calculated through the active tax provider, NOT hardcoded. The s
 - Global default rates
 - Proportional calculation (EU/UK VAT compliant)
 
-#### Decision Flow: Is Shipping Taxable?
+#### Decision Flow: Shipping Tax Configuration
 
 ```
-1. Call ITaxProviderManager.IsShippingTaxedForLocationAsync(country, state)
-   ├── Returns TRUE  → Shipping IS taxable, continue to get rate
-   └── Returns FALSE → Shipping NOT taxable, skip tax calculation
+1. Call ITaxProviderManager.GetShippingTaxConfigurationAsync(country, state)
+   - Mode = NotTaxed           -> Shipping NOT taxable
+   - Mode = FixedRate          -> Apply returned Rate
+   - Mode = Proportional       -> Use proportional shipping tax calculation
+   - Mode = ProviderCalculated -> Provider determines shipping tax from full order context
 ```
 
-#### Getting the Tax Rate
+#### Shipping Tax Modes
 
 ```
-2. Call ITaxProviderManager.GetShippingTaxRateForLocationAsync(country, state)
-   ├── Returns 0m      → Shipping explicitly NOT taxable
-   ├── Returns decimal → Use this specific rate (regional override or configured tax group)
-   └── Returns null    → Use proportional calculation (weighted average of line item rates)
+2. Use the returned Mode (and Rate when Mode = FixedRate).
 ```
 
 #### Return Value Semantics
 
-| Return Value | Meaning | Action |
-|--------------|---------|--------|
-| 0m | Shipping explicitly NOT taxable | No shipping tax |
-| decimal > 0 | Specific rate from override or tax group | Apply this rate |
-| null | No specific rate configured | Use proportional calculation |
+| Mode | Meaning | Action |
+|------|---------|--------|
+| NotTaxed | Shipping explicitly NOT taxable | No shipping tax |
+| FixedRate | Specific rate from override or configured tax group | Apply `Rate` |
+| Proportional | No fixed rate configured | Use proportional calculation |
+| ProviderCalculated | Provider needs full order context | Provider-authoritative in external provider flow; centralized fallback treats as taxable with no fixed rate |
 
 #### Proportional Calculation (EU/UK VAT)
 
-When rate is null, use ITaxCalculationService.CalculateProportionalShippingTax():
+When mode is `Proportional` (or centralized fallback for `ProviderCalculated`), use ITaxCalculationService.CalculateProportionalShippingTax():
 
 ```
 shippingTax = shippingAmount × (lineItemTax / taxableSubtotal)
@@ -577,10 +576,11 @@ Single Implementation: Always use CalculateProportionalShippingTax() - never dup
 
 #### ManualTaxProvider Priority
 
-1. Regional override with ShippingTaxGroupId = null → NOT taxed (returns 0m)
-2. Regional override with ShippingTaxGroupId → Use that group's rate
-3. Global shipping tax group configured → Use that group's rate
-4. No group configured → Proportional calculation (returns null)
+1. Regional override with `ShippingTaxGroupId = null` -> `NotTaxed`
+2. Regional override with `ShippingTaxGroupId` -> `FixedRate`
+3. Global `isShippingTaxable = false` -> `NotTaxed`
+4. Global `isShippingTaxable = true` + configured `shippingTaxGroupId` -> `FixedRate`
+5. Global `isShippingTaxable = true` + no configured group -> `Proportional`
 
 #### Rules
 
@@ -690,7 +690,7 @@ ITaxProvider Interface:
 |----------|---------|
 | Configuration | Metadata, GetConfigurationFieldsAsync(), ConfigureAsync(), ValidateConfigurationAsync() |
 | Calculation | CalculateOrderTaxAsync() |
-| Shipping Tax | GetShippingTaxRateForLocationAsync() |
+| Shipping Tax | GetShippingTaxConfigurationAsync() |
 
 Single active provider at a time. Built-in: ManualTaxProvider (uses TaxGroup/TaxGroupRate), AvalaraTaxProvider (external API integration)
 

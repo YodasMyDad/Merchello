@@ -12,6 +12,7 @@ import type {
 import type { ProductTypePickerModalData, ProductTypePickerModalValue } from "@product-types/modals/product-type-picker-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ProductTypeDto } from "@product-types/types/product-types.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 @customElement("merchello-product-type-picker-modal")
 export class MerchelloProductTypePickerModalElement extends UmbModalBaseElement<
@@ -243,7 +244,9 @@ export class MerchelloProductTypePickerModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -287,7 +290,8 @@ export class MerchelloProductTypePickerModalElement extends UmbModalBaseElement<
       flex-wrap: wrap;
       padding: var(--uui-size-space-3);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloProductTypePickerModalElement;
@@ -297,3 +301,4 @@ declare global {
     "merchello-product-type-picker-modal": MerchelloProductTypePickerModalElement;
   }
 }
+

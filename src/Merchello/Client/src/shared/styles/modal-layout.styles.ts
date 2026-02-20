@@ -7,8 +7,9 @@ import { css } from "@umbraco-cms/backoffice/external/lit";
 export const modalLayoutStyles = css`
   :host {
     display: block;
-    min-width: min(var(--merchello-modal-min-width, 46rem), calc(100vw - 2rem));
-    max-width: calc(100vw - 2rem);
+    box-sizing: border-box;
+    min-width: min(var(--merchello-modal-min-width, 46rem), 100%);
+    max-width: 100%;
   }
 
   #main {
@@ -43,8 +44,8 @@ export const modalLayoutStyles = css`
 
   @media (max-width: 900px) {
     :host {
-      min-width: calc(100vw - 1rem);
-      max-width: calc(100vw - 1rem);
+      min-width: 100%;
+      max-width: 100%;
     }
 
     .form-row-group {

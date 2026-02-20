@@ -15,6 +15,7 @@ import type { FulfillmentModalData, FulfillmentModalValue } from "@orders/modals
 
 // Import shared components
 import "@shared/components/line-item-identity.element.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 interface SelectedItem {
   lineItemId: string;
@@ -717,7 +718,9 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -1110,7 +1113,8 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
       color: var(--uui-color-text-alt);
       font-style: italic;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloFulfillmentModalElement;
@@ -1120,3 +1124,4 @@ declare global {
     "merchello-fulfillment-modal": MerchelloFulfillmentModalElement;
   }
 }
+

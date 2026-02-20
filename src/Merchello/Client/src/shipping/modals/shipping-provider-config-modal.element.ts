@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ShippingProviderFieldDto } from "@shipping/types/shipping.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   ShippingProviderConfigModalData,
   ShippingProviderConfigModalValue,
@@ -347,7 +348,9 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -392,7 +395,8 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShippingProviderConfigModalElement;
@@ -402,3 +406,4 @@ declare global {
     "merchello-shipping-provider-config-modal": MerchelloShippingProviderConfigModalElement;
   }
 }
+

@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Merchello.Core.Data;
 using Merchello.Core.Locality.Services.Interfaces;
 using Merchello.Core.Settings.Dtos;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
 using Microsoft.AspNetCore.Http;
@@ -22,6 +23,7 @@ public class SettingsApiController(
     IConfiguration configuration,
     ILocalityCatalog localityCatalog,
     MerchelloDataTypeInitializer dataTypeInitializer,
+    IMerchelloStoreSettingsService storeSettingsService,
     ILogger<SettingsApiController> logger) : MerchelloApiControllerBase
 {
     private static readonly string[] DefaultOptionTypeAliases = ["colour", "size", "material", "pattern"];
@@ -34,13 +36,44 @@ public class SettingsApiController(
     [ProducesResponseType<StoreSettingsDto>(StatusCodes.Status200OK)]
     public IActionResult GetSettings()
     {
+        var runtimeSettings = storeSettingsService.GetRuntimeSettings();
         return Ok(new StoreSettingsDto
         {
             CurrencyCode = settings.Value.StoreCurrencyCode,
             CurrencySymbol = settings.Value.CurrencySymbol,
-            InvoiceNumberPrefix = settings.Value.InvoiceNumberPrefix,
-            LowStockThreshold = settings.Value.LowStockThreshold
+            InvoiceNumberPrefix = runtimeSettings.Merchello.InvoiceNumberPrefix,
+            LowStockThreshold = runtimeSettings.Merchello.LowStockThreshold
         });
+    }
+
+    /// <summary>
+    /// Gets the DB-backed full store configuration payload for the root settings workspace.
+    /// </summary>
+    [HttpGet("settings/store-configuration")]
+    [ProducesResponseType<StoreConfigurationDto>(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStoreConfiguration(CancellationToken ct)
+    {
+        var configuration = await storeSettingsService.GetStoreConfigurationAsync(ct);
+        return Ok(configuration);
+    }
+
+    /// <summary>
+    /// Saves the DB-backed full store configuration payload for the root settings workspace.
+    /// </summary>
+    [HttpPut("settings/store-configuration")]
+    [ProducesResponseType<StoreConfigurationDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SaveStoreConfiguration(
+        [FromBody] StoreConfigurationDto configuration,
+        CancellationToken ct)
+    {
+        var result = await storeSettingsService.SaveStoreConfigurationAsync(configuration, ct);
+        if (CrudErrors(result) is { } error)
+        {
+            return error;
+        }
+
+        return Ok(result.ResultObject);
     }
 
     /// <summary>

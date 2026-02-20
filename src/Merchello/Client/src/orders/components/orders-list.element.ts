@@ -19,6 +19,7 @@ import { MERCHELLO_CREATE_ORDER_MODAL } from "@orders/modals/create-order-modal.
 import { MERCHELLO_EDIT_ORDER_MODAL } from "@orders/modals/edit-order-modal.token.js";
 import { navigateToOrderDetail, navigateToOutstandingList } from "@shared/utils/navigation.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-orders-list")
 export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
@@ -369,26 +370,7 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-      <div class="orders-container">
-        <!-- Header Actions -->
-        <div class="header-actions">
-          ${this._selectedOrders.size > 0
-            ? html`
-                <uui-button
-                  look="primary"
-                  color="danger"
-                  label="Delete"
-                  ?disabled=${this._isDeleting}
-                  @click=${this._handleDeleteSelected}
-                >
-                  ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
-                </uui-button>
-              `
-            : ""}
-          <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
-          <uui-button look="primary" color="positive" label="Create order" @click=${this._handleCreateOrder}>Create order</uui-button>
-        </div>
-
+      <div class="orders-container layout-container">
         <!-- Stats Grid -->
         <div class="stats-grid">
           <uui-box>
@@ -446,35 +428,52 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
         </div>
 
         <!-- Search and Tabs Row -->
-        <div class="search-tabs-row">
-          <!-- Search Box -->
-          <div class="search-box">
-            <uui-input
-              type="text"
-              placeholder="Search orders by invoice #, name, postcode, or email..."
-              .value=${this._searchTerm}
-              @input=${this._handleSearchInput}
-              label="Search orders"
-            >
-              <uui-icon name="icon-search" slot="prepend"></uui-icon>
-              ${this._searchTerm
+        <div class="filters">
+          <div class="filters-top">
+            <div class="search-box">
+              <uui-input
+                type="text"
+                placeholder="Search orders by invoice #, name, postcode, or email..."
+                .value=${this._searchTerm}
+                @input=${this._handleSearchInput}
+                label="Search orders"
+              >
+                <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                ${this._searchTerm
+                  ? html`
+                      <uui-button
+                        slot="append"
+                        compact
+                        look="secondary"
+                        label="Clear search"
+                        @click=${this._handleSearchClear}
+                      >
+                        <uui-icon name="icon-wrong"></uui-icon>
+                      </uui-button>
+                    `
+                  : ""}
+              </uui-input>
+            </div>
+            <div class="header-actions">
+              ${this._selectedOrders.size > 0
                 ? html`
                     <uui-button
-                      slot="append"
-                      compact
-                      look="secondary"
-                      label="Clear search"
-                      @click=${this._handleSearchClear}
+                      look="primary"
+                      color="danger"
+                      label="Delete"
+                      ?disabled=${this._isDeleting}
+                      @click=${this._handleDeleteSelected}
                     >
-                      <uui-icon name="icon-wrong"></uui-icon>
+                      ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedOrders.size})`}
                     </uui-button>
                   `
                 : ""}
-            </uui-input>
+              <uui-button look="secondary" label="Export" @click=${this._handleExport}>Export</uui-button>
+              <uui-button look="primary" color="positive" label="Create order" @click=${this._handleCreateOrder}>Create order</uui-button>
+            </div>
           </div>
 
-          <!-- Tabs -->
-          <uui-tab-group>
+          <uui-tab-group class="tabs">
             <uui-tab
               label="All"
               ?active=${this._activeTab === "all"}
@@ -513,32 +512,20 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
     }
 
-    .orders-container {
-      max-width: 100%;
-      padding: var(--uui-size-layout-1);
-    }
-
-    .header-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-2);
-      align-items: center;
-      justify-content: flex-end;
-      margin-bottom: var(--uui-size-space-4);
-    }
-
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: var(--uui-size-space-5);
-      margin-bottom: var(--uui-size-space-5);
+      margin: 0;
     }
 
     .stats-grid uui-box {
@@ -637,30 +624,6 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-text-alt);
     }
 
-    .search-tabs-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    @media (min-width: 768px) {
-      .search-tabs-row {
-        flex-direction: row;
-        align-items: flex-end;
-        justify-content: space-between;
-      }
-    }
-
-    .search-box {
-      flex: 1;
-      max-width: 400px;
-    }
-
-    .search-box uui-input {
-      width: 100%;
-    }
-
     .search-box uui-icon[slot="prepend"] {
       color: var(--uui-color-text-alt);
     }
@@ -689,7 +652,8 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       padding: var(--uui-size-space-3);
       border-top: 1px solid var(--uui-color-border);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloOrdersListElement;

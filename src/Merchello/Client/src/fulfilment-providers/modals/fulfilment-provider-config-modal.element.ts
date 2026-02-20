@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { FulfilmentProviderFieldDto, InventorySyncMode } from "@fulfilment-providers/types/fulfilment-providers.types.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   FulfilmentProviderConfigModalData,
   FulfilmentProviderConfigModalValue,
@@ -439,7 +440,9 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -525,7 +528,8 @@ export class MerchelloFulfilmentProviderConfigModalElement extends UmbModalBaseE
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloFulfilmentProviderConfigModalElement;
@@ -535,3 +539,4 @@ declare global {
     "merchello-fulfilment-provider-config-modal": MerchelloFulfilmentProviderConfigModalElement;
   }
 }
+

@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { ExchangeRateProviderFieldDto } from '@exchange-rate-providers/types/exchange-rate-providers.types.js';
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 import type {
   ExchangeRateProviderConfigModalData,
   ExchangeRateProviderConfigModalValue,
@@ -272,7 +273,9 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -344,7 +347,8 @@ export class MerchelloExchangeRateProviderConfigModalElement extends UmbModalBas
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloExchangeRateProviderConfigModalElement;
@@ -354,3 +358,4 @@ declare global {
     "merchello-exchange-rate-provider-config-modal": MerchelloExchangeRateProviderConfigModalElement;
   }
 }
+

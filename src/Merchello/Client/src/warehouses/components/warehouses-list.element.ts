@@ -13,6 +13,7 @@ import {
   navigateToWarehouseCreate,
 } from "@shared/utils/navigation.js";
 import { badgeStyles } from "@shared/styles/badge.styles.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 import "@shared/components/merchello-empty-state.element.js";
 
 @customElement("merchello-warehouses-list")
@@ -249,7 +250,7 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="warehouses-container">
+        <div class="warehouses-container layout-container">
           <!-- Header Actions -->
           <div class="header-actions">
             <uui-button
@@ -276,24 +277,12 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
 
   static override readonly styles = [
     badgeStyles,
+    collectionLayoutStyles,
     css`
       :host {
         display: block;
         height: 100%;
         background: var(--uui-color-background);
-      }
-
-      .warehouses-container {
-        max-width: 100%;
-        padding: var(--uui-size-layout-1);
-      }
-
-      .header-actions {
-        display: flex;
-        gap: var(--uui-size-space-2);
-        align-items: center;
-        justify-content: flex-end;
-        margin-bottom: var(--uui-size-space-4);
       }
 
       .info-banner {
@@ -304,7 +293,6 @@ export class MerchelloWarehousesListElement extends UmbElementMixin(LitElement) 
         background: var(--uui-color-surface-alt);
         border: 1px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
         font-size: 0.875rem;
         color: var(--uui-color-text-alt);
       }

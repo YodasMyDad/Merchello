@@ -21,6 +21,7 @@ import "@shared/components/merchello-empty-state.element.js";
 import { MERCHELLO_CREATE_UPSELL_MODAL } from "@upsells/modals/create-upsell-modal.token.js";
 import { navigateToUpsellDetail } from "@shared/utils/navigation.js";
 import { formatCurrency, formatNumber } from "@shared/utils/formatting.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-upsells-list")
 export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
@@ -487,64 +488,65 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="upsells-container">
-          <div class="header-actions">
-            ${this._selectedUpsells.size > 0
-              ? html`
-                  <uui-button
-                    look="primary"
-                    color="positive"
-                    label="Activate"
-                    ?disabled=${this._isBulkActionRunning || this._isDeleting}
-                    @click=${this._handleActivateSelected}
-                  >
-                    ${this._isBulkActionRunning ? "Applying..." : `Activate (${this._selectedUpsells.size})`}
-                  </uui-button>
-                  <uui-button
-                    look="secondary"
-                    label="Deactivate"
-                    ?disabled=${this._isBulkActionRunning || this._isDeleting}
-                    @click=${this._handleDeactivateSelected}
-                  >
-                    ${this._isBulkActionRunning ? "Applying..." : `Deactivate (${this._selectedUpsells.size})`}
-                  </uui-button>
-                  <uui-button
-                    look="primary"
-                    color="danger"
-                    label="Delete"
-                    ?disabled=${this._isDeleting || this._isBulkActionRunning}
-                    @click=${this._handleDeleteSelected}
-                  >
-                    ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedUpsells.size})`}
-                  </uui-button>
-                `
-              : nothing}
-            <uui-button look="primary" color="positive" label="Create upsell" @click=${this._handleCreateUpsell}>
-              Create upsell
-            </uui-button>
-          </div>
-
-          <div class="search-tabs-row">
-            <div class="search-box">
-              <uui-input
-                type="text"
-                placeholder="Search upsells by name..."
-                .value=${this._searchTerm}
-                @input=${this._handleSearchInput}
-                label="Search upsells"
-              >
-                <uui-icon name="icon-search" slot="prepend"></uui-icon>
-                ${this._searchTerm
+        <div class="upsells-container layout-container">
+          <div class="filters">
+            <div class="filters-top">
+              <div class="search-box">
+                <uui-input
+                  type="text"
+                  placeholder="Search upsells by name..."
+                  .value=${this._searchTerm}
+                  @input=${this._handleSearchInput}
+                  label="Search upsells"
+                >
+                  <uui-icon name="icon-search" slot="prepend"></uui-icon>
+                  ${this._searchTerm
+                    ? html`
+                        <uui-button slot="append" compact look="secondary" label="Clear search" @click=${this._handleSearchClear}>
+                          <uui-icon name="icon-wrong"></uui-icon>
+                        </uui-button>
+                      `
+                    : nothing}
+                </uui-input>
+              </div>
+              <div class="header-actions">
+                ${this._selectedUpsells.size > 0
                   ? html`
-                      <uui-button slot="append" compact look="secondary" label="Clear search" @click=${this._handleSearchClear}>
-                        <uui-icon name="icon-wrong"></uui-icon>
+                      <uui-button
+                        look="primary"
+                        color="positive"
+                        label="Activate"
+                        ?disabled=${this._isBulkActionRunning || this._isDeleting}
+                        @click=${this._handleActivateSelected}
+                      >
+                        ${this._isBulkActionRunning ? "Applying..." : `Activate (${this._selectedUpsells.size})`}
+                      </uui-button>
+                      <uui-button
+                        look="secondary"
+                        label="Deactivate"
+                        ?disabled=${this._isBulkActionRunning || this._isDeleting}
+                        @click=${this._handleDeactivateSelected}
+                      >
+                        ${this._isBulkActionRunning ? "Applying..." : `Deactivate (${this._selectedUpsells.size})`}
+                      </uui-button>
+                      <uui-button
+                        look="primary"
+                        color="danger"
+                        label="Delete"
+                        ?disabled=${this._isDeleting || this._isBulkActionRunning}
+                        @click=${this._handleDeleteSelected}
+                      >
+                        ${this._isDeleting ? "Deleting..." : `Delete (${this._selectedUpsells.size})`}
                       </uui-button>
                     `
                   : nothing}
-              </uui-input>
+                <uui-button look="primary" color="positive" label="Create upsell" @click=${this._handleCreateUpsell}>
+                  Create upsell
+                </uui-button>
+              </div>
             </div>
 
-            <uui-tab-group>
+            <uui-tab-group class="tabs">
               <uui-tab label="All" ?active=${this._activeTab === "all"} @click=${() => this._handleTabClick("all")}>All</uui-tab>
               <uui-tab label="Active" ?active=${this._activeTab === "active"} @click=${() => this._handleTabClick("active")}>Active</uui-tab>
               <uui-tab label="Scheduled" ?active=${this._activeTab === "scheduled"} @click=${() => this._handleTabClick("scheduled")}>Scheduled</uui-tab>
@@ -560,49 +562,17 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    collectionLayoutStyles,
+    css`
     :host {
       display: block;
       height: 100%;
       background: var(--uui-color-background);
     }
 
-    .upsells-container {
-      max-width: 100%;
-      padding: var(--uui-size-layout-1);
-    }
-
-    .header-actions {
-      display: flex;
-      gap: var(--uui-size-space-2);
-      align-items: center;
-      justify-content: flex-end;
-      margin-bottom: var(--uui-size-space-4);
-      flex-wrap: wrap;
-    }
-
-    .search-tabs-row {
-      display: flex;
-      flex-direction: column;
-      gap: var(--uui-size-space-3);
-      margin-bottom: var(--uui-size-space-4);
-    }
-
-    @media (min-width: 768px) {
-      .search-tabs-row {
-        flex-direction: row;
-        align-items: flex-end;
-        justify-content: space-between;
-      }
-    }
-
     .search-box {
-      flex: 1;
       max-width: 400px;
-    }
-
-    .search-box uui-input {
-      width: 100%;
     }
 
     .search-box uui-icon[slot="prepend"] {
@@ -668,7 +638,8 @@ export class MerchelloUpsellsListElement extends UmbElementMixin(LitElement) {
       padding: var(--uui-size-space-3);
       border-top: 1px solid var(--uui-color-border);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloUpsellsListElement;

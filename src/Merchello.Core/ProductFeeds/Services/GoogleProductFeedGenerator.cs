@@ -8,6 +8,7 @@ using Merchello.Core.Discounts.Services;
 using Merchello.Core.ExchangeRates.Services.Interfaces;
 using Merchello.Core.ProductFeeds.Models;
 using Merchello.Core.ProductFeeds.Services.Interfaces;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
@@ -33,8 +34,11 @@ public class GoogleProductFeedGenerator(
     IHttpContextAccessor httpContextAccessor,
     ICurrencyService currencyService,
     IOptions<MerchelloSettings> settings,
-    ILogger<GoogleProductFeedGenerator> logger) : IGoogleProductFeedGenerator
+    ILogger<GoogleProductFeedGenerator> logger,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IGoogleProductFeedGenerator
 {
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
@@ -118,6 +122,7 @@ public class GoogleProductFeedGenerator(
         var baseUrl = ResolveBaseUrl();
         var storeCurrency = settings.Value.StoreCurrencyCode.ToUpperInvariant();
         var feedCurrency = feed.CurrencyCode.ToUpperInvariant();
+        var storeName = ResolveStoreName();
 
         var conversionRate = 1m;
         if (!string.Equals(storeCurrency, feedCurrency, StringComparison.OrdinalIgnoreCase))
@@ -193,9 +198,9 @@ public class GoogleProductFeedGenerator(
 
         XNamespace g = "http://base.google.com/ns/1.0";
         var channel = new XElement("channel",
-            new XElement("title", settings.Value.Store.Name ?? "Merchello"),
+            new XElement("title", storeName),
             new XElement("link", baseUrl),
-            new XElement("description", $"{settings.Value.Store.Name ?? "Merchello"} Google Shopping Feed"));
+            new XElement("description", $"{storeName} Google Shopping Feed"));
 
         var generatedItems = new List<ProductFeedGeneratedItem>(filteredProducts.Count);
 
@@ -669,7 +674,7 @@ public class GoogleProductFeedGenerator(
             return $"{request.Scheme}://{request.Host}{request.PathBase}".TrimEnd('/');
         }
 
-        return settings.Value.Store.WebsiteUrl?.TrimEnd('/') ?? "https://localhost";
+        return ResolveStoreWebsiteUrl()?.TrimEnd('/') ?? "https://localhost";
     }
 
     private static string? FirstNonEmpty(params string?[] values)
@@ -855,8 +860,14 @@ public class GoogleProductFeedGenerator(
             .Select(x => x.Warehouse?.Supplier?.Name)
             .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n));
 
-        return firstSupplier ?? settings.Value.Store.Name ?? "Merchello";
+        return firstSupplier ?? ResolveStoreName();
     }
+
+    private string ResolveStoreName() =>
+        _storeSettingsService?.GetRuntimeSettings().Merchello.Store.Name ?? settings.Value.Store.Name ?? "Merchello";
+
+    private string? ResolveStoreWebsiteUrl() =>
+        _storeSettingsService?.GetRuntimeSettings().Merchello.Store.WebsiteUrl ?? settings.Value.Store.WebsiteUrl;
 
     private static string? InferOptionValue(Product product, string optionTypeAlias)
     {

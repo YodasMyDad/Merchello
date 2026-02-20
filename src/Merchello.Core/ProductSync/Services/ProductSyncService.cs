@@ -56,6 +56,7 @@ public class ProductSyncService(
     private const string ShopifyCollectionKey = "Shopify:Collection";
     private const string ImageMediaTypeAlias = "Image";
     private const string ImagePropertyAlias = "umbracoFile";
+    private const string FolderMediaTypeAlias = "Folder";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -714,7 +715,9 @@ public class ProductSyncService(
             : null;
 
         var firstRow = rows[0];
-        var title = Normalize(firstRow[ShopifyCsvSchema.Title]) ?? existingRoot?.RootName ?? handle;
+        var resolvedTitle = Normalize(firstRow[ShopifyCsvSchema.Title]) ?? existingRoot?.RootName;
+        var title = ResolveRequiredTitle(resolvedTitle, handle);
+        var safeTitle = title ?? string.Empty;
         var bodyHtml = Normalize(firstRow[ShopifyCsvSchema.BodyHtml]) ?? string.Empty;
         var vendor = Normalize(firstRow[ShopifyCsvSchema.Vendor]);
         var tags = Normalize(firstRow[ShopifyCsvSchema.Tags]);
@@ -785,6 +788,13 @@ public class ProductSyncService(
         var variantImageByRowNumber = new Dictionary<int, List<Guid>>();
         var imageCache = new Dictionary<string, Guid?>(StringComparer.OrdinalIgnoreCase);
 
+        var productMediaFolderId = global::Umbraco.Cms.Core.Constants.System.Root;
+        if (!string.IsNullOrWhiteSpace(_settings.MediaImportRootFolderName))
+        {
+            var rootFolderId = GetOrCreateMediaFolder(_settings.MediaImportRootFolderName, global::Umbraco.Cms.Core.Constants.System.Root);
+            productMediaFolderId = GetOrCreateMediaFolder(safeTitle, rootFolderId);
+        }
+
         foreach (var imageUrl in rows
                      .Select(x => Normalize(x[ShopifyCsvSchema.ImageSrc]))
                      .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -797,6 +807,7 @@ public class ProductSyncService(
                 null,
                 ShopifyCsvSchema.ImageSrc,
                 imageUrl,
+                productMediaFolderId,
                 importOptions.ContinueOnImageFailure,
                 issues,
                 imageCache,
@@ -826,6 +837,7 @@ public class ProductSyncService(
                 row.RowNumber,
                 ShopifyCsvSchema.VariantImage,
                 variantImageUrl!,
+                productMediaFolderId,
                 importOptions.ContinueOnImageFailure,
                 issues,
                 imageCache,
@@ -853,13 +865,13 @@ public class ProductSyncService(
             var createResult = await productService.CreateProductRoot(
                 new CreateProductRootDto
                 {
-                    RootName = title,
+                    RootName = safeTitle,
                     TaxGroupId = taxGroup.Id,
                     ProductTypeId = productType.Id,
                     RootImages = rootImages,
                     DefaultVariant = new CreateVariantDto
                     {
-                        Name = title,
+                        Name = safeTitle,
                         Price = defaultPrice,
                         CostOfGoods = defaultCost,
                         Sku = defaultSku,
@@ -895,7 +907,7 @@ public class ProductSyncService(
             productRootId,
             new UpdateProductRootDto
             {
-                RootName = title,
+                RootName = safeTitle,
                 RootUrl = handle,
                 Description = ToTipTapJson(bodyHtml),
                 RootImages = rootImages,
@@ -974,7 +986,7 @@ public class ProductSyncService(
                 continue;
             }
 
-            var variantName = BuildVariantName(row, title);
+            var variantName = BuildVariantName(row, safeTitle);
             var sku = Normalize(row[ShopifyCsvSchema.VariantSku]);
             var gtin = Normalize(row[ShopifyCsvSchema.VariantBarcode]);
             var price = ParseDecimal(row[ShopifyCsvSchema.VariantPrice]);
@@ -1811,12 +1823,25 @@ public class ProductSyncService(
         return variant;
     }
 
+    private int GetOrCreateMediaFolder(string name, int parentId)
+    {
+        var existing = mediaService.GetPagedChildren(parentId, 0, int.MaxValue, out _)
+            .FirstOrDefault(m =>
+                m.ContentType.Alias == FolderMediaTypeAlias &&
+                string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (existing != null) return existing.Id;
+
+        return mediaService.CreateMediaWithIdentity(name, parentId, FolderMediaTypeAlias).Id;
+    }
+
     private async Task<Guid?> ImportImageAsync(
         Guid runId,
         string handle,
         int? rowNumber,
         string field,
         string imageUrl,
+        int parentMediaId,
         bool continueOnImageFailure,
         List<ProductSyncIssue> issues,
         Dictionary<string, Guid?> cache,
@@ -1895,7 +1920,7 @@ public class ProductSyncService(
 
             var media = mediaService.CreateMedia(
                 mediaName,
-                global::Umbraco.Cms.Core.Constants.System.Root,
+                parentMediaId,
                 ImageMediaTypeAlias);
 
             await using var buffer = new MemoryStream(bytes, writable: false);
@@ -2157,6 +2182,16 @@ public class ProductSyncService(
 
     private static string? Normalize(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string ResolveRequiredTitle(string? resolvedTitle, string handle)
+    {
+        if (resolvedTitle is null)
+        {
+            return handle;
+        }
+
+        return string.IsNullOrWhiteSpace(resolvedTitle) ? handle : resolvedTitle;
+    }
 
     private ProductSyncImportRunOptions DeserializeImportOptions(string? optionsJson)
     {

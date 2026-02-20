@@ -9,6 +9,7 @@ import {
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { MerchelloApi } from "@api/merchello-api.js";
 import "@seed-data/components/seed-data-workspace.element.js";
+import "@settings/components/store-configuration-tabs.element.js";
 
 @customElement("merchello-settings-workspace")
 export class MerchelloSettingsWorkspaceElement extends UmbElementMixin(LitElement) {
@@ -37,16 +38,18 @@ export class MerchelloSettingsWorkspaceElement extends UmbElementMixin(LitElemen
   override render() {
     if (this._isLoading) return nothing;
 
-    if (!this._showSeedData) return nothing;
-
     return html`
-      <umb-body-layout header-fit-height main-no-padding>
-        <div class="content">
-          <merchello-seed-data-workspace
-            @seed-data-installed=${this._onSeedDataInstalled}
-          ></merchello-seed-data-workspace>
-        </div>
-      </umb-body-layout>
+      <div class="content">
+        ${this._showSeedData
+          ? html`
+              <merchello-seed-data-workspace
+                @seed-data-installed=${this._onSeedDataInstalled}
+              ></merchello-seed-data-workspace>
+            `
+          : nothing}
+
+        <merchello-store-configuration-tabs></merchello-store-configuration-tabs>
+      </div>
     `;
   }
 
@@ -59,7 +62,11 @@ export class MerchelloSettingsWorkspaceElement extends UmbElementMixin(LitElemen
 
       .content {
         padding: var(--uui-size-layout-1);
-        max-width: 64rem;
+        width: 100%;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: var(--uui-size-space-4);
       }
     `,
   ];

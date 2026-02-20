@@ -13,6 +13,7 @@ import { MERCHELLO_CUSTOMER_EDIT_MODAL } from "@customers/modals/customer-edit-m
 import { MERCHELLO_CUSTOMER_ORDERS_MODAL } from "@orders/modals/customer-orders-modal.token.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 @customElement("merchello-customers-list")
 export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
@@ -217,27 +218,31 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
 
   private _renderSearchBox(): unknown {
     return html`
-      <div class="search-box">
-        <uui-input
-          type="text"
-          placeholder="Search by name or email"
-          .value=${this._searchTerm}
-          @input=${this._handleSearchInput}
-          label="Search customers">
-          <uui-icon name="icon-search" slot="prepend"></uui-icon>
-          ${this._searchTerm
-            ? html`
-                <uui-button
-                  slot="append"
-                  compact
-                  look="secondary"
-                  label="Clear search"
-                  @click=${this._handleSearchClear}>
-                  <uui-icon name="icon-wrong"></uui-icon>
-                </uui-button>
-              `
-            : nothing}
-        </uui-input>
+      <div class="filters">
+        <div class="filters-top">
+          <div class="search-box">
+            <uui-input
+              type="text"
+              placeholder="Search by name or email"
+              .value=${this._searchTerm}
+              @input=${this._handleSearchInput}
+              label="Search customers">
+              <uui-icon name="icon-search" slot="prepend"></uui-icon>
+              ${this._searchTerm
+                ? html`
+                    <uui-button
+                      slot="append"
+                      compact
+                      look="secondary"
+                      label="Clear search"
+                      @click=${this._handleSearchClear}>
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  `
+                : nothing}
+            </uui-input>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -317,7 +322,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="customers-container">
+        <div class="customers-container layout-container">
           ${this._renderSearchBox()}
 
           ${this._renderContent()}
@@ -337,6 +342,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
   }
 
   static override readonly styles = [
+    collectionLayoutStyles,
     css`
       :host {
         display: block;
@@ -344,17 +350,7 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-background);
       }
 
-      .customers-container {
-        max-width: 100%;
-        padding: var(--uui-size-layout-1);
-      }
-
-      .search-box {
-        margin-bottom: var(--uui-size-space-4);
-      }
-
       .search-box uui-input {
-        width: 100%;
         max-width: 420px;
       }
 

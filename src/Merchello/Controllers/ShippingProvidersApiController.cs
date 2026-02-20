@@ -237,7 +237,12 @@ public class ShippingProvidersApiController(
             return BadRequest("OrderedIds is required.");
         }
 
-        await providerManager.UpdateSortOrderAsync(request.OrderedIds, cancellationToken);
+        var result = await providerManager.UpdateSortOrderAsync(request.OrderedIds, cancellationToken);
+        if (!result.Success)
+        {
+            return BadRequest(result.Messages.FirstOrDefault()?.Message ?? "Failed to reorder shipping providers.");
+        }
+
         return Ok();
     }
 

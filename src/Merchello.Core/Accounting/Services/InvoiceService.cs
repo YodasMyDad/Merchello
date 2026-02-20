@@ -36,6 +36,7 @@ using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
+using Merchello.Core.Settings.Services.Interfaces;
 using Merchello.Core.Shared;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
@@ -81,9 +82,11 @@ public class InvoiceService(
     AddressFactory addressFactory,
     IOptions<MerchelloSettings> settings,
     ILogger<InvoiceService> logger,
-    ITaxOrchestrationService? taxOrchestrationService = null) : IInvoiceService
+    ITaxOrchestrationService? taxOrchestrationService = null,
+    IMerchelloStoreSettingsService? storeSettingsService = null) : IInvoiceService
 {
     private readonly MerchelloSettings _settings = settings.Value;
+    private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
 
     public async Task<CrudResult<Invoice>> CreateOrderFromBasketAsync(
         Basket basket,
@@ -93,6 +96,7 @@ public class InvoiceService(
         string? purchaseOrder = null)
     {
         var result = new CrudResult<Invoice>();
+        var invoiceNumberPrefix = await GetInvoiceNumberPrefixAsync(cancellationToken);
 
         // Validate billing email exists
         var billingEmail = checkoutSession.BillingAddress.Email;
@@ -210,8 +214,8 @@ public class InvoiceService(
             // Generate next invoice number using MAX+1 (unique index prevents duplicates)
             var maxNumber = await db.Invoices
                 .Select(i => i.InvoiceNumber)
-                .Where(n => n.StartsWith(_settings.InvoiceNumberPrefix))
-                .Select(n => n.Substring(_settings.InvoiceNumberPrefix.Length))
+                .Where(n => n.StartsWith(invoiceNumberPrefix))
+                .Select(n => n.Substring(invoiceNumberPrefix.Length))
                 .ToListAsync(cancellationToken);
 
             var nextNumber = maxNumber
@@ -219,7 +223,7 @@ public class InvoiceService(
                 .DefaultIfEmpty(0)
                 .Max() + 1;
 
-            var invoiceNumber = $"{_settings.InvoiceNumberPrefix}{nextNumber:D4}";
+            var invoiceNumber = $"{invoiceNumberPrefix}{nextNumber:D4}";
 
             // Load flat-rate shipping options - parse SelectionKeys to extract Guids
             var shippingOptionIds = new List<Guid>();
@@ -714,8 +718,8 @@ public class InvoiceService(
                     // Unique constraint on InvoiceNumber - regenerate and retry
                     var currentMax = await db.Invoices
                         .Select(i => i.InvoiceNumber)
-                        .Where(n => n.StartsWith(_settings.InvoiceNumberPrefix))
-                        .Select(n => n.Substring(_settings.InvoiceNumberPrefix.Length))
+                        .Where(n => n.StartsWith(invoiceNumberPrefix))
+                        .Select(n => n.Substring(invoiceNumberPrefix.Length))
                         .ToListAsync(cancellationToken);
 
                     var retryNumber = currentMax
@@ -723,7 +727,7 @@ public class InvoiceService(
                         .DefaultIfEmpty(0)
                         .Max() + 1;
 
-                    newInvoice.InvoiceNumber = $"{_settings.InvoiceNumberPrefix}{retryNumber:D4}";
+                    newInvoice.InvoiceNumber = $"{invoiceNumberPrefix}{retryNumber:D4}";
                 }
             }
 
@@ -2362,6 +2366,8 @@ public class InvoiceService(
         string? authorName,
         CancellationToken cancellationToken = default)
     {
+        var invoiceNumberPrefix = await GetInvoiceNumberPrefixAsync(cancellationToken);
+
         // Validate billing email exists
         var billingEmail = request.BillingAddress.Email;
         if (string.IsNullOrWhiteSpace(billingEmail))
@@ -2384,8 +2390,8 @@ public class InvoiceService(
             // Generate next invoice number using MAX+1 (unique index prevents duplicates)
             var maxNumbers = await db.Invoices
                 .Select(i => i.InvoiceNumber)
-                .Where(n => n.StartsWith(_settings.InvoiceNumberPrefix))
-                .Select(n => n.Substring(_settings.InvoiceNumberPrefix.Length))
+                .Where(n => n.StartsWith(invoiceNumberPrefix))
+                .Select(n => n.Substring(invoiceNumberPrefix.Length))
                 .ToListAsync(cancellationToken);
 
             var nextNumber = maxNumbers
@@ -2393,7 +2399,7 @@ public class InvoiceService(
                 .DefaultIfEmpty(0)
                 .Max() + 1;
 
-            var invoiceNumber = $"{_settings.InvoiceNumberPrefix}{nextNumber:D4}";
+            var invoiceNumber = $"{invoiceNumberPrefix}{nextNumber:D4}";
 
             // Use shipping address if provided, otherwise use billing address
             var shippingAddress = request.ShippingAddress != null
@@ -2542,8 +2548,8 @@ public class InvoiceService(
                 {
                     var currentMax = await db.Invoices
                         .Select(i => i.InvoiceNumber)
-                        .Where(n => n.StartsWith(_settings.InvoiceNumberPrefix))
-                        .Select(n => n.Substring(_settings.InvoiceNumberPrefix.Length))
+                        .Where(n => n.StartsWith(invoiceNumberPrefix))
+                        .Select(n => n.Substring(invoiceNumberPrefix.Length))
                         .ToListAsync(cancellationToken);
 
                     var retryNumber = currentMax
@@ -2551,7 +2557,7 @@ public class InvoiceService(
                         .DefaultIfEmpty(0)
                         .Max() + 1;
 
-                    invoice.InvoiceNumber = $"{_settings.InvoiceNumberPrefix}{retryNumber:D4}";
+                    invoice.InvoiceNumber = $"{invoiceNumberPrefix}{retryNumber:D4}";
                 }
             }
 
@@ -2565,6 +2571,17 @@ public class InvoiceService(
 
         scope.Complete();
         return result;
+    }
+
+    private async Task<string> GetInvoiceNumberPrefixAsync(CancellationToken cancellationToken)
+    {
+        if (_storeSettingsService == null)
+        {
+            return _settings.InvoiceNumberPrefix;
+        }
+
+        var runtime = await _storeSettingsService.GetRuntimeSettingsAsync(cancellationToken);
+        return runtime.Merchello.InvoiceNumberPrefix;
     }
 
     private static List<CustomItemAddonDto> GetValidCustomItemAddons(AddCustomItemDto customItem)
@@ -3060,11 +3077,31 @@ public class InvoiceService(
                 .Where(o => o.Status != OrderStatus.Cancelled)
                 .ToList();
 
-            if (activeOrders.Any(o => o.Status is OrderStatus.Shipped or OrderStatus.Completed))
+            if (activeOrders.Any(o => o.Status is OrderStatus.Shipped or OrderStatus.PartiallyShipped or OrderStatus.Completed))
             {
                 logger.LogWarning(
-                    "Skipping supersede for invoice {InvoiceId}: contains shipped/completed orders",
+                    "Skipping supersede for invoice {InvoiceId}: contains shipped/partially shipped/completed orders",
                     staleInvoice.Id);
+                continue;
+            }
+
+            Order? nonCancellableOrder = null;
+            foreach (var order in activeOrders)
+            {
+                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
+                if (!canTransition)
+                {
+                    nonCancellableOrder = order;
+                    break;
+                }
+            }
+
+            if (nonCancellableOrder != null)
+            {
+                logger.LogWarning(
+                    "Skipping supersede for invoice {InvoiceId}: order {OrderId} cannot transition to Cancelled",
+                    staleInvoice.Id,
+                    nonCancellableOrder.Id);
                 continue;
             }
 
@@ -3086,16 +3123,6 @@ public class InvoiceService(
                             order.Id,
                             lineItem.Id);
                     }
-                }
-
-                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
-                if (!canTransition)
-                {
-                    logger.LogWarning(
-                        "Skipping order status transition to Cancelled for superseded invoice {InvoiceId}, order {OrderId}",
-                        staleInvoice.Id,
-                        order.Id);
-                    continue;
                 }
 
                 var oldStatus = order.Status;

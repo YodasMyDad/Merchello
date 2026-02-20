@@ -17,6 +17,6 @@ export const MERCHELLO_PAYMENT_METHODS_CONFIG_MODAL = new UmbModalToken<
 >("Merchello.PaymentMethods.Config.Modal", {
   modal: {
     type: "sidebar",
-    size: "small",
+    size: "large",
   },
 });

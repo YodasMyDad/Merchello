@@ -1445,32 +1445,18 @@ public class CheckoutController(IOptions<CheckoutSettings> settings) : Controlle
 ```
 
 ### appsettings.json Configuration
+
+> Note: Checkout branding/order terms and policy URL content are now DB-backed and configured from the Merchello root workspace tabs (`Store`, `Policies`, `Checkout`, `UCP`).  
+> Keep only non-migrated checkout appsettings values here.
+
 ```json
 {
   "Merchello": {
     "StoreCurrencyCode": "GBP",
     "Checkout": {
-      "HeaderBackgroundImageUrl": "/images/checkout-banner.jpg",
-      "HeaderBackgroundColor": "#1a1a1a",
-      "LogoUrl": "/images/logo.png",
-      "LogoPosition": "Left",
-      "LogoMaxWidth": 200,
-      "PrimaryColor": "#000000",
-      "AccentColor": "#0066FF",
-      "BackgroundColor": "#FFFFFF",
-      "TextColor": "#333333",
-      "ErrorColor": "#DC2626",
-      "HeadingFontFamily": "Inter, system-ui, sans-serif",
-      "BodyFontFamily": "Inter, system-ui, sans-serif",
-      "CompanyName": "My Store",
-      "SupportEmail": "support@example.com",
-      "SupportPhone": "+44 123 456 7890",
-      "ShowExpressCheckout": true,
-      "RequirePhone": false,
-      "ConfirmationRedirectUrl": "/order-complete",
-      "TermsUrl": "/terms",
-      "PrivacyUrl": "/privacy",
-      "CustomScriptUrl": "/js/checkout-analytics.js"
+      "SessionSlidingTimeoutMinutes": 30,
+      "SessionAbsoluteTimeoutMinutes": 240,
+      "LogSessionExpirations": true
     }
   }
 }

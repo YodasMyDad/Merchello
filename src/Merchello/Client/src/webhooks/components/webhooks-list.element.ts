@@ -20,6 +20,7 @@ import { MERCHELLO_WEBHOOK_SUBSCRIPTION_MODAL } from "@webhooks/modals/webhook-s
 import { MERCHELLO_WEBHOOK_TEST_MODAL } from "@webhooks/modals/webhook-test-modal.token.js";
 import "@shared/components/pagination.element.js";
 import "@shared/components/merchello-empty-state.element.js";
+import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.js";
 
 type FilterTab = "all" | "active" | "inactive";
 
@@ -371,40 +372,42 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
 
   private _renderSearchAndFilters(): unknown {
     return html`
-      <div class="toolbar">
-        <div class="search-box">
-          <uui-input
-            type="text"
-            placeholder="Search webhooks..."
-            .value=${this._searchTerm}
-            @input=${this._handleSearchInput}
-            label="Search webhooks">
-            <uui-icon name="icon-search" slot="prepend"></uui-icon>
-            ${this._searchTerm
-              ? html`
-                  <uui-button
-                    slot="append"
-                    compact
-                    look="secondary"
-                    label="Clear search"
-                    @click=${this._handleSearchClear}>
-                    <uui-icon name="icon-wrong"></uui-icon>
-                  </uui-button>
-                `
-              : nothing}
-          </uui-input>
+      <div class="filters">
+        <div class="filters-top">
+          <div class="search-box">
+            <uui-input
+              type="text"
+              placeholder="Search webhooks..."
+              .value=${this._searchTerm}
+              @input=${this._handleSearchInput}
+              label="Search webhooks">
+              <uui-icon name="icon-search" slot="prepend"></uui-icon>
+              ${this._searchTerm
+                ? html`
+                    <uui-button
+                      slot="append"
+                      compact
+                      look="secondary"
+                      label="Clear search"
+                      @click=${this._handleSearchClear}>
+                      <uui-icon name="icon-wrong"></uui-icon>
+                    </uui-button>
+                  `
+                : nothing}
+            </uui-input>
+          </div>
+          <div class="header-actions">
+            <uui-button
+              look="primary"
+              label="Add Webhook"
+              @click=${this._handleCreateSubscription}>
+              <uui-icon name="icon-add" slot="icon"></uui-icon>
+              Add Webhook
+            </uui-button>
+          </div>
         </div>
 
-        <uui-button
-          look="primary"
-          label="Add Webhook"
-          @click=${this._handleCreateSubscription}>
-          <uui-icon name="icon-add" slot="icon"></uui-icon>
-          Add Webhook
-        </uui-button>
-      </div>
-
-      <uui-tab-group class="filter-tabs">
+      <uui-tab-group class="tabs">
         <uui-tab
           label="All"
           ?active=${this._activeTab === "all"}
@@ -521,7 +524,7 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
   override render() {
     return html`
       <umb-body-layout header-fit-height main-no-padding>
-        <div class="webhooks-container">
+        <div class="webhooks-container layout-container">
           ${this._renderStats()}
           ${this._renderSearchAndFilters()}
           ${this._renderContent()}
@@ -541,6 +544,7 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
   }
 
   static override readonly styles = [
+    collectionLayoutStyles,
     css`
       :host {
         display: block;
@@ -548,16 +552,11 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-background);
       }
 
-      .webhooks-container {
-        max-width: 100%;
-        padding: var(--uui-size-layout-1);
-      }
-
       .stats-cards {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: var(--uui-size-space-4);
-        margin-bottom: var(--uui-size-space-5);
+        margin: 0;
       }
 
       .stat-card {
@@ -580,25 +579,8 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
         margin-top: var(--uui-size-space-1);
       }
 
-      .toolbar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: var(--uui-size-space-4);
-        margin-bottom: var(--uui-size-space-4);
-      }
-
       .search-box {
-        flex: 1;
         max-width: 400px;
-      }
-
-      .search-box uui-input {
-        width: 100%;
-      }
-
-      .filter-tabs {
-        margin-bottom: var(--uui-size-space-4);
       }
 
       .table-container {
@@ -606,7 +588,6 @@ export class MerchelloWebhooksListElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-surface);
         border: 1px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
-        margin-bottom: var(--uui-size-space-4);
       }
 
       .webhooks-table {

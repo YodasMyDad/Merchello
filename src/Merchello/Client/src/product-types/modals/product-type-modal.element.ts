@@ -3,6 +3,7 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
 import type { ProductTypeModalData, ProductTypeModalValue } from "@product-types/modals/product-type-modal.token.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const PRODUCT_TYPE_FORM_ID = "MerchelloProductTypeForm";
 
@@ -184,7 +185,9 @@ export class MerchelloProductTypeModalElement extends UmbModalBaseElement<
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -220,7 +223,8 @@ export class MerchelloProductTypeModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       padding: var(--uui-size-space-3);
     }
-  `;
+  `,
+  ];
 }
 
 export default MerchelloProductTypeModalElement;
@@ -230,3 +234,4 @@ declare global {
     "merchello-product-type-modal": MerchelloProductTypeModalElement;
   }
 }
+

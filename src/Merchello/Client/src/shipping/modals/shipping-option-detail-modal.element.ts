@@ -21,6 +21,7 @@ import { MERCHELLO_SHIPPING_WEIGHT_TIER_MODAL } from "@shipping/modals/shipping-
 import { MERCHELLO_SHIPPING_DESTINATION_EXCLUSION_MODAL } from "@shipping/modals/shipping-destination-exclusion-modal.token.js";
 import { MERCHELLO_SHIPPING_POSTCODE_RULE_MODAL } from "@shipping/modals/shipping-postcode-rule-modal.token.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
+import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 type ShippingOptionModalTab = "overview" | "delivery" | "destinations" | "pricing";
 
@@ -1094,7 +1095,9 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
     `;
   }
 
-  static override readonly styles = css`
+  static override readonly styles = [
+    modalLayoutStyles,
+    css`
     :host {
       display: block;
     }
@@ -1374,7 +1377,8 @@ export class MerchelloShippingOptionDetailModalElement extends UmbModalBaseEleme
       color: #fff;
     }
 
-  `;
+  `,
+  ];
 }
 
 export default MerchelloShippingOptionDetailModalElement;
@@ -1384,3 +1388,4 @@ declare global {
     "merchello-shipping-option-detail-modal": MerchelloShippingOptionDetailModalElement;
   }
 }
+
