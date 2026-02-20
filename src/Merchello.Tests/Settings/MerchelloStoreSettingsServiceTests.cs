@@ -10,6 +10,7 @@ using Merchello.Core.Settings.Models;
 using Merchello.Core.Settings.Services;
 using Merchello.Core.Shared.Models;
 using Merchello.Core.Shared.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -62,6 +63,7 @@ public class MerchelloStoreSettingsServiceTests : IDisposable
             CreateOptionsMonitor(new AbandonedCheckoutSettings()),
             CreateOptionsMonitor(new InvoiceReminderSettings()),
             CreateOptionsMonitor(new EmailSettings()),
+            new Mock<IHttpContextAccessor>().Object,
             mediaUrlResolverMock.Object,
             new Mock<ILogger<MerchelloStoreSettingsService>>().Object);
     }

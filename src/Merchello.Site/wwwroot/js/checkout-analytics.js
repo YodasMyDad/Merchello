@@ -16,6 +16,10 @@
  *    }
  * 3. Customize the GTM and/or Facebook Pixel sections below
  *
+ * NOTE: This example logs all events to the browser console so you can see
+ * the data flowing through. Remove or disable the console logging section
+ * before deploying to production.
+ *
  * Available events:
  * - checkout:begin             - Customer enters checkout
  * - checkout:add_contact_info  - Valid email entered
@@ -269,15 +273,18 @@
         }
 
         // ============================================
-        // Debug logging (remove in production)
+        // Console logging (remove in production)
         // ============================================
-        // Uncomment below to log all events to console:
-        //
-        // mc.onAny(function(eventName, data) {
-        //     console.log('[Merchello Analytics]', eventName, data);
-        // });
+        // Logs every checkout event to the browser console so you can
+        // verify events are firing and inspect the payload data.
+        // Open DevTools → Console to see output.
+        mc.onAny(function(eventName, data) {
+            console.group('%c[Merchello] ' + eventName, 'color: #7c3aed; font-weight: bold;');
+            console.log(data);
+            console.groupEnd();
+        });
 
-        console.log('[Merchello Analytics] Initialized');
+        console.log('[Merchello Analytics] Initialized — listening for checkout events');
     }
 
     init();
