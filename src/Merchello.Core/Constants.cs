@@ -206,6 +206,9 @@ public static class Constants
             public const string ClientSecret = "clientSecret";
             public const string AccountNumber = "accountNumber";
             public const string Environment = "environment";
+            public const string GrantType = "grantType";
+            public const string ChildKey = "childKey";
+            public const string ChildSecret = "childSecret";
             public const string UseNegotiatedRates = "useNegotiatedRates";
             public const string Markup = "markup";
             public const string Name = "name";

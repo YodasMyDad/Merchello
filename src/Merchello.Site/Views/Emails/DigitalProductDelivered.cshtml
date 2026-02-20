@@ -89,9 +89,9 @@
   <mj-column>
     <mj-text>
       If you have any questions about your purchase, please don't hesitate to contact us
-      @if (!string.IsNullOrEmpty(Model.Store.SupportEmail))
+      @if (!string.IsNullOrEmpty(Model.Store.Email))
       {
-        <text>at <a href="mailto:@Model.Store.SupportEmail">@Model.Store.SupportEmail</a></text>
+        <text>at <a href="mailto:@Model.Store.Email">@Model.Store.Email</a></text>
       }.
     </mj-text>
   </mj-column>

@@ -1406,7 +1406,6 @@ public class CheckoutSettings
 
     // === Company Info ===
     public string? CompanyName { get; set; }
-    public string? SupportEmail { get; set; }
     public string? SupportPhone { get; set; }
 
     // === Behavior ===

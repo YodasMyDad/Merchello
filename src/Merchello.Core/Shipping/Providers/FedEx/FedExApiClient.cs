@@ -19,6 +19,9 @@ public class FedExApiClient : IDisposable
     private readonly string _clientId;
     private readonly string _clientSecret;
     private readonly string _accountNumber;
+    private readonly string _grantType;
+    private readonly string? _childKey;
+    private readonly string? _childSecret;
     private readonly bool _useSandbox;
 
     private string? _accessToken;
@@ -31,16 +34,25 @@ public class FedExApiClient : IDisposable
     /// <param name="clientId">FedEx API Key (Client ID).</param>
     /// <param name="clientSecret">FedEx Secret Key (Client Secret).</param>
     /// <param name="accountNumber">FedEx Account Number.</param>
+    /// <param name="grantType">OAuth grant type (for example client_credentials or csp_credentials).</param>
+    /// <param name="childKey">Optional child key for parent-child/CSP auth flows.</param>
+    /// <param name="childSecret">Optional child secret for parent-child/CSP auth flows.</param>
     /// <param name="useSandbox">Whether to use sandbox environment.</param>
     public FedExApiClient(
         string clientId,
         string clientSecret,
         string accountNumber,
+        string grantType = "client_credentials",
+        string? childKey = null,
+        string? childSecret = null,
         bool useSandbox = true)
     {
         _clientId = clientId;
         _clientSecret = clientSecret;
         _accountNumber = accountNumber;
+        _grantType = grantType;
+        _childKey = childKey;
+        _childSecret = childSecret;
         _useSandbox = useSandbox;
 
         // Create our own HttpClient with automatic decompression enabled
@@ -61,12 +73,18 @@ public class FedExApiClient : IDisposable
     /// <param name="clientId">FedEx API Key (Client ID).</param>
     /// <param name="clientSecret">FedEx Secret Key (Client Secret).</param>
     /// <param name="accountNumber">FedEx Account Number.</param>
+    /// <param name="grantType">OAuth grant type (for example client_credentials or csp_credentials).</param>
+    /// <param name="childKey">Optional child key for parent-child/CSP auth flows.</param>
+    /// <param name="childSecret">Optional child secret for parent-child/CSP auth flows.</param>
     /// <param name="useSandbox">Whether to use sandbox environment.</param>
     public FedExApiClient(
         HttpClient httpClient,
         string clientId,
         string clientSecret,
         string accountNumber,
+        string grantType = "client_credentials",
+        string? childKey = null,
+        string? childSecret = null,
         bool useSandbox = true)
     {
         _httpClient = httpClient;
@@ -74,6 +92,9 @@ public class FedExApiClient : IDisposable
         _clientId = clientId;
         _clientSecret = clientSecret;
         _accountNumber = accountNumber;
+        _grantType = grantType;
+        _childKey = childKey;
+        _childSecret = childSecret;
         _useSandbox = useSandbox;
     }
 
@@ -169,12 +190,26 @@ public class FedExApiClient : IDisposable
     {
         var url = $"{BaseUrl}/oauth/token";
 
+        var grantType = string.IsNullOrWhiteSpace(_grantType)
+            ? "client_credentials"
+            : _grantType;
+
         var formData = new Dictionary<string, string>
         {
-            ["grant_type"] = "client_credentials",
+            ["grant_type"] = grantType,
             ["client_id"] = _clientId,
             ["client_secret"] = _clientSecret
         };
+
+        if (!string.IsNullOrWhiteSpace(_childKey))
+        {
+            formData["child_key"] = _childKey;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_childSecret))
+        {
+            formData["child_secret"] = _childSecret;
+        }
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Content = new FormUrlEncodedContent(formData);

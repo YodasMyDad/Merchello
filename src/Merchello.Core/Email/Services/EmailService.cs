@@ -555,7 +555,6 @@ public class EmailService(
             Email = store.Email ?? string.Empty,
             LogoUrl = store.LogoUrl,
             WebsiteUrl = store.WebsiteUrl,
-            SupportEmail = store.SupportEmail ?? store.Email,
             Phone = store.Phone
         };
     }

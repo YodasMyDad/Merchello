@@ -23,14 +23,14 @@
       }
     </mj-text>
 
-    @if (!string.IsNullOrEmpty(Model.SupportEmail) || !string.IsNullOrEmpty(Model.Phone))
+    @if (!string.IsNullOrEmpty(Model.Email) || !string.IsNullOrEmpty(Model.Phone))
     {
     <mj-text align="center" color="@theme.SecondaryTextColor" font-size="12px">
-      @if (!string.IsNullOrEmpty(Model.SupportEmail))
+      @if (!string.IsNullOrEmpty(Model.Email))
       {
-        <text>Email: </text><a href="mailto:@Model.SupportEmail" style="color: @theme.PrimaryColor;">@Model.SupportEmail</a>
+        <text>Email: </text><a href="mailto:@Model.Email" style="color: @theme.PrimaryColor;">@Model.Email</a>
       }
-      @if (!string.IsNullOrEmpty(Model.SupportEmail) && !string.IsNullOrEmpty(Model.Phone))
+      @if (!string.IsNullOrEmpty(Model.Email) && !string.IsNullOrEmpty(Model.Phone))
       {
         <text> | </text>
       }

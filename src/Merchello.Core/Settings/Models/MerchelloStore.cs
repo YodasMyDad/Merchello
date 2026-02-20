@@ -23,8 +23,6 @@ public class MerchelloStore
 
     public string? StoreEmail { get; set; }
 
-    public string? StoreSupportEmail { get; set; }
-
     public string? StorePhone { get; set; }
 
     public Guid? StoreLogoMediaKey { get; set; }

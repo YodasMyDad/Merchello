@@ -324,7 +324,6 @@ public class EmailStoreContext
     public string Email { get; set; }
     public string? LogoUrl { get; set; }
     public string? WebsiteUrl { get; set; }
-    public string? SupportEmail { get; set; }
     public string? Phone { get; set; }
     public Address? Address { get; set; }
     public string? CurrencyCode { get; set; }
@@ -813,7 +812,7 @@ src/Merchello.Site/
         Complete Your Purchase
     </a>
 
-    <p>If you have any questions, contact us at @Model.Store.SupportEmail</p>
+    <p>If you have any questions, contact us at @Model.Store.Email</p>
 </body>
 </html>
 ```
@@ -837,7 +836,7 @@ src/Merchello.Site/
         Return to Your Cart
     </a>
 
-    <p>Questions? Reply to this email or contact @Model.Store.SupportEmail</p>
+    <p>Questions? Reply to this email or contact @Model.Store.Email</p>
 </body>
 </html>
 ```
@@ -861,7 +860,7 @@ src/Merchello.Site/
     </a>
 
     <p>After this, your cart will be cleared and you'll need to start over.</p>
-    <p>Need help? Contact us at @Model.Store.SupportEmail</p>
+    <p>Need help? Contact us at @Model.Store.Email</p>
 </body>
 </html>
 ```
@@ -1026,7 +1025,7 @@ The `@Html.Mjml()` extension provides the following helpers:
   <mj-column>
     <mj-text>
       If you have any questions, contact us at
-      <a href="mailto:@Model.Store.SupportEmail">@Model.Store.SupportEmail</a>
+      <a href="mailto:@Model.Store.Email">@Model.Store.Email</a>
     </mj-text>
   </mj-column>
 </mj-section>
