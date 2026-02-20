@@ -133,6 +133,9 @@ using Merchello.Core.Upsells.Factories;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services;
 using Merchello.Core.Upsells.Services.Interfaces;
+using Merchello.Core.HealthChecks.Interfaces;
+using Merchello.Core.HealthChecks.Services;
+using Merchello.Core.HealthChecks.Services.Interfaces;
 using Merchello.Core.Locality.Factories;
 using Merchello.Core.Warehouses.Factories;
 using Merchello.Email.Services;
@@ -428,6 +431,9 @@ public static class Startup
 
         // Reporting
         builder.Services.AddScoped<IReportingService, ReportingService>();
+
+        // Health Checks
+        builder.Services.AddScoped<IHealthCheckService, HealthCheckService>();
 
         // Webhooks
         builder.Services.AddSingleton<IWebhookTopicRegistry, WebhookTopicRegistry>();
@@ -734,6 +740,7 @@ public static class Startup
         var emailAttachmentType = typeof(IEmailAttachment);
         var commerceProtocolAdapterType = typeof(ICommerceProtocolAdapter);
         var productFeedResolverType = typeof(IProductFeedValueResolver);
+        var healthCheckType = typeof(IHealthCheck);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -764,7 +771,8 @@ public static class Startup
                      addressLookupProviderType.IsAssignableFrom(t) ||
                      emailAttachmentType.IsAssignableFrom(t) ||
                      commerceProtocolAdapterType.IsAssignableFrom(t) ||
-                     productFeedResolverType.IsAssignableFrom(t)));
+                     productFeedResolverType.IsAssignableFrom(t) ||
+                     healthCheckType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

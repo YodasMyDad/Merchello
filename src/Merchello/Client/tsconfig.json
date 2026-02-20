@@ -36,6 +36,7 @@
       "@exchange-rate-providers/*": [ "src/exchange-rate-providers/*" ],
       "@filters/*": [ "src/filters/*" ],
       "@fulfilment-providers/*": [ "src/fulfilment-providers/*" ],
+      "@health-checks/*": [ "src/health-checks/*" ],
       "@marketing/*": [ "src/marketing/*" ],
       "@notifications/*": [ "src/notifications/*" ],
       "@orders/*": [ "src/orders/*" ],

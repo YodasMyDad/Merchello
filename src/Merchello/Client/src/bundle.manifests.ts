@@ -23,6 +23,7 @@ import { manifests as warehouses } from "@warehouses/manifest.js";
 import { manifests as shipping } from "@shipping/manifest.js";
 import { manifests as paymentProviders } from "@payment-providers/manifest.js";
 import { manifests as fulfilmentProviders } from "@fulfilment-providers/manifest.js";
+import { manifests as healthChecks } from "@health-checks/manifest.js";
 import { manifests as exchangeRateProviders } from "@exchange-rate-providers/manifest.js";
 import { manifests as addressLookupProviders } from "@address-lookup-providers/manifest.js";
 import { manifests as upsells } from "@upsells/manifest.js";
@@ -64,6 +65,7 @@ export const manifests: Array<UmbExtensionManifest> = [
   ...shipping,
   ...paymentProviders,
   ...fulfilmentProviders,
+  ...healthChecks,
   ...exchangeRateProviders,
   ...addressLookupProviders,
   ...upsells,
