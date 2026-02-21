@@ -379,16 +379,47 @@ public class ShipBobFulfilmentProviderTests
         parsed.Success.ShouldBeTrue();
         parsed.EventType.ShouldNotBeNullOrWhiteSpace();
         parsed.StatusUpdates.Count.ShouldBe(1);
-        parsed.StatusUpdates[0].ProviderReference.ShouldBe("12345");
+        parsed.StatusUpdates[0].ProviderReference.ShouldBe("REF-123");
         parsed.StatusUpdates[0].ExtendedData["ShipBobReferenceId"].ToString().ShouldBe("REF-123");
         parsed.ShipmentUpdates.Count.ShouldBe(1);
-        parsed.ShipmentUpdates[0].ProviderReference.ShouldBe("12345");
+        parsed.ShipmentUpdates[0].ProviderReference.ShouldBe("REF-123");
         parsed.ShipmentUpdates[0].TrackingNumber.ShouldBe("TRACK-123");
         var shippedItems = parsed.ShipmentUpdates[0].Items;
         shippedItems.ShouldNotBeNull();
         shippedItems!.Count.ShouldBe(1);
         shippedItems[0].Sku.ShouldBe("TEST-SKU-001");
         headers.ContainsKey("x-webhook-topic").ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task GenerateTestWebhookPayloadAsync_WithNumericProviderReference_UsesOrderIdAsProviderReference()
+    {
+        await _provider.ConfigureAsync(new FulfilmentProviderConfiguration
+        {
+            Id = Guid.NewGuid(),
+            ProviderKey = "shipbob",
+            SettingsJson = new ShipBobSettings
+            {
+                PersonalAccessToken = "pat_test_token",
+                ChannelId = 12345
+            }.ToJson()
+        });
+
+        var (payload, headers) = await _provider.GenerateTestWebhookPayloadAsync(new GenerateFulfilmentWebhookPayloadRequest
+        {
+            EventType = "order.shipped",
+            ProviderReference = "777",
+            ProviderShipmentId = "456"
+        });
+
+        var request = BuildRequest(payload, headers);
+        var parsed = await _provider.ProcessWebhookAsync(request);
+
+        parsed.Success.ShouldBeTrue();
+        parsed.StatusUpdates.Count.ShouldBe(1);
+        parsed.StatusUpdates[0].ProviderReference.ShouldBe("777");
+        parsed.ShipmentUpdates.Count.ShouldBe(1);
+        parsed.ShipmentUpdates[0].ProviderReference.ShouldBe("777");
     }
 
     [Fact]
