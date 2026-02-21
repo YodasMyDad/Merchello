@@ -42,12 +42,12 @@
             <li>Try a different payment method</li>
             <li>Contact your bank if the issue persists</li>
         </ul>
-        @if (!string.IsNullOrEmpty(Model.Store.SupportEmail))
+        @if (!string.IsNullOrEmpty(Model.Store.Email))
         {
             <p class="text-sm text-gray-600 mt-3">
                 Need help? Contact us at
-                <a href="mailto:@Model.Store.SupportEmail" class="text-accent hover:underline">
-                    @Model.Store.SupportEmail
+                <a href="mailto:@Model.Store.Email" class="text-accent hover:underline">
+                    @Model.Store.Email
                 </a>
             </p>
         }

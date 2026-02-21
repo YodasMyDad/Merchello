@@ -20,9 +20,9 @@ public sealed record ShipBobSettings
     public string ApiBaseUrl { get; init; } = "https://api.shipbob.com";
 
     /// <summary>
-    /// API version to use (e.g., "2025-07").
+    /// API version to use (e.g., "2026-01").
     /// </summary>
-    public string ApiVersion { get; init; } = "2025-07";
+    public string ApiVersion { get; init; } = "2026-01";
 
     /// <summary>
     /// Personal Access Token for authentication.

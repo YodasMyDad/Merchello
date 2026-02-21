@@ -453,7 +453,7 @@ export class MerchelloProductsListElement extends UmbElementMixin(LitElement) {
     css`
     :host { display: block; height: 100%; background: var(--uui-color-background); }
     .search-box { max-width: 320px; }
-    .search-box uui-icon[slot="prepend"] { color: var(--uui-color-text-alt); }
+    .search-box uui-icon[slot="prepend"] { margin-left: 2px; color: var(--uui-color-text-alt); }
     .filter-dropdowns { display: flex; gap: var(--uui-size-space-2); flex-wrap: wrap; }
     .filter-dropdowns uui-select { min-width: 140px; }
     .filter-dropdowns uui-button { align-self: stretch; }

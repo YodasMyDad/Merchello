@@ -15,7 +15,7 @@ namespace Merchello.Core.Sqlite.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
 
             modelBuilder.Entity("Merchello.Core.Accounting.Models.Invoice", b =>
                 {
@@ -2756,10 +2756,6 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.Property<string>("StorePhone")
                         .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("StoreSupportEmail")
-                        .HasMaxLength(254)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("StoreWebsiteUrl")

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace Merchello.Core.Fulfilment.Providers.ShipBob;
 
 /// <summary>
-/// HTTP client for ShipBob REST API (version 2025-07).
+/// HTTP client for ShipBob REST API (version configured via ShipBobSettings.ApiVersion).
 /// Uses Personal Access Token (PAT) authentication.
 /// </summary>
 public sealed class ShipBobApiClient : IDisposable

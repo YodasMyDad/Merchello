@@ -58,7 +58,11 @@ public class FulfilmentPollingJob(
         {
             try
             {
-                await PollAllProvidersAsync(stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => PollAllProvidersAsync(stoppingToken),
+                    logger,
+                    "fulfilment polling",
+                    stoppingToken);
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {
@@ -123,6 +127,10 @@ public class FulfilmentPollingJob(
             try
             {
                 await PollProviderAsync(registeredProvider, fulfilmentService, stoppingToken);
+            }
+            catch (Exception ex) when (HostedServiceRuntimeGate.IsTransientSqliteLockException(ex))
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -196,6 +204,10 @@ public class FulfilmentPollingJob(
                     logger.LogWarning("Failed to process status update for reference {Reference}: {Errors}",
                         update.ProviderReference, string.Join(", ", result.Messages.Select(m => m.Message)));
                 }
+            }
+            catch (Exception ex) when (HostedServiceRuntimeGate.IsTransientSqliteLockException(ex))
+            {
+                throw;
             }
             catch (Exception ex)
             {

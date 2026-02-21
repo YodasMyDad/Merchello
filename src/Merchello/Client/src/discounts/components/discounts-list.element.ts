@@ -420,6 +420,7 @@ export class MerchelloDiscountsListElement extends UmbElementMixin(LitElement) {
     }
 
     .search-box uui-icon[slot="prepend"] {
+      margin-left: 2px;
       color: var(--uui-color-text-alt);
     }
 

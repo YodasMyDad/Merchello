@@ -47,7 +47,11 @@ public class ExchangeRateRefreshJob(
         {
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
-                await RefreshOnceAsync(stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => RefreshOnceAsync(stoppingToken),
+                    logger,
+                    "exchange rate refresh",
+                    stoppingToken);
             }
         }
         catch (OperationCanceledException)
@@ -121,6 +125,10 @@ public class ExchangeRateRefreshJob(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             // Expected during shutdown.
+        }
+        catch (Exception ex) when (HostedServiceRuntimeGate.IsTransientSqliteLockException(ex))
+        {
+            throw;
         }
         catch (Exception ex)
         {

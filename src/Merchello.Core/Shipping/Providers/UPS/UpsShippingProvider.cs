@@ -524,8 +524,11 @@ public class UpsShippingProvider(
                     serviceName = option.Name;
                 }
 
-                // Add ShippingOptionId to extended properties
-                extendedProps["shippingOptionId"] = option.Id.ToString();
+                // Add ShippingOptionId for downstream per-warehouse config lookups.
+                // Keep lowercase key for backward compatibility with any existing consumers.
+                var optionId = option.Id.ToString();
+                extendedProps["ShippingOptionId"] = optionId;
+                extendedProps["shippingOptionId"] = optionId;
             }
 
             // Create new service level with potentially modified values

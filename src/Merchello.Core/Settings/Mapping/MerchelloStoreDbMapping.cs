@@ -34,7 +34,6 @@ public class MerchelloStoreDbMapping : IEntityTypeConfiguration<MerchelloStore>
             .HasDefaultValue("Acme Store");
 
         builder.Property(x => x.StoreEmail).HasMaxLength(254);
-        builder.Property(x => x.StoreSupportEmail).HasMaxLength(254);
         builder.Property(x => x.StorePhone).HasMaxLength(50);
         builder.Property(x => x.StoreWebsiteUrl).HasMaxLength(500);
         builder.Property(x => x.StoreAddress)

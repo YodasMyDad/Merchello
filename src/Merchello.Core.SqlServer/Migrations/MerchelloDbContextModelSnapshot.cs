@@ -17,7 +17,7 @@ namespace Merchello.Core.SqlServer.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasAnnotation("ProductVersion", "10.0.2")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -2764,10 +2764,6 @@ namespace Merchello.Core.SqlServer.Migrations
                     b.Property<string>("StorePhone")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("StoreSupportEmail")
-                        .HasMaxLength(254)
-                        .HasColumnType("nvarchar(254)");
 
                     b.Property<string>("StoreWebsiteUrl")
                         .HasMaxLength(500)

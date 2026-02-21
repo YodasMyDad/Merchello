@@ -64,7 +64,6 @@ public class MerchelloStoreSettingsService(
         merchello.LowStockThreshold = store.LowStockThreshold;
         merchello.Store.Name = store.StoreName;
         merchello.Store.Email = store.StoreEmail;
-        merchello.Store.SupportEmail = store.StoreEmail ?? merchello.Store.Email;
         merchello.Store.Phone = store.StorePhone;
         merchello.Store.LogoUrl = mediaUrlResolver.ResolveMediaUrl(store.StoreLogoMediaKey);
         merchello.Store.WebsiteUrl = ResolveWebsiteUrl(store.StoreWebsiteUrl, merchello.Store.WebsiteUrl);
@@ -341,7 +340,6 @@ public class MerchelloStoreSettingsService(
             ? "Acme Store"
             : storePanel.Name.Trim();
         store.StoreEmail = NullIfWhiteSpace(storePanel.Email);
-        store.StoreSupportEmail = null;
         store.StorePhone = NullIfWhiteSpace(storePanel.Phone);
         store.StoreWebsiteUrl = NullIfWhiteSpace(storePanel.WebsiteUrl);
         store.StoreAddress = string.IsNullOrWhiteSpace(storePanel.Address)

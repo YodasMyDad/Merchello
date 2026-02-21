@@ -172,7 +172,7 @@ public static class ShipBobStatusMapper
 
         return topic.ToLowerInvariant() switch
         {
-            // 2025-07 format
+            // Date-versioned format (for example 2025-07, 2026-01)
             "order.shipped" => "shipped",
             "order.shipment.delivered" => "delivered",
             "order.shipment.exception" => "exception",

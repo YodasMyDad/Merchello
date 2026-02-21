@@ -28,11 +28,6 @@ public class EmailStoreContext
     public string? WebsiteUrl { get; set; }
 
     /// <summary>
-    /// Support email address.
-    /// </summary>
-    public string? SupportEmail { get; set; }
-
-    /// <summary>
     /// Store phone number.
     /// </summary>
     public string? Phone { get; set; }

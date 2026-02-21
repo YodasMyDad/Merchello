@@ -792,7 +792,7 @@ Tokens are used in email configuration fields (To, From, Subject) and are resolv
 {{invoice.billingAddress.name}}
 {{store.name}}
 {{store.websiteUrl}}
-{{store.supportEmail}}
+{{store.email}}
 ```
 
 **Important:** Tokens are for simple values only. The `DownloadLinks` collection is rendered in templates via Razor `@foreach`, not token substitution. See section 4.7 for the template example.

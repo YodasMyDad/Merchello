@@ -281,10 +281,10 @@ else
                    class="px-6 py-3 bg-primary text-white font-medium rounded-lg hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all text-center">
                     Continue shopping
                 </a>
-                @if (!string.IsNullOrEmpty(Model.Store.SupportEmail))
+                @if (!string.IsNullOrEmpty(Model.Store.Email))
                 {
                     <span class="text-sm text-gray-600">
-                        Need help? <a href="mailto:@Model.Store.SupportEmail" class="text-accent hover:underline">Contact us</a>
+                        Need help? <a href="mailto:@Model.Store.Email" class="text-accent hover:underline">Contact us</a>
                     </span>
                 }
             </div>

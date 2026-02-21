@@ -10,6 +10,7 @@ using Merchello.Core.Webhooks.Dtos;
 using Merchello.Core.Webhooks.Models;
 using Merchello.Core.Webhooks.Services.Interfaces;
 using Merchello.Core.Webhooks.Services.Parameters;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -36,6 +37,7 @@ public class WebhookService(
     private const int MinTimeoutSeconds = 1;
     private const int MaxTimeoutSeconds = 300;
     private const int SendingRecoveryGraceSeconds = 60;
+    private const int SqliteLockRetryAttempts = 4;
 
     #region Subscriptions
 
@@ -597,31 +599,35 @@ public class WebhookService(
 
     public async Task ProcessPendingRetriesAsync(CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
         var utcNow = DateTime.UtcNow;
         var staleSendingCutoff = utcNow.AddSeconds(-(MaxTimeoutSeconds + SendingRecoveryGraceSeconds));
-        var recoveredStaleSendingRows = await scope.ExecuteWithContextAsync(async db =>
-            await db.OutboundDeliveries
-                .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
-                            d.Status == OutboundDeliveryStatus.Sending &&
-                            (d.DateSent == null || d.DateSent <= staleSendingCutoff))
-                .ExecuteUpdateAsync(setters => setters
-                        .SetProperty(d => d.Status, OutboundDeliveryStatus.Pending)
-                        .SetProperty(d => d.NextRetryUtc, _ => (DateTime?)null),
-                    ct));
+        var (recoveredStaleSendingRows, pendingDeliveries) = await ExecuteWithSqliteLockRetryAsync(async () =>
+        {
+            using var scope = efCoreScopeProvider.CreateScope();
+            var recoveredRows = await scope.ExecuteWithContextAsync(async db =>
+                await db.OutboundDeliveries
+                    .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
+                                d.Status == OutboundDeliveryStatus.Sending &&
+                                (d.DateSent == null || d.DateSent <= staleSendingCutoff))
+                    .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(d => d.Status, OutboundDeliveryStatus.Pending)
+                            .SetProperty(d => d.NextRetryUtc, _ => (DateTime?)null),
+                        ct));
 
-        var pendingDeliveries = await scope.ExecuteWithContextAsync(async db =>
-            await db.OutboundDeliveries
-                .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
-                            (d.Status == OutboundDeliveryStatus.Pending ||
-                             (d.Status == OutboundDeliveryStatus.Retrying &&
-                              d.NextRetryUtc != null &&
-                              d.NextRetryUtc <= utcNow)))
-                .OrderBy(d => d.NextRetryUtc ?? d.DateCreated)
-                .Take(100)
-                .Select(d => d.Id)
-                .ToListAsync(ct));
-        scope.Complete();
+            var pendingRows = await scope.ExecuteWithContextAsync(async db =>
+                await db.OutboundDeliveries
+                    .Where(d => d.DeliveryType == OutboundDeliveryType.Webhook &&
+                                (d.Status == OutboundDeliveryStatus.Pending ||
+                                 (d.Status == OutboundDeliveryStatus.Retrying &&
+                                  d.NextRetryUtc != null &&
+                                  d.NextRetryUtc <= utcNow)))
+                    .OrderBy(d => d.NextRetryUtc ?? d.DateCreated)
+                    .Take(100)
+                    .Select(d => d.Id)
+                    .ToListAsync(ct));
+            scope.Complete();
+            return (recoveredRows, pendingRows);
+        }, ct);
 
         var deliveryIds = pendingDeliveries ?? [];
 
@@ -973,6 +979,55 @@ public class WebhookService(
 
         return null;
     }
+
+    private async Task<T> ExecuteWithSqliteLockRetryAsync<T>(
+        Func<Task<T>> operation,
+        CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                return await operation();
+            }
+            catch (Exception ex) when (IsTransientSqliteLockException(ex) && attempt < SqliteLockRetryAttempts)
+            {
+                var delay = GetSqliteLockRetryDelay(attempt);
+                logger.LogWarning(
+                    ex,
+                    "SQLite lock contention while processing webhook retries (attempt {Attempt}/{MaxAttempts}). Retrying in {DelayMs}ms.",
+                    attempt,
+                    SqliteLockRetryAttempts,
+                    (int)delay.TotalMilliseconds);
+                await Task.Delay(delay, ct);
+            }
+        }
+    }
+
+    private static bool IsTransientSqliteLockException(Exception exception)
+    {
+        if (exception is DbUpdateException dbUpdateException &&
+            dbUpdateException.InnerException is SqliteException dbUpdateSqliteException)
+        {
+            return dbUpdateSqliteException.SqliteErrorCode is 5 or 6 ||
+                   dbUpdateSqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   dbUpdateSqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (exception is SqliteException sqliteException)
+        {
+            return sqliteException.SqliteErrorCode is 5 or 6 ||
+                   sqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   sqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return exception.InnerException is not null && IsTransientSqliteLockException(exception.InnerException);
+    }
+
+    private static TimeSpan GetSqliteLockRetryDelay(int attempt)
+        => TimeSpan.FromMilliseconds(Math.Min(1200, 200 * attempt));
 
     #endregion
 }

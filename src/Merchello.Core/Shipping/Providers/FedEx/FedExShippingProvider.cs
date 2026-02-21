@@ -63,6 +63,7 @@ public class FedExShippingProvider(
             - **API Key** (Client ID)
             - **Secret Key** (Client Secret)
             - **Account Number** (from your FedEx account)
+            - Optional **Child Key/Child Secret** for CSP or parent-child OAuth setups
 
             ### 4. Testing
 
@@ -167,6 +168,38 @@ public class FedExShippingProvider(
                     new SelectOption { Value = Constants.ShippingProviders.Environments.Sandbox, Label = "Sandbox (Testing)" },
                     new SelectOption { Value = Constants.ShippingProviders.Environments.Production, Label = "Production (Live)" }
                 ]
+            },
+            new ProviderConfigurationField
+            {
+                Key = Constants.ShippingProviders.ConfigKeys.GrantType,
+                Label = "OAuth Grant Type",
+                Description = "FedEx OAuth grant type (default: client_credentials)",
+                FieldType = ConfigurationFieldType.Select,
+                IsRequired = false,
+                DefaultValue = "client_credentials",
+                Options =
+                [
+                    new SelectOption { Value = "client_credentials", Label = "client_credentials" },
+                    new SelectOption { Value = "csp_credentials", Label = "csp_credentials" },
+                    new SelectOption { Value = "client_pc_credentials", Label = "client_pc_credentials" }
+                ]
+            },
+            new ProviderConfigurationField
+            {
+                Key = Constants.ShippingProviders.ConfigKeys.ChildKey,
+                Label = "Child Key (Optional)",
+                Description = "Optional child key for parent-child/CSP auth flows",
+                FieldType = ConfigurationFieldType.Text,
+                IsRequired = false
+            },
+            new ProviderConfigurationField
+            {
+                Key = Constants.ShippingProviders.ConfigKeys.ChildSecret,
+                Label = "Child Secret (Optional)",
+                Description = "Optional child secret for parent-child/CSP auth flows",
+                FieldType = ConfigurationFieldType.Password,
+                IsSensitive = true,
+                IsRequired = false
             }
         ]);
     }
@@ -229,6 +262,9 @@ public class FedExShippingProvider(
             var clientSecret = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.ClientSecret);
             var accountNumber = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.AccountNumber);
             var environment = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.Environment) ?? Constants.ShippingProviders.Environments.Sandbox;
+            var childKey = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.ChildKey);
+            var childSecret = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.ChildSecret);
+            var configuredGrantType = settings.GetValueOrDefault(Constants.ShippingProviders.ConfigKeys.GrantType);
 
             if (string.IsNullOrEmpty(clientId) ||
                 string.IsNullOrEmpty(clientSecret) ||
@@ -236,6 +272,12 @@ public class FedExShippingProvider(
             {
                 return;
             }
+
+            var grantType = !string.IsNullOrWhiteSpace(configuredGrantType)
+                ? configuredGrantType.Trim()
+                : (!string.IsNullOrWhiteSpace(childKey) && !string.IsNullOrWhiteSpace(childSecret)
+                    ? "csp_credentials"
+                    : "client_credentials");
 
             var useSandbox = environment.Equals(Constants.ShippingProviders.Environments.Sandbox, StringComparison.OrdinalIgnoreCase);
 
@@ -245,6 +287,9 @@ public class FedExShippingProvider(
                 clientId,
                 clientSecret,
                 accountNumber,
+                grantType,
+                childKey,
+                childSecret,
                 useSandbox);
         }
         catch (JsonException)
@@ -527,8 +572,11 @@ public class FedExShippingProvider(
                     serviceName = option.Name;
                 }
 
-                // Add ShippingOptionId to extended properties
-                extendedProps["shippingOptionId"] = option.Id.ToString();
+                // Add ShippingOptionId for downstream per-warehouse config lookups.
+                // Keep lowercase key for backward compatibility with any existing consumers.
+                var optionId = option.Id.ToString();
+                extendedProps["ShippingOptionId"] = optionId;
+                extendedProps["shippingOptionId"] = optionId;
             }
 
             // Create new service level with potentially modified values

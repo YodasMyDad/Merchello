@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Net;
 using System.Threading;
 using Merchello.Core.AddressLookup.Providers;
 using Merchello.Core.AddressLookup.Providers.Interfaces;
@@ -235,6 +236,17 @@ public static class Startup
         builder.Services.AddMemoryCache();
         builder.Services.AddDataProtection();
         builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient(nameof(ProductSyncService), client =>
+        {
+            // Product image import enforces its own cancellation tokens.
+            // Keep client timeout uncapped and disable auto-redirect to revalidate each hop.
+            client.Timeout = Timeout.InfiniteTimeSpan;
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("Merchello-ProductSync/1.0");
+        }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+        });
         builder.Services.AddHttpClient("Webhooks", client =>
         {
             // Per-subscription webhook timeout is enforced via cancellation tokens in WebhookDispatcher.

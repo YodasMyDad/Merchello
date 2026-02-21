@@ -65,7 +65,11 @@ public class UcpSigningKeyRotationJob(
         {
             try
             {
-                await RotateIfDueAsync(stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => RotateIfDueAsync(stoppingToken),
+                    logger,
+                    "UCP signing key rotation check",
+                    stoppingToken);
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {

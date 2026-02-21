@@ -164,11 +164,11 @@
                     }
                 </div>
                 <div class="flex flex-wrap items-center gap-4">
-                    @if (!string.IsNullOrEmpty(store.SupportEmail))
+                    @if (!string.IsNullOrEmpty(store.Email))
                     {
-                        <a href="mailto:@store.SupportEmail" class="hover:text-gray-900">
+                        <a href="mailto:@store.Email" class="hover:text-gray-900">
                             <span class="sr-only">Email:</span>
-                            @store.SupportEmail
+                            @store.Email
                         </a>
                     }
                     @if (!string.IsNullOrEmpty(store.Phone))

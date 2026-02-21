@@ -59,7 +59,11 @@ public class DiscountStatusJob(
                 }
                 else
                 {
-                    await UpdateExpiredDiscountsAsync(stoppingToken);
+                    await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                        () => UpdateExpiredDiscountsAsync(stoppingToken),
+                        logger,
+                        "discount expiry check",
+                        stoppingToken);
                 }
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))

@@ -1300,6 +1300,7 @@ export class MerchelloProductPickerModalElement extends UmbModalBaseElement<
     }
 
     .search-container uui-icon[slot="prepend"] {
+      margin-left: 2px;
       color: var(--uui-color-text-alt);
     }
 

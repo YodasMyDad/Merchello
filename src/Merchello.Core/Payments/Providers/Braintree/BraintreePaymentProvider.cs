@@ -38,12 +38,20 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
     private const string BraintreeLocalPaymentAdapterUrl = "/App_Plugins/Merchello/js/checkout/adapters/braintree-local-payment-adapter.js";
 
     /// <summary>
+    /// Pinned Braintree Web SDK version used for all component script URLs.
+    /// </summary>
+    private const string BraintreeWebSdkVersion = "3.136.0";
+
+    /// <summary>
     /// Local payment method aliases that use the local payment SDK.
     /// </summary>
     private static readonly HashSet<string> LocalPaymentAliases = new(StringComparer.OrdinalIgnoreCase)
     {
         "ideal", "bancontact", "sepa", "eps", "p24"
     };
+
+    private static string GetBraintreeJsUrl(string component) =>
+        $"https://js.braintreegateway.com/web/{BraintreeWebSdkVersion}/js/{component}.min.js";
 
     /// <summary>
     /// SVG icon for card payments (credit card symbol).
@@ -424,18 +432,18 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             }
 
             // Default: Return session with adapter configuration for Braintree Hosted Fields (cards)
-            // SDK version 3.134.0 (latest as of 2025)
+            // SDK version pinned via BraintreeWebSdkVersion
             return PaymentSessionResult.HostedFields(
                 providerAlias: Metadata.Alias,
                 methodAlias: methodAlias,
                 adapterUrl: BraintreePaymentAdapterUrl,
-                jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
+                jsSdkUrl: GetBraintreeJsUrl("client"),
                 sdkConfig: new Dictionary<string, object>
                 {
-                    // SDK component URLs (v3.134.0)
-                    ["hostedFieldsSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/hosted-fields.min.js",
-                    ["threeDSecureSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/three-d-secure.min.js",
-                    ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/data-collector.min.js",
+                    // SDK component URLs
+                    ["hostedFieldsSdkUrl"] = GetBraintreeJsUrl("hosted-fields"),
+                    ["threeDSecureSdkUrl"] = GetBraintreeJsUrl("three-d-secure"),
+                    ["dataCollectorSdkUrl"] = GetBraintreeJsUrl("data-collector"),
 
                     // Enable 3D Secure
                     ["threeDSecureEnabled"] = true,
@@ -516,12 +524,12 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             providerAlias: Metadata.Alias,
             methodAlias: methodAlias,
             adapterUrl: BraintreeLocalPaymentAdapterUrl,
-            jsSdkUrl: "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
+            jsSdkUrl: GetBraintreeJsUrl("client"),
             sdkConfig: new Dictionary<string, object>
             {
-                // SDK component URLs (v3.134.0)
-                ["localPaymentSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/local-payment.min.js",
-                ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/data-collector.min.js",
+                // SDK component URLs
+                ["localPaymentSdkUrl"] = GetBraintreeJsUrl("local-payment"),
+                ["dataCollectorSdkUrl"] = GetBraintreeJsUrl("data-collector"),
 
                 // Merchant account for multi-currency
                 ["merchantAccountId"] = _merchantAccountId ?? "",
@@ -740,10 +748,10 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             // Map method alias to SDK URL
             var sdkUrl = method.Alias.ToLowerInvariant() switch
             {
-                "paypal" => "https://js.braintreegateway.com/web/3.134.0/js/paypal-checkout.min.js",
-                "applepay" => "https://js.braintreegateway.com/web/3.134.0/js/apple-pay.min.js",
-                "googlepay" => "https://js.braintreegateway.com/web/3.134.0/js/google-payment.min.js",
-                "venmo" => "https://js.braintreegateway.com/web/3.134.0/js/venmo.min.js",
+                "paypal" => GetBraintreeJsUrl("paypal-checkout"),
+                "applepay" => GetBraintreeJsUrl("apple-pay"),
+                "googlepay" => GetBraintreeJsUrl("google-payment"),
+                "venmo" => GetBraintreeJsUrl("venmo"),
                 _ => null
             };
 
@@ -757,8 +765,8 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                 SdkConfig = new Dictionary<string, object>
                 {
                     ["clientToken"] = clientToken,
-                    ["clientSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/client.min.js",
-                    ["dataCollectorSdkUrl"] = "https://js.braintreegateway.com/web/3.134.0/js/data-collector.min.js",
+                    ["clientSdkUrl"] = GetBraintreeJsUrl("client"),
+                    ["dataCollectorSdkUrl"] = GetBraintreeJsUrl("data-collector"),
                     ["googlePayScriptUrl"] = "https://pay.google.com/gp/p/js/pay.js",
                     ["displayName"] = Configuration?.GetValue("merchantAccountId") ?? "Store",
                     ["googleMerchantId"] = _merchantId ?? "",
@@ -1140,6 +1148,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                 "transaction_settlement_declined" => WebhookEventType.PaymentFailed,
                 "dispute_opened" => WebhookEventType.DisputeOpened,
                 "dispute_won" or "dispute_lost" => WebhookEventType.DisputeResolved,
+                "local_payment_funded" => WebhookEventType.PaymentCompleted,
                 "local_payment_completed" => WebhookEventType.PaymentCompleted,
                 "local_payment_reversed" => WebhookEventType.RefundCompleted,
                 "local_payment_expired" => WebhookEventType.PaymentFailed,
@@ -1178,6 +1187,18 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
 
             case WebhookKind.DISPUTE_WON:
                 return HandleDisputeWon(notification);
+
+            case WebhookKind.LOCAL_PAYMENT_COMPLETED:
+                return HandleLocalPaymentCompleted(notification);
+
+            case WebhookKind.LOCAL_PAYMENT_REVERSED:
+                return HandleLocalPaymentReversed(notification);
+
+            case WebhookKind.LOCAL_PAYMENT_EXPIRED:
+                return HandleLocalPaymentExpired(notification);
+
+            case WebhookKind.LOCAL_PAYMENT_FUNDED:
+                return HandleLocalPaymentFunded(notification);
 
             default:
                 // Acknowledge but don't process unknown events
@@ -1277,6 +1298,94 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             amount: dispute.Amount);
     }
 
+    private static WebhookProcessingResult HandleLocalPaymentCompleted(WebhookNotification notification)
+    {
+        var localPayment = notification.LocalPaymentCompleted;
+        if (localPayment == null)
+        {
+            return WebhookProcessingResult.Failure("Could not parse local payment completion from webhook.");
+        }
+
+        var transaction = localPayment.Transaction;
+        if (transaction != null && !string.IsNullOrWhiteSpace(transaction.Id))
+        {
+            Guid? invoiceId = null;
+            if (transaction.CustomFields?.TryGetValue("invoice_id", out var invoiceIdStr) == true &&
+                Guid.TryParse(invoiceIdStr, out var parsedInvoiceId))
+            {
+                invoiceId = parsedInvoiceId;
+            }
+
+            return WebhookProcessingResult.Successful(
+                eventType: WebhookEventType.PaymentCompleted,
+                transactionId: transaction.Id,
+                invoiceId: invoiceId,
+                amount: transaction.Amount);
+        }
+
+        if (string.IsNullOrWhiteSpace(localPayment.PaymentId))
+        {
+            return WebhookProcessingResult.Failure("Could not parse local payment ID from webhook.");
+        }
+
+        return WebhookProcessingResult.Successful(
+            eventType: WebhookEventType.PaymentCompleted,
+            transactionId: localPayment.PaymentId);
+    }
+
+    private static WebhookProcessingResult HandleLocalPaymentReversed(WebhookNotification notification)
+    {
+        var localPayment = notification.LocalPaymentReversed;
+        if (localPayment == null || string.IsNullOrWhiteSpace(localPayment.PaymentId))
+        {
+            return WebhookProcessingResult.Failure("Could not parse local payment reversal from webhook.");
+        }
+
+        return WebhookProcessingResult.Successful(
+            eventType: WebhookEventType.RefundCompleted,
+            transactionId: localPayment.PaymentId);
+    }
+
+    private static WebhookProcessingResult HandleLocalPaymentExpired(WebhookNotification notification)
+    {
+        var localPayment = notification.LocalPaymentExpired;
+        if (localPayment == null || string.IsNullOrWhiteSpace(localPayment.PaymentId))
+        {
+            return WebhookProcessingResult.Failure("Could not parse local payment expiry from webhook.");
+        }
+
+        return WebhookProcessingResult.Successful(
+            eventType: WebhookEventType.PaymentFailed,
+            transactionId: localPayment.PaymentId);
+    }
+
+    private static WebhookProcessingResult HandleLocalPaymentFunded(WebhookNotification notification)
+    {
+        var localPayment = notification.LocalPaymentFunded;
+        if (localPayment == null)
+        {
+            return WebhookProcessingResult.Failure("Could not parse local payment funding from webhook.");
+        }
+
+        var transaction = localPayment.Transaction;
+        if (transaction != null && !string.IsNullOrWhiteSpace(transaction.Id))
+        {
+            return WebhookProcessingResult.Successful(
+                eventType: WebhookEventType.PaymentCompleted,
+                transactionId: transaction.Id,
+                amount: transaction.Amount);
+        }
+
+        if (string.IsNullOrWhiteSpace(localPayment.PaymentId))
+        {
+            return WebhookProcessingResult.Failure("Could not parse local payment ID from webhook.");
+        }
+
+        return WebhookProcessingResult.Successful(
+            eventType: WebhookEventType.PaymentCompleted,
+            transactionId: localPayment.PaymentId);
+    }
+
     // =====================================================
     // Webhook Testing (Simulation)
     // =====================================================
@@ -1337,6 +1446,14 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                 EventType = "local_payment_completed",
                 DisplayName = "Local Payment Completed",
                 Description = "Fired when a local payment method (iDEAL, Bancontact, SEPA, etc.) completes successfully.",
+                Category = WebhookEventCategory.Payment,
+                MerchelloEventType = WebhookEventType.PaymentCompleted
+            },
+            new()
+            {
+                EventType = "local_payment_funded",
+                DisplayName = "Local Payment Funded",
+                Description = "Fired when a local payment method has been funded and a transaction is available.",
                 Category = WebhookEventCategory.Payment,
                 MerchelloEventType = WebhookEventType.PaymentCompleted
             },
@@ -1414,6 +1531,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
             "dispute_opened" => "dispute_opened",
             "dispute_won" => "dispute_won",
             "dispute_lost" => "dispute_lost",
+            "local_payment_funded" => "local_payment_funded",
             "local_payment_completed" => "local_payment_completed",
             "local_payment_reversed" => "local_payment_reversed",
             "local_payment_expired" => "local_payment_expired",
@@ -1498,7 +1616,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                     </subject>
                 </notification>
                 """,
-            "local_payment_completed" or "local_payment_reversed" or "local_payment_expired" => $"""
+            "local_payment_funded" or "local_payment_completed" or "local_payment_reversed" or "local_payment_expired" => $"""
                 <?xml version="1.0" encoding="UTF-8"?>
                 <notification>
                     <kind>{kind}</kind>
@@ -1511,7 +1629,7 @@ public class BraintreePaymentProvider(ILogger<BraintreePaymentProvider> logger) 
                             <payment-method-nonce>fake-valid-nonce</payment-method-nonce>
                             <transaction>
                                 <id>{transactionId}</id>
-                                <status>{(kind == "local_payment_completed" ? "settled" : kind == "local_payment_reversed" ? "voided" : "failed")}</status>
+                                <status>{(kind == "local_payment_completed" ? "settled" : kind == "local_payment_funded" ? "submitted_for_settlement" : kind == "local_payment_reversed" ? "voided" : "failed")}</status>
                                 <amount>{amount:F2}</amount>
                                 <currency-iso-code>EUR</currency-iso-code>
                             </transaction>

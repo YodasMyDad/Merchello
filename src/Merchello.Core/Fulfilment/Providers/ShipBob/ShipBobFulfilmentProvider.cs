@@ -66,6 +66,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
         SupportsPolling = true,
         SupportsProductSync = true,
         SupportsInventorySync = true,
+        CreatesShipmentOnSubmission = false,
         ApiStyle = FulfilmentApiStyle.Rest
     };
 
@@ -110,8 +111,8 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 Label = "API Version",
                 FieldType = ConfigurationFieldType.Text,
                 IsRequired = false,
-                DefaultValue = "2025-07",
-                Description = "ShipBob API version (default: 2025-07)"
+                DefaultValue = "2026-01",
+                Description = "ShipBob API version (default: 2026-01)"
             },
             new ProviderConfigurationField
             {
@@ -520,15 +521,20 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
             var statusUpdates = new List<FulfilmentStatusUpdate>();
             var shipmentUpdates = new List<FulfilmentShipmentUpdate>();
 
-            // Get the reference ID (our order ID)
-            var referenceId = payload.Data.ReferenceId;
-            if (string.IsNullOrWhiteSpace(referenceId))
+            // Resolve provider reference to the value persisted on Merchello orders.
+            // Prefer ShipBob order ID, then external reference ID, then fallback ID.
+            var providerReference = payload.Data.OrderId?.ToString();
+            var externalReferenceId = payload.Data.ReferenceId;
+            if (string.IsNullOrWhiteSpace(providerReference))
             {
-                // Fall back to ShipBob order ID
-                referenceId = payload.Data.OrderId?.ToString() ?? payload.Data.Id?.ToString();
+                providerReference = externalReferenceId;
+            }
+            if (string.IsNullOrWhiteSpace(providerReference))
+            {
+                providerReference = payload.Data.Id?.ToString();
             }
 
-            if (string.IsNullOrWhiteSpace(referenceId))
+            if (string.IsNullOrWhiteSpace(providerReference))
             {
                 return new FulfilmentWebhookResult
                 {
@@ -543,11 +549,17 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
 
             statusUpdates.Add(new FulfilmentStatusUpdate
             {
-                ProviderReference = referenceId,
+                ProviderReference = providerReference,
                 ProviderStatus = providerStatus,
                 MappedStatus = mappedStatus,
                 StatusDate = payload.Data.UpdatedDate ?? DateTime.UtcNow,
-                ErrorMessage = payload.Data.Exception?.Message
+                ErrorMessage = payload.Data.Exception?.Message,
+                ExtendedData = string.IsNullOrWhiteSpace(externalReferenceId)
+                    ? []
+                    : new Dictionary<string, object>
+                    {
+                        ["ShipBobReferenceId"] = externalReferenceId
+                    }
             });
 
             // Process shipment data if present
@@ -564,7 +576,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
 
                     shipmentUpdates.Add(new FulfilmentShipmentUpdate
                     {
-                        ProviderReference = referenceId,
+                        ProviderReference = providerReference,
                         ProviderShipmentId = shipment.Id.ToString(),
                         TrackingNumber = shipment.Tracking.TrackingNumber,
                         TrackingUrl = shipment.Tracking.TrackingUrl,
@@ -575,8 +587,8 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
                 }
             }
 
-            _logger.LogInformation("Processed ShipBob webhook {Topic} for order {ReferenceId}: {StatusUpdates} status, {ShipmentUpdates} shipments",
-                topic, referenceId, statusUpdates.Count, shipmentUpdates.Count);
+            _logger.LogInformation("Processed ShipBob webhook {Topic} for order {ProviderReference}: {StatusUpdates} status, {ShipmentUpdates} shipments",
+                topic, providerReference, statusUpdates.Count, shipmentUpdates.Count);
 
             return new FulfilmentWebhookResult
             {
@@ -753,52 +765,59 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
         }
 
         var updates = new List<FulfilmentStatusUpdate>();
-        var references = providerReferences.ToList();
+        var references = providerReferences
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         if (references.Count == 0)
         {
             return updates;
         }
 
+        var referenceIdFallback = new List<string>();
+
         try
         {
-            // Batch by reference IDs if possible
-            var result = await _apiClient.GetOrdersByReferenceIdsAsync(references, cancellationToken);
-
-            if (!result.Success || result.Data == null)
+            foreach (var providerReference in references)
             {
-                _logger.LogWarning("Failed to poll ShipBob orders: {Error}", result.ErrorMessage);
-                return updates;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
 
-            foreach (var order in result.Data)
-            {
-                var referenceId = order.ReferenceId ?? order.Id.ToString();
-                var status = order.Status ?? "Processing";
-                var mappedStatus = ShipBobStatusMapper.MapOrderStatus(status);
-
-                // Get most specific status from shipments if available
-                var shipments = order.Shipments ?? [];
-                if (shipments.Count > 0)
+                if (!int.TryParse(providerReference, out var orderId))
                 {
-                    var latestShipment = shipments
-                        .OrderByDescending(s => s.LastUpdatedAt ?? s.CreatedDate)
-                        .FirstOrDefault();
-
-                    if (latestShipment != null)
-                    {
-                        var detailId = latestShipment.StatusDetails?.FirstOrDefault()?.Id;
-                        mappedStatus = ShipBobStatusMapper.MapShipmentStatus(latestShipment.Status, detailId);
-                    }
+                    referenceIdFallback.Add(providerReference);
+                    continue;
                 }
 
-                updates.Add(new FulfilmentStatusUpdate
+                var orderResult = await _apiClient.GetOrderAsync(orderId, cancellationToken);
+                if (!orderResult.Success || orderResult.Data == null)
                 {
-                    ProviderReference = referenceId,
-                    ProviderStatus = status,
-                    MappedStatus = mappedStatus,
-                    StatusDate = DateTime.UtcNow
-                });
+                    _logger.LogWarning(
+                        "Failed to poll ShipBob order by ID {OrderId}: {Error}",
+                        orderId,
+                        orderResult.ErrorMessage);
+                    continue;
+                }
+
+                updates.Add(MapStatusUpdate(orderResult.Data, providerReference));
+            }
+
+            if (referenceIdFallback.Count > 0)
+            {
+                var fallbackResult = await _apiClient.GetOrdersByReferenceIdsAsync(referenceIdFallback, cancellationToken);
+
+                if (!fallbackResult.Success || fallbackResult.Data == null)
+                {
+                    _logger.LogWarning("Failed to poll ShipBob orders by reference IDs: {Error}", fallbackResult.ErrorMessage);
+                    return updates;
+                }
+
+                foreach (var order in fallbackResult.Data)
+                {
+                    var providerReference = order.ReferenceId ?? order.Id.ToString();
+                    updates.Add(MapStatusUpdate(order, providerReference));
+                }
             }
 
             _logger.LogDebug("Polled {Count} orders from ShipBob", updates.Count);
@@ -809,6 +828,36 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
         }
 
         return updates;
+    }
+
+    private static FulfilmentStatusUpdate MapStatusUpdate(ShipBobOrderResponse order, string providerReference)
+    {
+        var status = order.Status ?? "Processing";
+        var mappedStatus = ShipBobStatusMapper.MapOrderStatus(status);
+
+        var latestShipment = order.Shipments?
+            .OrderByDescending(s => s.LastUpdatedAt ?? s.CreatedDate)
+            .FirstOrDefault();
+
+        if (latestShipment != null)
+        {
+            var detailId = latestShipment.StatusDetails?.FirstOrDefault()?.Id;
+            mappedStatus = ShipBobStatusMapper.MapShipmentStatus(latestShipment.Status, detailId);
+        }
+
+        return new FulfilmentStatusUpdate
+        {
+            ProviderReference = providerReference,
+            ProviderStatus = status,
+            MappedStatus = mappedStatus,
+            StatusDate = DateTime.UtcNow,
+            ExtendedData = string.IsNullOrWhiteSpace(order.ReferenceId)
+                ? []
+                : new Dictionary<string, object>
+                {
+                    ["ShipBobReferenceId"] = order.ReferenceId
+                }
+        };
     }
 
     #endregion

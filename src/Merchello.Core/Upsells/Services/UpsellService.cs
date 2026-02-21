@@ -8,6 +8,7 @@ using Merchello.Core.Upsells.Extensions;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -28,6 +29,7 @@ public class UpsellService(
     ILogger<UpsellService> logger) : IUpsellService
 {
     private static readonly string CacheKey = "merchello:upsells:active";
+    private const int SqliteLockRetryAttempts = 4;
     private readonly UpsellSettings _settings = upsellSettings.Value;
 
     #region CRUD Operations
@@ -312,45 +314,50 @@ public class UpsellService(
     /// <inheritdoc />
     public async Task UpdateExpiredUpsellsAsync(CancellationToken ct = default)
     {
-        using var scope = efCoreScopeProvider.CreateScope();
         var now = DateTime.UtcNow;
-        var changed = false;
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
+        var changed = await ExecuteWithSqliteLockRetryAsync(async () =>
         {
-            // Transition Scheduled -> Active when StartsAt is reached
-            var scheduledToActivate = await db.UpsellRules
-                .Where(r => r.Status == UpsellStatus.Scheduled && r.StartsAt <= now)
-                .ToListAsync(ct);
-
-            foreach (var rule in scheduledToActivate)
+            var changedInAttempt = false;
+            using var scope = efCoreScopeProvider.CreateScope();
+            await scope.ExecuteWithContextAsync<bool>(async db =>
             {
-                rule.Status = UpsellStatus.Active;
-                rule.DateUpdated = now;
-                changed = true;
-                logger.LogInformation("Upsell rule {UpsellRuleId} transitioned from Scheduled to Active", rule.Id);
-            }
+                // Transition Scheduled -> Active when StartsAt is reached
+                var scheduledToActivate = await db.UpsellRules
+                    .Where(r => r.Status == UpsellStatus.Scheduled && r.StartsAt <= now)
+                    .ToListAsync(ct);
 
-            // Transition Active -> Expired when EndsAt is passed
-            var activeToExpire = await db.UpsellRules
-                .Where(r => r.Status == UpsellStatus.Active && r.EndsAt.HasValue && r.EndsAt <= now)
-                .ToListAsync(ct);
+                foreach (var rule in scheduledToActivate)
+                {
+                    rule.Status = UpsellStatus.Active;
+                    rule.DateUpdated = now;
+                    changedInAttempt = true;
+                    logger.LogInformation("Upsell rule {UpsellRuleId} transitioned from Scheduled to Active", rule.Id);
+                }
 
-            foreach (var rule in activeToExpire)
-            {
-                rule.Status = UpsellStatus.Expired;
-                rule.DateUpdated = now;
-                changed = true;
-                logger.LogInformation("Upsell rule {UpsellRuleId} transitioned from Active to Expired", rule.Id);
-            }
+                // Transition Active -> Expired when EndsAt is passed
+                var activeToExpire = await db.UpsellRules
+                    .Where(r => r.Status == UpsellStatus.Active && r.EndsAt.HasValue && r.EndsAt <= now)
+                    .ToListAsync(ct);
 
-            if (scheduledToActivate.Count > 0 || activeToExpire.Count > 0)
-                await db.SaveChangesAsync(ct);
+                foreach (var rule in activeToExpire)
+                {
+                    rule.Status = UpsellStatus.Expired;
+                    rule.DateUpdated = now;
+                    changedInAttempt = true;
+                    logger.LogInformation("Upsell rule {UpsellRuleId} transitioned from Active to Expired", rule.Id);
+                }
 
-            return true;
-        });
+                if (scheduledToActivate.Count > 0 || activeToExpire.Count > 0)
+                {
+                    await db.SaveChangesAsync(ct);
+                }
 
-        scope.Complete();
+                return true;
+            });
+
+            scope.Complete();
+            return changedInAttempt;
+        }, ct);
 
         if (changed)
             InvalidateCache();
@@ -445,6 +452,55 @@ public class UpsellService(
     #endregion
 
     #region Private Helpers
+
+    private async Task<T> ExecuteWithSqliteLockRetryAsync<T>(
+        Func<Task<T>> operation,
+        CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            try
+            {
+                return await operation();
+            }
+            catch (Exception ex) when (IsTransientSqliteLockException(ex) && attempt < SqliteLockRetryAttempts)
+            {
+                var delay = GetSqliteLockRetryDelay(attempt);
+                logger.LogWarning(
+                    ex,
+                    "SQLite lock contention during upsell status updates (attempt {Attempt}/{MaxAttempts}). Retrying in {DelayMs}ms.",
+                    attempt,
+                    SqliteLockRetryAttempts,
+                    (int)delay.TotalMilliseconds);
+                await Task.Delay(delay, ct);
+            }
+        }
+    }
+
+    private static bool IsTransientSqliteLockException(Exception exception)
+    {
+        if (exception is DbUpdateException dbUpdateException &&
+            dbUpdateException.InnerException is SqliteException dbUpdateSqliteException)
+        {
+            return dbUpdateSqliteException.SqliteErrorCode is 5 or 6 ||
+                   dbUpdateSqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   dbUpdateSqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (exception is SqliteException sqliteException)
+        {
+            return sqliteException.SqliteErrorCode is 5 or 6 ||
+                   sqliteException.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
+                   sqliteException.Message.Contains("database table is locked", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return exception.InnerException is not null && IsTransientSqliteLockException(exception.InnerException);
+    }
+
+    private static TimeSpan GetSqliteLockRetryDelay(int attempt)
+        => TimeSpan.FromMilliseconds(Math.Min(1200, 200 * attempt));
 
     private void InvalidateCache()
     {

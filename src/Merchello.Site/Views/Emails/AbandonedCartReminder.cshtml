@@ -80,9 +80,9 @@
   <mj-column>
     <mj-text font-size="12px" color="#999999">
       Need help with your order? We're happy to assist
-      @if (!string.IsNullOrEmpty(Model.Store.SupportEmail))
+      @if (!string.IsNullOrEmpty(Model.Store.Email))
       {
-        <text>- reach out at <a href="mailto:@Model.Store.SupportEmail" style="color: #999999;">@Model.Store.SupportEmail</a></text>
+        <text>- reach out at <a href="mailto:@Model.Store.Email" style="color: #999999;">@Model.Store.Email</a></text>
       }.
     </mj-text>
   </mj-column>

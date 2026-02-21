@@ -358,10 +358,14 @@ Important fallback behaviors:
    - `continueOnImageFailure = false`: image error fails that handle import.
    - `continueOnImageFailure = true`: warning, handle continues.
 5. Missing option value for generated variant: row-level error and that row fails.
-6. Unknown option value after regeneration: row-level error and that row fails.
-7. `Collection`: warning and ignored for actual collection assignment.
-8. `Status`: warning and ignored on import.
-9. `Variant Inventory Qty`: warning and ignored.
+6. Option-name validation is handle-scoped:
+   - rows can omit `Option1/2/3 Name` when the same handle defines that option name on another row.
+   - legacy single-variant defaults (`Option1 Value` = `Default` or `Default Title`) are accepted without `Option1 Name`.
+7. Unknown option value after regeneration: row-level error and that row fails.
+8. `Collection`: warning and ignored for actual collection assignment.
+9. `Status`: warning and ignored on import.
+10. `Variant Inventory Qty`: warning and ignored.
+11. Image-only continuation rows (`Image Src`/`Image Position` without variant data) are used for root images and skipped for variant resolution.
 
 ## Issue Codes (Current)
 Validation-stage codes:
@@ -414,14 +418,17 @@ Import/export/system-stage codes (service):
 4. `MaxCsvBytes` (default `15728640`, 15 MB)
 5. `MaxValidationIssuesReturned` (default `1000`)
 6. `ImageDownloadTimeoutSeconds` (default `30`)
-7. `MaxImageBytes` (default `20971520`, 20 MB)
-8. `ArtifactStoragePath` (default `App_Data/ProductSync`)
+7. `MaxImageRedirects` (default `5`)
+8. `MaxImageBytes` (default `20971520`, 20 MB)
+9. `ArtifactStoragePath` (default `App_Data/ProductSync`)
 
 ## Security and Operational Notes
 1. CSV and image sizes are capped by settings.
 2. Image URLs are validated via SSRF-safe checks (public HTTP/HTTPS only, no loopback/private ranges).
-3. Artifact paths are constrained to base storage path with traversal protection.
-4. Cleanup job removes old artifacts and old runs by retention policy.
+3. Image downloads use manual redirect handling with per-hop URL revalidation and redirect-loop/redirect-count protection.
+4. Imported image payloads must be recognized image binary formats; unsupported/non-image payloads are rejected.
+5. Artifact paths are constrained to base storage path with traversal protection.
+6. Cleanup job removes old artifacts and old runs by retention policy.
 
 ## Backoffice UX Summary
 Location:
@@ -443,4 +450,3 @@ Planning references used for this feature (dated February 18, 2026):
 2. https://help.shopify.com/en/manual/products/import-export/import-products
 3. https://help.shopify.com/en/manual/products/import-export/export-products
 4. https://help.shopify.com/en/manual/products/import-export/common-import-issues
-

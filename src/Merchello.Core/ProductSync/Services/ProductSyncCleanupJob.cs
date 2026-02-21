@@ -63,7 +63,11 @@ public class ProductSyncCleanupJob(
             {
                 using var scope = serviceScopeFactory.CreateScope();
                 var productSyncService = scope.ServiceProvider.GetRequiredService<IProductSyncService>();
-                await productSyncService.CleanupRunsAsync(stoppingToken);
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => productSyncService.CleanupRunsAsync(stoppingToken),
+                    logger,
+                    "product sync cleanup",
+                    stoppingToken);
             }
             catch (Exception ex) when (IsDatabaseNotReadyException(ex))
             {

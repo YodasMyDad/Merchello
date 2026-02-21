@@ -40,6 +40,7 @@ public class ShopifyCsvImportValidator : IShopifyCsvImportValidator
             });
         }
 
+        var optionNamesByHandle = BuildOptionNameLookup(document.Rows);
         var seenHandles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in document.Rows)
@@ -61,9 +62,10 @@ public class ShopifyCsvImportValidator : IShopifyCsvImportValidator
                     "Title is empty on the first row for this handle.", row.RowNumber, handle: handle, field: ShopifyCsvSchema.Title);
             }
 
-            ValidateOptionPair(issues, maxIssues, row, handle, ShopifyCsvSchema.Option1Name, ShopifyCsvSchema.Option1Value);
-            ValidateOptionPair(issues, maxIssues, row, handle, ShopifyCsvSchema.Option2Name, ShopifyCsvSchema.Option2Value);
-            ValidateOptionPair(issues, maxIssues, row, handle, ShopifyCsvSchema.Option3Name, ShopifyCsvSchema.Option3Value);
+            optionNamesByHandle.TryGetValue(handle, out var handleOptionNames);
+            ValidateOptionPair(issues, maxIssues, row, handle, ShopifyCsvSchema.Option1Name, ShopifyCsvSchema.Option1Value, optionIndex: 1, handleOptionNames);
+            ValidateOptionPair(issues, maxIssues, row, handle, ShopifyCsvSchema.Option2Name, ShopifyCsvSchema.Option2Value, optionIndex: 2, handleOptionNames);
+            ValidateOptionPair(issues, maxIssues, row, handle, ShopifyCsvSchema.Option3Name, ShopifyCsvSchema.Option3Value, optionIndex: 3, handleOptionNames);
 
             ValidateDecimal(issues, maxIssues, row, handle, ShopifyCsvSchema.VariantPrice);
             ValidateDecimal(issues, maxIssues, row, handle, ShopifyCsvSchema.VariantCompareAtPrice);
@@ -118,12 +120,35 @@ public class ShopifyCsvImportValidator : IShopifyCsvImportValidator
         ProductSyncCsvRow row,
         string handle,
         string optionNameColumn,
-        string optionValueColumn)
+        string optionValueColumn,
+        int optionIndex,
+        string?[]? handleOptionNames)
     {
         var optionName = Normalize(row[optionNameColumn]);
         var optionValue = Normalize(row[optionValueColumn]);
 
-        if (!string.IsNullOrWhiteSpace(optionValue) && string.IsNullOrWhiteSpace(optionName))
+        if (string.IsNullOrWhiteSpace(optionValue))
+        {
+            return;
+        }
+
+        var effectiveOptionName = optionName;
+        if (string.IsNullOrWhiteSpace(effectiveOptionName) &&
+            handleOptionNames != null &&
+            optionIndex >= 1 &&
+            optionIndex <= handleOptionNames.Length)
+        {
+            effectiveOptionName = handleOptionNames[optionIndex - 1];
+        }
+
+        if (string.IsNullOrWhiteSpace(effectiveOptionName) &&
+            optionIndex == 1 &&
+            IsLegacyDefaultOptionValue(optionValue))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(effectiveOptionName))
         {
             AddIssue(issues, maxIssues, ProductSyncIssueSeverity.Error, ProductSyncStage.Validation, "missing_option_name",
                 $"{optionNameColumn} is required when {optionValueColumn} is provided.",
@@ -132,6 +157,45 @@ public class ShopifyCsvImportValidator : IShopifyCsvImportValidator
                 field: optionNameColumn);
         }
     }
+
+    private static Dictionary<string, string?[]> BuildOptionNameLookup(IReadOnlyList<ProductSyncCsvRow> rows)
+    {
+        var lookup = new Dictionary<string, string?[]>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+        {
+            var handle = Normalize(row[ShopifyCsvSchema.Handle]);
+            if (string.IsNullOrWhiteSpace(handle))
+            {
+                continue;
+            }
+
+            if (!lookup.TryGetValue(handle, out var names))
+            {
+                names = new string?[3];
+                lookup[handle] = names;
+            }
+
+            for (var optionIndex = 1; optionIndex <= 3; optionIndex++)
+            {
+                if (!string.IsNullOrWhiteSpace(names[optionIndex - 1]))
+                {
+                    continue;
+                }
+
+                var optionName = Normalize(row[$"Option{optionIndex} Name"]);
+                if (!string.IsNullOrWhiteSpace(optionName))
+                {
+                    names[optionIndex - 1] = optionName;
+                }
+            }
+        }
+
+        return lookup;
+    }
+
+    private static bool IsLegacyDefaultOptionValue(string optionValue) =>
+        optionValue.Equals("Default", StringComparison.OrdinalIgnoreCase) ||
+        optionValue.Equals("Default Title", StringComparison.OrdinalIgnoreCase);
 
     private static void ValidateDecimal(
         List<ProductSyncIssue> issues,
