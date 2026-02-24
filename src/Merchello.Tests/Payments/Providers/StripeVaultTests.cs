@@ -1,6 +1,7 @@
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers.Stripe;
 using Merchello.Core.Shared.Services.Interfaces;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Shouldly;
 using Xunit;
@@ -20,7 +21,8 @@ public class StripeVaultTests
         currencyServiceMock.Setup(s => s.GetDecimalPlaces(It.IsAny<string>()))
             .Returns(2);
 
-        _provider = new StripePaymentProvider(currencyServiceMock.Object);
+        var loggerMock = new Mock<ILogger<StripePaymentProvider>>();
+        _provider = new StripePaymentProvider(currencyServiceMock.Object, loggerMock.Object);
     }
 
     #region Metadata Tests
