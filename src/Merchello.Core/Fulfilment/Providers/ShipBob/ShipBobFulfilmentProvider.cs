@@ -670,6 +670,9 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
         var providerReference = string.IsNullOrWhiteSpace(request.ProviderReference)
             ? $"TEST-{Guid.NewGuid():N}"[..12]
             : request.ProviderReference;
+        var simulatedOrderId = int.TryParse(providerReference, out var parsedOrderId)
+            ? parsedOrderId
+            : (int?)null;
         var providerShipmentId = int.TryParse(request.ProviderShipmentId, out var parsedShipmentId)
             ? parsedShipmentId
             : 10001;
@@ -691,7 +694,7 @@ public sealed class ShipBobFulfilmentProvider : FulfilmentProviderBase, IDisposa
             data = new
             {
                 id = providerShipmentId,
-                order_id = 12345,
+                order_id = simulatedOrderId,
                 reference_id = providerReference,
                 status = mappedStatus,
                 updated_date = DateTime.UtcNow,

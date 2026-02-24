@@ -144,3 +144,109 @@ public class MyService(IEFCoreScopeProvider<MyDbContext> scopeProvider)
     }
 }
 ```
+
+## Background Jobs (SQLite Lock Handling)
+
+### The Problem
+
+SQLite serializes all writes via a single file-level lock. When multiple `BackgroundService` jobs run concurrently and hit the database, SQLite throws `SQLITE_BUSY` (error 5) or `SQLITE_LOCKED` (error 6). Unlike SQL Server, there is no row-level locking — any concurrent write attempt will fail.
+
+Additional concerns in Umbraco:
+- Jobs must not run before Umbraco reaches `RuntimeLevel.Run`
+- Umbraco's `EFCoreScope` uses `AsyncLocal` state that can leak into background workers
+- Tables may not exist yet if migrations haven't completed
+
+### The Solution: `HostedServiceRuntimeGate`
+
+A static helper (`Merchello.Core/Shared/Services/HostedServiceRuntimeGate.cs`) that centralises three concerns:
+
+| Method | Purpose |
+|--------|---------|
+| **RunIsolatedAsync** | Suppresses `ExecutionContext` flow so `AsyncLocal` scope state doesn't leak from the HTTP pipeline into background workers |
+| **WaitForRunLevelAsync** | Polls `IRuntimeState` every 2s until Umbraco reaches `RuntimeLevel.Run` |
+| **ExecuteWithSqliteLockRetryAsync** | Wraps DB operations with retry on transient SQLite lock exceptions. Linear backoff: 200ms → 400ms → 600ms (capped 1200ms), default 4 attempts. No-op passthrough for SQL Server (non-SQLite exceptions propagate immediately) |
+
+Lock detection checks for `SqliteException` with error codes 5 or 6, or messages containing `"database is locked"` / `"database table is locked"`. Walks the inner exception chain recursively to catch both direct `SqliteException` and `DbUpdateException` wrapping one.
+
+### Background Job Template
+
+```csharp
+public class MyBackgroundJob(
+    IServiceScopeFactory serviceScopeFactory,
+    IRuntimeState runtimeState,
+    ILogger<MyBackgroundJob> logger) : BackgroundService
+{
+    private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(1);
+    private readonly TimeSpan _initialDelay = TimeSpan.FromSeconds(30);
+
+    // 1. Suppress ExecutionContext flow to isolate from HTTP pipeline
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
+
+    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
+    {
+        // 2. Wait for Umbraco to be fully booted
+        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
+                runtimeState, logger, nameof(MyBackgroundJob), stoppingToken))
+            return;
+
+        // 3. Initial delay to allow migrations to complete
+        try { await Task.Delay(_initialDelay, stoppingToken); }
+        catch (OperationCanceledException) { return; }
+
+        using var timer = new PeriodicTimer(_checkInterval);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                // 4. Wrap work in SQLite lock retry
+                await HostedServiceRuntimeGate.ExecuteWithSqliteLockRetryAsync(
+                    () => DoWorkAsync(stoppingToken),
+                    logger,
+                    "my operation",
+                    stoppingToken);
+            }
+            catch (Exception ex) when (IsDatabaseNotReadyException(ex))
+            {
+                // 5. Silently skip if tables don't exist yet
+                logger.LogDebug("Database not ready yet, skipping cycle");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in background job cycle");
+            }
+
+            try { await timer.WaitForNextTickAsync(stoppingToken); }
+            catch (OperationCanceledException) { break; }
+        }
+    }
+
+    private async Task DoWorkAsync(CancellationToken ct)
+    {
+        // 6. Create a fresh DI scope per cycle (not constructor-injected)
+        using var scope = serviceScopeFactory.CreateScope();
+        var myService = scope.ServiceProvider.GetRequiredService<IMyService>();
+        await myService.DoSomethingAsync(ct);
+    }
+
+    private static bool IsDatabaseNotReadyException(Exception ex)
+    {
+        return ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase) ||          // SQLite
+               ex.Message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) ||    // SQL Server
+               ex.InnerException?.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase) == true ||
+               ex.InnerException?.Message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) == true;
+    }
+}
+
+// Registration
+builder.Services.AddHostedService<MyBackgroundJob>();
+```
+
+### Key Rules
+
+1. **Always use `RunIsolatedAsync`** — without it, Umbraco's `EFCoreScope` `AsyncLocal` state leaks across background workers causing scope/transaction errors.
+2. **Always gate on `WaitForRunLevelAsync`** — jobs that run before Umbraco boots will fail on missing services or uninitialized state.
+3. **Always wrap DB writes in `ExecuteWithSqliteLockRetryAsync`** — this is the only protection against `SQLITE_BUSY`/`SQLITE_LOCKED` in concurrent background jobs.
+4. **Use `IServiceScopeFactory`** — background services are singletons; create a fresh scope per cycle to resolve scoped services like `DbContext`.
+5. **Add an initial delay** — gives migrations time to run before the first cycle hits the database.
