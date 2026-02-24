@@ -366,3 +366,4 @@ src/.idea
 /**/tmpclaude-*
 /src/Merchello.Site/appsettings.Development.json
 /src/Merchello.Site/App_Data/ProductSync/*
+/.env
