@@ -2,6 +2,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Shared.Providers;
+using Microsoft.Extensions.Logging;
 using Stripe;
 using Stripe.Checkout;
 
@@ -21,7 +22,9 @@ namespace Merchello.Core.Payments.Providers.Stripe;
 /// Required webhook events: checkout.session.completed, payment_intent.succeeded,
 /// payment_intent.payment_failed, charge.refunded, charge.dispute.created
 /// </remarks>
-public class StripePaymentProvider(ICurrencyService currencyService) : PaymentProviderBase
+public class StripePaymentProvider(
+    ICurrencyService currencyService,
+    ILogger<StripePaymentProvider> logger) : PaymentProviderBase
 {
     private StripeClient? _client;
     private string? _webhookSecret;
@@ -985,6 +988,7 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
     {
         if (string.IsNullOrEmpty(_webhookSecret))
         {
+            logger.LogWarning("Stripe webhook validation failed: webhook secret is not configured");
             return Task.FromResult(false);
         }
 
@@ -994,6 +998,8 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             if (!headers.TryGetValue("Stripe-Signature", out var signature) &&
                 !headers.TryGetValue("stripe-signature", out signature))
             {
+                logger.LogWarning("Stripe webhook validation failed: Stripe-Signature header not found. Headers: {Headers}",
+                    string.Join(", ", headers.Keys));
                 return Task.FromResult(false);
             }
 
@@ -1001,8 +1007,9 @@ public class StripePaymentProvider(ICurrencyService currencyService) : PaymentPr
             EventUtility.ConstructEvent(payload, signature, _webhookSecret);
             return Task.FromResult(true);
         }
-        catch (StripeException)
+        catch (StripeException ex)
         {
+            logger.LogWarning(ex, "Stripe webhook signature validation failed: {Message}", ex.Message);
             return Task.FromResult(false);
         }
     }

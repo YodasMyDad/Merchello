@@ -21,6 +21,7 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
+  @state() private _visibleSecrets: Set<string> = new Set();
 
   #isConnected = false;
 
@@ -79,6 +80,16 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
 
   private _handleValueChange(key: string, value: string): void {
     this._values = { ...this._values, [key]: value };
+  }
+
+  private _toggleSecretVisibility(key: string): void {
+    const updated = new Set(this._visibleSecrets);
+    if (updated.has(key)) {
+      updated.delete(key);
+    } else {
+      updated.add(key);
+    }
+    this._visibleSecrets = updated;
   }
 
   private _handleCheckboxChange(key: string, checked: boolean): void {
@@ -189,24 +200,35 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
           </umb-property-layout>
         `;
 
-      case "Password":
+      case "Password": {
+        const isVisible = this._visibleSecrets.has(field.key);
         return html`
           <umb-property-layout
             label="${field.label}"
             description="${field.description ?? ""}${field.isSensitive && value ? " (stored securely)" : ""}"
             ?mandatory=${field.isRequired}>
-            <uui-input
-              slot="editor"
-              label="${field.label}"
-              type="password"
-              .value=${value}
-              placeholder="${field.placeholder ?? ""}"
-              ?required=${field.isRequired}
-              @input=${(e: Event) =>
-                this._handleValueChange(field.key, (e.target as HTMLInputElement).value)}
-            ></uui-input>
+            <div slot="editor" class="password-field-wrapper">
+              <uui-input
+                label="${field.label}"
+                type="${isVisible ? "text" : "password"}"
+                .value=${value}
+                placeholder="${field.placeholder ?? ""}"
+                ?required=${field.isRequired}
+                @input=${(e: Event) =>
+                  this._handleValueChange(field.key, (e.target as HTMLInputElement).value)}
+              ></uui-input>
+              <uui-button
+                compact
+                look="secondary"
+                label="${isVisible ? "Hide" : "Show"}"
+                @click=${() => this._toggleSecretVisibility(field.key)}
+              >
+                <uui-icon name="${isVisible ? "icon-eye-slash" : "icon-eye"}"></uui-icon>
+              </uui-button>
+            </div>
           </umb-property-layout>
         `;
+      }
 
       case "Textarea":
         return html`
@@ -388,6 +410,16 @@ export class MerchelloShippingProviderConfigModalElement extends UmbModalBaseEle
     umb-property-layout uui-textarea,
     umb-property-layout uui-select {
       width: 100%;
+    }
+
+    .password-field-wrapper {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      align-items: center;
+    }
+
+    .password-field-wrapper uui-input {
+      flex: 1;
     }
 
     [slot="actions"] {
