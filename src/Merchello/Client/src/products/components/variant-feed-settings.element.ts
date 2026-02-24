@@ -55,7 +55,7 @@ export class MerchelloVariantFeedSettingsElement extends UmbElementMixin(LitElem
   }
 
   private _handleDatasetChange(e: Event): void {
-    const dataset = e.target as UmbPropertyDatasetElement;
+    const dataset = e.currentTarget as UmbPropertyDatasetElement;
     const values = this._toPropertyValueMap(dataset.value ?? []);
 
     const updated: Partial<ProductVariantDto> = {
