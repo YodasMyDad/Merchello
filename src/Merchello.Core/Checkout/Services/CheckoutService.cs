@@ -166,6 +166,20 @@ public class CheckoutService(
             }
 
             basket.LineItems.Remove(itemToRemove);
+
+            // Remove dependent add-on and linked discount line items
+            var dependentItems = basket.LineItems
+                .Where(li => li.IsAddonLinkedToParent(itemToRemove)
+                    || (li.LineItemType == LineItemType.Discount
+                        && !string.IsNullOrEmpty(li.DependantLineItemSku)
+                        && string.Equals(li.DependantLineItemSku, itemToRemove.Sku, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            foreach (var dep in dependentItems)
+            {
+                basket.LineItems.Remove(dep);
+            }
+
             await CalculateBasketAsync(new CalculateBasketParameters { Basket = basket, CountryCode = countryCode }, cancellationToken);
 
             if (checkoutDiscountService != null)
@@ -215,6 +229,26 @@ public class CheckoutService(
     {
         var basket = parameters.Basket;
         var countryCode = parameters.CountryCode;
+
+        // When no sellable items remain, reset all totals and short-circuit.
+        var hasSellableItems = basket.LineItems.Any(li =>
+            li.LineItemType is LineItemType.Product or LineItemType.Custom);
+
+        if (!hasSellableItems)
+        {
+            basket.SubTotal = 0;
+            basket.Discount = 0;
+            basket.AdjustedSubTotal = 0;
+            basket.Tax = 0;
+            basket.Shipping = 0;
+            basket.Total = 0;
+            basket.EffectiveShippingTaxRate = null;
+            basket.IsTaxEstimated = false;
+            basket.TaxEstimationReason = null;
+            basket.AvailableShippingQuotes = [];
+            basket.Errors = basket.Errors.Where(e => !e.IsShippingError).ToList();
+            return;
+        }
 
         // Resolve country code from settings if not provided
         var resolvedCountryCode = countryCode ?? _settings.DefaultShippingCountry ?? "US";

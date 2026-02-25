@@ -502,6 +502,7 @@ import type {
 // Import abandoned checkout types
 import type {
   AbandonedCheckoutPageDto,
+  AbandonedCheckoutDetailDto,
   AbandonedCheckoutStatsDto,
   AbandonedCheckoutQueryParams,
   RegenerateRecoveryLinkResultDto,
@@ -2399,6 +2400,10 @@ export const MerchelloApi = {
     const queryString = buildQueryString(params as Record<string, unknown>);
     return apiGet<AbandonedCheckoutPageDto>(`abandoned-checkouts${queryString ? `?${queryString}` : ''}`);
   },
+
+  /** Get abandoned checkout detail by ID */
+  getAbandonedCheckoutById: (id: string) =>
+    apiGet<AbandonedCheckoutDetailDto>(`abandoned-checkouts/${id}`),
 
   /** Get abandoned checkout statistics */
   getAbandonedCheckoutStats: (fromDate?: string, toDate?: string) => {

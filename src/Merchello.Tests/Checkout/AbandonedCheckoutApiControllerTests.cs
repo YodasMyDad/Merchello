@@ -3,6 +3,7 @@ using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Shouldly;
@@ -14,15 +15,18 @@ public class AbandonedCheckoutApiControllerTests
 {
     private readonly Mock<IAbandonedCheckoutService> _abandonedCheckoutServiceMock;
     private readonly Mock<IMerchelloNotificationPublisher> _notificationPublisherMock;
+    private readonly Mock<ICurrencyService> _currencyServiceMock;
     private readonly AbandonedCheckoutApiController _controller;
 
     public AbandonedCheckoutApiControllerTests()
     {
         _abandonedCheckoutServiceMock = new Mock<IAbandonedCheckoutService>();
         _notificationPublisherMock = new Mock<IMerchelloNotificationPublisher>();
+        _currencyServiceMock = new Mock<ICurrencyService>();
         _controller = new AbandonedCheckoutApiController(
             _abandonedCheckoutServiceMock.Object,
-            _notificationPublisherMock.Object);
+            _notificationPublisherMock.Object,
+            _currencyServiceMock.Object);
     }
 
     [Theory]

@@ -32,4 +32,12 @@ export const manifests: Array<UmbExtensionManifest> = [
       },
     ],
   },
+
+  // Detail modal (sidebar)
+  {
+    type: "modal",
+    alias: "Merchello.AbandonedCheckout.Detail.Modal",
+    name: "Abandoned Checkout Detail Modal",
+    js: () => import("@abandoned-checkouts/modals/abandoned-checkout-detail-modal.element.js"),
+  },
 ];

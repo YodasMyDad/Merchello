@@ -27,7 +27,7 @@ public class StorefrontDtoMapper(
         {
             Success = success,
             Message = message,
-            ItemCount = basket.GetStorefrontItemCount(),
+            ItemCount = basket?.GetStorefrontItemCount() ?? 0,
             Total = total,
             FormattedTotal = currencyConversion.Format(total, storeCurrencySymbol)
         };
@@ -38,7 +38,7 @@ public class StorefrontDtoMapper(
         var total = basket?.Total ?? 0m;
         return new BasketCountDto
         {
-            ItemCount = basket.GetStorefrontItemCount(),
+            ItemCount = basket?.GetStorefrontItemCount() ?? 0,
             Total = total,
             FormattedTotal = currencyConversion.Format(total, storeCurrencySymbol)
         };
