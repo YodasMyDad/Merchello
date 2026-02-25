@@ -1409,7 +1409,6 @@ public class CheckoutSettings
     public string? SupportPhone { get; set; }
 
     // === Behavior ===
-    public bool ShowExpressCheckout { get; set; } = true;
     public bool RequirePhone { get; set; } = false;
     public string? ConfirmationRedirectUrl { get; set; }
     public string? TermsUrl { get; set; }

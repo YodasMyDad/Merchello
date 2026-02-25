@@ -83,7 +83,6 @@ public class MerchelloStoreSettingsService(
         checkout.ErrorColor = store.Checkout.ErrorColor;
         checkout.HeadingFontFamily = store.Checkout.HeadingFontFamily;
         checkout.BodyFontFamily = store.Checkout.BodyFontFamily;
-        checkout.ShowExpressCheckout = store.Checkout.ShowExpressCheckout;
         checkout.BillingPhoneRequired = store.Checkout.BillingPhoneRequired;
         checkout.ConfirmationRedirectUrl = store.Checkout.ConfirmationRedirectUrl;
         checkout.CustomScriptUrl = store.Checkout.CustomScriptUrl;
@@ -265,7 +264,6 @@ public class MerchelloStoreSettingsService(
                 ErrorColor = store.Checkout.ErrorColor,
                 HeadingFontFamily = store.Checkout.HeadingFontFamily,
                 BodyFontFamily = store.Checkout.BodyFontFamily,
-                ShowExpressCheckout = store.Checkout.ShowExpressCheckout,
                 BillingPhoneRequired = store.Checkout.BillingPhoneRequired,
                 ConfirmationRedirectUrl = store.Checkout.ConfirmationRedirectUrl,
                 CustomScriptUrl = store.Checkout.CustomScriptUrl,
@@ -389,7 +387,6 @@ public class MerchelloStoreSettingsService(
             ErrorColor = string.IsNullOrWhiteSpace(checkout.ErrorColor) ? "#DC2626" : checkout.ErrorColor,
             HeadingFontFamily = string.IsNullOrWhiteSpace(checkout.HeadingFontFamily) ? "system-ui" : checkout.HeadingFontFamily,
             BodyFontFamily = string.IsNullOrWhiteSpace(checkout.BodyFontFamily) ? "system-ui" : checkout.BodyFontFamily,
-            ShowExpressCheckout = checkout.ShowExpressCheckout,
             BillingPhoneRequired = checkout.BillingPhoneRequired,
             ConfirmationRedirectUrl = NullIfWhiteSpace(checkout.ConfirmationRedirectUrl),
             CustomScriptUrl = NullIfWhiteSpace(checkout.CustomScriptUrl),

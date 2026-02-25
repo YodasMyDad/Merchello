@@ -622,7 +622,6 @@ export interface StoreConfigurationCheckoutDto {
   errorColor: string;
   headingFontFamily: string;
   bodyFontFamily: string;
-  showExpressCheckout: boolean;
   billingPhoneRequired: boolean;
   confirmationRedirectUrl?: string | null;
   customScriptUrl?: string | null;

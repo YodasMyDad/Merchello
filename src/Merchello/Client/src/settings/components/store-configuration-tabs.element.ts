@@ -653,7 +653,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
       { alias: "logoMaxWidth", value: configuration.checkout.logoMaxWidth },
       { alias: "headingFontFamily", value: configuration.checkout.headingFontFamily },
       { alias: "bodyFontFamily", value: configuration.checkout.bodyFontFamily },
-      { alias: "showExpressCheckout", value: configuration.checkout.showExpressCheckout },
       { alias: "billingPhoneRequired", value: configuration.checkout.billingPhoneRequired },
       { alias: "confirmationRedirectUrl", value: configuration.checkout.confirmationRedirectUrl ?? "" },
       { alias: "customScriptUrl", value: configuration.checkout.customScriptUrl ?? "" },
@@ -680,10 +679,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
           this._getStringFromPropertyValue(values.headingFontFamily) || this._configuration.checkout.headingFontFamily,
         bodyFontFamily:
           this._getStringFromPropertyValue(values.bodyFontFamily) || this._configuration.checkout.bodyFontFamily,
-        showExpressCheckout: this._getBooleanFromPropertyValue(
-          values.showExpressCheckout,
-          this._configuration.checkout.showExpressCheckout,
-        ),
         billingPhoneRequired: this._getBooleanFromPropertyValue(
           values.billingPhoneRequired,
           this._configuration.checkout.billingPhoneRequired,
@@ -1055,12 +1050,6 @@ export class MerchelloStoreConfigurationTabsElement extends UmbElementMixin(LitE
             description="Font used for body text, form labels, and all other checkout text."
             property-editor-ui-alias="Umb.PropertyEditorUi.Dropdown"
             .config=${this._getFontFamilyConfig()}>
-          </umb-property>
-          <umb-property
-            alias="showExpressCheckout"
-            label="Show Express Checkout"
-            description="Display express payment options (e.g. Apple Pay, Google Pay) at the top of checkout when available."
-            property-editor-ui-alias="Umb.PropertyEditorUi.Toggle">
           </umb-property>
           <umb-property
             alias="billingPhoneRequired"

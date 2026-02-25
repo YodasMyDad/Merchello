@@ -174,6 +174,8 @@ public class InvoiceEditService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
+            try
+            {
             var invoice = await db.Invoices
                 .Include(i => i.Orders)!
                 .ThenInclude(o => o.LineItems)
@@ -719,6 +721,12 @@ public class InvoiceEditService(
                 LineItems = lineItemPreviews,
                 Warnings = warnings
             };
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to preview invoice edit for {InvoiceId}", invoiceId);
+                return null;
+            }
         });
 
         scope.Complete();

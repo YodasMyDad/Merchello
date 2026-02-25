@@ -705,7 +705,12 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
       this._previewLoading = false;
 
       if (error) {
-        // Keep showing old preview on error
+        this.#notificationContext?.peek("danger", {
+          data: {
+            headline: "Preview Failed",
+            message: "Could not calculate totals. The displayed totals may be out of date.",
+          },
+        });
         return;
       }
 

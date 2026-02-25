@@ -132,7 +132,19 @@ public class ShopifyCsvMapper : IShopifyCsvMapper
                 }
                 else
                 {
-                    fieldBuilder.Append(c);
+                    if (c == '\r')
+                    {
+                        // Normalize quoted multiline fields to LF so behavior is platform-consistent.
+                        fieldBuilder.Append('\n');
+                        if (i + 1 < content.Length && content[i + 1] == '\n')
+                        {
+                            i++;
+                        }
+                    }
+                    else
+                    {
+                        fieldBuilder.Append(c);
+                    }
                 }
 
                 continue;

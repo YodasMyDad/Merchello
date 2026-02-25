@@ -297,13 +297,10 @@
         <template x-if="!showInterstitial">
             <div>
 
-        @if (Model.Settings.ShowExpressCheckout)
-        {
             <!-- Express Checkout Section with Skeleton -->
             <div class="mb-6">
                 @await Html.PartialAsync("~/App_Plugins/Merchello/Views/Checkout/_ExpressCheckout.cshtml")
             </div>
-        }
 
         <!-- Inline Upsells Section (collapsible at top of form) -->
         <template x-if="hasInlineUpsells">
