@@ -72,11 +72,6 @@ public class CheckoutSettings
     // === Behavior ===
 
     /// <summary>
-    /// Whether to show express checkout buttons (Apple Pay, Google Pay, etc.).
-    /// </summary>
-    public bool ShowExpressCheckout { get; set; } = true;
-
-    /// <summary>
     /// Whether billing phone number is required during checkout.
     /// </summary>
     public bool BillingPhoneRequired { get; set; } = true;

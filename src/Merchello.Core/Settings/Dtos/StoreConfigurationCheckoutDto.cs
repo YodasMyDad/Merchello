@@ -26,8 +26,6 @@ public class StoreConfigurationCheckoutDto
 
     public string BodyFontFamily { get; set; } = "system-ui";
 
-    public bool ShowExpressCheckout { get; set; } = true;
-
     public bool BillingPhoneRequired { get; set; } = true;
 
     public string? ConfirmationRedirectUrl { get; set; }
