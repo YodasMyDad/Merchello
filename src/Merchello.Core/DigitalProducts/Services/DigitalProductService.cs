@@ -248,18 +248,32 @@ public class DigitalProductService(
             return result;
         }
 
-        // Check ownership if customer ID provided
-        if (parameters.CustomerId.HasValue && link.CustomerId != parameters.CustomerId.Value)
+        // Enforce customer ownership for account-bound download links.
+        if (link.CustomerId != Guid.Empty)
         {
-            logger.LogWarning(
-                "Customer {CustomerId} attempted to access download link {LinkId} belonging to {OwnerCustomerId}",
-                parameters.CustomerId, linkId, link.CustomerId);
-            result.Messages.Add(new ResultMessage
+            if (!parameters.CustomerId.HasValue)
             {
-                ResultMessageType = ResultMessageType.Error,
-                Message = invalidTokenMessage
-            });
-            return result;
+                logger.LogWarning("Anonymous access attempt for customer-bound download link {LinkId}", linkId);
+                result.Messages.Add(new ResultMessage
+                {
+                    ResultMessageType = ResultMessageType.Error,
+                    Message = invalidTokenMessage
+                });
+                return result;
+            }
+
+            if (link.CustomerId != parameters.CustomerId.Value)
+            {
+                logger.LogWarning(
+                    "Customer {CustomerId} attempted to access download link {LinkId} belonging to {OwnerCustomerId}",
+                    parameters.CustomerId, linkId, link.CustomerId);
+                result.Messages.Add(new ResultMessage
+                {
+                    ResultMessageType = ResultMessageType.Error,
+                    Message = invalidTokenMessage
+                });
+                return result;
+            }
         }
 
         // Check if expired

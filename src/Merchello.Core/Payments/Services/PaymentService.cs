@@ -312,6 +312,12 @@ public class PaymentService(
         var result = new CrudResult<Payment>();
         Payment? createdPayment = null;
 
+        if (parameters.Amount < 0)
+        {
+            result.AddErrorMessage("Payment amount cannot be negative.");
+            return result;
+        }
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
