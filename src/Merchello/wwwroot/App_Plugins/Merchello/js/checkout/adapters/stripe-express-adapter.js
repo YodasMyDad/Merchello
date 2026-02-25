@@ -5,10 +5,11 @@
  * for Apple Pay, Google Pay, Link, Amazon Pay, PayPal, and Klarna payment methods.
  *
  * IMPORTANT: Stripe only supports ONE Express Checkout Element per page.
- * This adapter creates a single element with all enabled Stripe wallets on
+ * This adapter creates a single element with all enabled Stripe payment methods on
  * the first render() call. Subsequent render() calls for other Stripe methods
- * are no-ops since their wallets are already included in the single element.
+ * are no-ops since their methods are already included in the single element.
  *
+ * Uses the newer `paymentMethods` option (not the legacy `wallets` option).
  * See: https://docs.stripe.com/elements/express-checkout-element
  */
 (function() {
@@ -21,12 +22,12 @@
     let currentConfig = null;
     let mountedContainer = null;
 
-    // Maps our method alias → Stripe wallet config key
-    const ALIAS_TO_WALLET_KEY = {
+    // Maps our method alias → Stripe paymentMethods config key
+    const ALIAS_TO_PM_KEY = {
         'applepay': 'applePay',
         'googlepay': 'googlePay',
         'link': 'link',
-        'amazonpay': 'amazon_pay',
+        'amazonpay': 'amazonPay',
         'paypal': 'paypal',
         'klarna': 'klarna'
     };
@@ -50,9 +51,9 @@
          * Render a Stripe express checkout button.
          *
          * On the first call, creates a single Express Checkout Element containing
-         * ALL enabled Stripe wallets (read from config.methods). Subsequent calls
-         * for other Stripe methods hide their containers since those wallets are
-         * already rendered by the single element.
+         * ALL enabled Stripe payment methods (read from config.methods). Subsequent
+         * calls for other Stripe methods hide their containers since those methods
+         * are already rendered by the single element.
          *
          * @param {HTMLElement} container - The container element to render into
          * @param {Object} method - The payment method configuration
@@ -74,7 +75,7 @@
                 }
 
                 // If the single element is already created, hide this container
-                // (this method's wallet is already included in the element)
+                // (this method is already included in the element)
                 if (expressCheckoutElement) {
                     container.style.display = 'none';
                     return;
@@ -101,46 +102,49 @@
                     });
                 }
 
-                // Build wallet config from ALL Stripe methods in the full config
-                const walletConfig = this.buildWalletConfig(config.methods);
-                const enabledWallets = Object.entries(walletConfig)
-                    .filter(([, v]) => v === 'always')
+                // Build paymentMethods config from ALL Stripe methods in the full config
+                const paymentMethodsConfig = this.buildPaymentMethodsConfig(config.methods);
+                const enabledMethods = Object.entries(paymentMethodsConfig)
+                    .filter(([, v]) => v !== 'never')
                     .map(([k]) => k);
 
-                console.log('[StripeExpress] Creating single element with wallets:', enabledWallets.join(', '));
+                console.log('[StripeExpress] Creating single element with paymentMethods:', enabledMethods.join(', '));
 
                 // Create a single element container
-                const expressGlobalConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+                const expressGlobalConfig = window.MerchelloExpressConfig || { buttonHeight: 44 };
                 const elementContainer = document.createElement('div');
                 elementContainer.id = 'stripe-express-element';
-                elementContainer.style.width = '100%';
-                elementContainer.style.minHeight = `${expressGlobalConfig.buttonHeight}px`;
 
-                // Allow the container to stretch for multiple wallet buttons
-                container.style.width = '100%';
-                container.style.maxWidth = 'none';
+                // Reserve minimum height to prevent 0-height collapse while Stripe's
+                // iframe loads. Each button is ~44px + ~8px gap. Removed on 'ready' event.
+                const estimatedHeight = enabledMethods.length * (expressGlobalConfig.buttonHeight + 8);
+                container.style.minHeight = `${estimatedHeight}px`;
+
                 container.appendChild(elementContainer);
 
-                // Create ONE Express Checkout Element with all enabled wallets
+                // Create ONE Express Checkout Element with all enabled payment methods
                 const expressOptions = {
                     buttonHeight: sdkConfig.buttonHeight || expressGlobalConfig.buttonHeight,
                     buttonTheme: {
                         applePay: 'black',
                         googlePay: 'black',
-                        paypal: 'gold',
-                        klarna: 'default'
+                        paypal: 'gold'
                     },
-                    wallets: walletConfig,
+                    paymentMethods: paymentMethodsConfig,
                     layout: {
                         maxColumns: 1,
-                        maxRows: Math.max(enabledWallets.length, 1)
+                        maxRows: 6,
+                        overflow: 'auto'
                     }
                 };
 
                 const element = elementsInstance.create('expressCheckout', expressOptions);
 
-                // Handle ready event to check availability
+                // Handle ready event to check availability and release reserved height
                 element.on('ready', function(event) {
+                    // Clear the reserved min-height - Stripe has sized the iframe now
+                    container.style.minHeight = '';
+
                     const availablePaymentMethods = event.availablePaymentMethods;
                     console.log('[StripeExpress] ready event - available methods:', availablePaymentMethods);
 
@@ -148,11 +152,11 @@
                         console.log('[StripeExpress] hiding - no methods available');
                         container.style.display = 'none';
                     } else {
-                        const activeWallets = Object.entries(availablePaymentMethods)
+                        const activeMethods = Object.entries(availablePaymentMethods)
                             .filter(([, v]) => v)
                             .map(([k]) => k);
-                        console.log('[StripeExpress] available wallets:', activeWallets.join(', '));
-                        container.style.display = '';
+                        console.log('[StripeExpress] available methods:', activeMethods.join(', '));
+                        container.style.display = activeMethods.length > 0 ? '' : 'none';
                     }
                 });
 
@@ -166,7 +170,7 @@
                     checkout.error = null;
 
                     try {
-                        // Determine which wallet was used from the Stripe event
+                        // Determine which method was used from the Stripe event
                         const expressType = event.expressPaymentType;
                         const resolvedAlias = EXPRESS_TYPE_TO_ALIAS[expressType] || method.methodAlias;
 
@@ -250,33 +254,35 @@
         },
 
         /**
-         * Build wallet config from all Stripe methods in the express config.
-         * Enables only the wallets that correspond to enabled Stripe methods,
-         * hides all others with 'never'.
+         * Build paymentMethods config from all Stripe methods in the express config.
+         * Uses the newer `paymentMethods` option (not the legacy `wallets` option).
+         *
+         * Keys: applePay, googlePay, link, amazonPay, paypal, klarna
+         * Values: 'auto' (show if available) or 'never' (hide)
          *
          * @param {Array} methods - All express methods from the config
-         * @returns {Object} Stripe wallets configuration object
+         * @returns {Object} Stripe paymentMethods configuration object
          */
-        buildWalletConfig(methods) {
-            const wallets = {
+        buildPaymentMethodsConfig(methods) {
+            const pmConfig = {
                 applePay: 'never',
                 googlePay: 'never',
                 link: 'never',
-                amazon_pay: 'never',
+                amazonPay: 'never',
                 paypal: 'never',
                 klarna: 'never'
             };
 
             for (const m of (methods || [])) {
                 if (m.providerAlias === 'stripe') {
-                    const walletKey = ALIAS_TO_WALLET_KEY[m.methodAlias.toLowerCase()];
-                    if (walletKey && walletKey in wallets) {
-                        wallets[walletKey] = 'always';
+                    const pmKey = ALIAS_TO_PM_KEY[m.methodAlias.toLowerCase()];
+                    if (pmKey && pmKey in pmConfig) {
+                        pmConfig[pmKey] = 'auto';
                     }
                 }
             }
 
-            return wallets;
+            return pmConfig;
         },
 
         /**
