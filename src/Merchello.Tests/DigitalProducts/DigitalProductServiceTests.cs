@@ -52,12 +52,31 @@ public class DigitalProductServiceTests : IClassFixture<ServiceTestFixture>
         var link = createResult.ResultObject!.Single();
 
         var result = await _digitalProductService.ValidateDownloadTokenAsync(
-            new ValidateDownloadTokenParameters { Token = link.Token });
+            new ValidateDownloadTokenParameters
+            {
+                Token = link.Token,
+                CustomerId = invoice.CustomerId
+            });
 
         result.Success.ShouldBeTrue();
         result.ResultObject.ShouldNotBeNull();
         result.ResultObject.Id.ShouldBe(link.Id);
         result.ResultObject.DownloadUrl.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task ValidateDownloadTokenAsync_WithoutCustomerId_ForCustomerBoundLink_Fails()
+    {
+        var (invoice, _) = await CreateDigitalInvoiceAsync(fileCount: 1);
+        var createResult = await _digitalProductService.CreateDownloadLinksAsync(
+            new CreateDownloadLinksParameters { InvoiceId = invoice.Id });
+        var link = createResult.ResultObject!.Single();
+
+        var result = await _digitalProductService.ValidateDownloadTokenAsync(
+            new ValidateDownloadTokenParameters { Token = link.Token });
+
+        result.Success.ShouldBeFalse();
+        result.ResultObject.ShouldBeNull();
     }
 
     [Fact]
