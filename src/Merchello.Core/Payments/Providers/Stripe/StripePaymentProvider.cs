@@ -1004,7 +1004,7 @@ public class StripePaymentProvider(
             }
 
             // Validate the signature - this throws if invalid
-            EventUtility.ConstructEvent(payload, signature, _webhookSecret);
+            EventUtility.ConstructEvent(payload, signature, _webhookSecret, throwOnApiVersionMismatch: false);
             return Task.FromResult(true);
         }
         catch (StripeException ex)
@@ -1045,7 +1045,7 @@ public class StripePaymentProvider(
             }
 
             // Parse and validate the event
-            var stripeEvent = EventUtility.ConstructEvent(payload, signature, _webhookSecret);
+            var stripeEvent = EventUtility.ConstructEvent(payload, signature, _webhookSecret, throwOnApiVersionMismatch: false);
 
             return await ProcessStripeEventAsync(stripeEvent, cancellationToken);
         }
