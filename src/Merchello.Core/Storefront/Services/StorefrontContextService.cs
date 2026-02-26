@@ -36,6 +36,12 @@ public class StorefrontContextService(
     IMerchelloStoreSettingsService? storeSettingsService = null) : IStorefrontContextService
 {
     private const int CookieExpiryDays = 30;
+    private const string ShippingLocationCacheKey = "merchello:ShippingLocation";
+    private const string DisplayContextCacheKey = "merchello:DisplayContext";
+    private const string BasketCacheKey = "merchello:Basket";
+    private const string ShippingCountryOverrideKey = "merchello:ShippingCountryOverride";
+    private const string ShippingRegionOverrideKey = "merchello:ShippingRegionOverride";
+    private const string CurrencyOverrideKey = "merchello:CurrencyOverride";
 
     private readonly MerchelloSettings _settings = settings.Value;
     private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
@@ -45,15 +51,19 @@ public class StorefrontContextService(
         var httpContext = httpContextAccessor.HttpContext;
 
         // Cache per-request to avoid repeated DB lookups within the same HTTP request
-        const string cacheKey = "merchello:ShippingLocation";
-        if (httpContext?.Items.TryGetValue(cacheKey, out var cached) == true && cached is ShippingLocation cachedLocation)
+        if (httpContext?.Items.TryGetValue(ShippingLocationCacheKey, out var cached) == true && cached is ShippingLocation cachedLocation)
             return cachedLocation;
 
-        string? countryCode = null;
-        string? regionCode = null;
+        string? countryCode = httpContext?.Items.TryGetValue(ShippingCountryOverrideKey, out var countryOverride) == true
+            ? countryOverride as string
+            : null;
+        string? regionCode = httpContext?.Items.TryGetValue(ShippingRegionOverrideKey, out var regionOverride) == true
+            ? regionOverride as string
+            : null;
 
-        // Try to read from cookie
-        if (httpContext?.Request.Cookies.TryGetValue(Constants.Cookies.ShippingCountry, out var cookieCountry) == true)
+        // Try to read from request cookie when no in-request override exists.
+        if (string.IsNullOrWhiteSpace(countryCode) &&
+            httpContext?.Request.Cookies.TryGetValue(Constants.Cookies.ShippingCountry, out var cookieCountry) == true)
         {
             countryCode = cookieCountry;
             httpContext.Request.Cookies.TryGetValue(Constants.Cookies.ShippingRegion, out regionCode);
@@ -101,7 +111,7 @@ public class StorefrontContextService(
         }
 
         var location = new ShippingLocation(countryCode.ToUpperInvariant(), countryName, regionCode?.ToUpperInvariant(), regionName);
-        httpContext?.Items[cacheKey] = location;
+        httpContext?.Items[ShippingLocationCacheKey] = location;
         return location;
     }
 
@@ -111,9 +121,25 @@ public class StorefrontContextService(
         if (httpContext == null) return;
 
         // Invalidate per-request caches since location is changing
-        httpContext.Items.Remove("merchello:ShippingLocation");
-        httpContext.Items.Remove("merchello:DisplayContext");
-        httpContext.Items.Remove("merchello:Basket");
+        httpContext.Items.Remove(ShippingLocationCacheKey);
+        httpContext.Items.Remove(DisplayContextCacheKey);
+        httpContext.Items.Remove(BasketCacheKey);
+
+        var normalizedCountryCode = countryCode.ToUpperInvariant();
+        var normalizedRegionCode = string.IsNullOrWhiteSpace(regionCode)
+            ? null
+            : regionCode.ToUpperInvariant();
+
+        // Keep same-request reads consistent with the just-set values.
+        httpContext.Items[ShippingCountryOverrideKey] = normalizedCountryCode;
+        if (normalizedRegionCode != null)
+        {
+            httpContext.Items[ShippingRegionOverrideKey] = normalizedRegionCode;
+        }
+        else
+        {
+            httpContext.Items.Remove(ShippingRegionOverrideKey);
+        }
 
         var cookieOptions = new CookieOptions
         {
@@ -123,11 +149,11 @@ public class StorefrontContextService(
             SameSite = SameSiteMode.Lax
         };
 
-        httpContext.Response.Cookies.Append(Constants.Cookies.ShippingCountry, countryCode.ToUpperInvariant(), cookieOptions);
+        httpContext.Response.Cookies.Append(Constants.Cookies.ShippingCountry, normalizedCountryCode, cookieOptions);
 
-        if (!string.IsNullOrWhiteSpace(regionCode))
+        if (normalizedRegionCode != null)
         {
-            httpContext.Response.Cookies.Append(Constants.Cookies.ShippingRegion, regionCode.ToUpperInvariant(), cookieOptions);
+            httpContext.Response.Cookies.Append(Constants.Cookies.ShippingRegion, normalizedRegionCode, cookieOptions);
         }
         else
         {
@@ -144,8 +170,16 @@ public class StorefrontContextService(
         var httpContext = httpContextAccessor.HttpContext;
         string? currencyCode = null;
 
-        // Try to read from cookie first
-        if (httpContext?.Request.Cookies.TryGetValue(Constants.Cookies.Currency, out var cookieCurrency) == true
+        if (httpContext?.Items.TryGetValue(CurrencyOverrideKey, out var overrideCurrency) == true
+            && overrideCurrency is string overrideValue
+            && !string.IsNullOrWhiteSpace(overrideValue))
+        {
+            currencyCode = overrideValue;
+        }
+
+        // Try to read from request cookie when there is no in-request override.
+        if (string.IsNullOrWhiteSpace(currencyCode)
+            && httpContext?.Request.Cookies.TryGetValue(Constants.Cookies.Currency, out var cookieCurrency) == true
             && !string.IsNullOrWhiteSpace(cookieCurrency))
         {
             currencyCode = cookieCurrency;
@@ -168,6 +202,11 @@ public class StorefrontContextService(
     {
         var httpContext = httpContextAccessor.HttpContext;
         if (httpContext == null) return;
+        var normalizedCurrencyCode = currencyCode.ToUpperInvariant();
+
+        // Keep same-request reads consistent and invalidate derived context cache.
+        httpContext.Items[CurrencyOverrideKey] = normalizedCurrencyCode;
+        httpContext.Items.Remove(DisplayContextCacheKey);
 
         var cookieOptions = new CookieOptions
         {
@@ -177,7 +216,7 @@ public class StorefrontContextService(
             SameSite = SameSiteMode.Lax
         };
 
-        httpContext.Response.Cookies.Append(Constants.Cookies.Currency, currencyCode.ToUpperInvariant(), cookieOptions);
+        httpContext.Response.Cookies.Append(Constants.Cookies.Currency, normalizedCurrencyCode, cookieOptions);
     }
 
     public async Task<int> GetAvailableStockAsync(Product product, CancellationToken ct = default)
@@ -414,9 +453,8 @@ public class StorefrontContextService(
     public async Task<StorefrontDisplayContext> GetDisplayContextAsync(CancellationToken ct = default)
     {
         // Cache per-request to avoid repeated tax provider/currency lookups within the same HTTP request
-        const string cacheKey = "merchello:DisplayContext";
         var httpContext = httpContextAccessor.HttpContext;
-        if (httpContext?.Items.TryGetValue(cacheKey, out var cached) == true && cached is StorefrontDisplayContext cachedContext)
+        if (httpContext?.Items.TryGetValue(DisplayContextCacheKey, out var cached) == true && cached is StorefrontDisplayContext cachedContext)
             return cachedContext;
 
         var currencyContext = await GetCurrencyContextAsync(ct);
@@ -449,7 +487,7 @@ public class StorefrontContextService(
             IsShippingTaxable: isShippingTaxed,
             ShippingTaxRate: shippingTaxRate,
             ShippingTaxMode: shippingTaxConfiguration.Mode);
-        httpContext?.Items[cacheKey] = displayContext;
+        httpContext?.Items[DisplayContextCacheKey] = displayContext;
         return displayContext;
     }
 

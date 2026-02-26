@@ -183,17 +183,25 @@ export function initExpressCheckout() {
                 console.error('Express checkout initialization failed:', err);
                 this.error = 'Failed to load express checkout options.';
                 this.hasExpressMethods = false;
-            } finally {
                 this.isLoading = false;
+                return;
             }
 
-            // Initialize buttons after loading state changes
-            if (this.hasExpressMethods) {
-                await this.$nextTick();
-                // Wait for browser paint
-                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-                await this.initializeExpressCheckout();
+            if (!this.hasExpressMethods) {
+                this.isLoading = false;
+                return;
             }
+
+            // Update skeleton to match expected layout while SDKs initialize
+            this.updateSkeletonLayout(this.config.methods.length);
+
+            await this.$nextTick();
+            // Wait for browser paint
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await this.initializeExpressCheckout();
+
+            // Skeleton stays visible until buttons are rendered — swap now
+            this.isLoading = false;
         },
 
         /**
@@ -241,9 +249,18 @@ export function initExpressCheckout() {
                 }
             }
 
-            // Only remove minimum height if this render completed successfully
+            // Only finalize layout if this render completed successfully
             if (requestId === this._reRenderRequestId) {
                 container.style.minHeight = '';
+                this.applyGridLayout(container);
+
+                // Delayed recheck: some adapters hide after async capability checks
+                // (e.g., Apple Pay canMakePayments, Google Pay isReadyToPay)
+                setTimeout(() => {
+                    if (requestId === this._reRenderRequestId) {
+                        this.applyGridLayout(container);
+                    }
+                }, 2000);
             }
         },
 
@@ -266,6 +283,52 @@ export function initExpressCheckout() {
                         console.warn(`Failed to teardown adapter ${key}:`, e);
                     }
                 }
+            }
+        },
+
+        /**
+         * Apply responsive grid layout based on visible button count.
+         * 1 button = full width, 2+ = 2-column grid on desktop, stacked on mobile.
+         * @param {HTMLElement} container
+         */
+        applyGridLayout(container) {
+            const visibleWrappers = Array.from(container.querySelectorAll('.express-button-wrapper'))
+                .filter(w => w.style.display !== 'none' && w.offsetHeight > 0);
+
+            container.classList.remove('express-grid', 'express-single');
+
+            if (visibleWrappers.length === 1) {
+                container.classList.add('express-single');
+            } else if (visibleWrappers.length > 1) {
+                container.classList.add('express-grid');
+            }
+        },
+
+        /**
+         * Update skeleton loader to match expected button count and layout.
+         * Called after API response but before SDK initialization.
+         * @param {number} methodCount
+         */
+        updateSkeletonLayout(methodCount) {
+            const skeleton = document.querySelector('.express-skeleton-layout');
+            if (!skeleton) return;
+
+            // Apply grid class for multiple methods
+            skeleton.classList.toggle('express-grid', methodCount > 1);
+
+            // Adjust bar count (cap at 4 for grid)
+            const targetCount = Math.min(methodCount, 4);
+            const bars = skeleton.querySelectorAll('.express-skeleton-bar');
+
+            // Remove extras
+            for (let i = bars.length - 1; i >= targetCount; i--) {
+                bars[i].remove();
+            }
+            // Add missing
+            for (let i = bars.length; i < targetCount; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'express-skeleton-bar animate-pulse bg-gray-200 rounded-lg';
+                skeleton.appendChild(bar);
             }
         },
 
@@ -297,7 +360,18 @@ export function initExpressCheckout() {
             const adapter = this.getAdapter(method);
 
             if (adapter) {
-                await adapter.render(wrapper, method, this.config, this);
+                if (adapter.config?.supportsStandard) {
+                    // Unified adapter (e.g., PayPal) — 3-arg interface: (container, config, context)
+                    await adapter.render(wrapper, this.config, {
+                        isExpress: true,
+                        method: method,
+                        checkout: this,
+                        session: null
+                    });
+                } else {
+                    // Express-only adapter (Stripe, Braintree, WorldPay) — 4-arg interface
+                    await adapter.render(wrapper, method, this.config, this);
+                }
             } else {
                 // Fallback: generic button
                 this.renderGenericButton(wrapper, method);

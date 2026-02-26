@@ -42,6 +42,11 @@ public interface IAbandonedCheckoutService
     Task<AbandonedCheckout?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
+    /// Gets an abandoned checkout by ID with its basket eagerly loaded (for detail view).
+    /// </summary>
+    Task<AbandonedCheckout?> GetDetailByIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
     /// Gets an abandoned checkout by basket ID.
     /// </summary>
     Task<AbandonedCheckout?> GetByBasketIdAsync(Guid basketId, CancellationToken ct = default);

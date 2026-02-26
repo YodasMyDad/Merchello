@@ -1,4 +1,5 @@
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Locality.Dtos;
 
 namespace Merchello.Core.Checkout.Dtos;
 
@@ -38,6 +39,10 @@ public class AbandonedCheckoutDetailDto
     public int ItemCount { get; set; }
     public string? CurrencyCode { get; set; }
     public string? CurrencySymbol { get; set; }
+
+    // Addresses (from ExtendedData snapshots)
+    public AddressDto? BillingAddress { get; set; }
+    public AddressDto? ShippingAddress { get; set; }
 
     // Basket items (if basket still exists)
     public List<AbandonedCheckoutLineItemDto> LineItems { get; set; } = [];

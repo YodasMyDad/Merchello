@@ -1,7 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,13 +59,6 @@ namespace Merchello.Composers
                     limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
                     limiterOptions.QueueLimit = 5;                      // Allow 5 queued requests
                 });
-
-                options.OnRejected = async (context, token) =>
-                {
-                    context.HttpContext.Response.StatusCode = 429; // TooManyRequests
-                    await context.HttpContext.Response.WriteAsync(
-                        "Too many download requests. Please wait before trying again.", token);
-                };
             });
 
             // Register startup filter to add rate limiter middleware to pipeline

@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(*)"
+    ]
+  },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "playwright@claude-plugins-official": true,

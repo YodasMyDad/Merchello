@@ -352,6 +352,7 @@ public class OrdersApiController(
     [HttpPost("orders/{invoiceId:guid}/preview-edit")]
     [ProducesResponseType<PreviewEditResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> PreviewEditInvoice(Guid invoiceId, [FromBody] EditInvoiceDto request, CancellationToken ct)
     {
         var result = await invoiceEditService.PreviewInvoiceEditAsync(invoiceId, request, ct);

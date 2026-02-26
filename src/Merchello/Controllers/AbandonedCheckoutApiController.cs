@@ -1,10 +1,18 @@
+using System.Text.Json;
 using Asp.Versioning;
+using Merchello.Core;
+using Merchello.Core.Accounting.Extensions;
+using Merchello.Core.Accounting.Models;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.Locality.Dtos;
+using Merchello.Core.Locality.Models;
 using Merchello.Core.Notifications.CheckoutNotifications;
 using Merchello.Core.Notifications.Interfaces;
+using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +25,8 @@ namespace Merchello.Controllers;
 [ApiExplorerSettings(GroupName = "Merchello")]
 public class AbandonedCheckoutApiController(
     IAbandonedCheckoutService abandonedCheckoutService,
-    IMerchelloNotificationPublisher notificationPublisher) : MerchelloApiControllerBase
+    IMerchelloNotificationPublisher notificationPublisher,
+    ICurrencyService currencyService) : MerchelloApiControllerBase
 {
     /// <summary>
     /// Gets a paginated list of abandoned checkouts.
@@ -63,7 +72,7 @@ public class AbandonedCheckoutApiController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAbandonedCheckout(Guid id, CancellationToken ct)
     {
-        var checkout = await abandonedCheckoutService.GetByIdAsync(id, ct);
+        var checkout = await abandonedCheckoutService.GetDetailByIdAsync(id, ct);
         if (checkout == null)
         {
             return NotFound();
@@ -71,6 +80,43 @@ public class AbandonedCheckoutApiController(
 
         // Map to detail DTO
         var dto = MapToDetailDto(checkout);
+
+        // Extract addresses from ExtendedData snapshots
+        dto.BillingAddress = ExtractAddressFromExtendedData(checkout.ExtendedData, "BillingAddressJson");
+        dto.ShippingAddress = ExtractAddressFromExtendedData(checkout.ExtendedData, "ShippingAddressJson");
+
+        // Map line items from basket (if basket still exists)
+        if (checkout.Basket?.LineItems != null)
+        {
+            var code = checkout.CurrencyCode ?? "USD";
+            dto.LineItems = checkout.Basket.LineItems
+                .Where(li => li.LineItemType == LineItemType.Product)
+                .Select(li =>
+                {
+                    var lineTotal = li.Quantity * li.Amount;
+                    var imageUrl = li.ExtendedData.TryGetValue(Constants.ExtendedDataKeys.ImageUrl, out var imgVal)
+                        ? imgVal.UnwrapJsonElement()?.ToString()
+                        : null;
+
+                    return new AbandonedCheckoutLineItemDto
+                    {
+                        Id = li.Id,
+                        ProductId = li.ProductId,
+                        Sku = li.Sku,
+                        Name = li.Name,
+                        ProductRootName = li.GetProductRootName(),
+                        SelectedOptions = li.GetSelectedOptions()
+                            .Select(o => new SelectedOptionDto { OptionName = o.OptionName, ValueName = o.ValueName })
+                            .ToList(),
+                        Quantity = li.Quantity,
+                        UnitPrice = li.Amount,
+                        LineTotal = lineTotal,
+                        FormattedUnitPrice = currencyService.FormatAmount(li.Amount, code),
+                        FormattedLineTotal = currencyService.FormatAmount(lineTotal, code),
+                        ImageUrl = imageUrl,
+                    };
+                }).ToList();
+        }
 
         // Generate recovery link if not expired
         if (checkout.Status == AbandonedCheckoutStatus.Abandoned &&
@@ -191,6 +237,50 @@ public class AbandonedCheckoutApiController(
             CheckoutAbandonedFinalNotification final => notificationPublisher.PublishAsync(final, ct),
             _ => throw new InvalidOperationException(
                 $"Unsupported recovery notification type: {notification.GetType().Name}")
+        };
+    }
+
+    private static AddressDto? ExtractAddressFromExtendedData(Dictionary<string, object> extendedData, string key)
+    {
+        if (!extendedData.TryGetValue(key, out var value) || value == null)
+            return null;
+
+        var json = value.UnwrapJsonElement()?.ToString();
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+
+        try
+        {
+            var address = JsonSerializer.Deserialize<Address>(json);
+            return MapAddressToDto(address);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static AddressDto? MapAddressToDto(Address? address)
+    {
+        if (address == null)
+            return null;
+
+        return new AddressDto
+        {
+            Name = address.Name,
+            Company = address.Company,
+            AddressOne = address.AddressOne,
+            AddressTwo = address.AddressTwo,
+            TownCity = address.TownCity,
+            CountyState = string.IsNullOrWhiteSpace(address.CountyState?.Name)
+                ? address.CountyState?.RegionCode
+                : address.CountyState?.Name,
+            RegionCode = address.CountyState?.RegionCode,
+            PostalCode = address.PostalCode,
+            Country = address.Country,
+            CountryCode = address.CountryCode,
+            Email = address.Email,
+            Phone = address.Phone
         };
     }
 

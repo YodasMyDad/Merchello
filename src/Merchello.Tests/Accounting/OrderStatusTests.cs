@@ -263,16 +263,16 @@ public class OrderStatusTests
     }
 
     [Fact]
-    public async Task CanTransition_FromReadyToFulfillToShipped_ReturnsFalse()
+    public async Task CanTransition_FromReadyToFulfillToShipped_ReturnsTrue()
     {
-        // Arrange - Can't skip processing step
+        // Arrange - Warehouse shipment completion can move ReadyToFulfill orders to Shipped
         var order = CreateOrder(OrderStatus.ReadyToFulfill);
 
         // Act
         var canTransition = await _statusHandler.CanTransitionAsync(order, OrderStatus.Shipped);
 
         // Assert
-        canTransition.ShouldBeFalse();
+        canTransition.ShouldBeTrue();
     }
 
     #endregion

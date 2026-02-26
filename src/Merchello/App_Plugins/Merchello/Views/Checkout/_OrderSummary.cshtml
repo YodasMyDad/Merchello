@@ -82,7 +82,7 @@
     <!-- Order Summary Content -->
     <div id="order-summary-content"
          class="@(isReadonly ? "block" : "hidden lg:block")"
-         @Html.Raw(isReadonly ? "" : ":class=\"{ 'block': expanded }\"")>
+         @Html.Raw(isReadonly ? "" : ":class=\"expanded ? 'block' : 'hidden lg:block'\"")>
         <div class="p-4 @(isReadonly ? "lg:p-0" : "pb-24 lg:p-0 lg:pb-0 lg:pt-0 lg:mt-0")">
 
     @if (!hasItems)

@@ -213,7 +213,7 @@ public class ShipmentServiceTests
     }
 
     [Fact]
-    public async Task UpdateShipmentStatusAsync_WithAddonOnOrder_ShippedStatusUsesShippableItemsOnly()
+    public async Task UpdateShipmentStatusAsync_WithAddonOnReadyToFulfillOrder_ShippedStatusUsesShippableItemsOnly()
     {
         // Arrange
         var dataBuilder = _fixture.CreateDataBuilder();
@@ -230,7 +230,7 @@ public class ShipmentServiceTests
         product.ShippingOptions.Add(shippingOption);
 
         var invoice = dataBuilder.CreateInvoice(total: 0m);
-        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.Processing);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.ReadyToFulfill);
 
         var parentLineItem = dataBuilder.CreateLineItem(order, product, quantity: 1, amount: 40m, taxRate: 20m);
         dataBuilder.CreateAddonLineItem(
@@ -300,6 +300,40 @@ public class ShipmentServiceTests
     }
 
     [Fact]
+    public async Task UpdateShipmentStatusAsync_FromShippedToDelivered_WithAddonOnReadyToFulfillOrder_TransitionsSuccessfully()
+    {
+        // Arrange
+        var (order, parentLineItem, _) = await SeedOrderWithAddonLineItemAsync(OrderStatus.ReadyToFulfill);
+        var createShipmentResult = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { parentLineItem.Id, parentLineItem.Quantity } }
+        });
+        createShipmentResult.Success.ShouldBeTrue();
+
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = createShipmentResult.ResultObject!.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
+
+        var parameters = new UpdateShipmentStatusParameters
+        {
+            ShipmentId = createShipmentResult.ResultObject!.Id,
+            NewStatus = ShipmentStatus.Delivered
+        };
+
+        // Act
+        var result = await _shipmentService.UpdateShipmentStatusAsync(parameters);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.Status.ShouldBe(ShipmentStatus.Delivered);
+        result.ResultObject.ActualDeliveryDate.ShouldNotBeNull();
+    }
+
+    [Fact]
     public async Task UpdateShipmentStatusAsync_AllShipmentsDelivered_OrderBecomesCompleted()
     {
         // Arrange
@@ -316,6 +350,38 @@ public class ShipmentServiceTests
         await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
         {
             ShipmentId = shipment.Id,
+            NewStatus = ShipmentStatus.Delivered
+        });
+
+        // Assert
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Completed);
+        updatedOrder.CompletedDate.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public async Task UpdateShipmentStatusAsync_AllShipmentsDelivered_WithAddonOnReadyToFulfillOrder_OrderBecomesCompleted()
+    {
+        // Arrange
+        var (order, parentLineItem, _) = await SeedOrderWithAddonLineItemAsync(OrderStatus.ReadyToFulfill);
+        var createShipmentResult = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { parentLineItem.Id, parentLineItem.Quantity } }
+        });
+        createShipmentResult.Success.ShouldBeTrue();
+
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = createShipmentResult.ResultObject!.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
+
+        // Act
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = createShipmentResult.ResultObject!.Id,
             NewStatus = ShipmentStatus.Delivered
         });
 
@@ -550,6 +616,40 @@ public class ShipmentServiceTests
         _fixture.DbContext.ChangeTracker.Clear();
 
         return (order, lineItem, product, warehouse);
+    }
+
+    private async Task<(Order Order, LineItem ParentLineItem, LineItem AddonLineItem)> SeedOrderWithAddonLineItemAsync(OrderStatus status)
+    {
+        var builder = _fixture.CreateDataBuilder();
+
+        var warehouse = builder.CreateWarehouse("Addon Test Warehouse", "GB");
+        var shippingOption = builder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 5.00m);
+        shippingOption.ShippingCosts.Add(new ShippingCost { CountryCode = "GB", Cost = 5.00m });
+        builder.AddServiceRegion(warehouse, "GB");
+
+        var taxGroup = builder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = builder.CreateProductRoot("Addon Test Product Root", taxGroup);
+        var product = builder.CreateProduct("Addon Test Product", productRoot, price: 40m);
+        builder.AddWarehouseToProductRoot(productRoot, warehouse);
+        builder.CreateProductWarehouse(product, warehouse, stock: 100);
+        product.ShippingOptions.Add(shippingOption);
+
+        var invoice = builder.CreateInvoice(total: 0m);
+        var order = builder.CreateOrder(invoice, warehouse, shippingOption, status);
+        var parentLineItem = builder.CreateLineItem(order, product, quantity: 1, amount: 40m, taxRate: 20m);
+        var addonLineItem = builder.CreateAddonLineItem(
+            order,
+            parentLineItem,
+            name: "Addon: Gift Wrap",
+            quantity: 1,
+            amount: 5m,
+            isTaxable: false,
+            taxRate: 0m);
+
+        await builder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        return (order, parentLineItem, addonLineItem);
     }
 
     private async Task<Shipment> CreateShipmentAsync(Order order, LineItem lineItem)

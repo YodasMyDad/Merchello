@@ -28,6 +28,7 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
   @state() private _isLoading = true;
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
+  @state() private _visibleSecrets: Set<string> = new Set();
 
   // Tab state (for Manual provider)
   @state() private _activeTab: TabType = "product";
@@ -300,6 +301,16 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
     this._shippingOverrides = this._shippingOverrides.filter((o) => o.id !== override.id);
   }
 
+  private _toggleSecretVisibility(key: string): void {
+    const updated = new Set(this._visibleSecrets);
+    if (updated.has(key)) {
+      updated.delete(key);
+    } else {
+      updated.add(key);
+    }
+    this._visibleSecrets = updated;
+  }
+
   // Config field handlers
   private _handleValueChange(key: string, value: string): void {
     this._values = { ...this._values, [key]: value };
@@ -490,28 +501,40 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
           </div>
         `;
 
-      case "Password":
+      case "Password": {
+        const isVisible = this._visibleSecrets.has(field.key);
         return html`
           <div class="form-field">
             <label for="${field.key}">${field.label}${field.isRequired ? " *" : ""}</label>
             ${field.description
               ? html`<p class="field-description">${field.description}</p>`
               : nothing}
-            <uui-input
-              id="${field.key}"
-              label="${field.label}"
-              type="password"
-              .value=${value}
-              placeholder="${field.placeholder ?? ""}"
-              ?required=${field.isRequired}
-              @input=${(e: Event) =>
-                this._handleValueChange(field.key, (e.target as HTMLInputElement).value)}
-            ></uui-input>
+            <div class="password-field-wrapper">
+              <uui-input
+                id="${field.key}"
+                label="${field.label}"
+                type="${isVisible ? "text" : "password"}"
+                .value=${value}
+                placeholder="${field.placeholder ?? ""}"
+                ?required=${field.isRequired}
+                @input=${(e: Event) =>
+                  this._handleValueChange(field.key, (e.target as HTMLInputElement).value)}
+              ></uui-input>
+              <uui-button
+                compact
+                look="secondary"
+                label="${isVisible ? "Hide" : "Show"}"
+                @click=${() => this._toggleSecretVisibility(field.key)}
+              >
+                <uui-icon name="${isVisible ? "icon-eye-slash" : "icon-eye"}"></uui-icon>
+              </uui-button>
+            </div>
             ${field.isSensitive && value
               ? html`<small class="sensitive-note">Value is stored securely</small>`
               : nothing}
           </div>
         `;
+      }
 
       case "Textarea":
         return html`
@@ -1068,6 +1091,16 @@ export class MerchelloTaxProviderConfigModalElement extends UmbModalBaseElement<
 
     .checkbox-field .field-description {
       margin-left: var(--uui-size-space-5);
+    }
+
+    .password-field-wrapper {
+      display: flex;
+      gap: var(--uui-size-space-2);
+      align-items: center;
+    }
+
+    .password-field-wrapper uui-input {
+      flex: 1;
     }
 
     .sensitive-note {

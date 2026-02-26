@@ -201,13 +201,15 @@ export function initOrderSummary() {
                 return this.formatCurrency(Number(item.displayLineTotalWithAddons));
             }
 
-            const base = Number(item?.displayLineTotal ?? item?.lineTotal ?? 0);
-            const taxRate = Number(item?.taxRate ?? 0);
-            const isTaxable = item?.isTaxable === true;
-            const total = this.displayPricesIncTax && isTaxable && taxRate > 0
-                ? base * (1 + (taxRate / 100))
-                : base;
-            return this.formatCurrency(total);
+            if (item?.displayLineTotal !== undefined && item?.displayLineTotal !== null) {
+                return this.formatCurrency(Number(item.displayLineTotal));
+            }
+
+            if (item?.lineTotal !== undefined && item?.lineTotal !== null) {
+                return this.formatCurrency(Number(item.lineTotal));
+            }
+
+            return this.formatCurrency(0);
         },
 
         /**
@@ -230,13 +232,15 @@ export function initOrderSummary() {
                 return this.formatCurrency(Number(addon.displayUnitPriceWithAddons));
             }
 
-            const base = Number(addon?.displayUnitPrice ?? addon?.unitPrice ?? 0);
-            const taxRate = Number(addon?.taxRate ?? 0);
-            const isTaxable = addon?.isTaxable === true;
-            const value = this.displayPricesIncTax && isTaxable && taxRate > 0
-                ? base * (1 + (taxRate / 100))
-                : base;
-            return this.formatCurrency(value);
+            if (addon?.displayUnitPrice !== undefined && addon?.displayUnitPrice !== null) {
+                return this.formatCurrency(Number(addon.displayUnitPrice));
+            }
+
+            if (addon?.unitPrice !== undefined && addon?.unitPrice !== null) {
+                return this.formatCurrency(Number(addon.unitPrice));
+            }
+
+            return this.formatCurrency(0);
         },
 
         /**

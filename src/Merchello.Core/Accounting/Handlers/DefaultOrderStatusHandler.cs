@@ -37,10 +37,9 @@ public class DefaultOrderStatusHandler(ILogger<DefaultOrderStatusHandler> logger
             (OrderStatus.Processing, OrderStatus.ReadyToFulfill) => false,
             (OrderStatus.Processing, OrderStatus.Pending) => false,
 
-            // Can't mark as shipped if it hasn't been processed
+            // Can't skip straight to shipped from early pre-fulfillment statuses
             (OrderStatus.Pending, OrderStatus.Shipped) => false,
             (OrderStatus.AwaitingStock, OrderStatus.Shipped) => false,
-            (OrderStatus.ReadyToFulfill, OrderStatus.Shipped) => false,
 
             // All other transitions are allowed by default
             _ => true

@@ -149,6 +149,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Routing;
@@ -234,8 +235,6 @@ public static class Startup
         // =====================================================
 
         builder.Services.AddMemoryCache();
-        builder.Services.AddDataProtection();
-        builder.Services.AddHttpClient();
         builder.Services.AddHttpClient(nameof(ProductSyncService), client =>
         {
             // Product image import enforces its own cancellation tokens.
@@ -269,7 +268,7 @@ public static class Startup
         // Register Merchello cache refresher for distributed cache invalidation
         builder.CacheRefreshers().Add<MerchelloCacheRefresher>();
 
-        builder.Services.AddSingleton<IHttpContextAccessor, HttpContextAccessor>();
+        builder.Services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
         builder.Services.AddSingleton<ICacheService, CacheService>();
         builder.Services.AddSingleton<ICurrencyService, CurrencyService>();
         builder.Services.AddSingleton<ICountryCurrencyMappingService, CountryCurrencyMappingService>();

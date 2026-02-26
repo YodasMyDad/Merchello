@@ -3,6 +3,9 @@ import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
+import { UMB_MODAL_MANAGER_CONTEXT } from "@umbraco-cms/backoffice/modal";
+import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
+import { MERCHELLO_ABANDONED_CHECKOUT_DETAIL_MODAL } from "@abandoned-checkouts/modals/abandoned-checkout-detail-modal.token.js";
 import type {
   AbandonedCheckoutListItemDto,
   AbandonedCheckoutStatsDto,
@@ -45,6 +48,7 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
   @state() private _busyActions = new Set<string>();
 
   #notificationContext?: UmbNotificationContext;
+  #modalManager?: UmbModalManagerContext;
   #isConnected = false;
   #searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   #loadRequestToken = 0;
@@ -54,6 +58,9 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
     super();
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
+    });
+    this.consumeContext(UMB_MODAL_MANAGER_CONTEXT, (context) => {
+      this.#modalManager = context;
     });
   }
 
@@ -258,6 +265,19 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
     if (this._page === event.detail.page) return;
     this._page = event.detail.page;
     this._loadCheckouts();
+  }
+
+  private async _handleRowClick(checkout: AbandonedCheckoutListItemDto): Promise<void> {
+    if (!this.#modalManager) return;
+
+    const modal = this.#modalManager.open(this, MERCHELLO_ABANDONED_CHECKOUT_DETAIL_MODAL, {
+      data: { checkoutId: checkout.id },
+    });
+
+    const result = await modal?.onSubmit().catch(() => undefined);
+    if (result?.resent) {
+      await Promise.all([this._loadCheckouts(), this._loadStats()]);
+    }
   }
 
   private async _handleCopyLink(checkout: AbandonedCheckoutListItemDto): Promise<void> {
@@ -514,7 +534,7 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
     const isResendBusy = this._isActionBusy("resend", checkout.id);
 
     return html`
-      <uui-table-row>
+      <uui-table-row style="cursor:pointer" @click=${() => this._handleRowClick(checkout)}>
         <uui-table-cell>
           <div class="customer-cell">
             <span class="customer-email">${checkout.customerEmail || "Guest checkout"}</span>
@@ -551,7 +571,7 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
             look="secondary"
             label="Copy recovery link"
             ?disabled=${isCopyBusy}
-            @click=${() => this._handleCopyLink(checkout)}
+            @click=${(e: Event) => { e.stopPropagation(); this._handleCopyLink(checkout); }}
           >
             <uui-icon name="icon-link"></uui-icon>
             ${isCopyBusy ? "Copying..." : "Copy link"}
@@ -564,7 +584,7 @@ export class MerchelloAbandonedCheckoutsListElement extends UmbElementMixin(LitE
                   label="Resend recovery email"
                   title=${this._getResendTitle(checkout)}
                   ?disabled=${!canResend || isResendBusy}
-                  @click=${() => this._handleResendEmail(checkout)}
+                  @click=${(e: Event) => { e.stopPropagation(); this._handleResendEmail(checkout); }}
                 >
                   <uui-icon name="icon-message"></uui-icon>
                   ${isResendBusy ? "Sending..." : "Resend"}
