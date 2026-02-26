@@ -97,7 +97,10 @@ public class OrdersDtoMapper(
             IsOverdue = invoice.DueDate.HasValue && invoice.DueDate.Value < DateTime.UtcNow && paymentDetails.BalanceDue > 0,
             DaysUntilDue = invoice.DueDate.HasValue ? (int)(invoice.DueDate.Value.Date - DateTime.UtcNow.Date).TotalDays : null,
             SourceType = invoice.Source?.Type,
-            SourceName = invoice.Source?.SourceName ?? invoice.Source?.DisplayName
+            SourceName = invoice.Source?.SourceName ?? invoice.Source?.DisplayName,
+            MaxRiskScore = paymentDetails.MaxRiskScore,
+            MaxRiskScoreSource = paymentDetails.MaxRiskScoreSource,
+            RiskLevel = paymentDetails.RiskLevel
         };
     }
 
