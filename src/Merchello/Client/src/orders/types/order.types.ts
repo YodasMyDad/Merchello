@@ -203,6 +203,12 @@ export interface OrderListItemDto {
   daysUntilDue?: number | null;
   /** Outstanding balance due on this invoice */
   balanceDue?: number;
+  /** Maximum fraud/risk score across all payments (0-100 scale). */
+  maxRiskScore?: number | null;
+  /** Source of the maximum risk score. */
+  maxRiskScoreSource?: string | null;
+  /** Risk level: "high", "medium", "low", "minimal", or null. Backend-calculated. */
+  riskLevel?: string | null;
 }
 
 /** Invoice source tracking for analytics and auditing */
