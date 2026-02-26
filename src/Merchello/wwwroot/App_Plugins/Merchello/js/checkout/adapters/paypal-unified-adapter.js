@@ -136,7 +136,7 @@
                     fundingSource = paypal.FUNDING.PAYPAL;
                 }
 
-                const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+                const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
                 const buttonConfig = {
                     style: {
                         layout: 'horizontal',

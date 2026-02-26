@@ -220,6 +220,18 @@ public class AbandonedCheckoutService(
         return result;
     }
 
+    public async Task<AbandonedCheckout?> GetDetailByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+            await db.AbandonedCheckouts
+                .Include(ac => ac.Basket)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(ac => ac.Id == id, ct));
+        scope.Complete();
+        return result;
+    }
+
     public async Task<AbandonedCheckout?> GetByBasketIdAsync(Guid basketId, CancellationToken ct = default)
     {
         using var scope = efCoreScopeProvider.CreateScope();

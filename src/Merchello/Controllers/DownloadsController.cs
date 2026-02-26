@@ -28,17 +28,23 @@ public class DownloadsController(
     /// Rate limited to prevent abuse.
     /// </summary>
     [HttpGet("{token}")]
+    [Authorize]
     [EnableRateLimiting("downloads")]
     public async Task<IActionResult> Download(string token, CancellationToken ct)
     {
-        // Get current customer ID if authenticated
-        Guid? customerId = null;
         var member = await memberManager.GetCurrentMemberAsync();
-        if (member != null)
+        if (member == null)
         {
-            var customer = await customerService.GetByMemberKeyAsync(member.Key, ct);
-            customerId = customer?.Id;
+            return Unauthorized();
         }
+
+        var customer = await customerService.GetByMemberKeyAsync(member.Key, ct);
+        if (customer == null)
+        {
+            return Unauthorized();
+        }
+
+        var customerId = customer.Id;
 
         // Validate the token
         var validationResult = await digitalProductService.ValidateDownloadTokenAsync(
@@ -107,7 +113,8 @@ public class DownloadsController(
         // Security: Validate path stays within wwwroot to prevent path traversal attacks
         var fullPath = Path.GetFullPath(physicalPath);
         var wwwrootPath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"));
-        if (!fullPath.StartsWith(wwwrootPath, StringComparison.OrdinalIgnoreCase))
+        var relativePath = Path.GetRelativePath(wwwrootPath, fullPath);
+        if (relativePath.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relativePath))
         {
             return Forbid();
         }

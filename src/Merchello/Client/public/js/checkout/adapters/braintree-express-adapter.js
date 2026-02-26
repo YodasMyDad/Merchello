@@ -109,12 +109,13 @@
          * @param {Object} checkout - The checkout Alpine.js component instance
          */
         async render(container, method, config, checkout) {
+            console.log('[BraintreeExpress] render called for', method.methodAlias);
             try {
                 const sdkConfig = method.sdkConfig || {};
 
                 // Validate required config
                 if (!sdkConfig.clientToken) {
-                    console.error('Braintree client token not provided for express checkout');
+                    console.error('[BraintreeExpress]', method.methodAlias, '- client token not provided');
                     container.style.display = 'none';
                     return;
                 }
@@ -143,7 +144,7 @@
                             paypal: methodAlias === 'paypal'
                         });
                     } catch (e) {
-                        console.warn('Data collector initialization failed:', e);
+                        console.warn('[BraintreeExpress] Data collector initialization failed:', e);
                     }
                 }
 
@@ -157,10 +158,11 @@
                 } else if (methodAlias === 'venmo' || methodAlias === 'braintree-venmo') {
                     await this.renderVenmo(container, method, config, checkout, sdkConfig);
                 } else {
+                    console.warn('[BraintreeExpress]', methodAlias, '- no handler, hiding');
                     container.style.display = 'none';
                 }
             } catch (error) {
-                // Silently hide the container on initialization error
+                console.error('[BraintreeExpress]', method.methodAlias, '- initialization error:', error);
                 container.style.display = 'none';
             }
         },
@@ -190,11 +192,10 @@
             // Create a unique container for the PayPal button
             const buttonContainer = document.createElement('div');
             buttonContainer.id = 'braintree-paypal-button-' + Date.now();
-            buttonContainer.style.width = '100%';
             container.appendChild(buttonContainer);
 
             // Render native PayPal button - must await to complete before container is moved
-            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             await paypal.Buttons({
                 fundingSource: paypal.FUNDING.PAYPAL,
                 style: {
@@ -274,7 +275,7 @@
             applePayInstances[methodAlias] = applePayInstance;
 
             // Create Apple Pay button
-            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             const button = document.createElement('apple-pay-button');
             button.setAttribute('buttonstyle', 'black');
             button.setAttribute('type', 'plain');
@@ -363,6 +364,7 @@
          */
         async renderGooglePay(container, method, config, checkout, sdkConfig) {
             const methodAlias = method.methodAlias.toLowerCase();
+            console.log('[BraintreeExpress] renderGooglePay - environment:', sdkConfig.isTestMode ? 'TEST' : 'PRODUCTION', 'merchantId:', sdkConfig.googleMerchantId);
 
             // Load Google Pay script
             if (sdkConfig.googlePayScriptUrl) {
@@ -397,8 +399,9 @@
             };
 
             const readyToPay = await paymentsClient.isReadyToPay(isReadyToPayRequest);
+            console.log('[BraintreeExpress] Google Pay isReadyToPay:', readyToPay.result);
             if (!readyToPay.result) {
-                // Silently hide if Google Pay is not available
+                console.log('[BraintreeExpress] Google Pay not available - hiding');
                 container.style.display = 'none';
                 return;
             }
@@ -467,9 +470,9 @@
                 buttonSizeMode: 'fill'
             });
 
-            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             button.style.width = '100%';
-            button.style.minHeight = `${expressConfig.buttonHeight}px`;
+            button.style.height = `${expressConfig.buttonHeight}px`;
             container.appendChild(button);
         },
 
@@ -500,7 +503,7 @@
             }
 
             // Create Venmo button
-            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40, borderRadius: 6 };
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'venmo-button';

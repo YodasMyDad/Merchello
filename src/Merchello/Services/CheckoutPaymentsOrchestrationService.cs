@@ -157,36 +157,20 @@ public class CheckoutPaymentsOrchestrationService(
             return CheckoutApiResult.BadRequest("This invoice has been refunded and cannot accept new payments.");
         }
 
-        // Validate that the current checkout session owns this invoice
-        // This prevents users from paying invoices that don't belong to them
+        // Validate that the current checkout session owns this invoice.
         var currentBasket = await checkoutService.GetBasket(
             new GetBasketParameters(),
             cancellationToken);
-
-        if (currentBasket == null)
+        var ownership = await ValidateInvoiceCheckoutOwnershipAsync(
+            invoice,
+            invoiceId,
+            "CreatePaymentSession",
+            currentBasket,
+            session: null,
+            cancellationToken);
+        if (!ownership.IsAuthorized)
         {
-            return CheckoutApiResult.Forbidden("No active checkout session.");
-        }
-
-        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
-
-        // Validate ownership with multiple checks for defense in depth:
-        // 1. Session must have the invoice ID that was created from this checkout
-        // 2. Billing email must match (fallback for sessions created before InvoiceId tracking)
-        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == invoiceId;
-        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
-            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
-
-        if (!hasValidInvoiceId && !hasValidEmail)
-        {
-            logger.LogWarning(
-                "Invoice ownership validation failed: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
-                invoiceId,
-                invoice.BillingAddress.Email,
-                session.InvoiceId,
-                session.BillingAddress.Email);
-
-            return CheckoutApiResult.Forbidden("You do not have permission to pay this invoice.");
+            return CheckoutApiResult.Forbidden(ownership.ErrorMessage);
         }
 
         // Verify provider is enabled
@@ -778,40 +762,23 @@ public class CheckoutPaymentsOrchestrationService(
             });
         }
 
-        // Validate that the current checkout session owns this invoice
+        // Validate that the current checkout session owns this invoice.
         var currentBasket = await checkoutService.GetBasket(
             new GetBasketParameters(),
             cancellationToken);
-
-        if (currentBasket == null)
+        var ownership = await ValidateInvoiceCheckoutOwnershipAsync(
+            invoice,
+            request.InvoiceId,
+            "ProcessPayment",
+            currentBasket,
+            session: null,
+            cancellationToken);
+        if (!ownership.IsAuthorized)
         {
             return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
             {
                 Success = false,
-                ErrorMessage = "No active checkout session."
-            });
-        }
-
-        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
-
-        // Validate ownership with multiple checks for defense in depth
-        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
-        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
-            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
-
-        if (!hasValidInvoiceId && !hasValidEmail)
-        {
-            logger.LogWarning(
-                "Invoice ownership validation failed in ProcessPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
-                request.InvoiceId,
-                invoice.BillingAddress.Email,
-                session.InvoiceId,
-                session.BillingAddress.Email);
-
-            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
-            {
-                Success = false,
-                ErrorMessage = "You do not have permission to pay this invoice."
+                ErrorMessage = ownership.ErrorMessage
             });
         }
 
@@ -1108,27 +1075,23 @@ public class CheckoutPaymentsOrchestrationService(
                 currentBasket.Id);
         }
 
-        // Validate ownership with multiple checks for defense in depth
-        // Skip this check if we just created the invoice - we know it's valid
+        // Validate ownership with multiple checks for defense in depth.
+        // Skip this check if we just created the invoice - we know it's valid.
         if (!invoiceCreatedInThisRequest)
         {
-            var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == invoice.Id;
-            var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
-                string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
-
-            if (!hasValidInvoiceId && !hasValidEmail)
+            var ownership = await ValidateInvoiceCheckoutOwnershipAsync(
+                invoice,
+                invoice.Id,
+                "ProcessDirectPayment",
+                currentBasket,
+                session,
+                cancellationToken);
+            if (!ownership.IsAuthorized)
             {
-                logger.LogWarning(
-                    "Invoice ownership validation failed in ProcessDirectPayment: Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
-                    invoice.Id,
-                    invoice.BillingAddress.Email,
-                    session.InvoiceId,
-                    session.BillingAddress.Email);
-
                 return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
                 {
                     Success = false,
-                    ErrorMessage = "You do not have permission to pay this invoice."
+                    ErrorMessage = ownership.ErrorMessage
                 });
             }
         }
@@ -2326,36 +2289,24 @@ public class CheckoutPaymentsOrchestrationService(
                 });
             }
 
-            // Validate that the current checkout session owns this invoice
+            // Validate that the current checkout session owns this invoice.
             var currentBasket = await checkoutService.GetBasket(
                 new GetBasketParameters(),
                 cancellationToken);
-
-            if (currentBasket != null)
+            var ownership = await ValidateInvoiceCheckoutOwnershipAsync(
+                invoice,
+                request.InvoiceId.Value,
+                $"CaptureWidgetOrder:{providerAlias}",
+                currentBasket,
+                session: null,
+                cancellationToken);
+            if (!ownership.IsAuthorized)
             {
-                var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
-
-                // Validate ownership with multiple checks for defense in depth
-                var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId.Value;
-                var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
-                    string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
-
-                if (!hasValidInvoiceId && !hasValidEmail)
+                return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
                 {
-                    logger.LogWarning(
-                        "Invoice ownership validation failed in CaptureWidgetOrder ({Provider}): Invoice {InvoiceId} (email: {InvoiceBillingEmail}), Session invoice: {SessionInvoiceId}, Session email: {SessionBillingEmail}",
-                        providerAlias,
-                        request.InvoiceId.Value,
-                        invoice.BillingAddress.Email,
-                        session.InvoiceId,
-                        session.BillingAddress.Email);
-
-                    return CheckoutApiResult.Ok(new CaptureWidgetOrderResultDto
-                    {
-                        Success = false,
-                        ErrorMessage = "You do not have permission to pay this invoice."
-                    });
-                }
+                    Success = false,
+                    ErrorMessage = ownership.ErrorMessage
+                });
             }
 
             // Process the payment (capture the order)
@@ -2802,38 +2753,24 @@ public class CheckoutPaymentsOrchestrationService(
             });
         }
 
-        // Validate that the current checkout session owns this invoice
+        // Validate that the current checkout session owns this invoice.
         var currentBasket = await checkoutService.GetBasket(
             new GetBasketParameters(),
             cancellationToken);
-
-        if (currentBasket == null)
+        var ownership = await ValidateInvoiceCheckoutOwnershipAsync(
+            invoice,
+            request.InvoiceId,
+            "ProcessSavedPayment",
+            currentBasket,
+            session: null,
+            cancellationToken,
+            requiredCustomerId: customer.Id);
+        if (!ownership.IsAuthorized)
         {
             return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
             {
                 Success = false,
-                ErrorMessage = "No active checkout session."
-            });
-        }
-
-        var session = await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
-
-        // Validate ownership
-        var hasValidInvoiceId = session.InvoiceId.HasValue && session.InvoiceId.Value == request.InvoiceId;
-        var hasValidEmail = !string.IsNullOrEmpty(session.BillingAddress.Email) &&
-            string.Equals(session.BillingAddress.Email, invoice.BillingAddress.Email, StringComparison.OrdinalIgnoreCase);
-
-        if (!hasValidInvoiceId && !hasValidEmail)
-        {
-            logger.LogWarning(
-                "Invoice ownership validation failed in ProcessSavedPayment: Invoice {InvoiceId}, Session invoice: {SessionInvoiceId}",
-                request.InvoiceId,
-                session.InvoiceId);
-
-            return CheckoutApiResult.Forbidden(new ProcessPaymentResultDto
-            {
-                Success = false,
-                ErrorMessage = "You do not have permission to pay this invoice."
+                ErrorMessage = ownership.ErrorMessage
             });
         }
 
@@ -2936,6 +2873,59 @@ public class CheckoutPaymentsOrchestrationService(
             TransactionId = transactionId,
             RedirectUrl = redirectUrl
         });
+    }
+
+    private async Task<(bool IsAuthorized, string ErrorMessage)> ValidateInvoiceCheckoutOwnershipAsync(
+        Invoice invoice,
+        Guid invoiceId,
+        string operationName,
+        Basket? currentBasket,
+        CheckoutSession? session,
+        CancellationToken cancellationToken,
+        Guid? requiredCustomerId = null)
+    {
+        if (currentBasket == null)
+        {
+            logger.LogWarning(
+                "{Operation}: invoice access denied for invoice {InvoiceId} because there is no active checkout basket.",
+                operationName,
+                invoiceId);
+            return (false, "No active checkout session.");
+        }
+
+        session ??= await checkoutSessionService.GetSessionAsync(currentBasket.Id, cancellationToken);
+
+        var hasSessionInvoiceMatch = session.InvoiceId.HasValue && session.InvoiceId.Value == invoiceId;
+        var hasBasketInvoiceMatch = invoice.BasketId.HasValue && invoice.BasketId.Value == currentBasket.Id;
+
+        Guid? resolvedCustomerId = requiredCustomerId;
+        if (!resolvedCustomerId.HasValue)
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member != null)
+            {
+                var customer = await customerService.GetByMemberKeyAsync(member.Key, cancellationToken);
+                resolvedCustomerId = customer?.Id;
+            }
+        }
+
+        var hasCustomerOwnership = resolvedCustomerId.HasValue && invoice.CustomerId == resolvedCustomerId.Value;
+        if (hasSessionInvoiceMatch || hasBasketInvoiceMatch || hasCustomerOwnership)
+        {
+            return (true, string.Empty);
+        }
+
+        logger.LogWarning(
+            "{Operation}: invoice ownership validation failed. Invoice {InvoiceId}, InvoiceBasketId {InvoiceBasketId}, SessionInvoiceId {SessionInvoiceId}, CurrentBasketId {CurrentBasketId}, InvoiceCustomerId {InvoiceCustomerId}, RequestCustomerId {RequestCustomerId}",
+            operationName,
+            invoiceId,
+            invoice.BasketId,
+            session.InvoiceId,
+            currentBasket.Id,
+            invoice.CustomerId,
+            resolvedCustomerId);
+
+        return (false, "You do not have permission to pay this invoice.");
     }
 
     private static string? FormatExpiry(int? month, int? year)
