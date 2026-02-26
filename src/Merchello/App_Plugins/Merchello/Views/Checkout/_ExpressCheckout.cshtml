@@ -21,10 +21,10 @@
      x-show="isLoading || hasExpressMethods"
      x-cloak>
 
-    <!-- Loading State - Skeleton Loaders -->
-    <div x-show="isLoading" class="express-buttons-layout" style="text-align: center;">
-        <div class="animate-pulse bg-gray-200 rounded-lg" style="height: 44px; margin-bottom: 0.5rem;"></div>
-        <div class="animate-pulse bg-gray-200 rounded-lg" style="height: 44px; margin-bottom: 0.5rem;"></div>
+    <!-- Loading State - Dynamic Skeleton Loaders -->
+    <div x-show="isLoading" class="express-buttons-layout express-skeleton-layout">
+        <div class="express-skeleton-bar animate-pulse bg-gray-200 rounded-lg"></div>
+        <div class="express-skeleton-bar animate-pulse bg-gray-200 rounded-lg"></div>
     </div>
 
     <!-- Express Checkout Content -->
@@ -63,7 +63,7 @@
 </div>
 
 <style>
-    /* Express buttons layout - flex column forces vertical stacking */
+    /* Express buttons layout — mobile-first, single column */
     .express-buttons-layout {
         display: flex;
         flex-direction: column;
@@ -73,10 +73,37 @@
         margin: 0 auto;
     }
 
-    /* Each wrapper is a flex child - stretch makes it full width */
+    /* Grid layout for 2+ buttons on desktop */
+    .express-buttons-layout.express-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    /* Single button stays full width */
+    .express-buttons-layout.express-single {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Mobile: always single column */
+    @@media (max-width: 480px) {
+        .express-buttons-layout.express-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Each wrapper fills its grid cell */
     .express-button-wrapper {
         flex: 0 0 auto;
         width: 100%;
+        min-width: 0; /* prevent grid blowout */
+    }
+
+    /* Skeleton loader bars match button height */
+    .express-skeleton-bar {
+        height: 44px;
+        border-radius: 6px;
     }
 
     /* Apple Pay button styling (native via <apple-pay-button> element) */

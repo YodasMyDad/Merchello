@@ -195,7 +195,7 @@
             container.appendChild(buttonContainer);
 
             // Render native PayPal button - must await to complete before container is moved
-            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             await paypal.Buttons({
                 fundingSource: paypal.FUNDING.PAYPAL,
                 style: {
@@ -275,7 +275,7 @@
             applePayInstances[methodAlias] = applePayInstance;
 
             // Create Apple Pay button
-            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40 };
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             const button = document.createElement('apple-pay-button');
             button.setAttribute('buttonstyle', 'black');
             button.setAttribute('type', 'plain');
@@ -470,8 +470,9 @@
                 buttonSizeMode: 'fill'
             });
 
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             button.style.width = '100%';
-            button.style.height = '44px';
+            button.style.height = `${expressConfig.buttonHeight}px`;
             container.appendChild(button);
         },
 
@@ -502,7 +503,7 @@
             }
 
             // Create Venmo button
-            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 40, borderRadius: 6 };
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             const button = document.createElement('button');
             button.type = 'button';
             button.className = 'venmo-button';

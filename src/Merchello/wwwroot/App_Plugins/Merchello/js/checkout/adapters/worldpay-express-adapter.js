@@ -142,6 +142,7 @@
             }
 
             // Create Apple Pay button
+            const expressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             container.innerHTML = `
                 <button type="button" class="worldpay-apple-pay-button" aria-label="Pay with Apple Pay">
                     <span class="worldpay-apple-pay-logo"></span>
@@ -152,9 +153,9 @@
                         -apple-pay-button-type: buy;
                         -apple-pay-button-style: black;
                         width: 100%;
-                        height: 48px;
+                        height: ${expressConfig.buttonHeight}px;
                         border: none;
-                        border-radius: 8px;
+                        border-radius: ${expressConfig.borderRadius}px;
                         cursor: pointer;
                     }
                     .worldpay-apple-pay-button:hover {
@@ -354,6 +355,7 @@
             container.appendChild(googlePayButton);
 
             // Add some styling
+            const gpExpressConfig = window.MerchelloExpressConfig || { buttonHeight: 44, borderRadius: 6 };
             const style = document.createElement('style');
             style.textContent = `
                 .worldpay-google-pay-container {
@@ -361,7 +363,7 @@
                 }
                 .worldpay-google-pay-container button {
                     width: 100%;
-                    min-height: 48px;
+                    min-height: ${gpExpressConfig.buttonHeight}px;
                 }
             `;
             container.appendChild(style);
