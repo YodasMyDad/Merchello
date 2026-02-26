@@ -7,6 +7,17 @@
  * ensuring all components are registered before Alpine processes the DOM.
  */
 
+// Import error boundary and logger FIRST (before any other code)
+import { installErrorBoundary } from './services/error-boundary.js';
+import { checkoutLogger } from './services/logger.js';
+
+// Install global error boundary immediately
+installErrorBoundary();
+
+// Make logger globally available for dynamically-loaded payment adapters
+/** @type {any} */ (window).MerchelloLogger = checkoutLogger;
+checkoutLogger.setCheckoutStep('init');
+
 // Import Alpine and plugins as ES modules
 import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
@@ -43,6 +54,7 @@ function getInitialDataFromDOM() {
         return JSON.parse(element.textContent || '{}');
     } catch (e) {
         console.warn('Failed to parse checkout initial data:', e);
+        checkoutLogger.warn('Failed to parse checkout initial data', 'init');
         return {};
     }
 }
@@ -72,6 +84,7 @@ console.log('[Checkout] All components registered');
 console.log('[Checkout] Starting Alpine...');
 Alpine.start();
 console.log('[Checkout] Alpine started successfully');
+checkoutLogger.info('Checkout initialized successfully', 'init');
 
 // Export for testing and external use
 export {
