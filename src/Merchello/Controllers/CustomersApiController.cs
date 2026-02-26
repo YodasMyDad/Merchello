@@ -224,7 +224,10 @@ public class CustomersApiController(
             return NotFound("Customer not found");
         }
 
-        var effectiveStore = storeSettingsService?.GetRuntimeSettings().Merchello.Store ?? settings.Value.Store;
+        var runtimeSettings = storeSettingsService != null
+            ? await storeSettingsService.GetRuntimeSettingsAsync(ct)
+            : null;
+        var effectiveStore = runtimeSettings?.Merchello.Store ?? settings.Value.Store;
         var parameters = new GenerateStatementParameters
         {
             CustomerId = id,

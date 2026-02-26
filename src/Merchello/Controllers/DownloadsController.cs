@@ -4,6 +4,7 @@ using Merchello.Core.DigitalProducts.Services.Interfaces;
 using Merchello.Core.DigitalProducts.Services.Parameters;
 using Merchello.Core.Accounting.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Umbraco.Cms.Core.Security;
@@ -57,6 +58,18 @@ public class DownloadsController(
         if (!validationResult.Success || validationResult.ResultObject == null)
         {
             var errorMessage = validationResult.Messages.FirstOrDefault()?.Message ?? "Invalid download token";
+
+            if (errorMessage.Contains("limit reached", StringComparison.OrdinalIgnoreCase))
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = errorMessage });
+            }
+
+            if (errorMessage.Contains("invalid download token", StringComparison.OrdinalIgnoreCase) ||
+                errorMessage.Contains("expired", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(new { error = errorMessage });
+            }
+
             return BadRequest(new { error = errorMessage });
         }
 

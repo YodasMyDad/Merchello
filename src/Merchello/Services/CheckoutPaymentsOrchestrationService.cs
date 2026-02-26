@@ -2595,13 +2595,21 @@ public class CheckoutPaymentsOrchestrationService(
             return CheckoutApiResult.BadRequest(new { success = false, error = "Invalid provider type." });
         }
 
+        var displayName = request.DisplayName;
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            var runtimeSettings = _storeSettingsService != null
+                ? await _storeSettingsService.GetRuntimeSettingsAsync(cancellationToken)
+                : null;
+            displayName = runtimeSettings?.Merchello.Store.Name
+                ?? settings.Value.Store.Name
+                ?? "Store";
+        }
+
         // Validate the merchant session
         var merchantSession = await worldPayProvider.ValidateApplePayMerchantAsync(
             request.ValidationUrl,
-            request.DisplayName ??
-            _storeSettingsService?.GetRuntimeSettings().Merchello.Store.Name ??
-            settings.Value.Store.Name ??
-            "Store",
+            displayName,
             cancellationToken);
 
         if (merchantSession == null)

@@ -183,12 +183,16 @@ public class StatementService(
         CancellationToken ct = default)
     {
         var statement = await GetStatementDataAsync(parameters, ct);
-        return GeneratePdf(statement, parameters.CompanyName, parameters.CompanyAddress);
+        var effectiveStore = await GetEffectiveStoreSettingsAsync(ct);
+        return GeneratePdf(statement, parameters.CompanyName, parameters.CompanyAddress, effectiveStore);
     }
 
-    private byte[] GeneratePdf(CustomerStatementDto statement, string? companyName, string? companyAddress)
+    private byte[] GeneratePdf(
+        CustomerStatementDto statement,
+        string? companyName,
+        string? companyAddress,
+        StoreSettings effectiveStore)
     {
-        var effectiveStore = _storeSettingsService?.GetRuntimeSettings().Merchello.Store ?? _settings.Store;
         var document = pdfService.CreateDocument("Customer Statement");
         var (page, graphics) = pdfService.AddPage(document);
 
@@ -229,6 +233,17 @@ public class StatementService(
         pdfService.DrawFooter(graphics, page, 1, 1, statement.StatementDate);
 
         return pdfService.SaveToBytes(document);
+    }
+
+    private async Task<StoreSettings> GetEffectiveStoreSettingsAsync(CancellationToken ct)
+    {
+        if (_storeSettingsService == null)
+        {
+            return _settings.Store;
+        }
+
+        var runtimeSettings = await _storeSettingsService.GetRuntimeSettingsAsync(ct);
+        return runtimeSettings.Merchello.Store ?? _settings.Store;
     }
 
     private double DrawStatementInfo(XGraphics graphics, PdfSharp.Pdf.PdfPage page, CustomerStatementDto statement, double startY)
