@@ -18,7 +18,7 @@
 /* Custom checkout component classes */
 @layer components {
   .checkout-input {
-    @apply w-full px-4 py-3 border border-gray-300 rounded-lg
+    @apply w-full px-4 py-3 bg-white border border-gray-300 rounded-lg
            focus:ring-2 focus:ring-accent focus:border-accent
            focus-visible:outline-none
            transition-colors;
@@ -162,7 +162,7 @@
 /* Compact mode - smaller inputs and tighter spacing for single-page checkout */
 @layer components {
   .checkout-input-compact {
-    @apply w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+    @apply w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg
            focus:ring-2 focus:ring-accent focus:border-accent
            focus-visible:outline-none
            transition-colors;
