@@ -97,6 +97,18 @@ export function handlePaymentError(error, context = {}) {
         originalError: error
     });
 
+    // Log to server for store owner visibility
+    /** @type {any} */ (window).MerchelloLogger?.error(
+        `Payment error: ${code} - ${error.message || userMessage}`,
+        'payment',
+        {
+            code,
+            provider: context.provider,
+            method: context.method,
+            action: context.action
+        }
+    );
+
     return userMessage;
 }
 
