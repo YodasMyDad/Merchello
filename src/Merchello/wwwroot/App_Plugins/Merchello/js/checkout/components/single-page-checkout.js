@@ -120,6 +120,8 @@ export function initSinglePageCheckout() {
             cardPaymentMethods: [],
             redirectPaymentMethods: [],
             selectedPaymentMethodKey: '',
+            /** Whether the customer has exceeded their credit limit (soft warning for PO payments) */
+            creditLimitExceeded: false,
 
             // ============================================
             // Upsell Local State
@@ -351,6 +353,15 @@ export function initSinglePageCheckout() {
             get showCreateAccountButton() {
                 const store = this.$store.checkout;
                 return !store?.isLoggedIn && !store?.emailHasAccount && !this.showAccountSection;
+            },
+
+            /**
+             * Whether to show the "Login to your account" link.
+             * Shown when email belongs to an existing account but user hasn't opened the login section yet.
+             */
+            get showLoginButton() {
+                const store = this.$store.checkout;
+                return !store?.isLoggedIn && store?.emailHasAccount && !this.showAccountSection && !this.isSignedIn;
             },
 
             // ============================================
@@ -1348,8 +1359,8 @@ export function initSinglePageCheckout() {
                     }
 
                     const categorized = categorizePaymentMethods(methods);
-                    this.cardPaymentMethods = categorized.card;
-                    this.redirectPaymentMethods = categorized.redirect;
+                    this.cardPaymentMethods = [...categorized.card, ...categorized.redirect];
+                    this.redirectPaymentMethods = [];
                 } catch (error) {
                     console.error('Failed to load payment methods:', error);
                     /** @type {any} */ (window).MerchelloLogger?.error('Failed to load payment methods: ' + (error.message || 'Unknown error'), 'payment');
@@ -1394,6 +1405,19 @@ export function initSinglePageCheckout() {
                 }
                 if (!isSameMethod) {
                     this.announce(`Selected ${method.displayName} payment`);
+                }
+
+                // Check credit limit for Purchase Order payment method
+                if (method.methodAlias === 'purchase-order' && this.form.email) {
+                    try {
+                        const creditResult = await checkoutApi.checkCreditStatus(this.form.email);
+                        this.creditLimitExceeded = creditResult?.creditLimitExceeded ?? false;
+                    } catch (e) {
+                        console.warn('Credit check failed:', e);
+                        this.creditLimitExceeded = false;
+                    }
+                } else {
+                    this.creditLimitExceeded = false;
                 }
 
                 if (this.form.email && this._emailCaptured !== this.form.email) {
@@ -1582,6 +1606,12 @@ export function initSinglePageCheckout() {
                 try {
                     const data = await checkoutApi.checkEmail(this.form.email);
                     store?.setEmailHasAccount(data.hasExistingAccount === true);
+
+                    // Auto-open login section for returning customers
+                    if (data.hasExistingAccount === true) {
+                        this.hasExistingAccount = true;
+                        this.showAccountSection = true;
+                    }
                 } catch {
                     // Silently fail - don't disrupt checkout flow
                     // Keep button visible if check fails
@@ -1642,7 +1672,8 @@ export function initSinglePageCheckout() {
                 this.signInError = '';
                 this.showForgotPassword = false;
                 this.isSignedIn = false;
-                this.hasExistingAccount = false;
+                // Preserve existing account state so "Login" link stays visible
+                this.hasExistingAccount = store?.emailHasAccount ?? false;
             },
 
             openForgotPassword() {

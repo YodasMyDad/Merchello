@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using Merchello.Core.Reporting.Dtos;
 using Merchello.Core.Reporting.Services.Interfaces;
+using Merchello.Core.Reporting.Services.Parameters;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,9 +20,19 @@ public class ReportingApiController(
     public async Task<AnalyticsSummaryDto> GetSummary(
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
+        [FromQuery] CompareMode compareMode = CompareMode.Previous,
+        [FromQuery] DateTime? comparisonStartDate = null,
+        [FromQuery] DateTime? comparisonEndDate = null,
         CancellationToken cancellationToken = default)
     {
-        return await reportingService.GetAnalyticsSummaryAsync(startDate, endDate, cancellationToken);
+        return await reportingService.GetAnalyticsSummaryAsync(new AnalyticsQueryParameters
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            CompareMode = compareMode,
+            ComparisonStartDate = comparisonStartDate,
+            ComparisonEndDate = comparisonEndDate,
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -66,9 +77,19 @@ public class ReportingApiController(
     public async Task<SalesBreakdownDto> GetBreakdown(
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
+        [FromQuery] CompareMode compareMode = CompareMode.Previous,
+        [FromQuery] DateTime? comparisonStartDate = null,
+        [FromQuery] DateTime? comparisonEndDate = null,
         CancellationToken cancellationToken = default)
     {
-        return await reportingService.GetSalesBreakdownAsync(startDate, endDate, cancellationToken);
+        return await reportingService.GetSalesBreakdownAsync(new AnalyticsQueryParameters
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            CompareMode = compareMode,
+            ComparisonStartDate = comparisonStartDate,
+            ComparisonEndDate = comparisonEndDate,
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -80,9 +101,19 @@ public class ReportingApiController(
     public async Task<TimeSeriesResultDto> GetSalesTimeSeriesWithTotals(
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
+        [FromQuery] CompareMode compareMode = CompareMode.Previous,
+        [FromQuery] DateTime? comparisonStartDate = null,
+        [FromQuery] DateTime? comparisonEndDate = null,
         CancellationToken cancellationToken = default)
     {
-        return await reportingService.GetSalesTimeSeriesWithTotalsAsync(startDate, endDate, cancellationToken);
+        return await reportingService.GetSalesTimeSeriesWithTotalsAsync(new AnalyticsQueryParameters
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            CompareMode = compareMode,
+            ComparisonStartDate = comparisonStartDate,
+            ComparisonEndDate = comparisonEndDate,
+        }, cancellationToken);
     }
 
     /// <summary>
@@ -94,8 +125,18 @@ public class ReportingApiController(
     public async Task<TimeSeriesResultDto> GetAovTimeSeriesWithTotals(
         [FromQuery] DateTime startDate,
         [FromQuery] DateTime endDate,
+        [FromQuery] CompareMode compareMode = CompareMode.Previous,
+        [FromQuery] DateTime? comparisonStartDate = null,
+        [FromQuery] DateTime? comparisonEndDate = null,
         CancellationToken cancellationToken = default)
     {
-        return await reportingService.GetAverageOrderValueTimeSeriesWithTotalsAsync(startDate, endDate, cancellationToken);
+        return await reportingService.GetAverageOrderValueTimeSeriesWithTotalsAsync(new AnalyticsQueryParameters
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            CompareMode = compareMode,
+            ComparisonStartDate = comparisonStartDate,
+            ComparisonEndDate = comparisonEndDate,
+        }, cancellationToken);
     }
 }

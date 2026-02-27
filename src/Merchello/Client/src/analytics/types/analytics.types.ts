@@ -69,3 +69,19 @@ export interface DateRange {
 }
 
 export type DateRangePreset = "today" | "last7days" | "last30days" | "thisMonth" | "lastMonth" | "custom";
+
+export type ComparePreset = "previous" | "previousYear" | "custom";
+
+export interface CompareState {
+  isEnabled: boolean;
+  preset: ComparePreset;
+  customStartDate?: Date;
+  customEndDate?: Date;
+}
+
+export interface DateRangeChangeDetail {
+  startDate: Date;
+  endDate: Date;
+  preset: DateRangePreset;
+  compare: CompareState;
+}

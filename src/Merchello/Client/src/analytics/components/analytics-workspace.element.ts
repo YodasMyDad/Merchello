@@ -13,8 +13,9 @@ import type {
   TimeSeriesResultDto,
   SalesBreakdownDto,
   DateRange,
+  CompareState,
+  DateRangeChangeDetail,
 } from "@analytics/types/analytics.types.js";
-import type { DateRangeChangeDetail } from "@analytics/components/analytics-header.element.js";
 
 // Import child components
 import "@analytics/components/analytics-header.element.js";
@@ -27,6 +28,9 @@ import { collectionLayoutStyles } from "@shared/styles/collection-layout.styles.
 export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitElement) {
   @state()
   private _dateRange: DateRange = this._getDefaultDateRange();
+
+  @state()
+  private _compareState: CompareState = { isEnabled: true, preset: "previous" };
 
   @state()
   private _summary: AnalyticsSummaryDto | null = null;
@@ -84,13 +88,28 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
     const startDate = this._formatDateForApi(this._dateRange.startDate);
     const endDate = this._formatDateForApi(this._dateRange.endDate);
 
+    // Build comparison parameters from compare state
+    const compareMode = this._compareState.isEnabled
+      ? this._compareState.preset === "previousYear" ? "PreviousYear"
+        : this._compareState.preset === "custom" ? "Custom"
+        : "Previous"
+      : "None";
+
+    const comparisonStartDate = this._compareState.preset === "custom" && this._compareState.customStartDate
+      ? this._formatDateForApi(this._compareState.customStartDate)
+      : undefined;
+
+    const comparisonEndDate = this._compareState.preset === "custom" && this._compareState.customEndDate
+      ? this._formatDateForApi(this._compareState.customEndDate)
+      : undefined;
+
     try {
       // Load all data in parallel - using WithTotals variants for backend-calculated aggregates
       const [summaryResult, salesResult, aovResult, breakdownResult] = await Promise.all([
-        MerchelloApi.getAnalyticsSummary(startDate, endDate),
-        MerchelloApi.getSalesTimeSeriesWithTotals(startDate, endDate),
-        MerchelloApi.getAovTimeSeriesWithTotals(startDate, endDate),
-        MerchelloApi.getSalesBreakdown(startDate, endDate),
+        MerchelloApi.getAnalyticsSummary(startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate),
+        MerchelloApi.getSalesTimeSeriesWithTotals(startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate),
+        MerchelloApi.getAovTimeSeriesWithTotals(startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate),
+        MerchelloApi.getSalesBreakdown(startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate),
       ]);
 
       if (!this.#isConnected) return;
@@ -130,6 +149,7 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
       startDate: e.detail.startDate,
       endDate: e.detail.endDate,
     };
+    this._compareState = e.detail.compare;
     this._loadAllData();
   }
 
@@ -150,6 +170,7 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
 
   private _renderKpiCards(): unknown {
     const isLoading = this._isLoading || !this._summary;
+    const showChange = this._compareState.isEnabled;
 
     return html`
       <div class="kpi-grid">
@@ -158,7 +179,8 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
           value=${isLoading ? "—" : this._formatCurrency(this._summary!.grossSales)}
           change=${this._summary?.grossSalesChange ?? 0}
           .sparklineData=${this._summary?.grossSalesSparkline ?? []}
-          ?isLoading=${isLoading}>
+          ?isLoading=${isLoading}
+          ?showChange=${showChange}>
         </merchello-analytics-kpi-card>
 
         <merchello-analytics-kpi-card
@@ -166,7 +188,8 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
           value=${isLoading ? "—" : this._formatPercent(this._summary!.returningCustomerRate)}
           change=${this._summary?.returningCustomerRateChange ?? 0}
           .sparklineData=${this._summary?.returningCustomerSparkline ?? []}
-          ?isLoading=${isLoading}>
+          ?isLoading=${isLoading}
+          ?showChange=${showChange}>
         </merchello-analytics-kpi-card>
 
         <merchello-analytics-kpi-card
@@ -174,7 +197,8 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
           value=${isLoading ? "—" : this._formatNumber(this._summary!.ordersFulfilled)}
           change=${this._summary?.ordersFulfilledChange ?? 0}
           .sparklineData=${this._summary?.ordersFulfilledSparkline ?? []}
-          ?isLoading=${isLoading}>
+          ?isLoading=${isLoading}
+          ?showChange=${showChange}>
         </merchello-analytics-kpi-card>
 
         <merchello-analytics-kpi-card
@@ -182,13 +206,16 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
           value=${isLoading ? "—" : this._formatNumber(this._summary!.totalOrders)}
           change=${this._summary?.totalOrdersChange ?? 0}
           .sparklineData=${this._summary?.totalOrdersSparkline ?? []}
-          ?isLoading=${isLoading}>
+          ?isLoading=${isLoading}
+          ?showChange=${showChange}>
         </merchello-analytics-kpi-card>
       </div>
     `;
   }
 
   private _renderCharts(): unknown {
+    const showComparison = this._compareState.isEnabled;
+
     return html`
       <merchello-analytics-line-chart
         headline="Total sales over time"
@@ -197,7 +224,7 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
         .periodTotal=${this._salesResult?.periodTotal}
         .percentChange=${this._salesResult?.percentChange}
         ?isLoading=${this._isLoading}
-        showComparison>
+        ?showComparison=${showComparison}>
       </merchello-analytics-line-chart>
 
       <div class="bottom-section">
@@ -208,13 +235,14 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
           .periodTotal=${this._aovResult?.periodTotal}
           .percentChange=${this._aovResult?.percentChange}
           ?isLoading=${this._isLoading}
-          showComparison>
+          ?showComparison=${showComparison}>
         </merchello-analytics-line-chart>
 
         <merchello-analytics-breakdown
           .data=${this._breakdown}
           currencySymbol=${this._currencySymbol}
-          ?isLoading=${this._isLoading}>
+          ?isLoading=${this._isLoading}
+          ?showChange=${showComparison}>
         </merchello-analytics-breakdown>
       </div>
     `;
@@ -243,6 +271,7 @@ export class MerchelloAnalyticsWorkspaceElement extends UmbElementMixin(LitEleme
         <div class="analytics-content layout-container">
           <merchello-analytics-header
             .dateRange=${this._dateRange}
+            .compareState=${this._compareState}
             @date-range-change=${this._handleDateRangeChange}>
           </merchello-analytics-header>
 
