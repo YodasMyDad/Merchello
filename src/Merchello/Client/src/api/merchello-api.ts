@@ -874,6 +874,21 @@ export interface CountryDto {
   name: string;
 }
 
+function buildAnalyticsUrl(
+  endpoint: string,
+  startDate: string,
+  endDate: string,
+  compareMode?: string,
+  comparisonStartDate?: string,
+  comparisonEndDate?: string,
+): string {
+  let url = `reporting/${endpoint}?startDate=${startDate}&endDate=${endDate}`;
+  if (compareMode) url += `&compareMode=${compareMode}`;
+  if (comparisonStartDate) url += `&comparisonStartDate=${comparisonStartDate}`;
+  if (comparisonEndDate) url += `&comparisonEndDate=${comparisonEndDate}`;
+  return url;
+}
+
 // API methods
 export const MerchelloApi = {
   ping: () => apiGet<string>('ping'),
@@ -1967,8 +1982,8 @@ export const MerchelloApi = {
   // ============================================
 
   /** Get analytics summary for KPI cards */
-  getAnalyticsSummary: (startDate: string, endDate: string) =>
-    apiGet<AnalyticsSummaryDto>(`reporting/summary?startDate=${startDate}&endDate=${endDate}`),
+  getAnalyticsSummary: (startDate: string, endDate: string, compareMode?: string, comparisonStartDate?: string, comparisonEndDate?: string) =>
+    apiGet<AnalyticsSummaryDto>(buildAnalyticsUrl("summary", startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate)),
 
   /** Get daily sales time series data */
   getSalesTimeSeries: (startDate: string, endDate: string) =>
@@ -1978,8 +1993,8 @@ export const MerchelloApi = {
    * Get daily sales time series data with backend-calculated totals and percent change.
    * Preferred over getSalesTimeSeries - avoids frontend calculation of aggregates.
    */
-  getSalesTimeSeriesWithTotals: (startDate: string, endDate: string) =>
-    apiGet<TimeSeriesResultDto>(`reporting/sales-timeseries-with-totals?startDate=${startDate}&endDate=${endDate}`),
+  getSalesTimeSeriesWithTotals: (startDate: string, endDate: string, compareMode?: string, comparisonStartDate?: string, comparisonEndDate?: string) =>
+    apiGet<TimeSeriesResultDto>(buildAnalyticsUrl("sales-timeseries-with-totals", startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate)),
 
   /** Get daily average order value time series data */
   getAovTimeSeries: (startDate: string, endDate: string) =>
@@ -1989,12 +2004,12 @@ export const MerchelloApi = {
    * Get daily AOV time series data with backend-calculated totals and percent change.
    * Preferred over getAovTimeSeries - avoids frontend calculation of aggregates.
    */
-  getAovTimeSeriesWithTotals: (startDate: string, endDate: string) =>
-    apiGet<TimeSeriesResultDto>(`reporting/aov-timeseries-with-totals?startDate=${startDate}&endDate=${endDate}`),
+  getAovTimeSeriesWithTotals: (startDate: string, endDate: string, compareMode?: string, comparisonStartDate?: string, comparisonEndDate?: string) =>
+    apiGet<TimeSeriesResultDto>(buildAnalyticsUrl("aov-timeseries-with-totals", startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate)),
 
   /** Get sales breakdown (gross, discounts, returns, net, shipping, taxes) */
-  getSalesBreakdown: (startDate: string, endDate: string) =>
-    apiGet<SalesBreakdownDto>(`reporting/breakdown?startDate=${startDate}&endDate=${endDate}`),
+  getSalesBreakdown: (startDate: string, endDate: string, compareMode?: string, comparisonStartDate?: string, comparisonEndDate?: string) =>
+    apiGet<SalesBreakdownDto>(buildAnalyticsUrl("breakdown", startDate, endDate, compareMode, comparisonStartDate, comparisonEndDate)),
 
   // ============================================
   // Exchange Rate Providers API
