@@ -271,6 +271,115 @@ public class DefaultOrderGroupingStrategyTests
     }
 
     [Fact]
+    public async Task GroupItemsAsync_StockFailure_PopulatesStockErrors()
+    {
+        // Arrange
+        var productId = Guid.NewGuid();
+        var product = CreateProduct(productId, null!);
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product> { [productId] = product },
+            warehouses: new Dictionary<Guid, Warehouse>(),
+            lineItems: [CreateLineItem(productId)]);
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.IsAny<SelectWarehouseForProductParameters>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult
+            {
+                IsStockFailure = true,
+                FailureReason = "Insufficient total stock (1 units required, 0 available) to serve GB"
+            });
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(1);
+        result.StockErrors.Count.ShouldBe(1);
+        result.StockErrors[0].ShouldContain("Insufficient total stock");
+    }
+
+    [Fact]
+    public async Task GroupItemsAsync_NonStockFailure_DoesNotPopulateStockErrors()
+    {
+        // Arrange
+        var productId = Guid.NewGuid();
+        var product = CreateProduct(productId, null!);
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product> { [productId] = product },
+            warehouses: new Dictionary<Guid, Warehouse>(),
+            lineItems: [CreateLineItem(productId)]);
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.IsAny<SelectWarehouseForProductParameters>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult
+            {
+                FailureReason = "No warehouses configured for this product"
+            });
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(1);
+        result.StockErrors.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task GroupItemsAsync_MixedFailures_ClassifiesStockErrorsCorrectly()
+    {
+        // Arrange - two products: one stock failure, one config failure
+        var productId1 = Guid.NewGuid();
+        var productId2 = Guid.NewGuid();
+        var product1 = CreateProduct(productId1, null!);
+        var product2 = CreateProduct(productId2, null!);
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product>
+            {
+                [productId1] = product1,
+                [productId2] = product2
+            },
+            warehouses: new Dictionary<Guid, Warehouse>(),
+            lineItems: [CreateLineItem(productId1), CreateLineItem(productId2)]);
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId1),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult
+            {
+                IsStockFailure = true,
+                FailureReason = "Insufficient total stock (1 units required, 0 available) to serve GB"
+            });
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId2),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult
+            {
+                FailureReason = "No warehouses configured for this product"
+            });
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeFalse();
+        result.Errors.Count.ShouldBe(2);
+        result.StockErrors.Count.ShouldBe(1);
+        result.StockErrors[0].ShouldContain("Insufficient total stock");
+    }
+
+    [Fact]
     public async Task GroupItemsAsync_DeterministicGroupId_ConsistentAcrossCalls()
     {
         // Arrange

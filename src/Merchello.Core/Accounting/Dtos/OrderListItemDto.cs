@@ -64,4 +64,20 @@ public class OrderListItemDto
     /// Computed at mapping time.
     /// </summary>
     public int? DaysUntilDue { get; set; }
+
+    /// <summary>
+    /// Maximum fraud/risk score across all payments (0-100 scale). Null if no risk data.
+    /// </summary>
+    public decimal? MaxRiskScore { get; set; }
+
+    /// <summary>
+    /// Source of the maximum risk score (e.g., "stripe-radar").
+    /// </summary>
+    public string? MaxRiskScoreSource { get; set; }
+
+    /// <summary>
+    /// Risk level classification: "high", "medium", "low", "minimal", or null.
+    /// Calculated by backend from MaxRiskScore.
+    /// </summary>
+    public string? RiskLevel { get; set; }
 }

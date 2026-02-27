@@ -179,6 +179,12 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
               ${order.invoiceNumber || order.id.substring(0, 8)}
             </a>
             ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
+            ${order.riskLevel === 'high' || order.riskLevel === 'medium'
+              ? html`<span class="badge ${order.riskLevel === 'high' ? 'danger' : 'warning'}">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  ${order.riskLevel === 'high' ? 'Fraud Risk' : 'Risk'}
+                </span>`
+              : nothing}
           </uui-table-cell>
         `;
 
@@ -296,6 +302,12 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
         width: 40px;
       }
 
+      .order-number {
+        display: flex;
+        align-items: center;
+        gap: var(--uui-size-space-2);
+      }
+
       .order-number a {
         font-weight: 500;
         color: var(--uui-color-interactive);
@@ -309,12 +321,6 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
       .order-number.cancelled a {
         text-decoration: line-through;
         color: var(--uui-color-text-alt);
-      }
-
-      .order-number.cancelled {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-2);
       }
 
       .currency-indicator {

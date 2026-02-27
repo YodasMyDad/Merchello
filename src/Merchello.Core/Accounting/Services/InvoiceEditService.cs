@@ -54,13 +54,6 @@ public class InvoiceEditService(
 {
     private readonly MerchelloSettings _settings = settings.Value;
 
-    private sealed record AppliedDiscountUsage(
-        Guid DiscountId,
-        decimal Amount,
-        int? TotalUsageLimit,
-        int? PerCustomerUsageLimit,
-        string? Code);
-
     /// <inheritdoc />
     public async Task<InvoiceForEditDto?> GetInvoiceForEditAsync(Guid invoiceId, CancellationToken cancellationToken = default)
     {
@@ -174,8 +167,6 @@ public class InvoiceEditService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            try
-            {
             var invoice = await db.Invoices
                 .Include(i => i.Orders)!
                 .ThenInclude(o => o.LineItems)
@@ -721,12 +712,6 @@ public class InvoiceEditService(
                 LineItems = lineItemPreviews,
                 Warnings = warnings
             };
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to preview invoice edit for {InvoiceId}", invoiceId);
-                return null;
-            }
         });
 
         scope.Complete();

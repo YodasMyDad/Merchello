@@ -360,6 +360,14 @@ export function initSinglePageCheckout() {
             async init() {
                 await this.recoverBasketFromUrlIfNeeded();
 
+                // Empty basket guard: redirect to cart if no items
+                const basketItems = this.$store.checkout?.basketLineItems ?? [];
+                if (basketItems.length === 0) {
+                    /** @type {any} */ (window).MerchelloLogger?.warn('Checkout loaded with empty basket, redirecting to cart', 'general');
+                    window.location.href = '/cart';
+                    return;
+                }
+
                 // Sync local state from store
                 this.shippingSameAsBilling = this.$store.checkout?.form?.sameAsBilling ?? true;
                 this._shippingCalculated = (this.$store.checkout?.shippingGroups?.length ?? 0) > 0;
@@ -699,6 +707,8 @@ export function initSinglePageCheckout() {
                 if (basket?.isEmpty) {
                     this.$store.checkout?.updateBasket({ ...basket, lineItems: [] });
                     this.dispatchBasketUpdate();
+                    /** @type {any} */ (window).MerchelloLogger?.warn('Basket became empty during checkout, redirecting to cart', 'general');
+                    window.location.href = '/cart';
                     return;
                 }
 
@@ -1173,9 +1183,9 @@ export function initSinglePageCheckout() {
                             await this.updateBasketAndReinitPayment(data.basket);
 
                             if (data.basket.errors?.length > 0) {
-                                const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
-                                store.itemAvailabilityErrors = shippingErrors;
-                                store.allItemsShippable = shippingErrors.length === 0;
+                                const availabilityErrors = data.basket.errors.filter(e => e.isShippingError || e.isStockError);
+                                store.itemAvailabilityErrors = availabilityErrors;
+                                store.allItemsShippable = availabilityErrors.length === 0;
                             } else {
                                 store.itemAvailabilityErrors = [];
                                 store.allItemsShippable = true;
@@ -1184,13 +1194,13 @@ export function initSinglePageCheckout() {
 
                         this._shippingCalculated = true;
                         await this.loadCheckoutUpsells();
-                        this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items cannot be shipped to this location');
+                        this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items are unavailable or cannot be shipped to this location');
                     } else {
                         store?.setShippingError(data.message || 'Unable to calculate shipping.');
                         if (data.basket?.errors) {
-                            const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
-                            store.itemAvailabilityErrors = shippingErrors;
-                            store.allItemsShippable = shippingErrors.length === 0;
+                            const availabilityErrors = data.basket.errors.filter(e => e.isShippingError || e.isStockError);
+                            store.itemAvailabilityErrors = availabilityErrors;
+                            store.allItemsShippable = availabilityErrors.length === 0;
                         } else {
                             store.allItemsShippable = false;
                         }
@@ -1330,11 +1340,19 @@ export function initSinglePageCheckout() {
                     store?.setSavedPaymentMethods(options?.savedPaymentMethods ?? []);
                     store?.setCanSavePaymentMethods(options?.canSavePaymentMethods ?? false);
 
+                    // Payment unavailability: show clear message when no methods available
+                    const savedMethods = options?.savedPaymentMethods ?? [];
+                    if (methods.length === 0 && savedMethods.length === 0) {
+                        store?.setPaymentError('No payment methods are currently available. Please contact us to complete your order.');
+                        /** @type {any} */ (window).MerchelloLogger?.warn('No payment methods available for checkout', 'payment');
+                    }
+
                     const categorized = categorizePaymentMethods(methods);
                     this.cardPaymentMethods = categorized.card;
                     this.redirectPaymentMethods = categorized.redirect;
                 } catch (error) {
                     console.error('Failed to load payment methods:', error);
+                    /** @type {any} */ (window).MerchelloLogger?.error('Failed to load payment methods: ' + (error.message || 'Unknown error'), 'payment');
                     store?.setPaymentError('Unable to load payment methods. Please refresh the page.');
                 } finally {
                     store?.setPaymentLoading(false);
@@ -2021,8 +2039,13 @@ export function initSinglePageCheckout() {
                 }
 
                 if (!this.selectedPaymentMethod && !this.selectedSavedMethod) {
-                    store?.setGeneralError('Please select a payment method.');
-                    this.announce('Please select a payment method.');
+                    const hasAnyMethods = (store?.paymentMethods?.length ?? 0) > 0
+                        || (store?.savedPaymentMethods?.length ?? 0) > 0;
+                    const msg = hasAnyMethods
+                        ? 'Please select a payment method.'
+                        : 'No payment methods are available. Please contact us to complete your order.';
+                    store?.setGeneralError(msg);
+                    this.announce(msg);
                     return;
                 }
 
@@ -2131,6 +2154,10 @@ export function initSinglePageCheckout() {
                     }
                 } catch (error) {
                     console.error('Order submission failed:', error);
+                    /** @type {any} */ (window).MerchelloLogger?.critical(
+                        'Order submission failed: ' + (error.message || 'Unknown error'),
+                        'payment'
+                    );
                     store?.setGeneralError(error.message || 'An error occurred. Please try again.');
                     this.announce(this.generalError);
                 } finally {

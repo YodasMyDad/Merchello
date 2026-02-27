@@ -798,8 +798,6 @@ public class CheckoutDiscountService(
             .ToList();
     }
 
-    private sealed record PersistedCodeDiscount(Guid DiscountId, string Code);
-
     private Task<(bool Allowed, string? ErrorMessage)> CheckDiscountCodeRateLimitAsync(Guid basketId)
     {
         var rateLimitKey = $"discount-code-attempts:{basketId}";
