@@ -25,6 +25,7 @@ using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Extensions;
+using Merchello.Filters;
 using Merchello.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -47,6 +48,7 @@ namespace Merchello.Controllers;
 [Route("api/merchello/checkout")]
 [ApiExplorerSettings(GroupName = Core.Constants.StorefrontApiName)]
 [MapToApi(Core.Constants.StorefrontApiName)]
+[ServiceFilter(typeof(CheckoutExceptionFilter))]
 public class CheckoutApiController(
     ICheckoutService checkoutService,
     ICheckoutSessionService checkoutSessionService,

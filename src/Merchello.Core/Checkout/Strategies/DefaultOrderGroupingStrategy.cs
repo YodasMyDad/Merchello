@@ -64,6 +64,7 @@ public class DefaultOrderGroupingStrategy(
 
         List<OrderGroup> orderGroups = [];
         List<string> errors = [];
+        List<string> stockErrors = [];
 
         foreach (var lineItem in context.Basket.LineItems.Where(li => li.ProductId.HasValue))
         {
@@ -95,7 +96,14 @@ public class DefaultOrderGroupingStrategy(
                     product.Name,
                     selectionResult.FailureReason);
 
-                errors.Add($"{lineItem.Name}: {selectionResult.FailureReason}");
+                var errorMessage = $"{lineItem.Name}: {selectionResult.FailureReason}";
+                errors.Add(errorMessage);
+
+                if (selectionResult.IsStockFailure)
+                {
+                    stockErrors.Add(errorMessage);
+                }
+
                 continue;
             }
 
@@ -177,6 +185,7 @@ public class DefaultOrderGroupingStrategy(
         {
             Groups = orderGroups,
             Errors = errors,
+            StockErrors = stockErrors,
             SubTotal = context.Basket.SubTotal,
             Tax = context.Basket.Tax,
             Total = context.Basket.Total

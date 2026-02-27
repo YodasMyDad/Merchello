@@ -433,7 +433,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
     // Position it over the Shadow DOM placeholder
     this._positionLightDomContainer(shadowPlaceholder, this.#lightDomContainer);
     this.#lightDomContainer.style.display = 'block';
-    this.#lightDomContainer.innerHTML = '';
+    this.#lightDomContainer.replaceChildren();
 
     // Create a minimal checkout object for the adapter
     const mockCheckout = {
@@ -664,7 +664,7 @@ export class MerchelloTestPaymentProviderModalElement extends UmbModalBaseElemen
       // Position and show the light DOM container
       this._positionLightDomContainer(shadowPlaceholder, lightDomContainer);
       lightDomContainer.style.display = 'block';
-      lightDomContainer.innerHTML = '';
+      lightDomContainer.replaceChildren();
 
       // Get the adapter from global registry
       const adapters = (window as unknown as { MerchelloExpressAdapters?: Record<string, unknown> }).MerchelloExpressAdapters;

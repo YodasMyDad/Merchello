@@ -1,5 +1,6 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Payments.Dtos;
+using Merchello.Filters;
 using Merchello.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -13,6 +14,7 @@ namespace Merchello.Controllers;
 [ApiController]
 [Route("api/merchello/checkout")]
 [AllowAnonymous]
+[ServiceFilter(typeof(CheckoutExceptionFilter))]
 public class CheckoutPaymentsApiController(
     ICheckoutPaymentsOrchestrationService checkoutPaymentsOrchestrationService) : ControllerBase
 {

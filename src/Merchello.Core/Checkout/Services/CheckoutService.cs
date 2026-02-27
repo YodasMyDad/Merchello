@@ -2755,14 +2755,15 @@ public class CheckoutService(
                         },
                         cancellationToken);
 
-                    // Add any grouping errors to basket.Errors so frontend can display item-level shipping errors
-                    // (e.g., "Product X cannot be shipped to Country Y")
+                    // Add any grouping errors to basket.Errors so frontend can display item-level errors
                     foreach (var error in groupingResult.Errors)
                     {
+                        var isStockError = groupingResult.StockErrors.Contains(error);
                         updatedBasket.Errors.Add(new BasketError
                         {
                             Message = error,
-                            IsShippingError = true
+                            IsShippingError = !isStockError,
+                            IsStockError = isStockError
                         });
                     }
 
@@ -3124,15 +3125,17 @@ public class CheckoutService(
                 },
                 cancellationToken);
 
-            // Propagate grouping errors (e.g., warehouse cannot serve region) to basket for protocol message mapping
+            // Propagate grouping errors (e.g., warehouse cannot serve region, insufficient stock) to basket for protocol message mapping
             foreach (var error in orderGroups.Errors)
             {
                 if (!basket.Errors.Any(e => e.Message == error))
                 {
+                    var isStockError = orderGroups.StockErrors.Contains(error);
                     basket.Errors.Add(new BasketError
                     {
                         Message = error,
-                        IsShippingError = true
+                        IsShippingError = !isStockError,
+                        IsStockError = isStockError
                     });
                 }
             }

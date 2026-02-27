@@ -214,7 +214,7 @@ public class CheckoutMemberService(
         var token = await memberManager.GeneratePasswordResetTokenAsync(member);
 
         // Build reset URL
-        var baseUrl = BuildSafePasswordResetBaseUrl(resetBaseUrl);
+        var baseUrl = await BuildSafePasswordResetBaseUrlAsync(resetBaseUrl, ct);
         var resetUrl = QueryHelpers.AddQueryString(baseUrl, new Dictionary<string, string?>
         {
             ["email"] = email,
@@ -237,11 +237,15 @@ public class CheckoutMemberService(
     /// <summary>
     /// Builds a safe password reset URL base and rejects external hosts to prevent token leakage.
     /// </summary>
-    private string BuildSafePasswordResetBaseUrl(string? requestedBaseUrl)
+    private async Task<string> BuildSafePasswordResetBaseUrlAsync(string? requestedBaseUrl, CancellationToken ct)
     {
-        var websiteUrl = _storeSettingsService?.GetRuntimeSettings().Merchello.Store.WebsiteUrl ??
-                         _settings.Store.WebsiteUrl ??
-                         string.Empty;
+        var websiteUrl = _settings.Store.WebsiteUrl ?? string.Empty;
+        if (_storeSettingsService != null)
+        {
+            var runtimeSettings = await _storeSettingsService.GetRuntimeSettingsAsync(ct);
+            websiteUrl = runtimeSettings.Merchello.Store.WebsiteUrl ?? websiteUrl;
+        }
+
         var defaultBaseUrl = $"{websiteUrl.TrimEnd('/')}/checkout/reset-password";
 
         if (string.IsNullOrWhiteSpace(requestedBaseUrl))

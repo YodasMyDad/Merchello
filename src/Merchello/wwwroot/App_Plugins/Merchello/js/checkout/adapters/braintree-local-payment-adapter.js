@@ -432,9 +432,8 @@
                 }
 
                 // Navigate to success page
-                if (currentCheckout.onPaymentSuccess) {
-                    currentCheckout.onPaymentSuccess(result);
-                }
+                const redirectUrl = result.redirectUrl || `/checkout/confirmation/${result.invoiceId || currentCheckout.invoiceId}`;
+                window.location.href = redirectUrl;
 
                 return result;
             } catch (error) {
