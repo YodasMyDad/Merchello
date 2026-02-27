@@ -1183,9 +1183,9 @@ export function initSinglePageCheckout() {
                             await this.updateBasketAndReinitPayment(data.basket);
 
                             if (data.basket.errors?.length > 0) {
-                                const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
-                                store.itemAvailabilityErrors = shippingErrors;
-                                store.allItemsShippable = shippingErrors.length === 0;
+                                const availabilityErrors = data.basket.errors.filter(e => e.isShippingError || e.isStockError);
+                                store.itemAvailabilityErrors = availabilityErrors;
+                                store.allItemsShippable = availabilityErrors.length === 0;
                             } else {
                                 store.itemAvailabilityErrors = [];
                                 store.allItemsShippable = true;
@@ -1194,13 +1194,13 @@ export function initSinglePageCheckout() {
 
                         this._shippingCalculated = true;
                         await this.loadCheckoutUpsells();
-                        this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items cannot be shipped to this location');
+                        this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items are unavailable or cannot be shipped to this location');
                     } else {
                         store?.setShippingError(data.message || 'Unable to calculate shipping.');
                         if (data.basket?.errors) {
-                            const shippingErrors = data.basket.errors.filter(e => e.isShippingError);
-                            store.itemAvailabilityErrors = shippingErrors;
-                            store.allItemsShippable = shippingErrors.length === 0;
+                            const availabilityErrors = data.basket.errors.filter(e => e.isShippingError || e.isStockError);
+                            store.itemAvailabilityErrors = availabilityErrors;
+                            store.allItemsShippable = availabilityErrors.length === 0;
                         } else {
                             store.allItemsShippable = false;
                         }
