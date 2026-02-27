@@ -35,4 +35,14 @@ public class CreatePaymentSessionParameters
     /// Whether to request vaulting during payment session creation (provider-specific).
     /// </summary>
     public bool SavePaymentMethod { get; init; }
+
+    /// <summary>
+    /// Customer email address (for receipts and pre-filling provider checkout pages).
+    /// </summary>
+    public string? CustomerEmail { get; init; }
+
+    /// <summary>
+    /// Customer name.
+    /// </summary>
+    public string? CustomerName { get; init; }
 }

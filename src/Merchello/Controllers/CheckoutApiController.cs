@@ -852,10 +852,10 @@ public class CheckoutApiController(
 
     /// <summary>
     /// Check if an email has an existing member account.
-    /// Always returns a neutral result to prevent account enumeration.
+    /// Rate-limited to prevent email enumeration (returns false when rate-limited).
     /// </summary>
     [HttpPost("check-email")]
-    public IActionResult CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    public async Task<IActionResult> CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || !checkoutValidator.IsValidEmail(request.Email))
         {
@@ -872,9 +872,8 @@ public class CheckoutApiController(
             return Ok(new CheckEmailResultDto { HasExistingAccount = false });
         }
 
-        // Intentionally return a neutral response regardless of account existence.
-        // This endpoint is used for UI hints only and must not leak membership data.
-        return Ok(new CheckEmailResultDto { HasExistingAccount = false });
+        var result = await checkoutMemberService.CheckEmailAsync(request.Email, ct);
+        return Ok(result);
     }
 
     /// <summary>

@@ -93,7 +93,9 @@ public class PaymentService(
                 Currency = string.Empty,
                 ReturnUrl = parameters.ReturnUrl,
                 CancelUrl = parameters.CancelUrl,
-                SavePaymentMethod = parameters.SavePaymentMethod
+                SavePaymentMethod = parameters.SavePaymentMethod,
+                CustomerEmail = parameters.CustomerEmail,
+                CustomerName = parameters.CustomerName
             };
 
             try
@@ -135,6 +137,8 @@ public class PaymentService(
             Currency = invoice.CurrencyCode,
             ReturnUrl = parameters.ReturnUrl,
             CancelUrl = parameters.CancelUrl,
+            CustomerEmail = parameters.CustomerEmail,
+            CustomerName = parameters.CustomerName,
             Description = $"Payment for Invoice {invoice.InvoiceNumber}",
             SavePaymentMethod = parameters.SavePaymentMethod,
             Metadata = new()
