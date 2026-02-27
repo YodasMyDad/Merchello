@@ -47,7 +47,7 @@
 
 }
 
-<div class="bg-[#fafafa] lg:bg-transparent" @Html.Raw(isReadonly ? "" : "x-data=\"orderSummary\"")>
+<div class="-mx-4 lg:mx-0 bg-[#fafafa] lg:bg-transparent" @Html.Raw(isReadonly ? "" : "x-data=\"orderSummary\"")>
     @if (!isReadonly)
     {
         <!-- Mobile Collapsed Header (visible on mobile, hidden on desktop) -->
@@ -55,35 +55,26 @@
                 @@click="expanded = !expanded"
                 :aria-expanded="expanded"
                 aria-controls="order-summary-content"
-                class="lg:hidden w-full p-4 flex items-center justify-between checkout-touch-target bg-[#fafafa] border-y border-gray-200">
-            <div class="flex items-center gap-2">
-                <svg class="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                class="lg:hidden w-full p-4 flex items-center checkout-touch-target bg-[#fafafa] border-y border-gray-200">
+            <div class="flex items-center gap-2 min-w-0">
+                <svg class="w-5 h-5 flex-shrink-0 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                 </svg>
-                <span class="text-accent text-sm" x-text="expanded ? 'Hide order summary' : 'Show order summary'">Show order summary</span>
-                <svg class="w-4 h-4 text-accent transition-transform"
+                <span class="text-accent text-sm whitespace-nowrap" x-text="expanded ? 'Hide order summary' : 'Show order summary'">Show order summary</span>
+                <svg class="w-4 h-4 flex-shrink-0 text-accent transition-transform"
                      :class="{ 'rotate-180': expanded }"
                      aria-hidden="true"
                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
             </div>
-            @if (isSinglePage)
-            {
-                <span class="text-lg font-semibold text-gray-900" x-text="formatCurrency(total)"></span>
-            }
-            else
-            {
-                <span class="text-lg font-semibold text-gray-900">@(basket != null ? $"{displayCurrencySymbol}{displayTotal.ToString(numberFormat)}" : "--")</span>
-            }
         </button>
     }
 
     <!-- Order Summary Content -->
     <div id="order-summary-content"
-         class="@(isReadonly ? "block" : "hidden lg:block")"
-         @Html.Raw(isReadonly ? "" : ":class=\"expanded ? 'block' : 'hidden lg:block'\"")>
-        <div class="p-4 @(isReadonly ? "lg:p-0" : "pb-24 lg:p-0 lg:pb-0 lg:pt-0 lg:mt-0")">
+         @Html.Raw(isReadonly ? "class=\"block\"" : "x-show=\"expanded\" x-transition x-cloak")>
+        <div class="p-4 @(isReadonly ? "lg:p-0" : "pb-4 lg:p-0 lg:pb-0 lg:pt-0 lg:mt-0")">
 
     @if (!hasItems)
     {

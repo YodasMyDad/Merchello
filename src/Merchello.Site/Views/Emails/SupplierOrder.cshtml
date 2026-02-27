@@ -1,0 +1,135 @@
+@using Merchello.Core.Email.Models
+@using Merchello.Core.Fulfilment.Notifications
+@using Merchello.Email.Extensions
+@model EmailModel<SupplierOrderNotification>
+@*
+    Supplier Order Email Template
+
+    Sent to a supplier when an order is ready for fulfilment.
+    Shows line items with SKU and quantity — no pricing.
+
+    Model: EmailModel<SupplierOrderNotification>
+    - Model.Notification.SupplierName - The supplier's name
+    - Model.Notification.OrderNumber - Order reference number
+    - Model.Notification.LineItems - Items to fulfil (SKU, Name, Qty)
+    - Model.Notification.ShippingAddress - Ship-to address
+    - Model.Notification.Order.InternalNotes - Optional notes
+    - Model.Store - Store context (name, logo, contact info)
+*@
+
+@Html.Mjml().EmailStart(
+    $"Supplier Order #{Model.Notification.OrderNumber}",
+    $"New order from {Model.Store.Name}")
+
+@Html.Mjml().Header(Model.Store)
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("New Supplier Order")
+    @Html.Mjml().Text($"Hi {Model.Notification.SupplierName},")
+    <mj-text>
+      A new order has been placed and requires fulfilment. Please review the items below
+      and ship to the address provided.
+    </mj-text>
+    @Html.Mjml().Text($"Order #{Model.Notification.OrderNumber}", bold: true)
+    @if (!string.IsNullOrWhiteSpace(Model.Notification.Order.ShippingServiceCode))
+    {
+      @Html.Mjml().Text($"Shipping Method: {Model.Notification.Order.ShippingServiceCode}")
+    }
+  </mj-column>
+</mj-section>
+
+@{
+    var hasBarcode = Model.Notification.LineItems.Any(li => !string.IsNullOrWhiteSpace(li.Barcode));
+}
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("Items to Fulfil", level: 2)
+    <mj-table>
+      <tr style="border-bottom: 2px solid #ecedef; text-align: left;">
+        <th style="padding: 8px 12px;">SKU</th>
+        <th style="padding: 8px 12px;">Product</th>
+        @if (hasBarcode)
+        {
+          <th style="padding: 8px 12px;">Barcode</th>
+        }
+        <th style="padding: 8px 12px; text-align: right;">Qty</th>
+      </tr>
+      @foreach (var item in Model.Notification.LineItems)
+      {
+        <tr style="border-bottom: 1px solid #ecedef;">
+          <td style="padding: 8px 12px; font-family: monospace; font-size: 13px;">@item.Sku</td>
+          <td style="padding: 8px 12px;">@item.Name</td>
+          @if (hasBarcode)
+          {
+            <td style="padding: 8px 12px; font-family: monospace; font-size: 13px;">@(item.Barcode ?? "—")</td>
+          }
+          <td style="padding: 8px 12px; text-align: right;">@item.Quantity</td>
+        </tr>
+      }
+    </mj-table>
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().Divider()
+
+@{
+    var addr = Model.Notification.ShippingAddress;
+}
+
+<mj-section>
+  <mj-column>
+    @Html.Mjml().Heading("Ship To", level: 2)
+    <mj-text>
+      @if (!string.IsNullOrWhiteSpace(addr.Name))
+      {
+        <strong>@addr.Name</strong><br />
+      }
+      @if (!string.IsNullOrWhiteSpace(addr.Company))
+      {
+        @addr.Company<br />
+      }
+      @addr.AddressOne<br />
+      @if (!string.IsNullOrWhiteSpace(addr.AddressTwo))
+      {
+        @addr.AddressTwo<br />
+      }
+      @addr.TownCity@(string.IsNullOrWhiteSpace(addr.CountyState) ? "" : $", {addr.CountyState}") @addr.PostalCode<br />
+      @addr.CountryCode
+      @if (!string.IsNullOrWhiteSpace(addr.Phone))
+      {
+        <br /><text>Phone: @addr.Phone</text>
+      }
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+@if (!string.IsNullOrWhiteSpace(Model.Notification.Order.InternalNotes))
+{
+  <mj-section>
+    <mj-column>
+      @Html.Mjml().Heading("Notes", level: 2)
+      <mj-text>@Model.Notification.Order.InternalNotes</mj-text>
+    </mj-column>
+  </mj-section>
+}
+
+<mj-section>
+  <mj-column>
+    <mj-text>
+      If you have any questions about this order, please contact us
+      @if (!string.IsNullOrEmpty(Model.Store.Email))
+      {
+        <text>at <a href="mailto:@Model.Store.Email">@Model.Store.Email</a></text>
+      }
+      @if (!string.IsNullOrEmpty(Model.Store.Phone))
+      {
+        <text> or call @Model.Store.Phone</text>
+      }.
+    </mj-text>
+  </mj-column>
+</mj-section>
+
+@Html.Mjml().Footer(Model.Store)
+@Html.Mjml().EmailEnd()
