@@ -237,18 +237,22 @@
 
                     if (result.success) {
                         session.completePayment(ApplePaySession.STATUS_SUCCESS);
-
-                        if (result.redirectUrl) {
-                            window.location.href = result.redirectUrl;
-                        } else if (checkout && checkout.onPaymentSuccess) {
-                            checkout.onPaymentSuccess(result);
-                        }
+                        const redirectUrl = result.redirectUrl || `/checkout/confirmation/${result.invoiceId}`;
+                        window.location.href = redirectUrl;
                     } else {
                         session.completePayment(ApplePaySession.STATUS_FAILURE);
+                        if (checkout) {
+                            checkout.error = result.errorMessage || 'Apple Pay payment failed. Please try again.';
+                            checkout.isProcessing = false;
+                        }
                     }
                 } catch (error) {
                     console.error('Apple Pay authorization error:', error);
                     session.completePayment(ApplePaySession.STATUS_FAILURE);
+                    if (checkout) {
+                        checkout.error = 'An error occurred processing your Apple Pay payment.';
+                        checkout.isProcessing = false;
+                    }
                 }
             };
 
@@ -414,15 +418,13 @@
                 );
 
                 if (result.success) {
-                    if (result.redirectUrl) {
-                        window.location.href = result.redirectUrl;
-                    } else if (checkout && checkout.onPaymentSuccess) {
-                        checkout.onPaymentSuccess(result);
-                    }
+                    const redirectUrl = result.redirectUrl || `/checkout/confirmation/${result.invoiceId}`;
+                    window.location.href = redirectUrl;
                 } else {
                     console.error('Google Pay payment failed:', result.errorMessage);
-                    if (checkout && checkout.onPaymentError) {
-                        checkout.onPaymentError(result.errorMessage);
+                    if (checkout) {
+                        checkout.error = result.errorMessage || 'Google Pay payment failed. Please try again.';
+                        checkout.isProcessing = false;
                     }
                 }
             } catch (error) {
@@ -430,8 +432,9 @@
                     console.debug('Google Pay cancelled by user');
                 } else {
                     console.error('Google Pay error:', error);
-                    if (checkout && checkout.onPaymentError) {
-                        checkout.onPaymentError(error.message || 'Google Pay failed');
+                    if (checkout) {
+                        checkout.error = error.message || 'Google Pay failed. Please try again.';
+                        checkout.isProcessing = false;
                     }
                 }
             }
@@ -471,7 +474,7 @@
             const billing = payment.billingContact || {};
 
             return {
-                email: shipping.emailAddress || billing.emailAddress,
+                email: shipping.emailAddress || billing.emailAddress || '',
                 fullName: [shipping.givenName, shipping.familyName].filter(Boolean).join(' '),
                 phone: shipping.phoneNumber,
                 shippingAddress: shipping.postalAddress ? {
@@ -501,7 +504,7 @@
             const billingAddress = paymentData.paymentMethodData?.info?.billingAddress || {};
 
             return {
-                email: paymentData.email,
+                email: paymentData.email || '',
                 fullName: shippingAddress.name || billingAddress.name || '',
                 phone: shippingAddress.phoneNumber || billingAddress.phoneNumber || '',
                 shippingAddress: shippingAddress.address1 ? {

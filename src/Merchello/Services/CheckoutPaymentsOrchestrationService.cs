@@ -1262,6 +1262,15 @@ public class CheckoutPaymentsOrchestrationService(
             });
         }
 
+        if (string.IsNullOrWhiteSpace(request.CustomerData.Email))
+        {
+            return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
+            {
+                Success = false,
+                ErrorMessage = "Email address is required for checkout."
+            });
+        }
+
         // Get the current basket
         var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
 
@@ -1383,14 +1392,32 @@ public class CheckoutPaymentsOrchestrationService(
 
                 if (!groupingResult.Success || groupingResult.Groups.Count == 0)
                 {
+                    string errorMessage;
+                    string? errorCode = null;
+
+                    if (groupingResult.StockErrors.Count > 0)
+                    {
+                        errorMessage = groupingResult.StockErrors.Count == 1
+                            ? groupingResult.StockErrors[0]
+                            : "Some items in your basket are currently out of stock.";
+                        errorCode = "STOCK_UNAVAILABLE";
+                    }
+                    else
+                    {
+                        errorMessage = "Unable to calculate shipping for your address. Please try a different address or use standard checkout.";
+                    }
+
                     logger.LogWarning(
-                        "Express checkout: Unable to calculate shipping options for basket {BasketId}. Address not persisted.",
-                        basket.Id);
+                        "Express checkout: Order grouping failed for basket {BasketId}. Stock errors: {StockErrorCount}, Other errors: {OtherErrorCount}. Address not persisted.",
+                        basket.Id,
+                        groupingResult.StockErrors.Count,
+                        groupingResult.Errors.Count - groupingResult.StockErrors.Count);
 
                     return CheckoutApiResult.BadRequest(new ExpressCheckoutResponseDto
                     {
                         Success = false,
-                        ErrorMessage = "Unable to calculate shipping for your address. Please try a different address or use standard checkout."
+                        ErrorMessage = errorMessage,
+                        ErrorCode = errorCode
                     });
                 }
 

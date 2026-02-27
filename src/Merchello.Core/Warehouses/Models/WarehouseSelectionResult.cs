@@ -22,6 +22,11 @@ public class WarehouseSelectionResult
     public string? FailureReason { get; set; }
 
     /// <summary>
+    /// Whether the failure is due to insufficient stock (vs region/eligibility)
+    /// </summary>
+    public bool IsStockFailure { get; set; }
+
+    /// <summary>
     /// Available stock at the selected warehouse
     /// </summary>
     public int AvailableStock { get; set; }
