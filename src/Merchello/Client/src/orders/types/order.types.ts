@@ -209,6 +209,8 @@ export interface OrderListItemDto {
   maxRiskScoreSource?: string | null;
   /** Risk level: "high", "medium", "low", "minimal", or null. Backend-calculated. */
   riskLevel?: string | null;
+  /** Whether the customer has exceeded their credit limit */
+  creditLimitExceeded?: boolean;
 }
 
 /** Invoice source tracking for analytics and auditing */
@@ -304,6 +306,8 @@ export interface OrderDetailDto {
    * Calculated by backend to avoid frontend logic duplication.
    */
   canFulfill: boolean;
+  /** Whether the customer has exceeded their credit limit */
+  creditLimitExceeded?: boolean;
 }
 
 export interface FulfillmentOrderDto {

@@ -120,6 +120,8 @@ export function initSinglePageCheckout() {
             cardPaymentMethods: [],
             redirectPaymentMethods: [],
             selectedPaymentMethodKey: '',
+            /** Whether the customer has exceeded their credit limit (soft warning for PO payments) */
+            creditLimitExceeded: false,
 
             // ============================================
             // Upsell Local State
@@ -1403,6 +1405,19 @@ export function initSinglePageCheckout() {
                 }
                 if (!isSameMethod) {
                     this.announce(`Selected ${method.displayName} payment`);
+                }
+
+                // Check credit limit for Purchase Order payment method
+                if (method.methodAlias === 'purchase-order' && this.form.email) {
+                    try {
+                        const creditResult = await checkoutApi.checkCreditStatus(this.form.email);
+                        this.creditLimitExceeded = creditResult?.creditLimitExceeded ?? false;
+                    } catch (e) {
+                        console.warn('Credit check failed:', e);
+                        this.creditLimitExceeded = false;
+                    }
+                } else {
+                    this.creditLimitExceeded = false;
                 }
 
                 if (this.form.email && this._emailCaptured !== this.form.email) {

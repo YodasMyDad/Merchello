@@ -185,6 +185,12 @@ export class MerchelloOrderTableElement extends UmbElementMixin(LitElement) {
                   ${order.riskLevel === 'high' ? 'Fraud Risk' : 'Risk'}
                 </span>`
               : nothing}
+            ${order.creditLimitExceeded
+              ? html`<span class="badge warning">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  Credit Limit
+                </span>`
+              : nothing}
           </uui-table-cell>
         `;
 

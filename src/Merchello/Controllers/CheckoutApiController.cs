@@ -4,6 +4,7 @@ using Merchello.Core.AddressLookup.Services.Interfaces;
 using Merchello.Core.AddressLookup.Services.Parameters;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Shared.Dtos;
@@ -65,7 +66,8 @@ public class CheckoutApiController(
     ILogger<CheckoutApiController> logger,
     IAbandonedCheckoutService? abandonedCheckoutService = null,
     ICustomerService? customerService = null,
-    IMerchelloStoreSettingsService? storeSettingsService = null) : ControllerBase
+    IMerchelloStoreSettingsService? storeSettingsService = null,
+    IStatementService? statementService = null) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
     private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
@@ -874,6 +876,50 @@ public class CheckoutApiController(
 
         var result = await checkoutMemberService.CheckEmailAsync(request.Email, ct);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Check if a customer (by email) has exceeded their credit limit.
+    /// Used to show a soft warning during checkout when Purchase Order is selected.
+    /// Rate-limited to prevent abuse.
+    /// </summary>
+    [HttpPost("credit-check")]
+    public async Task<IActionResult> CreditCheck([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    {
+        var defaultResult = new CreditCheckResultDto { HasCreditLimit = false, CreditLimitExceeded = false };
+
+        if (string.IsNullOrWhiteSpace(request.Email) || !checkoutValidator.IsValidEmail(request.Email))
+        {
+            return Ok(defaultResult);
+        }
+
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var rateLimitKey = $"credit-check:{clientIp}";
+        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxCheckEmailAttemptsPerMinute, CheckEmailRateLimitWindow);
+
+        if (!rateLimitResult.IsAllowed)
+        {
+            logger.LogWarning("Rate limit exceeded for credit-check from IP: {IP}", clientIp);
+            return Ok(defaultResult);
+        }
+
+        if (customerService == null || statementService == null)
+        {
+            return Ok(defaultResult);
+        }
+
+        var customer = await customerService.GetByEmailAsync(request.Email, ct);
+        if (customer is not { HasAccountTerms: true, CreditLimit: not null })
+        {
+            return Ok(defaultResult);
+        }
+
+        var balance = await statementService.GetOutstandingBalanceAsync(customer.Id, ct);
+        return Ok(new CreditCheckResultDto
+        {
+            HasCreditLimit = true,
+            CreditLimitExceeded = balance.CreditLimitExceeded
+        });
     }
 
     /// <summary>

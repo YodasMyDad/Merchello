@@ -776,6 +776,11 @@
                         <div x-show="!paymentFormInitializing" x-cloak id="hosted-fields-container"></div>
                         <div x-show="!paymentFormInitializing" x-cloak id="widget-container"></div>
                         <div x-show="!paymentFormInitializing" x-cloak id="direct-form-container"></div>
+                        <!-- Credit limit warning for Purchase Order payments -->
+                        <div x-show="creditLimitExceeded && selectedPaymentMethod?.methodAlias === 'purchase-order'" x-cloak
+                             class="p-3 bg-amber-50 border border-amber-200 rounded-lg mt-3">
+                            <p class="text-sm text-amber-700">You are over your credit limit</p>
+                        </div>
                     </div>
 
                 </div>

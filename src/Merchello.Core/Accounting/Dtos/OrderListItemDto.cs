@@ -80,4 +80,10 @@ public class OrderListItemDto
     /// Calculated by backend from MaxRiskScore.
     /// </summary>
     public string? RiskLevel { get; set; }
+
+    /// <summary>
+    /// Whether the customer has exceeded their credit limit.
+    /// Computed dynamically when loading orders.
+    /// </summary>
+    public bool CreditLimitExceeded { get; set; }
 }
