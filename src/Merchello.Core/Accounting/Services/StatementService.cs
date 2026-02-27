@@ -774,7 +774,10 @@ public class StatementService(
             ItemCount = invoice.Orders?.SelectMany(o => o.LineItems ?? []).Sum(li => li.Quantity) ?? 0,
             DueDate = invoice.DueDate,
             IsOverdue = isOverdue,
-            DaysUntilDue = daysUntilDue
+            DaysUntilDue = daysUntilDue,
+            MaxRiskScore = paymentStatus.MaxRiskScore,
+            MaxRiskScoreSource = paymentStatus.MaxRiskScoreSource,
+            RiskLevel = paymentStatus.RiskLevel
         };
     }
 

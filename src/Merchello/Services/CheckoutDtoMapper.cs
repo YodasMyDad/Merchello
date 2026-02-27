@@ -178,7 +178,8 @@ public class CheckoutDtoMapper(
             {
                 Message = e.Message,
                 RelatedLineItemId = e.RelatedLineItemId,
-                IsShippingError = e.IsShippingError
+                IsShippingError = e.IsShippingError,
+                IsStockError = e.IsStockError
             }).ToList(),
             IsEmpty = basket.LineItems.Count == 0
         };

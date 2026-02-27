@@ -98,6 +98,7 @@ public class WarehouseService(
 
         // Collect eligible warehouses with stock info for potential multi-warehouse allocation
         List<(Warehouse warehouse, int availableStock, bool trackStock)> warehousesWithStock = [];
+        var anyWarehouseCanServeRegion = false;
 
         // PHASE 1: Try to find a single warehouse that can fulfill the full quantity
         foreach (var warehouse in eligibleWarehouses)
@@ -113,6 +114,8 @@ public class WarehouseService(
                     shippingAddress.CountyState?.RegionCode);
                 continue;
             }
+
+            anyWarehouseCanServeRegion = true;
 
             // Check stock availability
             var productWarehouse = product.ProductWarehouses?
@@ -231,9 +234,15 @@ public class WarehouseService(
         }
 
         // No suitable warehouse found (single or multi)
+        var isStockFailure = anyWarehouseCanServeRegion;
+        var failureReason = isStockFailure
+            ? $"Insufficient total stock ({quantity} units required, {warehousesWithStock.Sum(w => w.availableStock)} available) to serve {shippingAddress.CountryCode}"
+            : $"No warehouses available to serve {shippingAddress.CountryCode}";
+
         return new WarehouseSelectionResult
         {
-            FailureReason = $"Insufficient total stock ({quantity} units required, {warehousesWithStock.Sum(w => w.availableStock)} available) to serve {shippingAddress.CountryCode}"
+            IsStockFailure = isStockFailure,
+            FailureReason = failureReason
         };
     }
 

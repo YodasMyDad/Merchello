@@ -156,6 +156,10 @@ export const checkoutApi = {
             return { success: true, data };
         } catch (error) {
             console.error(`API Error [${endpoint}]:`, error);
+            /** @type {any} */ (window).MerchelloLogger?.error(
+                `API Error [${endpoint}]: ${error.message || 'Unknown error'}`,
+                'api'
+            );
             return {
                 success: false,
                 error: error.message || 'An unexpected error occurred'

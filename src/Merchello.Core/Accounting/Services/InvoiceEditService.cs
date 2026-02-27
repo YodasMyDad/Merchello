@@ -54,13 +54,6 @@ public class InvoiceEditService(
 {
     private readonly MerchelloSettings _settings = settings.Value;
 
-    private sealed record AppliedDiscountUsage(
-        Guid DiscountId,
-        decimal Amount,
-        int? TotalUsageLimit,
-        int? PerCustomerUsageLimit,
-        string? Code);
-
     /// <inheritdoc />
     public async Task<InvoiceForEditDto?> GetInvoiceForEditAsync(Guid invoiceId, CancellationToken cancellationToken = default)
     {

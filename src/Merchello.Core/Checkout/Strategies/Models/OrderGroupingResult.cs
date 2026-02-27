@@ -20,6 +20,11 @@ public class OrderGroupingResult : IResult
     public List<string> Errors { get; set; } = [];
 
     /// <summary>
+    /// Subset of errors caused by insufficient stock (vs region/config issues).
+    /// </summary>
+    public List<string> StockErrors { get; set; } = [];
+
+    /// <summary>
     /// Whether the grouping was successful (no errors).
     /// </summary>
     public bool Success => Errors.Count == 0 && Groups.Count > 0;
