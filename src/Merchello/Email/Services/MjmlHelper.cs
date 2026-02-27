@@ -228,9 +228,15 @@ public class MjmlHelper : IMjmlHelper
                     displayName = item.Name ?? item.Sku;
                 }
 
+                var options = item.GetSelectedOptions();
+
                 sb.AppendLine("      <tr style=\"border-bottom: 1px solid #ecedee;\">");
                 sb.AppendLine("        <td style=\"padding: 10px 0;\">");
                 sb.AppendLine($"          <div style=\"font-weight: 500;\">{HtmlEncode(displayName)}</div>");
+                if (options.Count > 0)
+                {
+                    sb.AppendLine($"          <div style=\"font-size: 13px; color: #666;\">{HtmlEncode(options.FormatOptionsCommaSeparated())}</div>");
+                }
                 foreach (var addon in itemAddons)
                 {
                     var addonName = string.IsNullOrWhiteSpace(addon.Name) ? addon.Sku : addon.Name;
@@ -374,9 +380,15 @@ public class MjmlHelper : IMjmlHelper
                 displayName = item.Name ?? item.Sku;
             }
 
+            var options = item.GetSelectedOptions();
+
             sb.AppendLine("  <tr style=\"border-bottom: 1px solid #ecedee;\">");
             sb.AppendLine("    <td style=\"padding: 10px 0;\">");
             sb.AppendLine($"      <div style=\"font-weight: 500;\">{HtmlEncode(displayName)}</div>");
+            if (options.Count > 0)
+            {
+                sb.AppendLine($"      <div style=\"font-size: 13px; color: #666;\">{HtmlEncode(options.FormatOptionsCommaSeparated())}</div>");
+            }
             foreach (var addon in itemAddons)
             {
                 var addonName = string.IsNullOrWhiteSpace(addon.Name) ? addon.Sku : addon.Name;

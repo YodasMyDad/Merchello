@@ -1,5 +1,7 @@
 @using Merchello.Core.Email.Models
 @using Merchello.Core.Fulfilment.Notifications
+@using Merchello.Core.Fulfilment.Extensions
+@using Merchello.Core.Accounting.Extensions
 @using Merchello.Email.Extensions
 @model EmailModel<SupplierOrderNotification>
 @*
@@ -58,9 +60,17 @@
       </tr>
       @foreach (var item in Model.Notification.LineItems)
       {
+        var rootName = item.GetProductRootName();
+        var options = item.GetSelectedOptions();
         <tr style="border-bottom: 1px solid #ecedef;">
           <td style="padding: 8px 12px; font-family: monospace; font-size: 13px;">@item.Sku</td>
-          <td style="padding: 8px 12px;">@item.Name</td>
+          <td style="padding: 8px 12px;">
+            @rootName
+            @if (options.Count > 0)
+            {
+              <div style="font-size: 12px; color: #666;">@options.FormatOptionsCommaSeparated()</div>
+            }
+          </td>
           @if (hasBarcode)
           {
             <td style="padding: 8px 12px; font-family: monospace; font-size: 13px;">@(item.Barcode ?? "—")</td>
