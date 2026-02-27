@@ -611,13 +611,13 @@
 
                         <!-- Items cannot ship warning -->
                         <div x-show="!shippingLoading && !allItemsShippable" x-cloak x-transition class="p-3 bg-red-50 border border-red-200 rounded-lg mb-3">
-                            <p class="text-sm font-medium text-red-800 mb-2">Some items cannot be shipped to this location:</p>
+                            <p class="text-sm font-medium text-red-800 mb-2">Some items in your basket are currently unavailable:</p>
                             <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
                                 <template x-for="error in itemAvailabilityErrors" :key="error.message">
                                     <li x-text="error.message"></li>
                                 </template>
                             </ul>
-                            <p class="text-sm text-red-700 mt-2">Please change your shipping address or remove unavailable items to continue.</p>
+                            <p class="text-sm text-red-700 mt-2">Please update your basket or shipping address to continue.</p>
                         </div>
 
                         <!-- Missing shipping methods warning -->
