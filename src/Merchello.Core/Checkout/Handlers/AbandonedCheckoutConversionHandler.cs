@@ -22,34 +22,41 @@ public class AbandonedCheckoutConversionHandler(
 {
     public async Task HandleAsync(PaymentCreatedNotification notification, CancellationToken ct)
     {
-        var payment = notification.Payment;
-        if (!payment.PaymentSuccess || payment.PaymentType != PaymentType.Payment)
+        try
         {
-            return;
-        }
+            var payment = notification.Payment;
+            if (!payment.PaymentSuccess || payment.PaymentType != PaymentType.Payment)
+            {
+                return;
+            }
 
-        var invoice = await invoiceService.GetInvoiceAsync(payment.InvoiceId, ct);
-        if (invoice?.BasketId == null)
+            var invoice = await invoiceService.GetInvoiceAsync(payment.InvoiceId, ct);
+            if (invoice?.BasketId == null)
+            {
+                return;
+            }
+
+            var abandonedCheckout = await abandonedCheckoutService.GetByBasketIdAsync(invoice.BasketId.Value, ct);
+            if (abandonedCheckout == null)
+            {
+                return;
+            }
+
+            if (abandonedCheckout.Status is AbandonedCheckoutStatus.Converted or AbandonedCheckoutStatus.Expired)
+            {
+                return;
+            }
+
+            await abandonedCheckoutService.MarkAsConvertedAsync(abandonedCheckout.Id, invoice.Id, ct);
+
+            logger.LogDebug(
+                "Marked abandoned checkout {AbandonedCheckoutId} as converted after successful payment for invoice {InvoiceId}.",
+                abandonedCheckout.Id,
+                invoice.Id);
+        }
+        catch (Exception ex)
         {
-            return;
+            logger.LogError(ex, "Failed to mark abandoned checkout as converted for invoice {InvoiceId}.", notification.Payment.InvoiceId);
         }
-
-        var abandonedCheckout = await abandonedCheckoutService.GetByBasketIdAsync(invoice.BasketId.Value, ct);
-        if (abandonedCheckout == null)
-        {
-            return;
-        }
-
-        if (abandonedCheckout.Status is AbandonedCheckoutStatus.Converted or AbandonedCheckoutStatus.Expired)
-        {
-            return;
-        }
-
-        await abandonedCheckoutService.MarkAsConvertedAsync(abandonedCheckout.Id, invoice.Id, ct);
-
-        logger.LogDebug(
-            "Marked abandoned checkout {AbandonedCheckoutId} as converted after successful payment for invoice {InvoiceId}.",
-            abandonedCheckout.Id,
-            invoice.Id);
     }
 }

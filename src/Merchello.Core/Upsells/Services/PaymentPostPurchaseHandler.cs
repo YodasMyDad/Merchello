@@ -5,6 +5,7 @@ using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Upsells.Models;
 using Merchello.Core.Upsells.Services.Interfaces;
 using Merchello.Core.Upsells.Services.Parameters;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Events;
 
@@ -19,40 +20,48 @@ namespace Merchello.Core.Upsells.Services;
 public class PaymentPostPurchaseHandler(
     IPostPurchaseUpsellService postPurchaseUpsellService,
     IPaymentProviderManager paymentProviderManager,
-    IOptions<UpsellSettings> upsellSettings)
+    IOptions<UpsellSettings> upsellSettings,
+    ILogger<PaymentPostPurchaseHandler> logger)
     : INotificationAsyncHandler<PaymentCreatedNotification>
 {
     public async Task HandleAsync(PaymentCreatedNotification notification, CancellationToken ct)
     {
-        if (!upsellSettings.Value.EnablePostPurchase)
-            return;
-
-        var payment = notification.Payment;
-
-        if (payment.PaymentType != PaymentType.Payment || !payment.PaymentSuccess)
-            return;
-
-        // Avoid re-triggering for post-purchase upsell charges
-        if (string.Equals(payment.Description, "Post-purchase upsell", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        if (string.IsNullOrWhiteSpace(payment.PaymentProviderAlias))
-            return;
-
-        var provider = await paymentProviderManager.GetProviderAsync(
-            payment.PaymentProviderAlias, requireEnabled: false, ct);
-
-        if (provider?.Metadata.SupportsVaultedPayments != true ||
-            provider.Setting?.IsVaultingEnabled != true)
+        try
         {
-            return;
-        }
+            if (!upsellSettings.Value.EnablePostPurchase)
+                return;
 
-        await postPurchaseUpsellService.InitializePostPurchaseAsync(
-            new InitializePostPurchaseParameters
+            var payment = notification.Payment;
+
+            if (payment.PaymentType != PaymentType.Payment || !payment.PaymentSuccess)
+                return;
+
+            // Avoid re-triggering for post-purchase upsell charges
+            if (string.Equals(payment.Description, "Post-purchase upsell", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (string.IsNullOrWhiteSpace(payment.PaymentProviderAlias))
+                return;
+
+            var provider = await paymentProviderManager.GetProviderAsync(
+                payment.PaymentProviderAlias, requireEnabled: false, ct);
+
+            if (provider?.Metadata.SupportsVaultedPayments != true ||
+                provider.Setting?.IsVaultingEnabled != true)
             {
-                InvoiceId = payment.InvoiceId,
-                ProviderAlias = payment.PaymentProviderAlias,
-            }, ct);
+                return;
+            }
+
+            await postPurchaseUpsellService.InitializePostPurchaseAsync(
+                new InitializePostPurchaseParameters
+                {
+                    InvoiceId = payment.InvoiceId,
+                    ProviderAlias = payment.PaymentProviderAlias,
+                }, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to initialize post-purchase upsells for invoice {InvoiceId}.", notification.Payment.InvoiceId);
+        }
     }
 }

@@ -113,4 +113,103 @@ internal static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Shipping tax calculations must flow through centralized provider and tax calculation services.");
+
+    public static readonly DiagnosticDescriptor OnePublicTypePerFile = new(
+        id: DiagnosticIds.OnePublicTypePerFile,
+        title: "Only one public type per file in domain folders",
+        messageFormat: "File contains {0} public types but should contain only one. Type '{1}' should be in its own file.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Each public class, record, enum, and interface should be in its own file in Dtos, Models, Parameters, Interfaces, and Services folders.");
+
+    public static readonly DiagnosticDescriptor NoBusinessLogicInControllers = new(
+        id: DiagnosticIds.NoBusinessLogicInControllers,
+        title: "Controllers must not contain business logic",
+        messageFormat: "Controller '{0}' contains LINQ aggregation '{1}'. Move business logic to a service.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Controllers should be thin HTTP orchestration only. Business logic belongs in services.");
+
+    public static readonly DiagnosticDescriptor CentralizedCalculationSourceOfTruth = new(
+        id: DiagnosticIds.CentralizedCalculationSourceOfTruth,
+        title: "Key calculations must use designated service methods",
+        messageFormat: "'{0}' appears to duplicate centralized calculation logic. Use the designated service method instead.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Business calculations must be centralized in designated services to prevent duplication and inconsistency.");
+
+    public static readonly DiagnosticDescriptor MultiCurrencyDirectionGuard = new(
+        id: DiagnosticIds.MultiCurrencyDirectionGuard,
+        title: "Multi-currency conversion direction must be correct",
+        messageFormat: "Potential wrong currency conversion direction in '{0}'. Display uses multiply, checkout/payment uses divide.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Display calculations must multiply by exchange rate; checkout/invoice creation must divide. Mixing directions causes financial bugs.");
+
+    public static readonly DiagnosticDescriptor NotificationHandlerFaultTolerance = new(
+        id: DiagnosticIds.NotificationHandlerFaultTolerance,
+        title: "Notification handlers should be fault-tolerant",
+        messageFormat: "Handler '{0}' does not wrap HandleAsync body in try/catch. Unhandled exceptions break the notification pipeline.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "After-event notification handlers should catch and log exceptions to prevent pipeline failures.");
+
+    public static readonly DiagnosticDescriptor NoDirectInventoryMutation = new(
+        id: DiagnosticIds.NoDirectInventoryMutation,
+        title: "Stock mutations must go through InventoryService",
+        messageFormat: "Direct mutation of '{0}' detected outside InventoryService. Use InventoryService methods instead.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Stock and ReservedStock must only be modified through InventoryService to maintain consistency.");
+
+    public static readonly DiagnosticDescriptor DigitalProductExtendedDataOnly = new(
+        id: DiagnosticIds.DigitalProductExtendedDataOnly,
+        title: "Digital product settings must use ExtendedData",
+        messageFormat: "Property '{0}' on '{1}' appears to be a digital product setting. Use ExtendedData constant keys instead.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Digital product settings should be stored in ExtendedData to avoid model bloat and unnecessary migrations.");
+
+    public static readonly DiagnosticDescriptor NotificationHandlerPriorityRange = new(
+        id: DiagnosticIds.NotificationHandlerPriorityRange,
+        title: "Notification handler priority should be in expected range",
+        messageFormat: "Handler '{0}' has priority {1} which may not match its purpose. Expected range for {2}: {3}.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Notification handler priorities should follow documented ranges for correct execution ordering.");
+
+    public static readonly DiagnosticDescriptor TaxGroupIdPreservation = new(
+        id: DiagnosticIds.TaxGroupIdPreservation,
+        title: "TaxGroupId must be preserved through line item chain",
+        messageFormat: "Line item creation in '{0}' may not preserve TaxGroupId. Ensure TaxGroupId is set for tax provider compatibility.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "TaxGroupId must flow from ProductRoot through line items to invoice for external tax provider support.");
+
+    public static readonly DiagnosticDescriptor NoFixedCostOnDynamicShippingProvider = new(
+        id: DiagnosticIds.NoFixedCostOnDynamicShippingProvider,
+        title: "Dynamic shipping providers cannot have fixed costs",
+        messageFormat: "Shipping configuration sets Cost alongside a dynamic provider key '{0}'. Dynamic providers fetch rates from carrier APIs.",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "External/dynamic shipping providers (UsesLiveRates=true) must not have fixed costs. Use flat-rate provider for fixed pricing.");
+
+    public static readonly DiagnosticDescriptor ShippingSelectionKeyContract = new(
+        id: DiagnosticIds.ShippingSelectionKeyContract,
+        title: "Shipping selection keys must follow the documented format",
+        messageFormat: "Selection key '{0}' does not match expected format 'so:id' or 'dyn:provider:serviceCode'",
+        category: CategoryArchitecture,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Shipping selection keys must follow the stable contract: 'so:{guid}' for flat-rate or 'dyn:{provider}:{serviceCode}' for dynamic.");
 }
