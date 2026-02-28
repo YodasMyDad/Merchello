@@ -405,30 +405,18 @@
                            placeholder="you@example.com" />
                     <p x-show="errors.email" x-cloak class="checkout-error" x-text="errors.email"></p>
 
-                    <!-- Create Account Option -->
+                    <!-- Account Options -->
                     <div class="mt-2">
-                        <!-- Toggle link (hidden for logged-in users, existing accounts, or when account section is shown) -->
-                        <button type="button"
-                                x-show="showCreateAccountButton"
-                                @@click="showAccountSection = true; checkEmailForAccount()"
-                                class="text-sm text-accent hover:underline">
-                            Create an account for faster checkout next time
-                        </button>
-
-                        <!-- Login link for returning customers -->
-                        <button type="button"
-                                x-show="showLoginButton"
-                                x-cloak
-                                x-transition:enter="transition ease-out duration-200"
-                                x-transition:enter-start="opacity-0"
-                                x-transition:enter-end="opacity-100"
-                                x-transition:leave="transition ease-in duration-150"
-                                x-transition:leave-start="opacity-100"
-                                x-transition:leave-end="opacity-0"
-                                @@click="showAccountSection = true; hasExistingAccount = true"
-                                class="text-sm text-accent hover:underline">
-                            Login to your account
-                        </button>
+                        <div x-show="!$store.checkout?.isLoggedIn && !showAccountSection && !isSignedIn"
+                             class="text-sm text-gray-600">
+                            <span>Have an account?</span>
+                            <button type="button"
+                                    @@click="showAccountSection = true; hasExistingAccount = true"
+                                    class="text-accent hover:underline ml-0.5">
+                                Sign in</button><span class="mx-1 text-gray-300">|</span><button type="button"
+                                    @@click="showAccountSection = true; hasExistingAccount = false"
+                                    class="text-accent hover:underline">Create an account</button>
+                        </div>
 
                         <!-- Account Section (login or create) -->
                         <div x-show="showAccountSection" x-cloak x-transition class="mt-2 space-y-2">
@@ -438,23 +426,37 @@
                                 <strong>Account required:</strong> Digital products in your cart require an account to access your downloads.
                             </div>
 
-                            <!-- Header with mode indicator -->
+                            <!-- Header with mode toggle -->
                             <div class="flex items-center justify-between">
                                 <label for="password" class="block text-xs font-medium text-gray-700">
                                     <span x-show="hasExistingAccount">Sign in to your account</span>
                                     <span x-show="!hasExistingAccount">Create a password</span>
                                 </label>
-                                <button type="button"
-                                        x-show="!($store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn)"
-                                        @@click="cancelAccountSection()"
-                                        class="text-xs text-gray-500 hover:text-gray-700">
-                                    Cancel
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <button type="button"
+                                            x-show="hasExistingAccount"
+                                            @@click="hasExistingAccount = false; signInError = ''"
+                                            class="text-xs text-accent hover:underline">
+                                        Create account instead
+                                    </button>
+                                    <button type="button"
+                                            x-show="!hasExistingAccount"
+                                            @@click="hasExistingAccount = true; passwordErrors = []; passwordValid = false"
+                                            class="text-xs text-accent hover:underline">
+                                        Sign in instead
+                                    </button>
+                                    <button type="button"
+                                            x-show="!($store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn)"
+                                            @@click="cancelAccountSection()"
+                                            class="text-xs text-gray-500 hover:text-gray-700">
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Existing account notice -->
                             <p x-show="hasExistingAccount" class="text-xs text-blue-600">
-                                An account exists with this email. Enter your password to sign in.
+                                Enter your password to sign in.
                             </p>
 
                             <!-- Password input -->

@@ -343,27 +343,6 @@ export function initSinglePageCheckout() {
                        this.inlineSuggestions.some(s => s.products.length > 0);
             },
 
-            /**
-             * Whether to show the "Create an account" button.
-             * Hidden when:
-             * - User is already logged in
-             * - Email belongs to an existing account (set after email blur check)
-             * - User has already expanded the account section
-             */
-            get showCreateAccountButton() {
-                const store = this.$store.checkout;
-                return !store?.isLoggedIn && !store?.emailHasAccount && !this.showAccountSection;
-            },
-
-            /**
-             * Whether to show the "Login to your account" link.
-             * Shown when email belongs to an existing account but user hasn't opened the login section yet.
-             */
-            get showLoginButton() {
-                const store = this.$store.checkout;
-                return !store?.isLoggedIn && store?.emailHasAccount && !this.showAccountSection && !this.isSignedIn;
-            },
-
             // ============================================
             // Lifecycle
             // ============================================
@@ -1408,7 +1387,7 @@ export function initSinglePageCheckout() {
                 }
 
                 // Check credit limit for Purchase Order payment method
-                if (method.methodAlias === 'purchase-order' && this.form.email) {
+                if (method.methodAlias === 'purchase-order' && this.form.email && this.isSignedIn) {
                     try {
                         const creditResult = await checkoutApi.checkCreditStatus(this.form.email);
                         this.creditLimitExceeded = creditResult?.creditLimitExceeded ?? false;
@@ -1581,43 +1560,6 @@ export function initSinglePageCheckout() {
             // Account Methods
             // ============================================
 
-            async checkEmailForAccount() {
-                if (!this.form.email) return;
-                this.checkingEmail = true;
-                try {
-                    const data = await checkoutApi.checkEmail(this.form.email);
-                    this.hasExistingAccount = data.hasExistingAccount;
-                } catch {
-                    this.hasExistingAccount = false;
-                } finally {
-                    this.checkingEmail = false;
-                }
-            },
-
-            /**
-             * Check if email belongs to an existing account (for hiding create account button).
-             * This is a silent check that only updates store state - it does NOT trigger sign-in flow.
-             * Used on email blur to hide the "Create an account" button for existing customers.
-             */
-            async checkEmailForAccountVisibility() {
-                if (!this.form.email) return;
-                const store = this.$store.checkout;
-
-                try {
-                    const data = await checkoutApi.checkEmail(this.form.email);
-                    store?.setEmailHasAccount(data.hasExistingAccount === true);
-
-                    // Auto-open login section for returning customers
-                    if (data.hasExistingAccount === true) {
-                        this.hasExistingAccount = true;
-                        this.showAccountSection = true;
-                    }
-                } catch {
-                    // Silently fail - don't disrupt checkout flow
-                    // Keep button visible if check fails
-                    store?.setEmailHasAccount(false);
-                }
-            },
 
             async validatePassword() {
                 if (!this.form.password) {
@@ -1672,8 +1614,7 @@ export function initSinglePageCheckout() {
                 this.signInError = '';
                 this.showForgotPassword = false;
                 this.isSignedIn = false;
-                // Preserve existing account state so "Login" link stays visible
-                this.hasExistingAccount = store?.emailHasAccount ?? false;
+                this.hasExistingAccount = false;
             },
 
             openForgotPassword() {
@@ -1728,13 +1669,6 @@ export function initSinglePageCheckout() {
                             window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
                         }
                         this.captureEmail().catch(err => console.error('Email capture failed:', err));
-
-                        // Check if email belongs to an existing account (for hiding create account button)
-                        // Only check if user is not already logged in
-                        if (!store?.isLoggedIn) {
-                            this.checkEmailForAccountVisibility()
-                                .catch(err => console.error('Email account check failed:', err));
-                        }
 
                         if (this.selectedPaymentMethod && !this.paymentSession) {
                             this.initializePaymentForm(this.selectedPaymentMethod)

@@ -39,6 +39,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Api.Common.Attributes;
+using Umbraco.Cms.Core.Security;
 
 namespace Merchello.Controllers;
 
@@ -67,7 +68,8 @@ public class CheckoutApiController(
     IAbandonedCheckoutService? abandonedCheckoutService = null,
     ICustomerService? customerService = null,
     IMerchelloStoreSettingsService? storeSettingsService = null,
-    IStatementService? statementService = null) : ControllerBase
+    IStatementService? statementService = null,
+    IMemberManager? memberManager = null) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
     private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
@@ -854,56 +856,43 @@ public class CheckoutApiController(
 
     /// <summary>
     /// Check if an email has an existing member account.
-    /// Rate-limited to prevent email enumeration (returns false when rate-limited).
+    /// Always returns false to prevent user-enumeration attacks.
+    /// The UI shows both sign-in and create-account options regardless.
     /// </summary>
     [HttpPost("check-email")]
-    public async Task<IActionResult> CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    public Task<IActionResult> CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(request.Email) || !checkoutValidator.IsValidEmail(request.Email))
-        {
-            return BadRequest(new CheckEmailResultDto { HasExistingAccount = false });
-        }
-
-        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var rateLimitKey = $"check-email:{clientIp}";
-        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxCheckEmailAttemptsPerMinute, CheckEmailRateLimitWindow);
-
-        if (!rateLimitResult.IsAllowed)
-        {
-            logger.LogWarning("Rate limit exceeded for check-email from IP: {IP}", clientIp);
-            return Ok(new CheckEmailResultDto { HasExistingAccount = false });
-        }
-
-        var result = await checkoutMemberService.CheckEmailAsync(request.Email, ct);
-        return Ok(result);
+        return Task.FromResult<IActionResult>(Ok(new CheckEmailResultDto { HasExistingAccount = false }));
     }
 
     /// <summary>
     /// Check if a customer (by email) has exceeded their credit limit.
     /// Used to show a soft warning during checkout when Purchase Order is selected.
-    /// Rate-limited to prevent abuse.
+    /// Requires authentication — returns default for anonymous callers to prevent information disclosure.
     /// </summary>
     [HttpPost("credit-check")]
     public async Task<IActionResult> CreditCheck([FromBody] CheckEmailRequestDto request, CancellationToken ct)
     {
         var defaultResult = new CreditCheckResultDto { HasCreditLimit = false, CreditLimitExceeded = false };
 
+        if (memberManager == null || !memberManager.IsLoggedIn())
+        {
+            return Ok(defaultResult);
+        }
+
         if (string.IsNullOrWhiteSpace(request.Email) || !checkoutValidator.IsValidEmail(request.Email))
         {
             return Ok(defaultResult);
         }
 
-        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var rateLimitKey = $"credit-check:{clientIp}";
-        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxCheckEmailAttemptsPerMinute, CheckEmailRateLimitWindow);
-
-        if (!rateLimitResult.IsAllowed)
+        if (customerService == null || statementService == null)
         {
-            logger.LogWarning("Rate limit exceeded for credit-check from IP: {IP}", clientIp);
             return Ok(defaultResult);
         }
 
-        if (customerService == null || statementService == null)
+        // Verify the authenticated member owns this email
+        var member = await memberManager.GetCurrentMemberAsync();
+        if (member == null || !string.Equals(member.Email, request.Email, StringComparison.OrdinalIgnoreCase))
         {
             return Ok(defaultResult);
         }
