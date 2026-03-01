@@ -384,8 +384,8 @@ public class StripePaymentProvider(
                 PaymentMethodTypes = ["card"],
                 LineItems = lineItems,
                 Mode = "payment",
-                SuccessUrl = request.ReturnUrl,
-                CancelUrl = request.CancelUrl,
+                SuccessUrl = BuildCheckoutReturnUrl(request.ReturnUrl, request.InvoiceId),
+                CancelUrl = BuildCheckoutReturnUrl(request.CancelUrl, request.InvoiceId),
                 Metadata = metadata,
                 PaymentIntentData = new SessionPaymentIntentDataOptions
                 {
@@ -586,6 +586,17 @@ public class StripePaymentProvider(
                 errorMessage: ex.Message,
                 errorCode: ex.StripeError?.Code);
         }
+    }
+
+    /// <summary>
+    /// Builds a return URL for Stripe Checkout sessions with query parameters for payment correlation.
+    /// Appends invoiceId, provider alias, and Stripe's {CHECKOUT_SESSION_ID} template variable
+    /// which Stripe replaces with the actual session ID on redirect.
+    /// </summary>
+    private string BuildCheckoutReturnUrl(string url, Guid invoiceId)
+    {
+        var separator = url.Contains('?') ? "&" : "?";
+        return $"{url}{separator}invoiceId={invoiceId}&provider={Uri.EscapeDataString(Metadata.Alias)}&sessionId={{CHECKOUT_SESSION_ID}}";
     }
 
     /// <summary>

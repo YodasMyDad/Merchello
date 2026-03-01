@@ -15,6 +15,13 @@
   display: none !important;
 }
 
+/* Desktop: always show order summary regardless of x-show state */
+@screen lg {
+  #order-summary-content {
+    display: block !important;
+  }
+}
+
 /* Custom checkout component classes */
 @layer components {
   .checkout-input {

@@ -784,7 +784,7 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-3);
       align-items: flex-start;
       background: var(--uui-color-warning-standalone);
-      color: var(--uui-color-warning-contrast);
+      color: #fff;
       border-radius: var(--uui-border-radius);
       padding: var(--uui-size-space-3);
       margin-bottom: var(--uui-size-space-4);

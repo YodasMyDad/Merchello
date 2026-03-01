@@ -241,6 +241,12 @@ export function initCheckoutAddressForm() {
                 return false;
             }
 
+            // Region validation - required when regions dropdown is available
+            if (field === 'regionCode' && this.hasRegions && !value) {
+                this.$store.checkout?.setError(fullPath, 'This field is required.');
+                return false;
+            }
+
             // Phone validation
             if (field === 'phone') {
                 const phoneRequired = this.isBilling && (this.$store.checkout?.billingPhoneRequired === true);
@@ -273,6 +279,10 @@ export function initCheckoutAddressForm() {
                     isValid = false;
                 }
             });
+
+            if (!this.validateField('regionCode')) {
+                isValid = false;
+            }
 
             if (!this.validateField('phone')) {
                 isValid = false;

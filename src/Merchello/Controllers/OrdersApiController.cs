@@ -71,6 +71,39 @@ public class OrdersApiController(
         // Map to DTOs
         var items = result.Items.Select(ordersDtoMapper.MapToListItem).ToList();
 
+        // Batch-check credit limits for account customers
+        var customerIds = result.Items
+            .Where(i => i.CustomerId != Guid.Empty)
+            .Select(i => i.CustomerId)
+            .Distinct()
+            .ToList();
+
+        if (customerIds.Count > 0)
+        {
+            var customers = await customerService.GetByIdsAsync(customerIds, ct);
+            var creditCustomers = customers
+                .Where(c => c.HasAccountTerms && c.CreditLimit.HasValue)
+                .ToList();
+
+            if (creditCustomers.Count > 0)
+            {
+                var exceededIds = new HashSet<Guid>();
+                foreach (var c in creditCustomers)
+                {
+                    var balance = await statementService.GetOutstandingBalanceAsync(c.Id, ct);
+                    if (balance.CreditLimitExceeded)
+                        exceededIds.Add(c.Id);
+                }
+
+                var invoiceCustomerMap = result.Items.ToDictionary(i => i.Id, i => i.CustomerId);
+                foreach (var item in items)
+                {
+                    if (invoiceCustomerMap.TryGetValue(item.Id, out var custId) && exceededIds.Contains(custId))
+                        item.CreditLimitExceeded = true;
+                }
+            }
+        }
+
         return new OrderPageDto
         {
             Items = items,
@@ -158,6 +191,17 @@ public class OrdersApiController(
         if (!string.IsNullOrWhiteSpace(billingEmail))
         {
             detail.CustomerOrderCount = await invoiceService.GetInvoiceCountByBillingEmailAsync(billingEmail, ct);
+        }
+
+        // Check customer credit limit status
+        if (invoice.CustomerId != Guid.Empty)
+        {
+            var customer = await customerService.GetByIdAsync(invoice.CustomerId, ct);
+            if (customer is { HasAccountTerms: true, CreditLimit: not null })
+            {
+                var balance = await statementService.GetOutstandingBalanceAsync(invoice.CustomerId, ct);
+                detail.CreditLimitExceeded = balance.CreditLimitExceeded;
+            }
         }
 
         return Ok(detail);

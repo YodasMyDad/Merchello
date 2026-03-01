@@ -1,9 +1,8 @@
 # Shipping Provider Development Guide
 
-Last reviewed against code: 2026-02-20
+Last reviewed against code: 2026-02-28
 
-This guide is the implementation contract for creating shipping providers in Merchello.
-It is based on the current runtime code paths, not legacy docs.
+This is the single source of truth for Merchello shipping provider architecture and implementation. It is based on traced runtime code paths and is intended to be handed to an LLM or engineer as the implementation reference for new Merchello shipping providers.
 
 ## Purpose
 
@@ -26,6 +25,29 @@ Built-in shipping providers in this repo:
 Clarification:
 - There is no Avalara shipping provider in this codebase.
 - Avalara exists as a tax provider (`src/Merchello.Core/Tax/Providers/BuiltIn/AvalaraTaxProvider.cs`).
+
+## Core Components
+
+### Provider interface and base
+
+- `IShippingProvider` — `src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs`
+- `ShippingProviderBase` — `src/Merchello.Core/Shipping/Providers/ShippingProviderBase.cs`
+
+### Discovery and configuration
+
+- `IShippingProviderManager` — `src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProviderManager.cs`
+- `ShippingProviderManager` — `src/Merchello.Core/Shipping/Providers/ShippingProviderManager.cs`
+
+### Quote orchestration
+
+- `IShippingQuoteService` — `src/Merchello.Core/Shipping/Services/Interfaces/IShippingQuoteService.cs`
+- `ShippingQuoteService` — `src/Merchello.Core/Shipping/Services/ShippingQuoteService.cs`
+
+### Dynamic provider warehouse config
+
+- `IWarehouseProviderConfigService` — `src/Merchello.Core/Shipping/Services/Interfaces/IWarehouseProviderConfigService.cs`
+- `WarehouseProviderConfigService` — `src/Merchello.Core/Shipping/Services/WarehouseProviderConfigService.cs`
+- `WarehouseProviderConfig` — `src/Merchello.Core/Shipping/Models/WarehouseProviderConfig.cs`
 
 ## Runtime Flow (Actual Code Path)
 
@@ -67,6 +89,24 @@ Two separate quote paths exist. Use the right provider method for each.
 - Used by default grouping strategy for dynamic rates per warehouse
 - For `UsesLiveRates = true`, Merchello calls:
   - `GetRatesForAllServicesAsync(request, warehouseConfig, ...)`
+
+### Order creation and fulfilment bridge
+
+1. Invoice creation parses selected `SelectionKey` into flat-rate vs dynamic selection
+2. Order fields are set:
+- `ShippingProviderKey`
+- `ShippingServiceCode`
+- `ShippingServiceName`
+- `ShippingServiceCategory` (inferred)
+
+3. Fulfilment resolves final shipping method code with fallback chain:
+- `ServiceCategoryMapping_{Category}`
+- `DefaultShippingMethod`
+- raw `Order.ShippingServiceCode`
+
+Files:
+- `src/Merchello.Core/Accounting/Services/InvoiceService.cs`
+- `src/Merchello.Core/Fulfilment/Services/FulfilmentService.cs`
 
 ## Architecture Boundaries
 
@@ -146,6 +186,19 @@ Typical dynamic provider capabilities:
 - `HasWeightTiers = false`
 - `UsesLiveRates = true`
 - `RequiresGlobalConfig = true`
+
+## Key Models Reference
+
+| Model | File | Purpose |
+|-------|------|---------|
+| `ShippingQuoteRequest` | `src/Merchello.Core/Shipping/Providers/ShippingQuoteRequest.cs` | Quote request with destination, packages, currency |
+| `ShippingRateQuote` | `src/Merchello.Core/Shipping/Providers/ShippingRateQuote.cs` | Quote response with service levels and errors |
+| `ShippingServiceLevel` | `src/Merchello.Core/Shipping/Providers/ShippingServiceLevel.cs` | Individual service option (code, name, cost, transit time) |
+| `ShippingServiceType` | `src/Merchello.Core/Shipping/Models/ShippingServiceType.cs` | Canonical service catalog entry for a provider |
+| `ShippingOptionInfo` | `src/Merchello.Core/Shipping/Models/ShippingOptionInfo.cs` | Checkout-facing option with DaysFrom/DaysTo window |
+| `WarehouseProviderConfig` | `src/Merchello.Core/Shipping/Models/WarehouseProviderConfig.cs` | Per-warehouse dynamic provider controls (exclusions, markup, day overrides) |
+| `ShippingProviderMetadata` | `src/Merchello.Core/Shipping/Providers/ShippingProviderMetadata.cs` | Provider identity and capability declarations |
+| `ProviderConfigCapabilities` | `src/Merchello.Core/Shipping/Providers/ProviderConfigCapabilities.cs` | Feature flags (live rates, location costs, weight tiers) |
 
 ## IShippingProvider Contract (When Each Method Is Used)
 
@@ -293,6 +346,24 @@ UPS follows the same dynamic pattern as FedEx:
 - Service-level mapping
 - Dynamic warehouse config application
 
+## Design Invariants
+
+1. Do not duplicate checkout totals or shipping tax calculations in providers.
+2. Keep selection key format stable.
+3. Keep provider key stable once released.
+4. Preserve dynamic-to-fulfilment day/category mapping path.
+5. For live-rate providers, always return normalized currency and service metadata.
+6. Keep provider errors isolated so one provider failure does not collapse all shipping options.
+
+## Error Handling Expectations
+
+Provider errors should:
+- Return `ShippingRateQuote` with `Errors` populated when possible
+- Avoid throwing for known carrier/business errors
+- Throw only for unexpected failure paths that cannot be represented as quote errors
+
+Manager and service layers already isolate provider failures per-provider to avoid taking down full checkout quote resolution.
+
 ## Required Implementation Checklist for New Providers
 
 1. Implement provider class inheriting `ShippingProviderBase`
@@ -315,56 +386,6 @@ UPS follows the same dynamic pattern as FedEx:
 11. Preserve selection key compatibility by using provider/service code consistently
 12. Never hardcode shipping tax logic in provider
 13. Use cancellation tokens across all async calls
-
-## Error Handling Expectations
-
-Provider errors should:
-- Return `ShippingRateQuote` with `Errors` populated when possible
-- Avoid throwing for known carrier/business errors
-- Throw only for unexpected failure paths that cannot be represented as quote errors
-
-Manager and service layers already isolate provider failures per-provider to avoid taking down full checkout quote resolution.
-
-## Testing Checklist
-
-Add tests for:
-1. `IsAvailableFor` behavior
-2. `ConfigureAsync` with valid and malformed settings
-3. `GetRatesAsync` success mapping
-4. Currency conversion behavior when carrier currency != request currency
-5. `GetRatesForServicesAsync` filtering and markup behavior
-6. `GetRatesForAllServicesAsync` exclusions and per-service markup behavior
-7. Transit-time mapping into `ShippingServiceLevel.TransitTime`
-8. Selection key parse compatibility (`dyn:{provider}:{serviceCode}`)
-9. Delivery-day mapping path in grouping/invoice/fulfilment integration tests
-
-Useful existing tests:
-- `src/Merchello.Tests/Shipping/ShippingQuoteServiceTests.cs`
-- `src/Merchello.Tests/Shipping/DynamicShippingProviderTests.cs`
-- `src/Merchello.Tests/Shipping/SelectionKeyExtensionsTests.cs`
-- `src/Merchello.Tests/Checkout/Strategies/DefaultOrderGroupingStrategyTests.cs`
-
-## Common Mistakes To Avoid
-
-1. Using outdated checkout endpoints
-- Correct endpoints are:
-  - `GET /api/merchello/checkout/shipping-groups`
-  - `POST /api/merchello/checkout/shipping`
-
-2. Assuming dynamic providers skip `GetRatesForServicesAsync`
-- They do not. Basket-level filtered flow uses this method when service types are configured.
-
-3. Assuming old table names for provider config
-- Use `merchelloProviderConfigurations` and warehouse `ProviderConfigsJson`.
-
-4. Returning rates in carrier account currency without conversion
-- Convert to request/basket currency using exchange rate services.
-
-5. Omitting transit time for dynamic services
-- This weakens fulfilment service mapping quality.
-
-6. Re-implementing fulfilment mapping in provider code
-- Keep mapping centralized in invoice + fulfilment services.
 
 ## Minimal Provider Skeleton
 
@@ -418,6 +439,75 @@ public class MyCarrierShippingProvider(
     }
 }
 ```
+
+## Common Mistakes To Avoid
+
+1. Using outdated checkout endpoints
+- Correct endpoints are:
+  - `GET /api/merchello/checkout/shipping-groups`
+  - `POST /api/merchello/checkout/shipping`
+
+2. Assuming dynamic providers skip `GetRatesForServicesAsync`
+- They do not. Basket-level filtered flow uses this method when service types are configured.
+
+3. Assuming old table names for provider config
+- Use `merchelloProviderConfigurations` and warehouse `ProviderConfigsJson`.
+
+4. Returning rates in carrier account currency without conversion
+- Convert to request/basket currency using exchange rate services.
+
+5. Omitting transit time for dynamic services
+- This weakens fulfilment service mapping quality.
+
+6. Re-implementing fulfilment mapping in provider code
+- Keep mapping centralized in invoice + fulfilment services.
+
+## Testing Checklist
+
+Add tests for:
+
+1. `IsAvailableFor` behavior
+2. `ConfigureAsync` with valid and malformed settings
+3. `GetRatesAsync` success mapping
+4. Currency conversion behavior when carrier currency != request currency
+5. `GetRatesForServicesAsync` filtering and markup behavior
+6. `GetRatesForAllServicesAsync` exclusions and per-service markup behavior
+7. Transit-time mapping into `ShippingServiceLevel.TransitTime`
+8. Selection key parse compatibility (`dyn:{provider}:{serviceCode}`)
+9. Delivery-day mapping path in grouping/invoice/fulfilment integration tests
+
+Useful existing tests:
+- `src/Merchello.Tests/Shipping/ShippingQuoteServiceTests.cs`
+- `src/Merchello.Tests/Shipping/DynamicShippingProviderTests.cs`
+- `src/Merchello.Tests/Shipping/SelectionKeyExtensionsTests.cs`
+- `src/Merchello.Tests/Checkout/Strategies/DefaultOrderGroupingStrategyTests.cs`
+
+## Troubleshooting Checklist
+
+### No dynamic options appear
+
+- Verify provider is enabled in `merchelloProviderConfigurations`
+- Verify warehouse has provider config enabled in `ProviderConfigsJson`
+- Verify group products allow external carrier shipping (`AllowExternalCarrierShipping`)
+- Verify request includes shippable package weight
+
+### Wrong fulfilment method selected
+
+- Check `DaysFrom/DaysTo` mapping in group option
+- Check inferred `ShippingServiceCategory` on order
+- Check fulfilment settings keys `ServiceCategoryMapping_*` and `DefaultShippingMethod`
+
+### Live rates return but filtering is wrong
+
+- Verify service codes in `GetSupportedServiceTypesAsync`
+- Verify `ShippingOption.ServiceType` values match carrier codes
+- Verify `GetRatesForServicesAsync` filtering uses service type codes
+
+### Markup/exclusions not applied as expected
+
+- Verify warehouse config JSON for provider
+- Verify service code casing and exclusions list
+- Verify quote path (basket-level filtered vs warehouse dynamic)
 
 ## Final Rule
 

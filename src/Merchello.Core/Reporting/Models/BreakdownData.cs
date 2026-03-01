@@ -14,4 +14,7 @@ internal record BreakdownData(
     decimal TotalSales,
     decimal TotalCost,
     decimal GrossProfit,
-    decimal GrossProfitMargin);
+    decimal GrossProfitMargin)
+{
+    public static readonly BreakdownData Empty = new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}

@@ -54,7 +54,7 @@ The checkout is **provider-agnostic** - it works with any enabled payment provid
 - Handle Apple Pay / Google Pay via Widget integration type
 - Maintain PCI compliance (card data never touches our servers)
 
-Future providers (Stripe Elements, Adyen, Square) follow the same pattern. See [PaymentProviders-Architecture.md](PaymentProviders-Architecture.md) for details.
+Future providers (Stripe Elements, Adyen, Square) follow the same pattern. See [PaymentProviders-DevGuide.md](PaymentProviders-DevGuide.md) for details.
 
 ### Express Checkout Requirements
 
@@ -795,7 +795,7 @@ Display warehouse groups with shipping options. User selects shipping method per
 - `IOrderGroupingStrategy.GroupItemsAsync()` - splits basket by warehouse/fulfillment location
 - `ICheckoutService.CalculateBasketAsync()` - recalculates totals with selected shipping
 
-> **Note**: Shipping quotes are provided by the shipping provider system in `@docs/ShippingProviders-Architecture.md`. The checkout displays available options from enabled providers.
+> **Note**: Shipping quotes are provided by the shipping provider system in `@docs/ShippingProviders-DevGuide.md`. The checkout displays available options from enabled providers.
 
 > **Architecture Note**: Shipping groups are rendered inline in `Shipping.cshtml` (no separate partial). The `IOrderGroupingStrategy` powers the grouping logic - groups from `ICheckoutService.GetOrderGroupsAsync()` are passed to the view via `Model.ShippingGroups`.
 
@@ -976,7 +976,7 @@ Implement Braintree as a multi-method provider, demonstrating the Provider â†
 ### Dependencies
 - NuGet: `Braintree`
 
-> **Note**: Follow the payment provider patterns in `@docs/PaymentProviders-Architecture.md` and `@docs/PaymentProviders-DevGuide.md`. Reference `StripePaymentProvider` as the existing implementation example.
+> **Note**: Follow the payment provider patterns in `@docs/PaymentProviders-DevGuide.md`. Reference `StripePaymentProvider` as the existing implementation example.
 
 ### Done When
 - Braintree appears as payment option when enabled
@@ -1610,9 +1610,8 @@ Copy component markup from Penguin UI and adapt to Razor views. Components use A
 | Document | Relevance to Checkout |
 |----------|----------------------|
 | `@docs/Architecture-Diagrams.md` | Centralized service patterns, factory patterns |
-| `@docs/PaymentProviders-Architecture.md` | `IPaymentProvider` interface, integration types |
-| `@docs/PaymentProviders-DevGuide.md` | How to implement Braintree provider (Phase 4) |
-| `@docs/ShippingProviders-Architecture.md` | Shipping quote system, provider patterns |
+| `@docs/PaymentProviders-DevGuide.md` | `IPaymentProvider` interface, integration types, implementation guide |
+| `@docs/ShippingProviders-DevGuide.md` | Shipping quote system, provider patterns, implementation guide |
 | `@docs/Discounts.md` | `IDiscountEngine`, discount validation, automatic discounts |
 | `@docs/Customer-Segments.md` | Customer segments used for discount eligibility |
 | `@docs/Developer-Guidelines.md` | Coding standards, service patterns |

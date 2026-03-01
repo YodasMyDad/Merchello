@@ -120,6 +120,8 @@ export function initSinglePageCheckout() {
             cardPaymentMethods: [],
             redirectPaymentMethods: [],
             selectedPaymentMethodKey: '',
+            /** Whether the customer has exceeded their credit limit (soft warning for PO payments) */
+            creditLimitExceeded: false,
 
             // ============================================
             // Upsell Local State
@@ -339,18 +341,6 @@ export function initSinglePageCheckout() {
             get hasInlineUpsells() {
                 return this.inlineSuggestions.length > 0 &&
                        this.inlineSuggestions.some(s => s.products.length > 0);
-            },
-
-            /**
-             * Whether to show the "Create an account" button.
-             * Hidden when:
-             * - User is already logged in
-             * - Email belongs to an existing account (set after email blur check)
-             * - User has already expanded the account section
-             */
-            get showCreateAccountButton() {
-                const store = this.$store.checkout;
-                return !store?.isLoggedIn && !store?.emailHasAccount && !this.showAccountSection;
             },
 
             // ============================================
@@ -1348,8 +1338,8 @@ export function initSinglePageCheckout() {
                     }
 
                     const categorized = categorizePaymentMethods(methods);
-                    this.cardPaymentMethods = categorized.card;
-                    this.redirectPaymentMethods = categorized.redirect;
+                    this.cardPaymentMethods = [...categorized.card, ...categorized.redirect];
+                    this.redirectPaymentMethods = [];
                 } catch (error) {
                     console.error('Failed to load payment methods:', error);
                     /** @type {any} */ (window).MerchelloLogger?.error('Failed to load payment methods: ' + (error.message || 'Unknown error'), 'payment');
@@ -1394,6 +1384,19 @@ export function initSinglePageCheckout() {
                 }
                 if (!isSameMethod) {
                     this.announce(`Selected ${method.displayName} payment`);
+                }
+
+                // Check credit limit for Purchase Order payment method
+                if (method.methodAlias === 'purchase-order' && this.form.email && this.isSignedIn) {
+                    try {
+                        const creditResult = await checkoutApi.checkCreditStatus(this.form.email);
+                        this.creditLimitExceeded = creditResult?.creditLimitExceeded ?? false;
+                    } catch (e) {
+                        console.warn('Credit check failed:', e);
+                        this.creditLimitExceeded = false;
+                    }
+                } else {
+                    this.creditLimitExceeded = false;
                 }
 
                 if (this.form.email && this._emailCaptured !== this.form.email) {
@@ -1557,37 +1560,6 @@ export function initSinglePageCheckout() {
             // Account Methods
             // ============================================
 
-            async checkEmailForAccount() {
-                if (!this.form.email) return;
-                this.checkingEmail = true;
-                try {
-                    const data = await checkoutApi.checkEmail(this.form.email);
-                    this.hasExistingAccount = data.hasExistingAccount;
-                } catch {
-                    this.hasExistingAccount = false;
-                } finally {
-                    this.checkingEmail = false;
-                }
-            },
-
-            /**
-             * Check if email belongs to an existing account (for hiding create account button).
-             * This is a silent check that only updates store state - it does NOT trigger sign-in flow.
-             * Used on email blur to hide the "Create an account" button for existing customers.
-             */
-            async checkEmailForAccountVisibility() {
-                if (!this.form.email) return;
-                const store = this.$store.checkout;
-
-                try {
-                    const data = await checkoutApi.checkEmail(this.form.email);
-                    store?.setEmailHasAccount(data.hasExistingAccount === true);
-                } catch {
-                    // Silently fail - don't disrupt checkout flow
-                    // Keep button visible if check fails
-                    store?.setEmailHasAccount(false);
-                }
-            },
 
             async validatePassword() {
                 if (!this.form.password) {
@@ -1697,13 +1669,6 @@ export function initSinglePageCheckout() {
                             window.MerchelloSinglePageAnalytics.trackContactInfo(this.form.email);
                         }
                         this.captureEmail().catch(err => console.error('Email capture failed:', err));
-
-                        // Check if email belongs to an existing account (for hiding create account button)
-                        // Only check if user is not already logged in
-                        if (!store?.isLoggedIn) {
-                            this.checkEmailForAccountVisibility()
-                                .catch(err => console.error('Email account check failed:', err));
-                        }
 
                         if (this.selectedPaymentMethod && !this.paymentSession) {
                             this.initializePaymentForm(this.selectedPaymentMethod)

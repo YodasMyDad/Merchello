@@ -22,7 +22,7 @@
      x-cloak>
 
     <!-- Loading State - Dynamic Skeleton Loaders -->
-    <div x-show="isLoading" class="express-buttons-layout express-skeleton-layout">
+    <div x-show="isLoading" class="express-buttons-layout">
         <div class="express-skeleton-bar animate-pulse bg-gray-200 rounded-lg"></div>
         <div class="express-skeleton-bar animate-pulse bg-gray-200 rounded-lg"></div>
     </div>
@@ -73,27 +73,7 @@
         margin: 0 auto;
     }
 
-    /* Grid layout for 2+ buttons on desktop */
-    .express-buttons-layout.express-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 0.5rem;
-    }
-
-    /* Single button stays full width */
-    .express-buttons-layout.express-single {
-        display: flex;
-        flex-direction: column;
-    }
-
-    /* Mobile: always single column */
-    @@media (max-width: 480px) {
-        .express-buttons-layout.express-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    /* Each wrapper fills its grid cell */
+    /* Each wrapper fills its cell */
     .express-button-wrapper {
         flex: 0 0 auto;
         width: 100%;

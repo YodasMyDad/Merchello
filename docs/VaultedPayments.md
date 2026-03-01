@@ -2005,7 +2005,7 @@ The checkout calls `GET /api/merchello/checkout/payment-options` to populate:
 
 **Goal:** Update existing payment provider documentation to include vaulted payments.
 
-#### 7.1 PaymentProviders-Architecture.md Updates
+#### 7.1 PaymentProviders-DevGuide.md Updates
 
 Add to **Key Interfaces** table:
 - `ISavedPaymentMethodService` - Vault setup, confirmation, charging, deletion
@@ -2073,7 +2073,7 @@ public override PaymentProviderMetadata Metadata => new()
 
 #### Phase 7 Verification
 
-- [x] PaymentProviders-Architecture.md updated with vault content (section exists)
+- [x] PaymentProviders-DevGuide.md updated with vault content (section exists)
 - [x] PaymentProviders-DevGuide.md includes vault implementation guide
 - [x] IPaymentProvider vault methods documented
 - [x] SavedPaymentMethod database schema documented

@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)"
+      "Bash(*)",
+      "WebFetch",
+      "WebSearch"
     ]
   },
   "enabledPlugins": {

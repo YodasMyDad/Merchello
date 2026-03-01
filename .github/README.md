@@ -3,27 +3,53 @@
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.Merchello?color=0273B3)](https://www.nuget.org/packages/Umbraco.Community.Merchello)
 [![Downloads](https://img.shields.io/nuget/dt/Umbraco.Community.Merchello?color=cc9900)](https://www.nuget.org/packages/Umbraco.Community.Merchello/)
 
-**Enterprise ecommerce for Umbraco v17+.** A NuGet package that gives you a full-featured online store with an integrated Shopify-style checkout, backoffice management UI, and a pluggable provider architecture — out of the box.
+**Enterprise ecommerce for Umbraco v17+.** A NuGet package that gives you a full-featured online store with an optional integrated Shopify-style checkout, backoffice management UI, and a pluggable provider architecture.
 
 > **Status:** Alpha — actively developed, contributions and feedback welcome.
 
-## Quick Start
+I will try and keep breaking changes minimal, but be aware that until this is out of Beta, there could be breaking changes. 
+
+## Nuget Quick Start
+
+If you want to use the Nuget package, just install the latest version of Umbraco and then install the Merchello nuget package
 
 ```bash
 dotnet add package Umbraco.Community.Merchello
 ```
 
-The `Merchello.Site` project in this repo is a working example store with seed data (products, collections, tax groups, shipping, discounts) so you can see everything running immediately. Clone it, run it, and start building.
+Add the following basic/minimum Merchello section to your appSettings
 
 ## appSettings
 
-It's important you set some starting settings to your preference before installing, these are the defaults
+It's important you set some starting settings to your preference before installing, these are the defaults (If you don't want seed data set that to true)
 
+```
   "Merchello": {
     "InstallSeedData": true,
     "StoreCurrencyCode": "USD",
     "DefaultShippingCountry": "US"
   }
+```
+
+By all means change the StoreCurrencyCode (ISO 4217 code) and DefaultShippingCountry (ISO 3166-1 alpha-2 country code) to whatever you want.
+
+Once installed, you need to enable the Merchello section in the Admin users group (Like you would do any new section).
+
+#### Seed Data
+
+If you left InstallSeedData = true and now click on the main Merchello root branch in the tree, you should see an Install Seed data panel. If you click install, that will install a lot of test data, it can take some time, the panel will disappear when it's done.
+
+## Example Site
+
+The `Merchello.Site` project in this repo is a working example store, that allows you to see how to render products, collections/categories, add to cart etc... Right now, not much work has been put into this, it's just a bare bones example that needs improving.
+
+Just create a fork of this project, and run the app and install Umbraco, you can then install the content using usync, just watch the video below
+
+VIDEO HERE
+
+## Docs
+
+Sorry, not quite got there yet, but will try and get something up soon.
 
 ## What's Included
 
@@ -116,20 +142,6 @@ Background jobs handle polling, retry, and log cleanup automatically.
 ### Pluggable Architecture
 
 Build your own providers for payments, shipping, tax, fulfilment, exchange rates, address lookup, and order grouping strategies. Register them via `ExtensionManager` — no core modifications needed.
-
-## Tech Stack
-
-| Layer | Technology |
-| ------- | ---------- |
-| **Backend** | .NET 10, C# 13, EF Core 10 |
-| **CMS** | Umbraco v17 |
-| **Backoffice UI** | TypeScript, Lit, Vite |
-| **Checkout UI** | Razor views, TailwindCSS, vanilla JS |
-| **Databases** | SQL Server, SQLite |
-
-## Contributing
-
-Contributions are welcome. Please read the [Contributing Guidelines](CONTRIBUTING.md).
 
 ## License
 
