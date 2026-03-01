@@ -356,8 +356,12 @@ public class CheckoutPaymentsOrchestrationService(
 
             if (existingAmazonPayment != null)
             {
-                SetConfirmationToken(invoice.Id);
-                ClearBasketCookieAndSession();
+                if (await ValidateReturnOwnershipAsync(invoice, cancellationToken))
+                {
+                    SetConfirmationToken(invoice.Id);
+                    ClearBasketCookieAndSession();
+                }
+
                 return new PaymentReturnResultDto
                 {
                     Success = true,
@@ -385,8 +389,12 @@ public class CheckoutPaymentsOrchestrationService(
 
             if (processResult.Success && processResult.ResultObject != null)
             {
-                SetConfirmationToken(invoice.Id);
-                ClearBasketCookieAndSession();
+                if (await ValidateReturnOwnershipAsync(invoice, cancellationToken))
+                {
+                    SetConfirmationToken(invoice.Id);
+                    ClearBasketCookieAndSession();
+                }
+
                 return new PaymentReturnResultDto
                 {
                     Success = true,
@@ -422,8 +430,12 @@ public class CheckoutPaymentsOrchestrationService(
 
                 if (successfulPayment != null)
                 {
-                    SetConfirmationToken(invoice.Id);
-                    ClearBasketCookieAndSession();
+                    if (await ValidateReturnOwnershipAsync(invoice, cancellationToken))
+                    {
+                        SetConfirmationToken(invoice.Id);
+                        ClearBasketCookieAndSession();
+                    }
+
                     return new PaymentReturnResultDto
                     {
                         Success = true,
@@ -2994,6 +3006,48 @@ public class CheckoutPaymentsOrchestrationService(
             resolvedCustomerId);
 
         return (false, "You do not have permission to pay this invoice.");
+    }
+
+    /// <summary>
+    /// Validates ownership of an invoice in the payment return context.
+    /// More lenient than ValidateInvoiceCheckoutOwnershipAsync because
+    /// the caller may have lost their basket cookie during gateway redirect.
+    /// </summary>
+    private async Task<bool> ValidateReturnOwnershipAsync(
+        Invoice invoice,
+        CancellationToken cancellationToken)
+    {
+        var currentBasket = await checkoutService.GetBasket(
+            new GetBasketParameters(), cancellationToken);
+
+        if (currentBasket != null)
+        {
+            if (invoice.BasketId.HasValue && invoice.BasketId.Value == currentBasket.Id)
+                return true;
+
+            var session = await checkoutSessionService.GetSessionAsync(
+                currentBasket.Id, cancellationToken);
+            if (session?.InvoiceId == invoice.Id)
+                return true;
+        }
+
+        var member = await memberManager.GetCurrentMemberAsync();
+        if (member != null)
+        {
+            var customer = await customerService.GetByMemberKeyAsync(
+                member.Key, cancellationToken);
+            if (customer != null && invoice.CustomerId == customer.Id)
+                return true;
+        }
+
+        logger.LogWarning(
+            "HandleReturn: ownership validation failed for invoice {InvoiceId}. "
+            + "BasketAvailable={BasketAvailable}, Authenticated={Authenticated}",
+            invoice.Id,
+            currentBasket != null,
+            member != null);
+
+        return false;
     }
 
     private static string? FormatExpiry(int? month, int? year)

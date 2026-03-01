@@ -1151,7 +1151,7 @@ public class ProductSyncService(
 
         if (string.IsNullOrWhiteSpace(json))
         {
-            return [];
+            return null;
         }
 
         try
@@ -1159,7 +1159,7 @@ public class ProductSyncService(
             using var document = JsonDocument.Parse(json);
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
-                return [];
+                return null;
             }
 
             var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
@@ -1172,7 +1172,7 @@ public class ProductSyncService(
         }
         catch
         {
-            return [];
+            return null;
         }
     }
 
@@ -2235,9 +2235,12 @@ public class ProductSyncService(
                 return false;
             }
 
-            if (profile == ProductSyncProfile.MerchelloExtended && rootExtendedData != null)
+            if (profile == ProductSyncProfile.MerchelloExtended && rootExtendedData is { Count: > 0 })
             {
-                root.ExtendedData = rootExtendedData;
+                foreach (var kvp in rootExtendedData)
+                {
+                    root.ExtendedData[kvp.Key] = kvp.Value;
+                }
             }
 
             root.ExtendedData[ShopifyHandleKey] = handle;
