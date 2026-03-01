@@ -7,18 +7,15 @@ import {
   state,
 } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
-import type { DateRange, DateRangePreset } from "@analytics/types/analytics.types.js";
-
-export interface DateRangeChangeDetail {
-  startDate: Date;
-  endDate: Date;
-  preset: DateRangePreset;
-}
+import type { DateRange, DateRangePreset, ComparePreset, CompareState, DateRangeChangeDetail } from "@analytics/types/analytics.types.js";
 
 @customElement("merchello-analytics-header")
 export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
   @property({ type: Object })
   dateRange: DateRange = this._getDefaultDateRange();
+
+  @property({ type: Object })
+  compareState: CompareState = { isEnabled: true, preset: "previous" };
 
   @state()
   private _activePreset: DateRangePreset = "last30days";
@@ -31,6 +28,21 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
 
   @state()
   private _customEndDate = "";
+
+  @state()
+  private _compareEnabled = true;
+
+  @state()
+  private _comparePreset: ComparePreset = "previous";
+
+  @state()
+  private _compareCustomStartDate = "";
+
+  @state()
+  private _compareCustomEndDate = "";
+
+  @state()
+  private _showCompareCustomPicker = false;
 
   private _getDefaultDateRange(): DateRange {
     const end = new Date();
@@ -49,12 +61,48 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
     const start = this.dateRange.startDate.toLocaleDateString(undefined, options);
     const end = this.dateRange.endDate.toLocaleDateString(undefined, options);
 
-    // Check if same day
     if (this._isSameDay(this.dateRange.startDate, this.dateRange.endDate)) {
       return start;
     }
 
     return `${start} – ${end}`;
+  }
+
+  private _formatComparisonDateRange(): string {
+    if (!this._compareEnabled) return "";
+
+    const options: Intl.DateTimeFormatOptions = {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    };
+
+    if (this._comparePreset === "previous") {
+      const periodDays = Math.round(
+        (this.dateRange.endDate.getTime() - this.dateRange.startDate.getTime()) / (1000 * 60 * 60 * 24)
+      ) + 1;
+      const compEnd = new Date(this.dateRange.startDate);
+      compEnd.setDate(compEnd.getDate() - 1);
+      const compStart = new Date(compEnd);
+      compStart.setDate(compStart.getDate() - periodDays + 1);
+      return `vs ${compStart.toLocaleDateString(undefined, options)} – ${compEnd.toLocaleDateString(undefined, options)}`;
+    }
+
+    if (this._comparePreset === "previousYear") {
+      const compStart = new Date(this.dateRange.startDate);
+      compStart.setFullYear(compStart.getFullYear() - 1);
+      const compEnd = new Date(this.dateRange.endDate);
+      compEnd.setFullYear(compEnd.getFullYear() - 1);
+      return `vs ${compStart.toLocaleDateString(undefined, options)} – ${compEnd.toLocaleDateString(undefined, options)}`;
+    }
+
+    if (this._comparePreset === "custom" && this._compareCustomStartDate && this._compareCustomEndDate) {
+      const compStart = new Date(this._compareCustomStartDate);
+      const compEnd = new Date(this._compareCustomEndDate);
+      return `vs ${compStart.toLocaleDateString(undefined, options)} – ${compEnd.toLocaleDateString(undefined, options)}`;
+    }
+
+    return "";
   }
 
   private _isSameDay(date1: Date, date2: Date): boolean {
@@ -81,7 +129,6 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
 
     switch (preset) {
       case "today":
-        // start is already today
         break;
       case "last7days":
         start.setDate(start.getDate() - 7);
@@ -128,10 +175,65 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
     }
   }
 
+  private _handleCompareToggle(e: Event): void {
+    const toggle = e.target as HTMLInputElement;
+    this._compareEnabled = toggle.checked;
+    this._emitCurrentState();
+  }
+
+  private _handleComparePreset(preset: ComparePreset): void {
+    this._comparePreset = preset;
+    this._showCompareCustomPicker = preset === "custom";
+
+    if (preset !== "custom") {
+      this._emitCurrentState();
+    }
+  }
+
+  private _handleCompareCustomStartChange(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    this._compareCustomStartDate = input.value;
+    this._tryApplyCompareCustomRange();
+  }
+
+  private _handleCompareCustomEndChange(e: Event): void {
+    const input = e.target as HTMLInputElement;
+    this._compareCustomEndDate = input.value;
+    this._tryApplyCompareCustomRange();
+  }
+
+  private _tryApplyCompareCustomRange(): void {
+    if (this._compareCustomStartDate && this._compareCustomEndDate) {
+      const startDate = new Date(this._compareCustomStartDate);
+      const endDate = new Date(this._compareCustomEndDate);
+
+      if (startDate <= endDate) {
+        this._emitCurrentState();
+      }
+    }
+  }
+
+  private _getCompareState(): CompareState {
+    return {
+      isEnabled: this._compareEnabled,
+      preset: this._comparePreset,
+      customStartDate: this._compareCustomStartDate ? new Date(this._compareCustomStartDate) : undefined,
+      customEndDate: this._compareCustomEndDate ? new Date(this._compareCustomEndDate) : undefined,
+    };
+  }
+
+  private _emitCurrentState(): void {
+    this._emitDateRangeChange(
+      this.dateRange.startDate,
+      this.dateRange.endDate,
+      this._activePreset,
+    );
+  }
+
   private _emitDateRangeChange(startDate: Date, endDate: Date, preset: DateRangePreset): void {
     this.dispatchEvent(
       new CustomEvent<DateRangeChangeDetail>("date-range-change", {
-        detail: { startDate, endDate, preset },
+        detail: { startDate, endDate, preset, compare: this._getCompareState() },
         bubbles: true,
         composed: true,
       })
@@ -143,6 +245,8 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
   }
 
   override render() {
+    const comparisonLabel = this._formatComparisonDateRange();
+
     return html`
       <div class="header">
         <div class="controls">
@@ -209,6 +313,69 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
                 </div>
               `}
         </div>
+
+        <div class="compare-row">
+          <label class="compare-toggle">
+            <uui-toggle
+              .checked=${this._compareEnabled}
+              @change=${this._handleCompareToggle}
+              label="Compare">
+            </uui-toggle>
+            <span class="compare-label">Compare</span>
+          </label>
+
+          ${this._compareEnabled
+            ? html`
+                <div class="compare-options">
+                  <uui-button
+                    look=${this._comparePreset === "previous" ? "primary" : "secondary"}
+                    compact
+                    @click=${() => this._handleComparePreset("previous")}
+                    label="Previous period">
+                    Previous period
+                  </uui-button>
+                  <uui-button
+                    look=${this._comparePreset === "previousYear" ? "primary" : "secondary"}
+                    compact
+                    @click=${() => this._handleComparePreset("previousYear")}
+                    label="Previous year">
+                    Previous year
+                  </uui-button>
+                  <uui-button
+                    look=${this._comparePreset === "custom" ? "primary" : "secondary"}
+                    compact
+                    @click=${() => this._handleComparePreset("custom")}
+                    label="Custom">
+                    Custom
+                  </uui-button>
+
+                  ${this._showCompareCustomPicker
+                    ? html`
+                        <div class="custom-picker">
+                          <uui-input
+                            type="date"
+                            .value=${this._compareCustomStartDate}
+                            @change=${this._handleCompareCustomStartChange}
+                            label="Compare start date">
+                          </uui-input>
+                          <span class="date-separator">to</span>
+                          <uui-input
+                            type="date"
+                            .value=${this._compareCustomEndDate}
+                            @change=${this._handleCompareCustomEndChange}
+                            label="Compare end date">
+                          </uui-input>
+                        </div>
+                      `
+                    : ""}
+
+                  ${comparisonLabel && !this._showCompareCustomPicker
+                    ? html`<span class="comparison-label">${comparisonLabel}</span>`
+                    : ""}
+                </div>
+              `
+            : ""}
+        </div>
       </div>
     `;
   }
@@ -220,10 +387,8 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
 
     .header {
       display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: var(--uui-size-space-4);
+      flex-direction: column;
+      gap: var(--uui-size-space-3);
       margin-bottom: var(--uui-size-space-5);
     }
 
@@ -268,6 +433,41 @@ export class MerchelloAnalyticsHeader extends UmbElementMixin(LitElement) {
 
     uui-input[type="date"] {
       width: 150px;
+    }
+
+    .compare-row {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-4);
+      flex-wrap: wrap;
+    }
+
+    .compare-toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      cursor: pointer;
+    }
+
+    .compare-label {
+      font-size: var(--uui-type-small-size);
+      color: var(--uui-color-text);
+      user-select: none;
+    }
+
+    .compare-options {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      flex-wrap: wrap;
+    }
+
+    .comparison-label {
+      font-size: var(--uui-type-small-size);
+      color: var(--uui-color-text-alt);
+      padding: var(--uui-size-space-1) var(--uui-size-space-2);
+      background: var(--uui-color-surface-alt);
+      border-radius: var(--uui-border-radius);
     }
   `;
 }

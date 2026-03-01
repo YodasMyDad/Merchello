@@ -206,7 +206,9 @@ public class CheckoutPaymentsOrchestrationService(
                 MethodAlias = request.MethodAlias,
                 ReturnUrl = request.ReturnUrl,
                 CancelUrl = request.CancelUrl,
-                SavePaymentMethod = shouldSavePaymentMethod
+                SavePaymentMethod = shouldSavePaymentMethod,
+                CustomerEmail = invoice.BillingAddress?.Email,
+                CustomerName = invoice.BillingAddress?.Name
             },
             cancellationToken);
 
@@ -404,6 +406,33 @@ public class CheckoutPaymentsOrchestrationService(
                 Message = errorMessage,
                 InvoiceId = invoice.Id
             };
+        }
+
+        // Generic redirect provider return: check by invoice ID for webhook-processed payments
+        if (query.InvoiceId.HasValue)
+        {
+            var invoice = await invoiceService.GetInvoiceAsync(query.InvoiceId.Value, cancellationToken);
+            if (invoice != null)
+            {
+                var existingPayments = await paymentService.GetPaymentsForInvoiceAsync(invoice.Id, cancellationToken);
+                var successfulPayment = existingPayments.FirstOrDefault(p =>
+                    !string.IsNullOrEmpty(providerAlias) &&
+                    string.Equals(p.PaymentProviderAlias, providerAlias, StringComparison.OrdinalIgnoreCase) &&
+                    p.PaymentSuccess);
+
+                if (successfulPayment != null)
+                {
+                    SetConfirmationToken(invoice.Id);
+                    ClearBasketCookieAndSession();
+                    return new PaymentReturnResultDto
+                    {
+                        Success = true,
+                        Message = "Payment completed successfully.",
+                        InvoiceId = invoice.Id,
+                        PaymentId = successfulPayment.Id
+                    };
+                }
+            }
         }
 
         // Payment not yet recorded - it may be processed via webhook shortly
@@ -665,7 +694,9 @@ public class CheckoutPaymentsOrchestrationService(
                 MethodAlias = request.MethodAlias,
                 ReturnUrl = request.ReturnUrl,
                 CancelUrl = request.CancelUrl,
-                SavePaymentMethod = shouldSavePaymentMethod
+                SavePaymentMethod = shouldSavePaymentMethod,
+                CustomerEmail = session.BillingAddress.Email,
+                CustomerName = session.BillingAddress.Name
             },
             cancellationToken);
 
@@ -2173,7 +2204,9 @@ public class CheckoutPaymentsOrchestrationService(
                     MethodAlias = methodAlias,
                     ReturnUrl = $"{baseUrl}/checkout/confirmation/{invoice.Id}",
                     CancelUrl = $"{baseUrl}/checkout/payment",
-                    SavePaymentMethod = shouldSavePaymentMethod
+                    SavePaymentMethod = shouldSavePaymentMethod,
+                    CustomerEmail = session.BillingAddress.Email,
+                    CustomerName = session.BillingAddress.Name
                 },
                 cancellationToken);
 

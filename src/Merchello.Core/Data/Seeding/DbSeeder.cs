@@ -427,7 +427,7 @@ public class DbSeeder(
                 // Domestic UK options
                 new ShippingOptionConfig
                 {
-                    Name = "Free UK Standard (Orders £50+)",
+                    Name = "Free UK Standard",
                     DaysFrom = 5,
                     DaysTo = 7,
                     Cost = 0m,
@@ -595,7 +595,7 @@ public class DbSeeder(
             [
                 new ShippingOptionConfig
                 {
-                    Name = "Free US Standard (Orders $75+)",
+                    Name = "Free US Standard",
                     DaysFrom = 5,
                     DaysTo = 8,
                     Cost = 0m,
@@ -726,7 +726,7 @@ public class DbSeeder(
             [
                 new ShippingOptionConfig
                 {
-                    Name = "Free West Coast (Orders $75+)",
+                    Name = "Free West Coast Standard",
                     DaysFrom = 4,
                     DaysTo = 6,
                     Cost = 0m,
@@ -1090,6 +1090,52 @@ public class DbSeeder(
         await discountService.ActivateAsync(discount.Id, cancellationToken);
 
         logger.LogDebug("Created automatic discount: {Name}", discount.Name);
+
+        // Free Shipping on orders over £50 (automatic)
+        var freeShippingParams = new CreateDiscountParameters
+        {
+            Name = "Free Shipping Over £100",
+            Description = "Automatic free shipping on all orders over £100",
+            Category = DiscountCategory.FreeShipping,
+            Method = DiscountMethod.Automatic,
+            ValueType = DiscountValueType.Free,
+            Value = 0m,
+            RequirementType = DiscountRequirementType.MinimumPurchaseAmount,
+            RequirementValue = 100m,
+            CanCombineWithProductDiscounts = true,
+            CanCombineWithOrderDiscounts = true,
+            CanCombineWithShippingDiscounts = false,
+            TargetRules =
+            [
+                new CreateDiscountTargetRuleParameters
+                {
+                    TargetType = DiscountTargetType.AllProducts
+                }
+            ],
+            EligibilityRules =
+            [
+                new CreateDiscountEligibilityRuleParameters
+                {
+                    EligibilityType = DiscountEligibilityType.AllCustomers
+                }
+            ],
+            FreeShippingConfig = new CreateFreeShippingParameters
+            {
+                CountryScope = FreeShippingCountryScope.AllCountries
+            }
+        };
+
+        var freeShippingResult = await discountService.CreateAsync(freeShippingParams, cancellationToken);
+        if (freeShippingResult.ResultObject != null)
+        {
+            await discountService.ActivateAsync(freeShippingResult.ResultObject.Id, cancellationToken);
+            logger.LogDebug("Created automatic discount: {Name}", freeShippingResult.ResultObject.Name);
+        }
+        else
+        {
+            freeShippingResult.LogBadMessages(logger);
+            logger.LogWarning("Failed to create free shipping discount");
+        }
     }
 
     private async Task CreateUpsellRulesAsync(
@@ -1237,13 +1283,12 @@ public class DbSeeder(
         }
 
         // Rule 4: "Free Shipping on Orders Over £50!" - Message-only (no recommendations)
-        // Encourage customers to add more to reach free shipping threshold
-        if (clothing != null)
+        // Shows when cart is under £50 to encourage customers to reach free shipping threshold
         {
             upsellConfigs.Add(new CreateUpsellParameters
             {
-                Name = "Free Shipping on Orders Over £50!",
-                Heading = "Free Shipping on Orders Over £50!",
+                Name = "Free Shipping on Orders Over £100!",
+                Heading = "Free Shipping on Orders Over £100!",
                 Description = "Message-only upsell encouraging customers to reach the free shipping threshold",
                 Message = "You're so close to free shipping! Add a few more items to save on delivery.",
                 Priority = 500,
@@ -1254,8 +1299,8 @@ public class DbSeeder(
                 [
                     new CreateUpsellTriggerRuleParameters
                     {
-                        TriggerType = UpsellTriggerType.Collections,
-                        TriggerIds = [clothing.Id]
+                        TriggerType = UpsellTriggerType.MaximumCartValue,
+                        Value = 99.99m
                     }
                 ],
                 EligibilityRules =

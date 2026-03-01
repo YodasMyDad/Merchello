@@ -1183,6 +1183,14 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
               `}
             </div>
 
+            <!-- Credit Limit Warning -->
+            ${order.creditLimitExceeded ? html`
+              <div class="credit-limit-warning">
+                <uui-icon name="icon-alert"></uui-icon>
+                Customer has exceeded their credit limit
+              </div>
+            ` : nothing}
+
             <!-- Customer -->
             <div class="card sidebar-card">
               <h3>Customer</h3>
@@ -1531,6 +1539,19 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
       margin-bottom: var(--uui-size-space-3);
       padding-bottom: var(--uui-size-space-3);
       border-bottom: 1px solid var(--uui-color-border);
+    }
+
+    .credit-limit-warning {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3) var(--uui-size-space-4);
+      margin-bottom: var(--uui-size-space-4);
+      background-color: var(--uui-color-warning-standalone);
+      color: var(--uui-color-surface);
+      border-radius: var(--uui-border-radius);
+      font-size: var(--uui-type-small-size);
+      font-weight: 600;
     }
 
     .sidebar-card .card-header-with-action {

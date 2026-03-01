@@ -127,6 +127,12 @@ public class OrderDetailDto
     public bool CanFulfill { get; set; }
 
     /// <summary>
+    /// Whether the customer has exceeded their credit limit.
+    /// Computed dynamically from customer's outstanding balance vs credit limit.
+    /// </summary>
+    public bool CreditLimitExceeded { get; set; }
+
+    /// <summary>
     /// Payment due date for account customers with payment terms.
     /// Null means payment is due immediately.
     /// </summary>

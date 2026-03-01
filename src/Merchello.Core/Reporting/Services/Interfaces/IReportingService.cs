@@ -1,6 +1,7 @@
 using Merchello.Core.Accounting.Dtos;
 using Merchello.Core.Products.Models;
 using Merchello.Core.Reporting.Dtos;
+using Merchello.Core.Reporting.Services.Parameters;
 
 namespace Merchello.Core.Reporting.Services.Interfaces;
 
@@ -15,6 +16,13 @@ public interface IReportingService
     Task<AnalyticsSummaryDto> GetAnalyticsSummaryAsync(
         DateTime startDate,
         DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets summary metrics with configurable comparison period.
+    /// </summary>
+    Task<AnalyticsSummaryDto> GetAnalyticsSummaryAsync(
+        AnalyticsQueryParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -35,6 +43,13 @@ public interface IReportingService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets daily sales data with aggregated totals and configurable comparison period.
+    /// </summary>
+    Task<TimeSeriesResultDto> GetSalesTimeSeriesWithTotalsAsync(
+        AnalyticsQueryParameters parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets daily average order value data for the time series chart.
     /// </summary>
     Task<List<TimeSeriesDataPointDto>> GetAverageOrderValueTimeSeriesAsync(
@@ -52,11 +67,25 @@ public interface IReportingService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets daily average order value data with aggregated totals and configurable comparison period.
+    /// </summary>
+    Task<TimeSeriesResultDto> GetAverageOrderValueTimeSeriesWithTotalsAsync(
+        AnalyticsQueryParameters parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets the sales breakdown (gross, discounts, returns, net, shipping, taxes, total).
     /// </summary>
     Task<SalesBreakdownDto> GetSalesBreakdownAsync(
         DateTime startDate,
         DateTime endDate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the sales breakdown with configurable comparison period.
+    /// </summary>
+    Task<SalesBreakdownDto> GetSalesBreakdownAsync(
+        AnalyticsQueryParameters parameters,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -28,6 +28,9 @@ export class MerchelloAnalyticsBreakdown extends UmbElementMixin(LitElement) {
   @property({ type: Boolean })
   isLoading = false;
 
+  @property({ type: Boolean })
+  showChange = true;
+
   private _getRows(): BreakdownRow[] {
     if (!this.data) return [];
 
@@ -72,9 +75,13 @@ export class MerchelloAnalyticsBreakdown extends UmbElementMixin(LitElement) {
         <uui-table-cell class="value-cell ${row.isBold ? "bold" : ""}">
           ${this._formatCurrency(row.value, row.isNegative)}
         </uui-table-cell>
-        <uui-table-cell class="change-cell">
-          ${this._renderChangeIndicator(row.change)}
-        </uui-table-cell>
+        ${this.showChange
+          ? html`
+              <uui-table-cell class="change-cell">
+                ${this._renderChangeIndicator(row.change)}
+              </uui-table-cell>
+            `
+          : ""}
       </uui-table-row>
     `;
   }

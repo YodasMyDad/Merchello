@@ -19,7 +19,7 @@
         : "block text-sm font-medium text-gray-700 mb-1";
     var spaceClass = compact ? "space-y-2" : "space-y-4";
     var gapClass = compact ? "gap-2" : "gap-4";
-    var gridClass = compact ? "grid grid-cols-3" : "grid grid-cols-1 md:grid-cols-3";
+    var gridClass = compact ? "grid grid-cols-1 sm:grid-cols-3" : "grid grid-cols-1 md:grid-cols-3";
 }
 
 <div class="@spaceClass">
@@ -152,20 +152,24 @@
 
         <div>
             <label for="@(prefix)-countyState" class="@labelClass">
-                State/Region
+                State/Region <span class="text-red-500" x-show="@(prefix)Regions.length > 0" x-cloak>*</span>
             </label>
             <!-- Show dropdown if regions are loaded, otherwise show text input -->
             <template x-if="@(prefix)Regions.length > 0">
-                <select id="@(prefix)-countyState"
-                        x-model="form.@(prefix).regionCode"
-                        @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))StateChange()@(hasBlurCallback ? $"; {onBlurCallback}" : "")"
-                        autocomplete="@prefix address-level1"
-                        class="@selectClass">
-                    <option value="">Select...</option>
-                    <template x-for="region in @(prefix)Regions" :key="region.regionCode">
-                        <option :value="region.regionCode" x-text="region.name"></option>
-                    </template>
-                </select>
+                <div>
+                    <select id="@(prefix)-countyState"
+                            x-model="form.@(prefix).regionCode"
+                            @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))StateChange()@(hasBlurCallback ? $"; {onBlurCallback}" : "")"
+                            autocomplete="@prefix address-level1"
+                            :class="errors['@(prefix).regionCode'] ? 'checkout-input-error' : ''"
+                            class="@selectClass">
+                        <option value="">Select...</option>
+                        <template x-for="region in @(prefix)Regions" :key="region.regionCode">
+                            <option :value="region.regionCode" x-text="region.name"></option>
+                        </template>
+                    </select>
+                    <p x-show="errors['@(prefix).regionCode']" x-text="errors['@(prefix).regionCode']" class="checkout-error" x-cloak></p>
+                </div>
             </template>
             <template x-if="@(prefix)Regions.length === 0">
                 <input type="text"
@@ -216,7 +220,7 @@
     <!-- Phone -->
     <div>
         <label for="@(prefix)-phone" class="@labelClass">
-            Phone @if (!requirePhone) { <span class="text-gray-400">(optional)</span> }
+            Phone @if (requirePhone) { <span class="text-red-500">*</span> } else { <span class="text-gray-400">(optional)</span> }
         </label>
         <input type="tel"
                id="@(prefix)-phone"

@@ -317,6 +317,19 @@ export const checkoutApi = {
     },
 
     /**
+     * Check if a customer (by email) has exceeded their credit limit.
+     * Used to show a soft warning when Purchase Order payment is selected.
+     * @param {string} email
+     * @returns {Promise<{hasCreditLimit: boolean, creditLimitExceeded: boolean}>}
+     */
+    checkCreditStatus(email) {
+        return fetchJson(`${BASE_URL}/credit-check`, {
+            method: 'POST',
+            body: JSON.stringify({ email })
+        });
+    },
+
+    /**
      * Validate password against requirements
      * @param {string} password
      * @returns {Promise<{isValid: boolean, errors: string[]}>}

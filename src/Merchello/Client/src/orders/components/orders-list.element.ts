@@ -523,9 +523,15 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
 
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(2, 1fr);
       gap: var(--uui-size-space-5);
       margin: 0;
+    }
+
+    @media (min-width: 1100px) {
+      .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
     }
 
     .stats-grid uui-box {
@@ -617,6 +623,9 @@ export class MerchelloOrdersListElement extends UmbElementMixin(LitElement) {
       font-weight: 700;
       color: var(--uui-color-text);
       line-height: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .stat-label {

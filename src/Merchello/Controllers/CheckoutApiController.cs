@@ -4,6 +4,7 @@ using Merchello.Core.AddressLookup.Services.Interfaces;
 using Merchello.Core.AddressLookup.Services.Parameters;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Shared.Dtos;
@@ -38,6 +39,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Api.Common.Attributes;
+using Umbraco.Cms.Core.Security;
 
 namespace Merchello.Controllers;
 
@@ -65,7 +67,9 @@ public class CheckoutApiController(
     ILogger<CheckoutApiController> logger,
     IAbandonedCheckoutService? abandonedCheckoutService = null,
     ICustomerService? customerService = null,
-    IMerchelloStoreSettingsService? storeSettingsService = null) : ControllerBase
+    IMerchelloStoreSettingsService? storeSettingsService = null,
+    IStatementService? statementService = null,
+    IMemberManager? memberManager = null) : ControllerBase
 {
     private readonly MerchelloSettings _settings = merchelloSettings.Value;
     private readonly IMerchelloStoreSettingsService? _storeSettingsService = storeSettingsService;
@@ -852,29 +856,59 @@ public class CheckoutApiController(
 
     /// <summary>
     /// Check if an email has an existing member account.
-    /// Always returns a neutral result to prevent account enumeration.
+    /// Always returns false to prevent user-enumeration attacks.
+    /// The UI shows both sign-in and create-account options regardless.
     /// </summary>
     [HttpPost("check-email")]
-    public IActionResult CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    public Task<IActionResult> CheckEmail([FromBody] CheckEmailRequestDto request, CancellationToken ct)
     {
+        return Task.FromResult<IActionResult>(Ok(new CheckEmailResultDto { HasExistingAccount = false }));
+    }
+
+    /// <summary>
+    /// Check if a customer (by email) has exceeded their credit limit.
+    /// Used to show a soft warning during checkout when Purchase Order is selected.
+    /// Requires authentication — returns default for anonymous callers to prevent information disclosure.
+    /// </summary>
+    [HttpPost("credit-check")]
+    public async Task<IActionResult> CreditCheck([FromBody] CheckEmailRequestDto request, CancellationToken ct)
+    {
+        var defaultResult = new CreditCheckResultDto { HasCreditLimit = false, CreditLimitExceeded = false };
+
+        if (memberManager == null || !memberManager.IsLoggedIn())
+        {
+            return Ok(defaultResult);
+        }
+
         if (string.IsNullOrWhiteSpace(request.Email) || !checkoutValidator.IsValidEmail(request.Email))
         {
-            return BadRequest(new CheckEmailResultDto { HasExistingAccount = false });
+            return Ok(defaultResult);
         }
 
-        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var rateLimitKey = $"check-email:{clientIp}";
-        var rateLimitResult = rateLimiter.TryAcquire(rateLimitKey, MaxCheckEmailAttemptsPerMinute, CheckEmailRateLimitWindow);
-
-        if (!rateLimitResult.IsAllowed)
+        if (customerService == null || statementService == null)
         {
-            logger.LogWarning("Rate limit exceeded for check-email from IP: {IP}", clientIp);
-            return Ok(new CheckEmailResultDto { HasExistingAccount = false });
+            return Ok(defaultResult);
         }
 
-        // Intentionally return a neutral response regardless of account existence.
-        // This endpoint is used for UI hints only and must not leak membership data.
-        return Ok(new CheckEmailResultDto { HasExistingAccount = false });
+        // Verify the authenticated member owns this email
+        var member = await memberManager.GetCurrentMemberAsync();
+        if (member == null || !string.Equals(member.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            return Ok(defaultResult);
+        }
+
+        var customer = await customerService.GetByEmailAsync(request.Email, ct);
+        if (customer is not { HasAccountTerms: true, CreditLimit: not null })
+        {
+            return Ok(defaultResult);
+        }
+
+        var balance = await statementService.GetOutstandingBalanceAsync(customer.Id, ct);
+        return Ok(new CreditCheckResultDto
+        {
+            HasCreditLimit = true,
+            CreditLimitExceeded = balance.CreditLimitExceeded
+        });
     }
 
     /// <summary>
