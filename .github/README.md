@@ -5,7 +5,7 @@
 
 **Enterprise ecommerce for Umbraco v17+.** A NuGet package that gives you a full-featured online store with an optional integrated Shopify-style checkout, backoffice management UI, and a pluggable provider architecture.
 
-> **Status:** Alpha — actively developed, contributions and feedback welcome.
+> **Status:** Alpha — actively developed, contributions and feedback welcome. I am also still trying to get this repo structured, so please bear with me.
 
 I will try and keep breaking changes minimal, but be aware that until this is out of Beta, there could be breaking changes.
 
