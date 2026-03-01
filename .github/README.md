@@ -89,7 +89,6 @@ Sorry, not quite got there yet, but will try and get something up soon. With AI,
 
 - Variants and non-variant add-ons with price/cost/SKU adjustments
 - **Digital products** — secure HMAC-signed downloads, expiry, download limits
-- **Gift cards** — purchasable and redeemable gift card support
 - **Product feeds** — Google Shopping / product feed generation
 - **Product import** — CSV import and sync
 
@@ -97,10 +96,7 @@ Sorry, not quite got there yet, but will try and get something up soon. With AI,
 
 - **Customer segments** — manual and automated (spend, order count, location, tags)
 - **Discount engine** — percentage, fixed amount, buy X get Y, free shipping, segment targeting, usage limits
-- **Subscriptions** — recurring billing and subscription management
-- **Returns / RMA** — return requests and returns management
 - **Supplier / vendor management** — supplier records with vendor-based order grouping
-- **Audit trail** — activity logging and timeline tracking
 
 ### Multi-Currency
 
@@ -123,6 +119,18 @@ Expose your store to AI agents. [UCP](https://ucp.dev/) is an open standard co-d
 ### Pluggable Architecture
 
 Build your own providers for payments, shipping, tax, fulfilment, exchange rates, address lookup.
+
+### Coming Soon
+
+Database tables are in place for these features — implementation is in progress.
+
+- **Gift cards** — purchasable and redeemable gift card support
+- **Subscriptions** — recurring billing and subscription management
+- **Returns / RMA** — return requests and returns management
+- **Audit trail** — activity logging and timeline tracking
+- **Customer account portal** — self-service order history, saved addresses, profile management
+- **Product search** — pluggable search with faceted filtering and autocomplete
+- **Rate limiting** — enterprise API protection with configurable policies
 
 ## License
 
