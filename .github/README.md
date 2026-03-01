@@ -7,11 +7,19 @@
 
 > **Status:** Alpha — actively developed, contributions and feedback welcome.
 
-I will try and keep breaking changes minimal, but be aware that until this is out of Beta, there could be breaking changes. 
+I will try and keep breaking changes minimal, but be aware that until this is out of Beta, there could be breaking changes.
+
+## Example Starter Site
+
+The `Merchello.Site` project in this repo is a working example store (It will become a dotnet template soon) that allows you to see how to render products, collections/categories, add to cart etc... Right now, not much work has been put into this, it's just a bare bones example that needs improving a lot.
+
+Just create a fork of this project, and run the app (Make sure you have cleared any database connection strings) and install Umbraco, you can then install the content using usync, **just watch the video below**.
+
+[![Starter Site YouTube Video](https://img.youtube.com/vi/jRSXaJpZekE/0.jpg)](https://www.youtube.com/watch?v=jRSXaJpZekE)
 
 ## Nuget Quick Start
 
-If you want to use the Nuget package, just install the latest version of Umbraco and then install the Merchello nuget package
+If you want to use the Nuget package, just install the latest version of Umbraco and then install the Merchello nuget package. **However, be aware you are only installing Merchello and not the Starter Site (Front end)**.
 
 ```bash
 dotnet add package Umbraco.Community.Merchello
@@ -39,109 +47,82 @@ Once installed, you need to enable the Merchello section in the Admin users grou
 
 If you left InstallSeedData = true and now click on the main Merchello root branch in the tree, you should see an Install Seed data panel. If you click install, that will install a lot of test data, it can take some time, the panel will disappear when it's done.
 
-## Example Site
-
-The `Merchello.Site` project in this repo is a working example store, that allows you to see how to render products, collections/categories, add to cart etc... Right now, not much work has been put into this, it's just a bare bones example that needs improving.
-
-Just create a fork of this project, and run the app and install Umbraco, you can then install the content using usync, just watch the video below
-
-VIDEO HERE
-
 ## Docs
 
-Sorry, not quite got there yet, but will try and get something up soon.
+Sorry, not quite got there yet, but will try and get something up soon. With AI, you can now get it to summarise things if need be in the meantime. 
 
 ## What's Included
 
-### Integrated Checkout
+### Checkout & Storefront
 
-A single-page, Shopify-style checkout that ships with the package. Handles addresses, shipping selection, discount codes, payment, guest and registered customers, express checkout, and post-purchase upsells. Fully customisable via Razor views and a JavaScript API.
+- **Integrated checkout** — single-page, Shopify-style flow: addresses, shipping, discounts, payment, guest/registered customers, express checkout
+- **Post-purchase upsells** — rules engine with one-click add-to-order via saved payment method
+- **Abandoned cart recovery** — automatic detection, email sequences, basket restoration
+- **Product routing** — products render at root-level URLs without Umbraco content nodes
+- **Address lookup** — pluggable providers (GetAddress.io built-in) for postcode lookup and autocomplete
 
-### Payment Providers
+### Payments
 
-| Provider | Type |
-|----------|------|
-| **Stripe** | Cards, Apple Pay, Google Pay |
-| **PayPal** | PayPal Checkout |
-| **Amazon Pay** | Amazon Checkout |
-| **Braintree** | Cards, PayPal, Venmo |
-| **WorldPay** | Cards, Apple Pay |
-| **Manual** | Offline / test payments |
-
-Saved payment methods (vaulting) and payment links supported.
+- **Stripe** — cards, Apple Pay, Google Pay
+- **PayPal** — PayPal Checkout
+- **Amazon Pay** — Amazon Checkout
+- **Braintree** — cards, PayPal, Venmo
+- **WorldPay** — cards, Apple Pay
+- **Manual** — offline / test payments
+- Saved payment methods (vaulting), payment links, and invoice reminders
 
 ### Shipping & Fulfilment
 
-| Provider | Description |
-|----------|-------------|
-| **Flat Rate** | Configurable cost/weight tiers per warehouse |
-| **UPS** | Live carrier rates |
-| **FedEx** | Live carrier rates |
-| **ShipBob** | 3PL fulfilment integration |
-
-Multi-warehouse inventory with priority-based warehouse selection and region restrictions.
+- **Flat rate** — configurable cost/weight tiers per warehouse
+- **UPS / FedEx** — live carrier rates
+- **ShipBob** — 3PL fulfilment: order submission, webhook status updates, product and inventory sync
+- **Supplier Direct** — CSV-based fulfilment via SFTP/FTP/email to supplier warehouses
+- Multi-warehouse inventory with priority-based warehouse selection, region restrictions, and pluggable order grouping strategies
 
 ### Tax
 
-| Provider | Description |
-|----------|-------------|
-| **Manual** | Tax groups with country/state rate overrides |
-| **Avalara AvaTax** | Real-time tax calculation |
+- **Manual** — tax groups with country/state rate overrides
+- **Avalara AvaTax** — real-time tax calculation
+- Proportional shipping tax calculation for EU/UK VAT compliance
 
-Proportional shipping tax calculation for EU/UK VAT compliance.
+### Products & Catalogue
+
+- Variants and non-variant add-ons with price/cost/SKU adjustments
+- **Digital products** — secure HMAC-signed downloads, expiry, download limits
+- **Gift cards** — purchasable and redeemable gift card support
+- **Product feeds** — Google Shopping / product feed generation
+- **Product import** — CSV import and sync
+
+### Customers & Orders
+
+- **Customer segments** — manual and automated (spend, order count, location, tags)
+- **Discount engine** — percentage, fixed amount, buy X get Y, free shipping, segment targeting, usage limits
+- **Subscriptions** — recurring billing and subscription management
+- **Returns / RMA** — return requests and returns management
+- **Supplier / vendor management** — supplier records with vendor-based order grouping
+- **Audit trail** — activity logging and timeline tracking
+
+### Multi-Currency
+
+- Live exchange rates (Frankfurter built-in, pluggable providers)
+- Automatic country-to-currency mapping with rate locking at checkout
 
 ### UCP (Universal Commerce Protocol)
 
-Expose your store to AI agents. UCP is an [open standard](https://ucp.dev/) co-developed by Google, Shopify, Stripe, Visa, Mastercard and 25+ industry partners that lets AI agents (Google Gemini, ChatGPT, etc.) browse products, build carts, and complete checkout on behalf of users.
+Expose your store to AI agents. [UCP](https://ucp.dev/) is an open standard co-developed by Google, Shopify, Stripe, Visa, Mastercard and 25+ partners that lets AI agents browse products, build carts, and complete checkout on behalf of users. Merchello implements UCP as a protocol adapter — discovery manifest, checkout sessions, discount and shipping extensions, signed order webhooks (ES256), and agent authentication.
 
-Merchello implements UCP as a protocol adapter on top of existing services — no separate storefront required.
+### Backoffice & Operations
 
-| Feature | Details |
-|---------|---------|
-| **Discovery** | `/.well-known/ucp` manifest with capabilities, payment handlers, and signing keys |
-| **Checkout sessions** | Create, update, complete, and cancel via REST API |
-| **Discounts & shipping** | Discount codes, multi-warehouse fulfilment groups, and live carrier rates exposed through UCP extensions |
-| **Order webhooks** | Signed (ES256 / RFC 7797 detached JWT) order lifecycle events pushed to the agent's webhook URL |
-| **Agent authentication** | `UCP-Agent` header parsing (RFC 8941), allowlist, capability negotiation (server-selects model) |
-| **Source tracking** | UCP orders tagged on the invoice for analytics and reporting |
-
-Spec version: `2026-01-11`. Configurable per-capability and per-extension in `appsettings.json`.
-
-### Fulfilment Providers
-
-A pluggable 3PL integration system for automating post-purchase logistics. Fulfilment providers handle order submission, real-time tracking, product catalog sync, and inventory management — all through a single `IFulfilmentProvider` interface.
-
-| Provider | Description |
-|----------|-------------|
-| **ShipBob** | Full-featured 3PL — order submission, webhook status updates, polling, product sync, inventory sync |
-| **Custom** | Implement `IFulfilmentProvider` (or extend `FulfilmentProviderBase`) and deploy — auto-discovered at runtime |
-
-| Capability | Details |
-|------------|---------|
-| **Order submission** | Automatic on order creation with exponential-backoff retry (configurable attempts and delays) |
-| **Status updates** | Real-time via provider webhooks (HMAC-validated, deduplicated) or periodic polling |
-| **Product sync** | Push your catalogue to the 3PL |
-| **Inventory sync** | Pull stock levels back (full replace or delta mode) |
-| **Backoffice UI** | Configure providers, test connections, trigger syncs, and view sync/webhook logs |
-
-Background jobs handle polling, retry, and log cleanup automatically.
-
-### Everything Else
-
-- **Multi-currency** — live exchange rates, automatic country-to-currency mapping, rate locking at checkout
-- **Discount engine** — percentage, fixed amount, buy X get Y, free shipping, customer segment targeting, usage limits
-- **Digital products** — secure HMAC-signed downloads, expiry, download limits
-- **Abandoned cart recovery** — automatic detection, email sequences, basket restoration
-- **Post-purchase upsells** — rules engine, one-click add-to-order via saved payment method
+- **Reporting** — sales breakdown, best sellers, gross profit, dashboard KPIs, CSV export
 - **Email system** — MJML templates, token replacement, configurable per notification topic
 - **Webhooks** — outbound webhooks with HMAC signing, retry queue, 25+ event topics
-- **Customer segments** — manual and automated (spend, order count, location, tags)
-- **Reporting** — sales breakdown, best sellers, gross profit, dashboard KPIs, CSV export
-- **Product routing** — products render at root-level URLs without Umbraco content nodes
+- **Invoice reminders** — automated overdue invoice reminder sequences
+- **Health checks** — built-in system health checks for store diagnostics
+- **Order source tracking** — orders tagged by source (web, backoffice, API, POS, draft, UCP) for analytics
 
 ### Pluggable Architecture
 
-Build your own providers for payments, shipping, tax, fulfilment, exchange rates, address lookup, and order grouping strategies. Register them via `ExtensionManager` — no core modifications needed.
+Build your own providers for payments, shipping, tax, fulfilment, exchange rates, address lookup.
 
 ## License
 
