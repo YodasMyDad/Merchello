@@ -29,6 +29,7 @@ public sealed class DigitalProductExtendedDataOnlyAnalyzer : DiagnosticAnalyzer
     // Known ExtendedData constant names that are allowed as constants/fields
     private static readonly HashSet<string> AllowedConstantNames = new(StringComparer.Ordinal)
     {
+        "IsDigitalProduct",
         "DigitalDeliveryMethod",
         "DigitalFileIds",
         "DownloadLinkExpiryDays",
