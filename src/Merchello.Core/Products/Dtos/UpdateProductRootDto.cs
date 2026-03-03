@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Merchello.Core.Products.Dtos;
 
 /// <summary>
@@ -7,9 +9,17 @@ public class UpdateProductRootDto
 {
     public string? RootName { get; set; }
     public List<Guid>? RootImages { get; set; }
+
+    [MaxLength(1000)]
     public string? RootUrl { get; set; }
+
+    [MaxLength(1000)]
     public string? GoogleShoppingFeedCategory { get; set; }
+
+    [MaxLength(150)]
     public string? ShoppingFeedBrand { get; set; }
+
+    [MaxLength(20)]
     public string? ShoppingFeedCondition { get; set; }
     public bool? IsDigitalProduct { get; set; }
 
@@ -46,13 +56,21 @@ public class UpdateProductRootDto
     /// </summary>
     public List<ProductPackageDto>? DefaultPackageConfigurations { get; set; }
 
+    [MaxLength(5000)]
     public string? Description { get; set; }
 
     // SEO
+    [MaxLength(200)]
     public string? MetaDescription { get; set; }
+
+    [MaxLength(100)]
     public string? PageTitle { get; set; }
     public bool? NoIndex { get; set; }
+
+    [MaxLength(50)]
     public string? OpenGraphImage { get; set; }
+
+    [MaxLength(1000)]
     public string? CanonicalUrl { get; set; }
 
     /// <summary>
@@ -63,11 +81,13 @@ public class UpdateProductRootDto
     /// <summary>
     /// Alias of the selected Element Type for custom product properties.
     /// </summary>
+    [MaxLength(200)]
     public string? ElementTypeAlias { get; set; }
 
     /// <summary>
     /// The view alias used to render this product on the front-end.
     /// Example: "Gallery" -> ~/Views/Products/Gallery.cshtml
     /// </summary>
+    [MaxLength(200)]
     public string? ViewAlias { get; set; }
 }

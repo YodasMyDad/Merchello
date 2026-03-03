@@ -1625,28 +1625,32 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
               alias="rootUrl"
               label="Product URL"
               description="The URL path for this product on your storefront"
-              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+              .config=${[{ alias: "maxChars", value: 1000 }]}>
             </umb-property>
 
             <umb-property
               alias="pageTitle"
               label="Page Title"
-              description="The title shown in browser tabs and search results"
-              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+              description="The title shown in browser tabs and search results (recommended: under 60 characters)"
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+              .config=${[{ alias: "maxChars", value: 100 }]}>
             </umb-property>
 
             <umb-property
               alias="metaDescription"
               label="Meta Description"
               description="The description shown in search results (recommended: 150-160 characters)"
-              property-editor-ui-alias="Umb.PropertyEditorUi.TextArea">
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextArea"
+              .config=${[{ alias: "maxChars", value: 200 }]}>
             </umb-property>
 
             <umb-property
               alias="canonicalUrl"
               label="Canonical URL"
               description="Optional URL to indicate the preferred version of this page for SEO"
-              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+              .config=${[{ alias: "maxChars", value: 1000 }]}>
             </umb-property>
 
             <umb-property
@@ -1688,17 +1692,16 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
     // Parse URL into breadcrumb format (how Google now displays URLs)
     const urlBreadcrumb = this._formatUrlAsBreadcrumb(url);
 
-    // Google measures in pixels (~600px for titles, ~920px for descriptions)
-    // Character limits are approximations since character widths vary
-    // Desktop: ~50-60 chars for title, ~155-160 for description
-    const titleCharLimit = 60;
-    const descCharLimit = 160;
-    const titleOverLimit = pageTitle.length > titleCharLimit;
-    const descOverLimit = metaDescription.length > descCharLimit;
+    // Google recommended limits (what Google displays before truncating)
+    const titleRecommended = 60;
+    const descRecommended = 160;
+
+    const titleOverRecommended = pageTitle.length > titleRecommended;
+    const descOverRecommended = metaDescription.length > descRecommended;
 
     // Show truncated version as Google would display it
-    const displayTitle = titleOverLimit ? pageTitle.substring(0, titleCharLimit - 3) + "..." : pageTitle;
-    const displayDescription = descOverLimit ? metaDescription.substring(0, descCharLimit - 3) + "..." : metaDescription;
+    const displayTitle = titleOverRecommended ? pageTitle.substring(0, titleRecommended - 3) + "..." : pageTitle;
+    const displayDescription = descOverRecommended ? metaDescription.substring(0, descRecommended - 3) + "..." : metaDescription;
 
     return html`
       <div class="google-preview">
@@ -1715,11 +1718,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         <div class="google-preview-description">${displayDescription}</div>
       </div>
       <div class="google-preview-stats">
-        <span class="${titleOverLimit ? "stat-warning" : "stat-ok"}">
-          Title: ${pageTitle.length}/${titleCharLimit} chars ${titleOverLimit ? "(will be truncated)" : ""}
+        <span class="${titleOverRecommended ? "stat-warning" : "stat-ok"}">
+          Title: ${pageTitle.length}/${titleRecommended} chars ${titleOverRecommended ? "(Google may truncate)" : ""}
         </span>
-        <span class="${descOverLimit ? "stat-warning" : "stat-ok"}">
-          Description: ${metaDescription.length}/${descCharLimit} chars ${descOverLimit ? "(will be truncated)" : ""}
+        <span class="${descOverRecommended ? "stat-warning" : "stat-ok"}">
+          Description: ${metaDescription.length}/${descRecommended} chars ${descOverRecommended ? "(Google may truncate)" : ""}
         </span>
       </div>
     `;
