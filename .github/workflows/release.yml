@@ -81,6 +81,70 @@ jobs:
           set -euo pipefail
           dotnet build src/Merchello/Merchello.csproj -c Release /p:Version=${{ steps.release.outputs.version }}
 
+      - name: Prepare and pack starter site template
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.release.outputs.version }}"
+          TEMPLATE_DIR="src/Merchello.StarterSite.Template/content/Merchello.Site"
+
+          rm -rf src/Merchello.StarterSite.Template/content
+          mkdir -p "${TEMPLATE_DIR}"
+
+          rsync -a \
+            --exclude='bin/' --exclude='obj/' --exclude='.vs/' \
+            --exclude='Properties/launchSettings.json' \
+            --exclude='appsettings.Development.json' \
+            --exclude='appsettings-schema.json' \
+            --exclude='appsettings-schema.*.json' \
+            --exclude='umbraco-package-schema.json' \
+            --exclude='umbraco/Data/TEMP/' \
+            --exclude='umbraco/Data/*.sqlite.db' \
+            --exclude='umbraco/Data/*.sqlite.db-shm' \
+            --exclude='umbraco/Data/*.sqlite.db-wal' \
+            --exclude='umbraco/Logs/' \
+            --exclude='wwwroot/media/' \
+            --exclude='App_Data/' \
+            --exclude='.gitignore' \
+            src/Merchello.Site/ "${TEMPLATE_DIR}/"
+
+          # Replace ProjectReference with PackageReference
+          sed -i 's|<ProjectReference Include="\.\.\\Merchello\\Merchello\.csproj" />|<PackageReference Include="Umbraco.Community.Merchello" Version="'"${VERSION}"'" />|' \
+            "${TEMPLATE_DIR}/Merchello.Site.csproj"
+
+          # Remove _ContentIncludedByDefault items
+          sed -i '/<_ContentIncludedByDefault Remove=/d' \
+            "${TEMPLATE_DIR}/Merchello.Site.csproj"
+
+          # Remove empty Folder includes
+          sed -i '/<Folder Include="Home\\" \/>/d' \
+            "${TEMPLATE_DIR}/Merchello.Site.csproj"
+
+          # Clean up empty ItemGroup blocks
+          perl -0777 -i -pe 's|\s*<ItemGroup>\s*</ItemGroup>||g' \
+            "${TEMPLATE_DIR}/Merchello.Site.csproj"
+
+          # Remove Umbraco instance ID and Unattended install section from appsettings
+          python3 -c "
+          import json
+          with open('${TEMPLATE_DIR}/appsettings.json', 'r') as f:
+              config = json.load(f)
+          if 'Umbraco' in config and 'CMS' in config['Umbraco']:
+              cms = config['Umbraco']['CMS']
+              if 'Global' in cms and 'Id' in cms['Global']:
+                  del cms['Global']['Id']
+              if 'Unattended' in cms:
+                  del cms['Unattended']
+          with open('${TEMPLATE_DIR}/appsettings.json', 'w') as f:
+              json.dump(config, f, indent=2)
+              f.write('\n')
+          "
+
+          dotnet pack src/Merchello.StarterSite.Template/Merchello.StarterSite.Template.csproj \
+            -c Release \
+            /p:Version="${VERSION}" \
+            --output src/Merchello.StarterSite.Template/bin/Release
+
       - name: Push packages to NuGet.org
         shell: bash
         run: |

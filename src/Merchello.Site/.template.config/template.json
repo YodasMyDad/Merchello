@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Lee Messenger",
+  "classifications": ["Web", "Umbraco", "Merchello", "eCommerce"],
+  "identity": "Umbraco.Community.Merchello.StarterSite",
+  "name": "Merchello Starter Site",
+  "shortName": "merchello-starter",
+  "description": "An Umbraco v17 site pre-configured with Merchello ecommerce, demo content types, views, and sample storefront components.",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "Merchello.Site",
+  "preferNameDirectory": true,
+  "sources": [
+    {
+      "modifiers": [
+        {
+          "exclude": [
+            "bin/**",
+            "obj/**",
+            ".vs/**",
+            ".gitignore",
+            "Properties/launchSettings.json",
+            "appsettings.Development.json",
+            "appsettings-schema.json",
+            "appsettings-schema.*.json",
+            "umbraco-package-schema.json",
+            "umbraco/Data/TEMP/**",
+            "umbraco/Data/*.sqlite.db",
+            "umbraco/Data/*.sqlite.db-shm",
+            "umbraco/Data/*.sqlite.db-wal",
+            "umbraco/Logs/**",
+            "wwwroot/media/**",
+            "App_Data/**"
+          ]
+        }
+      ]
+    }
+  ]
+}

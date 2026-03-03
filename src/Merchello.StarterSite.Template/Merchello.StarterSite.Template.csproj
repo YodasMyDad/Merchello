@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <PackageId>Umbraco.Community.Merchello.StarterSite</PackageId>
+    <Title>Merchello Starter Site Template</Title>
+    <Description>A dotnet new template that scaffolds an Umbraco v17 site with Merchello ecommerce pre-configured, including demo content types, views, and storefront components.</Description>
+    <Authors>Lee Messenger</Authors>
+    <PackageTags>dotnet-new;template;umbraco;ecommerce;merchello;commerce</PackageTags>
+    <PackageProjectUrl>https://github.com/YodasMyDad/Merchello</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/YodasMyDad/Merchello</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <TargetFramework>net10.0</TargetFramework>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="content/**" Exclude="content/**/bin/**;content/**/obj/**" />
+    <Compile Remove="**" />
+  </ItemGroup>
+
+</Project>
