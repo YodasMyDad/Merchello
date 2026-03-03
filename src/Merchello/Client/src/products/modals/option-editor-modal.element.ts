@@ -4,7 +4,7 @@ import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } fro
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
-import { UMB_MEDIA_PICKER_MODAL } from "@umbraco-cms/backoffice/media";
+import { UMB_MEDIA_PICKER_MODAL, UmbMediaPickerInputContext } from "@umbraco-cms/backoffice/media";
 import type { UmbPropertyDatasetElement, UmbPropertyValueData } from "@umbraco-cms/backoffice/property";
 import type { UmbPropertyEditorConfig } from "@umbraco-cms/backoffice/property-editor";
 import "@umbraco-cms/backoffice/imaging";
@@ -38,6 +38,9 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
 
   constructor() {
     super();
+    // Provides UMB_PICKER_INPUT_CONTEXT on this element, enabling the media picker
+    // modal's interaction memory (remembers last navigated folder between opens).
+    new UmbMediaPickerInputContext(this);
     this.consumeContext(UMB_NOTIFICATION_CONTEXT, (context) => {
       this.#notificationContext = context;
     });
