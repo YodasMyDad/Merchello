@@ -4,6 +4,7 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
 using Merchello.Core.Payments.Services.Interfaces;
+using Merchello.Core.Payments.Services.Parameters;
 using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -66,11 +67,24 @@ public class PaymentLinkService(
             return crudResult;
         }
 
-        // Check if invoice is already paid
-        var paymentStatus = await paymentService.GetInvoicePaymentStatusAsync(invoiceId, cancellationToken);
-        if (paymentStatus == InvoicePaymentStatus.Paid)
+        // Calculate balance due using the single source of truth
+        var payments = await paymentService.GetPaymentsForInvoiceAsync(invoiceId, cancellationToken);
+        var paymentDetails = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoice.Total,
+            CurrencyCode = invoice.CurrencyCode
+        });
+
+        if (paymentDetails.Status == InvoicePaymentStatus.Paid)
         {
             crudResult.AddErrorMessage("Cannot create payment link for an already paid invoice.");
+            return crudResult;
+        }
+
+        if (paymentDetails.BalanceDue <= 0m)
+        {
+            crudResult.AddErrorMessage("No balance due on this invoice.");
             return crudResult;
         }
 
@@ -100,11 +114,11 @@ public class PaymentLinkService(
         var request = new PaymentLinkRequest
         {
             InvoiceId = invoiceId,
-            Amount = invoice.Total,
+            Amount = paymentDetails.BalanceDue,
             Currency = invoice.CurrencyCode,
             CustomerEmail = invoice.BillingAddress.Email,
             CustomerName = invoice.BillingAddress.Name,
-            Description = $"Invoice {invoice.InvoiceNumber}",
+            Description = $"Invoice {invoice.InvoiceNumber} - Balance due",
             Metadata = new Dictionary<string, string>
             {
                 ["invoiceNumber"] = invoice.InvoiceNumber,

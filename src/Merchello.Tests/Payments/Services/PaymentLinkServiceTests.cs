@@ -224,6 +224,62 @@ public class PaymentLinkServiceTests : IClassFixture<ServiceTestFixture>
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task CreatePaymentLinkAsync_UsesBalanceDue_WhenInvoicePartiallyPaid()
+    {
+        // Arrange - create invoice for 250.50 and pay 100
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 250.50m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Setup provider mock
+        var mockProvider = new Mock<IPaymentProvider>();
+        mockProvider.Setup(p => p.Metadata).Returns(new PaymentProviderMetadata
+        {
+            Alias = "stripe",
+            DisplayName = "Stripe",
+            SupportsPaymentLinks = true,
+            IconHtml = "<svg>stripe</svg>"
+        });
+        mockProvider
+            .Setup(p => p.CreatePaymentLinkAsync(It.IsAny<PaymentLinkRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentLinkResult
+            {
+                Success = true,
+                PaymentUrl = "https://pay.stripe.com/link_partial",
+                ProviderLinkId = "link_partial"
+            });
+
+        var setting = new PaymentProviderSetting { ProviderAlias = "stripe", DisplayName = "Stripe", IsEnabled = true };
+        var registered = new RegisteredPaymentProvider(mockProvider.Object, setting);
+        var pmMock = new Mock<IPaymentProviderManager>();
+        pmMock.Setup(m => m.GetProviderAsync("stripe", true, It.IsAny<CancellationToken>()))
+              .ReturnsAsync(registered);
+
+        var service = CreateService(pmMock);
+
+        // Act
+        var result = await service.CreatePaymentLinkAsync(invoice.Id, "stripe", "admin");
+
+        // Assert - should charge 150.50 (balance due), NOT 250.50 (full total)
+        result.Success.ShouldBeTrue();
+        mockProvider.Verify(p => p.CreatePaymentLinkAsync(
+            It.Is<PaymentLinkRequest>(r =>
+                r.InvoiceId == invoice.Id &&
+                r.Amount == 150.50m),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     #endregion
 
     #region DeactivatePaymentLinkAsync
