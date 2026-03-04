@@ -99,6 +99,7 @@ describe("variant batch bulk utilities", () => {
       { field: "supplierSku", value: "SUP-ALL", getValue: (item) => item.supplierSku ?? "" },
       { field: "hsCode", value: "620443", getValue: (item) => item.hsCode ?? "" },
       { field: "price", value: 88.5, getValue: (item) => item.price },
+      { field: "previousPrice", value: 59.99, getValue: (item) => item.previousPrice as number },
       { field: "costOfGoods", value: 33.1, getValue: (item) => item.costOfGoods },
       { field: "onSale", value: true, getValue: (item) => item.onSale },
       { field: "availableForPurchase", value: false, getValue: (item) => item.availableForPurchase },

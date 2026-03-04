@@ -21,6 +21,8 @@ export function parseVariantBatchBulkValue(
   switch (field) {
     case "price":
       return parseNonNegativeNumber(rawValue, "Price");
+    case "previousPrice":
+      return parseNonNegativeNumber(rawValue, "Previous Price");
     case "costOfGoods":
       return parseNonNegativeNumber(rawValue, "Cost of goods");
     case "onSale":
@@ -57,6 +59,8 @@ export function applyVariantBatchBulkValue(
       return variants.map((variant) => ({ ...variant, hsCode: String(value) }));
     case "price":
       return variants.map((variant) => ({ ...variant, price: Number(value) }));
+    case "previousPrice":
+      return variants.map((variant) => ({ ...variant, previousPrice: Number(value) }));
     case "costOfGoods":
       return variants.map((variant) => ({ ...variant, costOfGoods: Number(value) }));
     case "onSale":

@@ -7,6 +7,7 @@ export type VariantBatchEditableField =
   | "supplierSku"
   | "hsCode"
   | "price"
+  | "previousPrice"
   | "onSale"
   | "costOfGoods"
   | "availableForPurchase"

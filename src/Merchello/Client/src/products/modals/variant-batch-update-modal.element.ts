@@ -33,6 +33,7 @@ const BATCH_FIELD_OPTIONS: BatchFieldOption[] = [
   { key: "supplierSku", label: "Supplier SKU", description: "Supplier reference code." },
   { key: "hsCode", label: "HS Code", description: "Harmonized customs code." },
   { key: "price", label: "Price", description: "Customer-facing price." },
+  { key: "previousPrice", label: "Previous Price", description: "Original price shown when on sale." },
   { key: "onSale", label: "On Sale", description: "Enable or disable sale status." },
   { key: "costOfGoods", label: "Cost Of Goods", description: "Internal product cost." },
   { key: "availableForPurchase", label: "Visible On Website", description: "Show product on storefront." },
@@ -207,6 +208,8 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
         return firstVariant.hsCode ?? "";
       case "price":
         return String(firstVariant.price);
+      case "previousPrice":
+        return String(firstVariant.previousPrice ?? "");
       case "costOfGoods":
         return String(firstVariant.costOfGoods);
       case "onSale":
@@ -277,6 +280,14 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
         variantErrors.push("Cost of goods must be 0 or greater.");
       }
 
+      if (
+        this._selectedFields.includes("previousPrice") &&
+        variant.previousPrice != null &&
+        variant.previousPrice < 0
+      ) {
+        variantErrors.push("Previous price must be 0 or greater.");
+      }
+
       if (variantErrors.length > 0) {
         rowErrors[variant.id] = variantErrors.join(" ");
       }
@@ -299,6 +310,7 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
     if (this._selectedFields.includes("supplierSku")) request.supplierSku = variant.supplierSku ?? "";
     if (this._selectedFields.includes("hsCode")) request.hsCode = variant.hsCode ?? "";
     if (this._selectedFields.includes("price")) request.price = variant.price;
+    if (this._selectedFields.includes("previousPrice")) request.previousPrice = variant.previousPrice ?? undefined;
     if (this._selectedFields.includes("onSale")) request.onSale = variant.onSale;
     if (this._selectedFields.includes("costOfGoods")) request.costOfGoods = variant.costOfGoods;
     if (this._selectedFields.includes("availableForPurchase")) {
@@ -570,6 +582,23 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
               )}>
           </uui-input>
         `;
+      case "previousPrice":
+        return html`
+          <uui-input
+            class="cell-input"
+            type="number"
+            step="0.01"
+            .value=${variant.previousPrice != null ? String(variant.previousPrice) : ""}
+            @input=${(event: Event) => {
+              const raw = (event.target as HTMLInputElement).value;
+              this._updateVariantField(
+                variant.id,
+                "previousPrice",
+                raw === "" ? null : this._parseNumber(raw, variant.previousPrice ?? 0),
+              );
+            }}>
+          </uui-input>
+        `;
       case "costOfGoods":
         return html`
           <uui-input
@@ -659,7 +688,7 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
       `;
     }
 
-    if (field === "price" || field === "costOfGoods") {
+    if (field === "price" || field === "previousPrice" || field === "costOfGoods") {
       return html`
         <div class="bulk-control">
           <uui-input
