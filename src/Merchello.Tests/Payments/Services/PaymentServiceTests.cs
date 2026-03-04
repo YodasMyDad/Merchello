@@ -351,6 +351,192 @@ public class PaymentServiceTests : IClassFixture<ServiceTestFixture>
 
     #endregion
 
+    #region CreditDue Integration Tests (Invoice Total Reduction / Overpayment)
+
+    [Fact]
+    public async Task CalculatePaymentStatus_InvoiceTotalReduced_SetsCreditDue()
+    {
+        // Arrange - Simulates product removal: invoice paid in full, then total drops
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Pay the full invoice
+        await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Simulate product removal by reducing invoice total in DB
+        var dbInvoice = await _fixture.DbContext.Invoices.FindAsync(invoice.Id);
+        dbInvoice!.Total = 60m;
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act - Load payments from DB and recalculate status
+        var payments = await _paymentService.GetPaymentsForInvoiceAsync(invoice.Id);
+        var details = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = 60m,
+            CurrencyCode = "GBP"
+        });
+
+        // Assert
+        details.Status.ShouldBe(InvoicePaymentStatus.Paid);
+        details.BalanceDue.ShouldBe(0m);
+        details.CreditDue.ShouldBe(40m); // 100 paid - 60 total = 40 overpaid
+    }
+
+    [Fact]
+    public async Task CalculatePaymentStatus_AllProductsRemoved_CreditDueEqualsFullPayment()
+    {
+        // Arrange - All products removed: invoice total drops to 0
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Simulate all products removed
+        var dbInvoice = await _fixture.DbContext.Invoices.FindAsync(invoice.Id);
+        dbInvoice!.Total = 0m;
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var payments = await _paymentService.GetPaymentsForInvoiceAsync(invoice.Id);
+        var details = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = 0m,
+            CurrencyCode = "GBP"
+        });
+
+        // Assert
+        details.Status.ShouldBe(InvoicePaymentStatus.Paid);
+        details.CreditDue.ShouldBe(100m); // Full payment is credit due
+    }
+
+    [Fact]
+    public async Task CalculatePaymentStatus_RefundResolvesOverpayment_CreditDueDropsToZero()
+    {
+        // Arrange - Pay 100, reduce total to 60, refund 40 overpayment
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        paymentResult.Success.ShouldBeTrue();
+        var payment = paymentResult.ResultObject!;
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Simulate product removal
+        var dbInvoice = await _fixture.DbContext.Invoices.FindAsync(invoice.Id);
+        dbInvoice!.Total = 60m;
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Refund the exact overpayment amount
+        var refundResult = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = payment.Id,
+            Amount = 40m,
+            Reason = "Refund for removed products"
+        });
+        refundResult.Success.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act - Recalculate with updated payments
+        var payments = await _paymentService.GetPaymentsForInvoiceAsync(invoice.Id);
+        var details = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = 60m,
+            CurrencyCode = "GBP"
+        });
+
+        // Assert - Net payment (100-40=60) matches invoice total (60), so balanced
+        details.Status.ShouldBe(InvoicePaymentStatus.PartiallyRefunded);
+        details.NetPayment.ShouldBe(60m);
+        details.BalanceDue.ShouldBe(0m);
+        details.CreditDue.ShouldBe(0m);
+    }
+
+    [Fact]
+    public async Task CalculatePaymentStatus_PartialRefundStillOverpaid_CreditDueReduced()
+    {
+        // Arrange - Pay 100, reduce total to 60 (40 overpaid), refund only 15
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var invoice = dataBuilder.CreateInvoice(total: 100m);
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var paymentResult = await _paymentService.RecordPaymentAsync(new RecordPaymentParameters
+        {
+            InvoiceId = invoice.Id,
+            ProviderAlias = "manual",
+            TransactionId = $"txn-{Guid.NewGuid()}",
+            Amount = 100m
+        });
+        paymentResult.Success.ShouldBeTrue();
+        var payment = paymentResult.ResultObject!;
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Simulate product removal
+        var dbInvoice = await _fixture.DbContext.Invoices.FindAsync(invoice.Id);
+        dbInvoice!.Total = 60m;
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Partial refund — not enough to resolve overpayment
+        var refundResult = await _paymentService.ProcessRefundAsync(new ProcessRefundParameters
+        {
+            PaymentId = payment.Id,
+            Amount = 15m,
+            Reason = "Partial refund"
+        });
+        refundResult.Success.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act
+        var payments = await _paymentService.GetPaymentsForInvoiceAsync(invoice.Id);
+        var details = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = 60m,
+            CurrencyCode = "GBP"
+        });
+
+        // Assert - Net payment (100-15=85) still exceeds total (60), credit due = 25
+        details.Status.ShouldBe(InvoicePaymentStatus.PartiallyRefunded);
+        details.NetPayment.ShouldBe(85m);
+        details.BalanceDue.ShouldBe(0m);
+        details.CreditDue.ShouldBe(25m);
+    }
+
+    #endregion
+
     #region CreatePaymentSessionAsync Tests
 
     [Fact]

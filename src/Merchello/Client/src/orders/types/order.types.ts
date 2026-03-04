@@ -83,6 +83,10 @@ export interface PaymentStatusDto {
   netPaymentInStoreCurrency?: number | null;
   balanceDue: number;
   balanceDueInStoreCurrency?: number | null;
+  /** Amount overpaid beyond the invoice total (always >= 0). When > 0, indicates refund needed. */
+  creditDue: number;
+  /** Amount overpaid in store currency. */
+  creditDueInStoreCurrency?: number | null;
   /** Maximum fraud/risk score across all payments (0-100 scale). */
   maxRiskScore?: number | null;
   /** Source of the maximum risk score. */
@@ -262,6 +266,10 @@ export interface OrderDetailDto {
   balanceDue: number;
   amountPaidInStoreCurrency?: number | null;
   balanceDueInStoreCurrency?: number | null;
+  /** Amount overpaid beyond invoice total (always >= 0). When > 0, refund recommended. */
+  creditDue: number;
+  /** Amount overpaid in store currency. */
+  creditDueInStoreCurrency?: number | null;
   /**
    * Balance status classification: "Balanced", "Underpaid", "Overpaid".
    * Calculated by backend to avoid frontend logic duplication from comparing balanceDue values.

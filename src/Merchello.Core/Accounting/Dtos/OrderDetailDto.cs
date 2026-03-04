@@ -56,6 +56,17 @@ public class OrderDetailDto
     public decimal? BalanceDueInStoreCurrency { get; set; }
 
     /// <summary>
+    /// Amount overpaid beyond the invoice total (always >= 0).
+    /// When > 0, indicates funds that should be refunded to the customer.
+    /// </summary>
+    public decimal CreditDue { get; set; }
+
+    /// <summary>
+    /// Amount overpaid in store currency.
+    /// </summary>
+    public decimal? CreditDueInStoreCurrency { get; set; }
+
+    /// <summary>
     /// Balance status classification: "Balanced", "Underpaid", "Overpaid".
     /// Calculated by backend to avoid frontend logic duplication from comparing balanceDue values.
     /// </summary>

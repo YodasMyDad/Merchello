@@ -57,6 +57,17 @@ public record PaymentStatusDetails
     public decimal? BalanceDueInStoreCurrency { get; init; }
 
     /// <summary>
+    /// Amount overpaid beyond the invoice total (netPayment - invoiceTotal when positive).
+    /// Always >= 0. Represents funds that should be refunded to the customer.
+    /// </summary>
+    public decimal CreditDue { get; init; }
+
+    /// <summary>
+    /// Amount overpaid in store currency (for multi-currency orders).
+    /// </summary>
+    public decimal? CreditDueInStoreCurrency { get; init; }
+
+    /// <summary>
     /// Maximum fraud/risk score across all payments (0-100 scale).
     /// Null if no payments have risk scores.
     /// </summary>

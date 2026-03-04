@@ -31,6 +31,17 @@ public class PaymentStatusDto
     public decimal? BalanceDueInStoreCurrency { get; set; }
 
     /// <summary>
+    /// Amount overpaid beyond the invoice total (always >= 0).
+    /// When > 0, indicates funds that should be refunded to the customer.
+    /// </summary>
+    public decimal CreditDue { get; set; }
+
+    /// <summary>
+    /// Amount overpaid in store currency.
+    /// </summary>
+    public decimal? CreditDueInStoreCurrency { get; set; }
+
+    /// <summary>
     /// Maximum fraud/risk score across all payments (0-100 scale).
     /// </summary>
     public decimal? MaxRiskScore { get; set; }
@@ -48,8 +59,8 @@ public class PaymentStatusDto
     public string? RiskLevel { get; set; }
 
     /// <summary>
-    /// Balance status classification based on BalanceDue.
-    /// Values: "Balanced" (balance = 0), "Underpaid" (balance > 0), "Overpaid" (balance &lt; 0).
+    /// Balance status classification based on BalanceDue and CreditDue.
+    /// Values: "Underpaid" (BalanceDue > 0), "Overpaid" (CreditDue > 0), "Balanced" (neither).
     /// Calculated by backend to ensure consistency - frontend should use this instead of local amount comparisons.
     /// </summary>
     public string BalanceStatus { get; set; } = "Balanced";

@@ -112,8 +112,14 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
   private async _openRefundModal(payment: PaymentDto): Promise<void> {
     if (!this.#modalManager) return;
 
+    // When overpaid, suggest the credit due amount (capped to this payment's refundable amount)
+    const creditDue = this._status?.creditDue ?? 0;
+    const suggestedRefundAmount = creditDue > 0
+      ? Math.min(creditDue, payment.refundableAmount)
+      : undefined;
+
     const modal = this.#modalManager.open(this, MERCHELLO_REFUND_MODAL, {
-      data: { payment },
+      data: { payment, suggestedRefundAmount },
     });
 
     const result = await modal.onSubmit().catch(() => undefined);
@@ -241,6 +247,15 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
               : nothing}
           </div>
 
+          ${status != null && status.creditDue > 0
+            ? html`
+                <div class="overpaid-alert">
+                  <uui-icon name="icon-alert"></uui-icon>
+                  <span>This invoice has been overpaid by ${formatCurrency(status.creditDue, status.currencyCode, status.currencySymbol)}. A refund is recommended.</span>
+                </div>
+              `
+            : nothing}
+
           ${status
             ? html`
                 <div class="status-details">
@@ -260,12 +275,21 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
                         </div>
                       `
                     : nothing}
-                  <div class="status-row total">
-                    <span>${status.balanceStatusLabel || 'Balance Due'}</span>
-                    <span class="${status.balanceStatusCssClass === 'underpaid' ? 'negative' : ''}">
-                      ${formatCurrency(status.balanceDue, status.currencyCode, status.currencySymbol)}
-                    </span>
-                  </div>
+                  ${status.creditDue > 0
+                    ? html`
+                        <div class="status-row total overpaid">
+                          <span>${status.balanceStatusLabel}</span>
+                          <span class="warning">${formatCurrency(status.creditDue, status.currencyCode, status.currencySymbol)}</span>
+                        </div>
+                      `
+                    : html`
+                        <div class="status-row total">
+                          <span>${status.balanceStatusLabel || 'Balance Due'}</span>
+                          <span class="${status.balanceStatusCssClass === 'underpaid' ? 'negative' : ''}">
+                            ${formatCurrency(status.balanceDue, status.currencyCode, status.currencySymbol)}
+                          </span>
+                        </div>
+                      `}
                 </div>
               `
             : nothing}
@@ -390,6 +414,26 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
 
     .negative {
       color: var(--uui-color-danger);
+    }
+
+    .warning {
+      color: var(--uui-color-warning);
+    }
+
+    .overpaid-alert {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-2);
+      padding: var(--uui-size-space-3);
+      background: var(--uui-color-warning-standalone);
+      color: var(--uui-color-warning-contrast);
+      border-radius: var(--uui-border-radius);
+      margin-bottom: var(--uui-size-space-3);
+      font-size: 0.875rem;
+    }
+
+    .status-row.overpaid {
+      color: var(--uui-color-warning);
     }
 
     .payments-section h3 {

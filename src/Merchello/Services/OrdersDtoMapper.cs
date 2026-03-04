@@ -177,22 +177,24 @@ public class OrdersDtoMapper(
             BalanceDue = paymentDetails.BalanceDue,
             AmountPaidInStoreCurrency = paymentDetails.NetPaymentInStoreCurrency,
             BalanceDueInStoreCurrency = paymentDetails.BalanceDueInStoreCurrency,
-            BalanceStatus = paymentDetails.BalanceDue switch
+            CreditDue = paymentDetails.CreditDue,
+            CreditDueInStoreCurrency = paymentDetails.CreditDueInStoreCurrency,
+            BalanceStatus = (paymentDetails.BalanceDue, paymentDetails.CreditDue) switch
             {
-                > 0 => "Underpaid",
-                < 0 => "Overpaid",
+                ( > 0, _) => "Underpaid",
+                (_, > 0) => "Overpaid",
                 _ => "Balanced"
             },
-            BalanceStatusCssClass = paymentDetails.BalanceDue switch
+            BalanceStatusCssClass = (paymentDetails.BalanceDue, paymentDetails.CreditDue) switch
             {
-                > 0 => "underpaid",
-                < 0 => "overpaid",
+                ( > 0, _) => "underpaid",
+                (_, > 0) => "overpaid",
                 _ => "balanced"
             },
-            BalanceStatusLabel = paymentDetails.BalanceDue switch
+            BalanceStatusLabel = (paymentDetails.BalanceDue, paymentDetails.CreditDue) switch
             {
-                > 0 => "Balance Due",
-                < 0 => "Credit Due",
+                ( > 0, _) => "Balance Due",
+                (_, > 0) => "Credit Due",
                 _ => ""
             },
             PaymentStatus = paymentDetails.Status,

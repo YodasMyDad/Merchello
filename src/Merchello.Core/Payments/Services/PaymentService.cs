@@ -910,12 +910,14 @@ public class PaymentService(
 
         var netPayment = totalPaid - totalRefunded;
         var balanceDue = Math.Max(0m, invoiceTotal - netPayment);
+        var creditDue = _currencyService.Round(Math.Max(0m, netPayment - invoiceTotal), currencyCode);
 
         // Calculate store currency totals if store currency is provided
         decimal? storeTotalPaid = null;
         decimal? storeTotalRefunded = null;
         decimal? storeNetPayment = null;
         decimal? storeBalanceDue = null;
+        decimal? storeCreditDue = null;
 
         if (!string.IsNullOrEmpty(storeCurrencyCode))
         {
@@ -935,6 +937,7 @@ public class PaymentService(
             var storeInvoiceTotal = invoiceTotalInStoreCurrency ?? invoiceTotal;
             storeInvoiceTotal = _currencyService.Round(storeInvoiceTotal, storeCurrencyCode);
             storeBalanceDue = Math.Max(0, storeInvoiceTotal - storeNetPayment.Value);
+            storeCreditDue = _currencyService.Round(Math.Max(0m, storeNetPayment.Value - storeInvoiceTotal), storeCurrencyCode);
         }
 
         // Determine status (based on invoice currency, not store currency)
@@ -974,10 +977,12 @@ public class PaymentService(
             TotalRefunded = totalRefunded,
             NetPayment = netPayment,
             BalanceDue = balanceDue,
+            CreditDue = creditDue,
             TotalPaidInStoreCurrency = storeTotalPaid,
             TotalRefundedInStoreCurrency = storeTotalRefunded,
             NetPaymentInStoreCurrency = storeNetPayment,
             BalanceDueInStoreCurrency = storeBalanceDue,
+            CreditDueInStoreCurrency = storeCreditDue,
             MaxRiskScore = maxRiskPayment?.RiskScore,
             MaxRiskScoreSource = maxRiskPayment?.RiskScoreSource,
             RiskLevel = PaymentStatusDetails.GetRiskLevel(maxRiskPayment?.RiskScore)

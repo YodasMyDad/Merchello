@@ -1055,14 +1055,26 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
                     <span>${formatCurrency(order.amountPaidInStoreCurrency, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
                   </div>
                 ` : nothing}
-                ${order.balanceStatusLabel ? html`
+                ${order.creditDue > 0 ? html`
+                  <div class="summary-row balance ${order.balanceStatusCssClass}">
+                    <span>${order.balanceStatusLabel}</span>
+                    <span></span>
+                    <span>${formatCurrency(order.creditDue, order.currencyCode, order.currencySymbol)}</span>
+                  </div>
+                ` : order.balanceStatusLabel ? html`
                   <div class="summary-row balance ${order.balanceStatusCssClass}">
                     <span>${order.balanceStatusLabel}</span>
                     <span></span>
                     <span>${formatCurrency(Math.abs(order.balanceDue), order.currencyCode, order.currencySymbol)}</span>
                   </div>
                 ` : nothing}
-                ${order.balanceDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode && order.balanceStatusLabel ? html`
+                ${order.creditDue > 0 && order.creditDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode ? html`
+                  <div class="summary-row">
+                    <span>${order.balanceStatusLabel} (Store)</span>
+                    <span></span>
+                    <span>${formatCurrency(order.creditDueInStoreCurrency ?? 0, order.storeCurrencyCode, order.storeCurrencySymbol)}</span>
+                  </div>
+                ` : order.balanceDueInStoreCurrency != null && order.storeCurrencyCode !== order.currencyCode && order.balanceStatusLabel ? html`
                   <div class="summary-row">
                     <span>${order.balanceStatusLabel} (Store)</span>
                     <span></span>

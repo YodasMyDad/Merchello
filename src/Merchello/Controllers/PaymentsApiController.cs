@@ -104,24 +104,25 @@ public class PaymentsApiController(
         });
 
         // Calculate balance status (backend-provided to avoid frontend logic duplication)
-        var balanceStatus = details.BalanceDue switch
+        // Note: BalanceDue is clamped to 0, so use CreditDue > 0 for overpaid detection
+        var balanceStatus = (details.BalanceDue, details.CreditDue) switch
         {
-            > 0 => "Underpaid",
-            < 0 => "Overpaid",
+            ( > 0, _) => "Underpaid",
+            (_, > 0) => "Overpaid",
             _ => "Balanced"
         };
 
-        var balanceStatusCssClass = details.BalanceDue switch
+        var balanceStatusCssClass = (details.BalanceDue, details.CreditDue) switch
         {
-            > 0 => "underpaid",
-            < 0 => "overpaid",
+            ( > 0, _) => "underpaid",
+            (_, > 0) => "overpaid",
             _ => "balanced"
         };
 
-        var balanceStatusLabel = details.BalanceDue switch
+        var balanceStatusLabel = (details.BalanceDue, details.CreditDue) switch
         {
-            > 0 => "Balance Due",
-            < 0 => "Credit Due",
+            ( > 0, _) => "Balance Due",
+            (_, > 0) => "Credit Due",
             _ => ""
         };
 
@@ -145,6 +146,8 @@ public class PaymentsApiController(
             NetPaymentInStoreCurrency = details.NetPaymentInStoreCurrency,
             BalanceDue = details.BalanceDue,
             BalanceDueInStoreCurrency = details.BalanceDueInStoreCurrency,
+            CreditDue = details.CreditDue,
+            CreditDueInStoreCurrency = details.CreditDueInStoreCurrency,
             BalanceStatus = balanceStatus,
             BalanceStatusCssClass = balanceStatusCssClass,
             BalanceStatusLabel = balanceStatusLabel,

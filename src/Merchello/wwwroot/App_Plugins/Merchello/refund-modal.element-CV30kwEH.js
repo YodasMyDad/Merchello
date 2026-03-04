@@ -1,178 +1,126 @@
-import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
-import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
-import { UmbModalBaseElement } from "@umbraco-cms/backoffice/modal";
-import { MerchelloApi } from "@api/merchello-api.js";
-import { getStoreSettings } from "@api/store-settings.js";
-import { formatCurrency, formatShortDate } from "@shared/utils/formatting.js";
-import type { RefundModalData, RefundModalValue } from "@orders/modals/refund-modal.token.js";
-import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
-
-@customElement("merchello-refund-modal")
-export class MerchelloRefundModalElement extends UmbModalBaseElement<
-  RefundModalData,
-  RefundModalValue
-> {
-  @state() private _amount: number = 0;
-  @state() private _reason: string = "";
-  @state() private _isManualRefund: boolean = false;
-  @state() private _isSaving: boolean = false;
-  @state() private _errorMessage: string | null = null;
-  @state() private _quickAmountPercentages: number[] = [50];
-
-  override connectedCallback(): void {
-    super.connectedCallback();
-    // Default to suggested amount (overpayment) if provided, otherwise full refundable amount
-    this._amount = this.data?.suggestedRefundAmount ?? this.data?.payment.refundableAmount ?? 0;
-
-    // Force manual refund if:
-    // 1. No provider alias (manual payment)
-    // 2. Provider is "manual"
-    // 3. Provider refund is not available (provider not installed, doesn't support refunds, etc.)
-    const payment = this.data?.payment;
-    this._isManualRefund = !payment?.paymentProviderAlias ||
-                           payment.paymentProviderAlias === "manual" ||
-                           !payment.canRefundViaProvider;
-
-    // Load quick amount percentages from settings
-    this._loadSettings();
+import { nothing as r, html as i, css as f, state as d, customElement as v } from "@umbraco-cms/backoffice/external/lit";
+import { UmbModalBaseElement as g } from "@umbraco-cms/backoffice/modal";
+import { M as m } from "./merchello-api-BtThjGiA.js";
+import { g as h } from "./store-settings-D6IgcgHv.js";
+import { a as p, f as b } from "./formatting-SQYZJ8LX.js";
+import { m as y } from "./modal-layout.styles-C2OaUji5.js";
+var _ = Object.defineProperty, w = Object.getOwnPropertyDescriptor, s = (e, a, o, u) => {
+  for (var t = u > 1 ? void 0 : u ? w(a, o) : a, l = e.length - 1, c; l >= 0; l--)
+    (c = e[l]) && (t = (u ? c(a, o, t) : c(t)) || t);
+  return u && t && _(a, o, t), t;
+};
+let n = class extends g {
+  constructor() {
+    super(...arguments), this._amount = 0, this._reason = "", this._isManualRefund = !1, this._isSaving = !1, this._errorMessage = null, this._quickAmountPercentages = [50];
   }
-
+  connectedCallback() {
+    super.connectedCallback(), this._amount = this.data?.suggestedRefundAmount ?? this.data?.payment.refundableAmount ?? 0;
+    const e = this.data?.payment;
+    this._isManualRefund = !e?.paymentProviderAlias || e.paymentProviderAlias === "manual" || !e.canRefundViaProvider, this._loadSettings();
+  }
   /** Whether the payment has a non-manual provider alias */
-  private get _hasProviderAlias(): boolean {
-    const p = this.data?.payment;
-    return !!p?.paymentProviderAlias && p.paymentProviderAlias !== "manual";
+  get _hasProviderAlias() {
+    const e = this.data?.payment;
+    return !!e?.paymentProviderAlias && e.paymentProviderAlias !== "manual";
   }
-
   /** Whether provider-based refund is available */
-  private get _canRefundViaProvider(): boolean {
-    return this.data?.payment?.canRefundViaProvider ?? false;
+  get _canRefundViaProvider() {
+    return this.data?.payment?.canRefundViaProvider ?? !1;
   }
-
-  private async _loadSettings(): Promise<void> {
-    const settings = await getStoreSettings();
-    this._quickAmountPercentages = settings.refundQuickAmountPercentages;
+  async _loadSettings() {
+    const e = await h();
+    this._quickAmountPercentages = e.refundQuickAmountPercentages;
   }
-
   /**
    * Preview refund calculation using backend API for proper currency rounding.
    */
-  private async _previewRefund(paymentId: string, percentage?: number): Promise<void> {
-    const { data, error } = await MerchelloApi.previewRefund(paymentId, { percentage });
-
-    if (error || !data) {
+  async _previewRefund(e, a) {
+    const { data: o, error: u } = await m.previewRefund(e, { percentage: a });
+    if (u || !o) {
       this._errorMessage = "Unable to preview refund amount. Please enter an amount manually.";
       return;
     }
-
-    this._errorMessage = null;
-    this._amount = data.requestedAmount;
+    this._errorMessage = null, this._amount = o.requestedAmount;
   }
-
-  private async _handleSave(): Promise<void> {
-    const payment = this.data?.payment;
-    if (!payment) return;
-
-    // UX validation only - business rules (amount <= refundable) are validated by backend
+  async _handleSave() {
+    const e = this.data?.payment;
+    if (!e) return;
     if (!this._reason.trim()) {
       this._errorMessage = "Refund reason is required";
       return;
     }
-
     if (this._amount <= 0) {
       this._errorMessage = "Please enter a refund amount";
       return;
     }
-
-    // Note: Backend validates that amount doesn't exceed refundable amount
-    // and will return appropriate error message if exceeded
-
-    this._isSaving = true;
-    this._errorMessage = null;
-
-    const { error } = await MerchelloApi.processRefund(payment.id, {
+    this._isSaving = !0, this._errorMessage = null;
+    const { error: a } = await m.processRefund(e.id, {
       amount: this._amount,
       reason: this._reason,
-      isManualRefund: this._isManualRefund,
+      isManualRefund: this._isManualRefund
     });
-
-    if (error) {
-      this._errorMessage = error.message;
-      this._isSaving = false;
+    if (a) {
+      this._errorMessage = a.message, this._isSaving = !1;
       return;
     }
-
-    this._isSaving = false;
-    this.value = { refunded: true };
-    this.modalContext?.submit();
+    this._isSaving = !1, this.value = { refunded: !0 }, this.modalContext?.submit();
   }
-
-  private _handleCancel(): void {
+  _handleCancel() {
     this.modalContext?.reject();
   }
-
-  override render() {
-    const payment = this.data?.payment;
-    if (!payment) return nothing;
-
-    return html`
+  render() {
+    const e = this.data?.payment;
+    return e ? i`
       <umb-body-layout headline="Process Refund">
         <div id="main">
-          ${this._errorMessage
-            ? html`
+          ${this._errorMessage ? i`
                 <div class="error-message">
                   <uui-icon name="icon-alert"></uui-icon>
                   ${this._errorMessage}
                 </div>
-              `
-            : nothing}
+              ` : r}
 
-          ${this.data?.suggestedRefundAmount != null && this.data.suggestedRefundAmount > 0
-            ? html`
+          ${this.data?.suggestedRefundAmount != null && this.data.suggestedRefundAmount > 0 ? i`
                 <div class="suggested-amount-info">
                   <uui-icon name="icon-info"></uui-icon>
-                  <span>Suggested refund of ${formatCurrency(
-                    this.data.suggestedRefundAmount,
-                    payment.currencyCode,
-                    payment.currencySymbol
-                  )} based on the overpayment amount on this invoice.</span>
+                  <span>Suggested refund of ${p(
+      this.data.suggestedRefundAmount,
+      e.currencyCode,
+      e.currencySymbol
+    )} based on the overpayment amount on this invoice.</span>
                 </div>
-              `
-            : nothing}
+              ` : r}
 
           <!-- Original Payment Info -->
           <div class="payment-info">
             <h3>Original Payment</h3>
             <div class="info-row">
               <span>Amount:</span>
-              <strong>${formatCurrency(payment.amount, payment.currencyCode, payment.currencySymbol)}</strong>
+              <strong>${p(e.amount, e.currencyCode, e.currencySymbol)}</strong>
             </div>
             <div class="info-row">
               <span>Date:</span>
-              <span>${formatShortDate(payment.dateCreated)}</span>
+              <span>${b(e.dateCreated)}</span>
             </div>
             <div class="info-row">
               <span>Method:</span>
-              <span>${payment.paymentMethod ?? "N/A"}</span>
+              <span>${e.paymentMethod ?? "N/A"}</span>
             </div>
-            ${payment.paymentProviderAlias
-              ? html`
+            ${e.paymentProviderAlias ? i`
                   <div class="info-row">
                     <span>Provider:</span>
-                    <span>${payment.paymentProviderAlias}</span>
+                    <span>${e.paymentProviderAlias}</span>
                   </div>
-                `
-              : nothing}
-            ${payment.transactionId
-              ? html`
+                ` : r}
+            ${e.transactionId ? i`
                   <div class="info-row">
                     <span>Transaction ID:</span>
-                    <span class="mono">${payment.transactionId}</span>
+                    <span class="mono">${e.transactionId}</span>
                   </div>
-                `
-              : nothing}
+                ` : r}
             <div class="info-row highlight">
               <span>Refundable Amount:</span>
-              <strong>${formatCurrency(payment.refundableAmount, payment.currencyCode, payment.currencySymbol)}</strong>
+              <strong>${p(e.refundableAmount, e.currencyCode, e.currencySymbol)}</strong>
             </div>
           </div>
 
@@ -183,13 +131,13 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
               id="amount"
               type="number"
               min="0.01"
-              max="${payment.refundableAmount}"
+              max="${e.refundableAmount}"
               step="0.01"
               .value=${String(this._amount)}
               required
-              @input=${(e: Event) => {
-                this._amount = parseFloat((e.target as HTMLInputElement).value) || 0;
-              }}
+              @input=${(a) => {
+      this._amount = parseFloat(a.target.value) || 0;
+    }}
             ></uui-input>
             <!-- Quick amount buttons use backend preview API for proper currency rounding.
                  Backend validates actual refund amount in processRefund API call. -->
@@ -198,22 +146,22 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
                 look="secondary"
                 label="Full Refund"
                 compact
-                @click=${() => this._previewRefund(payment.id)}
+                @click=${() => this._previewRefund(e.id)}
               >
                 Full Refund
               </uui-button>
               ${this._quickAmountPercentages.map(
-                (pct) => html`
+      (a) => i`
                   <uui-button
                     look="secondary"
-                    label="${pct}%"
+                    label="${a}%"
                     compact
-                    @click=${() => this._previewRefund(payment.id, pct)}
+                    @click=${() => this._previewRefund(e.id, a)}
                   >
-                    ${pct}%
+                    ${a}%
                   </uui-button>
                 `
-              )}
+    )}
             </div>
           </div>
 
@@ -225,50 +173,42 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
               .value=${this._reason}
               placeholder="Enter the reason for this refund..."
               required
-              @input=${(e: Event) => {
-                this._reason = (e.target as HTMLTextAreaElement).value;
-              }}
+              @input=${(a) => {
+      this._reason = a.target.value;
+    }}
             ></uui-textarea>
           </div>
 
-          ${this._hasProviderAlias
-            ? html`
+          ${this._hasProviderAlias ? i`
                 <!-- Show warning if provider refund is not available -->
-                ${!this._canRefundViaProvider
-                  ? html`
+                ${this._canRefundViaProvider ? r : i`
                       <div class="provider-warning">
                         <uui-icon name="icon-alert"></uui-icon>
                         <div class="warning-content">
                           <strong>Provider refund not available</strong>
-                          <p>${payment.cannotRefundViaProviderReason}</p>
+                          <p>${e.cannotRefundViaProviderReason}</p>
                         </div>
                       </div>
-                    `
-                  : nothing}
+                    `}
                 <div class="form-field checkbox-field">
                   <uui-checkbox
                     id="isManualRefund"
                     label="Manual refund"
                     ?checked=${this._isManualRefund}
                     ?disabled=${!this._canRefundViaProvider}
-                    @change=${(e: Event) => {
-                      if (this._canRefundViaProvider) {
-                        this._isManualRefund = (e.target as HTMLInputElement).checked;
-                      }
-                    }}
+                    @change=${(a) => {
+      this._canRefundViaProvider && (this._isManualRefund = a.target.checked);
+    }}
                   >
                     Manual refund (already processed externally)
                   </uui-checkbox>
                   <p class="field-description">
-                    ${this._canRefundViaProvider
-                      ? html`Check this if you have already processed the refund through ${payment.paymentProviderAlias}
-                             and just need to record it here.`
-                      : html`This refund will be recorded as manual. You must process the actual refund
-                             directly with ${payment.paymentProviderAlias}.`}
+                    ${this._canRefundViaProvider ? i`Check this if you have already processed the refund through ${e.paymentProviderAlias}
+                             and just need to record it here.` : i`This refund will be recorded as manual. You must process the actual refund
+                             directly with ${e.paymentProviderAlias}.`}
                   </p>
                 </div>
-              `
-            : nothing}
+              ` : r}
         </div>
 
         <div slot="actions">
@@ -287,17 +227,17 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
             @click=${this._handleSave}
             ?disabled=${this._isSaving || this._amount <= 0 || !this._reason.trim()}
           >
-            ${this._isSaving ? html`<uui-loader-circle></uui-loader-circle>` : nothing}
+            ${this._isSaving ? i`<uui-loader-circle></uui-loader-circle>` : r}
             Process Refund
           </uui-button>
         </div>
       </umb-body-layout>
-    `;
+    ` : r;
   }
-
-  static override readonly styles = [
-    modalLayoutStyles,
-    css`
+};
+n.styles = [
+  y,
+  f`
     :host {
       display: block;
     }
@@ -420,15 +360,32 @@ export class MerchelloRefundModalElement extends UmbModalBaseElement<
       gap: var(--uui-size-space-2);
       justify-content: flex-end;
     }
-  `,
-  ];
-}
-
-export default MerchelloRefundModalElement;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    "merchello-refund-modal": MerchelloRefundModalElement;
-  }
-}
-
+  `
+];
+s([
+  d()
+], n.prototype, "_amount", 2);
+s([
+  d()
+], n.prototype, "_reason", 2);
+s([
+  d()
+], n.prototype, "_isManualRefund", 2);
+s([
+  d()
+], n.prototype, "_isSaving", 2);
+s([
+  d()
+], n.prototype, "_errorMessage", 2);
+s([
+  d()
+], n.prototype, "_quickAmountPercentages", 2);
+n = s([
+  v("merchello-refund-modal")
+], n);
+const M = n;
+export {
+  n as MerchelloRefundModalElement,
+  M as default
+};
+//# sourceMappingURL=refund-modal.element-CV30kwEH.js.map

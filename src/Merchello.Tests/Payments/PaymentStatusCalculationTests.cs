@@ -164,6 +164,151 @@ public class PaymentStatusCalculationTests
         result.TotalPaid.ShouldBe(120m);
         result.NetPayment.ShouldBe(120m);
         result.BalanceDue.ShouldBe(0m); // System caps balance at 0
+        result.CreditDue.ShouldBe(20m); // 120 paid - 100 total = 20 overpaid
+    }
+
+    #endregion
+
+    #region CreditDue / Overpayment Tests
+
+    [Fact]
+    public void CalculatePaymentStatus_WithExactPayment_CreditDueIsZero()
+    {
+        // Arrange
+        List<Payment> payments =
+        [
+            CreatePayment(100m, PaymentType.Payment, success: true)
+        ];
+        var invoiceTotal = 100m;
+
+        // Act
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
+
+        // Assert
+        result.CreditDue.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void CalculatePaymentStatus_WithUnderpayment_CreditDueIsZero()
+    {
+        // Arrange
+        List<Payment> payments =
+        [
+            CreatePayment(50m, PaymentType.Payment, success: true)
+        ];
+        var invoiceTotal = 100m;
+
+        // Act
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
+
+        // Assert
+        result.CreditDue.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void CalculatePaymentStatus_WithZeroInvoiceTotal_AndPayment_SetsCreditDueToFullAmount()
+    {
+        // Arrange - All products removed from order, but payment exists
+        List<Payment> payments =
+        [
+            CreatePayment(100m, PaymentType.Payment, success: true)
+        ];
+        var invoiceTotal = 0m;
+
+        // Act
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
+
+        // Assert
+        result.Status.ShouldBe(InvoicePaymentStatus.Paid);
+        result.BalanceDue.ShouldBe(0m);
+        result.CreditDue.ShouldBe(100m); // Full payment amount is credit due
+    }
+
+    [Fact]
+    public void CalculatePaymentStatus_WithPartialRefundAndOverpayment_SetsCreditDue()
+    {
+        // Arrange - Paid 200, refunded 50, invoice reduced to 100
+        // Net payment = 150, credit due = 150 - 100 = 50
+        List<Payment> payments =
+        [
+            CreatePayment(200m, PaymentType.Payment, success: true),
+            CreatePayment(-50m, PaymentType.PartialRefund, success: true)
+        ];
+        var invoiceTotal = 100m;
+
+        // Act
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
+
+        // Assert
+        result.Status.ShouldBe(InvoicePaymentStatus.PartiallyRefunded);
+        result.NetPayment.ShouldBe(150m);
+        result.BalanceDue.ShouldBe(0m);
+        result.CreditDue.ShouldBe(50m);
+    }
+
+    [Fact]
+    public void CalculatePaymentStatus_WithMultiCurrencyOverpayment_SetsCreditDueInBothCurrencies()
+    {
+        // Arrange - EUR invoice overpaid, with USD store currency
+        List<Payment> payments =
+        [
+            CreatePayment(100m, PaymentType.Payment, success: true, storeCurrencyAmount: 120m)
+        ];
+        var invoiceTotal = 80m; // EUR
+        var invoiceTotalInStoreCurrency = 96m; // USD
+
+        // Act
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = "EUR",
+            InvoiceTotalInStoreCurrency = invoiceTotalInStoreCurrency,
+            StoreCurrencyCode = "USD"
+        });
+
+        // Assert
+        result.CreditDue.ShouldBe(20m);       // 100 - 80
+        result.CreditDueInStoreCurrency.ShouldBe(24m); // 120 - 96
+    }
+
+    [Fact]
+    public void CalculatePaymentStatus_WithNoPayments_CreditDueIsZero()
+    {
+        // Arrange
+        List<Payment> payments = [];
+        var invoiceTotal = 100m;
+
+        // Act
+        var result = _paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+        {
+            Payments = payments,
+            InvoiceTotal = invoiceTotal,
+            CurrencyCode = _currencyCode
+        });
+
+        // Assert
+        result.CreditDue.ShouldBe(0m);
     }
 
     #endregion
