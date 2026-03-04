@@ -208,7 +208,6 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           this._product = product ?? null;
           if (product) {
             this._formData = { ...product };
-            this.#optionSorter.setModel(product.productOptions ?? []);
             // Initialize shipping options from product data
             this._shippingOptions = product.availableShippingOptions ?? [];
             // Reset batch-selection state when product reloads
@@ -2039,6 +2038,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   private _renderOptionsTab(): unknown {
+    this.#optionSorter.enable();
+    this.#optionSorter.setModel(this._formData.productOptions ?? []);
     const options = this._formData.productOptions ?? [];
     const isNew = this.#workspaceContext?.isNew ?? true;
     const estimatedVariants = calculateEstimatedVariantCount(options);
@@ -2527,6 +2528,10 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
     const isNew = this.#workspaceContext?.isNew ?? true;
     const activeTab = this._getActiveTab();
+
+    if (activeTab !== "options") {
+      this.#optionSorter.disable();
+    }
 
     return html`
       <umb-body-layout header-fit-height main-no-padding>

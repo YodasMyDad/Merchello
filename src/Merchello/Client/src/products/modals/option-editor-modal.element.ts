@@ -45,8 +45,9 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     itemSelector: ".value-row",
     containerSelector: ".values-list",
     onChange: ({ model }) => {
-      model.forEach((v, i) => (v.sortOrder = i));
-      this._formData = { ...this._formData, values: model };
+      const updatedValues = model.map((v, i) => ({ ...v, sortOrder: i }));
+      this._formData = { ...this._formData, values: updatedValues };
+      this.#valueSorter.setModel(updatedValues);
     },
   });
 
@@ -290,10 +291,9 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
   }
 
   private _removeValue(index: number): void {
-    const values = [...(this._formData.values || [])];
-    values.splice(index, 1);
-    // Update sort orders
-    values.forEach((v, i) => (v.sortOrder = i));
+    const spliced = [...(this._formData.values || [])];
+    spliced.splice(index, 1);
+    const values = spliced.map((v, i) => ({ ...v, sortOrder: i }));
     this._formData = { ...this._formData, values };
     this.#valueSorter.setModel(values);
   }
