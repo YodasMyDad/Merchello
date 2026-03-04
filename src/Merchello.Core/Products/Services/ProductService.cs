@@ -2105,6 +2105,25 @@ public class ProductService(
                 return false;
             }
 
+            // Validate option and value names are non-empty (defense-in-depth for whitespace-only names)
+            foreach (var opt in options)
+            {
+                if (string.IsNullOrWhiteSpace(opt.Name))
+                {
+                    result.AddErrorMessage("Option name cannot be empty");
+                    return false;
+                }
+
+                foreach (var val in opt.Values)
+                {
+                    if (string.IsNullOrWhiteSpace(val.Name))
+                    {
+                        result.AddErrorMessage($"Option value name cannot be empty (option: \"{opt.Name}\")");
+                        return false;
+                    }
+                }
+            }
+
             // Capture original variant structure BEFORE modifications
             // This is used to determine if variants need to be regenerated
             var originalVariantOptions = productRoot.ProductOptions

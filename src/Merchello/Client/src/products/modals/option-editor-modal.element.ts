@@ -31,6 +31,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
   @state() private _isSaving = false;
   @state() private _errorMessage: string | null = null;
   @state() private _originalIsVariant = false;
+  @state() private _hasAttemptedSave = false;
 
   #notificationContext?: UmbNotificationContext;
   #modalManager?: UmbModalManagerContext;
@@ -210,7 +211,10 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
   }
 
   private _validateForm(): boolean {
-    if (!this._formData.name) {
+    this._hasAttemptedSave = true;
+    this._errorMessage = null;
+
+    if (!this._formData.name?.trim()) {
       this._errorMessage = "Option name is required";
       return false;
     }
@@ -218,11 +222,38 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       this._errorMessage = "At least one value is required";
       return false;
     }
+
+    const emptyValues = this._formData.values.filter((v) => !v.name?.trim());
+    if (emptyValues.length > 0) {
+      this._errorMessage =
+        emptyValues.length === 1
+          ? "One option value has an empty name. All values must have a name."
+          : `${emptyValues.length} option values have empty names. All values must have a name.`;
+      return false;
+    }
+
+    const nameSet = new Set<string>();
+    for (const v of this._formData.values) {
+      const normalized = v.name.trim().toLowerCase();
+      if (nameSet.has(normalized)) {
+        this._errorMessage = `Duplicate value name "${v.name.trim()}". Each value must have a unique name.`;
+        return false;
+      }
+      nameSet.add(normalized);
+    }
+
     return true;
   }
 
-  private _addValue(): void {
+  private async _addValue(): Promise<void> {
     const values = [...(this._formData.values || [])];
+
+    if (values.length > 0 && !values[values.length - 1].name?.trim()) {
+      this._errorMessage = "Please name the current value before adding another";
+      return;
+    }
+
+    this._errorMessage = null;
     values.push({
       id: crypto.randomUUID(),
       name: "",
@@ -236,6 +267,11 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       weightKg: null,
     });
     this._formData = { ...this._formData, values };
+
+    await this.updateComplete;
+    const inputs = this.renderRoot.querySelectorAll<HTMLElement>(".value-row uui-input[label='Value name']");
+    const lastInput = inputs[inputs.length - 1];
+    lastInput?.focus();
   }
 
   private _removeValue(index: number): void {
@@ -250,6 +286,10 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     const values = [...(this._formData.values || [])];
     values[index] = { ...values[index], [field]: value };
     this._formData = { ...this._formData, values };
+
+    if (field === "name" && this._errorMessage) {
+      this._errorMessage = null;
+    }
   }
 
   private async _openMediaPicker(index: number): Promise<void> {
@@ -292,6 +332,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               label="Value name"
               .value=${value.name}
               placeholder="Value name"
+              ?error=${this._hasAttemptedSave && !value.name?.trim()}
               @input=${(e: Event) => this._updateValue(index, "name", (e.target as HTMLInputElement).value)}>
             </uui-input>
 
@@ -690,6 +731,10 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
 
     .value-name-row > uui-input:first-child {
       flex: 1;
+    }
+
+    .value-name-row uui-input[error] {
+      --uui-input-border-color: var(--uui-color-danger);
     }
 
     .color-input {
