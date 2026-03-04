@@ -117,7 +117,7 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     const creditDue = this._status?.creditDue ?? 0;
     const isPartialRefund = creditDue > 0 && creditDue < payment.refundableAmount;
     const suggestedRefundAmount = creditDue > 0
-      ? (isPartialRefund && !payment.supportsPartialRefunds
+      ? (isPartialRefund && payment.canRefundViaProvider && !payment.supportsPartialRefunds
           ? undefined
           : Math.min(creditDue, payment.refundableAmount))
       : undefined;

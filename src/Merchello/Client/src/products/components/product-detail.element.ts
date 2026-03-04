@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbElementMixin } from "@umbraco-cms/backoffice/element-api";
+import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
 import { UMB_WORKSPACE_CONTEXT } from "@umbraco-cms/backoffice/workspace";
 import { UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
@@ -187,6 +188,17 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   #notificationContext?: UmbNotificationContext;
   #isConnected = false;
 
+  #optionSorter = new UmbSorterController<ProductOptionDto>(this, {
+    getUniqueOfElement: (el) => el.getAttribute("data-option-id") ?? "",
+    getUniqueOfModel: (model) => model.id,
+    identifier: "Merchello.ProductOptions.Sorter",
+    itemSelector: ".option-card",
+    containerSelector: ".options-list",
+    onChange: ({ model }) => {
+      this._formData = { ...this._formData, productOptions: model };
+    },
+  });
+
   constructor() {
     super();
     this.consumeContext(UMB_WORKSPACE_CONTEXT, (context) => {
@@ -196,6 +208,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           this._product = product ?? null;
           if (product) {
             this._formData = { ...product };
+            this.#optionSorter.setModel(product.productOptions ?? []);
             // Initialize shipping options from product data
             this._shippingOptions = product.availableShippingOptions ?? [];
             // Reset batch-selection state when product reloads
@@ -2074,9 +2087,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
           </uui-button>
         </div>
 
-        ${options.length > 0
-          ? html` <div class="options-list">${options.map((option) => this._renderOptionCard(option))}</div> `
-          : !isNew
+        <div class="options-list">${options.map((option) => this._renderOptionCard(option))}</div>
+        ${options.length === 0 && !isNew
           ? html`
               <div class="empty-state">
                 <uui-icon name="icon-layers"></uui-icon>
@@ -2092,8 +2104,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
   private _renderOptionCard(option: ProductOptionDto): unknown {
     return html`
-      <uui-box class="option-card">
+      <uui-box class="option-card" data-option-id=${option.id}>
         <div class="option-header">
+          <uui-icon class="option-drag-handle" name="icon-navigation"></uui-icon>
           <div class="option-info">
             <strong>${option.name}</strong>
             <span class="badge ${option.isVariant ? "badge-positive" : "badge-default"}">
@@ -2410,6 +2423,7 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
       if (!error && data) {
         this._formData = { ...this._formData, productOptions: data };
+        this.#optionSorter.setModel(data);
         this.#notificationContext?.peek("positive", {
           data: { headline: "Options saved", message: willRegenerate ? "Variants have been regenerated" : "" },
         });
@@ -2878,6 +2892,20 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         background: var(--uui-color-surface);
       }
 
+      .option-card.--umb-sorter-placeholder {
+        opacity: 0.3;
+      }
+
+      .option-drag-handle {
+        cursor: grab;
+        color: var(--uui-color-text-alt);
+        flex-shrink: 0;
+      }
+
+      .option-drag-handle:active {
+        cursor: grabbing;
+      }
+
       .option-header {
         display: flex;
         justify-content: space-between;
@@ -2891,6 +2919,8 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         align-items: center;
         gap: var(--uui-size-space-2);
         flex-wrap: wrap;
+        flex: 1;
+        min-width: 0;
       }
 
       .option-actions {

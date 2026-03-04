@@ -310,7 +310,7 @@ export class MerchelloVariantBatchUpdateModalElement extends UmbModalBaseElement
     if (this._selectedFields.includes("supplierSku")) request.supplierSku = variant.supplierSku ?? "";
     if (this._selectedFields.includes("hsCode")) request.hsCode = variant.hsCode ?? "";
     if (this._selectedFields.includes("price")) request.price = variant.price;
-    if (this._selectedFields.includes("previousPrice")) request.previousPrice = variant.previousPrice ?? undefined;
+    if (this._selectedFields.includes("previousPrice")) request.previousPrice = variant.previousPrice ?? 0;
     if (this._selectedFields.includes("onSale")) request.onSale = variant.onSale;
     if (this._selectedFields.includes("costOfGoods")) request.costOfGoods = variant.costOfGoods;
     if (this._selectedFields.includes("availableForPurchase")) {

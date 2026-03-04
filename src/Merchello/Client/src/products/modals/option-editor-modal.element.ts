@@ -1,6 +1,7 @@
 import { html, css, nothing } from "@umbraco-cms/backoffice/external/lit";
 import { customElement, state } from "@umbraco-cms/backoffice/external/lit";
 import { UmbModalBaseElement, UMB_MODAL_MANAGER_CONTEXT, UMB_CONFIRM_MODAL } from "@umbraco-cms/backoffice/modal";
+import { UmbSorterController } from "@umbraco-cms/backoffice/sorter";
 import type { UmbModalManagerContext } from "@umbraco-cms/backoffice/modal";
 import { UMB_NOTIFICATION_CONTEXT } from "@umbraco-cms/backoffice/notification";
 import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notification";
@@ -37,6 +38,18 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
   #modalManager?: UmbModalManagerContext;
   #isConnected = false;
 
+  #valueSorter = new UmbSorterController<ProductOptionValueDto>(this, {
+    getUniqueOfElement: (el) => el.getAttribute("data-value-id") ?? "",
+    getUniqueOfModel: (model) => model.id,
+    identifier: "Merchello.OptionValues.Sorter",
+    itemSelector: ".value-row",
+    containerSelector: ".values-list",
+    onChange: ({ model }) => {
+      model.forEach((v, i) => (v.sortOrder = i));
+      this._formData = { ...this._formData, values: model };
+    },
+  });
+
   constructor() {
     super();
     // Provides UMB_PICKER_INPUT_CONTEXT on this element, enabling the media picker
@@ -61,6 +74,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       };
       this._originalIsVariant = this.data.option.isVariant;
     }
+    this.#valueSorter.setModel(this._formData.values ?? []);
   }
 
   override disconnectedCallback(): void {
@@ -267,6 +281,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       weightKg: null,
     });
     this._formData = { ...this._formData, values };
+    this.#valueSorter.setModel(values);
 
     await this.updateComplete;
     const inputs = this.renderRoot.querySelectorAll<HTMLElement>(".value-row uui-input[label='Value name']");
@@ -280,6 +295,7 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     // Update sort orders
     values.forEach((v, i) => (v.sortOrder = i));
     this._formData = { ...this._formData, values };
+    this.#valueSorter.setModel(values);
   }
 
   private _updateValue(index: number, field: keyof ProductOptionValueDto, value: string | number | null): void {
@@ -325,7 +341,8 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
     const isAddon = !this._formData.isVariant;
 
     return html`
-      <div class="value-row ${isAddon ? "is-addon" : ""}">
+      <div class="value-row ${isAddon ? "is-addon" : ""}" data-value-id=${value.id}>
+        <uui-icon class="value-drag-handle" name="icon-navigation"></uui-icon>
         <div class="value-content">
           <div class="value-name-row">
             <uui-input
@@ -567,19 +584,17 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
               <span class="value-count">${valueCount}/${maxValues}</span>
             </div>
 
-            ${this._formData.values && this._formData.values.length > 0
-              ? html`
-                  <div class="values-list">
-                    ${this._formData.values.map((value, index) => this._renderValueEditor(value, index))}
-                  </div>
-                `
-              : html`
-                  <div class="empty-state">
-                    <uui-icon name="icon-list"></uui-icon>
-                    <p>No values added yet</p>
-                    <p class="hint">Use the <strong>Add Value</strong> button below to add options like Small, Medium, Large</p>
-                  </div>
-                `}
+            <div class="values-list">
+              ${this._formData.values && this._formData.values.length > 0
+                ? this._formData.values.map((value, index) => this._renderValueEditor(value, index))
+                : html`
+                    <div class="empty-state">
+                      <uui-icon name="icon-list"></uui-icon>
+                      <p>No values added yet</p>
+                      <p class="hint">Use the <strong>Add Value</strong> button below to add options like Small, Medium, Large</p>
+                    </div>
+                  `}
+            </div>
 
             <div class="values-footer">
               <uui-button
@@ -710,6 +725,21 @@ export class MerchelloOptionEditorModalElement extends UmbModalBaseElement<
       padding: var(--uui-size-space-3);
       background: var(--uui-color-surface-alt);
       border-radius: var(--uui-border-radius);
+    }
+
+    .value-row.--umb-sorter-placeholder {
+      opacity: 0.3;
+    }
+
+    .value-drag-handle {
+      cursor: grab;
+      color: var(--uui-color-text-alt);
+      flex-shrink: 0;
+      margin-top: var(--uui-size-space-1);
+    }
+
+    .value-drag-handle:active {
+      cursor: grabbing;
     }
 
     .value-row.is-addon {
