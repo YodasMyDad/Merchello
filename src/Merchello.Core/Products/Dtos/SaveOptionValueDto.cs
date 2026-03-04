@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Merchello.Core.Products.Dtos;
 
 /// <summary>
@@ -9,6 +11,9 @@ public class SaveOptionValueDto
     /// Null for new values, set for existing values to update
     /// </summary>
     public Guid? Id { get; set; }
+
+    [Required]
+    [MinLength(1)]
     public string Name { get; set; } = string.Empty;
     public string? FullName { get; set; }
     public int SortOrder { get; set; }

@@ -2316,11 +2316,15 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
 
     // Show warning if there are existing variants and variant options exist
     if (currentVariantCount > 0 && variantOptions.length > 0) {
+      const content = currentVariantCount === newVariantCount
+        ? `This will regenerate all ${currentVariantCount} variants. Variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered.`
+        : `${currentVariantCount} existing variant${currentVariantCount !== 1 ? "s" : ""} will be replaced with ${newVariantCount} new variant${newVariantCount !== 1 ? "s" : ""}. Variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered.`;
+
       const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
         data: {
           headline: "Regenerate Variants",
-          content: `Saving these options will regenerate all product variants. Current variants: ${currentVariantCount}. New variants to create: ${newVariantCount}. This will DELETE all existing variants and create new ones. Any variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered manually.`,
-          confirmLabel: "Continue",
+          content,
+          confirmLabel: "Regenerate",
           color: "danger",
         },
       });
