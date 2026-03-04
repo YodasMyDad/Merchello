@@ -113,9 +113,13 @@ export class MerchelloPaymentPanelElement extends UmbElementMixin(LitElement) {
     if (!this.#modalManager) return;
 
     // When overpaid, suggest the credit due amount (capped to this payment's refundable amount)
+    // Skip partial suggestion for providers that only support full refunds
     const creditDue = this._status?.creditDue ?? 0;
+    const isPartialRefund = creditDue > 0 && creditDue < payment.refundableAmount;
     const suggestedRefundAmount = creditDue > 0
-      ? Math.min(creditDue, payment.refundableAmount)
+      ? (isPartialRefund && !payment.supportsPartialRefunds
+          ? undefined
+          : Math.min(creditDue, payment.refundableAmount))
       : undefined;
 
     const modal = this.#modalManager.open(this, MERCHELLO_REFUND_MODAL, {
