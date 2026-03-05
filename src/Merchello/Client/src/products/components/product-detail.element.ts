@@ -2288,95 +2288,143 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
   }
 
   /**
-   * Checks if the variant structure has changed in a way that requires regeneration.
-   * Regeneration is needed when:
-   * - Variant options are added or removed
-   * - Values are added or removed from variant options
-   * - The isVariant flag changed on any option
-   *
-   * Regeneration is NOT needed for metadata-only changes (name, mediaKey, hexValue, etc.)
+   * Classifies variant structure changes to determine whether full regeneration or surgical update is needed.
+   * Returns the type of change and estimated variant counts for confirmation messaging.
    */
-  private _hasVariantStructureChanged(): boolean {
+  private _classifyVariantChanges(): {
+    type: "none" | "surgical" | "full";
+    removedCount: number;
+    addedCount: number;
+    keptCount: number;
+    newTotalCount: number;
+  } {
     const originalOptions = this._product?.productOptions || [];
     const newOptions = this._formData.productOptions || [];
+    const currentVariantCount = this._product?.variants.length ?? 0;
 
-    // Get variant options from both
     const originalVariantOptions = originalOptions.filter((o) => o.isVariant);
     const newVariantOptions = newOptions.filter((o) => o.isVariant);
 
-    // Check if number of variant options changed
-    if (originalVariantOptions.length !== newVariantOptions.length) {
-      return true;
+    // Check if variant option set changed (requires full regeneration)
+    const originalOptionIds = new Set(originalVariantOptions.map((o) => o.id));
+    const newOptionIds = new Set(newVariantOptions.map((o) => o.id));
+
+    const optionSetChanged =
+      originalOptionIds.size !== newOptionIds.size ||
+      [...newOptionIds].some((id) => !originalOptionIds.has(id)) ||
+      [...originalOptionIds].some((id) => !newOptionIds.has(id));
+
+    if (optionSetChanged) {
+      const newVariantCount = newVariantOptions.length > 0
+        ? newVariantOptions.reduce((acc, opt) => acc * (opt.values.length || 1), 1)
+        : 1;
+      return { type: "full", removedCount: currentVariantCount, addedCount: newVariantCount, keptCount: 0, newTotalCount: newVariantCount };
     }
 
-    // Check each variant option for structural changes
+    // Same option set — check for value-level changes
+    let removedValueCount = 0;
+    let addedValueCount = 0;
+
+    // Build maps keyed by option ID for cross-product calculation
+    // (option arrays may be in different order, so positional indexing is unsafe)
+    const originalCountByOptionId = new Map(originalVariantOptions.map((opt) => [opt.id, opt.values.length]));
+    const newCountByOptionId = new Map(newVariantOptions.map((opt) => [opt.id, opt.values.length]));
+
     for (const newOpt of newVariantOptions) {
       const originalOpt = originalVariantOptions.find((o) => o.id === newOpt.id);
+      if (!originalOpt) continue;
 
-      // New variant option was added (ID doesn't exist in original)
-      if (!originalOpt) {
-        return true;
-      }
-
-      // Check if isVariant flag changed (option converted to/from variant)
-      if (originalOpt.isVariant !== newOpt.isVariant) {
-        return true;
-      }
-
-      // Check if value count changed
-      if (originalOpt.values.length !== newOpt.values.length) {
-        return true;
-      }
-
-      // Check if value IDs changed (values added/removed, not just reordered)
       const originalValueIds = new Set(originalOpt.values.map((v) => v.id));
       const newValueIds = new Set(newOpt.values.map((v) => v.id));
-      if (originalValueIds.size !== newValueIds.size) {
-        return true;
-      }
-      for (const id of newValueIds) {
-        if (!originalValueIds.has(id)) {
-          return true;
+
+      const removed = [...originalValueIds].filter((id) => !newValueIds.has(id)).length;
+      const added = [...newValueIds].filter((id) => !originalValueIds.has(id)).length;
+
+      if (removed > 0) {
+        // Cross-product of other options' ORIGINAL counts (counting existing variants to delete)
+        let otherProduct = 1;
+        for (const [optId, count] of originalCountByOptionId) {
+          if (optId !== newOpt.id) otherProduct *= count;
         }
+        removedValueCount += removed * otherProduct;
+      }
+      if (added > 0) {
+        // Cross-product of other options' NEW counts (counting new combinations to create)
+        let otherProduct = 1;
+        for (const [optId, count] of newCountByOptionId) {
+          if (optId !== newOpt.id) otherProduct *= count;
+        }
+        addedValueCount += added * otherProduct;
       }
     }
 
-    // Check if any original variant option was removed
-    for (const originalOpt of originalVariantOptions) {
-      const stillExists = newVariantOptions.some((o) => o.id === originalOpt.id);
-      if (!stillExists) {
-        return true;
-      }
+    if (removedValueCount === 0 && addedValueCount === 0) {
+      return { type: "none", removedCount: 0, addedCount: 0, keptCount: currentVariantCount, newTotalCount: currentVariantCount };
     }
 
-    return false;
+    const keptCount = currentVariantCount - removedValueCount;
+    return {
+      type: "surgical",
+      removedCount: removedValueCount,
+      addedCount: addedValueCount,
+      keptCount: Math.max(0, keptCount),
+      newTotalCount: Math.max(0, keptCount) + addedValueCount,
+    };
   }
 
   /**
-   * Confirms with user before saving options that will regenerate variants.
+   * Confirms with user before saving options that will change variants.
    * Returns true if user confirms or no confirmation needed, false if cancelled.
    */
   private async _confirmVariantRegeneration(): Promise<boolean> {
     const currentVariantCount = this._product?.variants.length ?? 0;
+    const changes = this._classifyVariantChanges();
 
-    // If no structural changes, no confirmation needed
-    if (!this._hasVariantStructureChanged()) {
-      return true;
-    }
+    if (changes.type === "none") return true;
 
     const options = this._formData.productOptions || [];
     const variantOptions = options.filter((o) => o.isVariant);
 
-    // Calculate new variant count from cartesian product
-    const newVariantCount = variantOptions.length > 0
-      ? variantOptions.reduce((acc, opt) => acc * (opt.values.length || 1), 1)
-      : 1;
+    // Surgical update — values added/removed within existing options
+    if (changes.type === "surgical" && currentVariantCount > 0) {
+      let content: string;
+      let headline: string;
+      let confirmLabel: string;
+      let color: "warning" | "danger" | "positive" | undefined = "warning";
 
-    // Show warning if there are existing variants and variant options exist
-    if (currentVariantCount > 0 && variantOptions.length > 0) {
-      const content = currentVariantCount === newVariantCount
+      if (changes.removedCount > 0 && changes.addedCount > 0) {
+        headline = "Update Variants";
+        content = `${changes.removedCount} variant${changes.removedCount !== 1 ? "s" : ""} will be removed and ${changes.addedCount} new variant${changes.addedCount !== 1 ? "s" : ""} will be created. ${changes.keptCount} existing variant${changes.keptCount !== 1 ? "s" : ""} will be preserved with their existing data.`;
+        confirmLabel = "Update Variants";
+      } else if (changes.removedCount > 0) {
+        headline = "Remove Variants";
+        content = `Removing option values will delete ${changes.removedCount} variant${changes.removedCount !== 1 ? "s" : ""}. ${changes.keptCount} variant${changes.keptCount !== 1 ? "s" : ""} will be preserved with their existing data (pricing, stock, images, SKUs).`;
+        confirmLabel = "Remove Variants";
+      } else {
+        headline = "Add Variants";
+        content = `${changes.addedCount} new variant${changes.addedCount !== 1 ? "s" : ""} will be created. ${changes.keptCount} existing variant${changes.keptCount !== 1 ? "s" : ""} will be preserved with their existing data.`;
+        confirmLabel = "Add Variants";
+        color = "positive";
+      }
+
+      const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
+        data: { headline, content, confirmLabel, color },
+      });
+
+      try {
+        await modalContext?.onSubmit();
+      } catch {
+        return false;
+      }
+      if (!this.#isConnected) return false;
+      return true;
+    }
+
+    // Full regeneration — variant options added/removed
+    if (changes.type === "full" && currentVariantCount > 0 && variantOptions.length > 0) {
+      const content = currentVariantCount === changes.newTotalCount
         ? `This will regenerate all ${currentVariantCount} variants. Variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered.`
-        : `${currentVariantCount} existing variant${currentVariantCount !== 1 ? "s" : ""} will be replaced with ${newVariantCount} new variant${newVariantCount !== 1 ? "s" : ""}. Variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered.`;
+        : `${currentVariantCount} existing variant${currentVariantCount !== 1 ? "s" : ""} will be replaced with ${changes.newTotalCount} new variant${changes.newTotalCount !== 1 ? "s" : ""}. Variant-specific data (pricing, stock levels, images, SKUs) will need to be re-entered.`;
 
       const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
         data: {
@@ -2390,13 +2438,13 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       try {
         await modalContext?.onSubmit();
       } catch {
-        return false; // User cancelled
+        return false;
       }
-      if (!this.#isConnected) return false; // Component disconnected while modal was open
+      if (!this.#isConnected) return false;
       return true;
     }
 
-    // Show warning if removing all variant options (will collapse to single variant)
+    // Removing all variant options (collapse to single variant)
     if (currentVariantCount > 1 && variantOptions.length === 0) {
       const modalContext = this.#modalManager?.open(this, UMB_CONFIRM_MODAL, {
         data: {
@@ -2410,9 +2458,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       try {
         await modalContext?.onSubmit();
       } catch {
-        return false; // User cancelled
+        return false;
       }
-      if (!this.#isConnected) return false; // Component disconnected while modal was open
+      if (!this.#isConnected) return false;
       return true;
     }
 
@@ -2454,11 +2502,14 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
         })),
       }));
 
-      // Check if variant structure changed (for conditional notifications)
-      const willRegenerate = this._hasVariantStructureChanged();
+      // Classify changes for conditional notifications
+      const changes = this._classifyVariantChanges();
+      const variantMessage = changes.type === "full" ? "Variants will be regenerated"
+        : changes.type === "surgical" ? "Variants will be updated"
+        : "";
 
       this.#notificationContext?.peek("default", {
-        data: { headline: "Saving options...", message: willRegenerate ? "Variants will be regenerated" : "" },
+        data: { headline: "Saving options...", message: variantMessage },
       });
 
       const { data, error } = await MerchelloApi.saveProductOptions(this._product.id, options);
@@ -2469,8 +2520,11 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
       if (!error && data) {
         this._formData = { ...this._formData, productOptions: data };
         this.#optionSorter.setModel(data);
+        const successMessage = changes.type === "full" ? "Variants have been regenerated"
+          : changes.type === "surgical" ? "Variants updated successfully"
+          : "";
         this.#notificationContext?.peek("positive", {
-          data: { headline: "Options saved", message: willRegenerate ? "Variants have been regenerated" : "" },
+          data: { headline: "Options saved", message: successMessage },
         });
         this.#workspaceContext?.reload();
       } else if (error) {

@@ -428,3 +428,7 @@ src/
 
 ## Research Rule
 When using external APIs, SDKs, or NuGet plugins, verify latest official docs/versions before finalizing implementation details.
+
+## General Claude Rules
+If the user says something is correct, or you got something wrong or created a bug, add the fix in here so you don't make the same mistake again
+When planning, make sure the plan is split into actionable phases, where certain phases depend on others being completed first, then in the final plan make sure you state to distribute the phases to up to 3 sub agents, making sure they know their dependencies and their specific task with appropriate context.

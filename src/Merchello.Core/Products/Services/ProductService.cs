@@ -183,7 +183,7 @@ public class ProductService(
         // Check all SKUs for duplicates in the database
         var skusToCheck = variantData.Select(v => v.Sku).ToList();
         var existingSkus = await db.Products
-            .Where(p => p.Sku != null && skusToCheck.Contains(p.Sku))
+            .Where(p => p.ProductRootId != productRoot.Id && p.Sku != null && skusToCheck.Contains(p.Sku))
             .Select(p => p.Sku!)
             .ToListAsync(cancellationToken);
 
@@ -2085,7 +2085,8 @@ public class ProductService(
     {
         var result = new CrudResult<List<ProductOption>>();
         List<ProductOption> savedOptions = [];
-        var variantStructureChanged = false;
+        VariantChangeDescriptor changeDescriptor = new();
+
         using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<bool>(async db =>
@@ -2218,55 +2219,21 @@ public class ProductService(
             // In-place modifications to complex JSON properties may not always be detected automatically
             db.Entry(productRoot).Property(p => p.ProductOptions).IsModified = true;
 
-            // Check if variant structure changed (determines if regeneration is needed)
-            // Regeneration is needed when:
-            // - Variant options are added or removed
-            // - Values are added or removed from variant options
-            // - The isVariant flag changed on any option
-            // Regeneration is NOT needed for metadata-only changes (name, mediaKey, hexValue, sortOrder, etc.)
+            // Validate that no variant option has zero values
+            var emptyVariantOption = productRoot.ProductOptions.FirstOrDefault(o => o.IsVariant && o.ProductOptionValues.Count == 0);
+            if (emptyVariantOption != null)
+            {
+                result.AddErrorMessage($"Variant option \"{emptyVariantOption.Name}\" must have at least one value");
+                return false;
+            }
+
+            // Classify variant structure changes to determine update strategy
             var newVariantOptions = productRoot.ProductOptions
                 .Where(o => o.IsVariant)
                 .Select(o => new { o.Id, ValueIds = o.ProductOptionValues.Select(v => v.Id).ToHashSet() })
                 .ToDictionary(o => o.Id, o => o.ValueIds);
 
-            // Check if variant option count changed
-            if (originalVariantOptions.Count != newVariantOptions.Count)
-            {
-                variantStructureChanged = true;
-            }
-            else
-            {
-                // Check each variant option for structural changes
-                foreach (var (optionId, newValueIds) in newVariantOptions)
-                {
-                    if (!originalVariantOptions.TryGetValue(optionId, out var originalValueIds))
-                    {
-                        // New variant option (ID didn't exist before, or option became a variant)
-                        variantStructureChanged = true;
-                        break;
-                    }
-
-                    // Check if value IDs changed
-                    if (originalValueIds.Count != newValueIds.Count || !originalValueIds.SetEquals(newValueIds))
-                    {
-                        variantStructureChanged = true;
-                        break;
-                    }
-                }
-
-                // Check if any original variant option was removed or changed to non-variant
-                if (!variantStructureChanged)
-                {
-                    foreach (var originalOptionId in originalVariantOptions.Keys)
-                    {
-                        if (!newVariantOptions.ContainsKey(originalOptionId))
-                        {
-                            variantStructureChanged = true;
-                            break;
-                        }
-                    }
-                }
-            }
+            changeDescriptor = ClassifyVariantChanges(originalVariantOptions, newVariantOptions);
 
             await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
             return true;
@@ -2275,27 +2242,292 @@ public class ProductService(
         scope.Complete();
         result.ResultObject = savedOptions;
 
-        // Regenerate variants only if the variant structure changed
-        // This prevents data loss from unnecessary regeneration on metadata-only changes
-        if (result.Success && variantStructureChanged)
+        // Update variants based on the classified change type
+        if (result.Success && changeDescriptor.HasChanges)
         {
-            logger.LogDebug("SaveProductOptions: Variant structure changed for product {ProductRootId}, regenerating variants",
-                productRootId);
-
-            var regenerateResult = await RegenerateVariants(productRootId, cancellationToken: cancellationToken);
-            if (!regenerateResult.Success)
+            if (changeDescriptor.RequiresFullRegeneration)
             {
-                result.AddWarningMessage("Options saved but variant regeneration had issues: " +
-                    string.Join(", ", regenerateResult.Messages.Select(m => m.Message)));
+                logger.LogDebug("SaveProductOptions: Variant structure changed for product {ProductRootId}, regenerating all variants",
+                    productRootId);
+
+                var regenerateResult = await RegenerateVariants(productRootId, cancellationToken: cancellationToken);
+                if (!regenerateResult.Success)
+                {
+                    result.AddWarningMessage("Options saved but variant regeneration had issues: " +
+                        string.Join(", ", regenerateResult.Messages.Select(m => m.Message)));
+                }
+            }
+            else
+            {
+                logger.LogDebug(
+                    "SaveProductOptions: Surgically updating variants for product {ProductRootId} (removed: {RemovedCount} values, added: {AddedCount} values)",
+                    productRootId, changeDescriptor.RemovedValueIds.Count, changeDescriptor.AddedValueIds.Count);
+
+                var surgicalResult = await UpdateVariantsSurgically(productRootId, changeDescriptor, cancellationToken);
+                if (!surgicalResult.Success)
+                {
+                    result.AddWarningMessage("Options saved but variant update had issues: " +
+                        string.Join(", ", surgicalResult.Messages.Select(m => m.Message)));
+                }
             }
         }
         else if (result.Success)
         {
-            logger.LogDebug("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}, no variant regeneration needed",
+            logger.LogDebug("SaveProductOptions: Saved {OptionCount} options for product {ProductRootId}, no variant changes needed",
                 options.Count, productRootId);
         }
 
         return result;
+    }
+
+    private record VariantChangeDescriptor
+    {
+        public bool RequiresFullRegeneration { get; init; }
+        public HashSet<Guid> RemovedValueIds { get; init; } = [];
+        public HashSet<Guid> AddedValueIds { get; init; } = [];
+        public bool HasChanges => RequiresFullRegeneration || RemovedValueIds.Count > 0 || AddedValueIds.Count > 0;
+    }
+
+    /// <summary>
+    /// Classifies variant structure changes to determine whether full regeneration or surgical update is needed.
+    /// </summary>
+    private static VariantChangeDescriptor ClassifyVariantChanges(
+        Dictionary<Guid, HashSet<Guid>> originalVariantOptions,
+        Dictionary<Guid, HashSet<Guid>> newVariantOptions)
+    {
+        // If variant option keys differ (option added/removed/isVariant changed), require full regeneration
+        if (originalVariantOptions.Count != newVariantOptions.Count)
+            return new VariantChangeDescriptor { RequiresFullRegeneration = true };
+
+        // Check if the same set of option IDs exist in both
+        if (!originalVariantOptions.Keys.ToHashSet().SetEquals(newVariantOptions.Keys))
+            return new VariantChangeDescriptor { RequiresFullRegeneration = true };
+
+        // Same options exist — compute per-option value diffs
+        HashSet<Guid> removedValueIds = [];
+        HashSet<Guid> addedValueIds = [];
+
+        foreach (var (optionId, newValueIds) in newVariantOptions)
+        {
+            var originalValueIds = originalVariantOptions[optionId];
+            foreach (var id in originalValueIds.Except(newValueIds))
+                removedValueIds.Add(id);
+            foreach (var id in newValueIds.Except(originalValueIds))
+                addedValueIds.Add(id);
+        }
+
+        return new VariantChangeDescriptor
+        {
+            RequiresFullRegeneration = false,
+            RemovedValueIds = removedValueIds,
+            AddedValueIds = addedValueIds
+        };
+    }
+
+    /// <summary>
+    /// Surgically updates variants when option values are added or removed (without full regeneration).
+    /// Preserves existing variant data (pricing, stock, images, SKUs) for unaffected variants.
+    /// </summary>
+    private async Task<CrudResult<List<Product>>> UpdateVariantsSurgically(
+        Guid productRootId,
+        VariantChangeDescriptor changeDescriptor,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<List<Product>>();
+        List<Product>? updatedVariants = null;
+        using var scope = efCoreScopeProvider.CreateScope();
+
+        await scope.ExecuteWithContextAsync<bool>(async db =>
+        {
+            var productRoot = await db.RootProducts
+                .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ProductWarehouses)
+                .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
+
+            if (productRoot == null)
+            {
+                result.AddErrorMessage("Product root not found");
+                return false;
+            }
+
+            // Capture template pricing/stock BEFORE removal (in case all variants are deleted)
+            var template = productRoot.Products.FirstOrDefault(p => p.Default) ?? productRoot.Products.FirstOrDefault();
+            var templatePrice = template?.Price ?? 0;
+            var templateCost = template?.CostOfGoods ?? 0;
+            var templateStockSettings = template?.ProductWarehouses?.ToList() ?? [];
+
+            // Step 1: Remove variants that contain any removed option value
+            if (changeDescriptor.RemovedValueIds.Count > 0)
+            {
+                var removedCount = RemoveVariantsForDeletedValues(db, productRoot, changeDescriptor.RemovedValueIds);
+                logger.LogDebug(
+                    "UpdateVariantsSurgically: Removed {RemovedCount} variants containing deleted option values for product {ProductRootId}",
+                    removedCount, productRootId);
+
+                // Persist deletions before creating new variants (avoids SKU conflicts)
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
+            // Step 2: Create variants for newly added option values
+            if (changeDescriptor.AddedValueIds.Count > 0)
+            {
+                var addedCount = await CreateVariantsForAddedValues(db, productRoot, templatePrice, templateCost, templateStockSettings, cancellationToken);
+                if (addedCount < 0)
+                {
+                    result.AddErrorMessage("Failed to create new variants due to SKU conflicts");
+                    return false;
+                }
+
+                logger.LogDebug(
+                    "UpdateVariantsSurgically: Created {AddedCount} new variants for added option values for product {ProductRootId}",
+                    addedCount, productRootId);
+            }
+
+            // Ensure at least one variant is the default
+            var products = productRoot.Products.ToList();
+            if (products.Count > 0 && !products.Any(p => p.Default))
+            {
+                products.First().Default = true;
+            }
+
+            await db.SaveChangesAsyncLogged(logger, result, cancellationToken);
+
+            updatedVariants = await db.Products
+                .Where(p => p.ProductRootId == productRootId)
+                .ToListAsync(cancellationToken);
+
+            return true;
+        });
+
+        scope.Complete();
+        result.ResultObject = updatedVariants;
+
+        logger.LogDebug(
+            "UpdateVariantsSurgically: Product {ProductRootId} now has {VariantCount} variants",
+            productRootId, updatedVariants?.Count ?? 0);
+
+        return result;
+    }
+
+    /// <summary>
+    /// Removes variants whose VariantOptionsKey contains any of the removed value IDs.
+    /// Returns the number of variants removed.
+    /// </summary>
+    private static int RemoveVariantsForDeletedValues(
+        MerchelloDbContext db,
+        ProductRoot productRoot,
+        HashSet<Guid> removedValueIds)
+    {
+        var removedCount = 0;
+        foreach (var product in productRoot.Products.ToList())
+        {
+            if (string.IsNullOrEmpty(product.VariantOptionsKey)) continue;
+
+            var variantValueIds = product.VariantOptionsKey
+                .Split(',')
+                .Select(id => Guid.TryParse(id.Trim(), out var guid) ? guid : Guid.Empty)
+                .Where(g => g != Guid.Empty)
+                .ToHashSet();
+
+            if (variantValueIds.Overlaps(removedValueIds))
+            {
+                // Remove from navigation collection (triggers cascade delete via EF relationship fixup)
+                // This also ensures productRoot.Products is up-to-date for subsequent operations
+                productRoot.Products.Remove(product);
+                removedCount++;
+            }
+        }
+
+        return removedCount;
+    }
+
+    /// <summary>
+    /// Creates new variants for combinations that don't already exist.
+    /// Used when option values are added to existing variant options.
+    /// Returns the number of variants created, or -1 if SKU conflicts prevent creation.
+    /// </summary>
+    private async Task<int> CreateVariantsForAddedValues(
+        MerchelloDbContext db,
+        ProductRoot productRoot,
+        decimal defaultPrice,
+        decimal defaultCost,
+        List<ProductWarehouse> templateStockSettings,
+        CancellationToken cancellationToken)
+    {
+        // Compute full Cartesian product of current variant option values
+        var allCombinations = productRoot.ProductOptions
+            .Where(o => o.IsVariant)
+            .OrderBy(o => o.SortOrder)
+            .ThenBy(o => o.Id)
+            .Select(option => option.ProductOptionValues
+                .OrderBy(v => v.SortOrder)
+                .ThenBy(v => v.Id))
+            .CartesianObjects()
+            .ToList();
+
+        // Get existing variant keys to filter out already-existing combinations
+        var existingKeys = productRoot.Products
+            .Where(p => !string.IsNullOrEmpty(p.VariantOptionsKey))
+            .Select(p => p.VariantOptionsKey!)
+            .ToHashSet();
+
+        // Filter to only new combinations
+        var newCombinations = allCombinations
+            .Where(combo =>
+            {
+                var key = combo.GenerateVariantKeyName().Key;
+                return !existingKeys.Contains(key);
+            })
+            .ToList();
+
+        if (newCombinations.Count == 0) return 0;
+
+        // Generate SKUs and check for duplicates
+        List<(string Key, string Name, string Sku)> variantData = [];
+        foreach (var combo in newCombinations)
+        {
+            var keyName = combo.GenerateVariantKeyName();
+            var skuBase = $"{productRoot.RootName} - {keyName.Name}";
+            var sku = GenerateVariantSku(skuBase, "");
+            variantData.Add((keyName.Key, keyName.Name, sku));
+        }
+
+        // Check for SKU duplicates against all existing products (including surviving variants of the same product root)
+        var skusToCheck = variantData.Select(v => v.Sku).ToList();
+        if (skusToCheck.Count != skusToCheck.Distinct(StringComparer.OrdinalIgnoreCase).Count()) return -1;
+
+        var existingSkus = await db.Products
+            .Where(p => p.Sku != null && skusToCheck.Contains(p.Sku))
+            .Select(p => p.Sku!)
+            .ToListAsync(cancellationToken);
+
+        if (existingSkus.Count != 0) return -1;
+
+        // Create the new variants
+        var isFirst = !productRoot.Products.Any();
+        foreach (var (key, name, sku) in variantData)
+        {
+            var product = productFactory.Create(productRoot, name, defaultPrice, defaultCost, "", sku, isFirst, key);
+            db.Products.Add(product);
+
+            // Inherit warehouse stock settings from template
+            foreach (var templateStock in templateStockSettings)
+            {
+                db.ProductWarehouses.Add(new ProductWarehouse
+                {
+                    ProductId = product.Id,
+                    WarehouseId = templateStock.WarehouseId,
+                    Stock = 0,
+                    ReorderPoint = templateStock.ReorderPoint,
+                    ReorderQuantity = templateStock.ReorderQuantity,
+                    TrackStock = templateStock.TrackStock
+                });
+            }
+
+            isFirst = false;
+        }
+
+        return variantData.Count;
     }
 
     /// <summary>
