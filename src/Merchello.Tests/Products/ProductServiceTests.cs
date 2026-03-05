@@ -543,6 +543,70 @@ public class ProductServiceTests
     }
 
     [Fact]
+    public async Task SaveProductOptions_ReplaceAllValuesInOption_RetainsTemplatePricing()
+    {
+        // Arrange: Size(S/M/L) x Colour(Red/Blue) = 6 variants
+        var (productRootId, sizeOption, colourOption) = await SetupProductWithVariantOptions();
+
+        // Set custom pricing on the default variant so we can verify it's used as template
+        var variants = await GetVariants(productRootId);
+        var defaultVariant = variants.Single(v => v.Default);
+        defaultVariant.Price = 75m;
+        defaultVariant.CostOfGoods = 25m;
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act: Replace ALL colour values (Red/Blue -> Green/Yellow)
+        // This removes all 6 variants then creates 6 new ones
+        colourOption.Values.Clear();
+        colourOption.Values.Add(new SaveOptionValueDto { Name = "Green", SortOrder = 0 });
+        colourOption.Values.Add(new SaveOptionValueDto { Name = "Yellow", SortOrder = 1 });
+        var result = await _productService.SaveProductOptions(productRootId, [sizeOption, colourOption]);
+
+        // Assert: new variants should exist with template pricing, not 0
+        result.Success.ShouldBeTrue();
+
+        var variantsAfter = await GetVariants(productRootId);
+        variantsAfter.Count.ShouldBe(6); // 3 sizes x 2 new colours
+        variantsAfter.ShouldContain(v => v.Name == "Small - Green");
+        variantsAfter.ShouldContain(v => v.Name == "Large - Yellow");
+
+        // All new variants should inherit template pricing, not fall back to 0
+        variantsAfter.ShouldAllBe(v => v.Price == 75m);
+        variantsAfter.ShouldAllBe(v => v.CostOfGoods == 25m);
+    }
+
+    [Fact]
+    public async Task SaveProductOptions_AddValue_DetectsSkuCollisionWithSurvivingVariant()
+    {
+        // Arrange: Size(S/M/L) x Colour(Red/Blue) = 6 variants
+        var (productRootId, sizeOption, colourOption) = await SetupProductWithVariantOptions();
+
+        // Manually set a surviving variant's SKU to what "Green" would generate,
+        // so that the new "Green" variant collides with the surviving variant's SKU
+        var variants = await GetVariants(productRootId);
+        var smallRed = variants.Single(v => v.Name == "Small - Red");
+        // The surgical path generates SKUs as slug of "{RootName} - {Size} - {Colour}"
+        // so "Small - Green" would become "TEST-CHAIR-SMALL-GREEN"
+        smallRed.Sku = "TEST-CHAIR-SMALL-GREEN";
+        await _fixture.DbContext.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Act: Add "Green" to Colour option — should collide with Small-Red's rigged SKU
+        colourOption.Values.Add(new SaveOptionValueDto { Name = "Green", SortOrder = 2 });
+        var result = await _productService.SaveProductOptions(productRootId, [sizeOption, colourOption]);
+
+        // Assert: options save succeeds but variant update reports SKU conflict as a warning
+        result.Success.ShouldBeTrue();
+        result.Messages.ShouldContain(m => (m.Message ?? "").Contains("SKU"));
+
+        // Only the original 6 variants should remain (no new Green variants created)
+        var variantsAfter = await GetVariants(productRootId);
+        variantsAfter.Count.ShouldBe(6);
+        variantsAfter.ShouldNotContain(v => v.Name!.Contains("Green"));
+    }
+
+    [Fact]
     public async Task SaveProductOptions_FullRegeneration_SkuDuplicateCheckDoesNotBlockOwnSkus()
     {
         // This tests the SKU duplicate check fix: own product's SKUs should not cause false conflicts

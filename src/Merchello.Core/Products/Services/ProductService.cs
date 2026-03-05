@@ -2350,6 +2350,12 @@ public class ProductService(
                 return false;
             }
 
+            // Capture template pricing/stock BEFORE removal (in case all variants are deleted)
+            var template = productRoot.Products.FirstOrDefault(p => p.Default) ?? productRoot.Products.FirstOrDefault();
+            var templatePrice = template?.Price ?? 0;
+            var templateCost = template?.CostOfGoods ?? 0;
+            var templateStockSettings = template?.ProductWarehouses?.ToList() ?? [];
+
             // Step 1: Remove variants that contain any removed option value
             if (changeDescriptor.RemovedValueIds.Count > 0)
             {
@@ -2365,7 +2371,7 @@ public class ProductService(
             // Step 2: Create variants for newly added option values
             if (changeDescriptor.AddedValueIds.Count > 0)
             {
-                var addedCount = await CreateVariantsForAddedValues(db, productRoot, cancellationToken);
+                var addedCount = await CreateVariantsForAddedValues(db, productRoot, templatePrice, templateCost, templateStockSettings, cancellationToken);
                 if (addedCount < 0)
                 {
                     result.AddErrorMessage("Failed to create new variants due to SKU conflicts");
@@ -2443,14 +2449,11 @@ public class ProductService(
     private async Task<int> CreateVariantsForAddedValues(
         MerchelloDbContext db,
         ProductRoot productRoot,
+        decimal defaultPrice,
+        decimal defaultCost,
+        List<ProductWarehouse> templateStockSettings,
         CancellationToken cancellationToken)
     {
-        // Get template for default pricing
-        var template = productRoot.Products.FirstOrDefault(p => p.Default) ?? productRoot.Products.FirstOrDefault();
-        var defaultPrice = template?.Price ?? 0;
-        var defaultCost = template?.CostOfGoods ?? 0;
-        var templateStockSettings = template?.ProductWarehouses?.ToList() ?? [];
-
         // Compute full Cartesian product of current variant option values
         var allCombinations = productRoot.ProductOptions
             .Where(o => o.IsVariant)
@@ -2489,10 +2492,12 @@ public class ProductService(
             variantData.Add((keyName.Key, keyName.Name, sku));
         }
 
-        // Check for SKU duplicates (excluding this product's own variants)
+        // Check for SKU duplicates against all existing products (including surviving variants of the same product root)
         var skusToCheck = variantData.Select(v => v.Sku).ToList();
+        if (skusToCheck.Count != skusToCheck.Distinct(StringComparer.OrdinalIgnoreCase).Count()) return -1;
+
         var existingSkus = await db.Products
-            .Where(p => p.ProductRootId != productRoot.Id && p.Sku != null && skusToCheck.Contains(p.Sku))
+            .Where(p => p.Sku != null && skusToCheck.Contains(p.Sku))
             .Select(p => p.Sku!)
             .ToListAsync(cancellationToken);
 
