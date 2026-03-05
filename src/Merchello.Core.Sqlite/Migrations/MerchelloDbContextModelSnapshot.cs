@@ -3640,7 +3640,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("merchelloProductFiltersProducts");
+                    b.ToTable("merchelloProductFiltersProducts", (string)null);
                 });
 
             modelBuilder.Entity("merchelloProductRootCollections", b =>
@@ -3655,7 +3655,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("ProductRootId");
 
-                    b.ToTable("merchelloProductRootCollections");
+                    b.ToTable("merchelloProductRootCollections", (string)null);
                 });
 
             modelBuilder.Entity("merchelloProductRootShippingOptions", b =>
@@ -3670,7 +3670,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                     b.HasIndex("ShippingOptionId");
 
-                    b.ToTable("merchelloProductRootShippingOptions");
+                    b.ToTable("merchelloProductRootShippingOptions", (string)null);
                 });
 
             modelBuilder.Entity("Merchello.Core.AddressLookup.Models.AddressLookupProviderSetting", b =>
@@ -3798,7 +3798,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                             b1.HasKey("InvoiceId");
 
-                            b1.ToTable("merchelloInvoices");
+                            b1.ToTable("merchelloInvoices", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("InvoiceId");
@@ -3820,7 +3820,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                                     b2.HasKey("AddressInvoiceId");
 
-                                    b2.ToTable("merchelloInvoices");
+                                    b2.ToTable("merchelloInvoices", (string)null);
 
                                     b2.WithOwner()
                                         .HasForeignKey("AddressInvoiceId");
@@ -3887,7 +3887,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                             b1.HasKey("InvoiceId");
 
-                            b1.ToTable("merchelloInvoices");
+                            b1.ToTable("merchelloInvoices", (string)null);
 
                             b1.WithOwner()
                                 .HasForeignKey("InvoiceId");
@@ -3909,7 +3909,7 @@ namespace Merchello.Core.Sqlite.Migrations
 
                                     b2.HasKey("AddressInvoiceId");
 
-                                    b2.ToTable("merchelloInvoices");
+                                    b2.ToTable("merchelloInvoices", (string)null);
 
                                     b2.WithOwner()
                                         .HasForeignKey("AddressInvoiceId");

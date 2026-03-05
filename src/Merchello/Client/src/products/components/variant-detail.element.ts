@@ -524,7 +524,8 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
               alias="url"
               label="URL Slug"
               description="Custom URL path for this variant"
-              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox">
+              property-editor-ui-alias="Umb.PropertyEditorUi.TextBox"
+              .config=${[{ alias: "maxChars", value: 1000 }]}>
             </umb-property>
           </umb-property-dataset>
         </uui-box>

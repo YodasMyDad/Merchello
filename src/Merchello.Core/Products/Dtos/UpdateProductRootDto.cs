@@ -56,7 +56,6 @@ public class UpdateProductRootDto
     /// </summary>
     public List<ProductPackageDto>? DefaultPackageConfigurations { get; set; }
 
-    [MaxLength(5000)]
     public string? Description { get; set; }
 
     // SEO

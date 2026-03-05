@@ -32,7 +32,6 @@ public class ProductRootDbMapping : IEntityTypeConfiguration<ProductRoot>
         builder.Property(x => x.DefaultPackageConfigurations).ToJsonConversion(4000);
 
         // SEO fields
-        builder.Property(x => x.Description).HasMaxLength(5000);
         builder.Property(x => x.MetaDescription).HasMaxLength(200);
         builder.Property(x => x.PageTitle).HasMaxLength(100);
         builder.Property(x => x.OpenGraphImage).HasMaxLength(50);
