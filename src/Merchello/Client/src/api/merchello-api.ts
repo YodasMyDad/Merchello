@@ -168,6 +168,9 @@ async function apiDelete(endpoint: string): Promise<{ error?: Error }> {
 }
 
 // Types (only what we actually use)
+// Import action types
+import type { ActionDto, ExecuteActionDto, ExecuteActionResultDto } from "@shared/types/action.types.js";
+
 // Import order types
 import type {
   OrderPageDto,
@@ -2547,4 +2550,53 @@ export const MerchelloApi = {
   getHealthCheckDetail: (alias: string, page: number = 1, pageSize: number = 25) =>
     apiGet<HealthCheckDetailPageDto>(
       `health-checks/${encodeURIComponent(alias)}/details?page=${page}&pageSize=${pageSize}`),
+
+  // ============================================
+  // Merchello Actions API
+  // ============================================
+
+  /** Get available actions for a category */
+  getActions: (category: string) =>
+    apiGet<ActionDto[]>(`actions?category=${encodeURIComponent(category)}`),
+
+  /** Execute a server-side action */
+  executeAction: (dto: ExecuteActionDto) =>
+    apiPost<ExecuteActionResultDto>('actions/execute', dto),
+
+  /** Execute a download action and return the file blob */
+  downloadAction: async (
+    dto: ExecuteActionDto
+  ): Promise<{ blob?: Blob; filename?: string; error?: Error }> => {
+    try {
+      const headers = await getHeaders();
+      const baseUrl = apiConfig.baseUrl || '';
+      const url = `${baseUrl}${API_BASE}/actions/download`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: apiConfig.credentials,
+        headers,
+        body: JSON.stringify(dto),
+      });
+
+      if (!response.ok) {
+        return { error: new Error(`HTTP ${response.status}: ${response.statusText}`) };
+      }
+
+      const blob = await response.blob();
+
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = 'download';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+        }
+      }
+
+      return { blob, filename };
+    } catch (error) {
+      return { error: error instanceof Error ? error : new Error(String(error)) };
+    }
+  },
 };

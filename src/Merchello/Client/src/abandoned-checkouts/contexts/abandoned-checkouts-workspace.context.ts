@@ -7,6 +7,7 @@ import {
 } from "@umbraco-cms/backoffice/workspace";
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE } from "@tree/types/tree.types.js";
+import { MerchelloTreeExpansionController } from "@tree/services/tree-expansion.controller.js";
 
 export const MERCHELLO_ABANDONED_CHECKOUTS_WORKSPACE_ALIAS = "Merchello.AbandonedCheckouts.Workspace";
 
@@ -27,6 +28,8 @@ export class MerchelloAbandonedCheckoutsWorkspaceContext
 
     this.#entityContext.setEntityType(MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE);
     this.#entityContext.setUnique("abandoned-checkouts");
+
+    new MerchelloTreeExpansionController(this, MERCHELLO_ABANDONED_CHECKOUTS_ENTITY_TYPE, "abandoned-checkouts");
 
     this.routes = new UmbWorkspaceRouteManager(host);
 

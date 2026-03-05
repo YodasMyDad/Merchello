@@ -16,6 +16,8 @@ using Merchello.Core.Checkout.Handlers;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services;
 using Merchello.Core.Checkout.Services.Interfaces;
+using Merchello.Core.Actions;
+using Merchello.Core.Actions.Interfaces;
 using Merchello.Core.Checkout.Strategies;
 using Merchello.Core.Checkout.Strategies.Interfaces;
 using Merchello.Core.Customers.Factories;
@@ -335,6 +337,7 @@ public static class Startup
         builder.Services.AddScoped<IOrderStatusHandler, DefaultOrderStatusHandler>();
         builder.Services.AddScoped<IOrderGroupingStrategyResolver, OrderGroupingStrategyResolver>();
         builder.Services.AddScoped<DefaultOrderGroupingStrategy>();
+        builder.Services.AddSingleton<IActionResolver, ActionResolver>();
         builder.Services.AddScoped<IAbandonedCheckoutService, AbandonedCheckoutService>();
 
         // Customers
@@ -753,6 +756,7 @@ public static class Startup
         var commerceProtocolAdapterType = typeof(ICommerceProtocolAdapter);
         var productFeedResolverType = typeof(IProductFeedValueResolver);
         var healthCheckType = typeof(IHealthCheck);
+        var merchelloActionType = typeof(IMerchelloAction);
 
         HashSet<Assembly> discoveredAssemblies = [];
 
@@ -784,7 +788,8 @@ public static class Startup
                      emailAttachmentType.IsAssignableFrom(t) ||
                      commerceProtocolAdapterType.IsAssignableFrom(t) ||
                      productFeedResolverType.IsAssignableFrom(t) ||
-                     healthCheckType.IsAssignableFrom(t)));
+                     healthCheckType.IsAssignableFrom(t) ||
+                     merchelloActionType.IsAssignableFrom(t)));
 
                 if (hasProviders)
                 {

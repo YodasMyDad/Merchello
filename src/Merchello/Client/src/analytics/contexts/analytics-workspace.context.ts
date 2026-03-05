@@ -7,6 +7,7 @@ import {
 } from "@umbraco-cms/backoffice/workspace";
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { MERCHELLO_ANALYTICS_ENTITY_TYPE } from "@tree/types/tree.types.js";
+import { MerchelloTreeExpansionController } from "@tree/services/tree-expansion.controller.js";
 
 export const MERCHELLO_ANALYTICS_WORKSPACE_ALIAS = "Merchello.Analytics.Workspace";
 
@@ -24,6 +25,7 @@ export class MerchelloAnalyticsWorkspaceContext
 
     this.#entityContext.setEntityType(MERCHELLO_ANALYTICS_ENTITY_TYPE);
     this.#entityContext.setUnique("analytics");
+    new MerchelloTreeExpansionController(this, MERCHELLO_ANALYTICS_ENTITY_TYPE, "analytics");
 
     this.routes = new UmbWorkspaceRouteManager(host);
 
