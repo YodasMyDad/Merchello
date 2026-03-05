@@ -141,7 +141,6 @@ jobs:
           rsync -a \
             --exclude='bin/' --exclude='obj/' --exclude='.vs/' \
             --exclude='.template.config/' \
-            --exclude='Properties/launchSettings.json' \
             --exclude='appsettings.Development.json' \
             --exclude='appsettings-schema.json' \
             --exclude='appsettings-schema.*.json' \
@@ -165,6 +164,10 @@ jobs:
 
           # Rename .csproj to include .Web suffix
           mv "${PROJECT_DIR}/Merchello.Site.csproj" "${PROJECT_DIR}/Merchello.Site.Web.csproj"
+
+          # Rename launch profile to match template project name
+          sed -i 's/"Umbraco.Web.UI"/"Merchello.Site.Web"/' \
+            "${PROJECT_DIR}/Properties/launchSettings.json"
 
           # Rewrite namespaces: Merchello.Site. -> Merchello.Site.Web. in .cs and .cshtml files
           find "${PROJECT_DIR}" \( -name '*.cs' -o -name '*.cshtml' \) -exec \

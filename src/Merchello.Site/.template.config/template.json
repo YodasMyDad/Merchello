@@ -38,6 +38,24 @@
       },
       "replaces": "Merchello.Site.Web",
       "fileRename": "Merchello.Site.Web"
+    },
+    "httpPort": {
+      "type": "generated",
+      "generator": "port",
+      "parameters": {
+        "fallback": 5000
+      },
+      "replaces": "46071"
+    },
+    "httpsPort": {
+      "type": "generated",
+      "generator": "port",
+      "parameters": {
+        "low": 44300,
+        "high": 44399,
+        "fallback": 5001
+      },
+      "replaces": "44371"
     }
   },
   "sources": [
@@ -49,7 +67,6 @@
             "**/obj/**",
             "**/.vs/**",
             "**/.gitignore",
-            "**/Properties/launchSettings.json",
             "**/appsettings.Development.json",
             "**/appsettings-schema.json",
             "**/appsettings-schema.*.json",
