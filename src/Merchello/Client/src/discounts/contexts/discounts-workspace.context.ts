@@ -8,6 +8,7 @@ import {
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { UmbObjectState, UmbBooleanState } from "@umbraco-cms/backoffice/observable-api";
 import { MERCHELLO_DISCOUNTS_ENTITY_TYPE } from "@tree/types/tree.types.js";
+import { MerchelloTreeExpansionController } from "@tree/services/tree-expansion.controller.js";
 import {
   DiscountMethod,
   DiscountStatus,
@@ -54,6 +55,7 @@ export class MerchelloDiscountsWorkspaceContext
 
     this.#entityContext.setEntityType(MERCHELLO_DISCOUNTS_ENTITY_TYPE);
     this.#entityContext.setUnique("discounts");
+    new MerchelloTreeExpansionController(this, MERCHELLO_DISCOUNTS_ENTITY_TYPE, "discounts");
 
     this.routes = new UmbWorkspaceRouteManager(host);
     this._loadSettings();

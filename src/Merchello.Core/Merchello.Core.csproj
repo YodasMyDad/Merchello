@@ -46,7 +46,7 @@
     <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.2" />
     <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="Humanizer" Version="3.0.1" />
+    <PackageReference Include="Humanizer" Version="3.0.8" />
 
     <!-- RFC 8941 Structured Field Values parsing for UCP-Agent headers -->
     <PackageReference Include="StructuredFieldValues" Version="0.7.6" />
@@ -62,12 +62,12 @@
     <PackageReference Include="Amazon.Pay.API.SDK" Version="2.7.4" />
     <PackageReference Include="Braintree" Version="5.39.0" />
     <PackageReference Include="PayPalServerSDK" Version="2.2.0" />
-    <PackageReference Include="Stripe.net" Version="50.3.0" />
+    <PackageReference Include="Stripe.net" Version="50.4.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
 
     <!-- FTP/SFTP for Supplier Direct fulfilment provider -->
-    <PackageReference Include="FluentFTP" Version="51.*" />
-    <PackageReference Include="SSH.NET" Version="2024.*" />
+    <PackageReference Include="FluentFTP" Version="53.0.2" />
+    <PackageReference Include="SSH.NET" Version="2025.1.0" />
   </ItemGroup>
 
   <ItemGroup>

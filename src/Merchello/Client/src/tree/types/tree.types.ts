@@ -8,6 +8,7 @@ export interface MerchelloTreeItemModel extends UmbTreeItemModel {
   isFolder: boolean;
   icon?: string;
   parent: { unique: string | null; entityType: string };
+  ancestors?: Array<{ entityType: string; unique: string | null }>;
 }
 
 export interface MerchelloTreeRootModel extends UmbTreeRootModel {

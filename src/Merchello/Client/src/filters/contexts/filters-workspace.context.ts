@@ -7,6 +7,7 @@ import {
 } from "@umbraco-cms/backoffice/workspace";
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { MERCHELLO_FILTERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
+import { MerchelloTreeExpansionController } from "@tree/services/tree-expansion.controller.js";
 
 export const MERCHELLO_FILTERS_WORKSPACE_ALIAS = "Merchello.Filters.Workspace";
 
@@ -24,6 +25,7 @@ export class MerchelloFiltersWorkspaceContext
 
     this.#entityContext.setEntityType(MERCHELLO_FILTERS_ENTITY_TYPE);
     this.#entityContext.setUnique("filters");
+    new MerchelloTreeExpansionController(this, MERCHELLO_FILTERS_ENTITY_TYPE, "filters");
 
     this.routes = new UmbWorkspaceRouteManager(host);
 

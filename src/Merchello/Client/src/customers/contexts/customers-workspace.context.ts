@@ -8,6 +8,7 @@ import {
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { UmbObjectState } from "@umbraco-cms/backoffice/observable-api";
 import { MERCHELLO_CUSTOMERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
+import { MerchelloTreeExpansionController } from "@tree/services/tree-expansion.controller.js";
 import type { CustomerSegmentDetailDto } from "@customers/types/segment.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
@@ -37,6 +38,7 @@ export class MerchelloCustomersWorkspaceContext
 
     this.#entityContext.setEntityType(MERCHELLO_CUSTOMERS_ENTITY_TYPE);
     this.#entityContext.setUnique("customers");
+    new MerchelloTreeExpansionController(this, MERCHELLO_CUSTOMERS_ENTITY_TYPE, "customers");
 
     this.routes = new UmbWorkspaceRouteManager(host);
 

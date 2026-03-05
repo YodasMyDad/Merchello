@@ -8,6 +8,7 @@ import {
 import type { UmbControllerHost } from "@umbraco-cms/backoffice/controller-api";
 import { UmbObjectState, UmbBooleanState, UmbStringState } from "@umbraco-cms/backoffice/observable-api";
 import { MERCHELLO_NOTIFICATIONS_ENTITY_TYPE } from "@tree/types/tree.types.js";
+import { MerchelloTreeExpansionController } from "@tree/services/tree-expansion.controller.js";
 import type { NotificationDiscoveryResultDto } from "@notifications/types/notifications.types.js";
 import { MerchelloApi } from "@api/merchello-api.js";
 
@@ -44,6 +45,7 @@ export class MerchelloNotificationsWorkspaceContext
 
     this.#entityContext.setEntityType(MERCHELLO_NOTIFICATIONS_ENTITY_TYPE);
     this.#entityContext.setUnique("notifications");
+    new MerchelloTreeExpansionController(this, MERCHELLO_NOTIFICATIONS_ENTITY_TYPE, "notifications");
 
     this.routes = new UmbWorkspaceRouteManager(host);
 
