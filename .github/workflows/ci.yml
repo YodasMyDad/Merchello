@@ -160,11 +160,8 @@ jobs:
           cp -r src/Merchello.Site/.template.config "${CONTENT_DIR}/.template.config"
 
           # Create .slnx solution file at content root
-          cat > "${CONTENT_DIR}/Merchello.Site.slnx" <<'SLNX'
-<Solution>
-  <Project Path="Merchello.Site.Web/Merchello.Site.Web.csproj" />
-</Solution>
-SLNX
+          printf '<Solution>\n  <Project Path="Merchello.Site.Web/Merchello.Site.Web.csproj" />\n</Solution>\n' \
+            > "${CONTENT_DIR}/Merchello.Site.slnx"
 
           # Rename .csproj to include .Web suffix
           mv "${PROJECT_DIR}/Merchello.Site.csproj" "${PROJECT_DIR}/Merchello.Site.Web.csproj"
