@@ -1,6 +1,14 @@
 import { MERCHELLO_ORDERS_ENTITY_TYPE } from "@tree/types/tree.types.js";
 
 export const manifests: Array<UmbExtensionManifest> = [
+  // Generic action sidebar modal for custom plugin actions
+  {
+    type: "modal",
+    alias: "Merchello.ActionSidebar.Modal",
+    name: "Merchello Action Sidebar Modal",
+    js: () => import("@shared/modals/action-sidebar-modal.element.js"),
+  },
+
   // Fulfillment modal for creating shipments
   {
     type: "modal",

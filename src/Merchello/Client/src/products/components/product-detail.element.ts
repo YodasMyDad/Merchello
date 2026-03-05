@@ -36,6 +36,7 @@ import { badgeStyles } from "@shared/styles/badge.styles.js";
 import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigation.js";
 import { formatCurrency } from "@shared/utils/formatting.js";
 import "@shared/components/editable-text-list.element.js";
+import "@shared/components/actions-dropdown.element.js";
 
 // Shared components
 import "@products/components/variant-basic-info.element.js";
@@ -2650,6 +2651,12 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             aria-label="Product name"
             aria-required="true">
           </uui-input>
+          ${!isNew ? html`
+            <merchello-actions-dropdown
+              category="productRoot"
+              .productRootId=${this._product?.id}
+            ></merchello-actions-dropdown>
+          ` : nothing}
         </div>
 
         <!-- Inner body layout for tabs + content -->

@@ -33,6 +33,7 @@ import "@orders/components/payment-link-panel.element.js";
 
 // Import shared components
 import "@shared/components/line-item-identity.element.js";
+import "@shared/components/actions-dropdown.element.js";
 
 @customElement("merchello-order-detail")
 export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
@@ -640,6 +641,11 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
         </div>
         <div class="fulfillment-footer">
           <div class="fulfillment-actions">
+            <merchello-actions-dropdown
+              category="order"
+              .invoiceId=${this._order?.id}
+              .orderId=${fulfillmentOrder.id}
+            ></merchello-actions-dropdown>
             ${fulfillmentOrder.canReleaseSupplierDirect
               ? html`
                   <uui-button
@@ -932,6 +938,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           <span class="badge ${order.fulfillmentStatusCssClass}">${order.fulfillmentStatus}</span>
           ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
           ${this._renderSourceBadge(order)}
+          <merchello-actions-dropdown
+            category="invoice"
+            .invoiceId=${order.id}
+          ></merchello-actions-dropdown>
         </div>
 
         <!-- Inner layout with tabs -->

@@ -24,6 +24,7 @@ import type { StockSettingsChangeDetail } from "@products/components/variant-sto
 import type { PackagesChangeDetail } from "@products/components/product-packages.element.js";
 import type { FiltersChangeDetail } from "@products/components/product-filters.element.js";
 import type { ShippingExclusionsChangeDetail } from "@products/components/product-shipping-exclusions.element.js";
+import "@shared/components/actions-dropdown.element.js";
 
 // ============================================
 // Component
@@ -701,6 +702,11 @@ export class MerchelloVariantDetailElement extends UmbElementMixin(LitElement) {
             placeholder="Variant name"
             aria-label="Variant name">
           </uui-input>
+          <merchello-actions-dropdown
+            category="product"
+            .productRootId=${this._product?.id}
+            .productId=${this._variant?.id}
+          ></merchello-actions-dropdown>
         </div>
 
         <!-- Inner body layout for tabs + content -->
