@@ -128,9 +128,20 @@ jobs:
           find "${PROJECT_DIR}" \( -name '*.cs' -o -name '*.cshtml' \) -exec \
             sed -i 's/Merchello\.Site\./Merchello.Site.Web./g' {} +
 
+          # Strip Windows carriage returns so sed patterns match reliably
+          sed -i 's/\r$//' "${PROJECT_DIR}/Merchello.Site.Web.csproj"
+
           # Replace ProjectReference with PackageReference
-          sed -i 's|<ProjectReference Include="\.\.\\Merchello\\Merchello\.csproj" />|<PackageReference Include="Umbraco.Community.Merchello" Version="'"${VERSION}"'" />|' \
+          sed -i 's|<ProjectReference Include="\.\.\\Merchello\\Merchello\.csproj"\s*/>|<PackageReference Include="Umbraco.Community.Merchello" Version="'"${VERSION}"'" />|' \
             "${PROJECT_DIR}/Merchello.Site.Web.csproj"
+
+          # Verify replacement succeeded
+          if grep -q "Umbraco.Community.Merchello" "${PROJECT_DIR}/Merchello.Site.Web.csproj"; then
+            echo "✓ PackageReference to Umbraco.Community.Merchello added"
+          else
+            echo "ERROR: Failed to add PackageReference to Umbraco.Community.Merchello"
+            exit 1
+          fi
 
           # Remove _ContentIncludedByDefault items
           sed -i '/<_ContentIncludedByDefault Remove=/d' \

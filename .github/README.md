@@ -19,7 +19,20 @@ Just create a fork of this project, and run the app (Make sure you have cleared 
 
 ## Nuget Quick Start
 
-If you want to use the Nuget package, just install the latest version of Umbraco and then install the Merchello nuget package. **However, be aware you are only installing Merchello and not the Starter Site (Front end)**.
+To get the starter site (With Merchello already installed) use the .NET Template
+
+```bash
+dotnet new install Umbraco.Community.Merchello.StarterSite
+dotnet new merchello-starter -n MyStore
+```
+
+This will scaffold a project named MyStore.Web (it appends .Web automatically). You can override the project name with --projectName:
+
+```bash
+dotnet new merchello-starter -n MyStore --projectName MyCustomProjectName
+```
+
+Or if you want to use the Nuget package directly and build out your own front end, just install the latest version of Umbraco and then install the Merchello nuget package. **Remember, you are only installing Merchello and not the Starter Site (Front end)**.
 
 ```bash
 dotnet add package Umbraco.Community.Merchello

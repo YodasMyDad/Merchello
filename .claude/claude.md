@@ -8,6 +8,7 @@ Ethos: making enterprise ecommerce simple; avoid over-engineered code.
 1. Trace real code paths before changing anything.
 - Do not assume docs are correct.
 - Start from controller to service to factory/provider, then modify.
+- If you are asked about architecture, read docs/Architecture-Diagrams.md first to get up to speed then check the code base
 
 2. Preserve architecture boundaries.
 - Controllers: HTTP orchestration only; no business logic; no `DbContext`.
