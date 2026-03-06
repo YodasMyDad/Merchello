@@ -75,6 +75,20 @@ jobs:
           git tag "${{ steps.release.outputs.tag }}"
           git push origin "${{ steps.release.outputs.tag }}"
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/Merchello/Client/package-lock.json
+
+      - name: Build frontend assets
+        working-directory: src/Merchello/Client
+        run: |
+          npm ci
+          npm run build:backoffice
+          npm run build:checkout
+
       - name: Build and create NuGet packages
         shell: bash
         run: |
