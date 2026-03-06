@@ -80,8 +80,7 @@ export function downloadCsv(content: string, filename: string): void {
  */
 export function formatDateForCsv(dateString: string): string {
   const date = new Date(dateString);
-  return date.toLocaleDateString("en-GB", {
-    timeZone: "UTC",
+  return date.toLocaleDateString("en-GB", {    
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

@@ -99,18 +99,30 @@ describe("csv utilities", () => {
 
   describe("formatDateForCsv", () => {
     it("formats date in DD/MM/YYYY format", () => {
-      const result = formatDateForCsv("2024-06-15T10:30:00Z");
-      expect(result).toBe("15/06/2024");
+      const dateString = "2024-06-15T10:30:00Z";
+      const result = formatDateForCsv(dateString);
+
+      const expected = new Date(dateString).toLocaleDateString("en-GB");
+
+      expect(result).toBe(expected);
     });
 
     it("handles dates at start of year", () => {
-      const result = formatDateForCsv("2024-01-01T00:00:00Z");
-      expect(result).toBe("01/01/2024");
+      const dateString = "2024-01-01T00:00:00Z";
+      const result = formatDateForCsv(dateString);
+
+      const expected = new Date(dateString).toLocaleDateString("en-GB");
+
+      expect(result).toBe(expected);
     });
 
     it("handles dates at end of year", () => {
-      const result = formatDateForCsv("2024-12-31T23:59:59Z");
-      expect(result).toBe("31/12/2024");
+      const dateString = "2024-12-31T23:59:59Z";
+      const result = formatDateForCsv(dateString);
+
+      const expected = new Date(dateString).toLocaleDateString("en-GB");
+
+      expect(result).toBe(expected);
     });
   });
 });
