@@ -1,0 +1,14 @@
+{
+  "id": "Merchello.ActionExamples",
+  "name": "Merchello Action Examples",
+  "version": "0.0.0",
+  "allowTelemetry": false,
+  "extensions": [
+    {
+      "name": "Merchello Action Examples Bundle",
+      "alias": "Merchello.ActionExamples.Bundle",
+      "type": "bundle",
+      "js": "/_content/Merchello.ActionExamples/merchello-action-examples.js"
+    }
+  ]
+}

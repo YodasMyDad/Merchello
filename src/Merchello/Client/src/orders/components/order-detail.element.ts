@@ -1585,6 +1585,10 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     /* Fulfillment Card - Shopify-like styling */
     .fulfillment-card {
       padding: 0;
+    }
+
+    .fulfillment-card .fulfillment-header {
+      border-radius: var(--uui-border-radius) var(--uui-border-radius) 0 0;
       overflow: hidden;
     }
 

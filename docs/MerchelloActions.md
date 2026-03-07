@@ -6,7 +6,7 @@ Custom actions allow third-party NuGet packages to add buttons to Merchello back
 
 ## Overview
 
-Actions are auto-discovered at runtime via `ExtensionManager`. You implement `IMerchelloAction` in a class library or Razor Class Library (RCL), and Merchello finds it from any loaded assembly — no manual registration required.
+Actions are discovered at runtime via `ExtensionManager` from the assemblies registered into Merchello's startup scan in `AddMerchello(...)`. You implement `IMerchelloAction` in a class library or Razor Class Library (RCL), ensure the host calls `builder.AddMerchello()`, and reference or pass the action assembly so it is included in that scan.
 
 Each action declares:
 - **Where** it appears (category)
@@ -360,7 +360,8 @@ public class PrintPackingSlipAction : IMerchelloAction
 1. Create a .NET class library targeting the same framework as your Umbraco site
 2. Add a package reference to `Umbraco.Community.Merchello.Core`
 3. Implement `IMerchelloAction`
-4. Reference the class library from your Umbraco web project
+4. Ensure the host app calls `builder.AddMerchello()` during startup
+5. Reference the class library from your Umbraco web project, or pass its assembly to `AddMerchello(pluginAssemblies)` for deterministic discovery
 
 ### Razor Class Library (Sidebar actions)
 
@@ -370,7 +371,8 @@ public class PrintPackingSlipAction : IMerchelloAction
 4. Place your JavaScript custom element in `wwwroot/`
 5. Set `SidebarJsModule` to `"/_content/YourAssemblyName/your-element.js"`
 6. Set `SidebarElementTag` to your custom element tag name
-7. Reference the RCL from your Umbraco web project
+7. Ensure the host app calls `builder.AddMerchello()` during startup
+8. Reference the RCL from your Umbraco web project, or pass its assembly to `AddMerchello(pluginAssemblies)` for deterministic discovery
 
 ASP.NET automatically serves RCL static files from `/_content/{AssemblyName}/`.
 

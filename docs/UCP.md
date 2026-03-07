@@ -650,7 +650,7 @@ Protocol adapters are discovered using Merchello's existing `ExtensionManager` p
 
 ```csharp
 // Discovery flow (consistent with other providers)
-ExtensionManager → scan assemblies → discover ICommerceProtocolAdapter → DI create → cache
+AddMerchello → seed AssemblyManager → ExtensionManager scan → discover ICommerceProtocolAdapter → DI create → cache
 
 // Similar to existing patterns:
 // - IShippingProvider → ShippingProviderManager
@@ -2115,7 +2115,7 @@ services.AddScoped<ICommerceProtocolManager, CommerceProtocolManager>();
 services.AddScoped<ISigningKeyStore, SigningKeyStore>();
 services.AddScoped<IWebhookSigner, WebhookSigner>();
 services.AddScoped<IUcpAgentProfileService, UcpAgentProfileService>();
-// UCPProtocolAdapter is auto-discovered by ExtensionManager (implements ICommerceProtocolAdapter)
+// UCPProtocolAdapter is discovered by ExtensionManager from the assemblies seeded by AddMerchello(...)
 
 // Notification handlers for UCP order webhooks
 builder.AddNotificationAsyncHandler<OrderStatusChangedNotification, UcpOrderWebhookHandler>();

@@ -8,7 +8,7 @@ This is the single source of truth for Merchello shipping provider architecture 
 
 Use this document when building:
 - Built-in style providers in `src/Merchello.Core/Shipping/Providers/*`
-- Third-party NuGet shipping providers discovered through `ExtensionManager`
+- Third-party NuGet shipping providers discovered through `ExtensionManager` after the host calls `AddMerchello(...)`
 
 Goals:
 - Keep provider implementations architecture-safe
@@ -37,6 +37,7 @@ Clarification:
 
 - `IShippingProviderManager` — `src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProviderManager.cs`
 - `ShippingProviderManager` — `src/Merchello.Core/Shipping/Providers/ShippingProviderManager.cs`
+- `Startup.AddMerchello(...)` — seeds `AssemblyManager` with the assemblies `ExtensionManager` will scan
 
 ### Quote orchestration
 

@@ -56,6 +56,12 @@
         "fallback": 5001
       },
       "replaces": "44371"
+    },
+    "IncludeActionExamples": {
+      "type": "parameter",
+      "dataType": "bool",
+      "defaultValue": "false",
+      "description": "Include reference to Merchello.ActionExamples project (dev only)"
     }
   },
   "sources": [
