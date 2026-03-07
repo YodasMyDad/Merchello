@@ -1,9 +1,12 @@
+using Merchello;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
     .AddComposers()
+    .AddMerchello()
     .Build();
 
 var app = builder.Build();

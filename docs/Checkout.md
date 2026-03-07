@@ -720,7 +720,7 @@ Establish the core infrastructure - URL routing, controller, layout, and setting
 
 | Modified | Change |
 |----------|--------|
-| MerchelloComposer | Register ContentFinder |
+| AddMerchello | Register ContentFinder |
 | Startup.cs | Register `CheckoutSettings` via `Configure<CheckoutSettings>()` |
 
 ### Done When
@@ -1430,7 +1430,7 @@ public enum LogoPosition
 Register `CheckoutSettings` in `Startup.cs` following the existing nested options pattern (like `CacheOptions`):
 
 ```csharp
-// In Startup.cs AddMerch() method
+// In Startup.cs AddMerchello() method
 builder.Services.Configure<CheckoutSettings>(builder.Config.GetSection("Merchello:Checkout"));
 ```
 

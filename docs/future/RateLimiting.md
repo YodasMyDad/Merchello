@@ -55,7 +55,7 @@ All current rate limiting is hardcoded at point-of-use with no centralized confi
 | `CheckoutApiController` | Cart recovery | `cart-recovery:{ip}` | 10 | 1 min |
 | `DownloadsController` | File downloads | Per-IP (ASP.NET Core built-in) | 30 | 1 min |
 
-The downloads endpoint uses ASP.NET Core's built-in `AddRateLimiter` / `[EnableRateLimiting("downloads")]` registered in `MerchelloComposer.cs`, separate from the `IRateLimiter` infrastructure.
+The downloads endpoint uses ASP.NET Core's built-in `AddRateLimiter` / `[EnableRateLimiting("downloads")]` registered in `Startup.AddMerchello(...)`, separate from the `IRateLimiter` infrastructure.
 
 ## Architecture
 

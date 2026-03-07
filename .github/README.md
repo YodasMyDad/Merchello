@@ -3,21 +3,21 @@
 [![NuGet](https://img.shields.io/nuget/vpre/Umbraco.Community.Merchello?color=0273B3)](https://www.nuget.org/packages/Umbraco.Community.Merchello)
 [![Downloads](https://img.shields.io/nuget/dt/Umbraco.Community.Merchello?color=cc9900)](https://www.nuget.org/packages/Umbraco.Community.Merchello/)
 
-**Enterprise ecommerce for Umbraco v17+.** A NuGet package that gives you a full-featured online store with an optional integrated Shopify-style checkout, backoffice management UI, and a pluggable provider architecture.
+**Enterprise ecommerce for Umbraco v17+.** a full-featured online store with an optional integrated Shopify-style checkout, backoffice management UI, and a pluggable provider architecture.
 
-> **Status:** Alpha — actively developed, contributions and feedback welcome.
+> **Status:** Alpha - actively developed, contributions and feedback welcome.
 
 I will try and keep breaking changes minimal, but be aware that until this is out of Beta, there could be breaking changes.
 
 ## Example Starter Site
 
-The `Merchello.Site` project in this repo is a working example store (It will become a dotnet template soon) that allows you to see how to render products, collections/categories, add to cart etc... Right now, not much work has been put into this, it's just a bare bones example that needs improving a lot.
+The `Merchello.Site` project in this repo is a working example store (It's what is used for the .NET Template below) that allows you to see how to render products, collections/categories, add to cart etc... Right now, not much work has been put into this, it's just a bare bones example that needs improving a lot.
 
-Just create a fork of this project, and run the app (Make sure you have cleared any database connection strings) and install Umbraco, you can then install the content using usync, **just watch the video below**.
+Just create a fork of this project, and run the app (Make sure you have cleared any database connection strings) and install Umbraco, you can then install the content using usync, **just watch the video below** - Same applies to the .NET template
 
 [![Starter Site YouTube Video](https://img.youtube.com/vi/jRSXaJpZekE/0.jpg)](https://www.youtube.com/watch?v=jRSXaJpZekE)
 
-## Nuget Quick Start
+## .NET Template (Starter Site)
 
 To get the starter site (With Merchello already installed) use the .NET Template
 
@@ -32,17 +32,26 @@ This will scaffold a project named MyStore.Web (it appends .Web automatically). 
 dotnet new merchello-starter -n MyStore --projectName MyCustomProjectName
 ```
 
+## Nuget (Existing site or from scratch)
+
 Or if you want to use the Nuget package directly and build out your own front end, just install the latest version of Umbraco and then install the Merchello nuget package. **Remember, you are only installing Merchello and not the Starter Site (Front end)**.
 
 ```bash
 dotnet add package Umbraco.Community.Merchello
 ```
 
-Add the following basic/minimum Merchello section to your appSettings
+Then you need to add merchello to the Umbraco builder
 
-## appSettings
+```
+builder.CreateUmbracoBuilder()
+    .AddBackOffice()
+    .AddWebsite()
+    .AddComposers()
+      .AddMerchello()  <<====
+    .Build();
+```
 
-It's important you set some starting settings to your preference before installing, these are the defaults (If you don't want seed data set that to true)
+It's important you set some starting settings in your appSettings to your preference before starting up the project, these are the defaults (If you don't want seed data set that to false)
 
 ```
   "Merchello": {
@@ -59,6 +68,10 @@ Once installed, you need to enable the Merchello section in the Admin users grou
 #### Seed Data
 
 If you left InstallSeedData = true and now click on the main Merchello root branch in the tree, you should see an Install Seed data panel. If you click install, that will install a lot of test data, it can take some time, the panel will disappear when it's done.
+
+#### usync
+
+Don't forget to watch the video about using usync to get the starter content and doc types setup and running. 
 
 ## Docs
 

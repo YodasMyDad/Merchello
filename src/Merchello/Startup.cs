@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Net;
 using System.Threading;
+using System.Threading.RateLimiting;
 using Merchello.Core.AddressLookup.Providers;
 using Merchello.Core.AddressLookup.Providers.Interfaces;
 using Merchello.Core.AddressLookup.Services;
@@ -146,12 +147,20 @@ using Merchello.Factories;
 using Merchello.Routing;
 using Merchello.Services;
 using Merchello.Tax.Services;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Razor;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.OpenApi;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using Umbraco.Cms.Api.Common.OpenApi;
+using Umbraco.Cms.Api.Management.OpenApi;
 using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Routing;
@@ -166,7 +175,7 @@ namespace Merchello;
 public static class Startup
 {
     /// <summary>
-    /// Adds all Merchello services to the Umbraco builder.
+    /// Adds Merchello to the Umbraco builder using an explicit host opt-in.
     /// </summary>
     /// <remarks>
     /// <para>Registration is organized into sections:</para>
@@ -185,7 +194,7 @@ public static class Startup
     /// <param name="builder">The Umbraco builder to add services to.</param>
     /// <param name="pluginAssemblies">Optional assemblies containing Merchello plugin extensions (providers, resolvers, etc.).</param>
     /// <returns>The builder for method chaining.</returns>
-    public static IUmbracoBuilder AddMerch(this IUmbracoBuilder builder, IEnumerable<Assembly>? pluginAssemblies = null)
+    public static IUmbracoBuilder AddMerchello(this IUmbracoBuilder builder, IEnumerable<Assembly>? pluginAssemblies = null)
     {
         // =====================================================
         // Database & Configuration
@@ -231,6 +240,53 @@ public static class Startup
         builder.Services.Configure<Core.Fulfilment.FulfilmentSettings>(builder.Config.GetSection("Merchello:Fulfilment"));
         // Upsell feature settings (suggestions per location, cache duration, event retention)
         builder.Services.Configure<UpsellSettings>(builder.Config.GetSection("Merchello:Upsells"));
+
+        // =====================================================
+        // Host Integration
+        // =====================================================
+
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.AddFixedWindowLimiter("downloads", limiterOptions =>
+            {
+                limiterOptions.PermitLimit = 30;
+                limiterOptions.Window = TimeSpan.FromMinutes(1);
+                limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                limiterOptions.QueueLimit = 5;
+            });
+        });
+
+        // Keep Merchello middleware registration internal once the host has opted in.
+        builder.Services.AddTransient<IStartupFilter, MerchelloStartupFilter>();
+
+        builder.Services.Configure<RazorViewEngineOptions>(options =>
+        {
+            options.ViewLocationFormats.Add("/Views/{1}/{0}.cshtml");
+            options.ViewLocationFormats.Add("/Views/Shared/{0}.cshtml");
+            options.ViewLocationFormats.Add("/Views/Emails/{0}.cshtml");
+            options.ViewLocationFormats.Add("/Views/Emails/Shared/{0}.cshtml");
+            options.ViewLocationFormats.Add("/App_Plugins/Merchello/Views/Emails/{0}.cshtml");
+            options.ViewLocationFormats.Add("/App_Plugins/Merchello/Views/Emails/Shared/{0}.cshtml");
+        });
+
+        builder.Services.AddSingleton<IOperationIdHandler, CustomOperationHandler>();
+        builder.Services.Configure<SwaggerGenOptions>(opt =>
+        {
+            opt.SwaggerDoc(Core.Constants.ApiName, new OpenApiInfo
+            {
+                Title = "Merchello Backoffice API",
+                Version = "1.0",
+            });
+
+            opt.SwaggerDoc(Core.Constants.StorefrontApiName, new OpenApiInfo
+            {
+                Title = "Merchello Storefront API",
+                Version = "1.0",
+                Description = "Public checkout and storefront endpoints for headless clients."
+            });
+
+            opt.OperationFilter<MerchelloOperationSecurityFilter>();
+        });
 
         // =====================================================
         // Infrastructure (Singletons)
