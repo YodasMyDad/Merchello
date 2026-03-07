@@ -14,7 +14,7 @@ Guide for creating Product Feed resolvers for Google feeds (custom labels and cu
 
 Resolver discovery and execution path:
 
-1. `Startup.AddMerch(...)` sets the assembly scan list in `AssemblyManager`.
+1. `Startup.AddMerchello(...)` sets the assembly scan list in `AssemblyManager`.
 2. `ProductFeedResolverRegistry` asks `ExtensionManager` for `IProductFeedValueResolver` implementations.
 3. Backoffice requests resolver descriptors from `ProductFeedService.GetResolversAsync()`.
 4. Feed generation calls `GoogleProductFeedGenerator.ResolveConfiguredValueAsync(...)` per product/custom label/custom field.

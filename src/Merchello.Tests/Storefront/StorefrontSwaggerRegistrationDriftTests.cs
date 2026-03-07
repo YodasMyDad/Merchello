@@ -12,12 +12,21 @@ public class StorefrontSwaggerRegistrationDriftTests
     }
 
     [Fact]
-    public void Composer_ShouldRegisterStorefrontSwaggerDocument()
+    public void AddMerchello_ShouldRegisterStorefrontSwaggerDocument()
     {
-        var composerPath = ResolveRepoFilePath("src", "Merchello", "Composers", "MerchelloComposer.cs");
-        var composerText = File.ReadAllText(composerPath);
+        var startupPath = ResolveRepoFilePath("src", "Merchello", "Startup.cs");
+        var startupText = File.ReadAllText(startupPath);
 
-        composerText.ShouldContain("SwaggerDoc(Core.Constants.StorefrontApiName");
+        startupText.ShouldContain("SwaggerDoc(Core.Constants.StorefrontApiName");
+    }
+
+    [Fact]
+    public void ExampleSite_ShouldOptIntoMerchelloExplicitly()
+    {
+        var programPath = ResolveRepoFilePath("src", "Merchello.Site", "Program.cs");
+        var programText = File.ReadAllText(programPath);
+
+        programText.ShouldContain(".AddMerchello()");
     }
 
     [Fact]

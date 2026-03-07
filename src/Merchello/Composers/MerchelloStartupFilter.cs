@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 namespace Merchello.Composers;
 
 /// <summary>
-/// Adds Merchello middleware to the request pipeline without requiring host app changes.
+/// Adds Merchello middleware to the request pipeline after the host opts in via AddMerchello().
 /// </summary>
 public class MerchelloStartupFilter : IStartupFilter
 {
