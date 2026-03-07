@@ -1095,7 +1095,7 @@ A pluggable attachment system that allows developers to create typed attachment 
 ### Overview
 
 - **Typed attachment generators** - `IEmailAttachment<TNotification>` interface with compile-time type safety
-- **ExtensionManager discovery** - Attachments auto-discovered like shipping providers
+- **ExtensionManager discovery** - Attachments discovered from the assemblies seeded by `AddMerchello(...)`, like shipping providers
 - **Backoffice selection** - Multi-select dropdown to choose attachments per EmailConfiguration
 - **Queue-time generation** - Attachments generated during `QueueDeliveryAsync()` and stored as temp files
 - **File-based storage** - Attachments saved to `App_Data/Email_Attachments/` (not base64 in database)

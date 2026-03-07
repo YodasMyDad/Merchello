@@ -46,8 +46,10 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
   }
 
   private _handleOutsideClick = (e: MouseEvent): void => {
-    if (this._isOpen && !this.contains(e.target as Node)) {
-      this._isOpen = false;
+    if (!this._isOpen) return;
+    // Close if click is outside this component
+    if (!this.contains(e.target as Node)) {
+      this._closeDropdown();
     }
   };
 
@@ -60,11 +62,36 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
 
   private _toggleDropdown(e: Event): void {
     e.stopPropagation();
-    this._isOpen = !this._isOpen;
+    if (this._isOpen) {
+      this._closeDropdown();
+    } else {
+      this._openDropdown();
+    }
+  }
+
+  private _openDropdown(): void {
+    this._isOpen = true;
+    this.updateComplete.then(() => {
+      this._positionDropdown();
+    });
+  }
+
+  private _closeDropdown(): void {
+    this._isOpen = false;
+  }
+
+  private _positionDropdown(): void {
+    const button = this.shadowRoot?.querySelector("uui-button");
+    const menu = this.shadowRoot?.querySelector<HTMLElement>(".dropdown-menu");
+    if (!button || !menu) return;
+
+    const rect = button.getBoundingClientRect();
+    menu.style.top = `${rect.bottom}px`;
+    menu.style.left = `${rect.right}px`;
   }
 
   private async _handleActionClick(action: ActionDto): Promise<void> {
-    this._isOpen = false;
+    this._closeDropdown();
 
     switch (action.behavior) {
       case "serverSide":
@@ -118,14 +145,17 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
       return;
     }
 
-    // Trigger browser download
+    // Trigger browser download — stop propagation to prevent Umbraco's
+    // anchor interceptor from calling pushState with the blob URL.
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = filename ?? "download";
-    document.body.appendChild(a);
+    a.style.display = "none";
+    a.addEventListener("click", (e) => e.stopImmediatePropagation());
+    this.shadowRoot?.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     URL.revokeObjectURL(url);
   }
 
@@ -172,19 +202,21 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
           @click=${this._toggleDropdown}
           ?disabled=${this._isExecuting}
         >
-          <uui-icon name="icon-navigation"></uui-icon>
           Actions
           <uui-icon name="icon-arrow-down" class="caret"></uui-icon>
         </uui-button>
         ${this._isOpen
           ? html`
-              <div class="dropdown-menu">
+              <div class="dropdown-menu" popover="manual">
                 ${this._actions.map(
                   (action) => html`
-                    <button class="dropdown-item" @click=${() => this._handleActionClick(action)} title=${action.description ?? ""}>
-                      ${action.icon ? html`<uui-icon name=${action.icon}></uui-icon>` : nothing}
-                      <span>${action.displayName}</span>
-                    </button>
+                    <uui-menu-item
+                      label=${action.displayName}
+                      title=${action.description ?? ""}
+                      @click-label=${() => this._handleActionClick(action)}
+                    >
+                      ${action.icon ? html`<uui-icon slot="icon" name=${action.icon}></uui-icon>` : nothing}
+                    </uui-menu-item>
                   `
                 )}
               </div>
@@ -192,6 +224,22 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
           : nothing}
       </div>
     `;
+  }
+
+  override updated(changed: Map<string, unknown>): void {
+    super.updated(changed);
+    // Show/hide the popover when _isOpen changes
+    if (changed.has("_isOpen")) {
+      const menu = this.shadowRoot?.querySelector<HTMLElement>(".dropdown-menu");
+      if (menu) {
+        if (this._isOpen) {
+          menu.showPopover();
+          this._positionDropdown();
+        } else {
+          try { menu.hidePopover(); } catch { /* already hidden */ }
+        }
+      }
+    }
   }
 
   static override styles = [
@@ -206,47 +254,23 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
       }
 
       .caret {
-        font-size: 10px;
-        margin-left: 4px;
+        font-size: var(--uui-size-space-3);
+        margin-left: var(--uui-size-space-1);
       }
 
       .dropdown-menu {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        z-index: 1000;
-        min-width: 200px;
+        /* Popover API renders in top layer, escaping all overflow:hidden ancestors */
+        position: fixed;
+        margin: 0;
         padding: var(--uui-size-space-2) 0;
+        min-width: 200px;
         background: var(--uui-color-surface);
         border: 1px solid var(--uui-color-border);
         border-radius: var(--uui-border-radius);
         box-shadow: var(--uui-shadow-depth-3, 0 2px 12px rgba(0, 0, 0, 0.15));
         display: flex;
         flex-direction: column;
-      }
-
-      .dropdown-item {
-        display: flex;
-        align-items: center;
-        gap: var(--uui-size-space-3);
-        padding: var(--uui-size-space-3) var(--uui-size-space-4);
-        border: none;
-        background: none;
-        cursor: pointer;
-        font-size: var(--uui-type-small-size);
-        color: var(--uui-color-text);
-        text-align: left;
-        width: 100%;
-        white-space: nowrap;
-      }
-
-      .dropdown-item:hover {
-        background: var(--uui-color-surface-emphasis);
-      }
-
-      .dropdown-item uui-icon {
-        font-size: 16px;
-        flex-shrink: 0;
+        transform: translateX(-100%);
       }
     `,
   ];

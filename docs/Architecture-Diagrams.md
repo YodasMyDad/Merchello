@@ -13,6 +13,21 @@ Ethos: making enterprise ecommerce simple.
 - Multi-warehouse - Variant-level stock with priority-based warehouse selection
 - Single Source of Truth - All business logic and calculations are centralized in services. Key calculations (tax, totals, discounts, payment status, stock) must never be duplicated—always call the designated service method or provider. This ensures consistency, auditability, and maintainability across the entire system.
 
+### Host Integration
+
+Merchello is now an explicit host opt-in. The host app must call `AddMerchello()` during Umbraco builder setup:
+
+```csharp
+builder.CreateUmbracoBuilder()
+    .AddBackOffice()
+    .AddWebsite()
+    .AddComposers()
+    .AddMerchello()
+    .Build();
+```
+
+`AddMerchello(IEnumerable<Assembly>? pluginAssemblies = null)` is also where Merchello seeds plugin discovery for `ExtensionManager`.
+
 ### Architecture Layers
 
 ```
@@ -593,7 +608,16 @@ Single Implementation: Always use CalculateProportionalShippingTax() - never dup
 
 ### 4.1 Extension Manager
 
-ExtensionManager scans assemblies to discover and instantiate provider implementations.
+`ExtensionManager` scans the assemblies captured in `AssemblyManager` to discover and instantiate provider implementations.
+
+Discovery source of truth:
+- `Startup.AddMerchello(...)` adds Merchello's own assemblies
+- it adds any explicit `pluginAssemblies` passed by the host
+- it also includes already-loaded assemblies that implement Merchello plugin interfaces
+
+Implication:
+- `ExtensionManager` does not independently walk all project or NuGet references later
+- if a third-party plugin assembly is not loaded early enough, pass it to `AddMerchello(pluginAssemblies)`
 
 ```csharp
 public class ExtensionManager(IServiceProvider serviceProvider)

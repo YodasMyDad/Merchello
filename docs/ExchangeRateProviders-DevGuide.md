@@ -8,7 +8,8 @@ Guide for third-party developers creating custom exchange rate providers.
 2. Reference `Merchello.Core`
 3. Implement `IExchangeRateProvider`
 4. Package as NuGet
-5. Install - Merchello auto-discovers via assembly scanning
+5. Ensure the host app calls `builder.AddMerchello()`
+6. Install or reference the provider assembly so it is included in Merchello's startup assembly scan
 
 ## Key Difference from Other Providers
 
@@ -695,7 +696,7 @@ var validRates = apiRates
 
 ## Notes
 
-- Providers are auto-discovered via assembly scanning - no DI registration needed
+- Providers are discovered via `ExtensionManager` from the assemblies captured by `AddMerchello(...)`; no explicit provider DI registration is required
 - Only one provider can be active at a time (radio button selection in UI)
 - Sensitive config values (API keys) are stored encrypted at rest
 - Consider rate limiting to avoid exceeding API quotas

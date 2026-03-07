@@ -164,8 +164,9 @@ For resolvers in a separate assembly/package:
 2. Reference `Merchello.Core` (and `Umbraco.Cms.Core` if you add a composer).
 3. Implement resolver classes (`IProductFeedValueResolver`, optional metadata interface).
 4. Register custom constructor dependencies in a composer (if needed).
-5. Deploy assembly with the Umbraco site.
-6. Verify resolver appears in `GET .../product-feeds/resolvers`.
+5. Ensure the host app calls `builder.AddMerchello()`.
+6. Deploy or reference the assembly with the Umbraco site, or pass it to `AddMerchello(pluginAssemblies)` for deterministic discovery.
+7. Verify resolver appears in `GET .../product-feeds/resolvers`.
 
 ### Minimal Composer Example (external assembly)
 

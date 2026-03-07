@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.ArchitectureAnaly
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.StarterSite.Template", "Merchello.StarterSite.Template\Merchello.StarterSite.Template.csproj", "{2D5BC61A-D747-48A6-9853-8640A365C8C2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Merchello.ActionExamples", "Merchello.ActionExamples\Merchello.ActionExamples.csproj", "{3E5E5F79-FBCB-4042-809B-63448D21FB38}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -130,6 +132,18 @@ Global
 		{2D5BC61A-D747-48A6-9853-8640A365C8C2}.Release|x64.Build.0 = Release|Any CPU
 		{2D5BC61A-D747-48A6-9853-8640A365C8C2}.Release|x86.ActiveCfg = Release|Any CPU
 		{2D5BC61A-D747-48A6-9853-8640A365C8C2}.Release|x86.Build.0 = Release|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Debug|x64.Build.0 = Debug|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Debug|x86.Build.0 = Debug|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Release|x64.ActiveCfg = Release|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Release|x64.Build.0 = Release|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Release|x86.ActiveCfg = Release|Any CPU
+		{3E5E5F79-FBCB-4042-809B-63448D21FB38}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

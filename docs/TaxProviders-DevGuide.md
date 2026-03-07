@@ -38,8 +38,8 @@ Key entry points:
 
 ### 1.2 Provider discovery and activation
 
-- Providers are discovered by `ExtensionManager` from scanned assemblies.
-- Startup scans loaded assemblies for `ITaxProvider` implementations.
+- Providers are discovered by `ExtensionManager` from the assemblies seeded into `AssemblyManager`.
+- `Startup.AddMerchello(...)` scans Merchello assemblies, explicit `pluginAssemblies`, and already-loaded assemblies for `ITaxProvider` implementations.
 - Exactly one provider is active at a time.
 - If none active, `TaxProviderManager` defaults to `manual` when available.
 

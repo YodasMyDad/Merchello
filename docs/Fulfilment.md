@@ -294,7 +294,7 @@ Manager:
 
 Behavior:
 
-- Discovers providers through `ExtensionManager`.
+- Discovers providers through `ExtensionManager` from the assemblies seeded by `AddMerchello(...)`.
 - Loads persisted fulfilment configs from `ProviderConfigurations.OfType<FulfilmentProviderConfiguration>()`.
 - Calls each provider `ConfigureAsync(config)`.
 - Maintains cached provider instances.
