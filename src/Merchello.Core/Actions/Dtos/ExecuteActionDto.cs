@@ -15,5 +15,11 @@ public record ExecuteActionDto
 
     public Guid? ProductId { get; init; }
 
+    public Guid? CustomerId { get; init; }
+
+    public Guid? WarehouseId { get; init; }
+
+    public Guid? SupplierId { get; init; }
+
     public Dictionary<string, object>? Data { get; init; }
 }

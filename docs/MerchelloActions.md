@@ -23,6 +23,9 @@ Actions are scoped to a page via `ActionCategory`:
 | `Order` | Per fulfillment order card (next to Fulfill button) | `InvoiceId`, `OrderId` |
 | `ProductRoot` | Product detail header | `ProductRootId` |
 | `Product` | Variant detail header | `ProductRootId`, `ProductId` |
+| `Customer` | Customer edit modal | `CustomerId` |
+| `Warehouse` | Warehouse detail header | `WarehouseId` |
+| `Supplier` | Supplier edit modal | `SupplierId` |
 
 ## Behaviors
 
@@ -75,6 +78,9 @@ Passed to `ExecuteAsync` with the relevant entity IDs:
 | `OrderId` | `Guid?` | Fulfillment order ID (Order category) |
 | `ProductRootId` | `Guid?` | Product root ID (ProductRoot and Product categories) |
 | `ProductId` | `Guid?` | Variant product ID (Product category) |
+| `CustomerId` | `Guid?` | Customer ID (Customer category) |
+| `WarehouseId` | `Guid?` | Warehouse ID (Warehouse category) |
+| `SupplierId` | `Guid?` | Supplier ID (Supplier category) |
 | `Data` | `Dictionary<string, object>?` | Optional free-form data from the frontend |
 
 ### ActionResult
@@ -303,6 +309,9 @@ The sidebar modal automatically sets these properties on your element:
 | `orderId` | `string` | Set when category is Order |
 | `productRootId` | `string` | Set when category is ProductRoot or Product |
 | `productId` | `string` | Set when category is Product |
+| `customerId` | `string` | Set when category is Customer |
+| `warehouseId` | `string` | Set when category is Warehouse |
+| `supplierId` | `string` | Set when category is Supplier |
 | `actionKey` | `string` | Always set — the action's unique key |
 | `closeModal` | `() => void` | Call this to close the sidebar modal |
 
@@ -348,6 +357,53 @@ public class PrintPackingSlipAction : IMerchelloAction
     private Task<byte[]> GeneratePackingSlipAsync(Guid orderId, CancellationToken ct)
     {
         // Your PDF generation logic here
+        throw new NotImplementedException();
+    }
+}
+```
+
+### Example 5: Customer Action (Export Customer Data)
+
+Actions on the `Customer` category appear on the customer edit modal.
+
+```csharp
+using Merchello.Core.Actions.Interfaces;
+using Merchello.Core.Actions.Models;
+
+public class ExportCustomerAction : IMerchelloAction
+{
+    public ActionMetadata Metadata => new()
+    {
+        Key = "my-company.export-customer",
+        DisplayName = "Export Customer Data",
+        Category = ActionCategory.Customer,
+        Behavior = ActionBehavior.Download,
+        Icon = "icon-download-alt",
+        SortOrder = 100
+    };
+
+    public async Task<ActionResult> ExecuteAsync(
+        ActionContext context,
+        CancellationToken cancellationToken = default)
+    {
+        if (context.CustomerId is not { } customerId)
+            return ActionResult.Fail("No customer ID provided.");
+
+        // Generate customer export
+        byte[] csv = await GenerateCustomerExportAsync(customerId, cancellationToken);
+
+        return new ActionResult
+        {
+            Success = true,
+            FileBytes = csv,
+            FileName = $"customer-{customerId}.csv",
+            ContentType = "text/csv"
+        };
+    }
+
+    private Task<byte[]> GenerateCustomerExportAsync(Guid customerId, CancellationToken ct)
+    {
+        // Your export logic here
         throw new NotImplementedException();
     }
 }

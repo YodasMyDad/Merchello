@@ -17,6 +17,9 @@ export interface ExecuteActionDto {
   orderId?: string;
   productRootId?: string;
   productId?: string;
+  customerId?: string;
+  warehouseId?: string;
+  supplierId?: string;
   data?: Record<string, unknown>;
 }
 

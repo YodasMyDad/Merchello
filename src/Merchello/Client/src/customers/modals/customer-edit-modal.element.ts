@@ -5,6 +5,7 @@ import type { CustomerEditModalData, CustomerEditModalValue } from "@customers/m
 import { MerchelloApi } from "@api/merchello-api.js";
 import "@umbraco-cms/backoffice/member";
 import "@shared/components/tag-input.element.js";
+import "@shared/components/actions-dropdown.element.js";
 import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const CUSTOMER_EDIT_FORM_ID = "MerchelloCustomerEditForm";
@@ -198,6 +199,12 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     return html`
       <umb-body-layout headline="Edit customer">
         <div id="main">
+          <div class="modal-header-actions">
+            <merchello-actions-dropdown
+              category="customer"
+              .customerId=${this.data?.customer?.id}
+            ></merchello-actions-dropdown>
+          </div>
           ${this._errors.general
             ? html`
                 <div class="error-banner" role="alert">
@@ -439,6 +446,11 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     .field-error {
       color: var(--uui-color-danger);
       font-size: var(--uui-type-small-size);
+    }
+
+    .modal-header-actions {
+      display: flex;
+      justify-content: flex-end;
     }
 
     .error-banner {

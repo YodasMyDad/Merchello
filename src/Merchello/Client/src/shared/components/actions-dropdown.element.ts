@@ -16,6 +16,9 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
   @property({ type: String }) orderId?: string;
   @property({ type: String }) productRootId?: string;
   @property({ type: String }) productId?: string;
+  @property({ type: String }) customerId?: string;
+  @property({ type: String }) warehouseId?: string;
+  @property({ type: String }) supplierId?: string;
 
   @state() private _actions: ActionDto[] = [];
   @state() private _isOpen = false;
@@ -114,6 +117,9 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
       orderId: this.orderId,
       productRootId: this.productRootId,
       productId: this.productId,
+      customerId: this.customerId,
+      warehouseId: this.warehouseId,
+      supplierId: this.supplierId,
     });
     this._isExecuting = false;
 
@@ -137,6 +143,9 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
       orderId: this.orderId,
       productRootId: this.productRootId,
       productId: this.productId,
+      customerId: this.customerId,
+      warehouseId: this.warehouseId,
+      supplierId: this.supplierId,
     });
     this._isExecuting = false;
 
@@ -183,6 +192,9 @@ export class MerchelloActionsDropdownElement extends UmbElementMixin(LitElement)
         orderId: this.orderId,
         productRootId: this.productRootId,
         productId: this.productId,
+        customerId: this.customerId,
+        warehouseId: this.warehouseId,
+        supplierId: this.supplierId,
       },
       modal: { type: "sidebar", size: action.sidebarSize as "small" | "medium" | "large" },
     });

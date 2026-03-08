@@ -34,6 +34,9 @@ export class MerchelloActionSidebarModalElement extends UmbModalBaseElement<
       if (this.data.orderId) elementAny.orderId = this.data.orderId;
       if (this.data.productRootId) elementAny.productRootId = this.data.productRootId;
       if (this.data.productId) elementAny.productId = this.data.productId;
+      if (this.data.customerId) elementAny.customerId = this.data.customerId;
+      if (this.data.warehouseId) elementAny.warehouseId = this.data.warehouseId;
+      if (this.data.supplierId) elementAny.supplierId = this.data.supplierId;
       elementAny.actionKey = this.data.actionKey;
 
       // Provide a close callback so the custom element can close the modal

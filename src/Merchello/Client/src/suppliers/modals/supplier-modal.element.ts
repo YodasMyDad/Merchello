@@ -5,6 +5,7 @@ import type { SupplierModalData, SupplierModalValue } from "@suppliers/modals/su
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
 import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
+import "@shared/components/actions-dropdown.element.js";
 import type {
   CsvDeliverySettingsDto,
   SupplierDirectProfileDto,
@@ -1074,6 +1075,14 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
         <uui-form>
           <form id="SupplierForm" @submit=${this._handleFormSubmit}>
             <div id="main">
+              ${this._isEditMode
+                ? html`<div class="modal-header-actions">
+                    <merchello-actions-dropdown
+                      category="supplier"
+                      .supplierId=${this.data?.supplier?.id}
+                    ></merchello-actions-dropdown>
+                  </div>`
+                : nothing}
               ${this._errors.general
                 ? html`<div class="error-banner" role="alert">${this._errors.general}</div>`
                 : nothing}
@@ -1238,6 +1247,11 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     css`
     :host {
       display: block;
+    }
+
+    .modal-header-actions {
+      display: flex;
+      justify-content: flex-end;
     }
 
     #main {

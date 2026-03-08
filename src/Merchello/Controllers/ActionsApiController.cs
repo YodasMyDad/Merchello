@@ -118,6 +118,9 @@ public class ActionsApiController(IActionResolver actionResolver) : MerchelloApi
         OrderId = dto.OrderId,
         ProductRootId = dto.ProductRootId,
         ProductId = dto.ProductId,
+        CustomerId = dto.CustomerId,
+        WarehouseId = dto.WarehouseId,
+        SupplierId = dto.SupplierId,
         Data = dto.Data
     };
 

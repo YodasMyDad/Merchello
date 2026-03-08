@@ -258,8 +258,8 @@ export class MerchelloCustomersListElement extends UmbElementMixin(LitElement) {
               class="customer-name-link"
               look="placeholder"
               compact
-              label=${`View orders for ${customerName}`}
-              @click=${() => this._handleViewOrders(customer)}>
+              label=${`Edit ${customerName}`}
+              @click=${() => this._handleEditCustomer(customer)}>
               ${customerName}
             </uui-button>
           </div>

@@ -8,5 +8,8 @@ public enum ActionCategory
     Invoice,
     Order,
     ProductRoot,
-    Product
+    Product,
+    Customer,
+    Warehouse,
+    Supplier
 }
