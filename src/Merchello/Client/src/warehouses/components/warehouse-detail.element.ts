@@ -1298,10 +1298,12 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
             placeholder="Warehouse name"
             label="Warehouse name">
           </uui-input>
-          <merchello-actions-dropdown
-            category="warehouse"
-            .warehouseId=${this._warehouse?.id}
-          ></merchello-actions-dropdown>
+          ${!isNew ? html`
+            <merchello-actions-dropdown
+              category="warehouse"
+              .warehouseId=${this._warehouse?.id}
+            ></merchello-actions-dropdown>
+          ` : nothing}
         </div>
 
         <!-- Inner layout with tabs -->
