@@ -1071,18 +1071,19 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     const savingLabel = this._isEditMode ? "Saving..." : "Creating...";
 
     return html`
-      <umb-body-layout headline=${headline}>
+      <umb-body-layout>
+        <div id="header" slot="header">
+          <h3>${headline}</h3>
+          ${this._isEditMode
+            ? html`<merchello-actions-dropdown
+                category="supplier"
+                .supplierId=${this.data?.supplier?.id}
+              ></merchello-actions-dropdown>`
+            : nothing}
+        </div>
         <uui-form>
           <form id="SupplierForm" @submit=${this._handleFormSubmit}>
             <div id="main">
-              ${this._isEditMode
-                ? html`<div class="modal-header-actions">
-                    <merchello-actions-dropdown
-                      category="supplier"
-                      .supplierId=${this.data?.supplier?.id}
-                    ></merchello-actions-dropdown>
-                  </div>`
-                : nothing}
               ${this._errors.general
                 ? html`<div class="error-banner" role="alert">${this._errors.general}</div>`
                 : nothing}
@@ -1249,9 +1250,19 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
       display: block;
     }
 
-    .modal-header-actions {
+    #header {
       display: flex;
-      justify-content: flex-end;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex: 1;
+      padding: var(--uui-size-space-4) 0;
+    }
+
+    #header h3 {
+      margin: 0;
+      flex: 1;
+      font-size: var(--uui-type-h5-size);
+      font-weight: 700;
     }
 
     #main {

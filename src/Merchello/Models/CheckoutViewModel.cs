@@ -1,6 +1,7 @@
 using Merchello.Core.AddressLookup.Dtos;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Shared.Models;
 
@@ -207,4 +208,9 @@ public class CheckoutViewModel
     /// Address lookup configuration for checkout UI.
     /// </summary>
     public AddressLookupClientConfigDto? AddressLookup { get; init; }
+
+    /// <summary>
+    /// Pre-built express checkout configuration to avoid redundant API call.
+    /// </summary>
+    public ExpressCheckoutConfigDto? ExpressCheckoutConfig { get; init; }
 }

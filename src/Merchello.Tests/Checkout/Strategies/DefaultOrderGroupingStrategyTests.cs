@@ -834,6 +834,266 @@ public class DefaultOrderGroupingStrategyTests
         capturedPackages.ElementAt(1).WeightKg.ShouldBe(1m);
     }
 
+    [Fact]
+    public async Task GroupItemsAsync_MultipleWarehouses_FetchesDynamicRatesForBoth()
+    {
+        // Arrange - two warehouses, each with a product
+        var warehouseId1 = Guid.NewGuid();
+        var warehouseId2 = Guid.NewGuid();
+        var productId1 = Guid.NewGuid();
+        var productId2 = Guid.NewGuid();
+        var shippingOptionId1 = Guid.NewGuid();
+        var shippingOptionId2 = Guid.NewGuid();
+
+        var warehouse1 = CreateWarehouse(warehouseId1, "Warehouse 1", shippingOptionId1);
+        var warehouse2 = CreateWarehouse(warehouseId2, "Warehouse 2", shippingOptionId2);
+
+        var product1 = CreateProduct(productId1, warehouse1);
+        product1.PackageConfigurations = [new ProductPackage { Weight = 1m, LengthCm = 20, WidthCm = 20, HeightCm = 10 }];
+        product1.ProductRoot!.AllowExternalCarrierShipping = true;
+
+        var product2 = CreateProduct(productId2, warehouse2);
+        product2.PackageConfigurations = [new ProductPackage { Weight = 2m, LengthCm = 30, WidthCm = 20, HeightCm = 15 }];
+        product2.ProductRoot!.AllowExternalCarrierShipping = true;
+
+        var lineItems = new List<LineItem>
+        {
+            CreateLineItem(productId1, quantity: 1, amount: 50m),
+            CreateLineItem(productId2, quantity: 1, amount: 75m)
+        };
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product>
+            {
+                [productId1] = product1,
+                [productId2] = product2
+            },
+            warehouses: new Dictionary<Guid, Warehouse>
+            {
+                [warehouseId1] = warehouse1,
+                [warehouseId2] = warehouse2
+            },
+            lineItems: lineItems,
+            countryCode: "GB");
+
+        // Warehouse selection: product1 -> warehouse1, product2 -> warehouse2
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId1),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult { Warehouse = warehouse1 });
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId2),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult { Warehouse = warehouse2 });
+
+        // Both warehouses return dynamic quotes
+        _shippingQuoteServiceMock
+            .Setup(x => x.GetQuotesForWarehouseAsync(
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId1),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ShippingRateQuote>
+            {
+                new()
+                {
+                    ProviderKey = "fedex",
+                    ProviderName = "FedEx",
+                    Metadata = new ShippingProviderMetadata
+                    {
+                        Key = "fedex",
+                        DisplayName = "FedEx",
+                        ConfigCapabilities = new ProviderConfigCapabilities { UsesLiveRates = true }
+                    },
+                    ServiceLevels = new[]
+                    {
+                        new ShippingServiceLevel
+                        {
+                            ServiceCode = "FEDEX_GROUND",
+                            ServiceName = "FedEx Ground",
+                            TotalCost = 8.99m,
+                            CurrencyCode = "USD",
+                            TransitTime = TimeSpan.FromDays(3)
+                        }
+                    }
+                }
+            });
+
+        _shippingQuoteServiceMock
+            .Setup(x => x.GetQuotesForWarehouseAsync(
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId2),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ShippingRateQuote>
+            {
+                new()
+                {
+                    ProviderKey = "ups",
+                    ProviderName = "UPS",
+                    Metadata = new ShippingProviderMetadata
+                    {
+                        Key = "ups",
+                        DisplayName = "UPS",
+                        ConfigCapabilities = new ProviderConfigCapabilities { UsesLiveRates = true }
+                    },
+                    ServiceLevels = new[]
+                    {
+                        new ShippingServiceLevel
+                        {
+                            ServiceCode = "UPS_GROUND",
+                            ServiceName = "UPS Ground",
+                            TotalCost = 11.50m,
+                            CurrencyCode = "USD",
+                            TransitTime = TimeSpan.FromDays(4)
+                        }
+                    }
+                }
+            });
+
+        // Act
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Groups.Count.ShouldBe(2);
+
+        // Warehouse 1 group should have FedEx option
+        var group1 = result.Groups.First(g => g.WarehouseId == warehouseId1);
+        var fedexOption = group1.AvailableShippingOptions.FirstOrDefault(o => o.ProviderKey == "fedex");
+        fedexOption.ShouldNotBeNull();
+        fedexOption.Cost.ShouldBe(8.99m);
+        fedexOption.ServiceCode.ShouldBe("FEDEX_GROUND");
+
+        // Warehouse 2 group should have UPS option
+        var group2 = result.Groups.First(g => g.WarehouseId == warehouseId2);
+        var upsOption = group2.AvailableShippingOptions.FirstOrDefault(o => o.ProviderKey == "ups");
+        upsOption.ShouldNotBeNull();
+        upsOption.Cost.ShouldBe(11.50m);
+        upsOption.ServiceCode.ShouldBe("UPS_GROUND");
+
+        // Verify both warehouses were queried
+        _shippingQuoteServiceMock.Verify(
+            x => x.GetQuotesForWarehouseAsync(
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId1),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        _shippingQuoteServiceMock.Verify(
+            x => x.GetQuotesForWarehouseAsync(
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId2),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GroupItemsAsync_MultipleWarehouses_OneFailsOtherSucceeds()
+    {
+        // Arrange - warehouse 1 fails, warehouse 2 succeeds
+        var warehouseId1 = Guid.NewGuid();
+        var warehouseId2 = Guid.NewGuid();
+        var productId1 = Guid.NewGuid();
+        var productId2 = Guid.NewGuid();
+        var shippingOptionId1 = Guid.NewGuid();
+        var shippingOptionId2 = Guid.NewGuid();
+
+        var warehouse1 = CreateWarehouse(warehouseId1, "Warehouse 1", shippingOptionId1);
+        var warehouse2 = CreateWarehouse(warehouseId2, "Warehouse 2", shippingOptionId2);
+
+        var product1 = CreateProduct(productId1, warehouse1);
+        product1.PackageConfigurations = [new ProductPackage { Weight = 1m, LengthCm = 20, WidthCm = 20, HeightCm = 10 }];
+        product1.ProductRoot!.AllowExternalCarrierShipping = true;
+
+        var product2 = CreateProduct(productId2, warehouse2);
+        product2.PackageConfigurations = [new ProductPackage { Weight = 2m, LengthCm = 30, WidthCm = 20, HeightCm = 15 }];
+        product2.ProductRoot!.AllowExternalCarrierShipping = true;
+
+        var lineItems = new List<LineItem>
+        {
+            CreateLineItem(productId1, quantity: 1, amount: 50m),
+            CreateLineItem(productId2, quantity: 1, amount: 75m)
+        };
+
+        var context = CreateContext(
+            products: new Dictionary<Guid, Product>
+            {
+                [productId1] = product1,
+                [productId2] = product2
+            },
+            warehouses: new Dictionary<Guid, Warehouse>
+            {
+                [warehouseId1] = warehouse1,
+                [warehouseId2] = warehouse2
+            },
+            lineItems: lineItems,
+            countryCode: "GB");
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId1),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult { Warehouse = warehouse1 });
+
+        _warehouseServiceMock
+            .Setup(x => x.SelectWarehouseForProduct(
+                It.Is<SelectWarehouseForProductParameters>(p => p.Product.Id == productId2),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new WarehouseSelectionResult { Warehouse = warehouse2 });
+
+        // Warehouse 1: throws exception (simulates carrier API failure)
+        _shippingQuoteServiceMock
+            .Setup(x => x.GetQuotesForWarehouseAsync(
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId1),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Carrier API timeout"));
+
+        // Warehouse 2: returns quotes successfully
+        _shippingQuoteServiceMock
+            .Setup(x => x.GetQuotesForWarehouseAsync(
+                It.Is<GetWarehouseQuotesParameters>(p => p.WarehouseId == warehouseId2),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ShippingRateQuote>
+            {
+                new()
+                {
+                    ProviderKey = "ups",
+                    ProviderName = "UPS",
+                    Metadata = new ShippingProviderMetadata
+                    {
+                        Key = "ups",
+                        DisplayName = "UPS",
+                        ConfigCapabilities = new ProviderConfigCapabilities { UsesLiveRates = true }
+                    },
+                    ServiceLevels = new[]
+                    {
+                        new ShippingServiceLevel
+                        {
+                            ServiceCode = "UPS_GROUND",
+                            ServiceName = "UPS Ground",
+                            TotalCost = 11.50m,
+                            CurrencyCode = "USD",
+                            TransitTime = TimeSpan.FromDays(4)
+                        }
+                    }
+                }
+            });
+
+        // Act - should not throw despite warehouse 1 failure
+        var result = await _strategy.GroupItemsAsync(context);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        result.Groups.Count.ShouldBe(2);
+
+        // Warehouse 1 group should have no dynamic options (failure was caught)
+        var group1 = result.Groups.First(g => g.WarehouseId == warehouseId1);
+        group1.AvailableShippingOptions.ShouldNotContain(o => o.ProviderKey == "fedex");
+
+        // Warehouse 2 group should still have UPS option (error isolation)
+        var group2 = result.Groups.First(g => g.WarehouseId == warehouseId2);
+        var upsOption = group2.AvailableShippingOptions.FirstOrDefault(o => o.ProviderKey == "ups");
+        upsOption.ShouldNotBeNull();
+        upsOption.Cost.ShouldBe(11.50m);
+    }
+
     private static OrderGroupingContext CreateContext(
         Dictionary<Guid, Product>? products = null,
         Dictionary<Guid, Warehouse>? warehouses = null,

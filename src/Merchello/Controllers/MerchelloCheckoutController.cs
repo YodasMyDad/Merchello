@@ -1,5 +1,6 @@
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
+using Merchello.Core.Payments.Dtos;
 using Merchello.Core.Shared.Dtos;
 using Merchello.Core.Checkout.Models;
 using Merchello.Core.Checkout.Services.Interfaces;
@@ -15,6 +16,7 @@ using Merchello.Core.Storefront.Models;
 using Merchello.Core.Storefront.Services;
 using Merchello.Core.Storefront.Services.Interfaces;
 using Merchello.Models;
+using Merchello.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewEngines;
@@ -43,6 +45,7 @@ public class MerchelloCheckoutController(
     IAddressLookupService addressLookupService,
     ICurrencyService currencyService,
     IMemberManager memberManager,
+    ICheckoutPaymentsOrchestrationService checkoutPaymentsService,
     IAbandonedCheckoutService? abandonedCheckoutService = null,
     IMerchelloStoreSettingsService? storeSettingsService = null)
     : RenderController(logger, compositeViewEngine, umbracoContextAccessor)
@@ -378,8 +381,16 @@ public class MerchelloCheckoutController(
         MerchelloSettings merchelloSettings,
         CancellationToken ct)
     {
-        // Load basket
-        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
+        // Group 1: Independent calls before InitializeCheckoutAsync
+        var basketTask = checkoutService.GetBasket(new GetBasketParameters(), ct);
+        var displayContextTask = storefrontContext.GetDisplayContextAsync(ct);
+        var billingCountriesTask = checkoutService.GetAllCountriesAsync(new GetAvailableBillingCountriesParameters(), ct);
+        var shippingCountriesTask = checkoutService.GetAvailableCountriesAsync(new GetAvailableShippingCountriesParameters(), ct);
+        var storefrontLocationTask = storefrontContext.GetShippingLocationAsync(ct);
+
+        await Task.WhenAll(basketTask, displayContextTask, billingCountriesTask, shippingCountriesTask, storefrontLocationTask);
+
+        var basket = await basketTask;
 
         if (basket == null || basket.LineItems.Count == 0)
         {
@@ -387,39 +398,33 @@ public class MerchelloCheckoutController(
             return Redirect("/");
         }
 
-        // Get full display context (currency + tax-inclusive settings)
-        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        var displayContext = await displayContextTask;
         var displayCurrencyCode = displayContext.CurrencyCode;
         var displayCurrencySymbol = displayContext.CurrencySymbol;
         var exchangeRate = displayContext.ExchangeRate;
 
-        // Load checkout session if basket exists
-        var session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
-
-        // Load available countries for billing (all countries) and shipping (restricted by warehouse regions)
-        var billingCountriesResult = await checkoutService.GetAllCountriesAsync(
-            new GetAvailableBillingCountriesParameters(),
-            ct);
+        var billingCountriesResult = await billingCountriesTask;
         var billingCountries = billingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
-        var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(
-            new GetAvailableShippingCountriesParameters(),
-            ct);
+        var shippingCountriesResult = await shippingCountriesTask;
         var shippingCountries = shippingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
-        // Determine default country - prioritize storefront cookie (user's current selection) over saved data
-        var storefrontLocation = await storefrontContext.GetShippingLocationAsync(ct);
+        var storefrontLocation = await storefrontLocationTask;
+
+        // Load session before defaultCountryCode (depends on basket.Id)
+        var preInitSession = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
+
         var defaultCountryCode = storefrontLocation.CountryCode
-            ?? session?.ShippingAddress?.CountryCode
+            ?? preInitSession?.ShippingAddress?.CountryCode
             ?? basket.ShippingAddress?.CountryCode
             ?? merchelloSettings.DefaultShippingCountry
             ?? "US";
 
         var defaultStateCode = storefrontLocation.RegionCode
-            ?? session?.ShippingAddress?.CountyState?.RegionCode
+            ?? preInitSession?.ShippingAddress?.CountyState?.RegionCode
             ?? basket.ShippingAddress?.CountyState?.RegionCode;
 
-        // Initialize checkout with default country to get shipping groups
+        // Initialize checkout with default country to get shipping groups (depends on basket)
         List<ShippingGroupDto>? shippingGroups = null;
         if (!string.IsNullOrEmpty(defaultCountryCode))
         {
@@ -430,7 +435,7 @@ public class MerchelloCheckoutController(
                     CountryCode = defaultCountryCode,
                     StateCode = defaultStateCode,
                     AutoSelectShipping = true,
-                    Email = session?.BillingAddress.Email
+                    Email = preInitSession?.BillingAddress.Email
                 }, ct);
 
             if (initResult.Success && initResult.ResultObject != null)
@@ -449,25 +454,29 @@ public class MerchelloCheckoutController(
             }
         }
 
-        // Reload session after initialization (may have been updated)
-        session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
+        // Group 2: Independent calls after InitializeCheckoutAsync
+        var sessionTask = checkoutSessionService.GetSessionAsync(basket.Id, ct);
+        var discountTask = discountService.HasActiveCodeDiscountsAsync(ct);
+        var memberTask = memberManager.GetCurrentMemberAsync();
+        var digitalTask = checkoutService.BasketHasDigitalProductsAsync(new BasketHasDigitalProductsParameters { Basket = basket }, ct);
+        var addressLookupTask = addressLookupService.GetClientConfigAsync(null, ct);
 
-        // Check if there are any active discount codes to show the discount input
-        var showDiscountCode = await discountService.HasActiveCodeDiscountsAsync(ct);
+        // Express config is optional - client falls back to API call if this fails
+        var expressConfigTask = BuildExpressConfigSafeAsync(basket, ct);
 
-        // Check if the current user is logged in as a member
-        var currentMember = await memberManager.GetCurrentMemberAsync();
+        await Task.WhenAll(sessionTask, discountTask, memberTask, digitalTask, addressLookupTask, expressConfigTask);
+
+        var session = await sessionTask;
+        var showDiscountCode = await discountTask;
+        var currentMember = await memberTask;
+        var hasDigitalProducts = await digitalTask;
+        var addressLookupConfig = await addressLookupTask;
+        var expressConfig = await expressConfigTask;
+
         var isLoggedIn = currentMember != null;
-
-        // Check if basket contains digital products (requires account creation)
-        var hasDigitalProducts = await checkoutService.BasketHasDigitalProductsAsync(
-            new BasketHasDigitalProductsParameters { Basket = basket },
-            ct);
 
         // Calculate display amounts using centralized method (includes tax-inclusive calculations and GROSS reconciliation)
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
-
-        var addressLookupConfig = await addressLookupService.GetClientConfigAsync(null, ct);
 
         var viewModel = new CheckoutViewModel(
             CheckoutStep.Information,
@@ -499,7 +508,8 @@ public class MerchelloCheckoutController(
             TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
             FormattedTaxInclusiveDisplaySubTotal = $"{displayCurrencySymbol}{displayAmounts.TaxInclusiveSubTotal.ToString($"N{displayContext.DecimalPlaces}")}",
             TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
-            AddressLookup = addressLookupConfig
+            AddressLookup = addressLookupConfig,
+            ExpressCheckoutConfig = expressConfig
         };
 
         return View("~/App_Plugins/Merchello/Views/Checkout/SinglePage.cshtml", viewModel);
@@ -653,5 +663,21 @@ public class MerchelloCheckoutController(
                 : group.SelectedShippingOptionId,
             HasFallbackRates = group.AvailableShippingOptions.Any(o => o.IsFallbackRate)
         }).ToList();
+    }
+
+    /// <summary>
+    /// Builds express config without throwing - returns null on failure so the client can fall back to the API.
+    /// </summary>
+    private async Task<ExpressCheckoutConfigDto?> BuildExpressConfigSafeAsync(Basket basket, CancellationToken ct)
+    {
+        try
+        {
+            return await checkoutPaymentsService.BuildExpressConfigFromBasketAsync(basket, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to build express checkout config during page render; client will fall back to API");
+            return null;
+        }
     }
 }

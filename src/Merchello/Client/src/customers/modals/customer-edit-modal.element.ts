@@ -197,14 +197,15 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
 
   override render() {
     return html`
-      <umb-body-layout headline="Edit customer">
+      <umb-body-layout>
+        <div id="header" slot="header">
+          <h3>Edit customer</h3>
+          <merchello-actions-dropdown
+            category="customer"
+            .customerId=${this.data?.customer?.id}
+          ></merchello-actions-dropdown>
+        </div>
         <div id="main">
-          <div class="modal-header-actions">
-            <merchello-actions-dropdown
-              category="customer"
-              .customerId=${this.data?.customer?.id}
-            ></merchello-actions-dropdown>
-          </div>
           ${this._errors.general
             ? html`
                 <div class="error-banner" role="alert">
@@ -448,9 +449,19 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
       font-size: var(--uui-type-small-size);
     }
 
-    .modal-header-actions {
+    #header {
       display: flex;
-      justify-content: flex-end;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex: 1;
+      padding: var(--uui-size-space-4) 0;
+    }
+
+    #header h3 {
+      margin: 0;
+      flex: 1;
+      font-size: var(--uui-type-h5-size);
+      font-weight: 700;
     }
 
     .error-banner {

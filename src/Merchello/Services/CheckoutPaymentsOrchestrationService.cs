@@ -1778,8 +1778,63 @@ public class CheckoutPaymentsOrchestrationService(
             CurrencySymbol = currencyCtx.CurrencySymbol
         }, cancellationToken);
 
-        // Use same calculation path as invoice creation (NOT display amounts)
-        // This ensures PayPal authorizes the exact amount that will be charged
+        var amounts = await GetPresentmentAmountsAsync(basket, cancellationToken);
+
+        var config = new ExpressCheckoutConfigDto
+        {
+            Currency = amounts.Currency,
+            Amount = amounts.Total,
+            SubTotal = amounts.SubTotal,
+            Shipping = amounts.Shipping,
+            Tax = amounts.Tax,
+            DecimalPlaces = amounts.DecimalPlaces,
+            Methods = []
+        };
+
+        await PopulateMethodConfigsAsync(config, methods, cancellationToken);
+
+        return config;
+    }
+
+    /// <inheritdoc />
+    public async Task<ExpressCheckoutConfigDto> BuildExpressConfigFromBasketAsync(
+        Basket basket,
+        CancellationToken ct = default)
+    {
+        var methods = await providerManager.GetExpressCheckoutMethodsAsync(ct);
+
+        if (methods.Count == 0 || !basket.LineItems.Any(li => li.ProductId.HasValue))
+        {
+            var emptyCurrency = basket.Currency ?? settings.Value.StoreCurrencyCode;
+            return new ExpressCheckoutConfigDto { Currency = emptyCurrency, Methods = [] };
+        }
+
+        // Use basket's already-computed totals (no redundant shipping calculation)
+        var amounts = await GetPresentmentAmountsAsync(basket, ct);
+
+        var config = new ExpressCheckoutConfigDto
+        {
+            Currency = amounts.Currency,
+            Amount = amounts.Total,
+            SubTotal = amounts.SubTotal,
+            Shipping = amounts.Shipping,
+            Tax = amounts.Tax,
+            DecimalPlaces = amounts.DecimalPlaces,
+            Methods = []
+        };
+
+        await PopulateMethodConfigsAsync(config, methods, ct);
+
+        return config;
+    }
+
+    /// <summary>
+    /// Converts basket amounts to presentment currency using the same calculation path as invoice creation.
+    /// </summary>
+    private async Task<(decimal Total, decimal SubTotal, decimal Shipping, decimal Tax, string Currency, int DecimalPlaces)>
+        GetPresentmentAmountsAsync(Basket basket, CancellationToken cancellationToken)
+    {
+        var currencyCtx = await storefrontContextService.GetCurrencyContextAsync(cancellationToken);
         var presentmentCurrency = currencyCtx.CurrencyCode;
         var storeCurrency = settings.Value.StoreCurrencyCode;
 
@@ -1813,18 +1868,17 @@ public class CheckoutPaymentsOrchestrationService(
             tax = basket.Tax;
         }
 
-        var config = new ExpressCheckoutConfigDto
-        {
-            Currency = presentmentCurrency,
-            Amount = total,
-            SubTotal = subTotal,
-            Shipping = shipping,
-            Tax = tax,
-            DecimalPlaces = currencyCtx.DecimalPlaces,
-            Methods = []
-        };
+        return (total, subTotal, shipping, tax, presentmentCurrency, currencyCtx.DecimalPlaces);
+    }
 
-        // Group methods by provider to minimize provider lookups
+    /// <summary>
+    /// Populates express checkout method configurations by querying each provider for SDK config.
+    /// </summary>
+    private async Task PopulateMethodConfigsAsync(
+        ExpressCheckoutConfigDto config,
+        IReadOnlyCollection<PaymentMethodDto> methods,
+        CancellationToken cancellationToken)
+    {
         var methodsByProvider = methods.GroupBy(m => m.ProviderAlias);
 
         foreach (var providerGroup in methodsByProvider)
@@ -1881,8 +1935,6 @@ public class CheckoutPaymentsOrchestrationService(
                 }
             }
         }
-
-        return config;
     }
 
     /// <summary>
