@@ -5,6 +5,7 @@ import type { CustomerEditModalData, CustomerEditModalValue } from "@customers/m
 import { MerchelloApi } from "@api/merchello-api.js";
 import "@umbraco-cms/backoffice/member";
 import "@shared/components/tag-input.element.js";
+import "@shared/components/actions-dropdown.element.js";
 import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
 
 const CUSTOMER_EDIT_FORM_ID = "MerchelloCustomerEditForm";
@@ -196,7 +197,14 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
 
   override render() {
     return html`
-      <umb-body-layout headline="Edit customer">
+      <umb-body-layout>
+        <div id="header" slot="header">
+          <h3>Edit customer</h3>
+          <merchello-actions-dropdown
+            category="customer"
+            .customerId=${this.data?.customer?.id}
+          ></merchello-actions-dropdown>
+        </div>
         <div id="main">
           ${this._errors.general
             ? html`
@@ -439,6 +447,21 @@ export class MerchelloCustomerEditModalElement extends UmbModalBaseElement<
     .field-error {
       color: var(--uui-color-danger);
       font-size: var(--uui-type-small-size);
+    }
+
+    #header {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex: 1;
+      padding: var(--uui-size-space-4) 0;
+    }
+
+    #header h3 {
+      margin: 0;
+      flex: 1;
+      font-size: var(--uui-type-h5-size);
+      font-weight: 700;
     }
 
     .error-banner {

@@ -10,6 +10,7 @@ import type { UmbNotificationContext } from "@umbraco-cms/backoffice/notificatio
 import type { WarehouseDetailDto, SupplierDto, CountryInfo, ServiceRegionDto } from "@warehouses/types/warehouses.types.js";
 import type { MerchelloWarehousesWorkspaceContext } from "@warehouses/contexts/warehouses-workspace.context.js";
 import { MerchelloApi } from "@api/merchello-api.js";
+import "@shared/components/actions-dropdown.element.js";
 import { MERCHELLO_SERVICE_REGION_MODAL } from "@warehouses/modals/service-region-modal.token.js";
 import { MERCHELLO_SUPPLIER_MODAL } from "@suppliers/modals/supplier-modal.token.js";
 import { MERCHELLO_SHIPPING_OPTION_DETAIL_MODAL } from "@shipping/modals/shipping-option-detail-modal.token.js";
@@ -1297,6 +1298,12 @@ export class MerchelloWarehouseDetailElement extends UmbElementMixin(LitElement)
             placeholder="Warehouse name"
             label="Warehouse name">
           </uui-input>
+          ${!isNew ? html`
+            <merchello-actions-dropdown
+              category="warehouse"
+              .warehouseId=${this._warehouse?.id}
+            ></merchello-actions-dropdown>
+          ` : nothing}
         </div>
 
         <!-- Inner layout with tabs -->

@@ -15,6 +15,12 @@ public record ActionContext
 
     public Guid? ProductId { get; init; }
 
+    public Guid? CustomerId { get; init; }
+
+    public Guid? WarehouseId { get; init; }
+
+    public Guid? SupplierId { get; init; }
+
     /// <summary>
     /// Optional free-form data from the frontend.
     /// </summary>

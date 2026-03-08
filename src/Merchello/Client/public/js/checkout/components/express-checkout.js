@@ -115,14 +115,16 @@ export function initExpressCheckout() {
             this._initialized = true;
 
             try {
-                // Fetch express checkout configuration (methods, SDK urls, etc.)
-                const response = await fetch('/api/merchello/checkout/express-config');
-
-                if (!response.ok) {
-                    throw new Error('Failed to load express checkout configuration');
+                // Use pre-embedded config from server render if available (avoids redundant API call)
+                const embeddedConfig = this.$store?.checkout?.expressConfig;
+                if (embeddedConfig) {
+                    this.config = embeddedConfig;
+                } else {
+                    // Fallback: fetch from API (for dynamic scenarios)
+                    const response = await fetch('/api/merchello/checkout/express-config');
+                    if (!response.ok) throw new Error('Failed to load express checkout configuration');
+                    this.config = await response.json();
                 }
-
-                this.config = await response.json();
                 this.hasExpressMethods = this.config?.methods?.length > 0;
 
                 // API now returns amounts already converted to display currency with proper rounding
@@ -193,8 +195,6 @@ export function initExpressCheckout() {
             }
 
             await this.$nextTick();
-            // Wait for browser paint
-            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             await this.initializeExpressCheckout();
 
             // Skeleton stays visible until buttons are rendered — swap now
@@ -231,14 +231,23 @@ export function initExpressCheckout() {
 
             container.innerHTML = '';
 
-            // Render buttons directly to DOM container
-            // PayPal SDK requires container to be in the actual DOM
+            // Preload all adapter and SDK scripts in parallel (instead of serially per method)
+            const scriptsToLoad = new Set();
             for (const method of methods) {
-                // Check if superseded before each method init (they can be slow)
-                if (requestId !== this._reRenderRequestId) {
-                    return;
-                }
+                if (method.adapterUrl && !this.loadedSdks[method.adapterUrl]) scriptsToLoad.add(method.adapterUrl);
+                if (method.sdkUrl && !this.loadedSdks[method.sdkUrl]) scriptsToLoad.add(method.sdkUrl);
+            }
+            if (scriptsToLoad.size > 0) {
+                await Promise.all([...scriptsToLoad].map(url =>
+                    this.loadScript(url).then(() => { this.loadedSdks[url] = true; })
+                ));
+            }
 
+            if (requestId !== this._reRenderRequestId) return;
+
+            // Render buttons sequentially (required by PayPal SDK)
+            for (const method of methods) {
+                if (requestId !== this._reRenderRequestId) return;
                 try {
                     await this.initializeMethod(method, container);
                 } catch (err) {
@@ -246,7 +255,6 @@ export function initExpressCheckout() {
                 }
             }
 
-            // Only finalize layout if this render completed successfully
             if (requestId === this._reRenderRequestId) {
                 container.style.minHeight = '';
             }

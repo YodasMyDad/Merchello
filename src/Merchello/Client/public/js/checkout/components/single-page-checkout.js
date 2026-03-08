@@ -369,15 +369,26 @@ export function initSinglePageCheckout() {
                     this.showAccountSection = true;
                 }
 
-                // Load regions for initial countries
+                // Load regions and payment methods in parallel
+                const initPromises = [];
                 if (this.form.billing.countryCode) {
-                    this.billingRegions = await loadRegions('billing', this.form.billing.countryCode);
-                    if (this.shippingSameAsBilling) {
-                        this.shippingRegions = [...this.billingRegions];
-                    }
+                    initPromises.push(
+                        loadRegions('billing', this.form.billing.countryCode)
+                            .then(r => { this.billingRegions = r; })
+                    );
                 }
                 if (!this.shippingSameAsBilling && this.form.shipping.countryCode) {
-                    this.shippingRegions = await loadRegions('shipping', this.form.shipping.countryCode);
+                    initPromises.push(
+                        loadRegions('shipping', this.form.shipping.countryCode)
+                            .then(r => { this.shippingRegions = r; })
+                    );
+                }
+                initPromises.push(this.loadPaymentMethods());
+                await Promise.all(initPromises);
+
+                // Copy billing regions to shipping if same address
+                if (this.shippingSameAsBilling && this.billingRegions?.length > 0) {
+                    this.shippingRegions = [...this.billingRegions];
                 }
 
                 // Keep backend-provided shipping option order
@@ -389,9 +400,6 @@ export function initSinglePageCheckout() {
                 if (this.form.shipping.countryCode && !this._shippingCalculated) {
                     await this.calculateShipping();
                 }
-
-                // Load payment methods
-                await this.loadPaymentMethods();
 
                 // Sync totals
                 this.$nextTick(() => {

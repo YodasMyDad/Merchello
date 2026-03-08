@@ -1,4 +1,5 @@
 using Merchello.Core.Checkout.Dtos;
+using Merchello.Core.Checkout.Models;
 using Merchello.Core.Payments.Dtos;
 
 namespace Merchello.Services;
@@ -40,6 +41,8 @@ public interface ICheckoutPaymentsOrchestrationService
         CancellationToken ct = default);
 
     Task<ExpressCheckoutConfigDto> GetExpressCheckoutConfigAsync(CancellationToken ct = default);
+
+    Task<ExpressCheckoutConfigDto> BuildExpressConfigFromBasketAsync(Basket basket, CancellationToken ct = default);
 
     Task<CheckoutApiResult> CreateExpressPaymentIntentAsync(
         ExpressPaymentIntentRequestDto request,

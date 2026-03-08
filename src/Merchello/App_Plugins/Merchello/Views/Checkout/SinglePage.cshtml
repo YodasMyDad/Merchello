@@ -20,7 +20,7 @@
     var defaultState = Model.DefaultStateCode ?? "";
 
     // JSON serialization options for initial data
-    var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.Default };
+    var jsonOptions = new JsonSerializerOptions { Encoder = JavaScriptEncoder.Default, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     var hasShippingGroups = Model.ShippingGroups?.Count > 0;
 
     // Use pre-calculated display amounts from ViewModel (properly rounded via ICurrencyService)
@@ -199,7 +199,8 @@
         checkboxText = Model.Settings.OrderTerms.CheckboxText,
         checkboxRequired = Model.Settings.OrderTerms.CheckboxRequired
     } : (object?)null,
-    addressLookup = Model.AddressLookup
+    addressLookup = Model.AddressLookup,
+    expressConfig = Model.ExpressCheckoutConfig
 }, jsonOptions))
 </script>
 

@@ -444,165 +444,180 @@ public class DefaultOrderGroupingStrategy(
     /// <summary>
     /// Populates dynamic provider rates (FedEx, UPS, etc.) for each order group.
     /// This is the key integration between ShippingQuoteService and order grouping.
+    /// Groups are fetched in parallel since each task modifies only its own group.
     /// </summary>
     private async Task PopulateDynamicProviderRatesAsync(
         List<OrderGroup> orderGroups,
         OrderGroupingContext context,
         CancellationToken cancellationToken)
     {
-        foreach (var group in orderGroups.Where(g => g.WarehouseId.HasValue))
+        var tasks = orderGroups
+            .Where(g => g.WarehouseId.HasValue)
+            .Select(g => FetchDynamicRatesForGroupAsync(g, context, cancellationToken));
+
+        await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Fetches dynamic carrier rates for a single order group's warehouse.
+    /// Each group owns its own AvailableShippingOptions list, so concurrent execution is safe.
+    /// </summary>
+    private async Task FetchDynamicRatesForGroupAsync(
+        OrderGroup group,
+        OrderGroupingContext context,
+        CancellationToken cancellationToken)
+    {
+        // Check if all products in this group allow external carrier shipping
+        var allAllowCarrier = group.LineItems.All(li =>
         {
-            // Check if all products in this group allow external carrier shipping
-            var allAllowCarrier = group.LineItems.All(li =>
+            if (li.LineItemId == Guid.Empty)
             {
-                if (li.LineItemId == Guid.Empty)
-                {
-                    return true;
-                }
-
-                // Find the basket line item to get ProductId
-                var basketItem = context.Basket.LineItems
-                    .FirstOrDefault(b => b.Id == li.LineItemId);
-
-                if (basketItem?.ProductId == null)
-                {
-                    return true;
-                }
-
-                if (!context.Products.TryGetValue(basketItem.ProductId.Value, out var product))
-                {
-                    return true; // Allow if product not found (shouldn't happen)
-                }
-
-                return product.ProductRoot?.AllowExternalCarrierShipping ?? true;
-            });
-
-            if (!allAllowCarrier)
-            {
-                continue; // Skip dynamic rates for this group
+                return true;
             }
-            var warehouseId = group.WarehouseId!.Value;
 
-            // Get warehouse from context
-            if (!context.Warehouses.TryGetValue(warehouseId, out var warehouse))
+            // Find the basket line item to get ProductId
+            var basketItem = context.Basket.LineItems
+                .FirstOrDefault(b => b.Id == li.LineItemId);
+
+            if (basketItem?.ProductId == null)
+            {
+                return true;
+            }
+
+            if (!context.Products.TryGetValue(basketItem.ProductId.Value, out var product))
+            {
+                return true; // Allow if product not found (shouldn't happen)
+            }
+
+            return product.ProductRoot?.AllowExternalCarrierShipping ?? true;
+        });
+
+        if (!allAllowCarrier)
+        {
+            return; // Skip dynamic rates for this group
+        }
+
+        var warehouseId = group.WarehouseId!.Value;
+
+        // Get warehouse from context
+        if (!context.Warehouses.TryGetValue(warehouseId, out var warehouse))
+        {
+            logger.LogWarning(
+                "Warehouse {WarehouseId} not found in context for group {GroupId}",
+                warehouseId, group.GroupId);
+            return;
+        }
+
+        // Fetch per-warehouse provider configs for days override
+        var warehouseConfigs = await warehouseProviderConfigService.GetByWarehouseAsync(warehouseId, cancellationToken);
+        var configByProvider = warehouseConfigs?.ToDictionary(c => c.ProviderKey, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, WarehouseProviderConfig>(StringComparer.OrdinalIgnoreCase);
+
+        // Build packages from line items in this group
+        var packages = BuildPackagesForGroup(group, context);
+        if (packages.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            // Fetch quotes from dynamic providers (FedEx, UPS, etc.)
+            var quotes = await shippingQuoteService.GetQuotesForWarehouseAsync(
+                new GetWarehouseQuotesParameters
+                {
+                    WarehouseId = warehouseId,
+                    WarehouseAddress = warehouse.Address,
+                    Packages = packages,
+                    DestinationCountry = context.ShippingAddress.CountryCode!,
+                    DestinationState = context.ShippingAddress.CountyState?.RegionCode,
+                    DestinationPostal = context.ShippingAddress.PostalCode,
+                    Currency = _settings.StoreCurrencyCode
+                },
+                cancellationToken);
+
+            // Convert quotes to ShippingOptionInfo and add to group
+            foreach (var quote in quotes)
+            {
+                // Only process live-rate providers (skip flat-rate which is already handled)
+                if (quote.Metadata?.ConfigCapabilities?.UsesLiveRates != true)
+                {
+                    continue;
+                }
+
+                foreach (var serviceLevel in quote.ServiceLevels)
+                {
+                    // Check if this service already exists (from a ShippingOption record)
+                    var existing = group.AvailableShippingOptions.FirstOrDefault(o =>
+                        o.ProviderKey == quote.ProviderKey && o.ServiceCode == serviceLevel.ServiceCode);
+
+                    if (existing != null)
+                    {
+                        // Update the cost from the live rate
+                        existing.Cost = serviceLevel.TotalCost;
+                        existing.EstimatedDeliveryDate = serviceLevel.EstimatedDeliveryDate;
+                        existing.IsFallbackRate = quote.IsFallbackRate;
+                        existing.FallbackReason = quote.FallbackReason;
+
+                        // Update transit days from carrier API if not already set
+                        // (enables InferServiceCategory for fulfilment routing)
+                        if (existing.DaysFrom <= 0 && serviceLevel.TransitTime.HasValue)
+                        {
+                            var providerConfig = configByProvider.GetValueOrDefault(quote.ProviderKey);
+                            existing.DaysFrom = providerConfig?.DefaultDaysFromOverride
+                                ?? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays);
+                            existing.DaysTo = providerConfig?.DefaultDaysToOverride
+                                ?? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays) + 1;
+                            existing.IsNextDay = existing.DaysFrom <= 1 && existing.DaysFrom > 0;
+                        }
+                    }
+                    else
+                    {
+                        // Apply warehouse config days override if configured
+                        var providerConfig = configByProvider.GetValueOrDefault(quote.ProviderKey);
+                        var daysFrom = providerConfig?.DefaultDaysFromOverride
+                            ?? (serviceLevel.TransitTime.HasValue
+                                ? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays)
+                                : 0);
+                        var daysTo = providerConfig?.DefaultDaysToOverride
+                            ?? (serviceLevel.TransitTime.HasValue
+                                ? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays) + 1
+                                : 0);
+
+                        // Add as a new dynamic option
+                        var dynamicOption = new ShippingOptionInfo
+                        {
+                            ShippingOptionId = Guid.Empty, // No ShippingOption record
+                            Name = serviceLevel.ServiceName,
+                            ServiceCode = serviceLevel.ServiceCode,
+                            ServiceName = serviceLevel.ServiceName,
+                            Cost = serviceLevel.TotalCost,
+                            ProviderKey = quote.ProviderKey,
+                            EstimatedDeliveryDate = serviceLevel.EstimatedDeliveryDate,
+                            IsFallbackRate = quote.IsFallbackRate,
+                            FallbackReason = quote.FallbackReason,
+                            DaysFrom = daysFrom,
+                            DaysTo = daysTo,
+                            IsNextDay = daysFrom <= 1 && daysFrom > 0
+                        };
+                        group.AvailableShippingOptions.Add(dynamicOption);
+                    }
+                }
+            }
+
+            // Log any errors from providers
+            foreach (var quote in quotes.Where(q => q.Errors.Count > 0))
             {
                 logger.LogWarning(
-                    "Warehouse {WarehouseId} not found in context for group {GroupId}",
-                    warehouseId, group.GroupId);
-                continue;
+                    "Shipping provider {ProviderKey} returned errors for warehouse {WarehouseId}: {Errors}",
+                    quote.ProviderKey, warehouseId, string.Join("; ", quote.Errors));
             }
-
-            // Fetch per-warehouse provider configs for days override
-            var warehouseConfigs = await warehouseProviderConfigService.GetByWarehouseAsync(warehouseId, cancellationToken);
-            var configByProvider = warehouseConfigs?.ToDictionary(c => c.ProviderKey, StringComparer.OrdinalIgnoreCase)
-                ?? new Dictionary<string, WarehouseProviderConfig>(StringComparer.OrdinalIgnoreCase);
-
-            // Build packages from line items in this group
-            var packages = BuildPackagesForGroup(group, context);
-            if (packages.Count == 0)
-            {
-                continue;
-            }
-
-            try
-            {
-                // Fetch quotes from dynamic providers (FedEx, UPS, etc.)
-                var quotes = await shippingQuoteService.GetQuotesForWarehouseAsync(
-                    new GetWarehouseQuotesParameters
-                    {
-                        WarehouseId = warehouseId,
-                        WarehouseAddress = warehouse.Address,
-                        Packages = packages,
-                        DestinationCountry = context.ShippingAddress.CountryCode!,
-                        DestinationState = context.ShippingAddress.CountyState?.RegionCode,
-                        DestinationPostal = context.ShippingAddress.PostalCode,
-                        Currency = _settings.StoreCurrencyCode
-                    },
-                    cancellationToken);
-
-                // Convert quotes to ShippingOptionInfo and add to group
-                foreach (var quote in quotes)
-                {
-                    // Only process live-rate providers (skip flat-rate which is already handled)
-                    if (quote.Metadata?.ConfigCapabilities?.UsesLiveRates != true)
-                    {
-                        continue;
-                    }
-
-                    foreach (var serviceLevel in quote.ServiceLevels)
-                    {
-                        // Check if this service already exists (from a ShippingOption record)
-                        var existing = group.AvailableShippingOptions.FirstOrDefault(o =>
-                            o.ProviderKey == quote.ProviderKey && o.ServiceCode == serviceLevel.ServiceCode);
-
-                        if (existing != null)
-                        {
-                            // Update the cost from the live rate
-                            existing.Cost = serviceLevel.TotalCost;
-                            existing.EstimatedDeliveryDate = serviceLevel.EstimatedDeliveryDate;
-                            existing.IsFallbackRate = quote.IsFallbackRate;
-                            existing.FallbackReason = quote.FallbackReason;
-
-                            // Update transit days from carrier API if not already set
-                            // (enables InferServiceCategory for fulfilment routing)
-                            if (existing.DaysFrom <= 0 && serviceLevel.TransitTime.HasValue)
-                            {
-                                var providerConfig = configByProvider.GetValueOrDefault(quote.ProviderKey);
-                                existing.DaysFrom = providerConfig?.DefaultDaysFromOverride
-                                    ?? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays);
-                                existing.DaysTo = providerConfig?.DefaultDaysToOverride
-                                    ?? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays) + 1;
-                                existing.IsNextDay = existing.DaysFrom <= 1 && existing.DaysFrom > 0;
-                            }
-                        }
-                        else
-                        {
-                            // Apply warehouse config days override if configured
-                            var providerConfig = configByProvider.GetValueOrDefault(quote.ProviderKey);
-                            var daysFrom = providerConfig?.DefaultDaysFromOverride
-                                ?? (serviceLevel.TransitTime.HasValue
-                                    ? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays)
-                                    : 0);
-                            var daysTo = providerConfig?.DefaultDaysToOverride
-                                ?? (serviceLevel.TransitTime.HasValue
-                                    ? (int)Math.Ceiling(serviceLevel.TransitTime.Value.TotalDays) + 1
-                                    : 0);
-
-                            // Add as a new dynamic option
-                            var dynamicOption = new ShippingOptionInfo
-                            {
-                                ShippingOptionId = Guid.Empty, // No ShippingOption record
-                                Name = serviceLevel.ServiceName,
-                                ServiceCode = serviceLevel.ServiceCode,
-                                ServiceName = serviceLevel.ServiceName,
-                                Cost = serviceLevel.TotalCost,
-                                ProviderKey = quote.ProviderKey,
-                                EstimatedDeliveryDate = serviceLevel.EstimatedDeliveryDate,
-                                IsFallbackRate = quote.IsFallbackRate,
-                                FallbackReason = quote.FallbackReason,
-                                DaysFrom = daysFrom,
-                                DaysTo = daysTo,
-                                IsNextDay = daysFrom <= 1 && daysFrom > 0
-                            };
-                            group.AvailableShippingOptions.Add(dynamicOption);
-                        }
-                    }
-                }
-
-                // Log any errors from providers
-                foreach (var quote in quotes.Where(q => q.Errors.Count > 0))
-                {
-                    logger.LogWarning(
-                        "Shipping provider {ProviderKey} returned errors for warehouse {WarehouseId}: {Errors}",
-                        quote.ProviderKey, warehouseId, string.Join("; ", quote.Errors));
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex,
-                    "Failed to fetch dynamic provider rates for warehouse {WarehouseId} in group {GroupId}",
-                    warehouseId, group.GroupId);
-            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Failed to fetch dynamic provider rates for warehouse {WarehouseId} in group {GroupId}",
+                warehouseId, group.GroupId);
         }
     }
 

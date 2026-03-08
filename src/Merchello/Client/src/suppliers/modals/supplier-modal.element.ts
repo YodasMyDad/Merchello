@@ -5,6 +5,7 @@ import type { SupplierModalData, SupplierModalValue } from "@suppliers/modals/su
 import { MerchelloApi } from "@api/merchello-api.js";
 import type { FulfilmentProviderOptionDto } from "@fulfilment-providers/types/fulfilment-providers.types.js";
 import { modalLayoutStyles } from "@shared/styles/modal-layout.styles.js";
+import "@shared/components/actions-dropdown.element.js";
 import type {
   CsvDeliverySettingsDto,
   SupplierDirectProfileDto,
@@ -1070,7 +1071,16 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     const savingLabel = this._isEditMode ? "Saving..." : "Creating...";
 
     return html`
-      <umb-body-layout headline=${headline}>
+      <umb-body-layout>
+        <div id="header" slot="header">
+          <h3>${headline}</h3>
+          ${this._isEditMode
+            ? html`<merchello-actions-dropdown
+                category="supplier"
+                .supplierId=${this.data?.supplier?.id}
+              ></merchello-actions-dropdown>`
+            : nothing}
+        </div>
         <uui-form>
           <form id="SupplierForm" @submit=${this._handleFormSubmit}>
             <div id="main">
@@ -1238,6 +1248,21 @@ export class MerchelloSupplierModalElement extends UmbModalBaseElement<
     css`
     :host {
       display: block;
+    }
+
+    #header {
+      display: flex;
+      align-items: center;
+      gap: var(--uui-size-space-3);
+      flex: 1;
+      padding: var(--uui-size-space-4) 0;
+    }
+
+    #header h3 {
+      margin: 0;
+      flex: 1;
+      font-size: var(--uui-type-h5-size);
+      font-weight: 700;
     }
 
     #main {

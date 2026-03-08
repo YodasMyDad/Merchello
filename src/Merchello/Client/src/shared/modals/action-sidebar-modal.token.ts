@@ -8,6 +8,9 @@ export interface ActionSidebarModalData {
   orderId?: string;
   productRootId?: string;
   productId?: string;
+  customerId?: string;
+  warehouseId?: string;
+  supplierId?: string;
 }
 
 export const MERCHELLO_ACTION_SIDEBAR_MODAL = new UmbModalToken<

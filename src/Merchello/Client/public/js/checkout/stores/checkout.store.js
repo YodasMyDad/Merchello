@@ -173,6 +173,7 @@ function setInterstitialSeenForBasket(basketId, seen) {
  * @param {Object.<string, string>} [initialData.shippingSelections]
  * @param {PaymentMethod[]} [initialData.paymentMethods]
  * @param {AddressLookupConfig} [initialData.addressLookup]
+ * @param {Object} [initialData.expressConfig] - Pre-embedded express checkout configuration
  * @param {boolean} [initialData.billingPhoneRequired]
  */
 export function initCheckoutStore(initialData = {}) {
@@ -243,6 +244,9 @@ export function initCheckoutStore(initialData = {}) {
 
         /** @type {AddressLookupConfig|null} */
         addressLookup: initialData.addressLookup ?? { isEnabled: false },
+
+        /** @type {Object|null} Pre-embedded express checkout config from server */
+        expressConfig: initialData.expressConfig ?? null,
 
         // ============================================
         // ACCOUNT STATE
