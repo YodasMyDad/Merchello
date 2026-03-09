@@ -381,16 +381,8 @@ public class MerchelloCheckoutController(
         MerchelloSettings merchelloSettings,
         CancellationToken ct)
     {
-        // Group 1: Independent calls before InitializeCheckoutAsync
-        var basketTask = checkoutService.GetBasket(new GetBasketParameters(), ct);
-        var displayContextTask = storefrontContext.GetDisplayContextAsync(ct);
-        var billingCountriesTask = checkoutService.GetAllCountriesAsync(new GetAvailableBillingCountriesParameters(), ct);
-        var shippingCountriesTask = checkoutService.GetAvailableCountriesAsync(new GetAvailableShippingCountriesParameters(), ct);
-        var storefrontLocationTask = storefrontContext.GetShippingLocationAsync(ct);
-
-        await Task.WhenAll(basketTask, displayContextTask, billingCountriesTask, shippingCountriesTask, storefrontLocationTask);
-
-        var basket = await basketTask;
+        // Load basket
+        var basket = await checkoutService.GetBasket(new GetBasketParameters(), ct);
 
         if (basket == null || basket.LineItems.Count == 0)
         {
@@ -398,30 +390,37 @@ public class MerchelloCheckoutController(
             return Redirect("/");
         }
 
-        var displayContext = await displayContextTask;
+        // Get full display context (currency + tax-inclusive settings)
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
         var displayCurrencyCode = displayContext.CurrencyCode;
         var displayCurrencySymbol = displayContext.CurrencySymbol;
         var exchangeRate = displayContext.ExchangeRate;
 
-        var billingCountriesResult = await billingCountriesTask;
+        // Load checkout session if basket exists
+        var session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
+
+        // Load available countries for billing (all countries) and shipping (restricted by warehouse regions)
+        var billingCountriesResult = await checkoutService.GetAllCountriesAsync(
+            new GetAvailableBillingCountriesParameters(),
+            ct);
         var billingCountries = billingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
-        var shippingCountriesResult = await shippingCountriesTask;
+        var shippingCountriesResult = await checkoutService.GetAvailableCountriesAsync(
+            new GetAvailableShippingCountriesParameters(),
+            ct);
         var shippingCountries = shippingCountriesResult.Select(c => new CountryDto { Code = c.Code, Name = c.Name }).ToList();
 
-        var storefrontLocation = await storefrontLocationTask;
-
-        // Load session before defaultCountryCode (depends on basket.Id)
-        var preInitSession = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
+        // Determine default country - prioritize storefront cookie (user's current selection) over saved data
+        var storefrontLocation = await storefrontContext.GetShippingLocationAsync(ct);
 
         var defaultCountryCode = storefrontLocation.CountryCode
-            ?? preInitSession?.ShippingAddress?.CountryCode
+            ?? session?.ShippingAddress?.CountryCode
             ?? basket.ShippingAddress?.CountryCode
             ?? merchelloSettings.DefaultShippingCountry
             ?? "US";
 
         var defaultStateCode = storefrontLocation.RegionCode
-            ?? preInitSession?.ShippingAddress?.CountyState?.RegionCode
+            ?? session?.ShippingAddress?.CountyState?.RegionCode
             ?? basket.ShippingAddress?.CountyState?.RegionCode;
 
         // Initialize checkout with default country to get shipping groups (depends on basket)
@@ -435,7 +434,7 @@ public class MerchelloCheckoutController(
                     CountryCode = defaultCountryCode,
                     StateCode = defaultStateCode,
                     AutoSelectShipping = true,
-                    Email = preInitSession?.BillingAddress.Email
+                    Email = session?.BillingAddress.Email
                 }, ct);
 
             if (initResult.Success && initResult.ResultObject != null)
@@ -454,26 +453,25 @@ public class MerchelloCheckoutController(
             }
         }
 
-        // Group 2: Independent calls after InitializeCheckoutAsync
-        var sessionTask = checkoutSessionService.GetSessionAsync(basket.Id, ct);
-        var discountTask = discountService.HasActiveCodeDiscountsAsync(ct);
-        var memberTask = memberManager.GetCurrentMemberAsync();
-        var digitalTask = checkoutService.BasketHasDigitalProductsAsync(new BasketHasDigitalProductsParameters { Basket = basket }, ct);
-        var addressLookupTask = addressLookupService.GetClientConfigAsync(null, ct);
+        // Reload session after initialization (may have been updated)
+        session = await checkoutSessionService.GetSessionAsync(basket.Id, ct);
 
-        // Express config is optional - client falls back to API call if this fails
-        var expressConfigTask = BuildExpressConfigSafeAsync(basket, ct);
+        // Check if there are any active discount codes to show the discount input
+        var showDiscountCode = await discountService.HasActiveCodeDiscountsAsync(ct);
 
-        await Task.WhenAll(sessionTask, discountTask, memberTask, digitalTask, addressLookupTask, expressConfigTask);
-
-        var session = await sessionTask;
-        var showDiscountCode = await discountTask;
-        var currentMember = await memberTask;
-        var hasDigitalProducts = await digitalTask;
-        var addressLookupConfig = await addressLookupTask;
-        var expressConfig = await expressConfigTask;
-
+        // Check if the current user is logged in as a member
+        var currentMember = await memberManager.GetCurrentMemberAsync();
         var isLoggedIn = currentMember != null;
+
+        // Check if basket contains digital products (requires account creation)
+        var hasDigitalProducts = await checkoutService.BasketHasDigitalProductsAsync(
+            new BasketHasDigitalProductsParameters { Basket = basket },
+            ct);
+
+        var addressLookupConfig = await addressLookupService.GetClientConfigAsync(null, ct);
+
+        // Build express config server-side to avoid redundant API call - client falls back if this fails
+        var expressConfig = await BuildExpressConfigSafeAsync(basket, ct);
 
         // Calculate display amounts using centralized method (includes tax-inclusive calculations and GROSS reconciliation)
         var displayAmounts = basket.GetDisplayAmounts(displayContext, currencyService);
