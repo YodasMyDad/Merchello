@@ -66,7 +66,8 @@ public class ProductFeedService(
         "ads_redirect",
         "mobile_link",
         "product_detail",
-        "product_highlight"
+        "product_highlight",
+        "native_commerce"
     };
 
     public async Task<List<ProductFeedListItemDto>> GetFeedsAsync(CancellationToken cancellationToken = default)

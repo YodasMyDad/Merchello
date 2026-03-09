@@ -73,7 +73,8 @@ public class GoogleProductFeedGenerator(
         "ads_redirect",
         "mobile_link",
         "product_detail",
-        "product_highlight"
+        "product_highlight",
+        "native_commerce"
     };
 
     private static readonly HashSet<string> AllowedConditions =
