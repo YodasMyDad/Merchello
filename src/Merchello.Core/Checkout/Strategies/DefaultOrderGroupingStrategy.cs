@@ -444,18 +444,18 @@ public class DefaultOrderGroupingStrategy(
     /// <summary>
     /// Populates dynamic provider rates (FedEx, UPS, etc.) for each order group.
     /// This is the key integration between ShippingQuoteService and order grouping.
-    /// Groups are fetched in parallel since each task modifies only its own group.
+    /// Groups are fetched sequentially because Umbraco's EFCoreScope uses AsyncLocal
+    /// ambient state that does not support concurrent access.
     /// </summary>
     private async Task PopulateDynamicProviderRatesAsync(
         List<OrderGroup> orderGroups,
         OrderGroupingContext context,
         CancellationToken cancellationToken)
     {
-        var tasks = orderGroups
-            .Where(g => g.WarehouseId.HasValue)
-            .Select(g => FetchDynamicRatesForGroupAsync(g, context, cancellationToken));
-
-        await Task.WhenAll(tasks);
+        foreach (var group in orderGroups.Where(g => g.WarehouseId.HasValue))
+        {
+            await FetchDynamicRatesForGroupAsync(group, context, cancellationToken);
+        }
     }
 
     /// <summary>
