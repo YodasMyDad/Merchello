@@ -294,17 +294,22 @@ public class MerchelloCheckoutController(
                             taxInclusiveDiscount = currencyService.Round(
                                 confirmation.DisplayDiscount * (1 + linkedTaxRates[0] / 100m), currency);
                         }
-                        else if (linkedTaxRates.Count > 1 && confirmation.DisplaySubTotal > 0)
-                        {
-                            // Multiple rates - approximate using effective tax rate
-                            var effectiveTaxRate = confirmation.DisplayTax / confirmation.DisplaySubTotal;
-                            taxInclusiveDiscount = currencyService.Round(
-                                confirmation.DisplayDiscount * (1 + effectiveTaxRate), currency);
-                        }
                         else
                         {
-                            // No linked taxable products - discount is not taxable
-                            taxInclusiveDiscount = confirmation.DisplayDiscount;
+                            // Multiple rates or order-level discounts: use weighted effective
+                            // tax rate from product line items directly.
+                            var weightedTaxRate = confirmation.LineItems.GetWeightedEffectiveTaxRate();
+
+                            if (weightedTaxRate > 0)
+                            {
+                                taxInclusiveDiscount = currencyService.Round(
+                                    confirmation.DisplayDiscount * (1 + weightedTaxRate), currency);
+                            }
+                            else
+                            {
+                                // No tax applicable - discount stays as-is
+                                taxInclusiveDiscount = confirmation.DisplayDiscount;
+                            }
                         }
                     }
                 }

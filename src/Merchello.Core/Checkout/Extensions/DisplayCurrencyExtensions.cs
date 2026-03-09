@@ -92,6 +92,17 @@ public static class DisplayCurrencyExtensions
         // Calculate accurate tax-inclusive discount from individual discount line items.
         // IMPORTANT: For percentage discounts, LineItem.Amount stores the percentage (-10),
         // NOT the monetary amount. We must resolve the actual monetary amount first, then apply tax.
+
+        // Compute weighted effective tax rate from product line items for order-level discounts.
+        // We use product TaxRate values directly (not basket.Tax/basket.SubTotal) because
+        // basket.Tax is post-discount and would give a distorted rate.
+        var totalProductAmount = productItems.Sum(li => li.Amount * li.Quantity);
+        var orderLevelEffectiveTaxRate = totalProductAmount > 0
+            ? productItems
+                .Where(li => li.IsTaxable && li.TaxRate > 0)
+                .Sum(li => li.Amount * li.Quantity * li.TaxRate / 100m) / totalProductAmount
+            : 0m;
+
         var accurateTaxInclusiveDiscount = basket.LineItems
             .Where(li => li.LineItemType == LineItemType.Discount)
             .Sum(li =>
@@ -103,6 +114,11 @@ public static class DisplayCurrencyExtensions
                 if (effectiveContext.DisplayPricesIncTax && linkedItem is { IsTaxable: true, TaxRate: > 0 })
                 {
                     discountAmount *= 1 + (linkedItem.TaxRate / 100m);
+                }
+                else if (effectiveContext.DisplayPricesIncTax && linkedItem == null && orderLevelEffectiveTaxRate > 0)
+                {
+                    // Order-level discount: use weighted effective tax rate from product line items
+                    discountAmount *= 1 + orderLevelEffectiveTaxRate;
                 }
                 return currencyService.Round(discountAmount * rate, currency);
             });
@@ -467,6 +483,24 @@ public static class DisplayCurrencyExtensions
         var discrepancy = expectedSum - actualSum;
 
         return rawGrossSubTotal + discrepancy;
+    }
+
+    /// <summary>
+    /// Computes a weighted effective tax rate from product/custom/addon line items.
+    /// Uses actual TaxRate values from products, not basket-level Tax/SubTotal (which is
+    /// distorted because tax is calculated on the post-discount amount).
+    /// </summary>
+    public static decimal GetWeightedEffectiveTaxRate(this IEnumerable<CheckoutLineItemDto> lineItems)
+    {
+        var productItems = lineItems
+            .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
+            .ToList();
+        var totalAmount = productItems.Sum(li => li.UnitPrice * li.Quantity);
+        return totalAmount > 0
+            ? productItems
+                .Where(li => li.IsTaxable && li.TaxRate > 0)
+                .Sum(li => li.UnitPrice * li.Quantity * li.TaxRate / 100m) / totalAmount
+            : 0m;
     }
 
     /// <summary>
