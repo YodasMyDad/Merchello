@@ -1741,7 +1741,7 @@ public class CheckoutService(
                     }
 
                     // Sync currency outside scope — ExchangeRateCache can create its own scope on cache miss
-                    if (hasChanges && updatedBasket != null)
+                    if (updatedBasket != null)
                     {
                         var previousCurrency = updatedBasket.Currency;
                         await SyncBasketCurrencyToCountryAsync(updatedBasket, updatedBasket.ShippingAddress.CountryCode, cancellationToken);

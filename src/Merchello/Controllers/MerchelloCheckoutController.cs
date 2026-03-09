@@ -58,27 +58,11 @@ public class MerchelloCheckoutController(
     /// <summary>
     /// Renders the checkout view for the current step.
     /// </summary>
-    /// <remarks>
-    /// Umbraco's RenderController requires a synchronous Index() override.
-    /// We suppress ExecutionContext flow to prevent the parent's AsyncLocal-based
-    /// EFCoreScope ambient state from leaking into the async method, which would cause
-    /// "The Scope being disposed is not the Ambient Scope" errors.
-    /// </remarks>
-    public override IActionResult Index()
-    {
-        var ct = HttpContext.RequestAborted;
-        var suppressedFlow = ExecutionContext.SuppressFlow();
-        try
-        {
-            return Task.Run(() => IndexAsync(ct)).GetAwaiter().GetResult();
-        }
-        finally
-        {
-            suppressedFlow.Undo();
-        }
-    }
+    [NonAction]
+    public sealed override IActionResult Index()
+        => throw new NotImplementedException("Use the async Index overload.");
 
-    private async Task<IActionResult> IndexAsync(CancellationToken ct)
+    public async Task<IActionResult> Index(CancellationToken ct)
     {
         var runtimeSettings = await GetRuntimeSettingsAsync(ct);
         var checkoutSettings = runtimeSettings.Checkout;
