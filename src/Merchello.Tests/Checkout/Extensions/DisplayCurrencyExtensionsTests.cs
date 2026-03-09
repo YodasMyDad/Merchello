@@ -531,6 +531,277 @@ public class DisplayCurrencyExtensionsTests
 
     #endregion
 
+    #region Tax-Inclusive Discount Tests
+
+    [Fact]
+    public void GetDisplayAmounts_LinkedDiscount_UsesProductTaxRateNotEffectiveRate()
+    {
+        // Arrange - reproduces the exact bug from the issue:
+        // Classic Cotton Tee ($19.99, 20% tax) + Knit Beanie ($14.99, 20% tax)
+        // 10% discount on Tee = $2.00 off (19.99 * 10% = 1.999 → 2.00)
+        // Ex-tax: subtotal=34.98, discount=2.00, adjusted=32.98, tax=6.60, total=39.58
+        var basket = CreateBasket();
+        var tee = CreateLineItem(19.99m, 1, 20m, sku: "TEE-001");
+        var beanie = CreateLineItem(14.99m, 1, 20m, sku: "BEANIE-001");
+        // Percentage discount: Amount stores -10 (the percentage), not -2.00 (the monetary amount)
+        var discount = CreatePercentageDiscountLineItem(10m,
+            sku: "DISC-10PCT-TEE", dependantLineItemSku: "TEE-001");
+
+        basket.LineItems.Add(tee);
+        basket.LineItems.Add(beanie);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 34.98m;
+        basket.Discount = 2.00m;
+        basket.Tax = 6.60m;
+        basket.Shipping = 0m;
+        basket.Total = 39.58m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 1m,
+            displayPricesIncTax: true);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert - TaxInclusiveDiscount should use linked product's 20% rate, not effective rate
+        // $2.00 * 1.20 = $2.40 (correct)
+        // NOT $2.00 * (1 + 6.60/34.98) = $2.38 (approximate, wrong)
+        result.TaxInclusiveDiscount.ShouldBe(2.40m);
+
+        // Subtotal should reconcile correctly: 23.99 + 17.99 = 41.98
+        var expectedTeeGross = _currencyService.Round(19.99m * 1.20m, "GBP");   // 23.99
+        var expectedBeanieGross = _currencyService.Round(14.99m * 1.20m, "GBP"); // 17.99
+        result.TaxInclusiveSubTotal.ShouldBe(expectedTeeGross + expectedBeanieGross); // 41.98
+
+        // And the formula must hold: subtotal + shipping - discount = total
+        var grossSum = result.TaxInclusiveSubTotal
+                     + result.TaxInclusiveShipping
+                     - result.TaxInclusiveDiscount;
+        grossSum.ShouldBe(result.Total);
+    }
+
+    [Fact]
+    public void GetDisplayAmounts_LinkedDiscount_WithCurrencyConversion_CalculatesCorrectly()
+    {
+        // Arrange - 10% off a $100 product with USD to GBP at 0.79
+        var basket = CreateBasket();
+        var product = CreateLineItem(100m, 1, 20m, sku: "PROD-001");
+        var discount = CreatePercentageDiscountLineItem(10m,
+            sku: "DISC-10", dependantLineItemSku: "PROD-001");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m; // 100 * 10% = 10
+        basket.Tax = 18m; // (100-10) * 0.20
+        basket.Shipping = 0m;
+        basket.Total = 108m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 0.79m,
+            displayPricesIncTax: true);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert - discount should include 20% tax and be converted
+        // $10 * 1.20 * 0.79 = £9.48
+        var expectedTaxIncDiscount = _currencyService.Round(10m * 1.20m * 0.79m, "GBP");
+        result.TaxInclusiveDiscount.ShouldBe(expectedTaxIncDiscount);
+    }
+
+    [Fact]
+    public void GetDisplayAmounts_UnlinkedDiscount_DoesNotApplyTax()
+    {
+        // Arrange - order-level fixed $5 discount without a linked product SKU
+        var basket = CreateBasket();
+        var product = CreateLineItem(100m, 1, 20m, sku: "PROD-001");
+        var discount = CreateFixedDiscountLineItem(5m, sku: "DISC-ORDER");
+        // No dependantLineItemSku - order-level discount
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 5m;
+        basket.Tax = 19m; // (100-5) * 0.20
+        basket.Shipping = 0m;
+        basket.Total = 114m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 1m,
+            displayPricesIncTax: true);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert - unlinked discount should NOT include tax (no linked product to get rate from)
+        result.TaxInclusiveDiscount.ShouldBe(5m);
+    }
+
+    [Fact]
+    public void GetDisplayAmounts_MultipleDiscounts_SumsIndividualTaxInclusiveAmounts()
+    {
+        // Arrange - two 10% discounts on products with different tax rates
+        var basket = CreateBasket();
+        var product20 = CreateLineItem(100m, 1, 20m, sku: "PROD-20");
+        var product5 = CreateLineItem(100m, 1, 5m, sku: "PROD-5");
+        // Both are 10% percentage discounts linked to different products
+        var discount20 = CreatePercentageDiscountLineItem(10m,
+            sku: "DISC-20", dependantLineItemSku: "PROD-20");
+        var discount5 = CreatePercentageDiscountLineItem(10m,
+            sku: "DISC-5", dependantLineItemSku: "PROD-5");
+
+        basket.LineItems.Add(product20);
+        basket.LineItems.Add(product5);
+        basket.LineItems.Add(discount20);
+        basket.LineItems.Add(discount5);
+        basket.SubTotal = 200m;
+        basket.Discount = 20m; // (100 * 10%) + (100 * 10%)
+        basket.Tax = 22.50m; // (90*0.20) + (90*0.05) = 18 + 4.50
+        basket.Shipping = 0m;
+        basket.Total = 202.50m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 1m,
+            displayPricesIncTax: true);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert - each discount uses its linked product's tax rate
+        // $10 * 1.20 = $12.00 (for 20% product)
+        // $10 * 1.05 = $10.50 (for 5% product)
+        // Total: $22.50
+        result.TaxInclusiveDiscount.ShouldBe(22.50m);
+
+        // Formula must hold
+        var grossSum = result.TaxInclusiveSubTotal
+                     + result.TaxInclusiveShipping
+                     - result.TaxInclusiveDiscount;
+        grossSum.ShouldBe(result.Total);
+    }
+
+    [Fact]
+    public void GetDisplayAmounts_NoDiscountLineItems_TaxInclusiveDiscountIsZero()
+    {
+        // Arrange - basket with discount total but no discount line items
+        // (edge case: discount applied differently)
+        var basket = CreateBasket();
+        basket.LineItems.Add(CreateLineItem(100m, 1, 20m));
+        basket.SubTotal = 100m;
+        basket.Discount = 0m;
+        basket.Tax = 20m;
+        basket.Shipping = 0m;
+        basket.Total = 120m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 1m,
+            displayPricesIncTax: true);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert
+        result.TaxInclusiveDiscount.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void GetDisplayAmounts_DisplayPricesIncTaxFalse_DiscountRemainsExTax()
+    {
+        // Arrange - 10% off a $100 product, displayed ex-tax
+        var basket = CreateBasket();
+        var product = CreateLineItem(100m, 1, 20m, sku: "PROD-001");
+        var discount = CreatePercentageDiscountLineItem(10m,
+            sku: "DISC-10", dependantLineItemSku: "PROD-001");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 18m;
+        basket.Shipping = 0m;
+        basket.Total = 108m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 1m,
+            displayPricesIncTax: false);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert - when not displaying inc tax, discount should be ex-tax
+        result.Discount.ShouldBe(10m);
+        result.DisplayPricesIncTax.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void GetDisplayAmounts_DiscountOnNonTaxableProduct_NoTaxApplied()
+    {
+        // Arrange - 10% discount linked to a non-taxable product
+        var basket = CreateBasket();
+        var product = CreateLineItem(100m, 1, 0m, sku: "EXEMPT-001"); // 0% tax
+        var discount = CreatePercentageDiscountLineItem(10m,
+            sku: "DISC-EXEMPT", dependantLineItemSku: "EXEMPT-001");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 0m;
+        basket.Shipping = 0m;
+        basket.Total = 90m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 1m,
+            displayPricesIncTax: true);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert - discount linked to 0% tax product should not include tax
+        result.TaxInclusiveDiscount.ShouldBe(10m);
+    }
+
+    [Fact]
+    public void GetDisplayAmounts_LinkedDiscountWithFreeShipping_ReconcilesToTotal()
+    {
+        // Arrange - exact seed data scenario: Tee + Beanie + 10% off Tee + free shipping
+        var basket = CreateBasket();
+        var tee = CreateLineItem(19.99m, 1, 20m, sku: "TEE-001");
+        var beanie = CreateLineItem(14.99m, 1, 20m, sku: "BEANIE-001");
+        // 10% off Tee: Amount stores -10 (percentage), actual monetary discount = 19.99 * 10% = 2.00
+        var discount = CreatePercentageDiscountLineItem(10m,
+            sku: "DISC-TEE", dependantLineItemSku: "TEE-001");
+
+        basket.LineItems.Add(tee);
+        basket.LineItems.Add(beanie);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 34.98m;
+        basket.Discount = 2.00m;
+        basket.Tax = 6.60m;
+        basket.Shipping = 0m;
+        basket.Total = 39.58m;
+
+        var displayContext = CreateDisplayContext(
+            exchangeRate: 1m,
+            displayPricesIncTax: true);
+
+        // Act
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Assert - verify exact values the customer should see
+        result.TaxInclusiveSubTotal.ShouldBe(41.98m);   // 23.99 + 17.99
+        result.TaxInclusiveDiscount.ShouldBe(2.40m);     // 2.00 * 1.20
+        result.TaxInclusiveShipping.ShouldBe(0m);         // FREE
+        result.Total.ShouldBe(39.58m);                    // Correct total
+
+        // Customer sees: 41.98 - 2.40 + 0 = 39.58 ✓
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total);
+    }
+
+    #endregion
+
     #region Helper Methods
 
     private static Basket CreateBasket()
@@ -558,6 +829,65 @@ public class DisplayCurrencyExtensionsTests
             isTaxable: taxRate > 0,
             taxRate: taxRate);
         lineItem.LineItemType = lineItemType;
+        lineItem.DependantLineItemSku = dependantLineItemSku;
+        return lineItem;
+    }
+
+    /// <summary>
+    /// Creates a percentage discount line item matching real system behavior.
+    /// Amount stores the negative percentage value (e.g., -10 for 10% off).
+    /// ExtendedData stores DiscountValueType and DiscountValue.
+    /// </summary>
+    private static LineItem CreatePercentageDiscountLineItem(
+        decimal percentage,
+        string? sku = null,
+        string? dependantLineItemSku = null)
+    {
+        var extendedData = new Dictionary<string, object>
+        {
+            [Core.Constants.ExtendedDataKeys.DiscountValueType] = "Percentage",
+            [Core.Constants.ExtendedDataKeys.DiscountValue] = percentage
+        };
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(),
+            $"{percentage}% discount",
+            sku ?? $"DISC-{Guid.NewGuid():N}",
+            -percentage, // Amount stores negative percentage
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m,
+            extendedData: extendedData);
+        lineItem.LineItemType = LineItemType.Discount;
+        lineItem.DependantLineItemSku = dependantLineItemSku;
+        return lineItem;
+    }
+
+    /// <summary>
+    /// Creates a fixed amount discount line item.
+    /// Amount stores the negative monetary value (e.g., -5 for $5 off).
+    /// </summary>
+    private static LineItem CreateFixedDiscountLineItem(
+        decimal amount,
+        string? sku = null,
+        string? dependantLineItemSku = null)
+    {
+        var extendedData = new Dictionary<string, object>
+        {
+            [Core.Constants.ExtendedDataKeys.DiscountValueType] = "FixedAmount",
+            [Core.Constants.ExtendedDataKeys.DiscountValue] = amount
+        };
+        var lineItem = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(),
+            "Fixed discount",
+            sku ?? $"DISC-{Guid.NewGuid():N}",
+            -amount, // Amount stores negative monetary value
+            cost: 0m,
+            quantity: 1,
+            isTaxable: false,
+            taxRate: 0m,
+            extendedData: extendedData);
+        lineItem.LineItemType = LineItemType.Discount;
         lineItem.DependantLineItemSku = dependantLineItemSku;
         return lineItem;
     }

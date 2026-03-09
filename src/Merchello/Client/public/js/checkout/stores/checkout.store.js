@@ -284,6 +284,8 @@ export function initCheckoutStore(initialData = {}) {
         taxInclusiveDisplaySubTotal: initialData.taxInclusiveDisplaySubTotal ?? 0,
         /** @type {string} */
         formattedTaxInclusiveDisplaySubTotal: initialData.formattedTaxInclusiveDisplaySubTotal ?? '',
+        /** @type {number} */
+        taxInclusiveDisplayDiscount: initialData.taxInclusiveDisplayDiscount ?? 0,
         /** @type {string|null} */
         taxIncludedMessage: initialData.taxIncludedMessage ?? null,
 
@@ -581,6 +583,9 @@ export function initCheckoutStore(initialData = {}) {
             if (data.taxInclusiveDisplaySubTotal !== undefined) {
                 this.taxInclusiveDisplaySubTotal = data.taxInclusiveDisplaySubTotal;
                 this.formattedTaxInclusiveDisplaySubTotal = data.formattedTaxInclusiveDisplaySubTotal ?? '';
+            }
+            if (data.taxInclusiveDisplayDiscount !== undefined) {
+                this.taxInclusiveDisplayDiscount = data.taxInclusiveDisplayDiscount;
             }
             if (data.taxIncludedMessage !== undefined) {
                 this.taxIncludedMessage = data.taxIncludedMessage;

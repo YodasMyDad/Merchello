@@ -195,6 +195,11 @@ public class CheckoutViewModel
     public decimal TaxInclusiveDisplaySubTotal { get; init; }
 
     /// <summary>
+    /// Discount including tax in display currency (for tax-inclusive display).
+    /// </summary>
+    public decimal TaxInclusiveDisplayDiscount { get; init; }
+
+    /// <summary>
     /// Formatted subtotal including tax in display currency.
     /// </summary>
     public string? FormattedTaxInclusiveDisplaySubTotal { get; init; }

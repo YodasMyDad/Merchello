@@ -2,6 +2,7 @@ using Merchello.Core.Accounting.Models;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Models;
+using Merchello.Core.Shared.Extensions;
 using Merchello.Core.Shared.Services.Interfaces;
 using Merchello.Core.Storefront.Models;
 
@@ -88,15 +89,35 @@ public static class DisplayCurrencyExtensions
             return currencyService.Round(amount * rate, currency);
         });
 
+        // Calculate accurate tax-inclusive discount from individual discount line items.
+        // IMPORTANT: For percentage discounts, LineItem.Amount stores the percentage (-10),
+        // NOT the monetary amount. We must resolve the actual monetary amount first, then apply tax.
+        var accurateTaxInclusiveDiscount = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .Sum(li =>
+            {
+                var linkedItem = !string.IsNullOrEmpty(li.DependantLineItemSku)
+                    ? basket.LineItems.FirstOrDefault(p => p.Sku == li.DependantLineItemSku)
+                    : null;
+                var discountAmount = ResolveDiscountAmount(li, linkedItem, basket.SubTotal);
+                if (effectiveContext.DisplayPricesIncTax && linkedItem is { IsTaxable: true, TaxRate: > 0 })
+                {
+                    discountAmount *= 1 + (linkedItem.TaxRate / 100m);
+                }
+                return currencyService.Round(discountAmount * rate, currency);
+            });
+
+        var resultWithDiscount = baseResult with { TaxInclusiveDiscount = accurateTaxInclusiveDiscount };
+
         // Use centralized reconciliation method
         var reconciledGrossSubTotal = ReconcileTaxInclusiveSubTotal(
             rawGrossSubTotal,
             productItems.Count,
-            baseResult.Total,
-            baseResult.TaxInclusiveShipping,
-            baseResult.TaxInclusiveDiscount);
+            resultWithDiscount.Total,
+            resultWithDiscount.TaxInclusiveShipping,
+            resultWithDiscount.TaxInclusiveDiscount);
 
-        return baseResult with { TaxInclusiveSubTotal = reconciledGrossSubTotal };
+        return resultWithDiscount with { TaxInclusiveSubTotal = reconciledGrossSubTotal };
     }
 
     /// <summary>
@@ -335,14 +356,17 @@ public static class DisplayCurrencyExtensions
     /// <summary>
     /// Get discount display amount, optionally including tax portion.
     /// When the discount is on a taxable item and DisplayPricesIncTax = true, the discount should also include tax.
+    /// IMPORTANT: Resolves actual monetary amount for percentage discounts (where Amount stores the percentage, not dollars).
     /// </summary>
     public static decimal GetDisplayDiscountTotal(
         this LineItem discountItem,
         StorefrontDisplayContext displayContext,
         ICurrencyService currencyService,
-        decimal? linkedItemTaxRate = null)
+        decimal? linkedItemTaxRate = null,
+        LineItem? linkedItem = null,
+        decimal subTotal = 0m)
     {
-        var amount = Math.Abs(discountItem.Amount * discountItem.Quantity);
+        var amount = ResolveDiscountAmount(discountItem, linkedItem, subTotal);
 
         // If discount is on a taxable item and prices include tax, the discount should too
         if (displayContext.DisplayPricesIncTax && linkedItemTaxRate is > 0)
@@ -351,6 +375,39 @@ public static class DisplayCurrencyExtensions
         }
 
         return currencyService.Round(amount * displayContext.ExchangeRate, displayContext.CurrencyCode);
+    }
+
+    /// <summary>
+    /// Resolve the actual monetary discount amount from a discount line item.
+    /// For percentage discounts, Amount stores the percentage (e.g., -10 for 10% off),
+    /// so we must calculate the monetary amount from the linked product's price.
+    /// For fixed amount discounts, Amount stores the monetary amount directly.
+    /// </summary>
+    public static decimal ResolveDiscountAmount(
+        LineItem discountItem,
+        LineItem? linkedItem,
+        decimal subTotal)
+    {
+        var discountValueType = discountItem.ExtendedData.TryGetValue(
+            Constants.ExtendedDataKeys.DiscountValueType, out var dvtObj)
+            ? dvtObj.UnwrapJsonElement()?.ToString()
+            : null;
+
+        var discountValue = discountItem.ExtendedData.TryGetValue(
+            Constants.ExtendedDataKeys.DiscountValue, out var dvObj)
+            ? Convert.ToDecimal(dvObj.UnwrapJsonElement())
+            : Math.Abs(discountItem.Amount);
+
+        return discountValueType switch
+        {
+            nameof(DiscountValueType.Percentage) when linkedItem != null =>
+                linkedItem.Amount * linkedItem.Quantity * (discountValue / 100m),
+            nameof(DiscountValueType.Percentage) =>
+                subTotal * (discountValue / 100m),
+            nameof(DiscountValueType.Free) when linkedItem != null =>
+                linkedItem.Amount * linkedItem.Quantity,
+            _ => Math.Abs(discountItem.Amount * discountItem.Quantity)
+        };
     }
 
     /// <summary>
