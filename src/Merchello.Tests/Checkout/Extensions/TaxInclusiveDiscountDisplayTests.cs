@@ -2,6 +2,7 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
@@ -228,7 +229,7 @@ public class TaxInclusiveDiscountDisplayTests : IClassFixture<ServiceTestFixture
     }
 
     [Fact]
-    public void FixedDiscount_OrderLevel_NoLinkedProduct_NoTaxApplied()
+    public void FixedDiscount_OrderLevel_NoLinkedProduct_UsesEffectiveTaxRate()
     {
         var basket = CreateBasket("USD", "$");
 
@@ -248,8 +249,9 @@ public class TaxInclusiveDiscountDisplayTests : IClassFixture<ServiceTestFixture
 
         var result = basket.GetDisplayAmounts(displayContext, _currencyService);
 
-        // Order-level with no linked product → no tax on discount
-        result.TaxInclusiveDiscount.ShouldBe(10m);
+        // Order-level discount uses weighted effective tax rate from product line items (20%)
+        // $10 * (1 + 20/100) = $12.00
+        result.TaxInclusiveDiscount.ShouldBe(12m);
     }
 
     #endregion
@@ -617,7 +619,558 @@ public class TaxInclusiveDiscountDisplayTests : IClassFixture<ServiceTestFixture
 
     #endregion
 
+    #region Order-Level Discount Reconciliation Tests
+
+    // These tests verify the GROSS reconciliation formula holds for order-level discounts:
+    // TaxInclusiveSubTotal + TaxInclusiveShipping - TaxInclusiveDiscount = Total
+    // The original bug: order-level discounts were not grossed up by tax, causing visible
+    // discrepancies especially on single-item baskets where reconciliation is skipped.
+
+    [Fact]
+    public void OrderLevelDiscount_SingleItem_ReconciliationHolds()
+    {
+        // Single-item basket where ReconcileTaxInclusiveSubTotal is SKIPPED (productItemCount <= 1).
+        // This was the most visible manifestation of the bug: SubTotal - Discount ≠ Total.
+        var basket = CreateBasket("USD", "$");
+
+        var product = CreateProductLineItem(100m, 1, 20m, "PROD-001");
+        var discount = CreateFixedDiscountLineItem(10m, "DISC-ORDER", dependantSku: null, name: "$10 Off Order");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 18m; // (100 - 10) * 0.20
+        basket.Shipping = 0m;
+        basket.Total = 108m;
+
+        var displayContext = CreateIncTaxDisplayContext("USD", "$", 1m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Tax-inclusive subtotal for single item: $100 * 1.20 = $120
+        result.TaxInclusiveSubTotal.ShouldBe(120m);
+        // Order-level discount grossed up: $10 * 1.20 = $12
+        result.TaxInclusiveDiscount.ShouldBe(12m);
+        // GROSS formula: $120 - $12 + $0 = $108 ✓
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, "GROSS reconciliation must hold for single-item basket with order-level discount");
+    }
+
+    [Fact]
+    public void OrderLevelDiscount_MultipleItems_ReconciliationHolds()
+    {
+        // Multi-item basket where reconciliation IS applied.
+        var basket = CreateBasket("USD", "$");
+
+        var productA = CreateProductLineItem(80m, 1, 20m, "PROD-A");
+        var productB = CreateProductLineItem(40m, 2, 20m, "PROD-B");
+        var discount = CreateFixedDiscountLineItem(15m, "DISC-ORDER", dependantSku: null, name: "$15 Off Order");
+
+        basket.LineItems.Add(productA);
+        basket.LineItems.Add(productB);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 160m; // 80 + 40*2
+        basket.Discount = 15m;
+        basket.Tax = 29m; // (160 - 15) * 0.20
+        basket.Shipping = 0m;
+        basket.Total = 174m; // 145 + 29
+
+        var displayContext = CreateIncTaxDisplayContext("USD", "$", 1m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Discount grossed up at 20%: $15 * 1.20 = $18
+        result.TaxInclusiveDiscount.ShouldBe(18m);
+        // GROSS formula must hold
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, "GROSS reconciliation must hold for multi-item basket with order-level discount");
+    }
+
+    [Fact]
+    public void OrderLevelPercentageDiscount_SingleItem_ReconciliationHolds()
+    {
+        // Percentage-based order-level discount on single item.
+        var basket = CreateBasket("USD", "$");
+
+        var product = CreateProductLineItem(200m, 1, 20m, "PROD-001");
+        var discount = CreatePercentageDiscountLineItem(15m, "DISC-ORDER", dependantSku: null, name: "15% Off Order");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 200m;
+        basket.Discount = 30m; // 200 * 15%
+        basket.Tax = 34m; // (200 - 30) * 0.20
+        basket.Shipping = 0m;
+        basket.Total = 204m; // 170 + 34
+
+        var displayContext = CreateIncTaxDisplayContext("USD", "$", 1m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Percentage resolves to $30, grossed up at 20%: $30 * 1.20 = $36
+        result.TaxInclusiveDiscount.ShouldBe(36m);
+        // Single item: subtotal = $200 * 1.20 = $240
+        result.TaxInclusiveSubTotal.ShouldBe(240m);
+        // GROSS: $240 - $36 + $0 = $204 ✓
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, "GROSS reconciliation must hold for percentage order-level discount on single item");
+    }
+
+    [Fact]
+    public void OrderLevelDiscount_WithShipping_ReconciliationHolds()
+    {
+        var basket = CreateBasket("USD", "$");
+
+        var product = CreateProductLineItem(50m, 2, 20m, "PROD-001");
+        var discount = CreateFixedDiscountLineItem(10m, "DISC-ORDER", dependantSku: null, name: "$10 Off Order");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 19.60m; // (100 - 10 + 8) * 0.20 = 19.60
+        basket.Shipping = 8m;
+        basket.Total = 117.60m; // 90 + 19.60 + 8
+
+        var displayContext = CreateIncTaxDisplayContext("USD", "$", 1m,
+            isShippingTaxable: true, shippingTaxRate: 20m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Discount: $10 * 1.20 = $12
+        result.TaxInclusiveDiscount.ShouldBe(12m);
+        // Shipping: $8 * 1.20 = $9.60
+        result.TaxInclusiveShipping.ShouldBe(9.60m);
+        // GROSS formula must hold (single product, reconciliation skipped)
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, "GROSS reconciliation must hold with order-level discount + taxable shipping");
+    }
+
+    [Fact]
+    public void MixedLinkedAndOrderLevelDiscounts_ReconciliationHolds()
+    {
+        // Basket with BOTH a linked discount and an order-level discount.
+        var basket = CreateBasket("USD", "$");
+
+        var productA = CreateProductLineItem(100m, 1, 20m, "PROD-A");
+        var productB = CreateProductLineItem(60m, 1, 20m, "PROD-B");
+        var linkedDiscount = CreateFixedDiscountLineItem(10m, "DISC-A", "PROD-A", "$10 Off Prod A");
+        var orderDiscount = CreateFixedDiscountLineItem(5m, "DISC-ORDER", dependantSku: null, name: "$5 Off Order");
+
+        basket.LineItems.Add(productA);
+        basket.LineItems.Add(productB);
+        basket.LineItems.Add(linkedDiscount);
+        basket.LineItems.Add(orderDiscount);
+        basket.SubTotal = 160m;
+        basket.Discount = 15m; // 10 + 5
+        basket.Tax = 29m; // (160 - 15) * 0.20
+        basket.Shipping = 0m;
+        basket.Total = 174m; // 145 + 29
+
+        var displayContext = CreateIncTaxDisplayContext("USD", "$", 1m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Linked: $10 * 1.20 = $12, Order-level: $5 * 1.20 = $6 → Total: $18
+        result.TaxInclusiveDiscount.ShouldBe(18m);
+        // GROSS formula must hold
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, "GROSS reconciliation must hold with mixed linked + order-level discounts");
+    }
+
+    [Fact]
+    public void OrderLevelDiscount_MixedTaxRates_UsesWeightedRate()
+    {
+        // Products with different tax rates: order-level discount uses weighted average.
+        var basket = CreateBasket("USD", "$");
+
+        var standardProduct = CreateProductLineItem(100m, 1, 20m, "PROD-STANDARD"); // 20% VAT
+        var reducedProduct = CreateProductLineItem(100m, 1, 5m, "PROD-REDUCED");    // 5% VAT
+        var discount = CreateFixedDiscountLineItem(20m, "DISC-ORDER", dependantSku: null, name: "$20 Off Order");
+
+        basket.LineItems.Add(standardProduct);
+        basket.LineItems.Add(reducedProduct);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 200m;
+        basket.Discount = 20m;
+        // Tax: standard portion = (100 - 10) * 0.20 = 18, reduced = (100 - 10) * 0.05 = 4.50
+        // (proportional: each product gets 50% of the $20 discount)
+        basket.Tax = 22.50m;
+        basket.Shipping = 0m;
+        basket.Total = 202.50m; // 180 + 22.50
+
+        var displayContext = CreateIncTaxDisplayContext("USD", "$", 1m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Weighted effective rate: (100*20/100 + 100*5/100) / 200 = (20 + 5) / 200 = 0.125 (12.5%)
+        // Discount: $20 * (1 + 0.125) = $22.50
+        result.TaxInclusiveDiscount.ShouldBe(22.50m);
+        // GROSS formula must hold
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, "GROSS reconciliation must hold with mixed tax rates");
+    }
+
+    [Fact]
+    public void OrderLevelDiscount_NonTaxableProducts_NoTaxOnDiscount()
+    {
+        // All products are tax-exempt: order-level discount should NOT include tax.
+        var basket = CreateBasket("USD", "$");
+
+        var product = CreateProductLineItem(100m, 1, 0m, "EXEMPT-001", isTaxable: false);
+        var discount = CreateFixedDiscountLineItem(10m, "DISC-ORDER", dependantSku: null, name: "$10 Off Order");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 0m;
+        basket.Shipping = 0m;
+        basket.Total = 90m;
+
+        var displayContext = CreateIncTaxDisplayContext("USD", "$", 1m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // No taxable products → weighted rate = 0 → discount stays at $10
+        result.TaxInclusiveDiscount.ShouldBe(10m);
+        // Single item, no reconciliation, but math should still work
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, "GROSS reconciliation must hold with non-taxable products");
+    }
+
+    [Theory]
+    [InlineData(0.79, "GBP", "£")]   // USD to GBP
+    [InlineData(1.25, "EUR", "€")]   // USD to EUR
+    [InlineData(150, "JPY", "¥")]    // USD to JPY (0 decimal places)
+    public void OrderLevelDiscount_WithCurrencyConversion_ReconciliationHolds(
+        decimal exchangeRate, string currencyCode, string currencySymbol)
+    {
+        var basket = CreateBasket("USD", "$");
+
+        var product = CreateProductLineItem(100m, 1, 20m, "PROD-001");
+        var discount = CreateFixedDiscountLineItem(10m, "DISC-ORDER", dependantSku: null, name: "$10 Off Order");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 18m;
+        basket.Shipping = 0m;
+        basket.Total = 108m;
+
+        var displayContext = new StorefrontDisplayContext(
+            CurrencyCode: currencyCode,
+            CurrencySymbol: currencySymbol,
+            DecimalPlaces: currencyCode == "JPY" ? 0 : 2,
+            ExchangeRate: exchangeRate,
+            StoreCurrencyCode: "USD",
+            DisplayPricesIncTax: true,
+            TaxCountryCode: "GB",
+            TaxRegionCode: null,
+            IsShippingTaxable: false,
+            ShippingTaxRate: null);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        // Discount: $10 * 1.20 * exchangeRate, rounded per currency
+        var expected = _currencyService.Round(10m * 1.20m * exchangeRate, currencyCode);
+        result.TaxInclusiveDiscount.ShouldBe(expected);
+
+        // GROSS formula must hold regardless of currency
+        (result.TaxInclusiveSubTotal - result.TaxInclusiveDiscount + result.TaxInclusiveShipping)
+            .ShouldBe(result.Total, $"GROSS reconciliation must hold for order-level discount in {currencyCode}");
+    }
+
+    [Fact]
+    public void OrderLevelDiscount_ExTaxMode_NoTaxApplied()
+    {
+        // In ex-tax display mode, discounts should never include tax.
+        var basket = CreateBasket("USD", "$");
+
+        var product = CreateProductLineItem(100m, 1, 20m, "PROD-001");
+        var discount = CreateFixedDiscountLineItem(10m, "DISC-ORDER", dependantSku: null, name: "$10 Off Order");
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 18m;
+        basket.Shipping = 0m;
+        basket.Total = 108m;
+
+        var displayContext = CreateExTaxDisplayContext("USD", "$", 1m);
+
+        var result = basket.GetDisplayAmounts(displayContext, _currencyService);
+
+        result.Discount.ShouldBe(10m, "Ex-tax mode should not gross up order-level discounts");
+        result.DisplayPricesIncTax.ShouldBeFalse();
+    }
+
+    #endregion
+
+    #region Confirmation Path: CalculateConfirmationTaxInclusiveDiscount
+
+    // These tests exercise CalculateConfirmationTaxInclusiveDiscount — the extracted method
+    // that the controller uses for confirmation page tax-inclusive discount display.
+    // This is a SEPARATE code path from the basket-level GetDisplayAmounts tests above.
+
+    [Fact]
+    public void Confirmation_SingleLinkedDiscount_SingleTaxRate_UsesExactRate()
+    {
+        // Tee ($19.99, 20% VAT) + Beanie ($14.99, 20% VAT) + discount linked to Tee
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(19.99m, 1, 20m, "TEE-001"),
+            CreateConfirmationProduct(14.99m, 1, 20m, "BEANIE-001"),
+            CreateConfirmationDiscount("DISC-TEE", "TEE-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 2.00m, _currencyService, "USD");
+
+        // $2.00 * (1 + 20/100) = $2.40
+        result.ShouldBe(2.40m);
+    }
+
+    [Fact]
+    public void Confirmation_DiscountLinkedToNonTaxableProduct_NoTaxApplied()
+    {
+        // THE BUG SCENARIO: taxable Tee + non-taxable Book + discount linked to Book.
+        // Before the fix, this would incorrectly apply weighted tax from Tee.
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(19.99m, 1, 20m, "TEE-001"),
+            CreateConfirmationProduct(10.00m, 1, 0m, "BOOK-001", isTaxable: false),
+            CreateConfirmationDiscount("DISC-BOOK", "BOOK-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 1.00m, _currencyService, "USD");
+
+        // Book is non-taxable — discount should NOT be grossed up
+        result.ShouldBe(1.00m, "Discount linked to non-taxable product should not include tax");
+    }
+
+    [Fact]
+    public void Confirmation_DiscountLinkedToNonTaxableProduct_OnlyNonTaxableItems_NoTax()
+    {
+        // All products non-taxable, discount linked to one of them
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(50.00m, 1, 0m, "EXEMPT-001", isTaxable: false),
+            CreateConfirmationProduct(30.00m, 1, 0m, "EXEMPT-002", isTaxable: false),
+            CreateConfirmationDiscount("DISC-001", "EXEMPT-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 5.00m, _currencyService, "USD");
+
+        result.ShouldBe(5.00m, "No tax on discount for non-taxable products");
+    }
+
+    [Fact]
+    public void Confirmation_OrderLevelDiscount_UsesWeightedTaxRate()
+    {
+        // Order-level discount (no DependantLineItemSku) with single-rate products
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-001"),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 10.00m, _currencyService, "USD");
+
+        // Weighted rate: (100 * 20/100) / 100 = 0.20
+        // $10 * (1 + 0.20) = $12
+        result.ShouldBe(12.00m, "Order-level discount should use weighted effective tax rate");
+    }
+
+    [Fact]
+    public void Confirmation_OrderLevelDiscount_MixedTaxRates_UsesWeightedRate()
+    {
+        // Order-level discount with different tax rates
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-STD"),
+            CreateConfirmationProduct(100.00m, 1, 5m, "PROD-RED"),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 20.00m, _currencyService, "USD");
+
+        // Weighted rate: (100*20/100 + 100*5/100) / 200 = 25/200 = 0.125
+        // $20 * (1 + 0.125) = $22.50
+        result.ShouldBe(22.50m, "Order-level discount should use weighted rate across mixed tax rates");
+    }
+
+    [Fact]
+    public void Confirmation_OrderLevelDiscount_AllNonTaxable_NoTax()
+    {
+        // Order-level discount when all products are non-taxable
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 0m, "EXEMPT-001", isTaxable: false),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 10.00m, _currencyService, "USD");
+
+        result.ShouldBe(10.00m, "No tax on order-level discount when all products are non-taxable");
+    }
+
+    [Fact]
+    public void Confirmation_MultipleLinkedDiscounts_DifferentTaxRates_UsesWeightedRate()
+    {
+        // Two discounts linked to products at different rates
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-STD"),
+            CreateConfirmationProduct(100.00m, 1, 5m, "PROD-RED"),
+            CreateConfirmationDiscount("DISC-STD", "PROD-STD"),
+            CreateConfirmationDiscount("DISC-RED", "PROD-RED")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 20.00m, _currencyService, "USD");
+
+        // linkedTaxRates = [20, 5] → Count > 1 → weighted rate
+        // (100*20/100 + 100*5/100) / 200 = 0.125
+        // $20 * (1 + 0.125) = $22.50
+        result.ShouldBe(22.50m);
+    }
+
+    [Fact]
+    public void Confirmation_MixedLinkedAndOrderLevel_UsesWeightedRate()
+    {
+        // Both a linked discount and an order-level discount
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-A"),
+            CreateConfirmationProduct(60.00m, 1, 20m, "PROD-B"),
+            CreateConfirmationDiscount("DISC-A", "PROD-A"),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 15.00m, _currencyService, "USD");
+
+        // linkedTaxRates = [20] (Count == 1), but hasOrderLevelDiscounts = true
+        // → falls to weighted rate branch
+        // Weighted rate: (100*20/100 + 60*20/100) / 160 = 32/160 = 0.20
+        // $15 * (1 + 0.20) = $18
+        result.ShouldBe(18.00m);
+    }
+
+    [Fact]
+    public void Confirmation_LinkedToNonTaxable_PlusTaxable_NoTaxOnDiscount()
+    {
+        // Discount linked to non-taxable, but other taxable products exist in basket.
+        // This is the KEY scenario that was previously broken.
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(200.00m, 1, 20m, "TAXABLE-001"),
+            CreateConfirmationProduct(50.00m, 1, 0m, "GIFT-CARD-001", isTaxable: false),
+            CreateConfirmationDiscount("DISC-GC", "GIFT-CARD-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 5.00m, _currencyService, "USD");
+
+        // Discount is linked to non-taxable gift card — no tax,
+        // even though there's a $200 taxable product in the same order
+        result.ShouldBe(5.00m, "Discount linked to non-taxable product must not inherit tax from other products");
+    }
+
+    [Fact]
+    public void Confirmation_ZeroDiscount_ReturnsZero()
+    {
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-001"),
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 0m, _currencyService, "USD");
+
+        result.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void Confirmation_NoDiscountLineItems_ReturnsDisplayDiscount()
+    {
+        // DisplayDiscount > 0 but no discount line items (edge case)
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-001"),
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 10.00m, _currencyService, "USD");
+
+        result.ShouldBe(10.00m, "No discount line items means no tax rate info — return as-is");
+    }
+
+    [Fact]
+    public void Confirmation_MultipleLinkedDiscounts_SameTaxRate_UsesExactRate()
+    {
+        // Two discounts both linked to products at the same tax rate
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(80.00m, 1, 20m, "PROD-A"),
+            CreateConfirmationProduct(40.00m, 1, 20m, "PROD-B"),
+            CreateConfirmationDiscount("DISC-A", "PROD-A"),
+            CreateConfirmationDiscount("DISC-B", "PROD-B")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 12.00m, _currencyService, "USD");
+
+        // linkedTaxRates = [20] (distinct) → Count == 1 → exact rate
+        // $12 * (1 + 20/100) = $14.40
+        result.ShouldBe(14.40m);
+    }
+
+    #endregion
+
     #region Helper Methods
+
+    private static CheckoutLineItemDto CreateConfirmationProduct(
+        decimal price, int quantity, decimal taxRate, string sku,
+        bool isTaxable = true)
+    {
+        return new CheckoutLineItemDto
+        {
+            Id = Guid.NewGuid(),
+            Sku = sku,
+            Name = sku,
+            UnitPrice = price,
+            Quantity = quantity,
+            LineTotal = price * quantity,
+            DisplayUnitPrice = price,
+            DisplayLineTotal = price * quantity,
+            TaxRate = taxRate,
+            IsTaxable = isTaxable && taxRate > 0,
+            LineItemType = LineItemType.Product
+        };
+    }
+
+    private static CheckoutLineItemDto CreateConfirmationDiscount(
+        string sku, string? dependantSku)
+    {
+        return new CheckoutLineItemDto
+        {
+            Id = Guid.NewGuid(),
+            Sku = sku,
+            Name = sku,
+            LineItemType = LineItemType.Discount,
+            DependantLineItemSku = dependantSku
+        };
+    }
 
     private static Basket CreateBasket(string currencyCode = "USD", string currencySymbol = "$")
     {

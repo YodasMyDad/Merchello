@@ -1176,22 +1176,29 @@ export function initSinglePageCheckout() {
 
                         store?.updateShipping(groups, selections);
 
-                        if (data.basket) {
-                            // Trust the API response - backend calculates totals and line items.
-                            await this.updateBasketAndReinitPayment(data.basket);
+                        // Post-processing: basket update, payment reinit, upsell reload.
+                        // Wrapped separately so failures here don't clear valid shipping groups.
+                        try {
+                            if (data.basket) {
+                                // Trust the API response - backend calculates totals and line items.
+                                await this.updateBasketAndReinitPayment(data.basket);
 
-                            if (data.basket.errors?.length > 0) {
-                                const availabilityErrors = data.basket.errors.filter(e => e.isShippingError || e.isStockError);
-                                store.itemAvailabilityErrors = availabilityErrors;
-                                store.allItemsShippable = availabilityErrors.length === 0;
-                            } else {
-                                store.itemAvailabilityErrors = [];
-                                store.allItemsShippable = true;
+                                if (data.basket.errors?.length > 0) {
+                                    const availabilityErrors = data.basket.errors.filter(e => e.isShippingError || e.isStockError);
+                                    store.itemAvailabilityErrors = availabilityErrors;
+                                    store.allItemsShippable = availabilityErrors.length === 0;
+                                } else {
+                                    store.itemAvailabilityErrors = [];
+                                    store.allItemsShippable = true;
+                                }
                             }
+
+                            await this.loadCheckoutUpsells();
+                        } catch (postError) {
+                            console.error('Post-shipping processing error (shipping groups preserved):', postError);
                         }
 
                         this._shippingCalculated = true;
-                        await this.loadCheckoutUpsells();
                         this.announce(this.allItemsShippable ? 'Shipping options loaded' : 'Some items are unavailable or cannot be shipped to this location');
                     } else {
                         store?.setShippingError(data.message || 'Unable to calculate shipping.');

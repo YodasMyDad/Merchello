@@ -611,7 +611,7 @@ public class DisplayCurrencyExtensionsTests
     }
 
     [Fact]
-    public void GetDisplayAmounts_UnlinkedDiscount_DoesNotApplyTax()
+    public void GetDisplayAmounts_UnlinkedDiscount_UsesEffectiveTaxRate()
     {
         // Arrange - order-level fixed $5 discount without a linked product SKU
         var basket = CreateBasket();
@@ -634,8 +634,9 @@ public class DisplayCurrencyExtensionsTests
         // Act
         var result = basket.GetDisplayAmounts(displayContext, _currencyService);
 
-        // Assert - unlinked discount should NOT include tax (no linked product to get rate from)
-        result.TaxInclusiveDiscount.ShouldBe(5m);
+        // Assert - unlinked discount uses weighted effective tax rate from product line items (20%)
+        // $5 * (1 + 0.20) = $6
+        result.TaxInclusiveDiscount.ShouldBe(6m);
     }
 
     [Fact]
