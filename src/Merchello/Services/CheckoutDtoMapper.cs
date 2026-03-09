@@ -103,7 +103,9 @@ public class CheckoutDtoMapper(
                     ? basket.LineItems.FirstOrDefault(p => p.Sku == li.DependantLineItemSku)
                     : null;
                 var linkedTaxRate = linkedItem is { IsTaxable: true } ? linkedItem.TaxRate : (decimal?)null;
-                var displayDiscountAmount = li.GetDisplayDiscountTotal(displayContext, currencyService, linkedTaxRate);
+                var displayDiscountAmount = li.GetDisplayDiscountTotal(
+                    displayContext, currencyService, linkedTaxRate,
+                    linkedItem: linkedItem, subTotal: basket.SubTotal);
                 var parsedDiscountId = Guid.TryParse(discountIdObj.UnwrapJsonElement()?.ToString(), out var discountId)
                     ? discountId
                     : li.Id;
@@ -169,6 +171,8 @@ public class CheckoutDtoMapper(
             DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
             TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
             FormattedTaxInclusiveDisplaySubTotal = currencyConversion.Format(displayAmounts.TaxInclusiveSubTotal, displayCurrencySymbol),
+            TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
+            FormattedTaxInclusiveDisplayDiscount = currencyConversion.Format(displayAmounts.TaxInclusiveDiscount, displayCurrencySymbol),
             TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
 
             BillingAddress = MapAddressToDto(basket.BillingAddress),

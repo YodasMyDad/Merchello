@@ -267,13 +267,45 @@ public class MerchelloCheckoutController(
                         }
                     }
 
-                    // Calculate tax-inclusive discount using effective tax rate
-                    if (confirmation.DisplayDiscount > 0 && confirmation.DisplaySubTotal > 0)
+                    // Calculate accurate tax-inclusive discount using the correct monetary amount.
+                    // Note: For percentage discounts, DTO.UnitPrice stores the percentage, not the monetary value.
+                    // Use confirmation.DisplayDiscount (correct monetary total) with linked product tax rates.
+                    if (confirmation.DisplayDiscount > 0)
                     {
-                        var effectiveTaxRate = confirmation.DisplayTax / confirmation.DisplaySubTotal;
-                        taxInclusiveDiscount = currencyService.Round(
-                            confirmation.DisplayDiscount * (1 + effectiveTaxRate),
-                            currency);
+                        var discountLineItems = confirmation.LineItems
+                            .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)
+                            .ToList();
+
+                        // Find tax rates for discount-linked products
+                        var linkedTaxRates = discountLineItems
+                            .Where(dli => !string.IsNullOrEmpty(dli.DependantLineItemSku))
+                            .Select(dli =>
+                            {
+                                var linked = confirmation.LineItems.FirstOrDefault(p => p.Sku == dli.DependantLineItemSku);
+                                return linked is { IsTaxable: true, TaxRate: > 0 } ? linked.TaxRate : 0m;
+                            })
+                            .Where(r => r > 0)
+                            .Distinct()
+                            .ToList();
+
+                        if (linkedTaxRates.Count == 1)
+                        {
+                            // All discounts at same rate - exact calculation
+                            taxInclusiveDiscount = currencyService.Round(
+                                confirmation.DisplayDiscount * (1 + linkedTaxRates[0] / 100m), currency);
+                        }
+                        else if (linkedTaxRates.Count > 1 && confirmation.DisplaySubTotal > 0)
+                        {
+                            // Multiple rates - approximate using effective tax rate
+                            var effectiveTaxRate = confirmation.DisplayTax / confirmation.DisplaySubTotal;
+                            taxInclusiveDiscount = currencyService.Round(
+                                confirmation.DisplayDiscount * (1 + effectiveTaxRate), currency);
+                        }
+                        else
+                        {
+                            // No linked taxable products - discount is not taxable
+                            taxInclusiveDiscount = confirmation.DisplayDiscount;
+                        }
                     }
                 }
 
@@ -287,6 +319,8 @@ public class MerchelloCheckoutController(
 
                 confirmation.TaxInclusiveDisplaySubTotal = taxInclusiveSubTotal;
                 confirmation.FormattedTaxInclusiveDisplaySubTotal = $"{symbol}{taxInclusiveSubTotal.ToString(format)}";
+                confirmation.TaxInclusiveDisplayDiscount = taxInclusiveDiscount;
+                confirmation.FormattedTaxInclusiveDisplayDiscount = $"{symbol}{taxInclusiveDiscount.ToString(format)}";
             }
 
             // Pre-serialize line items for analytics (avoid JSON in view)
@@ -294,7 +328,9 @@ public class MerchelloCheckoutController(
             if (confirmation?.LineItems != null)
             {
                 lineItemsJson = System.Text.Json.JsonSerializer.Serialize(
-                    confirmation.LineItems.Select(li => new
+                    confirmation.LineItems
+                    .Where(li => li.LineItemType is not Merchello.Core.Accounting.Models.LineItemType.Discount)
+                    .Select(li => new
                     {
                         item_id = string.IsNullOrEmpty(li.Sku) ? li.Id.ToString() : li.Sku,
                         item_name = li.Name,
@@ -505,6 +541,7 @@ public class MerchelloCheckoutController(
             DisplayPricesIncTax = displayAmounts.DisplayPricesIncTax,
             TaxInclusiveDisplaySubTotal = displayAmounts.TaxInclusiveSubTotal,
             FormattedTaxInclusiveDisplaySubTotal = $"{displayCurrencySymbol}{displayAmounts.TaxInclusiveSubTotal.ToString($"N{displayContext.DecimalPlaces}")}",
+            TaxInclusiveDisplayDiscount = displayAmounts.TaxInclusiveDiscount,
             TaxIncludedMessage = displayAmounts.TaxIncludedMessage,
             AddressLookup = addressLookupConfig,
             ExpressCheckoutConfig = expressConfig

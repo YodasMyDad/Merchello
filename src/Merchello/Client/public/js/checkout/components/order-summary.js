@@ -92,11 +92,14 @@ export function initOrderSummary() {
         },
 
         /**
-         * Get the discount total
+         * Get the discount total (tax-inclusive when displayPricesIncTax is enabled)
          * @returns {number}
          */
         get discount() {
             // @ts-ignore - Alpine store
+            if (this.$store.checkout?.displayPricesIncTax) {
+                return this.$store.checkout?.taxInclusiveDisplayDiscount ?? this.$store.checkout?.basket?.discount ?? 0;
+            }
             return this.$store.checkout?.basket?.discount ?? 0;
         },
 

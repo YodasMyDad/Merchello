@@ -53,6 +53,8 @@ public class CheckoutBasketDto
     public bool DisplayPricesIncTax { get; set; }
     public decimal TaxInclusiveDisplaySubTotal { get; set; }
     public string FormattedTaxInclusiveDisplaySubTotal { get; set; } = "";
+    public decimal TaxInclusiveDisplayDiscount { get; set; }
+    public string FormattedTaxInclusiveDisplayDiscount { get; set; } = "";
     public string? TaxIncludedMessage { get; set; }
 
     public AddressDto? BillingAddress { get; set; }

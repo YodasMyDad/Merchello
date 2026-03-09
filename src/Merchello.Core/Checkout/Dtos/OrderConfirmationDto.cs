@@ -192,6 +192,16 @@ public class OrderConfirmationDto
     public string FormattedTaxInclusiveDisplaySubTotal { get; set; } = "";
 
     /// <summary>
+    /// Discount including tax in display currency (for tax-inclusive display).
+    /// </summary>
+    public decimal TaxInclusiveDisplayDiscount { get; set; }
+
+    /// <summary>
+    /// Formatted discount including tax in display currency.
+    /// </summary>
+    public string FormattedTaxInclusiveDisplayDiscount { get; set; } = "";
+
+    /// <summary>
     /// Tax included message (e.g., "Including £10.17 in taxes").
     /// </summary>
     public string? TaxIncludedMessage { get; set; }

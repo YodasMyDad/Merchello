@@ -34,6 +34,9 @@
     var displayShipping = isReadonly ? (confirmation?.DisplayShipping ?? 0) : (model?.DisplayShipping ?? 0);
     var displayTax = isReadonly ? (confirmation?.DisplayTax ?? 0) : (model?.DisplayTax ?? 0);
     var displayTotal = isReadonly ? (confirmation?.DisplayTotal ?? 0) : (model?.DisplayTotal ?? 0);
+    var taxInclusiveDisplayDiscount = isReadonly
+        ? (confirmation?.TaxInclusiveDisplayDiscount ?? 0)
+        : (model?.TaxInclusiveDisplayDiscount ?? 0);
 
     // Tax-inclusive display
     var displayPricesIncTax = isReadonly ? (confirmation?.DisplayPricesIncTax ?? false) : (model?.DisplayPricesIncTax ?? false);
@@ -435,15 +438,23 @@
             }
             else if (displayDiscount > 0)
             {
+                var effectiveDiscount = displayPricesIncTax && taxInclusiveDisplayDiscount > 0 ? taxInclusiveDisplayDiscount : displayDiscount;
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Discount</span>
                     @if (isReadonly)
                     {
-                        <span class="text-green-600 font-medium">-@confirmation?.FormattedDisplayDiscount</span>
+                        @if (displayPricesIncTax && taxInclusiveDisplayDiscount > 0)
+                        {
+                            <span class="text-green-600 font-medium">-@confirmation?.FormattedTaxInclusiveDisplayDiscount</span>
+                        }
+                        else
+                        {
+                            <span class="text-green-600 font-medium">-@confirmation?.FormattedDisplayDiscount</span>
+                        }
                     }
                     else
                     {
-                        <span class="text-green-600 font-medium">-@displayCurrencySymbol@displayDiscount.ToString("N2")</span>
+                        <span class="text-green-600 font-medium">-@displayCurrencySymbol@effectiveDiscount.ToString(numberFormat)</span>
                     }
                 </div>
             }

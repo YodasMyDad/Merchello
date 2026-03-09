@@ -2,6 +2,7 @@
 @using System.Text.Json
 @using System.Text.Encodings.Web
 @using Merchello.Core.Accounting.Extensions
+@using Merchello.Core.Checkout.Extensions
 @using Merchello.Extensions
 @inject Merchello.Core.Shared.Services.Interfaces.ICurrencyService CurrencyService
 @{
@@ -28,7 +29,8 @@
     var displayShipping = Model.DisplayShipping;
     var displayTax = Model.DisplayTax;
     var displaySubtotal = Model.DisplaySubTotal;
-    var displayDiscount = Model.DisplayDiscount;
+    // When displaying prices inc tax, use the tax-inclusive discount so the summary math adds up
+    var displayDiscount = Model.DisplayPricesIncTax ? Model.TaxInclusiveDisplayDiscount : Model.DisplayDiscount;
 
     // Extract applied discounts for reactive display
     var discountLineItems = basket?.LineItems?
@@ -130,6 +132,7 @@
     displayPricesIncTax = Model.DisplayPricesIncTax,
     taxInclusiveDisplaySubTotal = Model.TaxInclusiveDisplaySubTotal,
     formattedTaxInclusiveDisplaySubTotal = Model.FormattedTaxInclusiveDisplaySubTotal ?? "",
+    taxInclusiveDisplayDiscount = Model.TaxInclusiveDisplayDiscount,
     taxIncludedMessage = Model.TaxIncludedMessage,
     exchangeRate = exchangeRate,
     currencyDecimalPlaces = decimalPlaces,
@@ -183,7 +186,17 @@
     hasShippingGroups = hasShippingGroups,
     appliedDiscounts = discountLineItems.Select(d =>
     {
-        var discountAmount = CurrencyService.Round(Math.Abs(d.Amount * d.Quantity) * exchangeRate, displayCurrencyCode);
+        var linkedItem = !string.IsNullOrEmpty(d.DependantLineItemSku)
+            ? basket?.LineItems?.FirstOrDefault(p => p.Sku == d.DependantLineItemSku)
+            : null;
+        // Resolve actual monetary amount (handles percentage discounts where Amount stores the %)
+        var amount = DisplayCurrencyExtensions.ResolveDiscountAmount(d, linkedItem, basket?.SubTotal ?? 0);
+        // When displaying inc-tax prices, include tax on the discount using the linked product's tax rate
+        if (Model.DisplayPricesIncTax && linkedItem is { IsTaxable: true, TaxRate: > 0 })
+        {
+            amount *= 1 + (linkedItem.TaxRate / 100m);
+        }
+        var discountAmount = CurrencyService.Round(amount * exchangeRate, displayCurrencyCode);
         return new
         {
             id = d.ExtendedData?.TryGetValue("DiscountId", out var idObj) == true ? idObj?.ToString() : d.Id.ToString(),
@@ -295,8 +308,7 @@
         </template>
 
         <!-- Regular Checkout (hidden during interstitial) -->
-        <template x-if="!showInterstitial">
-            <div>
+        <div x-show="!showInterstitial">
 
             <!-- Express Checkout Section with Skeleton -->
             <div class="mb-6">
@@ -388,7 +400,6 @@
 
             <!-- Contact Section -->
             <div class="checkout-section">
-                <h2 class="font-heading text-lg font-normal mb-3">Contact</h2>
                 <div>
                     <label for="email" class="block text-xs font-medium text-gray-700 mb-0.5">
                         Email address <span class="text-red-500" aria-hidden="true">*</span>
@@ -429,8 +440,8 @@
 
                             <!-- Header with mode toggle -->
                             <div class="flex items-center justify-between">
-                                <label for="password" class="block text-xs font-medium text-gray-700">
-                                    <span x-show="hasExistingAccount">Sign in to your account</span>
+                                <label for="password" class="block text-xs font-medium text-gray-700 mb-0.5">
+                                    <span x-show="hasExistingAccount">Enter your password</span>
                                     <span x-show="!hasExistingAccount">Create a password</span>
                                 </label>
                                 <div class="flex items-center gap-2">
@@ -454,11 +465,6 @@
                                     </button>
                                 </div>
                             </div>
-
-                            <!-- Existing account notice -->
-                            <p x-show="hasExistingAccount" class="text-xs text-blue-600">
-                                Enter your password to sign in.
-                            </p>
 
                             <!-- Password input -->
                             <input type="password"
@@ -846,8 +852,7 @@
             </div>
         </form>
 
-            </div>
-        </template><!-- end !showInterstitial -->
+        </div><!-- end !showInterstitial -->
     </div>
 
     <!-- Right Column: Order Summary (Sticky) -->

@@ -155,4 +155,245 @@ public class CheckoutLineItemAddonPricingTests : IClassFixture<ServiceTestFixtur
         addonLine.DisplayUnitPriceWithAddons.ShouldBe(addonLine.DisplayUnitPrice);
         addonLine.DisplayLineTotalWithAddons.ShouldBe(addonLine.DisplayLineTotal);
     }
+
+    #region Tax-Inclusive Discount DTO Mapping Tests
+
+    [Fact]
+    public void MapBasketToDto_TaxInclusiveDiscount_MapsAccurateValueFromLinkedProduct()
+    {
+        // Arrange - exact bug scenario: Tee + Beanie + 10% off Tee
+        var basket = new BasketFactory().Create(null, "USD", "$");
+
+        var tee = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Classic Cotton Tee", "TEE-001", 19.99m, 0m, 1, true, 20m);
+        tee.LineItemType = LineItemType.Product;
+
+        var beanie = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Knit Beanie", "BEANIE-001", 14.99m, 0m, 1, true, 20m);
+        beanie.LineItemType = LineItemType.Product;
+
+        var discount = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "10% Off Tees", "DISC-TEE", -10m, 0m, 1, false, 0m,
+            new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValueType] = "Percentage",
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValue] = 10m
+            });
+        discount.LineItemType = LineItemType.Discount;
+        discount.DependantLineItemSku = "TEE-001";
+
+        basket.LineItems.Add(tee);
+        basket.LineItems.Add(beanie);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 34.98m;
+        basket.Discount = 2.00m;
+        basket.Tax = 6.60m;
+        basket.Shipping = 0m;
+        basket.Total = 39.58m;
+
+        var displayContext = new StorefrontDisplayContext(
+            CurrencyCode: "USD",
+            CurrencySymbol: "$",
+            DecimalPlaces: 2,
+            ExchangeRate: 1m,
+            StoreCurrencyCode: "USD",
+            DisplayPricesIncTax: true,
+            TaxCountryCode: "US",
+            TaxRegionCode: null,
+            IsShippingTaxable: false,
+            ShippingTaxRate: 0m);
+
+        // Act
+        var dto = _checkoutDtoMapper.MapBasketToDto(basket, displayContext);
+
+        // Assert - tax-inclusive discount uses linked product's 20% rate
+        dto.TaxInclusiveDisplayDiscount.ShouldBe(2.40m); // $2.00 * 1.20 = $2.40
+        dto.FormattedTaxInclusiveDisplayDiscount.ShouldNotBeNullOrWhiteSpace();
+
+        // Subtotal inc tax: 23.99 + 17.99 = 41.98
+        dto.TaxInclusiveDisplaySubTotal.ShouldBe(41.98m);
+
+        // GROSS reconciliation: subtotal - discount + shipping = total
+        (dto.TaxInclusiveDisplaySubTotal - dto.TaxInclusiveDisplayDiscount).ShouldBe(dto.DisplayTotal);
+
+        // Applied discount DTO should also include tax
+        dto.AppliedDiscounts.Count.ShouldBe(1);
+        dto.AppliedDiscounts[0].Amount.ShouldBe(2.40m);
+    }
+
+    [Fact]
+    public void MapBasketToDto_TaxInclusiveDiscount_WithCurrencyConversion()
+    {
+        // Arrange - USD to GBP at 0.79
+        var basket = new BasketFactory().Create(null, "USD", "$");
+
+        var product = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Product", "PROD-001", 100m, 0m, 1, true, 20m);
+        product.LineItemType = LineItemType.Product;
+
+        var discount = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "10% Off", "DISC-10", -10m, 0m, 1, false, 0m,
+            new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValueType] = "Percentage",
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValue] = 10m
+            });
+        discount.LineItemType = LineItemType.Discount;
+        discount.DependantLineItemSku = "PROD-001";
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 18m;
+        basket.Shipping = 0m;
+        basket.Total = 108m;
+
+        var displayContext = new StorefrontDisplayContext(
+            CurrencyCode: "GBP",
+            CurrencySymbol: "£",
+            DecimalPlaces: 2,
+            ExchangeRate: 0.79m,
+            StoreCurrencyCode: "USD",
+            DisplayPricesIncTax: true,
+            TaxCountryCode: "GB",
+            TaxRegionCode: null,
+            IsShippingTaxable: false,
+            ShippingTaxRate: 0m);
+
+        // Act
+        var dto = _checkoutDtoMapper.MapBasketToDto(basket, displayContext);
+
+        // Assert - $10 * 1.20 * 0.79 = £9.48
+        var expectedTaxIncDiscount = _currencyService.Round(10m * 1.20m * 0.79m, "GBP");
+        dto.TaxInclusiveDisplayDiscount.ShouldBe(expectedTaxIncDiscount);
+
+        // GROSS reconciliation must hold
+        var grossSum = dto.TaxInclusiveDisplaySubTotal - dto.TaxInclusiveDisplayDiscount;
+        grossSum.ShouldBe(dto.DisplayTotal);
+    }
+
+    [Fact]
+    public void MapBasketToDto_TaxInclusiveDiscount_MultipleDiscountsDifferentRates()
+    {
+        // Arrange - two discounts on products with different tax rates
+        var basket = new BasketFactory().Create(null, "USD", "$");
+
+        var product20 = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Standard Rate Product", "PROD-20", 100m, 0m, 1, true, 20m);
+        product20.LineItemType = LineItemType.Product;
+
+        var product5 = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Reduced Rate Product", "PROD-5", 100m, 0m, 1, true, 5m);
+        product5.LineItemType = LineItemType.Product;
+
+        var disc20 = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Discount on Standard", "DISC-20", -10m, 0m, 1, false, 0m,
+            new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValueType] = "Percentage",
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValue] = 10m
+            });
+        disc20.LineItemType = LineItemType.Discount;
+        disc20.DependantLineItemSku = "PROD-20";
+
+        var disc5 = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Discount on Reduced", "DISC-5", -10m, 0m, 1, false, 0m,
+            new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValueType] = "Percentage",
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValue] = 10m
+            });
+        disc5.LineItemType = LineItemType.Discount;
+        disc5.DependantLineItemSku = "PROD-5";
+
+        basket.LineItems.Add(product20);
+        basket.LineItems.Add(product5);
+        basket.LineItems.Add(disc20);
+        basket.LineItems.Add(disc5);
+        basket.SubTotal = 200m;
+        basket.Discount = 20m;
+        basket.Tax = 22.50m; // (90*0.20) + (90*0.05)
+        basket.Shipping = 0m;
+        basket.Total = 202.50m;
+
+        var displayContext = new StorefrontDisplayContext(
+            CurrencyCode: "USD",
+            CurrencySymbol: "$",
+            DecimalPlaces: 2,
+            ExchangeRate: 1m,
+            StoreCurrencyCode: "USD",
+            DisplayPricesIncTax: true,
+            TaxCountryCode: "US",
+            TaxRegionCode: null,
+            IsShippingTaxable: false,
+            ShippingTaxRate: 0m);
+
+        // Act
+        var dto = _checkoutDtoMapper.MapBasketToDto(basket, displayContext);
+
+        // Assert - each discount uses its linked product's tax rate
+        // $10 * 1.20 = $12.00 (20% product) + $10 * 1.05 = $10.50 (5% product) = $22.50
+        dto.TaxInclusiveDisplayDiscount.ShouldBe(22.50m);
+
+        // Individual applied discount DTOs
+        dto.AppliedDiscounts.Count.ShouldBe(2);
+        var disc20Dto = dto.AppliedDiscounts.Single(d => d.Name == "Discount on Standard");
+        var disc5Dto = dto.AppliedDiscounts.Single(d => d.Name == "Discount on Reduced");
+        disc20Dto.Amount.ShouldBe(12m);   // 10 * 1.20
+        disc5Dto.Amount.ShouldBe(10.50m); // 10 * 1.05
+
+        // GROSS reconciliation
+        (dto.TaxInclusiveDisplaySubTotal - dto.TaxInclusiveDisplayDiscount).ShouldBe(dto.DisplayTotal);
+    }
+
+    [Fact]
+    public void MapBasketToDto_ExTaxDisplay_DoesNotUseTaxInclusiveDiscount()
+    {
+        // Arrange - DisplayPricesIncTax = false
+        var basket = new BasketFactory().Create(null, "USD", "$");
+
+        var product = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Product", "PROD-001", 100m, 0m, 1, true, 20m);
+        product.LineItemType = LineItemType.Product;
+
+        var discount = LineItemFactory.CreateCustomLineItem(
+            Guid.NewGuid(), "Discount", "DISC-001", -10m, 0m, 1, false, 0m,
+            new Dictionary<string, object>
+            {
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValueType] = "Percentage",
+                [Merchello.Core.Constants.ExtendedDataKeys.DiscountValue] = 10m
+            });
+        discount.LineItemType = LineItemType.Discount;
+        discount.DependantLineItemSku = "PROD-001";
+
+        basket.LineItems.Add(product);
+        basket.LineItems.Add(discount);
+        basket.SubTotal = 100m;
+        basket.Discount = 10m;
+        basket.Tax = 18m;
+        basket.Shipping = 0m;
+        basket.Total = 108m;
+
+        var displayContext = new StorefrontDisplayContext(
+            CurrencyCode: "USD",
+            CurrencySymbol: "$",
+            DecimalPlaces: 2,
+            ExchangeRate: 1m,
+            StoreCurrencyCode: "USD",
+            DisplayPricesIncTax: false,
+            TaxCountryCode: "US",
+            TaxRegionCode: null,
+            IsShippingTaxable: false,
+            ShippingTaxRate: 0m);
+
+        // Act
+        var dto = _checkoutDtoMapper.MapBasketToDto(basket, displayContext);
+
+        // Assert - ex-tax display: discount stays at face value
+        dto.DisplayDiscount.ShouldBe(10m);
+        dto.DisplayPricesIncTax.ShouldBeFalse();
+    }
+
+    #endregion
 }

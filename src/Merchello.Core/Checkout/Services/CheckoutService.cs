@@ -2461,7 +2461,8 @@ public class CheckoutService(
                 foreach (var li in order.LineItems.Where(l =>
                     l.LineItemType == LineItemType.Product ||
                     l.LineItemType == LineItemType.Custom ||
-                    l.LineItemType == LineItemType.Addon))
+                    l.LineItemType == LineItemType.Addon ||
+                    l.LineItemType == LineItemType.Discount))
                 {
                     var lineTotal = li.Quantity * li.Amount;
 
