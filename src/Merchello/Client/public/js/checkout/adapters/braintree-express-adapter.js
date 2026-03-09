@@ -434,6 +434,12 @@
                         // Request email address
                         paymentDataRequest.emailRequired = true;
 
+                        // Request shipping address from Google Pay payment sheet
+                        paymentDataRequest.shippingAddressRequired = true;
+                        paymentDataRequest.shippingAddressParameters = {
+                            phoneNumberRequired: false
+                        };
+
                         // Load payment data
                         const paymentData = await paymentsClient.loadPaymentData(paymentDataRequest);
 
@@ -637,12 +643,20 @@
             const paymentMethodData = paymentData.paymentMethodData || {};
             const info = paymentMethodData.info || {};
             const billingAddress = info.billingAddress || {};
+            const shippingAddress = paymentData.shippingAddress || {};
 
             return {
                 email: paymentData.email || '',
-                fullName: billingAddress.name || '',
-                phone: billingAddress.phoneNumber || '',
-                shippingAddress: null, // Google Pay doesn't provide shipping in basic flow
+                fullName: shippingAddress.name || billingAddress.name || '',
+                phone: shippingAddress.phoneNumber || billingAddress.phoneNumber || '',
+                shippingAddress: shippingAddress.address1 ? {
+                    line1: shippingAddress.address1 || '',
+                    line2: [shippingAddress.address2, shippingAddress.address3].filter(Boolean).join(' '),
+                    city: shippingAddress.locality || '',
+                    region: shippingAddress.administrativeArea || '',
+                    postalCode: shippingAddress.postalCode || '',
+                    countryCode: shippingAddress.countryCode || ''
+                } : null,
                 billingAddress: {
                     line1: billingAddress.address1 || '',
                     line2: [billingAddress.address2, billingAddress.address3].filter(Boolean).join(' '),

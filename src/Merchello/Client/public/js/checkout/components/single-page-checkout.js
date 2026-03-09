@@ -251,9 +251,10 @@ export function initSinglePageCheckout() {
             // ============================================
 
             get canCalculateShipping() {
-                return this.form.shipping.countryCode &&
-                       this.form.shipping.postalCode &&
-                       this.form.shipping.postalCode.length >= MIN_POSTAL_CODE_LENGTH;
+                const addr = this.shippingSameAsBilling ? this.form.billing : this.form.shipping;
+                return addr.countryCode &&
+                       addr.postalCode &&
+                       addr.postalCode.length >= MIN_POSTAL_CODE_LENGTH;
             },
 
             get allShippingSelected() {
@@ -396,8 +397,9 @@ export function initSinglePageCheckout() {
                     this.sortShippingOptions();
                 }
 
-                // Calculate shipping if needed
-                if (this.form.shipping.countryCode && !this._shippingCalculated) {
+                // Calculate shipping if needed (use effective address for sameAsBilling)
+                const initAddr = this.shippingSameAsBilling ? this.form.billing : this.form.shipping;
+                if (initAddr.countryCode && !this._shippingCalculated) {
                     await this.calculateShipping();
                 }
 
@@ -1112,8 +1114,11 @@ export function initSinglePageCheckout() {
                 debouncer.debounce('shipping', () => this.calculateShipping(), 500);
             },
 
-            async calculateShipping() {
-                if (!this.canCalculateShipping) return;
+            async calculateShipping({ force = false } = {}) {
+                // force: bypass postal code requirement (e.g. upsell added when shipping was already calculated)
+                const effectiveCountry = (this.shippingSameAsBilling ? this.form.billing : this.form.shipping).countryCode;
+                if (!force && !this.canCalculateShipping) return;
+                if (force && !effectiveCountry) return;
 
                 // REQUEST ID PATTERN: Increment before async call, check after.
                 // If user changes address quickly, multiple requests fire.
@@ -1141,9 +1146,13 @@ export function initSinglePageCheckout() {
                 }, 15000);
 
                 try {
+                    // Use effective address: billing when sameAsBilling, shipping otherwise.
+                    // On page refresh the shipping form may lack postalCode (basket stores minimal
+                    // shipping address), but the billing form is fully populated from session data.
+                    const effectiveAddr = this.shippingSameAsBilling ? this.form.billing : this.form.shipping;
                     const data = await checkoutApi.initialize({
-                        countryCode: this.form.shipping.countryCode,
-                        regionCode: this.form.shipping.regionCode,
+                        countryCode: effectiveAddr.countryCode,
+                        regionCode: effectiveAddr.regionCode,
                         autoSelectShipping: true,
                         email: this.form.email,
                         previousShippingSelections: this.shippingSelections
@@ -1748,8 +1757,9 @@ export function initSinglePageCheckout() {
 
             async loadCheckoutUpsells(forceReload = false) {
                 const store = this.$store.checkout;
-                if (!this.form.shipping.countryCode) return;
-                const locationKey = `${this.form.shipping.countryCode}|${this.form.shipping.regionCode || ''}`;
+                const upsellAddr = this.shippingSameAsBilling ? this.form.billing : this.form.shipping;
+                if (!upsellAddr.countryCode) return;
+                const locationKey = `${upsellAddr.countryCode}|${upsellAddr.regionCode || ''}`;
                 if (!forceReload && this._lastUpsellLoadLocationKey === locationKey) {
                     return;
                 }
@@ -1759,9 +1769,9 @@ export function initSinglePageCheckout() {
 
                 try {
                     const params = new URLSearchParams({ location: 'Checkout' });
-                    params.append('countryCode', this.form.shipping.countryCode);
-                    if (this.form.shipping.regionCode) {
-                        params.append('regionCode', this.form.shipping.regionCode);
+                    params.append('countryCode', upsellAddr.countryCode);
+                    if (upsellAddr.regionCode) {
+                        params.append('regionCode', upsellAddr.regionCode);
                     }
                     const result = await checkoutApi.request(`/upsells?${params}`);
 
@@ -1859,8 +1869,14 @@ export function initSinglePageCheckout() {
 
                     store?.markUpsellProductAdded(product.productRootId);
 
-                    // Recalculate shipping when possible; otherwise refresh basket totals/items directly.
-                    if (this.canCalculateShipping) {
+                    // Recalculate shipping: force recalculation if shipping was already
+                    // calculated (upsell may add items from a different warehouse).
+                    // The initialize API only needs countryCode, not postalCode, so
+                    // bypass the postal code gate that canCalculateShipping enforces.
+                    const hasCountry = (this.shippingSameAsBilling ? this.form.billing : this.form.shipping).countryCode;
+                    if (hasCountry && this._shippingCalculated) {
+                        await this.calculateShipping({ force: true });
+                    } else if (this.canCalculateShipping) {
                         await this.calculateShipping();
                     } else {
                         await this.refreshCheckoutBasketAndReinitPayment();

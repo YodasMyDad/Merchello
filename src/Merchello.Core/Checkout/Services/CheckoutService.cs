@@ -1692,50 +1692,74 @@ public class CheckoutService(
 
             for (var attempt = 0; attempt < maxRetries; attempt++)
             {
-                using var scope = efCoreScopeProvider.CreateScope();
                 try
                 {
                     hasChanges = false;
-                    await scope.ExecuteWithContextAsync<bool>(async db =>
+
+                    // ── Phase 1 (scope): Load basket, update address fields, save ──
                     {
-                        updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
-                        if (updatedBasket == null)
+                        using var loadScope = efCoreScopeProvider.CreateScope();
+                        await loadScope.ExecuteWithContextAsync<bool>(async db =>
                         {
-                            return false;
-                        }
+                            updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
+                            if (updatedBasket == null)
+                            {
+                                return false;
+                            }
 
-                        if (!string.IsNullOrWhiteSpace(parameters.Email))
-                        {
-                            updatedBasket.BillingAddress.Email = parameters.Email.Trim();
-                            hasChanges = true;
-                        }
+                            if (!string.IsNullOrWhiteSpace(parameters.Email))
+                            {
+                                updatedBasket.BillingAddress.Email = parameters.Email.Trim();
+                                hasChanges = true;
+                            }
 
-                        if (parameters.BillingAddress != null)
-                        {
-                            hasChanges |= UpdateAddressFromDto(updatedBasket.BillingAddress, parameters.BillingAddress);
-                        }
+                            if (parameters.BillingAddress != null)
+                            {
+                                hasChanges |= UpdateAddressFromDto(updatedBasket.BillingAddress, parameters.BillingAddress);
+                            }
 
-                        if (parameters.ShippingSameAsBilling && parameters.BillingAddress != null)
-                        {
-                            CopyAddress(updatedBasket.BillingAddress, updatedBasket.ShippingAddress);
-                            hasChanges = true;
-                        }
-                        else if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
-                        {
-                            hasChanges |= UpdateAddressFromDto(updatedBasket.ShippingAddress, parameters.ShippingAddress);
-                        }
+                            if (parameters.ShippingSameAsBilling && parameters.BillingAddress != null)
+                            {
+                                CopyAddress(updatedBasket.BillingAddress, updatedBasket.ShippingAddress);
+                                hasChanges = true;
+                            }
+                            else if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
+                            {
+                                hasChanges |= UpdateAddressFromDto(updatedBasket.ShippingAddress, parameters.ShippingAddress);
+                            }
 
-                        if (!hasChanges)
-                        {
+                            if (!hasChanges)
+                            {
+                                return true;
+                            }
+
+                            updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                            await db.SaveChangesAsync(cancellationToken);
                             return true;
-                        }
+                        });
+                        loadScope.Complete();
+                    }
 
+                    // Sync currency outside scope — ExchangeRateCache can create its own scope on cache miss
+                    if (updatedBasket != null)
+                    {
+                        var previousCurrency = updatedBasket.Currency;
                         await SyncBasketCurrencyToCountryAsync(updatedBasket, updatedBasket.ShippingAddress.CountryCode, cancellationToken);
-                        updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                        await db.SaveChangesAsync(cancellationToken);
-                        return true;
-                    });
-                    scope.Complete();
+
+                        // If currency changed, save it in a separate scope
+                        if (!string.Equals(previousCurrency, updatedBasket.Currency, StringComparison.OrdinalIgnoreCase))
+                        {
+                            using var currencyScope = efCoreScopeProvider.CreateScope();
+                            await currencyScope.ExecuteWithContextAsync<bool>(async db =>
+                            {
+                                db.Baskets.Update(updatedBasket);
+                                updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                                await db.SaveChangesAsync(cancellationToken);
+                                return true;
+                            });
+                            currencyScope.Complete();
+                        }
+                    }
 
                     if (updatedBasket == null)
                     {
@@ -1838,109 +1862,77 @@ public class CheckoutService(
         Basket? fullUpdatedBasket = null;
         Address? appliedBillingAddress = null;
         Address? appliedShippingAddress = null;
+        var addressesChanged = false;
         const int fullMaxRetries = 3;
 
         for (var attempt = 0; attempt < fullMaxRetries; attempt++)
         {
-            using var scope = efCoreScopeProvider.CreateScope();
             var updateCancelled = false;
 
             try
             {
-                await scope.ExecuteWithContextAsync<bool>(async db =>
+                // ── Phase 1 (scope): Load basket, update addresses, save ──
+                // Services called in Phase 2 (CalculateBasketAsync, RefreshPromotionalDiscountsAsync, etc.)
+                // create their own EFCoreScopes. Keeping them outside this scope avoids nesting.
                 {
-                    fullUpdatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == fullBasketId, cancellationToken);
-                    if (fullUpdatedBasket == null)
+                    using var loadScope = efCoreScopeProvider.CreateScope();
+                    await loadScope.ExecuteWithContextAsync<bool>(async db =>
                     {
-                        return false;
-                    }
-
-                    // Map DTOs to Address models
-                    var billingAddress = MapDtoToAddress(parameters.BillingAddress);
-                    billingAddress.Email = parameters.Email;
-
-                    var shippingAddress = parameters.ShippingSameAsBilling
-                        ? billingAddress
-                        : MapDtoToAddress(parameters.ShippingAddress ?? parameters.BillingAddress);
-
-                    if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
-                    {
-                        shippingAddress.Email = parameters.Email;
-                    }
-
-                    // Publish "Before" notification - handlers can cancel or modify addresses
-                    var changingNotification = new CheckoutAddressesChangingNotification(
-                        fullUpdatedBasket, billingAddress, shippingAddress, parameters.ShippingSameAsBilling);
-
-                    if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
-                    {
-                        result.Messages.Add(new ResultMessage
+                        fullUpdatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == fullBasketId, cancellationToken);
+                        if (fullUpdatedBasket == null)
                         {
-                            Message = changingNotification.CancelReason ?? "Address change cancelled",
-                            ResultMessageType = ResultMessageType.Error
-                        });
-                        updateCancelled = true;
-                        return false;
-                    }
+                            return false;
+                        }
 
-                    // Use potentially modified addresses from handlers
-                    billingAddress = changingNotification.BillingAddress;
-                    shippingAddress = changingNotification.ShippingAddress;
+                        // Map DTOs to Address models
+                        var billingAddress = MapDtoToAddress(parameters.BillingAddress);
+                        billingAddress.Email = parameters.Email;
 
-                    appliedBillingAddress = billingAddress;
-                    appliedShippingAddress = shippingAddress;
+                        var shippingAddress = parameters.ShippingSameAsBilling
+                            ? billingAddress
+                            : MapDtoToAddress(parameters.ShippingAddress ?? parameters.BillingAddress);
 
-                    // Check if addresses actually changed to avoid phantom invoice creation
-                    // When the same addresses are re-submitted, we don't want to invalidate existing unpaid invoices
-                    var addressesChanged = !AddressesEqual(fullUpdatedBasket.BillingAddress, billingAddress) ||
+                        if (!parameters.ShippingSameAsBilling && parameters.ShippingAddress != null)
+                        {
+                            shippingAddress.Email = parameters.Email;
+                        }
+
+                        // Publish "Before" notification - handlers can cancel or modify addresses
+                        var changingNotification = new CheckoutAddressesChangingNotification(
+                            fullUpdatedBasket, billingAddress, shippingAddress, parameters.ShippingSameAsBilling);
+
+                        if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+                        {
+                            result.Messages.Add(new ResultMessage
+                            {
+                                Message = changingNotification.CancelReason ?? "Address change cancelled",
+                                ResultMessageType = ResultMessageType.Error
+                            });
+                            updateCancelled = true;
+                            return false;
+                        }
+
+                        // Use potentially modified addresses from handlers
+                        billingAddress = changingNotification.BillingAddress;
+                        shippingAddress = changingNotification.ShippingAddress;
+
+                        appliedBillingAddress = billingAddress;
+                        appliedShippingAddress = shippingAddress;
+
+                        // Detect address changes before applying (used in Phase 2 for timestamp update)
+                        addressesChanged = !AddressesEqual(fullUpdatedBasket.BillingAddress, billingAddress) ||
                                            !AddressesEqual(fullUpdatedBasket.ShippingAddress, shippingAddress);
 
-                    // Capture totals before recalculation to detect if discounts/taxes changed
-                    var previousTotal = fullUpdatedBasket.Total;
-                    var previousDiscount = fullUpdatedBasket.Discount;
-                    var previousTax = fullUpdatedBasket.Tax;
+                        // Update basket addresses
+                        fullUpdatedBasket.BillingAddress = billingAddress;
+                        fullUpdatedBasket.ShippingAddress = shippingAddress;
 
-                    // Update basket addresses
-                    fullUpdatedBasket.BillingAddress = billingAddress;
-                    fullUpdatedBasket.ShippingAddress = shippingAddress;
-
-                    await SyncBasketCurrencyToCountryAsync(fullUpdatedBasket, shippingAddress.CountryCode, cancellationToken);
-
-                    // Recalculate with the new shipping address country
-                    await CalculateBasketAsync(new CalculateBasketParameters
-                    {
-                        Basket = fullUpdatedBasket,
-                        CountryCode = shippingAddress.CountryCode
-                    }, cancellationToken);
-
-                    // Refresh promotional discounts (automatic + code) after address changes.
-                    if (checkoutDiscountService != null)
-                    {
-                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
-                            fullUpdatedBasket,
-                            shippingAddress.CountryCode,
-                            cancellationToken);
-                        fullUpdatedBasket = refreshResult.ResultObject ?? fullUpdatedBasket;
-                        result.Messages.AddRange(refreshResult.Messages
-                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
-                    }
-
-                    // Update timestamp if addresses changed OR if totals changed after recalculation
-                    // This ensures invoice dedup creates a new invoice when discounts/taxes change
-                    var totalsChanged = fullUpdatedBasket.Total != previousTotal ||
-                                        fullUpdatedBasket.Discount != previousDiscount ||
-                                        fullUpdatedBasket.Tax != previousTax;
-
-                    if (addressesChanged || totalsChanged)
-                    {
-                        fullUpdatedBasket.DateUpdated = DateTime.UtcNow;
-                    }
-
-                    fullUpdatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                    await db.SaveChangesAsync(cancellationToken);
-                    return true;
-                });
-                scope.Complete();
+                        fullUpdatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        await db.SaveChangesAsync(cancellationToken);
+                        return true;
+                    });
+                    loadScope.Complete();
+                }
 
                 if (updateCancelled)
                 {
@@ -1955,6 +1947,58 @@ public class CheckoutService(
                         ResultMessageType = ResultMessageType.Error
                     });
                     return result;
+                }
+
+                // ── Phase 2 (no scope): Business logic — each service manages its own scopes ──
+
+                // Capture totals before recalculation to detect if discounts/taxes changed
+                var previousTotal = fullUpdatedBasket.Total;
+                var previousDiscount = fullUpdatedBasket.Discount;
+                var previousTax = fullUpdatedBasket.Tax;
+
+                // Sync currency outside scope — ExchangeRateCache can create its own scope on cache miss
+                await SyncBasketCurrencyToCountryAsync(fullUpdatedBasket, appliedShippingAddress.CountryCode, cancellationToken);
+
+                // Recalculate with the new shipping address country
+                await CalculateBasketAsync(new CalculateBasketParameters
+                {
+                    Basket = fullUpdatedBasket,
+                    CountryCode = appliedShippingAddress.CountryCode
+                }, cancellationToken);
+
+                // Refresh promotional discounts (automatic + code) after address changes.
+                if (checkoutDiscountService != null)
+                {
+                    var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                        fullUpdatedBasket,
+                        appliedShippingAddress.CountryCode,
+                        cancellationToken);
+                    fullUpdatedBasket = refreshResult.ResultObject ?? fullUpdatedBasket;
+                    result.Messages.AddRange(refreshResult.Messages
+                        .Where(m => m.ResultMessageType != ResultMessageType.Error));
+                }
+
+                // Update timestamp if addresses changed OR if totals changed after recalculation
+                var totalsChanged = fullUpdatedBasket.Total != previousTotal ||
+                                    fullUpdatedBasket.Discount != previousDiscount ||
+                                    fullUpdatedBasket.Tax != previousTax;
+
+                if (addressesChanged || totalsChanged)
+                {
+                    fullUpdatedBasket.DateUpdated = DateTime.UtcNow;
+                }
+
+                // ── Phase 3 (scope): Save calculated basket back to DB ──
+                {
+                    using var saveScope = efCoreScopeProvider.CreateScope();
+                    await saveScope.ExecuteWithContextAsync<bool>(async db =>
+                    {
+                        db.Baskets.Update(fullUpdatedBasket);
+                        fullUpdatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        await db.SaveChangesAsync(cancellationToken);
+                        return true;
+                    });
+                    saveScope.Complete();
                 }
 
                 if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = fullUpdatedBasket;
@@ -2201,173 +2245,23 @@ public class CheckoutService(
 
         for (var attempt = 0; attempt < maxRetries; attempt++)
         {
-            using var scope = efCoreScopeProvider.CreateScope();
             Basket? updatedBasket = null;
             Dictionary<Guid, string> finalSelections = new(selections);
             var earlyResult = new CrudResult<Basket>();
-            var hasEarlyResult = false;
 
             try
             {
-                await scope.ExecuteWithContextAsync<bool>(async db =>
+                // ── Phase 1 (scope): Load basket from DB ──
+                // Services called in Phase 2 (GetOrderGroupsAsync, CalculateBasketAsync, etc.)
+                // create their own EFCoreScopes. Keeping them outside this scope avoids nesting.
                 {
-                    updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
-                    if (updatedBasket == null)
+                    using var loadScope = efCoreScopeProvider.CreateScope();
+                    await loadScope.ExecuteWithContextAsync<bool>(async db =>
                     {
-                        hasEarlyResult = true;
-                        earlyResult.Messages.Add(new ResultMessage
-                        {
-                            Message = "Basket not found",
-                            ResultMessageType = ResultMessageType.Error
-                        });
-                        return false;
-                    }
-
-                    // Publish "Before" notification - handlers can cancel or modify selections
-                    var changingNotification = new ShippingSelectionChangingNotification(
-                        updatedBasket, new Dictionary<Guid, string>(selections));
-
-                    if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
-                    {
-                        hasEarlyResult = true;
-                        earlyResult.Messages.Add(new ResultMessage
-                        {
-                            Message = changingNotification.CancelReason ?? "Shipping selection change cancelled",
-                            ResultMessageType = ResultMessageType.Error
-                        });
-                        return false;
-                    }
-
-                    // Use potentially modified selections from handlers
-                    finalSelections = changingNotification.ShippingSelections;
-
-                    // Check if shipping selections actually changed to avoid phantom invoice creation
-                    // When the same selections are re-submitted, we don't want to invalidate existing unpaid invoices
-                    var selectionsChanged = !ShippingSelectionsEqual(session.SelectedShippingOptions, finalSelections);
-
-                    // Capture totals before recalculation to detect if discounts/taxes changed
-                    var previousTotal = updatedBasket.Total;
-                    var previousDiscount = updatedBasket.Discount;
-                    var previousTax = updatedBasket.Tax;
-                    var previousShipping = updatedBasket.Shipping;
-
-                    // Update session with selections
-                    session.SelectedShippingOptions = finalSelections;
-                    if (deliveryDates != null)
-                    {
-                        session.SelectedDeliveryDates = deliveryDates;
-                    }
-
-                    // Get order groups with the new selections to calculate shipping costs
-                    var groupingResult = await GetOrderGroupsAsync(
-                        new GetOrderGroupsParameters
-                        {
-                            Basket = updatedBasket,
-                            Session = session
-                        },
-                        cancellationToken);
-
-                    if (!groupingResult.Success)
-                    {
-                        hasEarlyResult = true;
-                        foreach (var error in groupingResult.Errors)
-                        {
-                            earlyResult.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
-                        }
-                        return false;
-                    }
-
-                    // Calculate total shipping cost from selected options and store quoted costs
-                    decimal totalShipping = 0;
-                    var quotedCosts = session.QuotedShippingCosts;
-                    foreach (var group in groupingResult.Groups)
-                    {
-                        if (!string.IsNullOrEmpty(group.SelectedShippingOptionId))
-                        {
-                            var selectedOption = group.AvailableShippingOptions
-                                .FirstOrDefault(o => o.SelectionKey == group.SelectedShippingOptionId);
-
-                            if (selectedOption != null)
-                            {
-                                var costToCharge = selectedOption.Cost;
-                                if (quotedCosts.TryGetValue(group.GroupId, out var quoted) && quoted.Cost > 0)
-                                {
-                                    // Only honor server-stored quotes (never trust client-provided values).
-                                    // Take the lower of quoted vs live: customer never pays more than quoted,
-                                    // but also benefits from any rate decrease.
-                                    costToCharge = Math.Min(selectedOption.Cost, quoted.Cost);
-
-                                    var smallestUnit = 1m / (decimal)Math.Pow(10, currencyService.GetDecimalPlaces(_settings.StoreCurrencyCode));
-                                    if (Math.Abs(selectedOption.Cost - costToCharge) > smallestUnit)
-                                    {
-                                        logger.LogWarning(
-                                            "Shipping rate adjusted for group {GroupId}: quoted {QuotedCost}, live {LiveCost}, charged {ChargedCost}",
-                                            group.GroupId, quoted.Cost, selectedOption.Cost, costToCharge);
-                                    }
-                                }
-
-                                if (costToCharge < 0)
-                                {
-                                    costToCharge = 0;
-                                }
-
-                                totalShipping += costToCharge;
-                                session.QuotedShippingCosts[group.GroupId] = new QuotedShippingCost(costToCharge, DateTime.UtcNow);
-                            }
-                            else
-                            {
-                                hasEarlyResult = true;
-                                earlyResult.Messages.Add(new ResultMessage
-                                {
-                                    ResultMessageType = ResultMessageType.Error,
-                                    Message = "Selected shipping option is no longer available. Please reselect shipping."
-                                });
-                                return false;
-                            }
-                        }
-                    }
-
-                    // Recalculate totals with the selected shipping amount
-                    await CalculateBasketAsync(new CalculateBasketParameters
-                    {
-                        Basket = updatedBasket,
-                        CountryCode = session.ShippingAddress.CountryCode,
-                        ShippingAmountOverride = totalShipping
-                    }, cancellationToken);
-
-                    // Refresh promotional discounts (shipping changes can invalidate code/auto discounts).
-                    if (checkoutDiscountService != null)
-                    {
-                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
-                            updatedBasket,
-                            session.ShippingAddress.CountryCode,
-                            cancellationToken);
-                        updatedBasket = refreshResult.ResultObject ?? updatedBasket;
-                        earlyResult.Messages.AddRange(refreshResult.Messages
-                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
-                    }
-
-                    // Update timestamp if selections changed OR if totals changed after recalculation
-                    // This ensures invoice dedup creates a new invoice when shipping/discounts/taxes change
-                    var totalsChanged = updatedBasket.Total != previousTotal ||
-                                        updatedBasket.Discount != previousDiscount ||
-                                        updatedBasket.Tax != previousTax ||
-                                        updatedBasket.Shipping != previousShipping;
-
-                    if (selectionsChanged || totalsChanged)
-                    {
-                        updatedBasket.DateUpdated = DateTime.UtcNow;
-                    }
-
-                    updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                    await db.SaveChangesAsync(cancellationToken);
-                    return true;
-                });
-                scope.Complete();
-
-                if (hasEarlyResult)
-                {
-                    return earlyResult;
+                        updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
+                        return updatedBasket != null;
+                    });
+                    loadScope.Complete();
                 }
 
                 if (updatedBasket == null)
@@ -2378,6 +2272,161 @@ public class CheckoutService(
                         ResultMessageType = ResultMessageType.Error
                     });
                     return earlyResult;
+                }
+
+                // ── Phase 2 (no scope): Business logic — each service manages its own scopes ──
+
+                // Publish "Before" notification - handlers can cancel or modify selections
+                var changingNotification = new ShippingSelectionChangingNotification(
+                    updatedBasket, new Dictionary<Guid, string>(selections));
+
+                if (await notificationPublisher.PublishCancelableAsync(changingNotification, cancellationToken))
+                {
+                    earlyResult.Messages.Add(new ResultMessage
+                    {
+                        Message = changingNotification.CancelReason ?? "Shipping selection change cancelled",
+                        ResultMessageType = ResultMessageType.Error
+                    });
+                    return earlyResult;
+                }
+
+                // Use potentially modified selections from handlers
+                finalSelections = changingNotification.ShippingSelections;
+
+                // Check if shipping selections actually changed to avoid phantom invoice creation
+                // When the same selections are re-submitted, we don't want to invalidate existing unpaid invoices
+                var selectionsChanged = !ShippingSelectionsEqual(session.SelectedShippingOptions, finalSelections);
+
+                // Capture totals before recalculation to detect if discounts/taxes changed
+                var previousTotal = updatedBasket.Total;
+                var previousDiscount = updatedBasket.Discount;
+                var previousTax = updatedBasket.Tax;
+                var previousShipping = updatedBasket.Shipping;
+
+                // Update session with selections
+                session.SelectedShippingOptions = finalSelections;
+                if (deliveryDates != null)
+                {
+                    session.SelectedDeliveryDates = deliveryDates;
+                }
+
+                // Get order groups with the new selections to calculate shipping costs
+                var groupingResult = await GetOrderGroupsAsync(
+                    new GetOrderGroupsParameters
+                    {
+                        Basket = updatedBasket,
+                        Session = session
+                    },
+                    cancellationToken);
+
+                if (!groupingResult.Success)
+                {
+                    foreach (var error in groupingResult.Errors)
+                    {
+                        earlyResult.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
+                    }
+                    return earlyResult;
+                }
+
+                // Calculate total shipping cost from selected options and store quoted costs
+                decimal totalShipping = 0;
+                var quotedCosts = session.QuotedShippingCosts;
+                var optionUnavailable = false;
+                foreach (var group in groupingResult.Groups)
+                {
+                    if (!string.IsNullOrEmpty(group.SelectedShippingOptionId))
+                    {
+                        var selectedOption = group.AvailableShippingOptions
+                            .FirstOrDefault(o => o.SelectionKey == group.SelectedShippingOptionId);
+
+                        if (selectedOption != null)
+                        {
+                            var costToCharge = selectedOption.Cost;
+                            if (quotedCosts.TryGetValue(group.GroupId, out var quoted) && quoted.Cost > 0)
+                            {
+                                // Only honor server-stored quotes (never trust client-provided values).
+                                // Take the lower of quoted vs live: customer never pays more than quoted,
+                                // but also benefits from any rate decrease.
+                                costToCharge = Math.Min(selectedOption.Cost, quoted.Cost);
+
+                                var smallestUnit = 1m / (decimal)Math.Pow(10, currencyService.GetDecimalPlaces(_settings.StoreCurrencyCode));
+                                if (Math.Abs(selectedOption.Cost - costToCharge) > smallestUnit)
+                                {
+                                    logger.LogWarning(
+                                        "Shipping rate adjusted for group {GroupId}: quoted {QuotedCost}, live {LiveCost}, charged {ChargedCost}",
+                                        group.GroupId, quoted.Cost, selectedOption.Cost, costToCharge);
+                                }
+                            }
+
+                            if (costToCharge < 0)
+                            {
+                                costToCharge = 0;
+                            }
+
+                            totalShipping += costToCharge;
+                            session.QuotedShippingCosts[group.GroupId] = new QuotedShippingCost(costToCharge, DateTime.UtcNow);
+                        }
+                        else
+                        {
+                            optionUnavailable = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (optionUnavailable)
+                {
+                    earlyResult.Messages.Add(new ResultMessage
+                    {
+                        ResultMessageType = ResultMessageType.Error,
+                        Message = "Selected shipping option is no longer available. Please reselect shipping."
+                    });
+                    return earlyResult;
+                }
+
+                // Recalculate totals with the selected shipping amount
+                await CalculateBasketAsync(new CalculateBasketParameters
+                {
+                    Basket = updatedBasket,
+                    CountryCode = session.ShippingAddress.CountryCode,
+                    ShippingAmountOverride = totalShipping
+                }, cancellationToken);
+
+                // Refresh promotional discounts (shipping changes can invalidate code/auto discounts).
+                if (checkoutDiscountService != null)
+                {
+                    var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                        updatedBasket,
+                        session.ShippingAddress.CountryCode,
+                        cancellationToken);
+                    updatedBasket = refreshResult.ResultObject ?? updatedBasket;
+                    earlyResult.Messages.AddRange(refreshResult.Messages
+                        .Where(m => m.ResultMessageType != ResultMessageType.Error));
+                }
+
+                // Update timestamp if selections changed OR if totals changed after recalculation
+                // This ensures invoice dedup creates a new invoice when shipping/discounts/taxes change
+                var totalsChanged = updatedBasket.Total != previousTotal ||
+                                    updatedBasket.Discount != previousDiscount ||
+                                    updatedBasket.Tax != previousTax ||
+                                    updatedBasket.Shipping != previousShipping;
+
+                if (selectionsChanged || totalsChanged)
+                {
+                    updatedBasket.DateUpdated = DateTime.UtcNow;
+                }
+
+                // ── Phase 3 (scope): Save calculated basket back to DB ──
+                {
+                    using var saveScope = efCoreScopeProvider.CreateScope();
+                    await saveScope.ExecuteWithContextAsync<bool>(async db =>
+                    {
+                        db.Baskets.Update(updatedBasket);
+                        updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        await db.SaveChangesAsync(cancellationToken);
+                        return true;
+                    });
+                    saveScope.Complete();
                 }
 
                 if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;
@@ -2707,171 +2756,175 @@ public class CheckoutService(
 
         for (var attempt = 0; attempt < maxRetries; attempt++)
         {
-            using var scope = efCoreScopeProvider.CreateScope();
-            var hasEarlyResult = false;
-
             try
             {
                 result.Messages.Clear();
 
-                await scope.ExecuteWithContextAsync<bool>(async db =>
+                // ── Phase 1 (scope): Load basket, update basic fields, save ──
+                // Services called in Phase 2 (CalculateBasketAsync, GetOrderGroupsAsync, etc.)
+                // create their own EFCoreScopes internally. Nesting them inside a parent scope
+                // causes "The Scope being disposed is not the Ambient Scope" errors. Splitting
+                // into separate scope phases avoids this.
                 {
-                    updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
-                    if (updatedBasket == null)
+                    using var loadScope = efCoreScopeProvider.CreateScope();
+                    await loadScope.ExecuteWithContextAsync<bool>(async db =>
                     {
-                        result.Messages.Add(new ResultMessage
-                        {
-                            Message = "Basket not found",
-                            ResultMessageType = ResultMessageType.Error
-                        });
-                        hasEarlyResult = true;
-                        return false;
-                    }
+                        updatedBasket = await db.Baskets.FirstOrDefaultAsync(b => b.Id == basketId, cancellationToken);
+                        if (updatedBasket == null) return false;
 
-                    // Update basket with shipping address for calculation purposes
-                    updatedBasket.ShippingAddress = shippingAddress;
-                    // Also update billing address country to match (storefront selection takes precedence)
-                    updatedBasket.BillingAddress.CountryCode = parameters.CountryCode;
-                    updatedBasket.DateUpdated = DateTime.UtcNow;
+                        updatedBasket.ShippingAddress = shippingAddress;
+                        updatedBasket.BillingAddress.CountryCode = parameters.CountryCode;
+                        updatedBasket.DateUpdated = DateTime.UtcNow;
 
-                    await SyncBasketCurrencyToCountryAsync(updatedBasket, parameters.CountryCode, cancellationToken);
+                        updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        await db.SaveChangesAsync(cancellationToken);
+                        return true;
+                    });
+                    loadScope.Complete();
+                }
 
-                    // Calculate basket with shipping country
-                    await CalculateBasketAsync(new CalculateBasketParameters
-                    {
-                        Basket = updatedBasket,
-                        CountryCode = parameters.CountryCode
-                    }, cancellationToken);
-
-                    // Get or create checkout session
-                    session = await checkoutSessionService.GetSessionAsync(updatedBasket.Id, cancellationToken);
-                    session.ShippingAddress = shippingAddress;
-
-                    // Get order groups with shipping options
-                    groupingResult = await GetOrderGroupsAsync(
-                        new GetOrderGroupsParameters
-                        {
-                            Basket = updatedBasket,
-                            Session = session
-                        },
-                        cancellationToken);
-
-                    // Add any grouping errors to basket.Errors so frontend can display item-level errors
-                    foreach (var error in groupingResult.Errors)
-                    {
-                        var isStockError = groupingResult.StockErrors.Contains(error);
-                        updatedBasket.Errors.Add(new BasketError
-                        {
-                            Message = error,
-                            IsShippingError = !isStockError,
-                            IsStockError = isStockError
-                        });
-                    }
-
-                    // If there are no valid shipping groups at all (complete failure), add to result messages
-                    // but continue processing to return the basket with errors for the frontend
-                    if (!groupingResult.Success && groupingResult.Groups.Count == 0)
-                    {
-                        foreach (var error in groupingResult.Errors)
-                        {
-                            result.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
-                        }
-                    }
-
-                    // Determine shipping selections: restore previous selections if valid, otherwise auto-select
-                    finalSelections = new Dictionary<Guid, string>();
-                    combinedShippingTotal = 0;
-                    shippingAutoSelected = false;
-
-                    if (groupingResult.Groups.Count > 0)
-                    {
-                        // First, try to validate and restore previous selections from frontend
-                        var validPreviousSelections = ShippingAutoSelector.ValidatePreviousSelections(
-                            groupingResult.Groups,
-                            parameters.PreviousShippingSelections);
-
-                        // Start with valid previous selections
-                        foreach (var selection in validPreviousSelections)
-                        {
-                            finalSelections[selection.Key] = selection.Value;
-                        }
-
-                        // For groups without a valid previous selection, auto-select using configured strategy
-                        if (parameters.AutoSelectShipping)
-                        {
-                            var groupsNeedingAutoSelect = groupingResult.Groups
-                                .Where(g => !finalSelections.ContainsKey(g.GroupId))
-                                .ToList();
-
-                            if (groupsNeedingAutoSelect.Count > 0)
-                            {
-                                var strategy = ParseAutoSelectStrategy(_settings.ShippingAutoSelectStrategy);
-
-                                var autoSelectedOptions = ShippingAutoSelector.SelectOptions(
-                                    groupsNeedingAutoSelect,
-                                    strategy);
-
-                                foreach (var selection in autoSelectedOptions)
-                                {
-                                    finalSelections[selection.Key] = selection.Value;
-                                }
-
-                                // Only mark as auto-selected if we actually auto-selected (not restored)
-                                shippingAutoSelected = autoSelectedOptions.Count > 0 && validPreviousSelections.Count == 0;
-                            }
-                        }
-
-                        // Apply all selections to groups
-                        ShippingAutoSelector.ApplySelectionsToGroups(groupingResult.Groups, finalSelections);
-
-                        // Calculate combined shipping total from final selections
-                        combinedShippingTotal = ShippingAutoSelector.CalculateCombinedTotal(
-                            groupingResult.Groups,
-                            finalSelections);
-
-                        // Recalculate totals with the selected shipping amount
-                        await CalculateBasketAsync(new CalculateBasketParameters
-                        {
-                            Basket = updatedBasket,
-                            CountryCode = parameters.CountryCode,
-                            ShippingAmountOverride = combinedShippingTotal
-                        }, cancellationToken);
-                    }
-
-                    // Refresh promotional discounts (automatic + code) after initialization recalculation.
-                    if (checkoutDiscountService != null)
-                    {
-                        var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
-                            updatedBasket,
-                            parameters.CountryCode,
-                            cancellationToken);
-                        updatedBasket = refreshResult.ResultObject ?? updatedBasket;
-                        result.Messages.AddRange(refreshResult.Messages
-                            .Where(m => m.ResultMessageType != ResultMessageType.Error));
-                    }
-
-                    updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
-                    await db.SaveChangesAsync(cancellationToken);
-                    return true;
-                });
-                scope.Complete();
-
-                if (hasEarlyResult)
+                if (updatedBasket == null)
                 {
+                    result.Messages.Add(new ResultMessage
+                    {
+                        Message = "Basket not found",
+                        ResultMessageType = ResultMessageType.Error
+                    });
                     return result;
                 }
 
-                if (updatedBasket == null || groupingResult == null)
+                // ── Phase 2 (no scope): Business logic — each service manages its own scopes ──
+
+                // Sync currency OUTSIDE Phase 1 scope — ExchangeRateCache.GetRateAsync()
+                // can create its own EFCoreScope on cache miss, which would nest if called
+                // inside the load scope. Currency fields are saved in Phase 3.
+                await SyncBasketCurrencyToCountryAsync(updatedBasket, parameters.CountryCode, cancellationToken);
+
+                // Calculate basket with shipping country
+                await CalculateBasketAsync(new CalculateBasketParameters
                 {
-                    if (!result.Messages.Any())
+                    Basket = updatedBasket,
+                    CountryCode = parameters.CountryCode
+                }, cancellationToken);
+
+                // Get or create checkout session (no EFCoreScope)
+                session = await checkoutSessionService.GetSessionAsync(updatedBasket.Id, cancellationToken);
+                session.ShippingAddress = shippingAddress;
+
+                // Get order groups with shipping options
+                groupingResult = await GetOrderGroupsAsync(
+                    new GetOrderGroupsParameters
                     {
-                        result.Messages.Add(new ResultMessage
-                        {
-                            Message = "Basket not found",
-                            ResultMessageType = ResultMessageType.Error
-                        });
+                        Basket = updatedBasket,
+                        Session = session
+                    },
+                    cancellationToken);
+
+                // Add any grouping errors to basket.Errors so frontend can display item-level errors
+                foreach (var error in groupingResult.Errors)
+                {
+                    var isStockError = groupingResult.StockErrors.Contains(error);
+                    updatedBasket.Errors.Add(new BasketError
+                    {
+                        Message = error,
+                        IsShippingError = !isStockError,
+                        IsStockError = isStockError
+                    });
+                }
+
+                // If there are no valid shipping groups at all (complete failure), add to result messages
+                // but continue processing to return the basket with errors for the frontend
+                if (!groupingResult.Success && groupingResult.Groups.Count == 0)
+                {
+                    foreach (var error in groupingResult.Errors)
+                    {
+                        result.Messages.Add(new ResultMessage { Message = error, ResultMessageType = ResultMessageType.Error });
                     }
-                    return result;
+                }
+
+                // Determine shipping selections: restore previous selections if valid, otherwise auto-select
+                finalSelections = new Dictionary<Guid, string>();
+                combinedShippingTotal = 0;
+                shippingAutoSelected = false;
+
+                if (groupingResult.Groups.Count > 0)
+                {
+                    // First, try to validate and restore previous selections from frontend
+                    var validPreviousSelections = ShippingAutoSelector.ValidatePreviousSelections(
+                        groupingResult.Groups,
+                        parameters.PreviousShippingSelections);
+
+                    // Start with valid previous selections
+                    foreach (var selection in validPreviousSelections)
+                    {
+                        finalSelections[selection.Key] = selection.Value;
+                    }
+
+                    // For groups without a valid previous selection, auto-select using configured strategy
+                    if (parameters.AutoSelectShipping)
+                    {
+                        var groupsNeedingAutoSelect = groupingResult.Groups
+                            .Where(g => !finalSelections.ContainsKey(g.GroupId))
+                            .ToList();
+
+                        if (groupsNeedingAutoSelect.Count > 0)
+                        {
+                            var strategy = ParseAutoSelectStrategy(_settings.ShippingAutoSelectStrategy);
+
+                            var autoSelectedOptions = ShippingAutoSelector.SelectOptions(
+                                groupsNeedingAutoSelect,
+                                strategy);
+
+                            foreach (var selection in autoSelectedOptions)
+                            {
+                                finalSelections[selection.Key] = selection.Value;
+                            }
+
+                            // Only mark as auto-selected if we actually auto-selected (not restored)
+                            shippingAutoSelected = autoSelectedOptions.Count > 0 && validPreviousSelections.Count == 0;
+                        }
+                    }
+
+                    // Apply all selections to groups
+                    ShippingAutoSelector.ApplySelectionsToGroups(groupingResult.Groups, finalSelections);
+
+                    // Calculate combined shipping total from final selections
+                    combinedShippingTotal = ShippingAutoSelector.CalculateCombinedTotal(
+                        groupingResult.Groups,
+                        finalSelections);
+
+                    // Recalculate totals with the selected shipping amount
+                    await CalculateBasketAsync(new CalculateBasketParameters
+                    {
+                        Basket = updatedBasket,
+                        CountryCode = parameters.CountryCode,
+                        ShippingAmountOverride = combinedShippingTotal
+                    }, cancellationToken);
+                }
+
+                // Refresh promotional discounts (automatic + code) after initialization recalculation.
+                if (checkoutDiscountService != null)
+                {
+                    var refreshResult = await checkoutDiscountService.Value.RefreshPromotionalDiscountsAsync(
+                        updatedBasket,
+                        parameters.CountryCode,
+                        cancellationToken);
+                    updatedBasket = refreshResult.ResultObject ?? updatedBasket;
+                    result.Messages.AddRange(refreshResult.Messages
+                        .Where(m => m.ResultMessageType != ResultMessageType.Error));
+                }
+
+                // ── Phase 3 (scope): Save calculated basket back to DB ──
+                {
+                    using var saveScope = efCoreScopeProvider.CreateScope();
+                    await saveScope.ExecuteWithContextAsync<bool>(async db =>
+                    {
+                        db.Baskets.Update(updatedBasket);
+                        updatedBasket.ConcurrencyStamp = Guid.NewGuid().ToString();
+                        await db.SaveChangesAsync(cancellationToken);
+                        return true;
+                    });
+                    saveScope.Complete();
                 }
 
                 if (httpContextAccessor.HttpContext != null) httpContextAccessor.HttpContext.Items[BasketCacheKey] = updatedBasket;

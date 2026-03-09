@@ -24,6 +24,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Security;
 using Umbraco.Cms.Core.Web;
+using System.Threading;
 using Umbraco.Cms.Web.Common.Controllers;
 
 namespace Merchello.Controllers;
@@ -57,12 +58,11 @@ public class MerchelloCheckoutController(
     /// <summary>
     /// Renders the checkout view for the current step.
     /// </summary>
-    public override IActionResult Index()
-    {
-        return IndexAsync(HttpContext.RequestAborted).GetAwaiter().GetResult();
-    }
+    [NonAction]
+    public sealed override IActionResult Index()
+        => throw new NotImplementedException("Use the async Index overload.");
 
-    private async Task<IActionResult> IndexAsync(CancellationToken ct)
+    public async Task<IActionResult> Index(CancellationToken ct)
     {
         var runtimeSettings = await GetRuntimeSettingsAsync(ct);
         var checkoutSettings = runtimeSettings.Checkout;

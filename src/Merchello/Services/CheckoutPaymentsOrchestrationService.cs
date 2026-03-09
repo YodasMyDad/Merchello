@@ -1410,7 +1410,8 @@ public class CheckoutPaymentsOrchestrationService(
             {
                 // Create transient session for validation (NOT persisted yet)
                 // This ensures we don't corrupt session state if shipping validation fails
-                var sameAsBilling = request.CustomerData.BillingAddress == null ||
+                var sameAsBilling = shippingAddress == null ||
+                                    request.CustomerData.BillingAddress == null ||
                                     string.IsNullOrWhiteSpace(request.CustomerData.BillingAddress.AddressOne);
                 var effectiveShippingAddress = sameAsBilling ? billingAddress : (shippingAddress ?? billingAddress);
 
@@ -1476,6 +1477,16 @@ public class CheckoutPaymentsOrchestrationService(
                         "Express checkout: Using {Count} existing shipping selections from session for basket {BasketId}",
                         shippingSelections.Count,
                         basket.Id);
+
+                    // Validate existing selections match current groups (address may have changed)
+                    var currentGroupIds = groupingResult.Groups.Select(g => g.GroupId).ToHashSet();
+                    if (!shippingSelections.Keys.All(k => currentGroupIds.Contains(k)))
+                    {
+                        logger.LogInformation(
+                            "Express checkout: Existing shipping selections don't match current groups for basket {BasketId}. Auto-selecting.",
+                            basket.Id);
+                        shippingSelections = ShippingAutoSelector.SelectOptions(groupingResult.Groups);
+                    }
                 }
                 else
                 {
