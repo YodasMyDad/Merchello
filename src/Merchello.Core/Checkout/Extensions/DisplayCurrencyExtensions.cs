@@ -84,7 +84,7 @@ public static class DisplayCurrencyExtensions
             var amount = li.Amount * li.Quantity;
             if (li.IsTaxable && li.TaxRate > 0)
             {
-                amount *= 1 + (li.TaxRate / 100m);
+                amount *= TaxMultiplier(li.TaxRate);
             }
             return currencyService.Round(amount * rate, currency);
         });
@@ -113,7 +113,7 @@ public static class DisplayCurrencyExtensions
                 var discountAmount = ResolveDiscountAmount(li, linkedItem, basket.SubTotal);
                 if (effectiveContext.DisplayPricesIncTax && linkedItem is { IsTaxable: true, TaxRate: > 0 })
                 {
-                    discountAmount *= 1 + (linkedItem.TaxRate / 100m);
+                    discountAmount *= TaxMultiplier(linkedItem.TaxRate);
                 }
                 else if (effectiveContext.DisplayPricesIncTax && linkedItem == null && orderLevelEffectiveTaxRate > 0)
                 {
@@ -170,7 +170,7 @@ public static class DisplayCurrencyExtensions
             var shippingTaxRate = displayContext.ShippingTaxRate.Value;
 
             // Tax-inclusive shipping = NET shipping × (1 + taxRate/100) × exchangeRate
-            taxInclusiveShipping = currencyService.Round(shippingAmount * (1 + (shippingTaxRate / 100m)) * rate, currency);
+            taxInclusiveShipping = currencyService.Round(shippingAmount * TaxMultiplier(shippingTaxRate) * rate, currency);
             shipping = taxInclusiveShipping;
         }
         else
@@ -245,7 +245,7 @@ public static class DisplayCurrencyExtensions
         // Apply tax if enabled and item is taxable
         if (displayContext.DisplayPricesIncTax && lineItem.IsTaxable && lineItem.TaxRate > 0)
         {
-            amount *= 1 + (lineItem.TaxRate / 100m);
+            amount *= TaxMultiplier(lineItem.TaxRate);
         }
 
         return currencyService.Round(amount * displayContext.ExchangeRate, displayContext.CurrencyCode);
@@ -265,7 +265,7 @@ public static class DisplayCurrencyExtensions
         // Apply tax if enabled and item is taxable
         if (displayContext.DisplayPricesIncTax && lineItem.IsTaxable && lineItem.TaxRate > 0)
         {
-            amount *= 1 + (lineItem.TaxRate / 100m);
+            amount *= TaxMultiplier(lineItem.TaxRate);
         }
 
         return currencyService.Round(amount * displayContext.ExchangeRate, displayContext.CurrencyCode);
@@ -387,7 +387,7 @@ public static class DisplayCurrencyExtensions
         // If discount is on a taxable item and prices include tax, the discount should too
         if (displayContext.DisplayPricesIncTax && linkedItemTaxRate is > 0)
         {
-            amount *= 1 + (linkedItemTaxRate.Value / 100m);
+            amount *= TaxMultiplier(linkedItemTaxRate.Value);
         }
 
         return currencyService.Round(amount * displayContext.ExchangeRate, displayContext.CurrencyCode);
@@ -444,7 +444,7 @@ public static class DisplayCurrencyExtensions
             displayContext.ShippingTaxRate.HasValue)
         {
             var shippingTaxRate = displayContext.ShippingTaxRate.Value;
-            return currencyService.Round(cost * (1 + (shippingTaxRate / 100m)) * rate, currency);
+            return currencyService.Round(cost * TaxMultiplier(shippingTaxRate) * rate, currency);
         }
 
         return currencyService.Round(cost * rate, currency);
@@ -525,7 +525,7 @@ public static class DisplayCurrencyExtensions
         {
             // All linked discounts at same rate - exact calculation
             return currencyService.Round(
-                displayDiscount * (1 + linkedTaxRates[0] / 100m), currency);
+                displayDiscount * TaxMultiplier(linkedTaxRates[0]), currency);
         }
 
         if (linkedTaxRates.Count > 1 || hasOrderLevelDiscounts)
@@ -580,13 +580,15 @@ public static class DisplayCurrencyExtensions
             var amount = li.DisplayLineTotal;
             if (displayPricesIncTax && li.IsTaxable && li.TaxRate > 0)
             {
-                amount *= 1 + (li.TaxRate / 100m);
+                amount *= TaxMultiplier(li.TaxRate);
             }
             return currencyService.Round(amount, currency);
         });
 
         return (rawSubTotal, productItems.Count);
     }
+
+    private static decimal TaxMultiplier(decimal taxRate) => 1 + (taxRate / 100m);
 
     private static bool IsAddonLinkedToParent(CheckoutLineItemDto addonLineItem, CheckoutLineItemDto parentLineItem)
     {
