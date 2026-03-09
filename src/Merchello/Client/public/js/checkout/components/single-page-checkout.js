@@ -1876,11 +1876,6 @@ export function initSinglePageCheckout() {
                 } finally {
                     store?.setUpsellAddingToCart(false);
                     this.upsellAddingProductId = null;
-                    // Safety: clear shipping loading if it was left stuck
-                    // (handles edge case where calculateShipping exits via stale request guard)
-                    if (store?.shippingLoading) {
-                        store?.setShippingLoading(false);
-                    }
                 }
             },
 

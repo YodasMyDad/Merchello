@@ -486,6 +486,64 @@ public static class DisplayCurrencyExtensions
     }
 
     /// <summary>
+    /// Calculates the tax-inclusive discount for confirmation page display.
+    /// Determines the correct tax rate to apply based on whether discounts are linked
+    /// to specific products (use linked product rate), order-level (use weighted rate),
+    /// or linked to non-taxable products (no tax).
+    /// </summary>
+    public static decimal CalculateConfirmationTaxInclusiveDiscount(
+        IList<CheckoutLineItemDto> lineItems,
+        decimal displayDiscount,
+        ICurrencyService currencyService,
+        string currency)
+    {
+        if (displayDiscount <= 0) return displayDiscount;
+
+        var discountLineItems = lineItems
+            .Where(li => li.LineItemType == LineItemType.Discount)
+            .ToList();
+
+        if (discountLineItems.Count == 0) return displayDiscount;
+
+        // Find tax rates for discount-linked products
+        var linkedTaxRates = discountLineItems
+            .Where(dli => !string.IsNullOrEmpty(dli.DependantLineItemSku))
+            .Select(dli =>
+            {
+                var linked = lineItems.FirstOrDefault(p => p.Sku == dli.DependantLineItemSku);
+                return linked is { IsTaxable: true, TaxRate: > 0 } ? linked.TaxRate : 0m;
+            })
+            .Where(r => r > 0)
+            .Distinct()
+            .ToList();
+
+        // Determine if any discounts are truly order-level (no linked product)
+        var hasOrderLevelDiscounts = discountLineItems
+            .Any(dli => string.IsNullOrEmpty(dli.DependantLineItemSku));
+
+        if (linkedTaxRates.Count == 1)
+        {
+            // All linked discounts at same rate - exact calculation
+            return currencyService.Round(
+                displayDiscount * (1 + linkedTaxRates[0] / 100m), currency);
+        }
+
+        if (linkedTaxRates.Count > 1 || hasOrderLevelDiscounts)
+        {
+            // Multiple rates or order-level discounts: use weighted effective
+            // tax rate from product line items directly.
+            var weightedTaxRate = lineItems.GetWeightedEffectiveTaxRate();
+
+            return weightedTaxRate > 0
+                ? currencyService.Round(displayDiscount * (1 + weightedTaxRate), currency)
+                : displayDiscount;
+        }
+
+        // All discounts are linked to non-taxable products - no tax
+        return displayDiscount;
+    }
+
+    /// <summary>
     /// Computes a weighted effective tax rate from product/custom/addon line items.
     /// Uses actual TaxRate values from products, not basket-level Tax/SubTotal (which is
     /// distorted because tax is calculated on the post-discount amount).

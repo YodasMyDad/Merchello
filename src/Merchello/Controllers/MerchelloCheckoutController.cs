@@ -270,48 +270,8 @@ public class MerchelloCheckoutController(
                     // Calculate accurate tax-inclusive discount using the correct monetary amount.
                     // Note: For percentage discounts, DTO.UnitPrice stores the percentage, not the monetary value.
                     // Use confirmation.DisplayDiscount (correct monetary total) with linked product tax rates.
-                    if (confirmation.DisplayDiscount > 0)
-                    {
-                        var discountLineItems = confirmation.LineItems
-                            .Where(li => li.LineItemType == Merchello.Core.Accounting.Models.LineItemType.Discount)
-                            .ToList();
-
-                        // Find tax rates for discount-linked products
-                        var linkedTaxRates = discountLineItems
-                            .Where(dli => !string.IsNullOrEmpty(dli.DependantLineItemSku))
-                            .Select(dli =>
-                            {
-                                var linked = confirmation.LineItems.FirstOrDefault(p => p.Sku == dli.DependantLineItemSku);
-                                return linked is { IsTaxable: true, TaxRate: > 0 } ? linked.TaxRate : 0m;
-                            })
-                            .Where(r => r > 0)
-                            .Distinct()
-                            .ToList();
-
-                        if (linkedTaxRates.Count == 1)
-                        {
-                            // All discounts at same rate - exact calculation
-                            taxInclusiveDiscount = currencyService.Round(
-                                confirmation.DisplayDiscount * (1 + linkedTaxRates[0] / 100m), currency);
-                        }
-                        else
-                        {
-                            // Multiple rates or order-level discounts: use weighted effective
-                            // tax rate from product line items directly.
-                            var weightedTaxRate = confirmation.LineItems.GetWeightedEffectiveTaxRate();
-
-                            if (weightedTaxRate > 0)
-                            {
-                                taxInclusiveDiscount = currencyService.Round(
-                                    confirmation.DisplayDiscount * (1 + weightedTaxRate), currency);
-                            }
-                            else
-                            {
-                                // No tax applicable - discount stays as-is
-                                taxInclusiveDiscount = confirmation.DisplayDiscount;
-                            }
-                        }
-                    }
+                    taxInclusiveDiscount = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+                        confirmation.LineItems, confirmation.DisplayDiscount, currencyService, currency);
                 }
 
                 // Use centralized reconciliation method

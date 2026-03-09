@@ -2,6 +2,7 @@ using Merchello.Core;
 using Merchello.Core.Accounting.Extensions;
 using Merchello.Core.Accounting.Factories;
 using Merchello.Core.Accounting.Models;
+using Merchello.Core.Checkout.Dtos;
 using Merchello.Core.Checkout.Extensions;
 using Merchello.Core.Checkout.Factories;
 using Merchello.Core.Checkout.Models;
@@ -909,7 +910,267 @@ public class TaxInclusiveDiscountDisplayTests : IClassFixture<ServiceTestFixture
 
     #endregion
 
+    #region Confirmation Path: CalculateConfirmationTaxInclusiveDiscount
+
+    // These tests exercise CalculateConfirmationTaxInclusiveDiscount — the extracted method
+    // that the controller uses for confirmation page tax-inclusive discount display.
+    // This is a SEPARATE code path from the basket-level GetDisplayAmounts tests above.
+
+    [Fact]
+    public void Confirmation_SingleLinkedDiscount_SingleTaxRate_UsesExactRate()
+    {
+        // Tee ($19.99, 20% VAT) + Beanie ($14.99, 20% VAT) + discount linked to Tee
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(19.99m, 1, 20m, "TEE-001"),
+            CreateConfirmationProduct(14.99m, 1, 20m, "BEANIE-001"),
+            CreateConfirmationDiscount("DISC-TEE", "TEE-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 2.00m, _currencyService, "USD");
+
+        // $2.00 * (1 + 20/100) = $2.40
+        result.ShouldBe(2.40m);
+    }
+
+    [Fact]
+    public void Confirmation_DiscountLinkedToNonTaxableProduct_NoTaxApplied()
+    {
+        // THE BUG SCENARIO: taxable Tee + non-taxable Book + discount linked to Book.
+        // Before the fix, this would incorrectly apply weighted tax from Tee.
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(19.99m, 1, 20m, "TEE-001"),
+            CreateConfirmationProduct(10.00m, 1, 0m, "BOOK-001", isTaxable: false),
+            CreateConfirmationDiscount("DISC-BOOK", "BOOK-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 1.00m, _currencyService, "USD");
+
+        // Book is non-taxable — discount should NOT be grossed up
+        result.ShouldBe(1.00m, "Discount linked to non-taxable product should not include tax");
+    }
+
+    [Fact]
+    public void Confirmation_DiscountLinkedToNonTaxableProduct_OnlyNonTaxableItems_NoTax()
+    {
+        // All products non-taxable, discount linked to one of them
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(50.00m, 1, 0m, "EXEMPT-001", isTaxable: false),
+            CreateConfirmationProduct(30.00m, 1, 0m, "EXEMPT-002", isTaxable: false),
+            CreateConfirmationDiscount("DISC-001", "EXEMPT-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 5.00m, _currencyService, "USD");
+
+        result.ShouldBe(5.00m, "No tax on discount for non-taxable products");
+    }
+
+    [Fact]
+    public void Confirmation_OrderLevelDiscount_UsesWeightedTaxRate()
+    {
+        // Order-level discount (no DependantLineItemSku) with single-rate products
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-001"),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 10.00m, _currencyService, "USD");
+
+        // Weighted rate: (100 * 20/100) / 100 = 0.20
+        // $10 * (1 + 0.20) = $12
+        result.ShouldBe(12.00m, "Order-level discount should use weighted effective tax rate");
+    }
+
+    [Fact]
+    public void Confirmation_OrderLevelDiscount_MixedTaxRates_UsesWeightedRate()
+    {
+        // Order-level discount with different tax rates
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-STD"),
+            CreateConfirmationProduct(100.00m, 1, 5m, "PROD-RED"),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 20.00m, _currencyService, "USD");
+
+        // Weighted rate: (100*20/100 + 100*5/100) / 200 = 25/200 = 0.125
+        // $20 * (1 + 0.125) = $22.50
+        result.ShouldBe(22.50m, "Order-level discount should use weighted rate across mixed tax rates");
+    }
+
+    [Fact]
+    public void Confirmation_OrderLevelDiscount_AllNonTaxable_NoTax()
+    {
+        // Order-level discount when all products are non-taxable
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 0m, "EXEMPT-001", isTaxable: false),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 10.00m, _currencyService, "USD");
+
+        result.ShouldBe(10.00m, "No tax on order-level discount when all products are non-taxable");
+    }
+
+    [Fact]
+    public void Confirmation_MultipleLinkedDiscounts_DifferentTaxRates_UsesWeightedRate()
+    {
+        // Two discounts linked to products at different rates
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-STD"),
+            CreateConfirmationProduct(100.00m, 1, 5m, "PROD-RED"),
+            CreateConfirmationDiscount("DISC-STD", "PROD-STD"),
+            CreateConfirmationDiscount("DISC-RED", "PROD-RED")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 20.00m, _currencyService, "USD");
+
+        // linkedTaxRates = [20, 5] → Count > 1 → weighted rate
+        // (100*20/100 + 100*5/100) / 200 = 0.125
+        // $20 * (1 + 0.125) = $22.50
+        result.ShouldBe(22.50m);
+    }
+
+    [Fact]
+    public void Confirmation_MixedLinkedAndOrderLevel_UsesWeightedRate()
+    {
+        // Both a linked discount and an order-level discount
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-A"),
+            CreateConfirmationProduct(60.00m, 1, 20m, "PROD-B"),
+            CreateConfirmationDiscount("DISC-A", "PROD-A"),
+            CreateConfirmationDiscount("DISC-ORDER", dependantSku: null)
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 15.00m, _currencyService, "USD");
+
+        // linkedTaxRates = [20] (Count == 1), but hasOrderLevelDiscounts = true
+        // → falls to weighted rate branch
+        // Weighted rate: (100*20/100 + 60*20/100) / 160 = 32/160 = 0.20
+        // $15 * (1 + 0.20) = $18
+        result.ShouldBe(18.00m);
+    }
+
+    [Fact]
+    public void Confirmation_LinkedToNonTaxable_PlusTaxable_NoTaxOnDiscount()
+    {
+        // Discount linked to non-taxable, but other taxable products exist in basket.
+        // This is the KEY scenario that was previously broken.
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(200.00m, 1, 20m, "TAXABLE-001"),
+            CreateConfirmationProduct(50.00m, 1, 0m, "GIFT-CARD-001", isTaxable: false),
+            CreateConfirmationDiscount("DISC-GC", "GIFT-CARD-001")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 5.00m, _currencyService, "USD");
+
+        // Discount is linked to non-taxable gift card — no tax,
+        // even though there's a $200 taxable product in the same order
+        result.ShouldBe(5.00m, "Discount linked to non-taxable product must not inherit tax from other products");
+    }
+
+    [Fact]
+    public void Confirmation_ZeroDiscount_ReturnsZero()
+    {
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-001"),
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 0m, _currencyService, "USD");
+
+        result.ShouldBe(0m);
+    }
+
+    [Fact]
+    public void Confirmation_NoDiscountLineItems_ReturnsDisplayDiscount()
+    {
+        // DisplayDiscount > 0 but no discount line items (edge case)
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(100.00m, 1, 20m, "PROD-001"),
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 10.00m, _currencyService, "USD");
+
+        result.ShouldBe(10.00m, "No discount line items means no tax rate info — return as-is");
+    }
+
+    [Fact]
+    public void Confirmation_MultipleLinkedDiscounts_SameTaxRate_UsesExactRate()
+    {
+        // Two discounts both linked to products at the same tax rate
+        var lineItems = new List<CheckoutLineItemDto>
+        {
+            CreateConfirmationProduct(80.00m, 1, 20m, "PROD-A"),
+            CreateConfirmationProduct(40.00m, 1, 20m, "PROD-B"),
+            CreateConfirmationDiscount("DISC-A", "PROD-A"),
+            CreateConfirmationDiscount("DISC-B", "PROD-B")
+        };
+
+        var result = DisplayCurrencyExtensions.CalculateConfirmationTaxInclusiveDiscount(
+            lineItems, 12.00m, _currencyService, "USD");
+
+        // linkedTaxRates = [20] (distinct) → Count == 1 → exact rate
+        // $12 * (1 + 20/100) = $14.40
+        result.ShouldBe(14.40m);
+    }
+
+    #endregion
+
     #region Helper Methods
+
+    private static CheckoutLineItemDto CreateConfirmationProduct(
+        decimal price, int quantity, decimal taxRate, string sku,
+        bool isTaxable = true)
+    {
+        return new CheckoutLineItemDto
+        {
+            Id = Guid.NewGuid(),
+            Sku = sku,
+            Name = sku,
+            UnitPrice = price,
+            Quantity = quantity,
+            LineTotal = price * quantity,
+            DisplayUnitPrice = price,
+            DisplayLineTotal = price * quantity,
+            TaxRate = taxRate,
+            IsTaxable = isTaxable && taxRate > 0,
+            LineItemType = LineItemType.Product
+        };
+    }
+
+    private static CheckoutLineItemDto CreateConfirmationDiscount(
+        string sku, string? dependantSku)
+    {
+        return new CheckoutLineItemDto
+        {
+            Id = Guid.NewGuid(),
+            Sku = sku,
+            Name = sku,
+            LineItemType = LineItemType.Discount,
+            DependantLineItemSku = dependantSku
+        };
+    }
 
     private static Basket CreateBasket(string currencyCode = "USD", string currencySymbol = "$")
     {
