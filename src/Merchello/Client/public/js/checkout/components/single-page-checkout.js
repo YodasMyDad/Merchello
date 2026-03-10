@@ -403,6 +403,11 @@ export function initSinglePageCheckout() {
                     await this.calculateShipping();
                 }
 
+                // Listen for express checkout validation failures to highlight address errors
+                window.addEventListener('merchello:express-checkout-validation-error', () => {
+                    this.validate();
+                });
+
                 // Sync totals
                 this.$nextTick(() => {
                     if (this.calculatedShipping > 0 || this._shippingCalculated) {
