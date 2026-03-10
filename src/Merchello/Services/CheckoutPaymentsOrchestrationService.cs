@@ -389,6 +389,9 @@ public class CheckoutPaymentsOrchestrationService(
 
             if (processResult.Success && processResult.ResultObject != null)
             {
+                // Publish deferred invoice/order notifications now that payment is confirmed
+                await invoiceService.PublishDeferredInvoiceNotificationsAsync(invoice.Id, cancellationToken);
+
                 if (await ValidateReturnOwnershipAsync(invoice, cancellationToken))
                 {
                     SetConfirmationToken(invoice.Id);
@@ -672,7 +675,7 @@ public class CheckoutPaymentsOrchestrationService(
             }
             else
             {
-                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken, suppressNotifications: true);
                 if (!createResult.Success || createResult.ResultObject == null)
                 {
                     var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
@@ -915,6 +918,9 @@ public class CheckoutPaymentsOrchestrationService(
             paymentResult.Id,
             paymentResult.TransactionId);
 
+        // Publish deferred invoice/order notifications now that payment is confirmed
+        await invoiceService.PublishDeferredInvoiceNotificationsAsync(request.InvoiceId, cancellationToken);
+
         // If payment succeeded and vault details returned, save to database
         var paymentMethodSaved = false;
         Guid? savedPaymentMethodId = null;
@@ -1100,7 +1106,8 @@ public class CheckoutPaymentsOrchestrationService(
                 session,
                 source: null,
                 cancellationToken: cancellationToken,
-                purchaseOrder: purchaseOrderNumber);
+                purchaseOrder: purchaseOrderNumber,
+                suppressNotifications: true);
             if (!createResult.Success || createResult.ResultObject == null)
             {
                 var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
@@ -1197,6 +1204,9 @@ public class CheckoutPaymentsOrchestrationService(
                 ErrorMessage = errorMessage
             });
         }
+
+        // Publish deferred invoice/order notifications now that payment is confirmed
+        await invoiceService.PublishDeferredInvoiceNotificationsAsync(invoice.Id, cancellationToken);
 
         // Set confirmation token to authorize viewing the confirmation page
         SetConfirmationToken(invoice.Id);
@@ -1570,7 +1580,7 @@ public class CheckoutPaymentsOrchestrationService(
             }
             else
             {
-                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken, suppressNotifications: true);
                 if (!createResult.Success || createResult.ResultObject == null)
                 {
                     var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
@@ -1674,6 +1684,9 @@ public class CheckoutPaymentsOrchestrationService(
                 invoice.Id,
                 payment.Id,
                 transactionId);
+
+            // Publish deferred invoice/order notifications now that payment is confirmed
+            await invoiceService.PublishDeferredInvoiceNotificationsAsync(invoice.Id, cancellationToken);
 
             // Set confirmation token to authorize viewing the confirmation page
             SetConfirmationToken(invoice.Id);
@@ -2257,7 +2270,7 @@ public class CheckoutPaymentsOrchestrationService(
             }
             else
             {
-                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken);
+                var createResult = await invoiceService.CreateOrderFromBasketAsync(basket, session, source: null, cancellationToken, suppressNotifications: true);
                 if (!createResult.Success || createResult.ResultObject == null)
                 {
                     var errorMsg = createResult.Messages.FirstOrDefault()?.Message ?? "Failed to create invoice";
@@ -2501,6 +2514,9 @@ public class CheckoutPaymentsOrchestrationService(
                 invoice.Id,
                 payment.Id,
                 payment.TransactionId);
+
+            // Publish deferred invoice/order notifications now that payment is confirmed
+            await invoiceService.PublishDeferredInvoiceNotificationsAsync(invoice.Id, cancellationToken);
 
             // If payment succeeded and vault details returned, save to database
             var paymentMethodSaved = false;

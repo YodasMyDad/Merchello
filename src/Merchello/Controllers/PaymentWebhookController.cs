@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
@@ -19,6 +20,7 @@ namespace Merchello.Controllers;
 public class PaymentWebhookController(
     IPaymentProviderManager providerManager,
     IPaymentService paymentService,
+    IInvoiceService invoiceService,
     IWebhookSecurityService webhookSecurityService,
     ILogger<PaymentWebhookController> logger) : ControllerBase
 {
@@ -230,6 +232,9 @@ public class PaymentWebhookController(
                                 RiskScoreSource = result.RiskScoreSource
                             },
                             cancellationToken);
+
+                        // Publish deferred invoice/order notifications now that payment is confirmed
+                        await invoiceService.PublishDeferredInvoiceNotificationsAsync(result.InvoiceId.Value, cancellationToken);
 
                         logger.LogInformation(
                             "Payment recorded from webhook: InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}, RiskScore={RiskScore}",
