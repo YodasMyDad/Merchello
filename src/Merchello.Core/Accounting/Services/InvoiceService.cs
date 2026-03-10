@@ -168,23 +168,13 @@ public class InvoiceService(
 
         // Calculate total shipping cost from selected options before refreshing discounts
         // This ensures free shipping discounts have accurate shipping costs to work with
+        // Also resolves auto-select fallback early so discounts see the correct shipping total
         var totalShippingCost = 0m;
         if (requiresShipping)
         {
             foreach (var group in shippingResult.WarehouseGroups)
             {
-                // First check if the strategy already resolved the selection (POST-SELECTION flow)
-                var selectionKey = group.SelectedShippingOptionId ?? string.Empty;
-
-                // Fall back to lookup from checkout session if not set
-                if (string.IsNullOrEmpty(selectionKey))
-                {
-                    selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId) ?? string.Empty;
-                }
-                if (string.IsNullOrEmpty(selectionKey))
-                {
-                    selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.WarehouseId) ?? string.Empty;
-                }
+                var selectionKey = ResolveShippingSelectionKey(group, checkoutSession);
 
                 var selectedOption = group.AvailableShippingOptions
                     .FirstOrDefault(o => o.SelectionKey == selectionKey);
@@ -297,56 +287,27 @@ public class InvoiceService(
 
             foreach (var group in shippingResult.WarehouseGroups)
             {
-                // Determine which shipping option was selected for this group
-                // First check if the strategy already resolved the selection (POST-SELECTION flow)
-                var selectionKey = group.SelectedShippingOptionId ?? string.Empty;
-
-                // Fall back to lookup from checkout session if not set
-                if (string.IsNullOrEmpty(selectionKey))
-                {
-                    selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.GroupId) ?? string.Empty;
-                }
-                if (string.IsNullOrEmpty(selectionKey))
-                {
-                    selectionKey = checkoutSession.SelectedShippingOptions.GetValueOrDefault(group.WarehouseId) ?? string.Empty;
-                }
+                // Determine which shipping option was selected for this group (uses same auto-select fallback as pre-discount calculation)
+                var selectionKey = ResolveShippingSelectionKey(group, checkoutSession);
 
                 // Parse the SelectionKey to determine if flat-rate or dynamic
                 if (!Shipping.Extensions.SelectionKeyExtensions.TryParse(selectionKey, out var shippingOptionId, out var providerKey, out var serviceCode))
                 {
-                    // Try auto-select cheapest shipping as fallback (handles stale sessions after address changes)
-                    var autoSelected = group.AvailableShippingOptions
-                        .OrderBy(o => o.Cost)
-                        .ThenBy(o => o.DaysTo)
-                        .Select(o => o.SelectionKey)
-                        .FirstOrDefault();
+                    logger.LogWarning(
+                        "No shipping options available for warehouse group {GroupId} (Warehouse: {WarehouseId})",
+                        group.GroupId, group.WarehouseId);
+                    result.AddErrorMessage("Unable to create order: no shipping method available for all items. Please go back and select shipping.");
+                    return (null, []);
+                }
 
-                    if (autoSelected != null &&
-                        Shipping.Extensions.SelectionKeyExtensions.TryParse(autoSelected, out shippingOptionId, out providerKey, out serviceCode))
+                // Ensure auto-selected flat-rate option is in the loaded dictionary
+                if (shippingOptionId.HasValue && !shippingOptions.ContainsKey(shippingOptionId.Value))
+                {
+                    var autoOption = await db.ShippingOptions
+                        .FirstOrDefaultAsync(so => so.Id == shippingOptionId.Value, cancellationToken);
+                    if (autoOption != null)
                     {
-                        logger.LogInformation(
-                            "Auto-selected shipping {SelectionKey} for warehouse group {GroupId} (Warehouse: {WarehouseId}) - original selection was missing or invalid",
-                            autoSelected, group.GroupId, group.WarehouseId);
-                        selectionKey = autoSelected;
-
-                        // Ensure auto-selected flat-rate option is in the loaded dictionary
-                        if (shippingOptionId.HasValue && !shippingOptions.ContainsKey(shippingOptionId.Value))
-                        {
-                            var autoOption = await db.ShippingOptions
-                                .FirstOrDefaultAsync(so => so.Id == shippingOptionId.Value, cancellationToken);
-                            if (autoOption != null)
-                            {
-                                shippingOptions[autoOption.Id] = autoOption;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        logger.LogWarning(
-                            "No shipping options available for warehouse group {GroupId} (Warehouse: {WarehouseId})",
-                            group.GroupId, group.WarehouseId);
-                        result.AddErrorMessage("Unable to create order: no shipping method available for all items. Please go back and select shipping.");
-                        return (null, []);
+                        shippingOptions[autoOption.Id] = autoOption;
                     }
                 }
 
@@ -872,6 +833,54 @@ public class InvoiceService(
             shippingOption.Id, countryCode, regionCode);
 
         return 0;
+    }
+
+    /// <summary>
+    /// Resolves the shipping selection key for a warehouse group, with auto-select fallback
+    /// to the cheapest available option when the session selection is missing or invalid.
+    /// </summary>
+    private string ResolveShippingSelectionKey(WarehouseShippingGroup group, CheckoutSession checkoutSession)
+    {
+        // First check if the strategy already resolved the selection (POST-SELECTION flow)
+        var selectionKey = group.SelectedShippingOptionId ?? string.Empty;
+
+        // Fall back to lookup from checkout session if not set
+        if (string.IsNullOrEmpty(selectionKey) &&
+            checkoutSession.SelectedShippingOptions.TryGetValue(group.GroupId, out var groupSelection))
+        {
+            selectionKey = groupSelection;
+        }
+        if (string.IsNullOrEmpty(selectionKey) &&
+            checkoutSession.SelectedShippingOptions.TryGetValue(group.WarehouseId, out var warehouseSelection))
+        {
+            selectionKey = warehouseSelection;
+        }
+
+        // If we have a valid selection key, return it
+        if (!string.IsNullOrEmpty(selectionKey) &&
+            Shipping.Extensions.SelectionKeyExtensions.TryParse(selectionKey, out _, out _, out _))
+        {
+            return selectionKey;
+        }
+
+        // Auto-select cheapest shipping as fallback (handles stale sessions after address changes)
+        var autoSelected = group.AvailableShippingOptions
+            .OrderBy(o => o.Cost)
+            .ThenBy(o => o.DaysTo)
+            .Select(o => o.SelectionKey)
+            .FirstOrDefault();
+
+        if (autoSelected != null &&
+            Shipping.Extensions.SelectionKeyExtensions.TryParse(autoSelected, out _, out _, out _))
+        {
+            logger.LogInformation(
+                "Auto-selected shipping {SelectionKey} for warehouse group {GroupId} (Warehouse: {WarehouseId}) - original selection was missing or invalid",
+                autoSelected, group.GroupId, group.WarehouseId);
+            return autoSelected;
+        }
+
+        // No valid options available - return empty (caller must handle)
+        return string.Empty;
     }
 
     private static bool BasketRequiresShipping(Basket basket)
