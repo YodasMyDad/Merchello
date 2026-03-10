@@ -89,6 +89,11 @@ export class MerchelloProductFeedWorkspaceContext
             customLabels: [],
             customFields: [],
             manualPromotions: [],
+            autoDiscountConfig: {
+              isEnabled: false,
+              minProfitMarginPercent: 20,
+              googleMerchantId: null,
+            },
             lastGeneratedUtc: null,
             lastGenerationError: null,
             hasProductSnapshot: false,
