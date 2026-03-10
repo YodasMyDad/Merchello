@@ -166,6 +166,12 @@ public class CheckoutMemberService(
         await memberManager.AddToRolesAsync(member, [group.Name!]);
     }
 
+    /// <inheritdoc />
+    public async Task SignOutAsync(CancellationToken ct = default)
+    {
+        await memberSignInManager.SignOutAsync();
+    }
+
     /// <summary>
     /// Increments failed login attempt counter in session.
     /// </summary>

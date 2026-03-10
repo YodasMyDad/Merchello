@@ -80,4 +80,9 @@ public interface ICheckoutMemberService
     /// Completes a password reset using a valid token.
     /// </summary>
     Task<ResetPasswordResultDto> ResetPasswordAsync(ResetPasswordParameters parameters, CancellationToken ct = default);
+
+    /// <summary>
+    /// Signs out the current member.
+    /// </summary>
+    Task SignOutAsync(CancellationToken ct = default);
 }

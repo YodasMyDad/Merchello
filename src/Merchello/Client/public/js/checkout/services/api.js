@@ -355,6 +355,16 @@ export const checkoutApi = {
     },
 
     /**
+     * Sign out the current member
+     * @returns {Promise<{success: boolean}>}
+     */
+    signOut() {
+        return fetchJson(`${BASE_URL}/sign-out`, {
+            method: 'POST'
+        });
+    },
+
+    /**
      * Request a password reset email
      * @param {string} email
      * @returns {Promise<{success: boolean, message: string}>}

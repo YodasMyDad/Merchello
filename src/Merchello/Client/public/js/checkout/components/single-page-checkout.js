@@ -74,7 +74,7 @@ export function initSinglePageCheckout() {
             signInError: '',
             showForgotPassword: false,
             signingIn: false,
-            isSignedIn: false,
+            signInSuccess: false,
 
             // Forgot password modal state
             showForgotPasswordModal: false,
@@ -296,8 +296,8 @@ export function initSinglePageCheckout() {
                 // Digital products require account (signed in OR valid password for new account)
                 const store = this.$store.checkout;
                 if (store?.hasDigitalProducts && !store?.isLoggedIn) {
-                    // Must either have signed in during checkout OR have valid password for new account
-                    if (!this.isSignedIn && (!this.form.password || !this.passwordValid)) {
+                    // Must have valid password for new account creation
+                    if (!this.form.password || !this.passwordValid) {
                         return false;
                     }
                 }
@@ -1443,7 +1443,7 @@ export function initSinglePageCheckout() {
                 }
 
                 // Check credit limit for Purchase Order payment method
-                if (method.methodAlias === 'purchase-order' && this.form.email && this.isSignedIn) {
+                if (method.methodAlias === 'purchase-order' && this.form.email && this.$store.checkout?.isLoggedIn) {
                     try {
                         const creditResult = await checkoutApi.checkCreditStatus(this.form.email);
                         this.creditLimitExceeded = creditResult?.creditLimitExceeded ?? false;
@@ -1642,7 +1642,8 @@ export function initSinglePageCheckout() {
                 try {
                     const data = await checkoutApi.signIn(this.form.email, this.form.password);
                     if (data.success) {
-                        this.isSignedIn = true;
+                        this.$store.checkout.isLoggedIn = true;
+                        this.signInSuccess = true;
                         this.signInError = '';
                         this.showForgotPassword = false;
                     } else {
@@ -1654,6 +1655,15 @@ export function initSinglePageCheckout() {
                 } finally {
                     this.signingIn = false;
                 }
+            },
+
+            async handleSignOut() {
+                try {
+                    await checkoutApi.signOut();
+                } catch (e) {
+                    // Sign-out failed, reload anyway to get fresh state
+                }
+                window.location.reload();
             },
 
             cancelAccountSection() {
@@ -1669,7 +1679,7 @@ export function initSinglePageCheckout() {
                 this.passwordValid = false;
                 this.signInError = '';
                 this.showForgotPassword = false;
-                this.isSignedIn = false;
+                this.signInSuccess = false;
                 this.hasExistingAccount = false;
             },
 

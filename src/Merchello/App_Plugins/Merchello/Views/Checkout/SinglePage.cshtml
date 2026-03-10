@@ -139,7 +139,7 @@
     isLoggedIn = Model.IsLoggedIn,
     hasDigitalProducts = Model.HasDigitalProducts,
     billingPhoneRequired = Model.Settings.BillingPhoneRequired,
-    email = basket?.BillingAddress?.Email ?? "",
+    email = basket?.BillingAddress?.Email ?? Model.MemberEmail ?? "",
     billing = new {
         name = basket?.BillingAddress?.Name ?? "",
         company = basket?.BillingAddress?.Company ?? "",
@@ -412,14 +412,24 @@
                            autocomplete="email"
                            @@blur="validateField('email')"
                            :aria-invalid="errors.email ? 'true' : 'false'"
-                           :class="errors.email ? 'checkout-input-error' : ''"
+                           :readonly="$store.checkout?.isLoggedIn"
+                           :class="[errors.email ? 'checkout-input-error' : '', $store.checkout?.isLoggedIn ? 'bg-gray-50 cursor-not-allowed' : '']"
                            class="checkout-input-compact w-full"
                            placeholder="you@example.com" />
                     <p x-show="errors.email" x-cloak class="checkout-error" x-text="errors.email"></p>
 
                     <!-- Account Options -->
                     <div class="mt-2">
-                        <div x-show="!$store.checkout?.isLoggedIn && !showAccountSection && !isSignedIn"
+                        <!-- Logged-in indicator -->
+                        <div x-show="$store.checkout?.isLoggedIn" x-cloak
+                             class="text-sm text-gray-600 flex items-center gap-1.5">
+                            <span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+                            <span>Signed in</span>
+                            <span class="mx-1 text-gray-300">|</span>
+                            <button type="button" @@click="handleSignOut()" class="text-accent hover:underline">Log out</button>
+                        </div>
+
+                        <div x-show="!$store.checkout?.isLoggedIn && !showAccountSection"
                              class="text-sm text-gray-600">
                             <span>Have an account?</span>
                             <button type="button"
@@ -433,7 +443,7 @@
                         <!-- Account Section (login or create) -->
                         <div x-show="showAccountSection" x-cloak x-transition class="mt-2 space-y-2">
                             <!-- Account required message for digital products -->
-                            <div x-show="$store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn && !isSignedIn"
+                            <div x-show="$store.checkout?.hasDigitalProducts && !$store.checkout?.isLoggedIn"
                                  class="text-xs text-blue-600 bg-blue-50 p-2 rounded">
                                 <strong>Account required:</strong> Digital products in your cart require an account to access your downloads.
                             </div>
@@ -519,7 +529,7 @@
                             </button>
 
                             <!-- Signed in success -->
-                            <p x-show="isSignedIn" class="text-xs text-green-600">
+                            <p x-show="signInSuccess" class="text-xs text-green-600">
                                 Signed in successfully
                             </p>
                         </div>

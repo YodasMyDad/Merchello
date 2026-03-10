@@ -496,6 +496,7 @@ public class MerchelloCheckoutController(
             CurrencyDecimalPlaces = displayContext.DecimalPlaces,
             ShowDiscountCode = showDiscountCode,
             IsLoggedIn = isLoggedIn,
+            MemberEmail = currentMember?.Email,
             HasDigitalProducts = hasDigitalProducts,
             DisplayTotal = displayAmounts.Total,
             DisplaySubTotal = displayAmounts.SubTotal,

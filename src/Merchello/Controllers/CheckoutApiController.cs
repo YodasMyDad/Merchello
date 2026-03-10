@@ -982,6 +982,17 @@ public class CheckoutApiController(
     }
 
     /// <summary>
+    /// Signs out the current member during checkout.
+    /// </summary>
+    [HttpPost("sign-out")]
+    public async Task<IActionResult> SignOut(CancellationToken ct)
+    {
+        await checkoutMemberService.SignOutAsync(ct);
+        logger.LogInformation("Member signed out during checkout");
+        return Ok(new { success = true });
+    }
+
+    /// <summary>
     /// Request a password reset email.
     /// Always returns success to prevent email enumeration attacks.
     /// </summary>
