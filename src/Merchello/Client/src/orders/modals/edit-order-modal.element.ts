@@ -1630,6 +1630,7 @@ export class MerchelloEditOrderModalElement extends UmbModalBaseElement<
     }
 
     .fulfillment-badge.unfulfilled,
+    .fulfillment-badge.processing,
     .fulfillment-badge.default,
     .fulfillment-badge.warning,
     .fulfillment-badge.partial {

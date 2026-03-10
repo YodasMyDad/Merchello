@@ -28,7 +28,8 @@ public class FulfillmentLineItemDto
 
     public int OrderedQuantity { get; set; }
     public int ShippedQuantity { get; set; }
-    public int RemainingQuantity => OrderedQuantity - ShippedQuantity;
+    public int PreparingQuantity { get; set; }
+    public int RemainingQuantity => OrderedQuantity - ShippedQuantity - PreparingQuantity;
     public string? ImageUrl { get; set; }
     public decimal Amount { get; set; }
 }

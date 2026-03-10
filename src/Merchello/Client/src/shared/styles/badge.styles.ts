@@ -48,6 +48,7 @@ export const badgeStyles = css`
   }
 
   .badge.unfulfilled,
+  .badge.processing,
   .badge.partially-fulfilled,
   .badge.warning {
     background: var(--merchello-color-warning-status-background, #8a6500);

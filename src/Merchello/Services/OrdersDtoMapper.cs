@@ -569,8 +569,14 @@ public class OrdersDtoMapper(
         var allShipped = orders.All(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.Completed);
         if (allShipped) return "Fulfilled";
 
-        var anyShipped = orders.Any(o => o.Status == OrderStatus.Shipped || o.Status == OrderStatus.PartiallyShipped);
+        var anyShipped = orders.Any(o =>
+            o.Status == OrderStatus.Shipped ||
+            o.Status == OrderStatus.PartiallyShipped ||
+            o.Status == OrderStatus.Completed);
         if (anyShipped) return "Partial";
+
+        var anyProcessing = orders.Any(o => o.Status == OrderStatus.Processing);
+        if (anyProcessing) return "Processing";
 
         return "Unfulfilled";
     }

@@ -355,6 +355,7 @@ public static class Constants
         public static class Fulfillment
         {
             public const string Unfulfilled = "Unfulfilled";
+            public const string Processing = "Processing";
             public const string Fulfilled = "Fulfilled";
             public const string Partial = "Partial";
         }

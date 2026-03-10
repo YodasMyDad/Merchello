@@ -403,9 +403,16 @@ export function initSinglePageCheckout() {
                     await this.calculateShipping();
                 }
 
-                // Listen for express checkout validation failures to highlight address errors
+                // Listen for express checkout validation failures to highlight address fields only
+                // (do not run full validate() which would add "select a payment method" in wallet flows)
                 window.addEventListener('merchello:express-checkout-validation-error', () => {
-                    this.validate();
+                    const store = this.$store.checkout;
+                    ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'].forEach(f => this.validateField('billing.' + f));
+                    if (!this.shippingSameAsBilling) {
+                        ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'].forEach(f => {
+                            if (!this.form.shipping[f]) store?.setError('shipping.' + f, 'This field is required.');
+                        });
+                    }
                 });
 
                 // Sync totals

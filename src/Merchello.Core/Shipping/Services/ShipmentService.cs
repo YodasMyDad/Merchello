@@ -171,8 +171,19 @@ public class ShipmentService(
                 }
             }
 
-            // Shipments start in Preparing status - order status only changes when shipments are marked as Shipped
-            // via UpdateShipmentStatusAsync. This allows warehouse staff to prepare shipments before marking them shipped.
+            // Transition order to Processing when shipments are created in Preparing status
+            if (order.Status == OrderStatus.ReadyToFulfill || order.Status == OrderStatus.Pending)
+            {
+                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Processing, cancellationToken);
+                if (canTransition)
+                {
+                    var oldStatus = order.Status;
+                    await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Processing, cancellationToken);
+                    order.Status = OrderStatus.Processing;
+                    await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Processing, cancellationToken);
+                }
+            }
+
             order.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
@@ -289,8 +300,19 @@ public class ShipmentService(
 
             db.Shipments.Add(shipment);
 
-            // Shipment starts in Preparing status - order status only changes when shipment is marked as Shipped
-            // via UpdateShipmentStatusAsync. This allows warehouse staff to prepare shipments before marking them shipped.
+            // Transition order to Processing when shipments are created in Preparing status
+            if (order.Status == OrderStatus.ReadyToFulfill || order.Status == OrderStatus.Pending)
+            {
+                var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Processing, cancellationToken);
+                if (canTransition)
+                {
+                    var oldStatus = order.Status;
+                    await statusHandler.OnStatusChangingAsync(order, oldStatus, OrderStatus.Processing, cancellationToken);
+                    order.Status = OrderStatus.Processing;
+                    await statusHandler.OnStatusChangedAsync(order, oldStatus, OrderStatus.Processing, cancellationToken);
+                }
+            }
+
             order.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
@@ -579,8 +601,16 @@ public class ShipmentService(
         }
         else
         {
-            // No shipments are shipped yet - keep order in current status (Processing or ReadyToFulfill)
-            return;
+            // No shipments are shipped yet - check if any are still preparing
+            var anyPreparing = shipments.Any(s => s.Status == ShipmentStatus.Preparing);
+            if (anyPreparing)
+            {
+                targetStatus = OrderStatus.Processing;
+            }
+            else
+            {
+                return;
+            }
         }
 
         if (targetStatus != order.Status)
@@ -642,6 +672,7 @@ public class ShipmentService(
                 .Where(IsShippableLineItem)
                 .Sum(li => li.Quantity) ?? 0;
             var totalShipped = remainingShipments
+                .Where(s => s.Status == ShipmentStatus.Shipped || s.Status == ShipmentStatus.Delivered)
                 .SelectMany(s => s.LineItems ?? [])
                 .Where(IsShippableLineItem)
                 .Sum(li => li.Quantity);
@@ -656,8 +687,9 @@ public class ShipmentService(
             }
             else
             {
-                order.Status = OrderStatus.ReadyToFulfill;
-                order.ShippedDate = null;
+                var anyPreparing = remainingShipments.Any(s => s.Status == ShipmentStatus.Preparing);
+                order.Status = anyPreparing ? OrderStatus.Processing : OrderStatus.ReadyToFulfill;
+                if (!anyPreparing) order.ShippedDate = null;
             }
 
             // Clear CompletedDate if order was Completed and is now reverting
@@ -782,22 +814,17 @@ public class ShipmentService(
             .Select(s => s!)
             .ToList() ?? [];
 
-        // Calculate shipped quantities per line item
+        // Calculate quantities per line item, split by shipment status
         Dictionary<Guid, int> shippedQuantities = [];
-        foreach (var shipment in shipments)
+        Dictionary<Guid, int> preparingQuantities = [];
+        foreach (var shipment in shipments.Where(s => s.Status != ShipmentStatus.Cancelled))
         {
+            var isShipped = shipment.Status == ShipmentStatus.Shipped || shipment.Status == ShipmentStatus.Delivered;
             foreach (var li in shipment.LineItems ?? [])
             {
-                if (li == null)
-                {
-                    continue;
-                }
-
-                if (!shippedQuantities.ContainsKey(li.Id))
-                {
-                    shippedQuantities[li.Id] = 0;
-                }
-                shippedQuantities[li.Id] += li.Quantity;
+                if (li == null) continue;
+                var dict = isShipped ? shippedQuantities : preparingQuantities;
+                dict[li.Id] = dict.GetValueOrDefault(li.Id) + li.Quantity;
             }
         }
 
@@ -827,7 +854,8 @@ public class ShipmentService(
                         ValueName = o.ValueName
                     }).ToList(),
                 OrderedQuantity = li.Quantity,
-                ShippedQuantity = shippedQuantities.TryGetValue(li.Id, out var shipped) ? shipped : 0,
+                ShippedQuantity = shippedQuantities.GetValueOrDefault(li.Id),
+                PreparingQuantity = preparingQuantities.GetValueOrDefault(li.Id),
                 ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
                 Amount = li.Amount
             }).ToList(),

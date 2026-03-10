@@ -453,6 +453,205 @@ public class ShipmentServiceTests
         updatedOrder.ShippedDate.ShouldBeNull();
     }
 
+    [Fact]
+    public async Task DeleteShipmentAsync_WithRemainingPreparingShipment_OrderStaysProcessing()
+    {
+        // Arrange - create order with 2 line items, ship one and leave other in Preparing
+        var dataBuilder = _fixture.CreateDataBuilder();
+        var warehouse = dataBuilder.CreateWarehouse("Delete Test Warehouse", "GB");
+        var shippingOption = dataBuilder.CreateShippingOption("Standard Delivery", warehouse, fixedCost: 5.00m);
+        shippingOption.ShippingCosts.Add(new ShippingCost { CountryCode = "GB", Cost = 5.00m });
+        dataBuilder.AddServiceRegion(warehouse, "GB");
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard VAT", 20m);
+        var productRoot = dataBuilder.CreateProductRoot("Delete Test Root", taxGroup);
+        var product1 = dataBuilder.CreateProduct("Product A", productRoot, price: 30m);
+        var product2 = dataBuilder.CreateProduct("Product B", productRoot, price: 50m);
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product1, warehouse, stock: 100);
+        dataBuilder.CreateProductWarehouse(product2, warehouse, stock: 100);
+        product1.ShippingOptions.Add(shippingOption);
+        product2.ShippingOptions.Add(shippingOption);
+
+        var invoice = dataBuilder.CreateInvoice(total: 0m);
+        var order = dataBuilder.CreateOrder(invoice, warehouse, shippingOption, OrderStatus.ReadyToFulfill);
+        var lineItem1 = dataBuilder.CreateLineItem(order, product1, quantity: 1, amount: 30m, taxRate: 20m);
+        var lineItem2 = dataBuilder.CreateLineItem(order, product2, quantity: 1, amount: 50m, taxRate: 20m);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        // Create two shipments (both in Preparing) - order transitions to Processing
+        var shipment1Result = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { lineItem1.Id, 1 } }
+        });
+        shipment1Result.Success.ShouldBeTrue();
+
+        var shipment2Result = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { lineItem2.Id, 1 } }
+        });
+        shipment2Result.Success.ShouldBeTrue();
+
+        // Act - delete one shipment
+        var deleteResult = await _shipmentService.DeleteShipmentAsync(shipment1Result.ResultObject!.Id);
+
+        // Assert - order should stay Processing because one Preparing shipment remains
+        deleteResult.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Processing);
+    }
+
+    #endregion
+
+    #region CreateShipmentAsync - Order Status Transition to Processing
+
+    [Fact]
+    public async Task CreateShipmentAsync_FromReadyToFulfill_TransitionsOrderToProcessing()
+    {
+        // Arrange
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.ReadyToFulfill);
+
+        var parameters = new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { lineItem.Id, lineItem.Quantity } }
+        };
+
+        // Act
+        var result = await _shipmentService.CreateShipmentAsync(parameters);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Processing);
+    }
+
+    [Fact]
+    public async Task CreateShipmentsFromOrderAsync_FromReadyToFulfill_TransitionsOrderToProcessing()
+    {
+        // Arrange
+        var (order, lineItem, product, warehouse) = await SeedOrderWithLineItemAsync(OrderStatus.ReadyToFulfill);
+
+        var reserveResult = await _inventoryService.ReserveStockAsync(product.Id, warehouse.Id, lineItem.Quantity);
+        reserveResult.ResultObject.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var parameters = new CreateShipmentsParameters
+        {
+            OrderId = order.Id,
+            ShippingAddress = CreateAddress("GB")
+        };
+
+        // Act
+        var shipments = await _shipmentService.CreateShipmentsFromOrderAsync(parameters);
+
+        // Assert
+        shipments.Count.ShouldBeGreaterThan(0);
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Processing);
+    }
+
+    [Fact]
+    public async Task CreateShipmentAsync_FromProcessing_DoesNotChangeStatus()
+    {
+        // Arrange - order already Processing (e.g. from a previous shipment creation)
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.Processing);
+
+        var parameters = new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { lineItem.Id, lineItem.Quantity } }
+        };
+
+        // Act
+        var result = await _shipmentService.CreateShipmentAsync(parameters);
+
+        // Assert
+        result.Success.ShouldBeTrue();
+        _fixture.DbContext.ChangeTracker.Clear();
+        var updatedOrder = await _fixture.DbContext.Orders.FirstAsync(o => o.Id == order.Id);
+        updatedOrder.Status.ShouldBe(OrderStatus.Processing);
+    }
+
+    #endregion
+
+    #region GetFulfillmentSummaryAsync - Processing Status and PreparingQuantity
+
+    [Fact]
+    public async Task GetFulfillmentSummaryAsync_PreparingShipments_ShowsProcessingStatusAndPreparingQuantity()
+    {
+        // Arrange
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.ReadyToFulfill);
+
+        // Create shipment (will transition order to Processing)
+        var shipmentResult = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { lineItem.Id, lineItem.Quantity } }
+        });
+        shipmentResult.Success.ShouldBeTrue();
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var invoice = await _fixture.DbContext.Invoices.FirstAsync(i => i.Orders!.Any(o => o.Id == order.Id));
+
+        // Act
+        var summary = await _shipmentService.GetFulfillmentSummaryAsync(invoice.Id);
+
+        // Assert
+        summary.ShouldNotBeNull();
+        summary.OverallStatus.ShouldBe("Processing");
+
+        var orderSummary = summary.Orders.Single(o => o.OrderId == order.Id);
+        var fulfillmentLineItem = orderSummary.LineItems.Single(li => li.Id == lineItem.Id);
+        fulfillmentLineItem.PreparingQuantity.ShouldBe(lineItem.Quantity);
+        fulfillmentLineItem.ShippedQuantity.ShouldBe(0); // Not yet shipped, only preparing
+        fulfillmentLineItem.RemainingQuantity.ShouldBe(0); // All assigned (shipped + preparing)
+    }
+
+    [Fact]
+    public async Task GetFulfillmentSummaryAsync_ShippedShipments_ShowsFulfilledStatusAndZeroPreparingQuantity()
+    {
+        // Arrange
+        var (order, lineItem, _, _) = await SeedOrderWithLineItemAsync(OrderStatus.ReadyToFulfill);
+
+        var shipmentResult = await _shipmentService.CreateShipmentAsync(new CreateShipmentParameters
+        {
+            OrderId = order.Id,
+            LineItems = new Dictionary<Guid, int> { { lineItem.Id, lineItem.Quantity } }
+        });
+        shipmentResult.Success.ShouldBeTrue();
+
+        // Mark as shipped
+        await _shipmentService.UpdateShipmentStatusAsync(new UpdateShipmentStatusParameters
+        {
+            ShipmentId = shipmentResult.ResultObject!.Id,
+            NewStatus = ShipmentStatus.Shipped
+        });
+
+        _fixture.DbContext.ChangeTracker.Clear();
+        var invoice = await _fixture.DbContext.Invoices.FirstAsync(i => i.Orders!.Any(o => o.Id == order.Id));
+
+        // Act
+        var summary = await _shipmentService.GetFulfillmentSummaryAsync(invoice.Id);
+
+        // Assert
+        summary.ShouldNotBeNull();
+        summary.OverallStatus.ShouldBe("Fulfilled");
+
+        var orderSummary = summary.Orders.Single(o => o.OrderId == order.Id);
+        var fulfillmentLineItem = orderSummary.LineItems.Single(li => li.Id == lineItem.Id);
+        fulfillmentLineItem.PreparingQuantity.ShouldBe(0);
+        fulfillmentLineItem.ShippedQuantity.ShouldBe(lineItem.Quantity);
+        fulfillmentLineItem.RemainingQuantity.ShouldBe(0);
+    }
+
     #endregion
 
     #region GetFulfillmentSummaryAsync

@@ -43,8 +43,14 @@ public static class AccountingExtensions
             o.Status == OrderStatus.Shipped ||
             o.Status == OrderStatus.PartiallyShipped ||
             o.Status == OrderStatus.Completed);
+        if (anyShipped)
+            return Constants.StatusLabels.Fulfillment.Partial;
 
-        return anyShipped ? Constants.StatusLabels.Fulfillment.Partial : Constants.StatusLabels.Fulfillment.Unfulfilled;
+        var anyProcessing = orderList.Any(o => o.Status == OrderStatus.Processing);
+        if (anyProcessing)
+            return Constants.StatusLabels.Fulfillment.Processing;
+
+        return Constants.StatusLabels.Fulfillment.Unfulfilled;
     }
 
     /// <summary>
@@ -57,6 +63,7 @@ public static class AccountingExtensions
         {
             Constants.StatusLabels.Fulfillment.Fulfilled => Constants.StatusLabels.CssClasses.Positive,
             Constants.StatusLabels.Fulfillment.Partial => Constants.StatusLabels.CssClasses.Warning,
+            Constants.StatusLabels.Fulfillment.Processing => Constants.StatusLabels.CssClasses.Warning,
             _ => Constants.StatusLabels.CssClasses.Default
         };
     }
