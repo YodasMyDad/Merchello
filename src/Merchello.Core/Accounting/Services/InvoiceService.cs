@@ -314,9 +314,40 @@ public class InvoiceService(
                 // Parse the SelectionKey to determine if flat-rate or dynamic
                 if (!Shipping.Extensions.SelectionKeyExtensions.TryParse(selectionKey, out var shippingOptionId, out var providerKey, out var serviceCode))
                 {
-                    logger.LogWarning("Invalid or missing shipping selection for warehouse group {GroupId} (Warehouse: {WarehouseId})",
-                        group.GroupId, group.WarehouseId);
-                    continue;
+                    // Try auto-select cheapest shipping as fallback (handles stale sessions after address changes)
+                    var autoSelected = group.AvailableShippingOptions
+                        .OrderBy(o => o.Cost)
+                        .ThenBy(o => o.DaysTo)
+                        .Select(o => o.SelectionKey)
+                        .FirstOrDefault();
+
+                    if (autoSelected != null &&
+                        Shipping.Extensions.SelectionKeyExtensions.TryParse(autoSelected, out shippingOptionId, out providerKey, out serviceCode))
+                    {
+                        logger.LogInformation(
+                            "Auto-selected shipping {SelectionKey} for warehouse group {GroupId} (Warehouse: {WarehouseId}) - original selection was missing or invalid",
+                            autoSelected, group.GroupId, group.WarehouseId);
+                        selectionKey = autoSelected;
+
+                        // Ensure auto-selected flat-rate option is in the loaded dictionary
+                        if (shippingOptionId.HasValue && !shippingOptions.ContainsKey(shippingOptionId.Value))
+                        {
+                            var autoOption = await db.ShippingOptions
+                                .FirstOrDefaultAsync(so => so.Id == shippingOptionId.Value, cancellationToken);
+                            if (autoOption != null)
+                            {
+                                shippingOptions[autoOption.Id] = autoOption;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        logger.LogWarning(
+                            "No shipping options available for warehouse group {GroupId} (Warehouse: {WarehouseId})",
+                            group.GroupId, group.WarehouseId);
+                        result.AddErrorMessage("Unable to create order: no shipping method available for all items. Please go back and select shipping.");
+                        return (null, []);
+                    }
                 }
 
                 // Variables for order creation
