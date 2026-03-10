@@ -525,7 +525,7 @@ export interface ReleaseFulfillmentResultDto {
 export interface FulfillmentSummaryDto {
   invoiceId: string;
   invoiceNumber: string;
-  overallStatus: "Unfulfilled" | "Partial" | "Fulfilled";
+  overallStatus: "Unfulfilled" | "Processing" | "Partial" | "Fulfilled";
   overallStatusCssClass: string;
   orders: OrderFulfillmentDto[];
 }
@@ -553,6 +553,7 @@ export interface FulfillmentLineItemDto {
   selectedOptions: SelectedOptionDto[];
   orderedQuantity: number;
   shippedQuantity: number;
+  preparingQuantity: number;
   remainingQuantity: number;
   imageUrl: string | null;
   amount: number;

@@ -1441,6 +1441,7 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
     }
 
     .badge.partial,
+    .badge.processing,
     .badge.awaiting {
       background: var(--merchello-color-warning-status-background, #8a6500);
       color: #fff;

@@ -715,7 +715,8 @@ export class MerchelloShipmentsViewElement extends UmbElementMixin(LitElement) {
       color: var(--uui-color-positive-contrast);
     }
 
-    .status-badge.partial {
+    .status-badge.partial,
+    .status-badge.processing {
       background: var(--merchello-color-warning-status-background, #8a6500);
       color: #fff;
     }

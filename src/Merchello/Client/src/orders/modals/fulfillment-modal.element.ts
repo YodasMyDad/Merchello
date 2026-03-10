@@ -600,11 +600,19 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
   }
 
   private _renderAllFulfilledState(): unknown {
+    const hasPreparingItems = this._summary?.orders.some((o) =>
+      o.lineItems.some((li) => li.preparingQuantity > 0),
+    );
+
     return html`
       <div class="all-fulfilled">
         <uui-icon name="icon-check"></uui-icon>
-        <h3>All items fulfilled</h3>
-        <p>All items in this order have been shipped.</p>
+        <h3>${hasPreparingItems ? "All items assigned to shipments" : "All items fulfilled"}</h3>
+        <p>
+          ${hasPreparingItems
+            ? "All items are in shipments being prepared. Mark shipments as shipped to complete fulfillment."
+            : "All items in this order have been shipped."}
+        </p>
       </div>
     `;
   }
@@ -766,6 +774,11 @@ export class MerchelloFulfillmentModalElement extends UmbModalBaseElement<
 
     .status-badge.unfulfilled {
       background: var(--merchello-color-warning-status-background, #8a6500);
+      color: #fff;
+    }
+
+    .status-badge.processing {
+      background: var(--uui-color-warning-standalone, #d4a017);
       color: #fff;
     }
 
