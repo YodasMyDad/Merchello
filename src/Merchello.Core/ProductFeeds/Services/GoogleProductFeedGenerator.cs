@@ -89,6 +89,7 @@ public class GoogleProductFeedGenerator(
         var customLabels = Deserialize(feed.CustomLabelsJson, new List<ProductFeedCustomLabelConfig>());
         var customFields = Deserialize(feed.CustomFieldsJson, new List<ProductFeedCustomFieldConfig>());
         var manualPromotions = Deserialize(feed.ManualPromotionsJson, new List<ProductFeedManualPromotion>());
+        var autoDiscountConfig = Deserialize(feed.AutoDiscountConfigJson, new ProductFeedAutoDiscountConfig());
         var labelsBySlot = customLabels
             .Where(l => l.Slot >= 0 && l.Slot <= 4)
             .GroupBy(l => l.Slot)
@@ -268,6 +269,40 @@ public class GoogleProductFeedGenerator(
 
                 item.SetElementValue(g + "price", previousPrice);
                 item.Add(new XElement(g + "sale_price", price));
+            }
+
+            if (autoDiscountConfig.IsEnabled && product.CostOfGoods > 0)
+            {
+                var cogsRatio = product.CostOfGoods / product.Price;
+
+                // Google requires COGS between 5% and 95% of price
+                if (cogsRatio >= 0.05m && cogsRatio <= 0.95m)
+                {
+                    var cogsFormatted = await ResolveDisplayPriceAsync(
+                        product.CostOfGoods,
+                        root.TaxGroupId,
+                        feed.CountryCode,
+                        taxInclusive,
+                        conversionRate,
+                        feedCurrency,
+                        taxRatesByGroup,
+                        cancellationToken);
+                    item.Add(new XElement(g + "cost_of_goods_sold", cogsFormatted));
+
+                    // auto_pricing_min_price = COGS + (Price - COGS) * (minProfitMarginPercent / 100)
+                    var profitMargin = product.Price - product.CostOfGoods;
+                    var minPrice = product.CostOfGoods + profitMargin * (autoDiscountConfig.MinProfitMarginPercent / 100m);
+                    var minPriceFormatted = await ResolveDisplayPriceAsync(
+                        minPrice,
+                        root.TaxGroupId,
+                        feed.CountryCode,
+                        taxInclusive,
+                        conversionRate,
+                        feedCurrency,
+                        taxRatesByGroup,
+                        cancellationToken);
+                    item.Add(new XElement(g + "auto_pricing_min_price", minPriceFormatted));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(product.Gtin))

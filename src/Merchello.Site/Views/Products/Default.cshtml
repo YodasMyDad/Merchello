@@ -78,6 +78,11 @@
         : (decimal?)null;
     var priceFormat = $"N{displayContext.DecimalPlaces}";
 
+    // Google Auto Discount - set by GoogleAutoDiscountMiddleware when pv2 param or cookie is present
+    var googleAutoDiscount = Context.Items["MerchelloGoogleAutoDiscount"] as Merchello.Core.ProductFeeds.Dtos.GoogleAutoDiscountActiveDto;
+    var hasGoogleAutoDiscount = googleAutoDiscount != null
+        && googleAutoDiscount.PageExpiryUtc > DateTime.UtcNow;
+
     var config = new
     {
         productId = productRoot.Id.ToString(),
@@ -138,6 +143,16 @@
                         : null
                 }).ToList()
             }).ToList(),
+        googleAutoDiscount = hasGoogleAutoDiscount ? new
+        {
+            discountedPrice = googleAutoDiscount!.DiscountedPrice,
+            discountPercentage = googleAutoDiscount.DiscountPercentage,
+            discountCode = googleAutoDiscount.DiscountCode,
+            currencyCode = googleAutoDiscount.CurrencyCode,
+            offerId = googleAutoDiscount.OfferId,
+            pageExpiryUtc = googleAutoDiscount.PageExpiryUtc.ToString("o"),
+            checkoutExpiryUtc = googleAutoDiscount.CheckoutExpiryUtc.ToString("o")
+        } : (object?)null,
         addonOptions = viewModel.AddOnOptions
             .OrderBy(o => o.SortOrder)
             .Select(o => new
@@ -261,7 +276,8 @@
                 ["SsrInStock"] = ssrInStock,
                 ["SsrDisplayPrice"] = ssrDisplayPrice,
                 ["SsrDisplayPreviousPrice"] = ssrDisplayPreviousPrice,
-                ["PriceFormat"] = priceFormat
+                ["PriceFormat"] = priceFormat,
+                ["GoogleAutoDiscount"] = hasGoogleAutoDiscount ? googleAutoDiscount : null
             })
     </div>
 

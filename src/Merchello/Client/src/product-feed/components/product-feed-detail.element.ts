@@ -11,6 +11,7 @@ import type { ProductTypeDto, ProductCollectionDto } from "@products/types/produ
 import type { ProductFilterGroupDto } from "@filters/types/filters.types.js";
 import type {
   CreateProductFeedDto,
+  ProductFeedAutoDiscountConfigDto,
   ProductFeedCustomFieldDto,
   ProductFeedCustomLabelDto,
   ProductFeedDetailDto,
@@ -236,6 +237,7 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
         amountOff: promotion.amountOff,
         filterConfig: this._normalizeFilterConfig(promotion.filterConfig),
       })),
+      autoDiscountConfig: feed.autoDiscountConfig ?? { isEnabled: false, minProfitMarginPercent: 20, googleMerchantId: null },
     };
   }
 
@@ -318,6 +320,16 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
     this._commitFeed({
       ...this._feed,
       [field]: value,
+    });
+  }
+
+  private _setAutoDiscountField(field: keyof ProductFeedAutoDiscountConfigDto, value: unknown): void {
+    if (!this._feed) return;
+    const config = { ...(this._feed.autoDiscountConfig ?? { isEnabled: false, minProfitMarginPercent: 20, googleMerchantId: null }) };
+    (config as Record<string, unknown>)[field] = value;
+    this._commitFeed({
+      ...this._feed,
+      autoDiscountConfig: config,
     });
   }
 
@@ -880,6 +892,17 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
       }
     });
 
+    if (this._feed.autoDiscountConfig?.isEnabled) {
+      if (!this._feed.autoDiscountConfig.googleMerchantId?.trim()) {
+        errors.googleMerchantId = "Google Merchant ID is required when automatic discounts are enabled.";
+      }
+
+      const margin = this._feed.autoDiscountConfig.minProfitMarginPercent;
+      if (margin < 0 || margin > 100) {
+        errors.minProfitMarginPercent = "Minimum profit margin must be between 0 and 100.";
+      }
+    }
+
     this._validationErrors = errors;
 
     const hasLabelArgErrors = this._feed.customLabels.some((label) =>
@@ -931,6 +954,11 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
         amountOff: promotion.amountOff,
         filterConfig: this._normalizeFilterConfig(promotion.filterConfig),
       })),
+      autoDiscountConfig: {
+        isEnabled: feed.autoDiscountConfig?.isEnabled ?? false,
+        minProfitMarginPercent: feed.autoDiscountConfig?.minProfitMarginPercent ?? 20,
+        googleMerchantId: feed.autoDiscountConfig?.googleMerchantId?.trim() || null,
+      },
     };
   }
 
@@ -1311,6 +1339,61 @@ export class MerchelloProductFeedDetailElement extends UmbElementMixin(LitElemen
             </uui-toggle>
           </umb-property-layout>
         </div>
+      </uui-box>
+
+      <uui-box headline="Google Automatic Discounts">
+        <p class="hint">
+          Enable Google Automatic Discounts to include cost_of_goods_sold and auto_pricing_min_price
+          in your product feed. Google uses these to optimise product prices in Shopping ads.
+        </p>
+        <umb-property-layout
+          label="Enable Automatic Discounts"
+          description="When enabled, products with a Cost of Goods value will include pricing data for Google's automated discount system.">
+          <uui-toggle
+            slot="editor"
+            label="Enable automatic discounts"
+            ?checked=${this._feed.autoDiscountConfig?.isEnabled ?? false}
+            @change=${(event: Event) => this._setAutoDiscountField("isEnabled", (event.target as HTMLInputElement).checked)}>
+            Enable automatic discounts
+          </uui-toggle>
+        </umb-property-layout>
+
+        ${this._feed.autoDiscountConfig?.isEnabled ? html`
+          <umb-property-layout
+            label="Google Merchant ID"
+            description="Your Google Merchant Center account ID. Used to validate discount tokens from Google Shopping ads."
+            ?mandatory=${true}
+            ?invalid=${!!this._validationErrors.googleMerchantId}>
+            <uui-input
+              slot="editor"
+              .value=${this._feed.autoDiscountConfig?.googleMerchantId ?? ""}
+              @input=${(event: Event) => this._setAutoDiscountField("googleMerchantId", (event.target as HTMLInputElement).value)}
+              placeholder="123456789">
+            </uui-input>
+          </umb-property-layout>
+
+          <umb-property-layout
+            label="Minimum Profit Margin %"
+            description="The minimum percentage of profit margin to preserve per product. Google will never discount below: COGS + (profit margin x this %). For example, 20% means you keep at least 20% of your profit on every sale."
+            ?mandatory=${true}
+            ?invalid=${!!this._validationErrors.minProfitMarginPercent}>
+            <uui-input
+              slot="editor"
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              .value=${String(this._feed.autoDiscountConfig?.minProfitMarginPercent ?? 20)}
+              @input=${(event: Event) => this._setAutoDiscountField("minProfitMarginPercent", parseFloat((event.target as HTMLInputElement).value) || 0)}
+              placeholder="20">
+            </uui-input>
+          </umb-property-layout>
+
+          <p class="hint">
+            Products need a Cost of Goods value set. Google requires COGS to be between 5% and 95% of the product price.
+            Products without valid COGS will be excluded from automatic discounts in the feed.
+          </p>
+        ` : nothing}
       </uui-box>
 
       ${!this._isNew

@@ -140,6 +140,7 @@ public class ProductFeedService(
             entity.CustomLabelsJson = JsonSerializer.Serialize(MapCustomLabels(request.CustomLabels ?? []), JsonOptions);
             entity.CustomFieldsJson = JsonSerializer.Serialize(MapCustomFields(normalizedCustomFields), JsonOptions);
             entity.ManualPromotionsJson = JsonSerializer.Serialize(MapManualPromotions(request.ManualPromotions ?? []), JsonOptions);
+            entity.AutoDiscountConfigJson = JsonSerializer.Serialize(MapAutoDiscountConfig(request.AutoDiscountConfig), JsonOptions);
 
             db.Set<ProductFeed>().Add(entity);
             await db.SaveChangesAsync(cancellationToken);
@@ -213,6 +214,7 @@ public class ProductFeedService(
             entity.CustomLabelsJson = JsonSerializer.Serialize(MapCustomLabels(request.CustomLabels ?? []), JsonOptions);
             entity.CustomFieldsJson = JsonSerializer.Serialize(MapCustomFields(normalizedCustomFields), JsonOptions);
             entity.ManualPromotionsJson = JsonSerializer.Serialize(MapManualPromotions(request.ManualPromotions ?? []), JsonOptions);
+            entity.AutoDiscountConfigJson = JsonSerializer.Serialize(MapAutoDiscountConfig(request.AutoDiscountConfig), JsonOptions);
             entity.DateUpdated = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
@@ -418,6 +420,8 @@ public class ProductFeedService(
                     $"but feed is set to {(actualTaxMode ? "tax-inclusive" : "tax-exclusive")}.");
             }
 
+            var autoDiscountConfig = Deserialize(feed.AutoDiscountConfigJson, new ProductFeedAutoDiscountConfig());
+
             var issues = new List<ProductFeedValidationIssueDto>();
             XNamespace g = "http://base.google.com/ns/1.0";
             var items = ParseItems(productResult.Xml);
@@ -488,6 +492,37 @@ public class ProductFeedService(
                         productId: productId,
                         productName: productName,
                         field: "identifier_exists");
+                }
+
+                if (autoDiscountConfig.IsEnabled)
+                {
+                    var hasCogs = !string.IsNullOrWhiteSpace(GetElementValue(item, g, "cost_of_goods_sold"));
+                    var hasMinPrice = !string.IsNullOrWhiteSpace(GetElementValue(item, g, "auto_pricing_min_price"));
+
+                    if (!hasCogs)
+                    {
+                        AddIssue(
+                            issues,
+                            maxIssues,
+                            severity: "warning",
+                            code: "missing_cost_of_goods_sold",
+                            message: "Auto discounts enabled but product is missing cost of goods (COGS). Set CostOfGoods on the product to enable automatic pricing.",
+                            productId: productId,
+                            productName: productName,
+                            field: "cost_of_goods_sold");
+                    }
+                    else if (!hasMinPrice)
+                    {
+                        AddIssue(
+                            issues,
+                            maxIssues,
+                            severity: "warning",
+                            code: "cogs_outside_range",
+                            message: "COGS is outside the 5%-95% of price range required by Google for automatic discounts.",
+                            productId: productId,
+                            productName: productName,
+                            field: "auto_pricing_min_price");
+                    }
                 }
             }
 
@@ -920,6 +955,7 @@ public class ProductFeedService(
             CustomLabels = MapCustomLabelDtos(Deserialize(feed.CustomLabelsJson, new List<ProductFeedCustomLabelConfig>())),
             CustomFields = MapCustomFieldDtos(Deserialize(feed.CustomFieldsJson, new List<ProductFeedCustomFieldConfig>())),
             ManualPromotions = MapManualPromotionDtos(Deserialize(feed.ManualPromotionsJson, new List<ProductFeedManualPromotion>())),
+            AutoDiscountConfig = MapAutoDiscountConfigDto(Deserialize(feed.AutoDiscountConfigJson, new ProductFeedAutoDiscountConfig())),
             LastGeneratedUtc = feed.LastGeneratedUtc,
             LastGenerationError = feed.LastGenerationError,
             HasProductSnapshot = !string.IsNullOrWhiteSpace(feed.LastSuccessfulProductFeedXml),
@@ -1112,6 +1148,8 @@ public class ProductFeedService(
             Mpn = GetElementValue(item, g, "mpn"),
             IdentifierExists = GetElementValue(item, g, "identifier_exists"),
             ShippingLabel = GetElementValue(item, g, "shipping_label"),
+            CostOfGoodsSold = GetElementValue(item, g, "cost_of_goods_sold"),
+            AutoPricingMinPrice = GetElementValue(item, g, "auto_pricing_min_price"),
             Fields = fields
         };
     }
@@ -1266,5 +1304,66 @@ public class ProductFeedService(
                 FilterConfig = MapFilterConfigDto(m.FilterConfig)
             })
             .ToList();
+    }
+
+    private static ProductFeedAutoDiscountConfig MapAutoDiscountConfig(ProductFeedAutoDiscountConfigDto? dto)
+    {
+        if (dto == null)
+        {
+            return new ProductFeedAutoDiscountConfig();
+        }
+
+        return new ProductFeedAutoDiscountConfig
+        {
+            IsEnabled = dto.IsEnabled,
+            MinProfitMarginPercent = dto.MinProfitMarginPercent,
+            GoogleMerchantId = dto.GoogleMerchantId
+        };
+    }
+
+    private static ProductFeedAutoDiscountConfigDto MapAutoDiscountConfigDto(ProductFeedAutoDiscountConfig model)
+    {
+        return new ProductFeedAutoDiscountConfigDto
+        {
+            IsEnabled = model.IsEnabled,
+            MinProfitMarginPercent = model.MinProfitMarginPercent,
+            GoogleMerchantId = model.GoogleMerchantId
+        };
+    }
+
+    public async Task<List<string>> GetAutoDiscountMerchantIdsAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = efCoreScopeProvider.CreateScope();
+        var feeds = await scope.ExecuteWithContextAsync(async db =>
+            await db.Set<ProductFeed>()
+                .AsNoTracking()
+                .Where(f => f.IsEnabled && f.AutoDiscountConfigJson != null)
+                .Select(f => f.AutoDiscountConfigJson)
+                .ToListAsync(cancellationToken));
+        scope.Complete();
+
+        var merchantIds = new List<string>();
+        foreach (var json in feeds)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                continue;
+            }
+
+            try
+            {
+                var config = JsonSerializer.Deserialize<ProductFeedAutoDiscountConfig>(json, JsonOptions);
+                if (config is { IsEnabled: true } && !string.IsNullOrWhiteSpace(config.GoogleMerchantId))
+                {
+                    merchantIds.Add(config.GoogleMerchantId);
+                }
+            }
+            catch (JsonException ex)
+            {
+                logger.LogWarning(ex, "Failed to deserialize auto discount config JSON.");
+            }
+        }
+
+        return merchantIds;
     }
 }

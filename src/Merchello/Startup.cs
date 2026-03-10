@@ -322,6 +322,10 @@ public static class Startup
             // Keep a bounded timeout for predictable developer feedback in the backoffice.
             client.Timeout = TimeSpan.FromSeconds(45);
         });
+        builder.Services.AddHttpClient("GoogleAutoDiscount", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
 
         // Register Merchello cache refresher for distributed cache invalidation
         builder.CacheRefreshers().Add<MerchelloCacheRefresher>();
@@ -432,6 +436,7 @@ public static class Startup
         builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedOnSaleResolver>();
         builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedProductTypeResolver>();
         builder.Services.AddScoped<IProductFeedValueResolver, ProductFeedCollectionsResolver>();
+        builder.Services.AddScoped<IGoogleAutoDiscountService, GoogleAutoDiscountService>();
         builder.Services.AddScoped<IShopifyCsvMapper, ShopifyCsvMapper>();
         builder.Services.AddScoped<IShopifyCsvImportValidator, ShopifyCsvImportValidator>();
         builder.Services.AddScoped<IProductSyncArtifactService, ProductSyncArtifactService>();

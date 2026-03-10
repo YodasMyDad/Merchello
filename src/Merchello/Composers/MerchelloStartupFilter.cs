@@ -14,6 +14,7 @@ public class MerchelloStartupFilter : IStartupFilter
         return app =>
         {
             app.UseRateLimiter();
+            app.UseGoogleAutoDiscount();
             app.UseAgentAuthentication();
             next(app);
         };

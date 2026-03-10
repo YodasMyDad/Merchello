@@ -24,6 +24,7 @@ public class ProductFeedDbMapping : IEntityTypeConfiguration<ProductFeed>
         builder.Property(x => x.CustomLabelsJson);
         builder.Property(x => x.CustomFieldsJson);
         builder.Property(x => x.ManualPromotionsJson);
+        builder.Property(x => x.AutoDiscountConfigJson);
 
         builder.Property(x => x.LastSuccessfulProductFeedXml);
         builder.Property(x => x.LastSuccessfulPromotionsFeedXml);

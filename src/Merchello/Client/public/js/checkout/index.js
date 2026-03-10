@@ -23,7 +23,7 @@ import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
 
 // Import store
-import { initCheckoutStore } from './stores/checkout.store.js';
+import { initCheckoutStore, getCheckoutStore } from './stores/checkout.store.js';
 
 // Import payment module (handles form rendering and payment flow)
 import MerchelloPayment from './payment.js';
@@ -78,6 +78,9 @@ initSinglePageCheckout();
 initOrderSummary();
 initExpressCheckout();
 console.log('[Checkout] All components registered');
+
+// Load Google auto discount state (non-blocking, runs after store init)
+getCheckoutStore()?.loadGoogleAutoDiscount?.();
 
 // Start Alpine - this processes all x-data attributes in the DOM
 // All components are now registered, so no race conditions

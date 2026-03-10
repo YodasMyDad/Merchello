@@ -40,6 +40,71 @@ public class CheckoutDiscountService(
     private readonly MerchelloSettings _settings = settings.Value;
 
     /// <inheritdoc />
+    public async Task<CrudResult<Basket>> ApplyGoogleAutoDiscountAsync(
+        ApplyGoogleAutoDiscountParameters parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var result = new CrudResult<Basket>();
+        var basket = parameters.Basket;
+
+        if (parameters.DiscountPercentage <= 0 || parameters.DiscountPercentage > 100)
+        {
+            result.AddErrorMessage("Invalid Google auto discount percentage.");
+            result.ResultObject = basket;
+            return result;
+        }
+
+        // Remove any existing Google auto discount for the same product SKU to prevent duplicates
+        var existingGoogleDiscounts = basket.LineItems
+            .Where(li => li.LineItemType == LineItemType.Discount
+                         && li.ExtendedData.ContainsKey(Constants.ExtendedDataKeys.IsGoogleAutoDiscount)
+                         && !string.IsNullOrEmpty(li.DependantLineItemSku)
+                         && string.Equals(li.DependantLineItemSku, parameters.LinkedSku, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (var existing in existingGoogleDiscounts)
+        {
+            basket.LineItems.Remove(existing);
+        }
+
+        var currencyCode = _settings.StoreCurrencyCode;
+        var errors = lineItemService.AddDiscountLineItem(new AddDiscountLineItemParameters
+        {
+            LineItems = basket.LineItems,
+            Amount = parameters.DiscountPercentage,
+            DiscountValueType = DiscountValueType.Percentage,
+            CurrencyCode = currencyCode,
+            LinkedSku = parameters.LinkedSku,
+            Name = $"Google Discount ({parameters.DiscountPercentage}% off)",
+            Reason = "Google automatic discount",
+            ExtendedData = new Dictionary<string, string>
+            {
+                [Constants.ExtendedDataKeys.IsGoogleAutoDiscount] = "true",
+                [Constants.ExtendedDataKeys.GoogleAutoDiscountOfferId] = parameters.OfferId,
+                [Constants.ExtendedDataKeys.GoogleAutoDiscountCode] = parameters.DiscountCode
+            }
+        });
+
+        if (errors.Count > 0)
+        {
+            result.AddErrorMessage(errors.First());
+            result.ResultObject = basket;
+            return result;
+        }
+
+        await checkoutService.Value.CalculateBasketAsync(new CalculateBasketParameters
+        {
+            Basket = basket,
+            CountryCode = parameters.CountryCode,
+            ShippingAmountOverride = basket.Shipping
+        }, cancellationToken);
+
+        basket.DateUpdated = DateTime.UtcNow;
+        result.ResultObject = basket;
+        return result;
+    }
+
+    /// <inheritdoc />
     public async Task AddDiscountToBasketAsync(
         AddDiscountToBasketParameters parameters,
         CancellationToken cancellationToken = default)

@@ -14,5 +14,7 @@ public class ProductFeedValidationProductPreviewDto
     public string? Mpn { get; set; }
     public string? IdentifierExists { get; set; }
     public string? ShippingLabel { get; set; }
+    public string? CostOfGoodsSold { get; set; }
+    public string? AutoPricingMinPrice { get; set; }
     public List<ProductFeedValidationPreviewFieldDto> Fields { get; set; } = [];
 }

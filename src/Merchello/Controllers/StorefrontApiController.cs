@@ -1,6 +1,7 @@
 using Merchello.Core;
 using Merchello.Core.Checkout.Services.Interfaces;
 using Merchello.Core.Checkout.Services.Parameters;
+using Merchello.Core.ProductFeeds.Dtos;
 using Merchello.Core.Products.Services.Interfaces;
 using Merchello.Core.Products.Services.Parameters;
 using Merchello.Core.Shared.Dtos;
@@ -29,6 +30,7 @@ namespace Merchello.Controllers;
 [MapToApi(Core.Constants.StorefrontApiName)]
 public class StorefrontApiController(
     ICheckoutService checkoutService,
+    ICheckoutDiscountService checkoutDiscountService,
     IStorefrontContextService storefrontContext,
     IProductService productService,
     ILocationsService locationsService,
@@ -60,6 +62,22 @@ public class StorefrontApiController(
                     result.ErrorMessage ?? "Failed to add item to basket",
                     null,
                     _settings.CurrencySymbol));
+        }
+
+        // Apply Google auto discount if active (from middleware cookie)
+        if (result.Basket != null
+            && result.ProductLineItem?.Sku != null
+            && HttpContext?.Items["MerchelloGoogleAutoDiscount"] is GoogleAutoDiscountActiveDto googleDiscount
+            && googleDiscount.CheckoutExpiryUtc > DateTime.UtcNow)
+        {
+            await checkoutDiscountService.ApplyGoogleAutoDiscountAsync(new ApplyGoogleAutoDiscountParameters
+            {
+                Basket = result.Basket,
+                LinkedSku = result.ProductLineItem.Sku,
+                DiscountPercentage = googleDiscount.DiscountPercentage,
+                DiscountCode = googleDiscount.DiscountCode,
+                OfferId = googleDiscount.OfferId
+            }, ct);
         }
 
         return Ok(

@@ -21,4 +21,6 @@ public interface IProductFeedService
     Task<string?> GetPromotionsXmlAsync(string slug, CancellationToken cancellationToken = default);
 
     Task<List<ProductFeedResolverDescriptorDto>> GetResolversAsync(CancellationToken cancellationToken = default);
+
+    Task<List<string>> GetAutoDiscountMerchantIdsAsync(CancellationToken cancellationToken = default);
 }

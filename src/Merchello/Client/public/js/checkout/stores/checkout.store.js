@@ -302,6 +302,13 @@ export function initCheckoutStore(initialData = {}) {
         appliedDiscounts: initialData.appliedDiscounts ?? [],
 
         // ============================================
+        // GOOGLE AUTO DISCOUNT STATE
+        // ============================================
+
+        /** @type {Object|null} Active Google auto discount from cookie/middleware */
+        googleAutoDiscount: null,
+
+        // ============================================
         // SHIPPING STATE
         // ============================================
 
@@ -982,6 +989,30 @@ export function initCheckoutStore(initialData = {}) {
          */
         getSuggestionsByMode(mode) {
             return this.upsellSuggestions.filter(s => s.checkoutMode === mode);
+        },
+
+        /**
+         * Load active Google auto discount from the middleware cookie.
+         * Called during checkout initialization. The discount is applied
+         * server-side via the middleware cookie during basket calculation.
+         */
+        async loadGoogleAutoDiscount() {
+            try {
+                const response = await fetch('/api/merchello/feeds/auto-discount/active');
+                if (response.status === 204 || !response.ok) {
+                    this.googleAutoDiscount = null;
+                    return;
+                }
+                const data = await response.json();
+                const checkoutExpiry = new Date(data.checkoutExpiryUtc);
+                if (checkoutExpiry > new Date()) {
+                    this.googleAutoDiscount = data;
+                } else {
+                    this.googleAutoDiscount = null;
+                }
+            } catch {
+                this.googleAutoDiscount = null;
+            }
         }
     });
 }

@@ -71,6 +71,17 @@ public interface ICheckoutDiscountService
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Applies a Google auto discount to a specific product in the basket.
+    /// If a Google auto discount already exists for the same product SKU, it is replaced.
+    /// </summary>
+    /// <param name="parameters">Parameters including basket, linked SKU, and discount details.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Result with updated basket or error.</returns>
+    Task<CrudResult<Basket>> ApplyGoogleAutoDiscountAsync(
+        ApplyGoogleAutoDiscountParameters parameters,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Add a discount to the basket as a discount line item.
     /// </summary>
     /// <param name="parameters">Parameters for adding the discount</param>

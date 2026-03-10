@@ -25,6 +25,12 @@ export interface ProductFeedCustomFieldDto {
   args: Record<string, string>;
 }
 
+export interface ProductFeedAutoDiscountConfigDto {
+  isEnabled: boolean;
+  minProfitMarginPercent: number;
+  googleMerchantId: string | null;
+}
+
 export interface ProductFeedManualPromotionDto {
   promotionId: string;
   name: string;
@@ -67,6 +73,7 @@ export interface ProductFeedDetailDto {
   customLabels: ProductFeedCustomLabelDto[];
   customFields: ProductFeedCustomFieldDto[];
   manualPromotions: ProductFeedManualPromotionDto[];
+  autoDiscountConfig: ProductFeedAutoDiscountConfigDto;
   lastGeneratedUtc: string | null;
   lastGenerationError: string | null;
   hasProductSnapshot: boolean;
@@ -85,6 +92,7 @@ export interface CreateProductFeedDto {
   customLabels: ProductFeedCustomLabelDto[];
   customFields: ProductFeedCustomFieldDto[];
   manualPromotions: ProductFeedManualPromotionDto[];
+  autoDiscountConfig: ProductFeedAutoDiscountConfigDto;
 }
 
 export interface UpdateProductFeedDto {
@@ -99,6 +107,7 @@ export interface UpdateProductFeedDto {
   customLabels: ProductFeedCustomLabelDto[];
   customFields: ProductFeedCustomFieldDto[];
   manualPromotions: ProductFeedManualPromotionDto[];
+  autoDiscountConfig: ProductFeedAutoDiscountConfigDto;
 }
 
 export interface ProductFeedRebuildResultDto {

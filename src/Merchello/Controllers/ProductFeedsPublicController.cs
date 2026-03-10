@@ -1,3 +1,4 @@
+using Merchello.Core.ProductFeeds.Dtos;
 using Merchello.Core.ProductFeeds.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Umbraco.Cms.Api.Common.Attributes;
@@ -35,5 +36,17 @@ public class ProductFeedsPublicController(
         }
 
         return Content(xml, "application/xml; charset=utf-8");
+    }
+
+    [HttpGet("auto-discount/active")]
+    public IActionResult GetActiveAutoDiscount()
+    {
+        var discount = HttpContext.Items["MerchelloGoogleAutoDiscount"] as GoogleAutoDiscountActiveDto;
+        if (discount == null)
+        {
+            return NoContent();
+        }
+
+        return Ok(discount);
     }
 }
