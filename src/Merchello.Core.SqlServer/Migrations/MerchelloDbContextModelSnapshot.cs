@@ -1743,6 +1743,9 @@ namespace Merchello.Core.SqlServer.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AutoDiscountConfigJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("CountryCode")
                         .IsRequired()
                         .HasMaxLength(2)
@@ -2190,7 +2193,6 @@ namespace Merchello.Core.SqlServer.Migrations
                         .HasColumnType("nvarchar(4000)");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(5000)
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("ElementPropertyData")

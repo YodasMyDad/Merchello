@@ -76,6 +76,11 @@ public static class Constants
         public const string UpsellImpressions = "MerchelloUpsellImpressions";  // JSON array of upsell impression records
         public const string AutoAddedByUpsellRule = "MerchelloAutoAddedByUpsellRule";  // Upsell rule ID that auto-added this line item
 
+        // Google auto discount
+        public const string IsGoogleAutoDiscount = "IsGoogleAutoDiscount";
+        public const string GoogleAutoDiscountOfferId = "GoogleAutoDiscountOfferId";
+        public const string GoogleAutoDiscountCode = "GoogleAutoDiscountCode";
+
         // Digital products
         public const string DigitalDeliveryMethod = "DigitalDeliveryMethod";    // "InstantDownload" or "EmailDelivered"
         public const string DigitalFileIds = "DigitalFileIds";                  // JSON array of Umbraco Media IDs

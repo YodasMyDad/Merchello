@@ -12,6 +12,8 @@
     var ssrDisplayPrice = (decimal)(ViewData["SsrDisplayPrice"] ?? 0m);
     var ssrDisplayPreviousPrice = ViewData["SsrDisplayPreviousPrice"] is decimal price ? price : (decimal?)null;
     var priceFormat = (string)(ViewData["PriceFormat"] ?? "N2");
+    var googleAutoDiscount = ViewData["GoogleAutoDiscount"] as Merchello.Core.ProductFeeds.Dtos.GoogleAutoDiscountActiveDto;
+    var hasGoogleAutoDiscount = googleAutoDiscount != null;
 }
 
 <div class="col-lg-6">
@@ -22,14 +24,19 @@
     </p>
 
     <div class="pricing mb-3">
-        <span class="h3 text-dark" x-text="formattedDisplayTotalPrice">@displayContext.CurrencySymbol@ssrDisplayPrice.ToString(priceFormat)</span>
+        <span class="h3 text-dark" x-text="formattedDisplayTotalPrice">@displayContext.CurrencySymbol@(hasGoogleAutoDiscount ? googleAutoDiscount!.DiscountedPrice.ToString(priceFormat) : ssrDisplayPrice.ToString(priceFormat))</span>
         <span class="text-decoration-line-through text-muted ms-2"
-              x-show="onSale && displayPreviousPrice"
-              x-text="formattedDisplayPreviousPrice"
-              @(Model.OnSale && Model.PreviousPrice.HasValue ? "" : "x-cloak")>@(Model.OnSale && ssrDisplayPreviousPrice.HasValue ? $"{displayContext.CurrencySymbol}{ssrDisplayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
+              x-show="(onSale && displayPreviousPrice) || hasGoogleAutoDiscount"
+              x-text="hasGoogleAutoDiscount ? formattedOriginalPrice : formattedDisplayPreviousPrice"
+              @(Model.OnSale && Model.PreviousPrice.HasValue || hasGoogleAutoDiscount ? "" : "x-cloak")>@(hasGoogleAutoDiscount ? $"{displayContext.CurrencySymbol}{ssrDisplayPrice.ToString(priceFormat)}" : Model.OnSale && ssrDisplayPreviousPrice.HasValue ? $"{displayContext.CurrencySymbol}{ssrDisplayPreviousPrice.Value.ToString(priceFormat)}" : "")</span>
         <span class="badge bg-danger ms-2"
-              x-show="onSale"
-              @(Model.OnSale ? "" : "x-cloak")>Sale</span>
+              x-show="onSale && !hasGoogleAutoDiscount"
+              @(Model.OnSale && !hasGoogleAutoDiscount ? "" : "x-cloak")>Sale</span>
+        <span class="badge bg-success ms-2"
+              x-show="hasGoogleAutoDiscount"
+              @(hasGoogleAutoDiscount ? "" : "x-cloak")>
+            <span x-text="googleAutoDiscountLabel">@(hasGoogleAutoDiscount ? $"{googleAutoDiscount!.DiscountPercentage}% off" : "")</span>
+        </span>
         @if (includesTax)
         {
             <span class="text-muted small ms-2" x-show="includesTax">(inc. @taxRate% VAT)</span>

@@ -15,6 +15,7 @@ public class ProductFeedDetailDto
     public List<ProductFeedCustomLabelDto> CustomLabels { get; set; } = [];
     public List<ProductFeedCustomFieldDto> CustomFields { get; set; } = [];
     public List<ProductFeedManualPromotionDto> ManualPromotions { get; set; } = [];
+    public ProductFeedAutoDiscountConfigDto AutoDiscountConfig { get; set; } = new();
 
     public DateTime? LastGeneratedUtc { get; set; }
     public string? LastGenerationError { get; set; }

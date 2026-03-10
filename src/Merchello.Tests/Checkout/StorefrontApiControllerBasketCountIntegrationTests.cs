@@ -393,6 +393,7 @@ public class StorefrontApiControllerBasketCountIntegrationTests : IClassFixture<
     {
         return new StorefrontApiController(
             _checkoutService,
+            Mock.Of<ICheckoutDiscountService>(),
             storefrontContext ?? Mock.Of<IStorefrontContextService>(),
             productService ?? _productService,
             Mock.Of<ILocationsService>(),

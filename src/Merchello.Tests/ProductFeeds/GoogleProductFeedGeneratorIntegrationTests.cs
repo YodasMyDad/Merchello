@@ -818,6 +818,135 @@ public class GoogleProductFeedGeneratorIntegrationTests : IClassFixture<ServiceT
         }
     }
 
+    [Fact]
+    public async Task GenerateAsync_AutoDiscountEnabled_ZeroPriceProduct_DoesNotThrow()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(20m);
+
+        var generator = CreateGenerator(taxServiceMock);
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "US");
+        warehouse.SetServiceRegions(
+        [
+            new WarehouseServiceRegion
+            {
+                CountryCode = "US",
+                IsExcluded = false
+            }
+        ]);
+
+        var productRoot = dataBuilder.CreateProductRoot("Zero Price Root", taxGroup);
+        productRoot.RootUrl = "zero-price-root";
+        productRoot.Description = "Free product with COGS";
+
+        var product = dataBuilder.CreateProduct("Zero Price Variant", productRoot, price: 0m);
+        product.Url = "https://test.example.com/products/zero-price";
+        product.Images = ["https://cdn.example.com/products/zero-price.jpg"];
+        product.CostOfGoods = 15m;
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var feed = new ProductFeed
+        {
+            Id = Guid.NewGuid(),
+            Name = "Zero Price Feed",
+            Slug = $"zero-price-feed-{Guid.NewGuid():N}",
+            IsEnabled = true,
+            CountryCode = "US",
+            CurrencyCode = "USD",
+            LanguageCode = "en",
+            IncludeTaxInPrice = false,
+            AutoDiscountConfigJson = JsonSerializer.Serialize(new ProductFeedAutoDiscountConfig
+            {
+                IsEnabled = true,
+                MinProfitMarginPercent = 20m,
+                GoogleMerchantId = "test-merchant"
+            }, JsonOptions)
+        };
+
+        // Should not throw DivideByZeroException
+        var result = await generator.GenerateAsync(feed);
+        result.ShouldNotBeNull();
+
+        var item = GetSingleItem(result.Xml);
+
+        // COGS and auto_pricing_min_price should NOT be emitted for zero-price products
+        GetGoogleElementValue(item, "cost_of_goods_sold").ShouldBeNull();
+        GetGoogleElementValue(item, "auto_pricing_min_price").ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AutoDiscountEnabled_ValidCogsAndPrice_EmitsCogsAndMinPrice()
+    {
+        var taxServiceMock = new Mock<ITaxService>();
+        taxServiceMock
+            .Setup(x => x.GetApplicableRateAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(0m);
+
+        var generator = CreateGenerator(taxServiceMock);
+        var dataBuilder = _fixture.CreateDataBuilder();
+
+        var taxGroup = dataBuilder.CreateTaxGroup("Standard", 20m);
+        var warehouse = dataBuilder.CreateWarehouse("Main Warehouse", "US");
+        warehouse.SetServiceRegions(
+        [
+            new WarehouseServiceRegion
+            {
+                CountryCode = "US",
+                IsExcluded = false
+            }
+        ]);
+
+        var productRoot = dataBuilder.CreateProductRoot("COGS Product Root", taxGroup);
+        productRoot.RootUrl = "cogs-product-root";
+        productRoot.Description = "Product with valid COGS";
+
+        var product = dataBuilder.CreateProduct("COGS Product", productRoot, price: 100m);
+        product.Url = "https://test.example.com/products/cogs-product";
+        product.Images = ["https://cdn.example.com/products/cogs-product.jpg"];
+        product.CostOfGoods = 50m; // 50% ratio - within 5%-95% range
+
+        dataBuilder.AddWarehouseToProductRoot(productRoot, warehouse);
+        dataBuilder.CreateProductWarehouse(product, warehouse, stock: 10);
+
+        await dataBuilder.SaveChangesAsync();
+        _fixture.DbContext.ChangeTracker.Clear();
+
+        var feed = new ProductFeed
+        {
+            Id = Guid.NewGuid(),
+            Name = "COGS Feed",
+            Slug = $"cogs-feed-{Guid.NewGuid():N}",
+            IsEnabled = true,
+            CountryCode = "US",
+            CurrencyCode = "USD",
+            LanguageCode = "en",
+            IncludeTaxInPrice = false,
+            AutoDiscountConfigJson = JsonSerializer.Serialize(new ProductFeedAutoDiscountConfig
+            {
+                IsEnabled = true,
+                MinProfitMarginPercent = 20m,
+                GoogleMerchantId = "test-merchant"
+            }, JsonOptions)
+        };
+
+        var result = await generator.GenerateAsync(feed);
+        result.ShouldNotBeNull();
+
+        var item = GetSingleItem(result.Xml);
+        GetGoogleElementValue(item, "cost_of_goods_sold").ShouldNotBeNull();
+        GetGoogleElementValue(item, "auto_pricing_min_price").ShouldNotBeNull();
+    }
+
     private class WhitespaceResolver : IProductFeedValueResolver
     {
         public string Alias => "whitespace";

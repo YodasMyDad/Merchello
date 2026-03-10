@@ -24,6 +24,22 @@ export function registerProductPage(Alpine) {
         lowStockThreshold: config.lowStockThreshold || 10,
         includesTax: config.includesTax || false,
         taxRate: config.taxRate || 0,
+        googleAutoDiscount: config.googleAutoDiscount || null,
+
+        get hasGoogleAutoDiscount() {
+            if (!this.googleAutoDiscount) return false;
+            const pageExpiry = new Date(this.googleAutoDiscount.pageExpiryUtc);
+            return pageExpiry > new Date();
+        },
+
+        get googleAutoDiscountLabel() {
+            if (!this.hasGoogleAutoDiscount) return "";
+            return `${this.googleAutoDiscount.discountPercentage}% off`;
+        },
+
+        get formattedOriginalPrice() {
+            return this.currentVariant?.formattedDisplayPrice || "";
+        },
 
         get currentVariant() {
             return this.variants.find((variant) => variant.id === this.selectedVariantId) || this.variants[0];
@@ -99,7 +115,9 @@ export function registerProductPage(Alpine) {
         },
 
         get displayTotalPrice() {
-            const base = this.displayPrice;
+            const base = this.hasGoogleAutoDiscount
+                ? this.googleAutoDiscount.discountedPrice
+                : this.displayPrice;
             const addonsTotal = this.selectedAddons.reduce((sum, addon) => sum + (addon.displayPrice || 0), 0);
             return base + addonsTotal;
         },
@@ -358,14 +376,21 @@ export function registerProductPage(Alpine) {
             this.isLoading = true;
 
             try {
-                const result = await api.basket.add({
+                const addPayload = {
                     productId: this.selectedVariantId,
                     quantity: this.quantity,
                     addons: this.selectedAddons.map((addon) => ({
                         optionId: addon.optionId,
                         valueId: addon.valueId
                     }))
-                });
+                };
+
+                // Google auto discount is applied server-side: the StorefrontApiController reads
+                // the active discount from HttpContext.Items (set by GoogleAutoDiscountMiddleware
+                // via the merchello_gad cookie) and calls ApplyGoogleAutoDiscountAsync after adding
+                // the product. No client-side payload needed.
+
+                const result = await api.basket.add(addPayload);
 
                 if (result.success && result.data.success) {
                     Alpine.store("basket").update(

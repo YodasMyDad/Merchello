@@ -18,6 +18,7 @@ public class ProductFeed
     public string? CustomLabelsJson { get; set; }
     public string? CustomFieldsJson { get; set; }
     public string? ManualPromotionsJson { get; set; }
+    public string? AutoDiscountConfigJson { get; set; }
 
     public string? LastSuccessfulProductFeedXml { get; set; }
     public string? LastSuccessfulPromotionsFeedXml { get; set; }
