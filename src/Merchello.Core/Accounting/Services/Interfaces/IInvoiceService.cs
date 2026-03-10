@@ -41,7 +41,15 @@ public interface IInvoiceService
         CheckoutSession checkoutSession,
         InvoiceSource? source = null,
         CancellationToken cancellationToken = default,
-        string? purchaseOrder = null);
+        string? purchaseOrder = null,
+        bool suppressNotifications = false);
+
+    /// <summary>
+    /// Publishes deferred notifications for an invoice created with suppressNotifications=true.
+    /// Call after payment is confirmed to fire InvoiceSaved, OrderCreated, and OrderSaved notifications.
+    /// Idempotent: safe to call multiple times for the same invoice.
+    /// </summary>
+    Task PublishDeferredInvoiceNotificationsAsync(Guid invoiceId, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> UpdateOrderStatusAsync(UpdateOrderStatusParameters parameters, CancellationToken cancellationToken = default);
     Task<CrudResult<bool>> CancelOrderAsync(Guid orderId, string reason, CancellationToken cancellationToken = default);
 

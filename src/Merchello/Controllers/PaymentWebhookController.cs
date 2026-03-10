@@ -1,3 +1,4 @@
+using Merchello.Core.Accounting.Services.Interfaces;
 using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Payments.Providers.Interfaces;
@@ -19,6 +20,7 @@ namespace Merchello.Controllers;
 public class PaymentWebhookController(
     IPaymentProviderManager providerManager,
     IPaymentService paymentService,
+    IInvoiceService invoiceService,
     IWebhookSecurityService webhookSecurityService,
     ILogger<PaymentWebhookController> logger) : ControllerBase
 {
@@ -213,7 +215,7 @@ public class PaymentWebhookController(
 
                     if (existingPayment == null)
                     {
-                        await paymentService.RecordPaymentAsync(
+                        var paymentResult = await paymentService.RecordPaymentAsync(
                             new RecordPaymentParameters
                             {
                                 InvoiceId = result.InvoiceId.Value,
@@ -231,12 +233,26 @@ public class PaymentWebhookController(
                             },
                             cancellationToken);
 
-                        logger.LogInformation(
-                            "Payment recorded from webhook: InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}, RiskScore={RiskScore}",
-                            result.InvoiceId,
-                            result.Amount,
-                            result.TransactionId,
-                            result.RiskScore);
+                        if (paymentResult.Success && paymentResult.ResultObject != null)
+                        {
+                            // Publish deferred invoice/order notifications now that payment is confirmed
+                            await invoiceService.PublishDeferredInvoiceNotificationsAsync(result.InvoiceId.Value, cancellationToken);
+
+                            logger.LogInformation(
+                                "Payment recorded from webhook: InvoiceId={InvoiceId}, Amount={Amount}, TransactionId={TransactionId}, RiskScore={RiskScore}",
+                                result.InvoiceId,
+                                result.Amount,
+                                result.TransactionId,
+                                result.RiskScore);
+                        }
+                        else
+                        {
+                            logger.LogWarning(
+                                "RecordPaymentAsync failed for InvoiceId={InvoiceId}, TransactionId={TransactionId}: {Error}",
+                                result.InvoiceId,
+                                result.TransactionId,
+                                paymentResult.Messages.FirstOrDefault()?.Message ?? "Unknown error");
+                        }
                     }
                     else
                     {

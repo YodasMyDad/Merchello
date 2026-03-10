@@ -93,7 +93,8 @@ public class InvoiceService(
         CheckoutSession checkoutSession,
         InvoiceSource? source = null,
         CancellationToken cancellationToken = default,
-        string? purchaseOrder = null)
+        string? purchaseOrder = null,
+        bool suppressNotifications = false)
     {
         var result = new CrudResult<Invoice>();
         var invoiceNumberPrefix = await GetInvoiceNumberPrefixAsync(cancellationToken);
@@ -758,34 +759,45 @@ public class InvoiceService(
         // This ensures handlers get their own clean DbContext without nesting issues
         // Wrapped in try-catch: invoice is already committed, notification failures must not
         // prevent the invoice from being returned to the caller
-        try
+        // When suppressNotifications is true (checkout pre-payment), defer notifications until
+        // payment is confirmed via PublishDeferredInvoiceNotificationsAsync
+        if (!suppressNotifications)
         {
-            await notificationPublisher.PublishAsync(new InvoiceSavedNotification(invoice), cancellationToken);
-
-            foreach (var order in orders)
+            try
             {
-                await notificationPublisher.PublishAsync(new OrderCreatedNotification(order), cancellationToken);
-            }
+                await notificationPublisher.PublishAsync(new InvoiceSavedNotification(invoice), cancellationToken);
 
-            // Publish OrderSavedNotification for each order
-            foreach (var order in orders)
+                foreach (var order in orders)
+                {
+                    await notificationPublisher.PublishAsync(new OrderCreatedNotification(order), cancellationToken);
+                }
+
+                // Publish OrderSavedNotification for each order
+                foreach (var order in orders)
+                {
+                    await notificationPublisher.PublishAsync(new OrderSavedNotification(order), cancellationToken);
+                }
+
+                // Publish aggregate notification for the entire checkout operation
+                await notificationPublisher.PublishAsync(
+                    new InvoiceAggregateChangedNotification(
+                        invoice,
+                        AggregateChangeType.Created,
+                        AggregateChangeSource.Invoice,
+                        invoice),
+                    cancellationToken);
+            }
+            catch (Exception ex)
             {
-                await notificationPublisher.PublishAsync(new OrderSavedNotification(order), cancellationToken);
+                logger.LogError(ex,
+                    "Error publishing post-save notifications for invoice {InvoiceId}. Invoice was saved successfully.",
+                    invoice.Id);
             }
-
-            // Publish aggregate notification for the entire checkout operation
-            await notificationPublisher.PublishAsync(
-                new InvoiceAggregateChangedNotification(
-                    invoice,
-                    AggregateChangeType.Created,
-                    AggregateChangeSource.Invoice,
-                    invoice),
-                cancellationToken);
         }
-        catch (Exception ex)
+        else
         {
-            logger.LogError(ex,
-                "Error publishing post-save notifications for invoice {InvoiceId}. Invoice was saved successfully.",
+            logger.LogInformation(
+                "Notifications suppressed for invoice {InvoiceId} (checkout pre-payment). Will be published after payment confirmation.",
                 invoice.Id);
         }
 
@@ -3071,6 +3083,101 @@ public class InvoiceService(
             invoice.Id, basketId);
 
         return invoice;
+    }
+
+    /// <inheritdoc />
+    public async Task PublishDeferredInvoiceNotificationsAsync(Guid invoiceId, CancellationToken cancellationToken = default)
+    {
+        // Idempotency: check if notifications were already published for this invoice
+        using var checkScope = efCoreScopeProvider.CreateScope();
+        var alreadyPublished = await checkScope.ExecuteWithContextAsync(async db =>
+        {
+            var inv = await db.Invoices
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
+            if (inv == null) return true; // invoice not found, nothing to do
+
+            return inv.ExtendedData.ContainsKey("NotificationsPublished");
+        });
+        checkScope.Complete();
+
+        if (alreadyPublished)
+        {
+            logger.LogDebug("Deferred notifications already published for invoice {InvoiceId}, skipping", invoiceId);
+            return;
+        }
+
+        // Load full invoice with orders for notifications
+        var invoice = await GetInvoiceAsync(invoiceId, cancellationToken);
+        if (invoice == null)
+        {
+            logger.LogWarning("Cannot publish deferred notifications: invoice {InvoiceId} not found", invoiceId);
+            return;
+        }
+
+        try
+        {
+            await notificationPublisher.PublishAsync(new InvoiceSavedNotification(invoice), cancellationToken);
+
+            if (invoice.Orders != null)
+            {
+                foreach (var order in invoice.Orders)
+                {
+                    await notificationPublisher.PublishAsync(new OrderCreatedNotification(order), cancellationToken);
+                }
+
+                foreach (var order in invoice.Orders)
+                {
+                    await notificationPublisher.PublishAsync(new OrderSavedNotification(order), cancellationToken);
+                }
+            }
+
+            await notificationPublisher.PublishAsync(
+                new InvoiceAggregateChangedNotification(
+                    invoice,
+                    AggregateChangeType.Created,
+                    AggregateChangeSource.Invoice,
+                    invoice),
+                cancellationToken);
+
+            logger.LogInformation(
+                "Deferred notifications published for invoice {InvoiceId} after payment confirmation",
+                invoiceId);
+        }
+        catch (Exception ex)
+        {
+            // Don't set the flag on failure so a subsequent call (e.g. webhook) can retry
+            logger.LogError(ex,
+                "Error publishing deferred notifications for invoice {InvoiceId}. Payment was recorded successfully.",
+                invoiceId);
+            return;
+        }
+
+        // Mark as published AFTER successful notification publishing.
+        // This ensures failed publishes can be retried by a subsequent call (e.g. webhook).
+        // Slight risk of duplicate notifications on concurrent calls, but that's preferable
+        // to permanently lost notifications.
+        try
+        {
+            using var flagScope = efCoreScopeProvider.CreateScope();
+            await flagScope.ExecuteWithContextAsync<bool>(async db =>
+            {
+                var inv = await db.Invoices.FirstOrDefaultAsync(i => i.Id == invoiceId, cancellationToken);
+                if (inv != null)
+                {
+                    inv.ExtendedData["NotificationsPublished"] = true;
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+                return true;
+            });
+            flagScope.Complete();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Failed to set NotificationsPublished flag for invoice {InvoiceId}. Duplicate notifications possible on retry.",
+                invoiceId);
+        }
     }
 
     private async Task<List<Guid>> SupersedePreviousUnpaidInvoicesAsync(

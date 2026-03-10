@@ -466,22 +466,11 @@ public class LineItemService(
             }
         }
 
-        // Calculate the actual discount amount for storage
-        decimal storedAmount;
-        if (discountValueType == DiscountValueType.FixedAmount)
-        {
-            storedAmount = -amount; // Store as negative
-        }
-        else
-        {
-            // For percentage/free, we store a placeholder negative amount
-            // The actual calculation happens in CalculateFromLineItems
-            // We store the value type in ExtendedData
-            storedAmount = -amount; // Placeholder - will be recalculated
-        }
+        // Store as negative amount (amount is always the calculated money value)
+        var storedAmount = -amount;
 
         var discountLineItem = lineItemFactory.CreateDiscountLineItem(
-            name: name ?? (discountValueType == DiscountValueType.Percentage ? amount + "% discount" : discountValueType == DiscountValueType.Free ? "Free" : "Discount"),
+            name: name ?? (discountValueType == DiscountValueType.Percentage ? "Percentage discount" : discountValueType == DiscountValueType.Free ? "Free" : "Discount"),
             sku: $"DISCOUNT-{Guid.NewGuid():N}",
             amount: storedAmount,
             dependantLineItemSku: linkedSku,
