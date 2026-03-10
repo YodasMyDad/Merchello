@@ -464,6 +464,16 @@ public class MerchelloCheckoutController(
         var currentMember = await memberManager.GetCurrentMemberAsync();
         var isLoggedIn = currentMember != null;
 
+        // Clean stale basket email for authenticated members
+        if (isLoggedIn
+            && !string.IsNullOrWhiteSpace(currentMember!.Email)
+            && basket.BillingAddress != null
+            && !string.Equals(basket.BillingAddress.Email, currentMember.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            basket.BillingAddress.Email = currentMember.Email;
+            await checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
+        }
+
         // Check if basket contains digital products (requires account creation)
         var hasDigitalProducts = await checkoutService.BasketHasDigitalProductsAsync(
             new BasketHasDigitalProductsParameters { Basket = basket },

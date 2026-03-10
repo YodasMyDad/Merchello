@@ -200,7 +200,7 @@ public class CheckoutApiController(
         var result = await checkoutService.SaveAddressesAsync(new SaveAddressesParameters
         {
             Basket = basket,
-            Email = request.Email,
+            Email = await ResolveEmailAsync(request.Email),
             BillingAddress = request.BillingAddress,
             ShippingAddress = request.ShippingAddress,
             ShippingSameAsBilling = request.ShippingSameAsBilling,
@@ -484,7 +484,7 @@ public class CheckoutApiController(
             CountryCode = request.CountryCode,
             StateCode = request.StateCode,
             AutoSelectShipping = request.AutoSelectShipping,
-            Email = request.Email,
+            Email = await ResolveEmailAsync(request.Email),
             PreviousShippingSelections = request.PreviousShippingSelections
         }, ct);
 
@@ -1094,7 +1094,7 @@ public class CheckoutApiController(
             return BadRequest(new { success = false, message = "No items in basket." });
         }
 
-        var email = request.Email.Trim();
+        var email = await ResolveEmailAsync(request.Email.Trim());
 
         // Save email to checkout session for payment initialization
         await checkoutSessionService.SaveEmailAsync(basket.Id, email, ct);
@@ -1132,7 +1132,7 @@ public class CheckoutApiController(
             var result = await checkoutService.SaveAddressesAsync(new SaveAddressesParameters
             {
                 Basket = basket,
-                Email = request.Email,
+                Email = await ResolveEmailAsync(request.Email),
                 BillingAddress = request.BillingAddress,
                 ShippingAddress = request.ShippingAddress,
                 ShippingSameAsBilling = request.ShippingSameAsBilling,
@@ -1325,4 +1325,20 @@ public class CheckoutApiController(
 
     #endregion
 
+    /// <summary>
+    /// Resolves the canonical email for the current request.
+    /// For authenticated members, always returns the member's email (defense in depth).
+    /// For guests, returns the request email as-is.
+    /// </summary>
+    private async Task<string> ResolveEmailAsync(string? requestEmail)
+    {
+        if (memberManager != null && memberManager.IsLoggedIn())
+        {
+            var member = await memberManager.GetCurrentMemberAsync();
+            if (member != null && !string.IsNullOrWhiteSpace(member.Email))
+                return member.Email;
+        }
+
+        return requestEmail ?? "";
+    }
 }

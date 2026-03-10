@@ -44,18 +44,8 @@ const COUNTRIES_WITH_SUBDIVISIONS = new Set([
     'ES', // Spain
     'TH', // Thailand
     'AE', // UAE
-    'GB', // United Kingdom
     'US', // United States
 ]);
-
-// Override UK subdivisions to match Shopify (4 nations + British Forces)
-const UK_OVERRIDE = {
-    'ENG': 'England',
-    'NIR': 'Northern Ireland',
-    'SCT': 'Scotland',
-    'WLS': 'Wales',
-    'BFP': 'British Forces'
-};
 
 // US territories and military postal codes to add
 const US_ADDITIONS = {
@@ -99,12 +89,6 @@ function generateCSharp(data) {
 
         // Skip if not in our list of countries with subdivisions
         if (!COUNTRIES_WITH_SUBDIVISIONS.has(countryCode)) {
-            continue;
-        }
-
-        // Use override for UK
-        if (countryCode === 'GB') {
-            subdivisions[countryCode] = UK_OVERRIDE;
             continue;
         }
 

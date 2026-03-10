@@ -139,7 +139,9 @@
     isLoggedIn = Model.IsLoggedIn,
     hasDigitalProducts = Model.HasDigitalProducts,
     billingPhoneRequired = Model.Settings.BillingPhoneRequired,
-    email = basket?.BillingAddress?.Email ?? Model.MemberEmail ?? "",
+    email = Model.IsLoggedIn
+        ? Model.MemberEmail ?? ""
+        : basket?.BillingAddress?.Email ?? "",
     billing = new {
         name = basket?.BillingAddress?.Name ?? "",
         company = basket?.BillingAddress?.Company ?? "",
