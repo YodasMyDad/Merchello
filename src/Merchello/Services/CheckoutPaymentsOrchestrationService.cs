@@ -1448,8 +1448,14 @@ public class CheckoutPaymentsOrchestrationService(
                     }
                     else
                     {
-                        errorMessage = string.IsNullOrWhiteSpace(effectiveShippingAddress.CountyState?.RegionCode)
-                            ? "Please select a State/Region for your address to calculate shipping."
+                        // Use actual grouping errors (e.g. "Product: Not available for shipping to Brazil")
+                        // rather than guessing the cause - RegionCode is not required for all countries
+                        var nonStockErrors = groupingResult.Errors
+                            .Where(e => !groupingResult.StockErrors.Contains(e))
+                            .ToList();
+
+                        errorMessage = nonStockErrors.Count > 0
+                            ? string.Join(" ", nonStockErrors)
                             : "Unable to calculate shipping for your address. Please try a different address or use standard checkout.";
                     }
 
