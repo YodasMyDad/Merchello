@@ -1279,6 +1279,13 @@ export function initSinglePageCheckout() {
                 try {
                     const data = await checkoutApi.saveShipping(this.shippingSelections, this._buildQuotedCosts());
                     if (data.success && data.basket) {
+                        // Update shipping groups in store so _buildQuotedCosts() uses fresh data
+                        if (data.shippingGroups) {
+                            this.$store.checkout?.updateShipping(
+                                data.shippingGroups,
+                                this.shippingSelections
+                            );
+                        }
                         await this.updateBasketAndReinitPayment(data.basket);
                     }
                 } catch (error) {
