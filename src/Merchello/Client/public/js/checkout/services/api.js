@@ -231,7 +231,7 @@ export const checkoutApi = {
      * Save shipping selections
      * @param {Object.<string, string>} selections - Map of groupId to selectionKey
      * @param {Object.<string, number>} [quotedCosts] - Map of groupId to quoted cost (preserves dynamic rates)
-     * @returns {Promise<{success: boolean, message?: string, basket?: BasketTotals}>}
+     * @returns {Promise<{success: boolean, message?: string, basket?: BasketTotals, shippingGroups?: ShippingGroup[]}>}
      */
     saveShipping(selections, quotedCosts) {
         return fetchJson(`${BASE_URL}/shipping`, {
