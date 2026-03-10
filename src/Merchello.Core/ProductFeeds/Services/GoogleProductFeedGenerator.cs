@@ -271,7 +271,7 @@ public class GoogleProductFeedGenerator(
                 item.Add(new XElement(g + "sale_price", price));
             }
 
-            if (autoDiscountConfig.IsEnabled && product.CostOfGoods > 0)
+            if (autoDiscountConfig.IsEnabled && product.CostOfGoods > 0 && product.Price > 0)
             {
                 var cogsRatio = product.CostOfGoods / product.Price;
 

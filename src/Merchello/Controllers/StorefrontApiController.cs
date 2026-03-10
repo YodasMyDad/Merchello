@@ -64,11 +64,12 @@ public class StorefrontApiController(
                     _settings.CurrencySymbol));
         }
 
-        // Apply Google auto discount if active (from middleware cookie)
+        // Apply Google auto discount if active (from middleware cookie) and token matches this product
         if (result.Basket != null
             && result.ProductLineItem?.Sku != null
             && HttpContext?.Items["MerchelloGoogleAutoDiscount"] is GoogleAutoDiscountActiveDto googleDiscount
-            && googleDiscount.CheckoutExpiryUtc > DateTime.UtcNow)
+            && googleDiscount.CheckoutExpiryUtc > DateTime.UtcNow
+            && string.Equals(googleDiscount.OfferId, result.ProductLineItem.ProductId?.ToString(), StringComparison.OrdinalIgnoreCase))
         {
             await checkoutDiscountService.ApplyGoogleAutoDiscountAsync(new ApplyGoogleAutoDiscountParameters
             {

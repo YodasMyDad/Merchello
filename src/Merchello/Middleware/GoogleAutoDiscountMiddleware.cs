@@ -75,6 +75,7 @@ public class GoogleAutoDiscountMiddleware(
                 }
 
                 var now = DateTime.UtcNow;
+                var jwtExpiry = result.ExpiresUtc;
                 var dto = new GoogleAutoDiscountActiveDto
                 {
                     DiscountedPrice = result.DiscountedPrice,
@@ -82,8 +83,8 @@ public class GoogleAutoDiscountMiddleware(
                     DiscountCode = result.DiscountCode,
                     CurrencyCode = result.CurrencyCode,
                     OfferId = result.OfferId,
-                    PageExpiryUtc = now.Add(PageExpiry),
-                    CheckoutExpiryUtc = now.Add(CheckoutExpiry)
+                    PageExpiryUtc = Min(now.Add(PageExpiry), jwtExpiry),
+                    CheckoutExpiryUtc = Min(now.Add(CheckoutExpiry), jwtExpiry)
                 };
 
                 // Set HttpContext item for immediate use
@@ -157,7 +158,7 @@ public class GoogleAutoDiscountMiddleware(
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.Lax,
-                Expires = DateTimeOffset.UtcNow.Add(CheckoutExpiry),
+                Expires = new DateTimeOffset(dto.CheckoutExpiryUtc, TimeSpan.Zero),
                 IsEssential = true
             });
         }
@@ -189,4 +190,6 @@ public class GoogleAutoDiscountMiddleware(
 
         return $"{request.PathBase}{request.Path}{queryString}";
     }
+
+    private static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
 }
