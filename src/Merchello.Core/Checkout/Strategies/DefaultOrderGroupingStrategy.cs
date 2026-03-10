@@ -96,7 +96,12 @@ public class DefaultOrderGroupingStrategy(
                     product.Name,
                     selectionResult.FailureReason);
 
-                var errorMessage = $"{lineItem.Name}: {selectionResult.FailureReason}";
+                var productRootName = lineItem.GetProductRootName();
+                var selectedOptions = lineItem.GetSelectedOptions();
+                var displayName = selectedOptions.Count > 0
+                    ? $"{productRootName} ({selectedOptions.FormatOptionsCommaSeparated()})"
+                    : productRootName;
+                var errorMessage = $"{displayName}: {selectionResult.FailureReason}";
                 errors.Add(errorMessage);
 
                 if (selectionResult.IsStockFailure)

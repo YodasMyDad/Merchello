@@ -445,6 +445,8 @@ export function initExpressCheckout() {
                     safeRedirect(redirectUrl);
                 } else {
                     this.error = result.errorMessage || 'Payment failed. Please try again.';
+                    // Trigger form validation to highlight missing address fields
+                    window.dispatchEvent(new CustomEvent('merchello:express-checkout-validation-error'));
                 }
             } catch (err) {
                 // Ignore errors from stale requests

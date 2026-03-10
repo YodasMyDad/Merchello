@@ -1448,7 +1448,9 @@ public class CheckoutPaymentsOrchestrationService(
                     }
                     else
                     {
-                        errorMessage = "Unable to calculate shipping for your address. Please try a different address or use standard checkout.";
+                        errorMessage = string.IsNullOrWhiteSpace(effectiveShippingAddress.CountyState?.RegionCode)
+                            ? "Please select a State/Region for your address to calculate shipping."
+                            : "Unable to calculate shipping for your address. Please try a different address or use standard checkout.";
                     }
 
                     logger.LogWarning(
