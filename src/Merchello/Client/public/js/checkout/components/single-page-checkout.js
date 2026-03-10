@@ -1735,6 +1735,11 @@ export function initSinglePageCheckout() {
                                 store?.setError(field, result.error);
                             }
                         }
+                    } else if (key === 'regionCode') {
+                        const regions = prefix === 'billing' ? this.billingRegions : this.shippingRegions;
+                        if (regions?.length > 0 && !this.form[prefix][key]) {
+                            store?.setError(field, 'This field is required.');
+                        }
                     }
                 }
             },
@@ -1746,12 +1751,14 @@ export function initSinglePageCheckout() {
 
                 this.validateField('email');
                 ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'].forEach(f => this.validateField('billing.' + f));
+                this.validateField('billing.regionCode');
                 this.validateField('billing.phone');
 
                 if (!this.shippingSameAsBilling) {
                     ['name', 'addressOne', 'townCity', 'countryCode', 'postalCode'].forEach(f => {
                         if (!this.form.shipping[f]) store?.setError('shipping.' + f, 'This field is required.');
                     });
+                    this.validateField('shipping.regionCode');
                     this.validateField('shipping.phone');
                 }
 

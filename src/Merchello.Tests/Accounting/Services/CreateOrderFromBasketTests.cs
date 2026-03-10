@@ -325,7 +325,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
     }
 
     [Fact]
-    public async Task CreateOrderFromBasketAsync_WithoutShippingSelection_ThrowsException()
+    public async Task CreateOrderFromBasketAsync_WithoutShippingSelection_AutoSelectsCheapestOption()
     {
         // Arrange
         var dataBuilder = _fixture.CreateDataBuilder();
@@ -359,7 +359,6 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
         var shippingAddress = CreateAddress("GB", "test@example.com");
 
         // Don't select any shipping option - should still get warehouse groups
-        // but fail to create order because no selection was made
         var shippingResult = await _shippingService.GetShippingOptionsForBasket(
             new GetShippingOptionsParameters
             {
@@ -367,7 +366,7 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
                 ShippingAddress = shippingAddress
             });
 
-        // Verify shipping groups exist (the bug was about selection lookup, not about finding warehouses)
+        // Verify shipping groups exist
         shippingResult.WarehouseGroups.ShouldNotBeEmpty();
 
         var checkoutSession = new CheckoutSession
@@ -375,12 +374,18 @@ public class CreateOrderFromBasketTests : IClassFixture<ServiceTestFixture>
             BasketId = basket.Id,
             BillingAddress = billingAddress,
             ShippingAddress = shippingAddress,
-            SelectedShippingOptions = []  // Empty!
+            SelectedShippingOptions = []  // Empty - auto-select fallback should pick cheapest
         };
 
-        // Act & Assert - Should fail because no shipping option was selected
+        // Act - Should auto-select the cheapest available shipping option
         var result = await _invoiceService.CreateOrderFromBasketAsync(basket, checkoutSession);
-        result.Success.ShouldBeFalse();
+        result.Success.ShouldBeTrue();
+        var invoice = result.ResultObject!;
+
+        // Assert - Order should use the auto-selected shipping option
+        invoice.Orders.ShouldNotBeNull();
+        invoice.Orders.Count.ShouldBe(1);
+        invoice.Orders.First().ShippingOptionId.ShouldBe(shippingOption.Id);
     }
 
     [Fact]
