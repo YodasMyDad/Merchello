@@ -611,8 +611,8 @@ public class ShipmentServiceTests
         var orderSummary = summary.Orders.Single(o => o.OrderId == order.Id);
         var fulfillmentLineItem = orderSummary.LineItems.Single(li => li.Id == lineItem.Id);
         fulfillmentLineItem.PreparingQuantity.ShouldBe(lineItem.Quantity);
-        fulfillmentLineItem.ShippedQuantity.ShouldBe(lineItem.Quantity); // Total assigned to shipments
-        fulfillmentLineItem.RemainingQuantity.ShouldBe(0);
+        fulfillmentLineItem.ShippedQuantity.ShouldBe(0); // Not yet shipped, only preparing
+        fulfillmentLineItem.RemainingQuantity.ShouldBe(0); // All assigned (shipped + preparing)
     }
 
     [Fact]

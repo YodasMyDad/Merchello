@@ -89,6 +89,19 @@ public class GetFulfillmentStatusTests
     }
 
     [Fact]
+    public void GetFulfillmentStatus_CompletedAndProcessing_ReturnsPartial()
+    {
+        // Completed counts as "shipped" for the anyShipped check
+        var orders = new List<Order>
+        {
+            new() { Status = OrderStatus.Completed },
+            new() { Status = OrderStatus.Processing }
+        };
+
+        orders.GetFulfillmentStatus().ShouldBe(Constants.StatusLabels.Fulfillment.Partial);
+    }
+
+    [Fact]
     public void GetFulfillmentStatusCssClass_Processing_ReturnsWarning()
     {
         var orders = new List<Order>

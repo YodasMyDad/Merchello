@@ -854,7 +854,7 @@ public class ShipmentService(
                         ValueName = o.ValueName
                     }).ToList(),
                 OrderedQuantity = li.Quantity,
-                ShippedQuantity = shippedQuantities.GetValueOrDefault(li.Id) + preparingQuantities.GetValueOrDefault(li.Id),
+                ShippedQuantity = shippedQuantities.GetValueOrDefault(li.Id),
                 PreparingQuantity = preparingQuantities.GetValueOrDefault(li.Id),
                 ImageUrl = li.ProductId.HasValue && productImages.TryGetValue(li.ProductId.Value, out var img) ? img : null,
                 Amount = li.Amount
