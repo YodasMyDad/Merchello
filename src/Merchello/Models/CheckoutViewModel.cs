@@ -145,6 +145,12 @@ public class CheckoutViewModel
     public bool IsLoggedIn { get; init; }
 
     /// <summary>
+    /// The logged-in member's email address.
+    /// Used to auto-populate the email field when the basket doesn't have one yet.
+    /// </summary>
+    public string? MemberEmail { get; init; }
+
+    /// <summary>
     /// Whether the basket contains any digital products.
     /// When true, account creation is required for checkout.
     /// </summary>
