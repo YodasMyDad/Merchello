@@ -1281,6 +1281,11 @@ export function initSinglePageCheckout() {
                     if (data.success && data.basket) {
                         // Update shipping groups in store so _buildQuotedCosts() uses fresh data
                         if (data.shippingGroups) {
+                            data.shippingGroups.forEach(group => {
+                                if (group.shippingOptions?.length > 1) {
+                                    group.shippingOptions = sortShippingOptions(group.shippingOptions);
+                                }
+                            });
                             this.$store.checkout?.updateShipping(
                                 data.shippingGroups,
                                 this.shippingSelections

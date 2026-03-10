@@ -159,7 +159,8 @@
                 <div>
                     <select id="@(prefix)-countyState"
                             x-model="form.@(prefix).regionCode"
-                            @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))StateChange()@(hasBlurCallback ? $"; {onBlurCallback}" : "")"
+                            @@change="on@(prefix.Substring(0,1).ToUpper())@(prefix.Substring(1))StateChange(); validateField('@(prefix).regionCode')@(hasBlurCallback ? $"; {onBlurCallback}" : "")"
+                            @@blur="validateField('@(prefix).regionCode')"
                             autocomplete="@prefix address-level1"
                             :class="errors['@(prefix).regionCode'] ? 'checkout-input-error' : ''"
                             class="@selectClass">
