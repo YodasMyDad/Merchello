@@ -120,6 +120,11 @@ export function initCheckoutAddressForm() {
             if (this.fields.countryCode) {
                 await this.loadRegions();
             }
+
+            // Validate all fields when express checkout fails (highlights missing region etc.)
+            window.addEventListener('merchello:express-checkout-validation-error', () => {
+                this.validateAll();
+            });
         },
 
         // ============================================
