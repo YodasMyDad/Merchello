@@ -234,10 +234,13 @@ public class WarehouseService(
         }
 
         // No suitable warehouse found (single or multi)
+        var countryDisplay = !string.IsNullOrEmpty(shippingAddress.Country)
+            ? shippingAddress.Country
+            : shippingAddress.CountryCode;
         var isStockFailure = anyWarehouseCanServeRegion;
         var failureReason = isStockFailure
-            ? $"Insufficient total stock ({quantity} units required, {warehousesWithStock.Sum(w => w.availableStock)} available) to serve {shippingAddress.CountryCode}"
-            : $"No warehouses available to serve {shippingAddress.CountryCode}";
+            ? $"Insufficient stock ({quantity} required, {warehousesWithStock.Sum(w => w.availableStock)} available) for shipping to {countryDisplay}"
+            : $"Not available for shipping to {countryDisplay}";
 
         return new WarehouseSelectionResult
         {
