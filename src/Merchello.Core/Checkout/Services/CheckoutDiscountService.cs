@@ -692,9 +692,9 @@ public class CheckoutDiscountService(
             .Where(li => li.LineItemType is LineItemType.Product or LineItemType.Custom or LineItemType.Addon)
             .ToDictionary(li => li.Id, li => li);
 
-        var lineItemDiscountType = discount.Category is DiscountCategory.BuyXGetY or DiscountCategory.FreeShipping
-            ? DiscountValueType.FixedAmount
-            : discount.ValueType;
+        // Always store as FixedAmount since we pass the calculated money value, not the percentage.
+        // The original discount type/percentage is preserved in ExtendedData metadata for recalculation.
+        var lineItemDiscountType = DiscountValueType.FixedAmount;
 
         var metadata = new Dictionary<string, string>
         {
@@ -782,12 +782,9 @@ public class CheckoutDiscountService(
         Discount discount,
         decimal calculatedAmount)
     {
-        return lineItemDiscountType switch
-        {
-            DiscountValueType.Percentage => discount.Value,
-            DiscountValueType.Free => 100m,
-            _ => calculatedAmount
-        };
+        // Always return the calculated money amount.
+        // The discount percentage/type is preserved separately in ExtendedData metadata.
+        return calculatedAmount;
     }
 
     private static List<PersistedCodeDiscount> SnapshotPersistedCodeDiscounts(Basket basket)
