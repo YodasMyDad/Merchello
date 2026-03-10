@@ -1415,6 +1415,14 @@ export function initSinglePageCheckout() {
                 store?.setPaymentError(null);
                 store?.setPaymentSession(null);
 
+                // Immediately clean up old payment form when switching methods.
+                // This must happen before any async work to prevent stale forms
+                // showing if the new payment form fails to initialize.
+                if (window.MerchelloPayment) {
+                    await window.MerchelloPayment.teardownCurrentAdapter();
+                    window.MerchelloPayment.clearAllPaymentContainers();
+                }
+
                 if (!isSameMethod && window.MerchelloSinglePageAnalytics) {
                     window.MerchelloSinglePageAnalytics.trackPaymentSelected(method.displayName);
                 }
