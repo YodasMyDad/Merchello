@@ -242,10 +242,17 @@ private async Task<IActionResult> PartialViewWithOob(
 /// </summary>
 private async Task<string> RenderPartialToStringAsync(string viewName, object model)
 {
-    ViewData.Model = model;
+    // IMPORTANT: Create a fresh ViewDataDictionary per call to avoid shared state issues
+    // when rendering multiple OOB fragments in sequence.
+    var viewData = new ViewDataDictionary(
+        new Microsoft.AspNetCore.Mvc.ModelBinding.EmptyModelMetadataProvider(),
+        new Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary())
+    {
+        Model = model
+    };
     using var sw = new StringWriter();
     var viewResult = _viewEngine.FindView(ControllerContext, viewName, false);
-    var viewContext = new ViewContext(ControllerContext, viewResult.View, ViewData, TempData, sw, new HtmlHelperOptions());
+    var viewContext = new ViewContext(ControllerContext, viewResult.View, viewData, TempData, sw, new HtmlHelperOptions());
     await viewResult.View.RenderAsync(viewContext);
     return sw.ToString();
 }
@@ -254,6 +261,46 @@ private async Task<string> RenderPartialToStringAsync(string viewName, object mo
 The controller must inject `ICompositeViewEngine` and `ITempDataProvider` via constructor injection. The controller inherits from `Controller` (not `RenderController`) since it does not need Umbraco content routing.
 
 **Session resolution:** The checkout session is identified by a basket cookie (same mechanism as `CheckoutApiController`). Inject `ICheckoutSessionService` to resolve the session from the cookie. No special authentication middleware is needed — the existing cookie-based session mechanism works for both JSON and HTML responses.
+
+#### Session and Basket Resolution Pattern
+
+Every `CheckoutPartialsController` endpoint must resolve the current basket and session before doing business logic. Use this pattern (mirrors `CheckoutApiController`):
+
+```csharp
+private async Task<(Basket? basket, CheckoutSession? session)> ResolveSessionAsync(CancellationToken ct)
+{
+    var basket = await _checkoutService.GetBasket(new GetBasketParameters(), ct);
+    if (basket is null || basket.LineItems.Count == 0)
+        return (null, null);
+
+    var session = await _sessionService.GetSessionAsync(basket.Id, ct);
+    return (basket, session);
+}
+```
+
+Then in each endpoint:
+```csharp
+[HttpPost("addresses")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> SaveAddresses(SaveAddressesFormModel model, CancellationToken ct)
+{
+    var (basket, session) = await ResolveSessionAsync(ct);
+    if (basket is null)
+    {
+        Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+        return PartialView("_ValidationErrors", new ValidationErrorsViewModel
+        {
+            Errors = new() { ["basket"] = "Your basket is empty." },
+            FormType = "addresses"
+        });
+    }
+    // ... business logic
+}
+```
+
+**How the basket cookie works:** `ICheckoutService.GetBasket()` reads the basket from the HTTP cookie automatically — the cookie name and resolution are internal to the service. The controller does not need to read or write cookies directly. The same mechanism works for both JSON and HTML responses.
+
+**EFCoreScope constraint (CRITICAL):** Never use `Task.WhenAll` to parallelize service calls in this controller. `ICheckoutService`, `ICheckoutDiscountService`, and `ICheckoutPaymentsOrchestrationService` all use `IEFCoreScopeProvider` internally. Parallel calls corrupt scope ordering and cause `InvalidOperationException: The Ambient Scope`. All service calls must be sequential (await each one before the next).
 
 **Exception filter:** Apply `[ServiceFilter(typeof(CheckoutExceptionFilter))]` to match the existing pattern from `CheckoutApiController.cs:53` and `CheckoutPaymentsApiController.cs:17`. This ensures consistent error handling across all checkout endpoints.
 
@@ -360,6 +407,20 @@ UX requirements:
 - `hx-sync="closest form:replace"` on radios ensures rapid clicks abort stale requests
 - The loading overlay must NOT be a full-page blocker — only the order summary section
 - `HX-Trigger: basketUpdated` header on the response notifies express checkout buttons
+
+**Slow shipping fallback message:** The current checkout shows a "Taking longer than expected..." message after 8 seconds of shipping loading. With HTMX, implement this with a CSS animation delay on a hidden element inside the `hx-indicator`:
+
+```css
+.shipping-slow-message { display: none; }
+.htmx-request .shipping-slow-message {
+    animation: show-slow-message 0s 8s forwards;
+}
+@keyframes show-slow-message {
+    to { display: block; }
+}
+```
+
+Place the slow message element inside the shipping section's `hx-indicator` container. It appears only if the request takes longer than 8 seconds.
 
 ### Custom Events Migration
 
@@ -698,6 +759,8 @@ public class CheckoutPartialsController : Controller
     private readonly ICheckoutService _checkoutService;
     private readonly ICheckoutSessionService _sessionService;
     private readonly ICheckoutDiscountService _discountService;
+    private readonly ICheckoutViewModelBuilder _viewModelBuilder;
+    private readonly ICheckoutPaymentsOrchestrationService _paymentsService;
     private readonly IRateLimiter _rateLimiter;
 
     // POST /checkout/partials/addresses
@@ -814,6 +877,58 @@ public class CheckoutPartialsController : Controller
 }
 ```
 
+#### File Location and Registration
+
+**File path:** `src/Merchello/Controllers/CheckoutPartialsController.cs`
+**Namespace:** `Merchello.Controllers` (matches all other checkout controllers in that directory)
+**Base class:** `Controller` (not `ControllerBase` — needs `View()`, `PartialView()`, `TempData`; not `RenderController` — no Umbraco content routing)
+
+**DI Registration:** No explicit registration needed. ASP.NET Core's `AddControllersWithViews()` (registered by Umbraco startup) auto-discovers all `Controller`-derived classes in the assembly.
+
+**`CheckoutPartialsExceptionFilter` registration** (required — see Gap 1 section):
+```csharp
+// In Startup.cs, alongside existing CheckoutExceptionFilter registration
+builder.Services.AddScoped<Filters.CheckoutPartialsExceptionFilter>();
+```
+
+**Constructor injections** (all already registered in `Startup.cs`):
+- `ICheckoutService` — checkout business logic, basket resolution
+- `ICheckoutSessionService` — session state
+- `ICheckoutDiscountService` — discount apply/remove
+- `ICheckoutPaymentsOrchestrationService` — payment options (for `SaveShipping`)
+- `IRateLimiter` — rate limiting on sensitive endpoints
+- `ICheckoutViewModelBuilder` — NEW (see Gap 5)
+- `ICompositeViewEngine` — for `RenderPartialToStringAsync`
+- `ITempDataProvider` — for `RenderPartialToStringAsync`
+- `ILogger<CheckoutPartialsController>` — structured logging
+
+#### ICheckoutViewModelBuilder Registration
+
+**Interface:** `src/Merchello/Services/Interfaces/ICheckoutViewModelBuilder.cs`
+**Implementation:** `src/Merchello/Services/CheckoutViewModelBuilder.cs`
+**Namespace:** `Merchello.Services` (web project, not `Merchello.Core`)
+
+Both files are in `src/Merchello/` (the web project). `CheckoutViewModelBuilder` depends on `IStorefrontContextService.GetDisplayContextAsync()`, `ICurrencyService`, and `ICheckoutDtoMapper` — web-layer concerns. Placing the interface in the web project is correct here because both `CheckoutPartialsController` and `MerchelloCheckoutController` are web-project consumers.
+
+**DI registration in `Startup.cs`** (add alongside `ICheckoutDtoMapper` registration):
+```csharp
+builder.Services.AddScoped<ICheckoutViewModelBuilder, CheckoutViewModelBuilder>();
+```
+
+**`CheckoutViewModelBuilder` constructor injections:**
+- `IStorefrontContextService` — display currency context, exchange rate, tax-inclusive flag
+- `ICurrencyService` — `Round()` for proper currency rounding
+- `ICheckoutDtoMapper` — reuse existing basket → DTO mapping logic (avoids duplication)
+- `ICheckoutPaymentsOrchestrationService` — `GetPaymentOptionsAsync()` for saved methods
+- `IUpsellEngine` — for inline upsell suggestions in shipping partial (optional/nullable)
+
+**Call sequence within builder methods** (must be sequential — no `Task.WhenAll` per MEMORY.md EFCoreScope constraint):
+```csharp
+var displayContext = await _storefrontContext.GetDisplayContextAsync(ct);
+var shippingGroups = await _dtoMapper.MapShippingGroupToDtoAsync(orderGroupResult, displayContext, ct);
+// ... then build ViewModel from mapped data
+```
+
 ### Partial Views Required
 
 Partials that return HTML fragments for HTMX granular swaps:
@@ -830,6 +945,157 @@ Partials that return HTML fragments for HTMX granular swaps:
 | `_ValidationErrors.cshtml` (new) | Form submission with errors | Field-level error messages + submitted field values |
 
 **`_CheckoutBody.cshtml` is NOT needed** — the full page is `SinglePage.cshtml` and individual sections are swapped in place via granular targeting. The top-level `x-data="singlePageCheckout"` mega-component is REMOVED; Alpine components are small and scoped to individual sections.
+
+### Partial ViewModel Definitions
+
+Each partial requires a strongly-typed ViewModel with pre-calculated display amounts. Place all in `src/Merchello/Models/Checkout/`.
+
+**`ICheckoutViewModelBuilder` service (new):** Encapsulates ViewModel construction with display context. Injected into both `MerchelloCheckoutController` and `CheckoutPartialsController`. Injects `IStorefrontContextService` (for `GetDisplayContextAsync()` — exchange rate, display currency, tax-inclusive flag), `ICurrencyService` (for rounding), and `ICheckoutDtoMapper` (for reusing basket/shipping group mapping logic). This extracts the shared calculation pattern from `MerchelloCheckoutController.RenderSinglePageCheckoutAsync()` (lines 394-488) so partials controller does not duplicate it.
+
+Place in `src/Merchello/Services/Interfaces/ICheckoutViewModelBuilder.cs` (interface) and `src/Merchello/Services/CheckoutViewModelBuilder.cs` (implementation).
+
+```csharp
+// src/Merchello/Models/Checkout/ShippingOptionsViewModel.cs
+public class ShippingOptionsViewModel
+{
+    public IReadOnlyList<ShippingGroupDto> ShippingGroups { get; init; } = [];
+    public Dictionary<string, string> SelectedShippingOptions { get; init; } = new();
+    public IReadOnlyList<UpsellSuggestionDto> UpsellSuggestions { get; init; } = [];
+    public IReadOnlyList<string> ItemAvailabilityErrors { get; init; } = [];
+    public bool AllItemsShippable { get; init; } = true;
+    public bool HasMultipleGroups { get; init; }
+
+    // Display currency (pre-calculated)
+    public string CurrencySymbol { get; init; } = "";
+    public decimal ExchangeRate { get; init; } = 1m;
+    public int CurrencyDecimalPlaces { get; init; } = 2;
+    public bool DisplayPricesIncTax { get; init; }
+}
+
+// src/Merchello/Models/Checkout/OrderSummaryViewModel.cs
+public class OrderSummaryViewModel
+{
+    // Line items with pre-calculated display amounts
+    public IReadOnlyList<OrderSummaryLineItemViewModel> LineItems { get; init; } = [];
+    public IReadOnlyList<OrderSummaryDiscountViewModel> AppliedDiscounts { get; init; } = [];
+
+    // Pre-calculated display totals (already multiplied by exchange rate and rounded)
+    public decimal DisplaySubTotal { get; init; }
+    public decimal DisplayDiscount { get; init; }
+    public decimal DisplayShipping { get; init; }
+    public decimal DisplayTax { get; init; }
+    public decimal DisplayTotal { get; init; }
+
+    // Tax-inclusive variants
+    public bool DisplayPricesIncTax { get; init; }
+    public decimal TaxInclusiveDisplaySubTotal { get; init; }
+    public decimal TaxInclusiveDisplayDiscount { get; init; }
+    public string FormattedTaxInclusiveDisplaySubTotal { get; init; } = "";
+    public string TaxIncludedMessage { get; init; } = "";
+
+    // Currency formatting
+    public string CurrencySymbol { get; init; } = "";
+    public int CurrencyDecimalPlaces { get; init; } = 2;
+
+    // Config
+    public bool ShowDiscountCode { get; init; }
+    public bool IsPartialSwap { get; init; } // True when rendered as OOB swap (skip mobile collapse button)
+}
+
+public class OrderSummaryLineItemViewModel
+{
+    public Guid LineItemId { get; init; }
+    public string Name { get; init; } = "";
+    public string Sku { get; init; } = "";
+    public string? ImageUrl { get; init; }
+    public int Quantity { get; init; }
+    public decimal DisplayUnitPrice { get; init; }    // Pre-calculated: amount * exchangeRate, rounded
+    public decimal DisplayLineTotal { get; init; }    // Pre-calculated: displayUnitPrice * quantity
+    public string FormattedUnitPrice { get; init; } = "";  // e.g., "£10.00"
+    public string FormattedLineTotal { get; init; } = "";  // e.g., "£20.00"
+    public IReadOnlyList<string> SelectedOptions { get; init; } = [];
+    public IReadOnlyList<OrderSummaryAddonViewModel> Addons { get; init; } = [];
+}
+
+public class OrderSummaryAddonViewModel
+{
+    public string Name { get; init; } = "";
+    public decimal DisplayUnitPrice { get; init; }
+    public string FormattedUnitPrice { get; init; } = "";
+}
+
+public class OrderSummaryDiscountViewModel
+{
+    public Guid Id { get; init; }
+    public string Name { get; init; } = "";
+    public string? Code { get; init; }
+    public decimal DisplayAmount { get; init; }
+    public string FormattedAmount { get; init; } = "";
+    public bool IsAutomatic { get; init; }
+}
+
+// src/Merchello/Models/Checkout/PaymentMethodsViewModel.cs
+public class PaymentMethodsViewModel
+{
+    public IReadOnlyList<PaymentMethodDto> PaymentMethods { get; init; } = [];
+    public IReadOnlyList<SavedPaymentMethodDto> SavedMethods { get; init; } = [];
+    public bool CanSavePaymentMethods { get; init; }
+    public Guid? InvoiceId { get; init; }
+    public string ReturnUrl { get; init; } = "/checkout/return";
+    public string CancelUrl { get; init; } = "/checkout/cancel";
+    public bool CreditLimitExceeded { get; init; }
+    public OrderTermsDto? OrderTerms { get; init; } // Terms checkbox config (moved INTO payment section)
+}
+
+// src/Merchello/Models/Checkout/EmailStatusViewModel.cs
+public class EmailStatusViewModel
+{
+    public string Email { get; init; } = "";
+    public bool HasExistingAccount { get; init; }
+    public bool IsLoggedIn { get; init; }
+    public bool HasDigitalProducts { get; init; }
+    public bool RequiresAccount { get; init; } // HasDigitalProducts && !IsLoggedIn
+}
+
+// src/Merchello/Models/Checkout/DiscountFormViewModel.cs
+public class DiscountFormViewModel
+{
+    public bool ShowDiscountCode { get; init; }
+    public string? ErrorMessage { get; init; }
+    public string? SuccessMessage { get; init; }
+}
+
+// src/Merchello/Models/Checkout/MobileTotalViewModel.cs
+public class MobileTotalViewModel
+{
+    public string FormattedTotal { get; init; } = "";
+    public string CurrencySymbol { get; init; } = "";
+}
+
+// src/Merchello/Models/Checkout/ValidationErrorsViewModel.cs
+public class ValidationErrorsViewModel
+{
+    public Dictionary<string, string> Errors { get; init; } = new();
+    public object? SubmittedModel { get; init; } // Original form data for re-population
+    public string FormType { get; init; } = ""; // "addresses", "shipping", "discount"
+}
+```
+
+**`ICheckoutViewModelBuilder` interface:**
+
+```csharp
+public interface ICheckoutViewModelBuilder
+{
+    Task<OrderSummaryViewModel> BuildOrderSummaryAsync(Basket basket, CancellationToken ct);
+    Task<ShippingOptionsViewModel> BuildShippingOptionsAsync(OrderGroupingResult result, CancellationToken ct);
+    Task<PaymentMethodsViewModel> BuildPaymentMethodsAsync(CheckoutSession session, bool runCreditCheck, CancellationToken ct);
+    Task<EmailStatusViewModel> BuildEmailStatusAsync(string email, Basket basket, CancellationToken ct);
+    Task<MobileTotalViewModel> BuildMobileTotalAsync(Basket basket, CancellationToken ct);
+    DiscountFormViewModel BuildDiscountForm(bool showDiscountCode, string? error = null, string? success = null);
+}
+```
+
+The builder injects `ICheckoutPaymentsOrchestrationService.GetPaymentOptionsAsync()` for saved payment methods and runs credit check server-side when building the payment methods ViewModel.
 
 ### OrderSummary Rewrite Scope
 
@@ -892,6 +1158,89 @@ The current `SinglePage.cshtml` is ~1,070 lines. Here is the extraction plan:
 - **Lines ~738-1059 → `_PaymentMethods.cshtml`**: Payment method list, saved payment methods, payment form container (hosted fields, widget, direct form), purchase order form, place order button, terms checkbox. Gets `id="payment-section"` and `data-checkout-step="payment"`.
 - **Discount form from `_OrderSummary.cshtml` → `_DiscountForm.cshtml`**: The discount code input and apply button. Gets `id="discount-form"`.
 
+### SinglePage.cshtml: Root-Level Alpine Cleanup
+
+The current `SinglePage.cshtml` has `x-data="singlePageCheckout"` on the root checkout container. This is what activates the mega-orchestrator. Removing it is Phase 4's primary task — everything that was in the mega-component's scope becomes either:
+- A scoped `x-data` on a smaller element
+- A standard HTML form field (no Alpine needed)
+- An HTMX attribute (no Alpine needed)
+- Deleted (server now handles it)
+
+**Remove from `SinglePage.cshtml`:**
+- `x-data="singlePageCheckout"` from the root checkout container
+- All `@@click`, `x-model`, `x-show`, `x-text`, `x-bind` attributes that reference the `singlePageCheckout` component scope
+- The `#checkout-initial-data` script element (Phase 4)
+- All `$store.checkout.*` read expressions — replaced by Razor-rendered static values
+
+**Replace with scoped Alpine elements:**
+
+```html
+<!-- Contact section: accountSection manages sign-in, create account, forgot password -->
+<section x-data="accountSection">
+    <!-- Email field with hx-post="/checkout/partials/check-email" -->
+    <div id="email-status"><!-- server-rendered _EmailStatus.cshtml on page load --></div>
+    <!-- Marketing opt-in: standard checkbox, no Alpine needed -->
+    <input type="checkbox" name="acceptsMarketing" value="true"
+           @(Model.Session?.AcceptsMarketing == true ? "checked" : "") />
+</section>
+
+<!-- Address form: validation + autocomplete scoped to their own elements -->
+<form hx-post="/checkout/partials/addresses"
+      hx-target="#shipping-section" hx-swap="innerHTML"
+      hx-sync="this:queue first" hx-indicator="#checkout-spinner">
+    @Html.AntiForgeryToken() <!-- NOT HERE — must be outside all swap targets -->
+
+    <div x-data="validation">
+        <div x-data="addressAutocomplete" data-prefix="Billing">
+            @await Html.PartialAsync("Checkout/_AddressForm", billingVm)
+        </div>
+    </div>
+
+    <!-- Same-as-billing: tiny local Alpine scope (~10 lines) -->
+    <div x-data="{ sameAsBilling: @(Model.Session?.SameAsBilling == true ? "true" : "false") }">
+        <input type="hidden" name="SameAsBilling" :value="sameAsBilling" />
+        <label>
+            <input type="checkbox" x-model="sameAsBilling" />
+            Same as billing address
+        </label>
+        <div x-show="!sameAsBilling" x-data="validation">
+            <div x-data="addressAutocomplete" data-prefix="Shipping">
+                @await Html.PartialAsync("Checkout/_AddressForm", shippingVm)
+            </div>
+        </div>
+    </div>
+    <button type="submit">Continue to shipping</button>
+</form>
+
+<!-- Shipping section: no Alpine; radios are HTMX triggers; inline upsells are HTMX forms -->
+<div id="shipping-section">
+    @await Html.PartialAsync("Checkout/_ShippingOptions", Model.ShippingViewModel)
+</div>
+
+<!-- Payment section: paymentForm Alpine component, initialized by Alpine.initTree after HTMX swap -->
+<div id="payment-section">
+    <!-- Empty or "Complete shipping to see payment options" on initial load -->
+    <!-- Populated by POST /checkout/partials/shipping HTMX response -->
+</div>
+
+<!-- Mobile sticky bar: reads $store.paymentState (minimal shared store) -->
+<div class="fixed bottom-0 inset-x-0 lg:hidden bg-white border-t shadow-lg p-4 z-50">
+    <div class="flex items-center justify-between">
+        <span id="mobile-total">@Model.FormattedDisplayTotal</span>
+        <button :disabled="$store.paymentState.isSubmitting || !$store.paymentState.canSubmit"
+                @@click="document.getElementById('payment-form')?.requestSubmit()">
+            Place Order
+        </button>
+    </div>
+</div>
+
+<!-- Modals: standalone scopes, never inside HTMX swap targets -->
+<div x-data="termsModal" x-cloak><!-- terms side-pane --></div>
+<div x-data="forgotPasswordModal" x-cloak><!-- forgot password --></div>
+```
+
+**Key constraint:** The `paymentForm` Alpine component lives inside `_PaymentMethods.cshtml` (HTMX swap target `#payment-section`). It is initialized by `Alpine.initTree` after each HTMX swap. The `$store.paymentState` bridge (defined in `checkout.ts`) allows the mobile sticky bar — which is outside the swap target — to read `isSubmitting` and `canSubmit` from the payment form component.
+
 ### Antiforgery Token Handling
 
 With granular swaps (not whole-body swaps), the antiforgery token input rendered once in `SinglePage.cshtml` stays in the DOM and is never swapped out. This simplifies token handling:
@@ -902,6 +1251,34 @@ With granular swaps (not whole-body swaps), the antiforgery token input rendered
 - No need to include fresh tokens in partial responses
 - All partial endpoints use `[ValidateAntiForgeryToken]`
 - For `[HttpDelete]` endpoints (discount remove), HTMX sends the token via the request header (set in `htmx:configRequest`), not form body
+
+#### Antiforgery Services (Already Available)
+
+ASP.NET Core antiforgery services are registered automatically by Umbraco's startup (which calls `AddMvc()` internally). No explicit `services.AddAntiforgery()` call is needed in `Startup.cs`. The `@Html.AntiForgeryToken()` Razor helper will work in `SinglePage.cshtml` without any new registration.
+
+#### Token Placement in SinglePage.cshtml
+
+Place the token as the **first element inside the checkout grid** — before all HTMX swap targets:
+
+```html
+<!-- OUTSIDE all swap targets: #shipping-section, #payment-section, #order-summary, etc. -->
+@Html.AntiForgeryToken()
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- Left column: forms -->
+    <!-- Right column: order summary -->
+</div>
+```
+
+If placed inside a swap target, HTMX will delete the token when it swaps that section, causing all subsequent requests to fail antiforgery validation.
+
+#### ValidateAntiForgeryToken on Partial Endpoints
+
+All `POST`, `PUT`, `PATCH`, and `DELETE` endpoints on `CheckoutPartialsController` require `[ValidateAntiForgeryToken]`. `GET` endpoints (region load) do NOT require it — read-only.
+
+HTMX sends the token as request header `RequestVerificationToken` via the `htmx:configRequest` handler in `checkout.ts`. ASP.NET Core's `[ValidateAntiForgeryToken]` checks both the form field AND the `RequestVerificationToken` header — this works without any special configuration.
+
+**Note:** The existing `CheckoutApiController` does NOT use `[ValidateAntiForgeryToken]` (it uses cookie-based basket authentication instead). This is correct for JSON API endpoints consumed by payment SDKs. The new partial endpoints DO use it because they process state-changing HTML form submissions from the browser.
 
 ### Important: Existing API Endpoints Stay
 
@@ -920,6 +1297,25 @@ With granular swaps (not whole-body swaps), the antiforgery token input rendered
 - Any future mobile/headless checkout
 
 The partial endpoints are an addition, not a replacement.
+
+### Potential Route Name Confusion
+
+The HTMX partial endpoint names in this document and the actual existing `CheckoutApiController` route names differ. An implementer MUST NOT modify existing JSON API routes — the partials controller introduces new routes at a completely separate prefix.
+
+| Concern | JSON API Route (DO NOT CHANGE) | HTMX Partial Route (NEW) |
+|---|---|---|
+| Apply discount | `POST /api/merchello/checkout/discount/apply` | `POST /checkout/partials/discount/apply` |
+| Remove discount | `DELETE /api/merchello/checkout/discount/{id:guid}` | `DELETE /checkout/partials/discount/{id:guid}` |
+| Check email | `POST /api/merchello/checkout/check-email` | `POST /checkout/partials/check-email` |
+| Save shipping (confirm) | `POST /api/merchello/checkout/shipping` | `POST /checkout/partials/shipping` |
+| Save shipping (radio-only) | _(not a separate JSON endpoint)_ | `POST /checkout/partials/shipping/select` |
+| Save addresses | `POST /api/merchello/checkout/addresses` | `POST /checkout/partials/addresses` |
+| Region dropdown | `GET /api/merchello/checkout/regions/{code}` | `GET /checkout/partials/regions/{addressType}` |
+| Upsell add | _(not a checkout JSON endpoint)_ | `POST /checkout/partials/upsell/add` |
+
+**The JSON API routes at `/api/merchello/checkout/*` are preserved exactly as-is.** They continue to serve JSON for payment adapters, mobile clients, and programmatic use. The HTMX partials at `/checkout/partials/*` are additions, not replacements.
+
+**Note:** The document references `POST /api/merchello/checkout/credit-check` in the "Credit Check" section. This endpoint does not exist in `CheckoutApiController` as a separate route — the credit check is already done inline in `GetPaymentMethodsAsync()` within `CheckoutPaymentsOrchestrationService`. The HTMX migration moves this server-side (into `SaveShipping` partial rendering). No new or changed endpoint needed.
 
 ### Existing JSON API Endpoint Reference (Consumer Mapping)
 
@@ -996,6 +1392,88 @@ Recovery from abandoned checkout links is already handled server-side by `Merche
 **No changes needed** to the recovery flow. The client-side `recoverBasket()` method in the current `api.js` and its usage in `single-page-checkout.js` are dead/redundant code that will be deleted as part of the elimination of those files.
 
 The existing `recover/{token}` JSON API endpoint stays for programmatic use, but the checkout UI has never relied on it.
+
+### CheckoutViewModel Addition: UpsellSuggestions
+
+`CheckoutViewModel` (`src/Merchello/Models/CheckoutViewModel.cs`) is missing the `UpsellSuggestions` property needed for the interstitial upsell display. Add:
+
+```csharp
+// Add to CheckoutViewModel.cs
+using Merchello.Core.Upsells.Dtos; // Add this using at top of file
+
+/// <summary>
+/// Upsell suggestions for interstitial display (above the checkout form).
+/// Populated from IUpsellEngine.GetSuggestionsAsync() during initial page render.
+/// Products already in basket are excluded by the engine.
+/// Empty if upsell module is disabled or basket has no line items.
+/// </summary>
+public IReadOnlyList<UpsellSuggestionDto> UpsellSuggestions { get; init; } = [];
+```
+
+**Population in `MerchelloCheckoutController`:**
+
+Inject into controller constructor (both nullable — preserves backward compatibility):
+```csharp
+IUpsellEngine? upsellEngine = null,
+IUpsellContextBuilder? upsellContextBuilder = null
+```
+
+Population logic in `RenderSinglePageCheckoutAsync()` (sequential, not parallel — EFCoreScope constraint):
+```csharp
+IReadOnlyList<UpsellSuggestionDto> upsellSuggestions = [];
+if (upsellEngine != null && upsellContextBuilder != null && basket?.LineItems.Count > 0)
+{
+    var lineItems = await upsellContextBuilder.BuildLineItemsAsync(basket.LineItems, ct);
+    var suggestions = await upsellEngine.GetSuggestionsAsync(new UpsellContext { LineItems = lineItems }, ct);
+    upsellSuggestions = suggestions
+        .Select(s => new UpsellSuggestionDto { /* map from UpsellSuggestion model */ })
+        .ToList();
+}
+```
+
+Pass to ViewModel constructor: `UpsellSuggestions = upsellSuggestions`.
+
+The `upsellInterstitial` Alpine component in `checkout.ts` reads from this ViewModel data (rendered into `data-*` attributes or a small inline JSON script on the interstitial container), not from an API call.
+
+### Initial Page Load State
+
+#### What Is #checkout-initial-data?
+
+`#checkout-initial-data` is a `<script type="application/json" id="checkout-initial-data">` element rendered by `SinglePage.cshtml`. It contains a JSON blob that `single-page-checkout.js` reads on startup:
+```js
+const data = JSON.parse(document.getElementById('checkout-initial-data').textContent);
+Alpine.store('checkout', initCheckoutStore(data));
+```
+
+This blob is the bootstrap mechanism for the Alpine store. After migration, Razor renders the full checkout HTML directly from `CheckoutViewModel` — no bootstrap blob is needed.
+
+**Current blob contents and their replacements:**
+
+| JSON Property | Current Use | Replacement |
+|---|---|---|
+| `basket.lineItems` | Alpine store → rendered by `order-summary.js` | Razor `@foreach` in `_OrderSummary.cshtml` |
+| `basket.subtotal`, `total`, `tax`, `shipping`, `discount` | Displayed by `order-summary.js` | Pre-calculated in `OrderSummaryViewModel`, rendered by Razor |
+| `basket.currencyCode`, `currencySymbol`, `exchangeRate`, `decimalPlaces` | Currency formatting in `formatters.js` | ViewModel properties rendered as `data-*` attributes |
+| `basket.appliedDiscounts` | Discount remove buttons | Razor `@foreach` in `_OrderSummary.cshtml` |
+| `billingCountries`, `shippingCountries` | `<select>` options rendered by Alpine | Razor `<option>` elements in `_AddressForm.cshtml` |
+| `addressLookup` config | `address-autocomplete.ts` init | Render as `data-*` on autocomplete container (avoids fetch) |
+| `shippingGroups` | Shipping radio buttons rendered by Alpine | Razor in `_ShippingOptions.cshtml` |
+| `paymentMethods` | Payment list rendered by `checkout-payment.js` | Razor `data-*` on `paymentForm` root in `_PaymentMethods.cshtml` |
+| `displayPricesIncTax` | Tax-inclusive price display | Razor conditional in each partial |
+| `session.sameAsBilling`, `session.email` | Form pre-population | Razor `value`/`checked` attributes |
+| `googleAutoDiscount` | Client-side discount application | Server applies during render via `GoogleAutoDiscountMiddleware` |
+
+**When to remove:** Phase 4. Removing in Phase 3 breaks `single-page-checkout.js` (still running). The blob stays through Phase 3.
+
+**What stays:** `window.merchelloCheckoutData` (set in `_Layout.cshtml`) and `window.MerchelloExpressConfig` (set in `_ExpressCheckout.cshtml`) are independent and NOT removed.
+
+`MerchelloCheckoutController.RenderSinglePageCheckoutAsync()` already pre-calculates checkout state on initial page load. This behavior is preserved:
+
+- **Shipping options:** Pre-rendered on page load if addresses exist in session (controller calls `InitializeCheckoutAsync` with `AutoSelectShipping = true`). The `_ShippingOptions.cshtml` partial renders with shipping groups.
+- **Payment methods:** NOT pre-rendered on initial load. Payment section appears empty (or with a "Complete shipping to see payment options" message). Payment methods render only after the HTMX shipping form submit (`POST /checkout/partials/shipping` → swaps `#payment-section`).
+- **Order summary:** Pre-rendered with line items, subtotals, and shipping amounts (if already calculated). Updated via OOB swaps on subsequent mutations.
+- **Address forms:** Pre-populated from `CheckoutSession` data (server renders `value` attributes on form inputs).
+- **`#checkout-initial-data` JSON blob:** Removed entirely (Phase 4, task 11). All data it contained is now server-rendered in Razor partials or as `data-*` attributes. `window.merchelloCheckoutData` (set in `_Layout.cshtml`) and `window.MerchelloExpressConfig` (set in `_ExpressCheckout.cshtml`) are independent and stay.
 
 ### Server-Side Google Auto-Discount
 
@@ -1096,6 +1574,29 @@ Pure Alpine interaction, no HTMX round-trip:
 - Server reads the flag and uses billing address for shipping if true
 - ~10 lines of Alpine code
 
+## Multi-Currency Display Checklist
+
+**CRITICAL:** All display amounts must be pre-calculated server-side in ViewModels. Razor partials must NEVER multiply by exchange rate — that calculation belongs in `ICheckoutViewModelBuilder`.
+
+| Display Concern | Where Calculated | How Rendered |
+|---|---|---|
+| Line item unit price | `OrderSummaryViewModel.LineItems[].DisplayUnitPrice` = `amount * exchangeRate`, rounded via `ICurrencyService.Round()` | Razor: `@item.FormattedUnitPrice` |
+| Line item total | `OrderSummaryViewModel.LineItems[].DisplayLineTotal` = `DisplayUnitPrice * Quantity` | Razor: `@item.FormattedLineTotal` |
+| Addon prices | `OrderSummaryLineItemViewModel.Addons[].DisplayUnitPrice` pre-calculated in ViewModel | Razor: `@addon.FormattedUnitPrice` |
+| Summary totals | `OrderSummaryViewModel.DisplaySubTotal`, `DisplayShipping`, `DisplayTax`, `DisplayTotal` all pre-calculated | Razor: `@Model.CurrencySymbol@Model.DisplayTotal.ToString($"N{Model.CurrencyDecimalPlaces}")` |
+| Tax-inclusive subtotal | `OrderSummaryViewModel.TaxInclusiveDisplaySubTotal` pre-calculated | Razor: conditional on `Model.DisplayPricesIncTax` |
+| Tax included message | `OrderSummaryViewModel.TaxIncludedMessage` pre-formatted (e.g., "Including £10.17 in taxes") | Razor: `@Model.TaxIncludedMessage` |
+| Express checkout amounts | `HX-Trigger: basketUpdated` header includes `{ total, subtotal, currency }` using display amounts | JS: `express-checkout.ts` listens for `basketUpdated` event |
+| Mobile sticky bar total | `MobileTotalViewModel.FormattedTotal` pre-formatted | OOB swap: `_MobileTotal.cshtml` renders `@Model.FormattedTotal` |
+| Shipping option costs | `ShippingOptionsViewModel.ShippingGroups[].Options[].DisplayCost` pre-calculated | Razor: `@option.FormattedDisplayCost` |
+
+**Invariants preserved:**
+- Basket amounts stored in store currency — never modified by display currency changes
+- Display uses multiply: `amount * exchangeRate`
+- Checkout/payment (invoice creation) uses divide: `amount / exchangeRate`
+- Exchange rate locked at invoice creation (`PricingExchangeRate`, source, timestamp)
+- Currency symbol and decimal places come from display currency config, not store currency
+
 ## Marketing Opt-In (acceptsMarketing)
 
 The checkout has a "Keep me updated with news and exclusive offers" checkbox (`SinglePage.cshtml` lines 540-549) currently bound to `x-model="form.acceptsMarketing"` in the `singlePageCheckout` Alpine store.
@@ -1126,6 +1627,110 @@ After migration:
 
 New partial required:
 - `_MobileTotal.cshtml` — renders just the formatted total span content. Included as OOB target.
+
+### Mobile Responsive Specification
+
+The checkout uses Tailwind responsive breakpoints. The primary breakpoint is `lg:` (1024px) — above this, the checkout renders as a two-column layout; below it, everything collapses to a single column.
+
+**Grid layout:**
+```html
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- Left column: forms (addresses, shipping, payment) -->
+    <div> ... </div>
+    <!-- Right column: order summary -->
+    <div class="hidden lg:block"> ... </div>
+</div>
+```
+
+**Mobile-only vs desktop-only elements:**
+
+| Pattern | Meaning | Used for |
+|---|---|---|
+| `lg:hidden` | Visible on mobile, hidden on desktop | Mobile sticky bar, mobile order summary toggle |
+| `hidden lg:block` | Hidden on mobile, visible on desktop | Desktop order summary sidebar |
+| `sm:grid-cols-3` | Three-column grid from 640px+ | City / State / Postal code row in address form |
+
+**Order summary collapse on mobile:**
+On mobile, the order summary is not in the sidebar. Instead, a collapsible summary toggle appears above the form sections:
+
+```html
+<div class="lg:hidden" x-data="{ expanded: false }">
+    <button @@click="expanded = !expanded" class="flex items-center justify-between w-full py-3 border-b">
+        <span class="flex items-center gap-2">
+            <svg x-show="!expanded"><!-- chevron right --></svg>
+            <svg x-show="expanded"><!-- chevron down --></svg>
+            <span>Show order summary</span>
+        </span>
+        <span id="mobile-summary-total">@Model.FormattedTotal</span>
+    </button>
+    <div x-show="expanded" x-collapse id="mobile-order-summary">
+        @await Html.PartialAsync("Checkout/_OrderSummary", summaryVm)
+    </div>
+</div>
+```
+
+When HTMX swaps update the order summary, include `mobile-order-summary` as an additional OOB target alongside `order-summary` so both desktop and mobile views stay in sync:
+
+```html
+<div id="mobile-order-summary" hx-swap-oob="innerHTML">
+    <!-- same summary partial content -->
+</div>
+```
+
+**Address form responsive grid:**
+
+The city, county/state, and postal code fields sit in a single row on wider screens:
+
+```html
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div><!-- Town/City --></div>
+    <div><!-- County/State --></div>
+    <div><!-- Postal Code --></div>
+</div>
+```
+
+On screens below `sm:` (640px), these stack vertically.
+
+**Express checkout buttons on mobile:**
+
+Express checkout buttons (Apple Pay, Google Pay, PayPal) stack vertically on mobile and sit in a horizontal row on desktop:
+
+```html
+<div id="express-checkout-buttons" class="flex flex-col sm:flex-row gap-3">
+    <!-- Express payment buttons rendered by adapters -->
+</div>
+```
+
+**Mobile sticky action bar:**
+The sticky bar uses `lg:hidden` so it only appears on mobile. It is fixed to the bottom of the viewport:
+```html
+<div class="fixed bottom-0 inset-x-0 lg:hidden bg-white border-t shadow-lg p-4 z-50">
+    <div class="flex items-center justify-between">
+        <div>
+            <span class="text-sm text-gray-500">Total</span>
+            <span id="mobile-total" class="text-lg font-semibold">@Model.FormattedTotal</span>
+        </div>
+        <button
+            @@click="document.getElementById('payment-form')?.requestSubmit()"
+            :disabled="$store.paymentState.isSubmitting || !$store.paymentState.canSubmit"
+            class="btn btn-primary px-8">
+            <span x-show="!$store.paymentState.isSubmitting">Place Order</span>
+            <span x-show="$store.paymentState.isSubmitting" class="flex items-center gap-2">
+                <svg class="animate-spin h-4 w-4"><!-- spinner --></svg>
+                Processing...
+            </span>
+        </button>
+    </div>
+</div>
+```
+
+**Mobile UX requirements:**
+1. All touch targets must be at least 44×44px (Apple HIG minimum)
+2. Form inputs should use appropriate `inputmode` attributes (`numeric` for postal code in some regions, `email` for email, `tel` for phone)
+3. The sticky bar must have sufficient `padding-bottom` on the `<body>` or last section to prevent content being hidden behind it
+4. Shipping option radio buttons should have generous tap targets (full-width clickable row, not just the radio circle)
+5. Discount code input and "Apply" button should be on the same row with the button not wrapping below the input
+6. Loading states (HTMX `hx-indicator`) should be clearly visible on small screens — use inline spinners not full-page overlays
 
 ## Modals (Terms Side-Pane & Forgot Password)
 
@@ -1244,6 +1849,12 @@ The `checkout:upsell_add` event currently fires from `single-page-checkout.js`. 
 
 ## CSS Loading States
 
+**File to edit:** `src/Merchello/Styles/checkout.css` (Tailwind source — NOT the compiled output in `wwwroot/`)
+
+**Current state:** The file already has `[x-cloak] { display: none !important; }` and Alpine visibility overrides. It does **not** currently have any HTMX indicator classes (`htmx-indicator`, `htmx-request`). The following rules must be added before the existing Alpine section.
+
+**Note on the shipping slow-message CSS** (shown in the "Shipping Recalculation Latency" section): those rules also belong in `checkout.css` and depend on the `.htmx-request` class established by the indicator rules below.
+
 Add HTMX indicator styles to `checkout.css`:
 
 ```css
@@ -1356,6 +1967,135 @@ The current `index.js` registers these Alpine components via `init*()` factory f
 | `forgotPasswordModal` | Inline in `checkout.ts` or `account-section.ts` (~25 lines) | Password reset email sending modal |
 | `upsellInterstitial` | Inline in `checkout.ts` (~20 lines) | Interstitial upsell show/dismiss via sessionStorage |
 
+### Alpine Store and Component Scope Details
+
+After removing the `singlePageCheckout` mega-component and the `checkout` Alpine store, a minimal `Alpine.store('paymentState')` is the **only** Alpine store needed. All other state is either server-rendered or component-local.
+
+**`Alpine.store('paymentState')` — defined in `checkout.ts`:**
+
+```typescript
+Alpine.store('paymentState', {
+    isSubmitting: false,
+    canSubmit: false,
+    acceptedTerms: false
+});
+```
+
+- **Updated by:** `paymentForm.ts` Alpine component sets `isSubmitting`, `canSubmit` based on payment method selection and form validity
+- **Read by:** Desktop "Place Order" button AND mobile sticky bar button via `$store.paymentState.isSubmitting` / `$store.paymentState.canSubmit`
+- **`acceptedTerms`:** Updated via `@change` handler on the terms checkbox. The terms checkbox lives INSIDE `_PaymentMethods.cshtml` so it is within the `paymentForm` Alpine scope and survives HTMX payment section swaps.
+
+**Simplified `submitOrder` flow in `paymentForm.ts`:**
+
+```typescript
+async submitOrder() {
+    // 1. Check terms acceptance (if required)
+    if (this.orderTerms?.requireTermsAcceptance && !this.$store.paymentState.acceptedTerms) {
+        this.showError('Please accept the terms and conditions');
+        return;
+    }
+
+    // 2. Set submitting state
+    this.$store.paymentState.isSubmitting = true;
+
+    try {
+        if (this.isUsingSavedMethod) {
+            // 3a. Saved payment method flow
+            const result = await fetch('/api/merchello/checkout/process-saved-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    savedMethodId: this.selectedSavedMethod.id,
+                    invoiceId: this.invoiceId
+                })
+            });
+            // Handle redirect or success
+        } else {
+            // 3b. Standard payment flow (adapter-based)
+            await window.MerchelloPayment.initiatePayment(
+                this.selectedMethod.providerAlias,
+                this.selectedMethod.methodAlias,
+                this.returnUrl,
+                this.cancelUrl
+            );
+        }
+    } catch (error) {
+        this.$store.paymentState.isSubmitting = false;
+        this.showError(error.message);
+    }
+}
+```
+
+**Key simplification:** No address/shipping validation in `submitOrder`. Addresses and shipping are already saved via prior HTMX form submissions. The payment step only validates: payment method selected, terms accepted (if required), then initiates payment.
+
+**`accountSection` Alpine component scope:** Wraps the contact/email section in `SinglePage.cshtml`. Handles:
+- Email check → dispatches HTMX request for `#email-status` swap (can also be done via `hx-post` on the email input directly)
+- Sign-in form visibility, loading, error states
+- Create account checkbox + password field visibility
+- Password validation (real-time via fetch)
+- Forgot password dispatch (`$dispatch('open-forgot-password', { email })`)
+- Digital product account requirement (rendered server-side in `_EmailStatus.cshtml`, but `accountSection` manages the sign-in UX response)
+
+The `x-data="accountSection"` scope does NOT wrap the entire checkout form — only the contact/email area. The address forms below use `x-data="validation"` and `x-data="addressAutocomplete"` as separate scoped components.
+
+**Component scope layout in `SinglePage.cshtml`:**
+
+```html
+<!-- Contact section -->
+<div x-data="accountSection">
+    <input name="Email" ... hx-post="/checkout/partials/check-email" hx-target="#email-status" />
+    <div id="email-status"><!-- HTMX swaps EmailStatus partial here --></div>
+    <!-- Sign-in form, create account checkbox, password field -->
+</div>
+
+<!-- Address form (wraps billing + shipping) -->
+<form hx-post="/checkout/partials/addresses" hx-target="#shipping-section" ...>
+    <input name="Email" type="hidden" /> <!-- Hidden copy for HTMX submission -->
+    <div x-data="validation">
+        <div x-data="addressAutocomplete" data-prefix="billing">
+            <!-- Billing address fields with name="BillingName" etc. -->
+        </div>
+    </div>
+    <!-- Same-as-billing toggle (pure Alpine x-show) -->
+    <div x-data="validation">
+        <div x-data="addressAutocomplete" data-prefix="shipping">
+            <!-- Shipping address fields with name="ShippingName" etc. -->
+        </div>
+    </div>
+    <button type="submit">Continue to shipping</button>
+</form>
+
+<!-- Shipping section (HTMX swap target) -->
+<div id="shipping-section">
+    @await Html.PartialAsync("_ShippingOptions", Model.ShippingOptionsViewModel)
+</div>
+
+<!-- Payment section (HTMX swap target) -->
+<div id="payment-section">
+    <div x-data="paymentForm" ...>
+        <!-- Payment methods, terms checkbox, place order button -->
+    </div>
+</div>
+
+<!-- Order summary sidebar -->
+<div id="order-summary">
+    @await Html.PartialAsync("_OrderSummary", Model.OrderSummaryViewModel)
+</div>
+
+<!-- Mobile sticky bar (outside all swap targets) -->
+<div class="lg:hidden fixed bottom-0 ...">
+    <span id="mobile-total">@Model.FormattedDisplayTotal</span>
+    <button :disabled="$store.paymentState.isSubmitting || !$store.paymentState.canSubmit"
+            @click="document.getElementById('payment-form')?.requestSubmit()">
+        Complete Order
+    </button>
+</div>
+
+<!-- Modals (outside all swap targets) -->
+<div x-data="termsModal"><!-- ... --></div>
+<div x-data="forgotPasswordModal"><!-- ... --></div>
+```
+
 ## SessionStorage Key Contracts (Preserved)
 
 - `merchello:checkout:upsells:interstitial-seen:{basketId}` — used by post-purchase; stays in `post-purchase.ts`
@@ -1404,9 +2144,14 @@ After migration, checkout JS is built by esbuild from TypeScript source in `Clie
 
 ### HTMX Dependency
 
-**Vendored script (recommended for robustness)**
+**Vendored script (recommended for robustness) — pin to htmx 2.0.4**
+
+Download from `https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js` and save to `Client/public/js/vendor/htmx.min.js`.
+
+**IMPORTANT:** Place the HTMX script tag inside the existing `@if (Model.Step != CheckoutStep.Confirmation && Model.Step != CheckoutStep.PostPurchase)` conditional block in `_Layout.cshtml`, BEFORE the import map. HTMX is not needed on Confirmation or PostPurchase pages (no `hx-*` attributes).
+
 ```html
-<!-- _Layout.cshtml — HTMX loaded as plain script BEFORE modules -->
+<!-- _Layout.cshtml — inside the conditional block, BEFORE import map -->
 <script src="/App_Plugins/Merchello/js/vendor/htmx.min.js"></script>
 
 <!-- Import map stays for Alpine (HTMX is NOT in the import map — it's not an ESM module) -->
@@ -1426,6 +2171,81 @@ After migration, checkout JS is built by esbuild from TypeScript source in `Clie
 HTMX (~14KB gzipped) loaded as a plain script. Must load BEFORE the module script since `checkout.ts` attaches HTMX event listeners at module evaluation time.
 
 **Conditional loading:** The HTMX script tag, import map, and `index.js` module script should all be inside the same `@if` conditional block that currently gates `index.js` (not loaded on Confirmation/PostPurchase pages). Loading HTMX on those pages is technically harmless (no `hx-*` attributes), but unnecessary. If simplicity is preferred, loading HTMX unconditionally is fine — it adds no overhead without `hx-*` attributes in the DOM.
+
+#### CheckoutExceptionFilter Path Guard (Action Required)
+
+`CheckoutExceptionFilter` (`src/Merchello/Filters/CheckoutExceptionFilter.cs`) contains a path guard that silently ignores exceptions from `CheckoutPartialsController`:
+
+```csharp
+// Line ~21 in CheckoutExceptionFilter.cs — only matches /api/merchello/checkout
+if (path is null || !path.StartsWith("/api/merchello/checkout", StringComparison.OrdinalIgnoreCase))
+    return;
+```
+
+`CheckoutPartialsController` serves `/checkout/partials/*` — a different prefix that does NOT match. Two consequences:
+1. The filter returns early; unhandled exceptions bubble to the framework default (no structured logging).
+2. The filter's JSON error body (`{ success, errorMessage, errorCode }`) is wrong for HTMX consumers that expect HTML.
+
+**Do NOT apply `[ServiceFilter(typeof(CheckoutExceptionFilter))]` to `CheckoutPartialsController`.**
+
+Instead, create a separate HTML-aware exception filter:
+
+```csharp
+// src/Merchello/Filters/CheckoutPartialsExceptionFilter.cs
+public class CheckoutPartialsExceptionFilter(
+    ILogger<CheckoutPartialsExceptionFilter> logger) : IExceptionFilter
+{
+    public void OnException(ExceptionContext context)
+    {
+        var path = context.HttpContext.Request.Path.Value;
+        if (path is null || !path.StartsWith("/checkout/partials", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        logger.LogError(context.Exception,
+            "Unhandled checkout partial exception on {Method} {Path}",
+            context.HttpContext.Request.Method, path);
+
+        // Return HTML — HTMX can swap it; error-boundary.ts catches the 500
+        context.Result = new ContentResult
+        {
+            StatusCode = StatusCodes.Status500InternalServerError,
+            ContentType = "text/html",
+            Content = "<div class=\"checkout-error\">An unexpected error occurred. Please refresh and try again.</div>"
+        };
+        context.ExceptionHandled = true;
+    }
+}
+```
+
+Register in `Startup.cs` alongside `CheckoutExceptionFilter`:
+```csharp
+builder.Services.AddScoped<Filters.CheckoutPartialsExceptionFilter>();
+```
+
+Apply to `CheckoutPartialsController`:
+```csharp
+[ServiceFilter(typeof(CheckoutPartialsExceptionFilter))]
+public class CheckoutPartialsController : Controller { ... }
+```
+
+### Why esbuild, Not tsc or Vite
+
+Two alternatives were considered and rejected:
+
+**Option A — `tsc` compilation with Vite `publicDir` copy:**
+Rejected. `tsc` compiles TypeScript → JavaScript but does NOT bundle. Each `.ts` file emits one `.js` file with bare `import` specifiers (e.g., `import { announce } from './utils/announcer.js'`). Payment adapters must be self-contained IIFE scripts that run without an import map — `tsc` cannot produce `format: "iife"` output. Additionally, `tsc` with `module: ES2022` leaves `import` statements in place, requiring a bundler to resolve them.
+
+**Option B — Add checkout files as Vite entry points:**
+Rejected. Vite produces hashed filenames by default (e.g., `index-abc123.js`). Disabling hashing for checkout entries breaks Vite's cache-busting for backoffice bundles. Vite's `emptyOutDir: true` also wipes the output directory on each build, creating ordering conflicts between checkout and backoffice output. Mixing stable-URL checkout output with hashed backoffice output in one Vite config is fragile.
+
+**Chosen approach — dedicated esbuild script (`build:checkout:js`):**
+esbuild produces: ESM bundles for `checkout.ts` and `payment.ts` (resolving all local imports into a single file), and IIFE bundles for adapters and classic scripts. Output uses `entryNames: '[name]'` (no hashing). Filenames are stable. Runs after Vite as a separate build step:
+
+```json
+// package.json
+"build:checkout:js": "node scripts/build-checkout.mjs",
+"build": "npm run build:backoffice && npm run build:checkout:js && npm run build:checkout:css"
+```
 
 ### Checkout JS Build
 
@@ -1684,6 +2504,26 @@ After migration, the entire `src/Merchello/Client/public/js/checkout/` directory
 
 ## Migration Phases
 
+### Safe Deployment Boundary
+
+The Phase ordering below is for PR review clarity. For deployment, some phases MUST ship atomically. Deploying them independently breaks the checkout:
+
+| Break Point | What Breaks |
+|---|---|
+| Phase 1–2 only deployed | Safe — build infrastructure only, no runtime changes |
+| Phase 3 (controller + partials) deployed without Phase 4 | Safe — new endpoints exist but `SinglePage.cshtml` still uses `singlePageCheckout` Alpine orchestrator. HTMX partials are unreachable. Checkout works exactly as before. |
+| Phase 3 HTMX attributes added to views, Phase 4 NOT deployed | **BREAKS.** HTMX `hx-*` attributes on forms conflict with the still-running `singlePageCheckout` Alpine orchestrator. Both try to handle form submit — race condition + double submission. |
+| Phase 4 (`checkout.ts` replaces `index.js`) without Phase 3 | **BREAKS.** `checkout.ts` has no Alpine orchestrator; forms have no submit handlers; HTMX partials don't exist yet. |
+| Phase 5–6 (TS adapter/script conversion) without Phase 4 | Safe individually — adapters and classic scripts are self-contained. |
+| Phase 7 (file deletion) before Phase 5–6 prove stable | **RISKY.** Delete source JS only after esbuild output is verified in production. |
+
+**Recommended PR grouping:**
+- **PR 1:** Phases 1–2 (build + types) — mergeable independently
+- **PR 2:** Phase 3 (partials controller + views) + Phase 4 (checkout.ts entry point + remove Alpine orchestrator) — **must ship together in a single release**
+- **PR 3:** Phases 5–6 (adapter + classic script TS conversion) — safe after PR 2 stabilizes
+- **PR 4:** Phase 7 (legacy JS deletion) — after PR 3 proves stable in production
+- **PR 5:** Phase 8 (tests) — can accompany any prior PR or ship independently
+
 ### Phase Ordering & Atomic Deployment
 
 All phases must be developed on a feature branch and deployed atomically. Between Phase 3 (HTMX attributes on markup) and Phase 4 (HTMX lifecycle handlers in `checkout.ts`), the checkout would be broken if deployed separately — the old `single-page-checkout.js` orchestrator conflicts with HTMX attributes on the same elements. Development should proceed phase-by-phase for clear PR reviews, but deployment is a single release.
@@ -1766,61 +2606,223 @@ All phases must be developed on a feature branch and deployed atomically. Betwee
 19. Ensure `acceptsMarketing` checkbox is outside all HTMX swap targets with standard HTML form field
 20. Ensure mobile sticky action bar total has `id="mobile-total"` for OOB swaps and submit button triggers `paymentForm` component
 21. Add rate limiting to `check-email` (10/min), `discount/apply` (20/min), `addresses` (10/min), `upsell/add` (20/min)
+22. Create `ICheckoutViewModelBuilder` service (interface in `src/Merchello/Services/Interfaces/`, implementation in `src/Merchello/Services/`) — encapsulates display context resolution, currency conversion, and ViewModel construction for all partials (see "Partial ViewModel Definitions" section)
+23. Create 7 ViewModel classes in `src/Merchello/Models/Checkout/` (`ShippingOptionsViewModel`, `OrderSummaryViewModel`, `PaymentMethodsViewModel`, `EmailStatusViewModel`, `DiscountFormViewModel`, `MobileTotalViewModel`, `ValidationErrorsViewModel`)
+24. Migrate `_AddressForm.cshtml` field names from Alpine `x-model` to HTML `name` attributes matching `SaveAddressesFormModel` properties (see "Address Form Field Name Migration" section for complete mapping table)
+25. Render `allItemsShippable` and `itemAvailabilityErrors` server-side in `_ShippingOptions.cshtml` from shipping calculation result
+26. Move order terms checkbox into `_PaymentMethods.cshtml` partial (inside `paymentForm` Alpine scope) so it survives HTMX payment section swaps and is accessible to `$store.paymentState.acceptedTerms`
 
-**Form model types:** The endpoints reference form model types (`SaveAddressesFormModel`, `SelectShippingFormModel`, `ApplyDiscountFormModel`, `CheckEmailFormModel`, `AddUpsellFormModel`). These are **new classes** — they do not exist today. They differ from existing JSON request DTOs because HTMX sends `application/x-www-form-urlencoded`, not JSON. Each form model maps to existing service parameter types. Place in `src/Merchello/Checkout/Dtos/` (or a `Checkout/Models/` folder) with clear naming. Example:
+**Form model types:** The endpoints reference form model types (`SaveAddressesFormModel`, `SelectShippingFormModel`, `ApplyDiscountFormModel`, `CheckEmailFormModel`, `AddUpsellFormModel`). These are **new classes** — they do not exist today. They differ from existing JSON request DTOs because HTMX sends `application/x-www-form-urlencoded`, not JSON. Each form model maps to existing service parameter types.
+
+#### Complete Form Model Definitions
+
+Place all form model files in `src/Merchello/Checkout/FormModels/`. One type per file (CLAUDE.md convention). These are NOT DTOs — no `Dto` suffix, not in `Dtos/` folder. Namespace: `Merchello.Checkout.FormModels`.
 
 ```csharp
+// src/Merchello/Checkout/FormModels/SaveAddressesFormModel.cs
+// Canonical address field names match AddressDto.cs — do NOT use address1/city/state synonyms.
 public class SaveAddressesFormModel
 {
     // Contact
-    public string Email { get; set; }
+    [Required, EmailAddress]
+    public string Email { get; set; } = "";
     public bool AcceptsMarketing { get; set; }
-    public string? Password { get; set; } // Nullable — populated only when user opts to create account during checkout
+    public string? Password { get; set; } // Null = guest; populated = create account during order
 
-    // Billing
-    public string BillingName { get; set; }
-    public string BillingCompany { get; set; }
-    public string BillingAddressOne { get; set; }
-    public string BillingAddressTwo { get; set; }
-    public string BillingTownCity { get; set; }
-    public string BillingCountyState { get; set; }
-    public string BillingPostalCode { get; set; }
-    public string BillingCountryCode { get; set; }
-    public string BillingRegionCode { get; set; }
-    public string BillingPhone { get; set; }
+    // Billing — canonical: AddressOne, TownCity, CountyState, RegionCode
+    [Required] public string BillingName { get; set; } = "";
+    public string? BillingCompany { get; set; }
+    [Required] public string BillingAddressOne { get; set; } = "";  // NOT address1/line1/street
+    public string? BillingAddressTwo { get; set; }
+    [Required] public string BillingTownCity { get; set; } = "";    // NOT city/locality
+    public string? BillingCountyState { get; set; }                 // NOT state/county/province
+    [Required] public string BillingPostalCode { get; set; } = "";
+    [Required] public string BillingCountryCode { get; set; } = "";
+    public string? BillingRegionCode { get; set; }                  // NOT stateCode/provinceCode
+    public string? BillingPhone { get; set; }
 
-    // Shipping
+    // Shipping toggle
     public bool SameAsBilling { get; set; }
-    public string ShippingName { get; set; }
-    public string ShippingCompany { get; set; }
-    public string ShippingAddressOne { get; set; }
-    // ... same pattern as billing
+
+    // Shipping (nullable — required only when SameAsBilling = false)
+    public string? ShippingName { get; set; }
+    public string? ShippingCompany { get; set; }
+    public string? ShippingAddressOne { get; set; }
+    public string? ShippingAddressTwo { get; set; }
+    public string? ShippingTownCity { get; set; }
+    public string? ShippingCountyState { get; set; }
+    public string? ShippingPostalCode { get; set; }
+    public string? ShippingCountryCode { get; set; }
+    public string? ShippingRegionCode { get; set; }
+    public string? ShippingPhone { get; set; }
 }
 
+// src/Merchello/Checkout/FormModels/SelectShippingFormModel.cs
+// Dictionary binding: <input name="Selections[{groupId}]" value="{selectionKey}">
+// ASP.NET Core binds URL-encoded bracket notation to Dictionary<string, string>.
 public class SelectShippingFormModel
 {
-    // Dictionary-like: selections[{groupId}] = selectionKey
-    public Dictionary<string, string> Selections { get; set; }
+    public Dictionary<string, string> Selections { get; set; } = new();
 }
 
+// src/Merchello/Checkout/FormModels/ApplyDiscountFormModel.cs
 public class ApplyDiscountFormModel
 {
-    public string Code { get; set; }
+    [Required] public string Code { get; set; } = "";
 }
 
+// src/Merchello/Checkout/FormModels/CheckEmailFormModel.cs
 public class CheckEmailFormModel
 {
-    public string Email { get; set; }
+    [Required, EmailAddress] public string Email { get; set; } = "";
 }
 
+// src/Merchello/Checkout/FormModels/AddUpsellFormModel.cs
 public class AddUpsellFormModel
 {
-    public Guid ProductId { get; set; }
-    public int Quantity { get; set; } = 1;
+    [Required] public Guid ProductId { get; set; }
+    [Range(1, 100)] public int Quantity { get; set; } = 1;
 }
 ```
 
 **Important:** The existing `CheckoutApiController` JSON endpoints stay untouched. The partials controller is additional.
+
+### Address Form Field Name Migration
+
+The current `_AddressForm.cshtml` uses Alpine `x-model` bindings (e.g., `x-model="form.billing.name"`) with NO HTML `name` attributes. After migration, every input needs a `name` attribute matching `SaveAddressesFormModel` properties so HTMX form submission serializes correctly.
+
+**Complete field name mapping:**
+
+| Current Alpine Binding | New `name` Attribute | New `value` Attribute |
+|---|---|---|
+| `x-model="form.email"` | `Email` | `@Model.Session?.Email` |
+| `x-model="form.acceptsMarketing"` | `AcceptsMarketing` | `checked="@Model.Session?.AcceptsMarketing"` |
+| `x-model="form.password"` | `Password` | (empty — never pre-populated) |
+| `x-model="form.sameAsBilling"` | `SameAsBilling` | `@Model.Session?.SameAsBilling` |
+| `x-model="form.billing.name"` | `BillingName` | `@Model.Session?.BillingName` |
+| `x-model="form.billing.company"` | `BillingCompany` | `@Model.Session?.BillingCompany` |
+| `x-model="form.billing.addressOne"` | `BillingAddressOne` | `@Model.Session?.BillingAddressOne` |
+| `x-model="form.billing.addressTwo"` | `BillingAddressTwo` | `@Model.Session?.BillingAddressTwo` |
+| `x-model="form.billing.townCity"` | `BillingTownCity` | `@Model.Session?.BillingTownCity` |
+| `x-model="form.billing.countyState"` | `BillingCountyState` | `@Model.Session?.BillingCountyState` |
+| `x-model="form.billing.postalCode"` | `BillingPostalCode` | `@Model.Session?.BillingPostalCode` |
+| `x-model="form.billing.countryCode"` | `BillingCountryCode` | `@Model.Session?.BillingCountryCode` |
+| `x-model="form.billing.regionCode"` | `BillingRegionCode` | `@Model.Session?.BillingRegionCode` |
+| `x-model="form.billing.phone"` | `BillingPhone` | `@Model.Session?.BillingPhone` |
+| `x-model="form.shipping.name"` | `ShippingName` | `@Model.Session?.ShippingName` |
+| `x-model="form.shipping.company"` | `ShippingCompany` | `@Model.Session?.ShippingCompany` |
+| `x-model="form.shipping.addressOne"` | `ShippingAddressOne` | `@Model.Session?.ShippingAddressOne` |
+| `x-model="form.shipping.addressTwo"` | `ShippingAddressTwo` | `@Model.Session?.ShippingAddressTwo` |
+| `x-model="form.shipping.townCity"` | `ShippingTownCity` | `@Model.Session?.ShippingTownCity` |
+| `x-model="form.shipping.countyState"` | `ShippingCountyState` | `@Model.Session?.ShippingCountyState` |
+| `x-model="form.shipping.postalCode"` | `ShippingPostalCode` | `@Model.Session?.ShippingPostalCode` |
+| `x-model="form.shipping.countryCode"` | `ShippingCountryCode` | `@Model.Session?.ShippingCountryCode` |
+| `x-model="form.shipping.regionCode"` | `ShippingRegionCode` | `@Model.Session?.ShippingRegionCode` |
+| `x-model="form.shipping.phone"` | `ShippingPhone` | `@Model.Session?.ShippingPhone` |
+
+**`_AddressForm.cshtml` Prefix parameter:** The existing `Prefix` parameter (`billing` or `shipping`) now generates name attributes by concatenating the prefix with the field name in PascalCase. Example: `Prefix="Billing"` generates `name="BillingName"`, `name="BillingAddressOne"`, etc.
+
+**Alpine attribute changes in `_AddressForm.cshtml`:**
+
+| Attribute | Action | Notes |
+|---|---|---|
+| `x-model="form.{prefix}.{field}"` | **REMOVE** | Replaced by `name` + `value` attributes |
+| `x-on:blur="validateField('{prefix}.{field}')"` | **REPLACE** with `x-data="validation"` scope | Validation component handles blur events |
+| `x-show="errors['{prefix}.{field}']"` | **REPLACE** with validation component `x-show` | Error display from validation Alpine component |
+| `x-text="errors['{prefix}.{field}']"` | **REPLACE** with validation component `x-text` | Error text from validation Alpine component |
+| `x-model="addressLookup.{prefix}.query"` | **KEEP** (inside `x-data="addressAutocomplete"` scope) | Autocomplete component manages its own state |
+| Alpine country/region `x-for` templates | **REMOVE** | Razor renders `<option>` elements directly; HTMX swaps on country change |
+| — | **ADD** `data-address-capture` | On each address input for abandoned checkout re-wiring |
+
+**Form wrapper:** The existing `<form>` wrapper at `SinglePage.cshtml` (currently line ~397) stays intact and wraps email + billing address + shipping address + password + acceptsMarketing. No `hx-include` directives are needed — HTMX automatically serializes all inputs within the `<form>`.
+
+**Shipping radio serialization:** Radio buttons in `_ShippingOptions.cshtml` use PascalCase property name for ASP.NET model binding:
+
+```html
+<input type="radio"
+       name="Selections[@group.GroupId]"
+       value="@option.SelectionKey"
+       hx-post="/checkout/partials/shipping/select"
+       hx-trigger="change"
+       hx-target="#order-summary"
+       hx-swap="innerHTML"
+       hx-sync="closest form:replace"
+       hx-indicator="#summary-spinner" />
+```
+
+This serializes as `Selections%5B{guid}%5D={selectionKey}` which ASP.NET Core binds to `Dictionary<string, string> Selections` on `SelectShippingFormModel`.
+
+#### _AddressForm.cshtml ViewModel Declaration
+
+The current `_AddressForm.cshtml` uses `ViewData["Prefix"]` and Alpine `x-model` bindings. After migration it receives a typed ViewModel:
+
+```razor
+@model Merchello.Models.Checkout.AddressFormViewModel
+```
+
+Add this class to `src/Merchello/Models/Checkout/AddressFormViewModel.cs`:
+```csharp
+public class AddressFormViewModel
+{
+    public string Prefix { get; init; } = "Billing"; // "Billing" or "Shipping"
+    public IReadOnlyList<CountryDto> Countries { get; init; } = [];
+    public IReadOnlyList<RegionDto> Regions { get; init; } = []; // Pre-loaded for selected country
+    public bool IsRequired { get; init; } = true; // False for shipping when SameAsBilling
+    // Pre-populated values from CheckoutSession
+    public string? PrefilledName { get; init; }
+    public string? PrefilledAddressOne { get; init; }
+    public string? PrefilledAddressTwo { get; init; }
+    public string? PrefilledTownCity { get; init; }
+    public string? PrefilledCountyState { get; init; }
+    public string? PrefilledPostalCode { get; init; }
+    public string? PrefilledCountryCode { get; init; }
+    public string? PrefilledRegionCode { get; init; }
+    public string? PrefilledPhone { get; init; }
+}
+```
+
+Form field `name` attributes use the prefix: `name="@($"{Model.Prefix}Name")"` → generates `BillingName` or `ShippingName`. This matches `SaveAddressesFormModel` property names exactly.
+
+#### Abandoned Checkout `data-address-capture` Attribute
+
+Every address input included in the abandoned checkout capture payload needs `data-address-capture` so `wireAbandonedCheckoutCapture()` in `checkout.ts` can reattach blur listeners after HTMX swaps replace form DOM:
+
+```html
+<input type="text"
+       name="@($"{Model.Prefix}AddressOne")"
+       value="@Model.PrefilledAddressOne"
+       data-address-capture
+       autocomplete="address-line1" />
+```
+
+Apply `data-address-capture` to: Name, AddressOne, AddressTwo, TownCity, PostalCode, CountryCode, RegionCode, Phone — all fields included in the `captureAddress()` payload.
+
+The email input (in the contact section of `SinglePage.cshtml`, outside `_AddressForm.cshtml`) also needs a blur listener via `wireAbandonedCheckoutCapture()` — add `data-email-capture` attribute (distinct from `data-address-capture`) for clarity.
+
+### _ViewImports.cshtml Additions
+
+**File:** `src/Merchello/App_Plugins/Merchello/Views/Checkout/_ViewImports.cshtml`
+
+**Current content:**
+```razor
+@using Merchello.Models
+@using Merchello.Core.Checkout.Models
+@using Merchello.Core.Accounting.Extensions
+@using Merchello.Core.Accounting.Models
+```
+
+**Add the following `@using` directives:**
+```razor
+@using Merchello.Models.Checkout           // All 7 new partial ViewModels
+@using Merchello.Core.Upsells.Dtos         // UpsellSuggestionDto
+@using Merchello.Core.Checkout.Dtos        // ShippingGroupDto, PaymentMethodDto
+@using Merchello.Core.Payments.Dtos        // SavedPaymentMethodDto
+@using Merchello.Checkout.FormModels       // Form models for ValidationErrorsViewModel
+```
+
+Without `@using Merchello.Models.Checkout`, each partial's `@model` directive would require the fully qualified type name (e.g., `@model Merchello.Models.Checkout.OrderSummaryViewModel` instead of just `@model OrderSummaryViewModel`).
+
+**Note:** No new `@addTagHelper` directives are needed. HTMX attributes (`hx-post`, `hx-target`, etc.) are standard HTML attributes processed by the browser — they do not require Tag Helper registration.
 
 ### Phase 4: Convert Entry Point + Payment + Express + Utilities
 
@@ -1866,6 +2868,10 @@ public class AddUpsellFormModel
 | Google auto discount | Server applies during page render (Phase 3, via middleware) |
 | Express config | Stays as `window.MerchelloExpressConfig` (unchanged) |
 12. Create logger instance and assign to `window.MerchelloLogger` in `checkout.ts` (migrating from `index.js` which currently creates and assigns it)
+13. Define `Alpine.store('paymentState', { isSubmitting: false, canSubmit: false, acceptedTerms: false })` in `checkout.ts` — the only Alpine store after migration (see "Alpine Store and Component Scope Details" section)
+14. Implement simplified `submitOrder` in `paymentForm.ts`: validate terms → initiate payment or process saved method. NO address/shipping validation (already handled by prior HTMX submissions)
+15. Wire terms checkbox `@change` handler to `$store.paymentState.acceptedTerms` in `_PaymentMethods.cshtml` / `paymentForm.ts`
+16. Wire mobile sticky bar button to read `$store.paymentState.isSubmitting` / `$store.paymentState.canSubmit` and dispatch submit to payment form
 
 **`payment.js` hybrid pattern:** esbuild must preserve the `window.MerchelloPayment` global assignment in ESM output.
 
@@ -1890,6 +2896,38 @@ Convert analytics, single-page-analytics, confirmation, post-purchase to TypeScr
 - Remove `confirmation.js` CommonJS `module.exports` fallback
 
 ### Phase 7: Remove Legacy JS
+
+**Absolute source paths to delete** (from project root, after esbuild output is verified):
+
+```
+src/Merchello/Client/public/js/checkout/stores/checkout.store.js
+src/Merchello/Client/public/js/checkout/services/api.js
+src/Merchello/Client/public/js/checkout/services/error-boundary.js
+src/Merchello/Client/public/js/checkout/services/logger.js
+src/Merchello/Client/public/js/checkout/services/validation.js
+src/Merchello/Client/public/js/checkout/components/single-page-checkout.js
+src/Merchello/Client/public/js/checkout/components/checkout-address-form.js
+src/Merchello/Client/public/js/checkout/components/checkout-shipping.js
+src/Merchello/Client/public/js/checkout/components/checkout-payment.js
+src/Merchello/Client/public/js/checkout/components/order-summary.js
+src/Merchello/Client/public/js/checkout/utils/formatters.js
+src/Merchello/Client/public/js/checkout/utils/regions.js
+src/Merchello/Client/public/js/checkout/utils/debounce.js
+src/Merchello/Client/public/js/checkout/utils/announcer.js
+src/Merchello/Client/public/js/checkout/utils/payment-errors.js
+src/Merchello/Client/public/js/checkout/utils/security.js
+src/Merchello/Client/public/js/checkout/index.js
+src/Merchello/Client/public/js/checkout/payment.js
+src/Merchello/Client/public/js/checkout/analytics.js
+src/Merchello/Client/public/js/checkout/single-page-analytics.js
+src/Merchello/Client/public/js/checkout/confirmation.js
+src/Merchello/Client/public/js/checkout/post-purchase.js
+src/Merchello/Client/public/js/checkout/adapters/ (entire directory — all .js adapter files)
+```
+
+**Pre-deletion verification:** Run `npm run build:checkout:js` and confirm all 22+ JS files exist in `src/Merchello/wwwroot/App_Plugins/Merchello/js/checkout/` from esbuild output before deleting source files.
+
+**Note on adapter deletion:** The 9 adapter `.js` files in `adapters/` are replaced by `.ts` files in `src/Merchello/Client/src/checkout/adapters/`. The IIFE adapters are still compiled by esbuild — they just come from TypeScript source now.
 
 1. Remove `src/Merchello/Client/public/js/checkout/*` entirely (all files listed in "Complete File Deletion Manifest")
 2. Keep `Client/public/img/*` and other static assets
@@ -1949,7 +2987,6 @@ Update:
   - Build step now includes JS: `npm run build:checkout`
   - HTMX vendored at `Client/public/js/vendor/htmx.min.js`
 - `.claude/CLAUDE.md` — update checkout asset pipeline section to match AGENTS.md changes
-- Delete `docs/checkout-update.md` (rejected TypeScript-only migration approach)
 
 ## Decision: `Return.cshtml` Inline Component
 
@@ -2071,10 +3108,1715 @@ Proceed with server-driven checkout using HTMX + targeted Alpine.js with granula
 14. All adapter-specific payment endpoints work
 15. Back-button protection on confirmation page
 16. Post-purchase saved-method charging with idempotency
-18. Mobile sticky bar total updates when order summary changes
-19. Terms modal opens from footer links and displays content
-20. Forgot password modal sends reset email and shows success/error states
-21. Account creation via password field in address form creates customer on order
-22. Marketing opt-in checkbox value flows through to customer record
-17. Address autocomplete typeahead and resolution
-18. Account creation and sign-in with page reload
+17. Mobile sticky bar total updates when order summary changes
+18. Terms modal opens from footer links and displays content
+19. Forgot password modal sends reset email and shows success/error states
+20. Account creation via password field in address form creates customer on order
+21. Marketing opt-in checkbox value flows through to customer record
+22. Address autocomplete typeahead and resolution
+23. Account creation and sign-in with page reload
+
+---
+
+## Implementation Reference Addendum
+
+This section fills gaps identified during codebase audit. Every subsection addresses a specific ambiguity that would block end-to-end implementation.
+
+---
+
+### Gap 1: Session Restoration on Page Refresh
+
+When a user refreshes mid-checkout after already saving addresses and selecting shipping, the HTMX-only approach leaves `#payment-section` empty. Fix: detect session state at initial full-page render.
+
+In `MerchelloCheckoutController.RenderSinglePageCheckoutAsync()`, after loading the basket and session, build the payment section if session already has shipping selections:
+
+```csharp
+PaymentMethodsViewModel? paymentMethodsViewModel = null;
+if (session?.SelectedShippingOptions?.Count > 0)
+{
+    paymentMethodsViewModel = await _viewModelBuilder.BuildPaymentMethodsAsync(session, isPartialSwap: false, ct);
+}
+viewModel.PaymentMethodsViewModel = paymentMethodsViewModel;
+```
+
+Add `PaymentMethodsViewModel` property to `CheckoutViewModel`:
+```csharp
+public PaymentMethodsViewModel? PaymentMethodsViewModel { get; set; }
+```
+
+In `SinglePage.cshtml`, replace the static empty `#payment-section` with:
+```razor
+<div id="payment-section">
+    @if (Model.PaymentMethodsViewModel != null)
+    {
+        @await Html.PartialAsync("_PaymentMethods", Model.PaymentMethodsViewModel)
+    }
+    else
+    {
+        <div class="checkout-payment-placeholder">
+            <p>Complete shipping selection to see payment options.</p>
+        </div>
+    }
+</div>
+```
+
+This restores checkout state after page refresh without an HTMX round-trip.
+
+---
+
+### Gap 2: Complete `checkout.ts` Reference Implementation
+
+Full entry-point file. All HTMX event handlers must be wired in this order:
+
+```typescript
+// checkout.ts
+import Alpine from 'alpinejs';
+import { paymentForm } from './components/payment-form.js';
+import { expressCheckout } from './components/express-checkout.js';
+import { addressAutocomplete } from './components/address-autocomplete.js';
+import { validation } from './components/validation.js';
+import { accountSection } from './components/account-section.js';
+import { termsModal } from './components/terms-modal.js';
+import { forgotPasswordModal } from './components/forgot-password-modal.js';
+import { upsellInterstitial } from './components/upsell-interstitial.js';
+import { MerchelloLogger } from './utils/logger.js';
+import { debounce } from './utils/debounce.js';
+
+// Module-scope state for abandoned checkout capture
+let _emailCaptured = false;
+let _lastAddressHash = '';
+let _captureAddressInFlight = false;
+let _captureAddressPending = false;
+
+// Logger
+window.MerchelloLogger = new MerchelloLogger({ prefix: '[Checkout]' });
+
+// Alpine store — minimal; only what payment adapters need at runtime
+Alpine.store('paymentState', {
+    canSubmit: false,
+    isSubmitting: false,
+    acceptedTerms: false,
+    selectedMethod: null as string | null,
+});
+
+// Alpine component registrations (order matters — paymentForm first)
+Alpine.data('paymentForm', paymentForm);
+Alpine.data('expressCheckout', expressCheckout);
+Alpine.data('addressAutocomplete', addressAutocomplete);
+Alpine.data('validation', validation);
+Alpine.data('accountSection', accountSection);
+Alpine.data('termsModal', termsModal);
+Alpine.data('forgotPasswordModal', forgotPasswordModal);
+Alpine.data('upsellInterstitial', upsellInterstitial);
+
+// HTMX lifecycle hooks
+document.body.addEventListener('htmx:configRequest', (evt: Event) => {
+    const e = evt as CustomEvent;
+    // Inject antiforgery token into all HTMX requests
+    const token = document.querySelector<HTMLInputElement>('[name="__RequestVerificationToken"]')?.value;
+    if (token) e.detail.headers['RequestVerificationToken'] = token;
+});
+
+document.body.addEventListener('htmx:beforeSwap', (evt: Event) => {
+    const e = evt as CustomEvent;
+    // Allow 422 (validation errors) to swap into target — HTMX ignores 4xx by default
+    if (e.detail.xhr.status === 422) {
+        e.detail.shouldSwap = true;
+        e.detail.isError = false;
+    }
+    // Destroy Alpine tree before swap to prevent memory leaks
+    const target = e.detail.target as HTMLElement;
+    if (target && target._x_dataStack) {
+        Alpine.destroyTree(target);
+    }
+});
+
+document.body.addEventListener('htmx:afterSwap', (evt: Event) => {
+    const e = evt as CustomEvent;
+    const target = e.detail.target as HTMLElement;
+    // Re-initialize Alpine on swapped content
+    Alpine.initTree(target);
+    // Re-wire abandoned checkout capture on new form inputs
+    wireAbandonedCheckoutCapture(target);
+});
+
+document.body.addEventListener('htmx:oobAfterSwap', (evt: Event) => {
+    const e = evt as CustomEvent;
+    const target = e.detail.target as HTMLElement;
+    Alpine.initTree(target);
+    wireAbandonedCheckoutCapture(target);
+});
+
+document.body.addEventListener('htmx:afterSettle', (evt: Event) => {
+    const e = evt as CustomEvent;
+    const target = e.detail.target as HTMLElement;
+    // Accessibility: announce new content to screen readers
+    const announcement = target.dataset.announcement;
+    if (announcement) {
+        const announcer = document.getElementById('checkout-announcer');
+        if (announcer) announcer.textContent = announcement;
+    }
+    // Analytics: track step completion
+    if (target.dataset.checkoutStep) {
+        window.MerchelloLogger.trackCheckoutStep(target.dataset.checkoutStep);
+    }
+    // Mobile scroll: bring new section into view
+    if (window.innerWidth < 1024 && target.id && target.scrollIntoView) {
+        setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    }
+});
+
+document.body.addEventListener('htmx:responseError', (evt: Event) => {
+    const e = evt as CustomEvent;
+    const status = e.detail.xhr.status;
+    if (status >= 500) {
+        const announcer = document.getElementById('checkout-announcer');
+        if (announcer) announcer.textContent = 'An error occurred. Please try again.';
+        window.MerchelloLogger.error('HTMX server error', { status });
+    }
+});
+
+// Keyboard-aware sticky bar (mobile — visual viewport shrinks when keyboard opens)
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+        const bar = document.querySelector<HTMLElement>('.checkout-sticky-bar');
+        if (bar) {
+            const offset = window.innerHeight - (window.visualViewport?.height ?? window.innerHeight);
+            bar.style.bottom = `${offset}px`;
+        }
+    });
+}
+
+Alpine.start();
+
+// Initial wire-up on page load
+wireAbandonedCheckoutCapture(document.body);
+
+// --- Abandoned Checkout Capture ---
+
+function wireAbandonedCheckoutCapture(root: HTMLElement): void {
+    const emailInput = root.querySelector<HTMLInputElement>('#checkout-email') ??
+                       document.getElementById('checkout-email') as HTMLInputElement | null;
+    if (emailInput && !emailInput.dataset.abandonedWired) {
+        emailInput.dataset.abandonedWired = '1';
+        emailInput.addEventListener('blur', () => captureEmail(emailInput.value));
+    }
+
+    root.querySelectorAll<HTMLInputElement>('[data-address-capture]').forEach(el => {
+        if (!el.dataset.abandonedWired) {
+            el.dataset.abandonedWired = '1';
+            el.addEventListener('input', debounce(captureAddress, 1500));
+        }
+    });
+}
+
+async function captureEmail(email: string): Promise<void> {
+    if (!email || _emailCaptured) return;
+    _emailCaptured = true;
+    try {
+        await fetch('/api/merchello/checkout/capture-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+        });
+    } catch { /* non-critical */ }
+}
+
+const captureAddress = debounce(async () => {
+    if (_captureAddressInFlight) { _captureAddressPending = true; return; }
+    const data = collectAddressFormData();
+    const hash = JSON.stringify(data);
+    if (hash === _lastAddressHash) return;
+    _lastAddressHash = hash;
+    _captureAddressInFlight = true;
+    try {
+        await fetch('/api/merchello/checkout/capture-address', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+    } catch { /* non-critical */ } finally {
+        _captureAddressInFlight = false;
+        if (_captureAddressPending) {
+            _captureAddressPending = false;
+            captureAddress();
+        }
+    }
+}, 1500);
+
+function collectAddressFormData(): Record<string, string> {
+    const data: Record<string, string> = {};
+    document.querySelectorAll<HTMLInputElement>('[data-address-capture]').forEach(el => {
+        if (el.name) data[el.name] = el.value;
+    });
+    return data;
+}
+```
+
+---
+
+### Gap 3: Complete `payment-form.ts` Alpine Component
+
+```typescript
+// components/payment-form.ts
+import type { AlpineComponent } from 'alpinejs';
+
+interface PaymentMethod {
+    providerAlias: string;
+    displayName: string;
+    iconUrl?: string;
+}
+
+interface SavedPaymentMethod {
+    id: string;
+    displayLabel: string;
+    providerAlias: string;
+}
+
+export function paymentForm(): AlpineComponent<any> {
+    return {
+        methods: [] as PaymentMethod[],
+        savedMethods: [] as SavedPaymentMethod[],
+        selectedMethod: null as PaymentMethod | null,
+        selectedSavedMethod: null as SavedPaymentMethod | null,
+        isUsingSavedMethod: false,
+        error: '',
+        invoiceId: '',
+        canVault: false,
+        returnUrl: '',
+        cancelUrl: '',
+        orderTerms: false,
+
+        init() {
+            // Read config from data-* attributes (set by Razor _PaymentMethods.cshtml)
+            const el = this.$el as HTMLElement;
+            this.methods = JSON.parse(el.dataset.methods ?? '[]');
+            this.savedMethods = JSON.parse(el.dataset.savedMethods ?? '[]');
+            this.canVault = el.dataset.canVault === 'true';
+            this.invoiceId = el.dataset.invoiceId ?? '';
+            this.returnUrl = el.dataset.returnUrl ?? '';
+            this.cancelUrl = el.dataset.cancelUrl ?? '';
+
+            // Restore previously selected method from sessionStorage
+            const remembered = sessionStorage.getItem('checkout:selected-payment');
+            if (remembered) {
+                const method = this.methods.find((m: PaymentMethod) => m.providerAlias === remembered);
+                if (method) {
+                    this.selectMethod(method);
+                    // Auto-mount payment SDK for pre-selected method
+                    if (window.MerchelloPayment) {
+                        window.MerchelloPayment.initiatePayment(method.providerAlias, {
+                            invoiceId: this.invoiceId,
+                            returnUrl: this.returnUrl,
+                            cancelUrl: this.cancelUrl,
+                            canVault: this.canVault,
+                        });
+                    }
+                }
+            }
+
+            this.$watch('selectedMethod', () => {
+                this.$store.paymentState.canSubmit = !!this.selectedMethod || !!this.selectedSavedMethod;
+                this.$store.paymentState.selectedMethod = this.selectedMethod?.providerAlias ?? null;
+            });
+            this.$watch('selectedSavedMethod', () => {
+                this.$store.paymentState.canSubmit = !!this.selectedMethod || !!this.selectedSavedMethod;
+            });
+        },
+
+        selectMethod(method: PaymentMethod) {
+            this.isUsingSavedMethod = false;
+            this.selectedSavedMethod = null;
+            this.selectedMethod = method;
+            this.error = '';
+            sessionStorage.setItem('checkout:selected-payment', method.providerAlias);
+            this.$store.paymentState.canSubmit = true;
+
+            if (window.MerchelloPayment) {
+                window.MerchelloPayment.initiatePayment(method.providerAlias, {
+                    invoiceId: this.invoiceId,
+                    returnUrl: this.returnUrl,
+                    cancelUrl: this.cancelUrl,
+                    canVault: this.canVault,
+                });
+            }
+        },
+
+        selectSavedMethod(saved: SavedPaymentMethod) {
+            this.isUsingSavedMethod = true;
+            this.selectedSavedMethod = saved;
+            this.selectedMethod = null;
+            this.error = '';
+            this.$store.paymentState.canSubmit = true;
+        },
+
+        showError(msg: string) {
+            this.error = msg;
+            this.$store.paymentState.isSubmitting = false;
+        },
+
+        async submitOrder() {
+            if (!this.$store.paymentState.acceptedTerms) {
+                this.showError('Please accept the terms and conditions to continue.');
+                return;
+            }
+            this.$store.paymentState.isSubmitting = true;
+            this.error = '';
+
+            try {
+                if (this.isUsingSavedMethod && this.selectedSavedMethod) {
+                    const res = await fetch('/api/merchello/checkout/pay-with-saved-method', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            savedPaymentMethodId: this.selectedSavedMethod.id,
+                            invoiceId: this.invoiceId,
+                            returnUrl: this.returnUrl,
+                        }),
+                    });
+                    if (res.ok) {
+                        const result = await res.json();
+                        window.location.href = result.redirectUrl ?? this.returnUrl;
+                    } else {
+                        const err = await res.json();
+                        this.showError(err.errorMessage ?? 'Payment failed. Please try again.');
+                    }
+                } else if (this.selectedMethod && window.MerchelloPayment) {
+                    await window.MerchelloPayment.submitPayment(this.selectedMethod.providerAlias);
+                } else {
+                    this.showError('Please select a payment method.');
+                }
+            } catch (e) {
+                this.showError('An unexpected error occurred. Please try again.');
+                window.MerchelloLogger?.error('Payment submit failed', e);
+            }
+        },
+    };
+}
+```
+
+---
+
+### Gap 5: `BuildBasketUpdatedTrigger()` Helper in `CheckoutPartialsController`
+
+Add this private method to `CheckoutPartialsController`:
+
+```csharp
+private static string BuildBasketUpdatedTrigger(Basket basket, StorefrontDisplayContext displayContext)
+{
+    decimal Round(decimal amount) =>
+        ICurrencyService.Round(amount * displayContext.ExchangeRate, displayContext.CurrencyCode);
+
+    return JsonSerializer.Serialize(new
+    {
+        basketUpdated = new
+        {
+            total    = Round(basket.Total),
+            subtotal = Round(basket.SubTotal),
+            shipping = Round(basket.Shipping),
+            tax      = Round(basket.Tax),
+            discount = Round(basket.Discount),
+            currency = displayContext.CurrencyCode
+        }
+    });
+}
+```
+
+This fires the `basketUpdated` custom event that the mobile sticky bar listens to via `htmx:trigger`. Always use display amounts (store currency × exchange rate), never raw store amounts.
+
+---
+
+### Gap 6: Email Hidden Copy Binding in Address Form
+
+The email input is in the contact section OUTSIDE the `<form>`. Two approaches:
+
+**Option A — `hx-include` (recommended):**
+```html
+<form hx-post="/checkout/partials/addresses"
+      hx-target="#shipping-section"
+      hx-swap="innerHTML"
+      hx-include="[name='email']">
+    <!-- hx-include pulls in the email input from outside the form boundary -->
+    ...
+</form>
+```
+
+**Option B — Alpine mirror binding:**
+```html
+<!-- Contact section (outside the address form) -->
+<div x-data="accountSection"
+     data-is-logged-in="@Model.IsLoggedIn.ToString().ToLowerInvariant()"
+     data-email="@(Model.Session?.Email ?? "")">
+    <input id="checkout-email" name="email" type="email"
+           x-model="email"
+           autocomplete="email"
+           inputmode="email" />
+</div>
+
+<!-- Address form -->
+<form hx-post="/checkout/partials/addresses" ...>
+    <input type="hidden" name="Email"
+           :value="document.getElementById('checkout-email')?.value ?? ''" />
+    ...
+</form>
+```
+
+Use `hx-include` (Option A) — it is declarative and survives HTMX swaps automatically without requiring Alpine to be active on the form element.
+
+---
+
+### Gap 7: `SaveAddressesFormModel` → Service Parameter Mapping
+
+Inside `CheckoutPartialsController.SaveAddresses()`:
+
+```csharp
+private static SaveAddressesParameters MapToSaveAddressesParameters(
+    SaveAddressesFormModel model, Guid basketId) => new()
+{
+    BasketId          = basketId,
+    Email             = model.Email,
+    AcceptsMarketing  = model.AcceptsMarketing,
+    Password          = model.Password, // null = guest
+
+    BillingAddress = new Address
+    {
+        Name        = model.BillingName,
+        Company     = model.BillingCompany,
+        AddressOne  = model.BillingAddressOne,
+        AddressTwo  = model.BillingAddressTwo,
+        TownCity    = model.BillingTownCity,
+        CountyState = model.BillingCountyState,
+        PostalCode  = model.BillingPostalCode,
+        CountryCode = model.BillingCountryCode,
+        RegionCode  = model.BillingRegionCode,
+        Phone       = model.BillingPhone,
+    },
+
+    SameAsBilling  = model.SameAsBilling,
+
+    ShippingAddress = model.SameAsBilling ? null : new Address
+    {
+        Name        = model.ShippingName        ?? "",
+        AddressOne  = model.ShippingAddressOne  ?? "",
+        TownCity    = model.ShippingTownCity    ?? "",
+        CountyState = model.ShippingCountyState ?? "",
+        PostalCode  = model.ShippingPostalCode  ?? "",
+        CountryCode = model.ShippingCountryCode ?? "",
+        RegionCode  = model.ShippingRegionCode  ?? "",
+    },
+};
+```
+
+---
+
+### Gap 8: `SelectShippingFormModel` → Service Parameter Mapping
+
+Inside `CheckoutPartialsController.SaveShipping()`:
+
+```csharp
+private static SaveShippingSelectionsParameters MapToShippingParameters(
+    SelectShippingFormModel model, Guid basketId) => new()
+{
+    BasketId           = basketId,
+    ShippingSelections = model.Selections.ToDictionary(
+        kvp => Guid.Parse(kvp.Key),   // group ID
+        kvp => kvp.Value              // SelectionKey (e.g., "so:{guid}" or "dyn:ups:Ground")
+    ),
+};
+```
+
+`SelectShippingFormModel.Selections` is `Dictionary<string, string>` from form post. Keys are order-group GUIDs, values are shipping selection keys. The selection key contract (`so:{guid}` / `dyn:{provider}:{serviceCode}`) is preserved by the service layer.
+
+---
+
+### Gap 9: Mobile UX Gold Standard Requirements
+
+These requirements are in addition to the base mobile responsive specification. They bring the checkout to Shopify-level mobile quality.
+
+#### iOS Input Zoom Prevention
+iOS Safari zooms in when focused inputs have `font-size < 16px`. Prevent unconditionally on mobile, restore on desktop:
+
+```css
+/* checkout.css */
+@media (max-width: 639px) {
+    input, select, textarea {
+        font-size: 16px; /* hard pixel, not rem — prevents zoom even if rem < 16 */
+    }
+}
+```
+
+#### Safe Area Insets (Notched Phones)
+```css
+/* checkout.css */
+.checkout-sticky-bar {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.checkout-page {
+    /* Prevent content from hiding under sticky bar + home indicator */
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+```
+
+Add `checkout-page` class to `<body>` in `_Layout.cshtml` when rendering the checkout view.
+
+#### Touch Target Sizing
+```css
+/* checkout.css */
+.shipping-option-row {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 12px 16px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.shipping-option-row input[type="radio"],
+.shipping-option-row input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    margin-right: 12px;
+}
+
+/* Apple HIG minimum 44px, Android Material 48px */
+.btn { min-height: 48px; }
+```
+
+#### HTMX Loading State on Submit Buttons
+Inline spinner on the button itself (not only the overlay — overlay may be off-screen on mobile):
+
+```html
+<button type="submit" class="btn btn-primary w-full"
+        :disabled="$store.paymentState.isSubmitting">
+    <svg class="htmx-indicator animate-spin h-4 w-4 inline mr-2 hidden"
+         xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10"
+                stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8v8H4z"></path>
+    </svg>
+    Continue to Shipping
+</button>
+```
+
+Add to `checkout.css`:
+```css
+.htmx-request .htmx-indicator { display: inline-block !important; }
+.htmx-request.htmx-indicator  { display: inline-block !important; }
+```
+
+#### Smooth Scroll After HTMX Swaps (Mobile Only)
+Already included in the `htmx:afterSettle` handler in `checkout.ts` (Gap 2 above):
+```typescript
+if (window.innerWidth < 1024 && target.id && target.scrollIntoView) {
+    setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+}
+```
+
+---
+
+### Gap 10: Partial View Markup Specifications
+
+#### `_RegionSelect.cshtml`
+
+ViewModel (add to `Merchello.Models.Checkout`):
+```csharp
+public class RegionSelectViewModel
+{
+    public string AddressType  { get; init; } = ""; // "Billing" or "Shipping"
+    public string? SelectedCode { get; init; }
+    public IReadOnlyList<RegionDto> Regions { get; init; } = [];
+}
+```
+
+View:
+```razor
+@model Merchello.Models.Checkout.RegionSelectViewModel
+@if (Model.Regions.Any())
+{
+    <option value="">-- Select region --</option>
+    @foreach (var region in Model.Regions)
+    {
+        <option value="@region.RegionCode"
+                @(region.RegionCode == Model.SelectedCode ? "selected" : "")>
+            @region.Name
+        </option>
+    }
+}
+else
+{
+    <option value="">-- No regions available --</option>
+}
+```
+
+Endpoint in `CheckoutPartialsController`:
+```csharp
+[HttpGet("regions/{addressType}/{countryCode}")]
+public async Task<IActionResult> GetRegions(string addressType, string countryCode, CancellationToken ct)
+{
+    var regions = await _localityService.GetRegionsAsync(countryCode, ct);
+    var vm = new RegionSelectViewModel
+    {
+        AddressType  = addressType, // "Billing" or "Shipping"
+        SelectedCode = null,
+        Regions      = regions,
+    };
+    return PartialView("_RegionSelect", vm);
+}
+```
+
+HTMX trigger on country select in `SinglePage.cshtml`:
+```html
+<select name="BillingCountryCode"
+        hx-get="/checkout/partials/regions/Billing/{value}"
+        hx-target="#region-select-billing"
+        hx-trigger="change"
+        hx-vals="js:{value: event.target.value}"
+        hx-swap="innerHTML">
+```
+
+Or simpler using `hx-get` with Alpine to build URL:
+```html
+<select name="BillingCountryCode"
+        @change="$refs.billingRegion.setAttribute('hx-get', `/checkout/partials/regions/Billing/${$event.target.value}`); htmx.trigger($refs.billingRegion, 'load')"
+        >
+```
+
+The cleanest approach: use `hx-get` with a placeholder and update it in Alpine `@change`, then `htmx.trigger`.
+
+#### `_EmailStatus.cshtml`
+
+```razor
+@model Merchello.Models.Checkout.EmailStatusViewModel
+@if (Model.IsLoggedIn)
+{
+    <p class="text-sm text-green-600">
+        Signed in as <strong>@Model.Email</strong>.
+        <a href="/account/logout?returnUrl=/checkout" class="underline">Sign out</a>
+    </p>
+}
+else if (Model.HasDigitalProducts && !Model.IsLoggedIn)
+{
+    <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+        Your order includes digital products that require an account.
+        Please sign in or create an account below.
+    </div>
+}
+else if (Model.HasExistingAccount)
+{
+    <p class="text-sm text-blue-600">
+        An account exists for this email.
+        <button type="button" x-on:click="showSignIn = true"
+                class="underline font-medium">Sign in</button>
+        for faster checkout.
+    </p>
+}
+```
+
+#### `_DiscountForm.cshtml`
+
+```razor
+@model Merchello.Models.Checkout.DiscountFormViewModel
+@if (Model.ShowDiscountCode)
+{
+    <div id="discount-form">
+        <form hx-post="/checkout/partials/discount/apply"
+              hx-target="#order-summary"
+              hx-swap="innerHTML"
+              hx-sync="this:replace"
+              class="flex gap-2">
+            @Html.AntiForgeryToken()
+            <input type="text" name="code"
+                   value="@Model.SubmittedCode"
+                   placeholder="Discount code"
+                   class="input flex-1 @(Model.ErrorMessage != null ? "input-error" : "")"
+                   inputmode="text" autocomplete="off" />
+            <button type="submit" class="btn btn-secondary">Apply</button>
+        </form>
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <p class="text-red-500 text-sm mt-1" role="alert">@Model.ErrorMessage</p>
+        }
+    </div>
+}
+```
+
+#### `_MobileTotal.cshtml`
+
+```razor
+@model Merchello.Models.Checkout.MobileTotalViewModel
+<span id="mobile-total">@Model.CurrencySymbol@Model.FormattedTotal</span>
+```
+
+`MobileTotalViewModel`:
+```csharp
+public class MobileTotalViewModel
+{
+    public string CurrencySymbol  { get; init; } = "";
+    public string FormattedTotal  { get; init; } = "";  // e.g. "129.99"
+    public decimal DisplayTotal   { get; init; }
+}
+```
+
+#### `_ValidationErrors.cshtml`
+
+Full form re-render strategy (not summary-only). The partial replaces the entire form on 422:
+
+```razor
+@model Merchello.Models.Checkout.ValidationErrorsViewModel
+<div class="validation-error-summary mb-4" role="alert" aria-live="polite">
+    <p class="font-medium text-red-700">Please correct the following errors:</p>
+    <ul class="list-disc list-inside text-sm text-red-600 mt-1">
+        @foreach (var err in Model.Errors)
+        {
+            <li data-field="@err.Key">@err.Value</li>
+        }
+    </ul>
+</div>
+```
+
+The controller re-renders the entire form partial (e.g., `_AddressForm`) with a `ValidationErrorsViewModel` prepended as a sub-model, so every field retains its submitted value. Use `model.SubmittedValues` (a `Dictionary<string, string>` from `Request.Form`) to repopulate inputs:
+
+```razor
+<input type="text" name="BillingName"
+       value="@(Model.SubmittedValues.GetValueOrDefault("BillingName", ""))"
+       class="input @(Model.Errors.ContainsKey("BillingName") ? "input-error" : "")" />
+```
+
+---
+
+### Gap 11: `CheckoutViewModelBuilder` Implementation Pattern
+
+Reference implementation of `BuildOrderSummaryAsync()` as the template all builder methods follow:
+
+```csharp
+public async Task<OrderSummaryViewModel> BuildOrderSummaryAsync(
+    Basket basket, CancellationToken ct)
+{
+    // Sequential calls — EFCoreScope constraint (no Task.WhenAll)
+    var displayContext = await _storefrontContext.GetDisplayContextAsync(ct);
+    var rate     = displayContext.ExchangeRate;
+    var decimals = displayContext.DecimalPlaces;
+    var symbol   = displayContext.CurrencySymbol;
+
+    string Fmt(decimal amount) => $"{symbol}{amount.ToString($"N{decimals}")}";
+    decimal Disp(decimal amount) => _currencyService.Round(amount * rate, displayContext.CurrencyCode);
+
+    var lineItems = basket.LineItems
+        .Where(li => li.LineItemType == LineItemType.Product)
+        .Select(li =>
+        {
+            var dispUnit  = Disp(li.Amount);
+            var dispTotal = Disp(li.Amount * li.Quantity);
+            return new OrderSummaryLineItemViewModel
+            {
+                LineItemId        = li.Id,
+                Name              = li.Name,
+                Sku               = li.Sku,
+                ImageUrl          = li.ExtendedData.GetValueOrDefault("ImageUrl")?.UnwrapJsonElement()?.ToString(),
+                Quantity          = li.Quantity,
+                DisplayUnitPrice  = dispUnit,
+                DisplayLineTotal  = dispTotal,
+                FormattedUnitPrice = Fmt(dispUnit),
+                FormattedLineTotal = Fmt(dispTotal),
+                SelectedOptions   = [],
+                Addons            = [],
+            };
+        }).ToList();
+
+    var dispSubTotal = Disp(basket.SubTotal);
+    var dispShipping = Disp(basket.Shipping);
+    var dispTax      = Disp(basket.Tax);
+    var dispDiscount = Disp(basket.Discount);
+    var dispTotal    = Disp(basket.Total);
+
+    string taxIncludedMessage = displayContext.DisplayPricesIncTax && dispTax > 0
+        ? $"Including {Fmt(dispTax)} in taxes"
+        : "";
+
+    return new OrderSummaryViewModel
+    {
+        LineItems            = lineItems,
+        AppliedDiscounts     = basket.Discounts.Select(MapDiscount).ToList(),
+        DisplaySubTotal      = dispSubTotal,
+        DisplayShipping      = dispShipping,
+        DisplayTax           = dispTax,
+        DisplayDiscount      = dispDiscount,
+        DisplayTotal         = dispTotal,
+        FormattedSubTotal    = Fmt(dispSubTotal),
+        FormattedShipping    = dispShipping == 0 ? "Free" : Fmt(dispShipping),
+        FormattedTax         = Fmt(dispTax),
+        FormattedTotal       = Fmt(dispTotal),
+        DisplayPricesIncTax  = displayContext.DisplayPricesIncTax,
+        TaxIncludedMessage   = taxIncludedMessage,
+        CurrencySymbol       = symbol,
+        CurrencyDecimalPlaces = decimals,
+        ShowDiscountCode     = true,
+        IsPartialSwap        = false,
+    };
+}
+```
+
+All other `BuildXxxAsync()` methods follow the same pattern: resolve `displayContext` first, then all basket/session reads, then construct ViewModel from display (multiplied) amounts.
+
+---
+
+### Gap 12: Payment Selection Persistence Across OOB Swaps
+
+#### Server-Side: Conditional Payment Section Swap
+
+The `#payment-section` OOB swap only fires when the payment amount changes (e.g., a discount alters the total). When only non-payment state changes, omit it from the response:
+
+```csharp
+// In CheckoutPartialsController.ApplyDiscount() and similar mutations:
+var previousTotal = basket.Total;
+// ... apply operation ...
+var updatedBasket = result.Basket;
+var newTotal = updatedBasket.Total;
+bool paymentAmountChanged = previousTotal != newTotal;
+
+var oobFragments = new List<(string partial, string targetId, object vm)>
+{
+    ("_OrderSummary", "order-summary", summaryVm),
+    ("_MobileTotal",  "mobile-total",  mobileTotalVm),
+};
+
+if (paymentAmountChanged)
+{
+    var paymentVm = await _viewModelBuilder.BuildPaymentMethodsAsync(session, isPartialSwap: true, ct);
+    oobFragments.Add(("_PaymentMethods", "payment-section", paymentVm));
+}
+
+return PartialViewWithOob("_OrderSummary", summaryVm, oobFragments.ToArray());
+```
+
+#### Client-Side: SessionStorage Persistence
+
+In `payment-form.ts` (already included in Gap 3 above):
+
+- `init()` reads `sessionStorage.getItem('checkout:selected-payment')` and pre-selects the remembered method.
+- `selectMethod()` writes the alias back to sessionStorage.
+- When the payment section IS swapped OOB, `htmx:beforeSwap` destroys the Alpine tree, `htmx:oobAfterSwap` reinitializes it, and `init()` restores the selection from sessionStorage — including re-mounting the payment SDK.
+
+This means the user never loses their Stripe/PayPal selection just because they applied a discount.
+
+---
+
+### Gap 13: `account-section.ts` Full Component Spec
+
+```typescript
+// components/account-section.ts
+export function accountSection() {
+    return {
+        email: '',
+        hasExistingAccount: false,
+        isLoggedIn: false,
+        showSignIn: false,
+        showCreateAccount: false,
+        showCreateAccountPassword: false,
+
+        password: '',
+        confirmPassword: '',
+        signInPassword: '',
+        signInLoading: false,
+        signInError: '',
+        createLoading: false,
+        createError: '',
+
+        init() {
+            const el = this.$el as HTMLElement;
+            this.isLoggedIn            = el.dataset.isLoggedIn === 'true';
+            this.email                 = el.dataset.email ?? '';
+            this.hasExistingAccount    = el.dataset.hasExistingAccount === 'true';
+            this.showCreateAccount     = el.dataset.requiresAccount === 'true';
+        },
+
+        async checkEmail() {
+            if (!this.email) return;
+            // HTMX handles the check-email call — this method is for Alpine-only state updates
+            // after the HTMX response updates #email-status via hx-target
+            this.hasExistingAccount = false; // reset; HTMX response sets it via _EmailStatus partial
+        },
+
+        async signIn() {
+            this.signInLoading = true;
+            this.signInError   = '';
+            try {
+                const res = await fetch('/api/merchello/checkout/sign-in', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: this.email, password: this.signInPassword }),
+                });
+                if (res.ok) {
+                    window.location.reload(); // Reload: session now has member context
+                } else {
+                    const err = await res.json();
+                    this.signInError = err.errorMessage ?? 'Sign-in failed. Please try again.';
+                }
+            } catch {
+                this.signInError = 'A network error occurred.';
+            } finally {
+                this.signInLoading = false;
+            }
+        },
+
+        async createAccount() {
+            if (this.password !== this.confirmPassword) {
+                this.createError = 'Passwords do not match.';
+                return;
+            }
+            this.createLoading = true;
+            this.createError   = '';
+            try {
+                const res = await fetch('/api/merchello/checkout/create-account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: this.email, password: this.password }),
+                });
+                if (res.ok) {
+                    window.location.reload();
+                } else {
+                    const err = await res.json();
+                    this.createError = err.errorMessage ?? 'Account creation failed.';
+                }
+            } catch {
+                this.createError = 'A network error occurred.';
+            } finally {
+                this.createLoading = false;
+            }
+        },
+
+        openForgotPassword() {
+            this.$dispatch('open-forgot-password', { email: this.email });
+        },
+
+        toggleCreateAccountPassword() {
+            this.showCreateAccountPassword = !this.showCreateAccountPassword;
+        },
+    };
+}
+```
+
+Initial state rendered as `data-*` by Razor on the `x-data="accountSection"` element:
+```razor
+<div x-data="accountSection"
+     data-is-logged-in="@Model.IsLoggedIn.ToString().ToLowerInvariant()"
+     data-email="@(Model.Session?.Email ?? "")"
+     data-has-existing-account="false"
+     data-requires-account="@Model.HasDigitalProducts.ToString().ToLowerInvariant()">
+```
+
+---
+
+### Gap 14: `upsellInterstitial` Alpine Component Spec
+
+```typescript
+// components/upsell-interstitial.ts
+export function upsellInterstitial() {
+    return {
+        visible: false,
+        addingProductId: null as string | null,
+        addError: '',
+
+        init() {
+            const el = this.$el as HTMLElement;
+            const basketId = el.dataset.basketId ?? '';
+            const key = `merchello:checkout:upsells:seen:${basketId}`;
+            if (!sessionStorage.getItem(key)) {
+                this.visible = true;
+            }
+        },
+
+        dismiss() {
+            const el = this.$el as HTMLElement;
+            const basketId = el.dataset.basketId ?? '';
+            sessionStorage.setItem(`merchello:checkout:upsells:seen:${basketId}`, '1');
+            this.visible = false;
+        },
+
+        async addToCart(productId: string, quantity: number) {
+            this.addingProductId = productId;
+            this.addError = '';
+            try {
+                const res = await fetch('/api/merchello/storefront/basket/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId, quantity }),
+                });
+                if (res.ok) {
+                    // Full reload — basket changed, all checkout sections need recalculation
+                    window.location.reload();
+                } else {
+                    this.addError = 'Could not add item. Please try again.';
+                }
+            } catch {
+                this.addError = 'A network error occurred.';
+            } finally {
+                this.addingProductId = null;
+            }
+        },
+    };
+}
+```
+
+---
+
+### Gap 15: HTMX 2.x Behavioral Notes
+
+HTMX 2.0.4 is a major version; notable behavioral differences from 1.x relevant to this implementation:
+
+| Behavior | HTMX 1.x | HTMX 2.x (this project) |
+|---|---|---|
+| `hx-on` syntax | `hx-on="htmx:afterSwap:..."` | `hx-on:htmx:after-swap="..."` (kebab-case event) |
+| OOB swap event | `htmx:oob-after-swap` | `htmx:oobAfterSwap` (camelCase) |
+| DELETE/PUT | Simulated via POST `_method` override | Real HTTP verbs — use `[HttpDelete]`, `[HttpPut]` |
+| `hx-swap-oob="true"` | Supported | Still supported (1.x syntax preserved) |
+| Global scroll | `htmx.config.defaultSwapStyle` | `htmx.config.scrollBehavior` available but do NOT set globally |
+| Boosting | `hx-boost="true"` on body | Supported but not used in checkout |
+
+Do NOT set `htmx.config.scrollBehavior = 'smooth'` globally — use manual `scrollIntoView` in `htmx:afterSettle` for targeted scroll as described in Gap 9.
+
+HTMX 2.x does not support the `hx-ws` WebSocket extension by default; it is a separate extension. Not needed for checkout.
+
+---
+
+### Gap 16: CSP Compatibility
+
+**HTMX + Alpine CSP considerations for the checkout:**
+
+HTMX `innerHTML` swaps are NOT blocked by `script-src` CSP directives — it inserts HTML elements, not inline scripts.
+
+Alpine 3.x with pre-registered components via `Alpine.data()` does NOT require `unsafe-eval` — the `evaluate()` path (which requires `unsafe-eval`) is only used for inline `x-data="{ ... }"` object syntax. All checkout components use the registered factory pattern, so `unsafe-eval` is NOT needed.
+
+Alpine inline event handlers (`x-on:click`, `@click`) do NOT use `unsafe-eval` — they compile at init time, not `eval()`.
+
+**HTMX script tag with nonce-based CSP:**
+```razor
+<script src="/App_Plugins/Merchello/js/vendor/htmx.min.js"
+        nonce="@Model.CspNonce"></script>
+```
+
+If the application uses nonce-based CSP, add `nonce` to HTMX, Alpine, and the checkout entry-point script tag. The checkout `_Layout.cshtml` should pass `CspNonce` from `CheckoutViewModel`.
+
+**Summary:** The HTMX + Alpine migration does not worsen the CSP posture relative to the current Alpine-only implementation. No new `unsafe-*` directives required.
+
+---
+
+### Gap 17: Browser History Decision
+
+**Do NOT use `hx-push-url` anywhere in the checkout.**
+
+Rationale: The checkout is a single URL (`/checkout`) with sections revealed progressively via HTMX swaps. Pushing URL state for each step would:
+- Break the browser back button (pressing back during checkout would navigate to a previous step state rather than away from checkout)
+- Create bookmarkable URLs for in-progress checkout states that require session context to be meaningful
+- Duplicate the step-management complexity that HTMX replaces
+
+The existing back-button protection in `confirmation.ts` (which prevents navigating back to `/checkout` from the confirmation page) remains unchanged.
+
+Analytics step tracking is done via `data-checkout-step` attribute and `window.MerchelloLogger.trackCheckoutStep()` in the `htmx:afterSettle` handler — no URL changes required.
+
+---
+
+### Gap 18: `MerchelloCheckoutController` Exact Injection Changes
+
+For Phase 3 task — adding Google auto-discount and upsell suggestions to `RenderSinglePageCheckoutAsync()`:
+
+**Constructor changes** (add optional parameters for backward compatibility with DI containers that don't register these services):
+```csharp
+public MerchelloCheckoutController(
+    // ... existing parameters ...
+    IUpsellEngine? upsellEngine = null,
+    IUpsellContextBuilder? upsellContextBuilder = null,
+    ICheckoutDiscountService? checkoutDiscountService = null)
+```
+
+**In `RenderSinglePageCheckoutAsync()`, after basket initialization, BEFORE order grouping:**
+
+```csharp
+// 1. Apply Google auto-discount (middleware sets HttpContext.Items entry)
+var googleDiscount = HttpContext.Items["MerchelloGoogleAutoDiscount"] as GoogleAutoDiscountActiveDto;
+if (googleDiscount != null && _checkoutDiscountService != null)
+{
+    await _checkoutDiscountService.ApplyGoogleAutoDiscountAsync(
+        new ApplyGoogleAutoDiscountParameters
+        {
+            BasketId = basket.Id,
+            Discount = googleDiscount,
+        }, ct);
+    // Reload basket after discount applied
+    basket = await _basketService.GetBasketAsync(basket.Id, ct) ?? basket;
+}
+
+// 2. Load upsell suggestions (non-blocking on null engine)
+IReadOnlyList<UpsellSuggestionDto> upsellSuggestions = [];
+if (_upsellEngine != null && _upsellContextBuilder != null && basket.LineItems.Count > 0)
+{
+    var context = await _upsellContextBuilder.BuildContextAsync(basket, ct);
+    upsellSuggestions = await _upsellEngine.GetSuggestionsAsync(context, ct);
+}
+
+// 3. Assign to ViewModel (CheckoutViewModel.UpsellSuggestions must be added)
+viewModel.UpsellSuggestions = upsellSuggestions;
+```
+
+Add `UpsellSuggestions` property to `CheckoutViewModel`:
+```csharp
+public IReadOnlyList<UpsellSuggestionDto> UpsellSuggestions { get; set; } = [];
+```
+
+Code location: `src/Merchello/Controllers/MerchelloCheckoutController.cs`, method `RenderSinglePageCheckoutAsync()`.
+
+---
+
+### Gap 20: `address-autocomplete.ts` Full Component Spec
+
+```typescript
+// components/address-autocomplete.ts
+import { debounce } from '../utils/debounce.js';
+
+interface AddressSuggestion {
+    id: string;
+    text: string;
+    description: string;
+}
+
+export function addressAutocomplete() {
+    return {
+        prefix: 'Billing' as 'Billing' | 'Shipping',
+        isEnabled: false,
+        providerAlias: '',
+        minQueryLength: 3,
+        supportedCountries: [] as string[],
+
+        query: '',
+        suggestions: [] as AddressSuggestion[],
+        showSuggestions: false,
+        loading: false,
+        selectedIndex: -1,
+
+        init() {
+            const el = this.$el as HTMLElement;
+            this.prefix             = (el.dataset.prefix ?? 'Billing') as 'Billing' | 'Shipping';
+            this.isEnabled          = el.dataset.lookupEnabled === 'true';
+            this.providerAlias      = el.dataset.lookupProvider ?? '';
+            this.minQueryLength     = parseInt(el.dataset.lookupMinLength ?? '3');
+            this.supportedCountries = JSON.parse(el.dataset.lookupCountries ?? '[]');
+        },
+
+        onInput: debounce(async function(this: any) {
+            if (!this.isEnabled) return;
+            if (this.query.length < this.minQueryLength) {
+                this.clearSuggestions();
+                return;
+            }
+            // Check if selected country is supported
+            const countryInput = document.querySelector<HTMLSelectElement>(
+                `[name="${this.prefix}CountryCode"]`);
+            const country = countryInput?.value ?? '';
+            if (this.supportedCountries.length > 0 && !this.supportedCountries.includes(country)) {
+                return;
+            }
+            await this.getSuggestions(country);
+        }, 300),
+
+        async getSuggestions(country: string) {
+            this.loading = true;
+            try {
+                const res = await fetch('/api/merchello/checkout/address-lookup/suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: this.query,
+                        country,
+                        providerAlias: this.providerAlias,
+                    }),
+                });
+                if (res.ok) {
+                    this.suggestions  = await res.json();
+                    this.showSuggestions = this.suggestions.length > 0;
+                    this.selectedIndex   = -1;
+                }
+            } catch { /* non-critical */ } finally {
+                this.loading = false;
+            }
+        },
+
+        async selectSuggestion(id: string) {
+            this.loading = true;
+            this.clearSuggestions();
+            try {
+                const res = await fetch('/api/merchello/checkout/address-lookup/resolve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, providerAlias: this.providerAlias }),
+                });
+                if (res.ok) {
+                    const address = await res.json();
+                    this.fillAddressFields(address);
+                }
+            } catch { /* non-critical */ } finally {
+                this.loading = false;
+            }
+        },
+
+        fillAddressFields(address: Record<string, string>) {
+            const p = this.prefix;
+            const set = (field: string, value: string) => {
+                const el = document.querySelector<HTMLInputElement>(`[name="${p}${field}"]`);
+                if (el) { el.value = value; el.dispatchEvent(new Event('input')); }
+            };
+            set('AddressOne',  address.addressOne  ?? '');
+            set('AddressTwo',  address.addressTwo  ?? '');
+            set('TownCity',    address.townCity     ?? '');
+            set('CountyState', address.countyState  ?? '');
+            set('PostalCode',  address.postalCode   ?? '');
+            set('CountryCode', address.countryCode  ?? '');
+            set('RegionCode',  address.regionCode   ?? '');
+        },
+
+        clearSuggestions() {
+            this.suggestions     = [];
+            this.showSuggestions = false;
+            this.selectedIndex   = -1;
+        },
+
+        onKeydown(evt: KeyboardEvent) {
+            if (!this.showSuggestions) return;
+            if (evt.key === 'ArrowDown') {
+                evt.preventDefault();
+                this.selectedIndex = Math.min(this.selectedIndex + 1, this.suggestions.length - 1);
+            } else if (evt.key === 'ArrowUp') {
+                evt.preventDefault();
+                this.selectedIndex = Math.max(this.selectedIndex - 1, 0);
+            } else if (evt.key === 'Enter' && this.selectedIndex >= 0) {
+                evt.preventDefault();
+                this.selectSuggestion(this.suggestions[this.selectedIndex].id);
+            } else if (evt.key === 'Escape') {
+                this.clearSuggestions();
+            }
+        },
+    };
+}
+```
+
+Address lookup config must be rendered as `data-*` attributes in `SinglePage.cshtml` from `CheckoutViewModel.AddressLookupConfig` to avoid a separate init fetch:
+```razor
+<div x-data="addressAutocomplete"
+     data-prefix="Billing"
+     data-lookup-enabled="@Model.AddressLookupConfig.IsEnabled.ToString().ToLowerInvariant()"
+     data-lookup-provider="@Model.AddressLookupConfig.ProviderAlias"
+     data-lookup-min-length="@Model.AddressLookupConfig.MinQueryLength"
+     data-lookup-countries="@Json.Serialize(Model.AddressLookupConfig.SupportedCountries)">
+```
+
+---
+
+### Gap 21: Delivery Date Markup in `_ShippingOptions.cshtml`
+
+Full shipping option row markup including delivery date:
+
+```razor
+@foreach (var option in group.Options)
+{
+    <label class="shipping-option-row" for="shipping-@option.SelectionKey">
+        <input type="radio"
+               id="shipping-@option.SelectionKey"
+               name="Selections[@group.GroupId]"
+               value="@option.SelectionKey"
+               @(option.IsSelected ? "checked" : "")
+               hx-post="/checkout/partials/shipping/select"
+               hx-trigger="change"
+               hx-target="#order-summary"
+               hx-swap="innerHTML"
+               hx-sync="closest form:replace"
+               hx-include="closest form"
+               hx-indicator="#summary-spinner" />
+        <div class="flex-1 min-w-0">
+            <span class="font-medium block">@option.Name</span>
+            @if (!string.IsNullOrEmpty(option.DeliveryDescription))
+            {
+                <span class="text-sm text-gray-500 block">@option.DeliveryDescription</span>
+            }
+            @if (option.EstimatedDeliveryDate.HasValue)
+            {
+                <span class="text-sm text-gray-400 block">
+                    Estimated: @option.EstimatedDeliveryDate.Value.ToString("ddd, MMM d")
+                </span>
+            }
+        </div>
+        <span class="font-semibold ml-4 shrink-0">
+            @if (option.DisplayCost == 0)
+            {
+                <text>Free</text>
+            }
+            else
+            {
+                @($"{Model.CurrencySymbol}{option.DisplayCost.ToString($"N{Model.CurrencyDecimalPlaces}")}")
+            }
+        </span>
+    </label>
+}
+```
+
+Note: Verify `ShippingOptionViewModel` (or the DTO it maps from in `Merchello.Core.Checkout.Dtos`) includes `DeliveryDescription` (string?) and `EstimatedDeliveryDate` (DateOnly? or DateTime?). If not, add them to the DTO and populate in the shipping quote service.
+
+---
+
+### Gap 22: `_OrderSummary.cshtml` Server-Rendered Razor Template Structure
+
+The single-page checkout branch replaces the existing Alpine `$store.checkout`-driven template. Key structural patterns:
+
+```razor
+@model Merchello.Models.Checkout.OrderSummaryViewModel
+<div id="order-summary"
+     data-announcement="Order summary updated"
+     x-data="{ expanded: @(Model.IsPartialSwap ? "false" : "true") }">
+
+    @* Mobile expand/collapse header — only shown in sticky bar context (IsPartialSwap = true) *@
+    @if (Model.IsPartialSwap)
+    {
+        <button type="button" class="w-full flex justify-between items-center p-4"
+                @click="expanded = !expanded">
+            <span class="font-medium">Order Summary</span>
+            <span>@Model.FormattedTotal</span>
+        </button>
+    }
+
+    <div x-show="expanded" x-collapse>
+        @* Line items *@
+        @foreach (var item in Model.LineItems)
+        {
+            <div class="order-summary-item flex gap-3 p-4">
+                @if (!string.IsNullOrEmpty(item.ImageUrl))
+                {
+                    <img src="@item.ImageUrl" alt="@item.Name"
+                         class="w-16 h-16 object-cover rounded" loading="lazy" />
+                }
+                <div class="flex-1">
+                    <p class="font-medium">@item.Name</p>
+                    @if (item.SelectedOptions.Any())
+                    {
+                        <p class="text-sm text-gray-500">
+                            @string.Join(", ", item.SelectedOptions.Select(o => o.Value))
+                        </p>
+                    }
+                    @foreach (var addon in item.Addons)
+                    {
+                        <p class="text-sm text-gray-500">+ @addon.Name</p>
+                    }
+                    <p class="text-sm">Qty: @item.Quantity</p>
+                </div>
+                <p class="font-semibold">@item.FormattedLineTotal</p>
+            </div>
+        }
+
+        @* Applied discounts *@
+        @foreach (var discount in Model.AppliedDiscounts)
+        {
+            <div class="flex justify-between items-center px-4 py-2 text-green-700">
+                <div class="flex items-center gap-2">
+                    <span>@discount.Name</span>
+                    <form hx-delete="/checkout/partials/discount/@discount.DiscountId"
+                          hx-target="#order-summary" hx-swap="innerHTML">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="text-xs underline">Remove</button>
+                    </form>
+                </div>
+                <span>-@discount.FormattedAmount</span>
+            </div>
+        }
+
+        @* Discount code form (OOB target: #discount-form) *@
+        @await Html.PartialAsync("_DiscountForm", Model.DiscountFormViewModel)
+
+        @* Totals *@
+        <div class="border-t px-4 py-3 space-y-1 text-sm">
+            <div class="flex justify-between">
+                <span>Subtotal</span>
+                <span>@Model.FormattedSubTotal</span>
+            </div>
+            <div class="flex justify-between">
+                <span>Shipping</span>
+                <span>@Model.FormattedShipping</span>
+            </div>
+            @if (!Model.DisplayPricesIncTax && Model.DisplayTax > 0)
+            {
+                <div class="flex justify-between">
+                    <span>Tax</span>
+                    <span>@Model.FormattedTax</span>
+                </div>
+            }
+            @if (Model.DisplayDiscount > 0)
+            {
+                <div class="flex justify-between text-green-700">
+                    <span>Discount</span>
+                    <span>-@Model.FormattedDiscount</span>
+                </div>
+            }
+        </div>
+        <div class="flex justify-between font-semibold text-base border-t px-4 py-3">
+            <span>Total</span>
+            <span>
+                @Model.FormattedTotal
+                @if (!string.IsNullOrEmpty(Model.TaxIncludedMessage))
+                {
+                    <span class="block text-xs font-normal text-gray-500">
+                        @Model.TaxIncludedMessage
+                    </span>
+                }
+            </span>
+        </div>
+    </div>
+</div>
+```
+
+`OrderSummaryViewModel` additions needed (beyond what's in existing spec):
+- `FormattedSubTotal`, `FormattedShipping`, `FormattedTax`, `FormattedDiscount`, `FormattedTotal` — pre-formatted strings from server (no JS formatting)
+- `DiscountFormViewModel` — nested sub-model for the discount form partial
+- `IsPartialSwap` — bool: `false` for full-page sidebar, `true` for HTMX OOB swap (controls mobile collapse toggle visibility)
+
+---
+
+### Gap 23: `_PaymentMethods.cshtml` and `_ShippingOptions.cshtml` Markup Structure
+
+#### `_ShippingOptions.cshtml` Root Structure
+
+```razor
+@model Merchello.Models.Checkout.ShippingOptionsViewModel
+<div id="shipping-section"
+     class="checkout-section"
+     data-checkout-step="shipping"
+     data-announcement="Shipping options loaded">
+
+    <h2 class="checkout-section-heading">Shipping</h2>
+
+    @foreach (var group in Model.Groups)
+    {
+        <form hx-post="/checkout/partials/shipping"
+              hx-target="#payment-section"
+              hx-swap="innerHTML"
+              hx-sync="this:queue first"
+              hx-indicator=".checkout-loading-overlay">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="GroupId" value="@group.GroupId" />
+
+            @if (Model.Groups.Count > 1)
+            {
+                <h3 class="text-sm font-medium text-gray-600 mb-2">@group.GroupName</h3>
+            }
+
+            @foreach (var option in group.Options)
+            {
+                @* See Gap 21 for full option row markup with delivery date *@
+                <label class="shipping-option-row" for="shipping-@option.SelectionKey">
+                    <input type="radio"
+                           id="shipping-@option.SelectionKey"
+                           name="Selections[@group.GroupId]"
+                           value="@option.SelectionKey"
+                           @(option.IsSelected ? "checked" : "")
+                           hx-post="/checkout/partials/shipping/select"
+                           hx-trigger="change"
+                           hx-target="#order-summary"
+                           hx-swap="innerHTML"
+                           hx-sync="closest form:replace"
+                           hx-include="closest form"
+                           hx-indicator="#summary-spinner" />
+                    @* ... option label content — see Gap 21 *@
+                </label>
+            }
+
+            <button type="submit" class="btn btn-primary w-full mt-4">
+                <span class="htmx-indicator animate-spin h-4 w-4 inline mr-2 hidden"><!-- spinner --></span>
+                Continue to Payment
+            </button>
+        </form>
+    }
+</div>
+```
+
+#### `_PaymentMethods.cshtml` Root Structure
+
+```razor
+@model Merchello.Models.Checkout.PaymentMethodsViewModel
+<div id="payment-section"
+     class="checkout-section"
+     data-checkout-step="payment"
+     data-announcement="Payment methods loaded">
+
+    <h2 class="checkout-section-heading">Payment</h2>
+
+    <div x-data="paymentForm"
+         data-methods='@Json.Serialize(Model.Methods)'
+         data-saved-methods='@Json.Serialize(Model.SavedMethods)'
+         data-can-vault="@Model.CanVault.ToString().ToLowerInvariant()"
+         data-invoice-id="@Model.InvoiceId"
+         data-return-url="@Model.ReturnUrl"
+         data-cancel-url="@Model.CancelUrl">
+
+        @* Express checkout (above payment methods if configured above) *@
+        @if (Model.ShowExpressAbovePayment && Model.ExpressProviders.Any())
+        {
+            <div x-data="expressCheckout" data-providers='@Json.Serialize(Model.ExpressProviders)'>
+                @* Express buttons rendered by expressCheckout component *@
+            </div>
+            <div class="separator text-center text-sm text-gray-400 my-4">or pay with card</div>
+        }
+
+        @* Payment method radio selection *@
+        @foreach (var method in Model.Methods)
+        {
+            <label class="payment-method-row flex items-center gap-3 p-3 border rounded cursor-pointer mb-2"
+                   :class="{ 'border-blue-500 bg-blue-50': selectedMethod?.providerAlias === '@method.ProviderAlias' }">
+                <input type="radio"
+                       name="paymentMethod"
+                       value="@method.ProviderAlias"
+                       @@change="selectMethod(@Json.Serialize(method))"
+                       class="sr-only" />
+                @if (!string.IsNullOrEmpty(method.IconUrl))
+                {
+                    <img src="@method.IconUrl" alt="@method.DisplayName" class="h-6" />
+                }
+                <span>@method.DisplayName</span>
+            </label>
+        }
+
+        @* Saved payment methods (if any) *@
+        @if (Model.SavedMethods.Any())
+        {
+            <div class="mt-3">
+                <p class="text-sm font-medium text-gray-600 mb-2">Saved payment methods</p>
+                @foreach (var saved in Model.SavedMethods)
+                {
+                    <label class="payment-method-row flex items-center gap-3 p-3 border rounded cursor-pointer mb-2"
+                           :class="{ 'border-blue-500 bg-blue-50': selectedSavedMethod?.id === '@saved.Id' }">
+                        <input type="radio"
+                               name="paymentMethod"
+                               value="saved:@saved.Id"
+                               @@change="selectSavedMethod(@Json.Serialize(saved))"
+                               class="sr-only" />
+                        <span>@saved.DisplayLabel</span>
+                    </label>
+                }
+            </div>
+        }
+
+        @* Payment SDK mount point — populated by MerchelloPayment.initiatePayment() *@
+        <div id="payment-form-container" class="mt-4"></div>
+
+        @* Error display *@
+        <div x-show="error" x-cloak role="alert"
+             class="text-red-600 text-sm mt-2" x-text="error"></div>
+
+        @* Terms acceptance *@
+        @if (!string.IsNullOrEmpty(Model.TermsUrl))
+        {
+            <label class="flex items-start gap-2 mt-4 text-sm">
+                <input type="checkbox" x-model="$store.paymentState.acceptedTerms"
+                       class="mt-0.5" />
+                <span>
+                    I agree to the
+                    <button type="button" @@click="$dispatch('open-terms')"
+                            class="underline">Terms and Conditions</button>
+                </span>
+            </label>
+        }
+
+        @* Place order button *@
+        <button type="button"
+                class="btn btn-primary w-full mt-4"
+                :disabled="!$store.paymentState.canSubmit || $store.paymentState.isSubmitting"
+                :class="{ 'opacity-50 cursor-not-allowed': !$store.paymentState.canSubmit || $store.paymentState.isSubmitting }"
+                @@click="submitOrder()">
+            <span class="htmx-indicator animate-spin h-4 w-4 inline mr-2 hidden"><!-- spinner --></span>
+            <span x-text="$store.paymentState.isSubmitting ? 'Processing...' : 'Place Order'">
+                Place Order
+            </span>
+        </button>
+    </div>
+</div>
+```
+
+---
+
+### Gap 24: `CheckoutPartialsController.SaveAddresses` — Annotated Sequential Service Call Pattern
+
+```csharp
+[HttpPost("addresses")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> SaveAddresses(
+    [FromForm] SaveAddressesFormModel model, CancellationToken ct)
+{
+    // Step 1: Resolve basket + session (EFCoreScope call 1)
+    var (basket, session) = await _sessionResolver.ResolveAsync(ct);
+    if (basket is null) return EmptyBasketError();
+
+    // Step 2: Validate model (Data Annotations + FluentValidation)
+    if (!ModelState.IsValid)
+        return ValidationError(model); // 422 with _ValidationErrors partial
+
+    // Step 3: Map form model → service parameters
+    var parameters = MapToSaveAddressesParameters(model, basket.Id);
+
+    // Step 4: Save addresses (EFCoreScope call 2)
+    var saveResult = await _checkoutService.SaveAddressesAsync(parameters, ct);
+    if (!saveResult.Success)
+        return ValidationError(saveResult, model); // 422 with error messages
+
+    // Step 5: Calculate basket with new addresses — auto-select cheapest shipping
+    //         (EFCoreScope call 3)
+    var calcResult = await _checkoutService.CalculateBasketAsync(
+        new CalculateBasketParameters
+        {
+            BasketId          = basket.Id,
+            AutoSelectShipping = true,
+        }, ct);
+
+    // Step 6: Build shipping options ViewModel (EFCoreScope call 4)
+    var shippingVm = await _viewModelBuilder.BuildShippingOptionsAsync(
+        calcResult.OrderGroupingResult, ct);
+
+    // Step 7: Build order summary ViewModel (EFCoreScope call 5)
+    var summaryVm = await _viewModelBuilder.BuildOrderSummaryAsync(
+        calcResult.Basket, ct);
+
+    // Step 8: Build mobile total ViewModel (derived — no additional EFCoreScope)
+    var mobileTotalVm = _viewModelBuilder.BuildMobileTotal(calcResult.Basket, summaryVm);
+
+    // Step 9: Build display context for HX-Trigger (from summaryVm — no additional EFCoreScope)
+    Response.Headers.Append("HX-Trigger",
+        BuildBasketUpdatedTrigger(calcResult.Basket, summaryVm.DisplayContext));
+
+    // Step 10: Return primary swap + OOB fragments (no async after this point)
+    // Primary: #shipping-section (HTMX form hx-target)
+    // OOB: #order-summary, #mobile-total
+    return PartialViewWithOob("_ShippingOptions", shippingVm,
+        ("_OrderSummary", "order-summary", summaryVm),
+        ("_MobileTotal",  "mobile-total",  mobileTotalVm));
+}
+```
+
+All 10 steps are sequential (no `Task.WhenAll`) to respect the EFCoreScope `AsyncLocal` ambient transaction constraint.
+
+`PartialViewWithOob()` is a helper method on `CheckoutPartialsController` base class that renders the primary partial and appends OOB fragments as `hx-swap-oob="true"` divs:
+
+```csharp
+protected async Task<IActionResult> PartialViewWithOob(
+    string primaryPartial, object primaryModel,
+    params (string partial, string targetId, object model)[] oobFragments)
+{
+    // Render primary partial
+    var primaryHtml = await RenderPartialToStringAsync(primaryPartial, primaryModel);
+
+    // Append OOB fragments
+    var sb = new StringBuilder(primaryHtml);
+    foreach (var (partial, targetId, model) in oobFragments)
+    {
+        var oobHtml = await RenderPartialToStringAsync(partial, model);
+        sb.Append($"""<div id="{targetId}" hx-swap-oob="innerHTML">{oobHtml}</div>""");
+    }
+
+    return Content(sb.ToString(), "text/html");
+}
+```
