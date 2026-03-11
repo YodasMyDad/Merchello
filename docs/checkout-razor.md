@@ -958,7 +958,9 @@ Place in `src/Merchello/Services/Interfaces/ICheckoutViewModelBuilder.cs` (inter
 // src/Merchello/Models/Checkout/ShippingOptionsViewModel.cs
 public class ShippingOptionsViewModel
 {
-    public IReadOnlyList<ShippingGroupDto> ShippingGroups { get; init; } = [];
+    // Display-ready groups — ICheckoutViewModelBuilder maps ShippingGroupDto → ShippingGroupViewModel,
+    // applying display currency conversion to all option costs
+    public IReadOnlyList<ShippingGroupViewModel> ShippingGroups { get; init; } = [];
     public Dictionary<string, string> SelectedShippingOptions { get; init; } = new();
     public IReadOnlyList<UpsellSuggestionDto> UpsellSuggestions { get; init; } = [];
     public IReadOnlyList<string> ItemAvailabilityErrors { get; init; } = [];
@@ -970,6 +972,29 @@ public class ShippingOptionsViewModel
     public decimal ExchangeRate { get; init; } = 1m;
     public int CurrencyDecimalPlaces { get; init; } = 2;
     public bool DisplayPricesIncTax { get; init; }
+}
+
+// src/Merchello/Models/Checkout/ShippingGroupViewModel.cs
+public class ShippingGroupViewModel
+{
+    public Guid GroupId { get; init; }
+    public string GroupName { get; init; } = "";
+    public IReadOnlyList<ShippingOptionViewModel> Options { get; init; } = [];
+}
+
+// src/Merchello/Models/Checkout/ShippingOptionViewModel.cs
+public class ShippingOptionViewModel
+{
+    // Stable selection key: "so:{guid}" for flat-rate, "dyn:{provider}:{serviceCode}" for dynamic
+    public string SelectionKey { get; init; } = "";
+    public string Name { get; init; } = "";
+    // Display cost already converted to display currency (amount * exchangeRate, rounded)
+    public decimal DisplayCost { get; init; }
+    // Pre-formatted string (e.g., "£4.99" or "Free")
+    public string FormattedDisplayCost { get; init; } = "";
+    public bool IsSelected { get; init; }
+    public string? DeliveryDescription { get; init; }
+    public string? EstimatedDeliveryDate { get; init; }
 }
 
 // src/Merchello/Models/Checkout/OrderSummaryViewModel.cs
@@ -986,6 +1011,13 @@ public class OrderSummaryViewModel
     public decimal DisplayTax { get; init; }
     public decimal DisplayTotal { get; init; }
 
+    // Pre-formatted display strings (e.g., "£12.99") — used directly in Razor templates
+    public string FormattedSubTotal { get; init; } = "";
+    public string FormattedShipping { get; init; } = "";
+    public string FormattedTax { get; init; } = "";
+    public string FormattedDiscount { get; init; } = "";
+    public string FormattedTotal { get; init; } = "";
+
     // Tax-inclusive variants
     public bool DisplayPricesIncTax { get; init; }
     public decimal TaxInclusiveDisplaySubTotal { get; init; }
@@ -1000,6 +1032,9 @@ public class OrderSummaryViewModel
     // Config
     public bool ShowDiscountCode { get; init; }
     public bool IsPartialSwap { get; init; } // True when rendered as OOB swap (skip mobile collapse button)
+
+    // Nested sub-model for _DiscountForm partial inclusion inside _OrderSummary
+    public DiscountFormViewModel DiscountFormViewModel { get; init; } = new();
 }
 
 public class OrderSummaryLineItemViewModel
@@ -1037,14 +1072,23 @@ public class OrderSummaryDiscountViewModel
 // src/Merchello/Models/Checkout/PaymentMethodsViewModel.cs
 public class PaymentMethodsViewModel
 {
-    public IReadOnlyList<PaymentMethodDto> PaymentMethods { get; init; } = [];
+    // Named 'Methods' (not 'PaymentMethods') — Gap 23 template uses Model.Methods throughout
+    public IReadOnlyList<PaymentMethodDto> Methods { get; init; } = [];
     public IReadOnlyList<SavedPaymentMethodDto> SavedMethods { get; init; } = [];
-    public bool CanSavePaymentMethods { get; init; }
+    // Named 'CanVault' (not 'CanSavePaymentMethods') — Gap 23 template uses data-can-vault="@Model.CanVault"
+    public bool CanVault { get; init; }
     public Guid? InvoiceId { get; init; }
     public string ReturnUrl { get; init; } = "/checkout/return";
     public string CancelUrl { get; init; } = "/checkout/cancel";
     public bool CreditLimitExceeded { get; init; }
     public OrderTermsDto? OrderTerms { get; init; } // Terms checkbox config (moved INTO payment section)
+    // When true, a second express checkout container is shown inside the payment section
+    // (configurable via CheckoutSettings.ShowExpressInPaymentSection — defaults to false)
+    public bool ShowExpressAbovePayment { get; init; }
+    // Express providers for the optional in-payment express section
+    public IReadOnlyList<ExpressPaymentMethodDto> ExpressProviders { get; init; } = [];
+    // Non-null when terms acceptance is required before order placement
+    public string? TermsUrl { get; init; }
 }
 
 // src/Merchello/Models/Checkout/EmailStatusViewModel.cs
@@ -1063,6 +1107,9 @@ public class DiscountFormViewModel
     public bool ShowDiscountCode { get; init; }
     public string? ErrorMessage { get; init; }
     public string? SuccessMessage { get; init; }
+    // Populated from ApplyDiscountFormModel.Code when returning 422 validation error,
+    // so the input field retains the submitted value without JavaScript
+    public string? SubmittedCode { get; init; }
 }
 
 // src/Merchello/Models/Checkout/MobileTotalViewModel.cs
@@ -1091,7 +1138,8 @@ public interface ICheckoutViewModelBuilder
     Task<PaymentMethodsViewModel> BuildPaymentMethodsAsync(CheckoutSession session, bool runCreditCheck, CancellationToken ct);
     Task<EmailStatusViewModel> BuildEmailStatusAsync(string email, Basket basket, CancellationToken ct);
     Task<MobileTotalViewModel> BuildMobileTotalAsync(Basket basket, CancellationToken ct);
-    DiscountFormViewModel BuildDiscountForm(bool showDiscountCode, string? error = null, string? success = null);
+    DiscountFormViewModel BuildDiscountForm(bool showDiscountCode, string? error = null, string? success = null, string? submittedCode = null);
+    Task<AddressLookupConfigViewModel> BuildAddressLookupConfigAsync(CancellationToken ct);
 }
 ```
 
@@ -1881,6 +1929,45 @@ Loading states needed:
 - Region dropdown: inline spinner during country change
 - Form submit buttons: disabled + spinner during submission
 
+Also add to `checkout.css` the slow-shipping fallback message and section fade-in transitions:
+
+```css
+/* Slow shipping fallback message — shows after 8 seconds of waiting */
+.shipping-slow-message { display: none; }
+.htmx-request .shipping-slow-message {
+    animation: show-after-delay 0s 8s forwards;
+}
+@keyframes show-after-delay {
+    to { display: block; }
+}
+
+/* Disable submit button during HTMX request */
+.htmx-request button[type="submit"],
+.htmx-request input[type="submit"] {
+    opacity: 0.6;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+/* Shipping/payment section loading overlay */
+#shipping-section.htmx-request,
+#payment-section.htmx-request {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Section fade-in after HTMX swap — smooth content reveal */
+#shipping-section, #payment-section {
+    animation: section-fade-in 200ms ease-in;
+}
+@keyframes section-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+```
+
+**Note:** The `section-fade-in` animation fires on every page load AND after each HTMX swap (because HTMX swaps recreate the DOM node, restarting CSS animations automatically). No JavaScript needed.
+
 ## Stable URL Paths (Preserved)
 
 All existing paths remain valid:
@@ -2328,6 +2415,20 @@ After Phase 7 (when `Client/public/js/checkout/` is deleted), Vite no longer cop
 "build": "npm run test:run && npm run build:backoffice && npm run build:checkout"
 ```
 
+#### Vite Config: No Change Needed
+
+**Do NOT change `emptyOutDir` in `vite.config.ts`.** The existing `emptyOutDir: true` is correct and must stay.
+
+Why this works without changes:
+
+- `emptyOutDir: true` causes Vite to clear `outDir` at the start of `build:backoffice`
+- Vite then copies `Client/public/` into `outDir` via `publicDir`
+- During Phases 1–6, `Client/public/js/checkout/` still exists, so Vite copies old checkout JS
+- After Phase 7 (legacy JS deleted), `Client/public/js/checkout/` no longer exists — Vite copies nothing into `js/checkout/`
+- The esbuild step (`build:checkout:js`), running after Vite, writes the compiled TypeScript output into `js/checkout/`
+
+**Do NOT set `emptyOutDir: false`** — that would allow stale backoffice bundles to accumulate across builds. The build order (`build:backoffice` then `build:checkout`) is what ensures correctness, not the `emptyOutDir` setting.
+
 ### Tailwind Content Globs
 
 Update `src/Merchello/Styles/tailwind.config.js` to scan **source** files (not output):
@@ -2575,6 +2676,24 @@ All phases must be developed on a feature branch and deployed atomically. Betwee
 - `src/Merchello/App_Plugins/Merchello/Views/Checkout/_DiscountForm.cshtml`
 - `src/Merchello/App_Plugins/Merchello/Views/Checkout/_MobileTotal.cshtml`
 - `src/Merchello/App_Plugins/Merchello/Views/Checkout/_ValidationErrors.cshtml`
+- `src/Merchello/Models/Checkout/ShippingOptionsViewModel.cs`
+- `src/Merchello/Models/Checkout/ShippingGroupViewModel.cs`
+- `src/Merchello/Models/Checkout/ShippingOptionViewModel.cs`
+- `src/Merchello/Models/Checkout/OrderSummaryViewModel.cs`
+- `src/Merchello/Models/Checkout/OrderSummaryLineItemViewModel.cs`
+- `src/Merchello/Models/Checkout/OrderSummaryAddonViewModel.cs`
+- `src/Merchello/Models/Checkout/OrderSummaryDiscountViewModel.cs`
+- `src/Merchello/Models/Checkout/PaymentMethodsViewModel.cs`
+- `src/Merchello/Models/Checkout/EmailStatusViewModel.cs`
+- `src/Merchello/Models/Checkout/DiscountFormViewModel.cs`
+- `src/Merchello/Models/Checkout/MobileTotalViewModel.cs`
+- `src/Merchello/Models/Checkout/ValidationErrorsViewModel.cs`
+- `src/Merchello/Models/Checkout/RegionSelectViewModel.cs`
+- `src/Merchello/Models/Checkout/AddressFormViewModel.cs`
+- `src/Merchello/Models/Checkout/AddressLookupConfigViewModel.cs`
+- `src/Merchello/Services/Interfaces/ICheckoutViewModelBuilder.cs`
+- `src/Merchello/Services/CheckoutViewModelBuilder.cs`
+- `src/Merchello/Client/scripts/build-checkout.mjs`
 
 **Files to modify:**
 - `src/Merchello/App_Plugins/Merchello/Views/Checkout/SinglePage.cshtml` — extract sections into partials, add HTMX attributes, remove `x-data="singlePageCheckout"` mega-component, add section `id` attributes
@@ -2585,7 +2704,10 @@ All phases must be developed on a feature branch and deployed atomically. Betwee
 - `src/Merchello/Controllers/MerchelloCheckoutController.cs` — add Google auto-discount application during page render (read `HttpContext.Items["MerchelloGoogleAutoDiscount"]`, call `ApplyGoogleAutoDiscountAsync`)
 
 **Tasks:**
-1. Create `CheckoutPartialsController` with `[ServiceFilter(typeof(CheckoutExceptionFilter))]`, `IRateLimiter`, and granular endpoints (address save, shipping select, shipping submit, discount apply/remove, region load, email check, upsell add)
+
+1. Create `CheckoutPartialsController` with `[ServiceFilter(typeof(CheckoutPartialsExceptionFilter))]`, `IRateLimiter`, and granular endpoints (address save, shipping select, shipping submit, discount apply/remove, region load, email check, upsell add). **Do NOT apply `[ServiceFilter(typeof(CheckoutExceptionFilter))]`** — that filter is for JSON API endpoints and returns JSON error bodies; the partials filter returns HTML error fragments.
+1a. Create `src/Merchello/Filters/CheckoutPartialsExceptionFilter.cs` — catches unhandled exceptions in `CheckoutPartialsController` and returns a 500 HTML fragment (uses `_ValidationErrors` partial) so HTMX can swap in a user-facing error rather than leaving the section blank. Implementation in "CheckoutExceptionFilter Path Guard" section.
+1b. Register: `builder.Services.AddScoped<Filters.CheckoutPartialsExceptionFilter>();` in `Startup.cs`.
 2. Extract `_ShippingOptions.cshtml` from SinglePage.cshtml lines ~584-736 (include delivery date descriptions, self-contained CSS wrapper)
 3. Extract `_PaymentMethods.cshtml` from SinglePage.cshtml lines ~738-1059 (include credit check in the build method, self-contained CSS wrapper)
 4. Extract `_DiscountForm.cshtml` from `_OrderSummary.cshtml` (convert `x-model="discountCode"` to standard `<input name="code">`)
@@ -2607,7 +2729,7 @@ All phases must be developed on a feature branch and deployed atomically. Betwee
 20. Ensure mobile sticky action bar total has `id="mobile-total"` for OOB swaps and submit button triggers `paymentForm` component
 21. Add rate limiting to `check-email` (10/min), `discount/apply` (20/min), `addresses` (10/min), `upsell/add` (20/min)
 22. Create `ICheckoutViewModelBuilder` service (interface in `src/Merchello/Services/Interfaces/`, implementation in `src/Merchello/Services/`) — encapsulates display context resolution, currency conversion, and ViewModel construction for all partials (see "Partial ViewModel Definitions" section)
-23. Create 7 ViewModel classes in `src/Merchello/Models/Checkout/` (`ShippingOptionsViewModel`, `OrderSummaryViewModel`, `PaymentMethodsViewModel`, `EmailStatusViewModel`, `DiscountFormViewModel`, `MobileTotalViewModel`, `ValidationErrorsViewModel`)
+23. Create 15 ViewModel classes in `src/Merchello/Models/Checkout/` — one file per class (CLAUDE.md convention): `ShippingOptionsViewModel`, `ShippingGroupViewModel`, `ShippingOptionViewModel`, `OrderSummaryViewModel`, `OrderSummaryLineItemViewModel`, `OrderSummaryAddonViewModel`, `OrderSummaryDiscountViewModel`, `PaymentMethodsViewModel`, `EmailStatusViewModel`, `DiscountFormViewModel`, `MobileTotalViewModel`, `ValidationErrorsViewModel`, `RegionSelectViewModel`, `AddressFormViewModel`, `AddressLookupConfigViewModel`. Full property specifications for each are in "Partial ViewModel Definitions" and Gap 30.
 24. Migrate `_AddressForm.cshtml` field names from Alpine `x-model` to HTML `name` attributes matching `SaveAddressesFormModel` properties (see "Address Form Field Name Migration" section for complete mapping table)
 25. Render `allItemsShippable` and `itemAvailabilityErrors` server-side in `_ShippingOptions.cshtml` from shipping calculation result
 26. Move order terms checkbox into `_PaymentMethods.cshtml` partial (inside `paymentForm` Alpine scope) so it survives HTMX payment section swaps and is accessible to `$store.paymentState.acceptedTerms`
@@ -2778,6 +2900,11 @@ public class AddressFormViewModel
     public string? PrefilledCountryCode { get; init; }
     public string? PrefilledRegionCode { get; init; }
     public string? PrefilledPhone { get; init; }
+    /// <summary>
+    /// Compact = single-page checkout style (condensed labels). Always true for HTMX checkout.
+    /// Only set false if rendering address form in a full-page multi-step layout.
+    /// </summary>
+    public bool IsCompact { get; init; } = true;
 }
 ```
 
@@ -2987,6 +3114,24 @@ Update:
   - Build step now includes JS: `npm run build:checkout`
   - HTMX vendored at `Client/public/js/vendor/htmx.min.js`
 - `.claude/CLAUDE.md` — update checkout asset pipeline section to match AGENTS.md changes
+
+### Browser Cache / Stale Tab Safety
+
+**Scenario:** A user has a checkout tab open when the deployment goes live. They have the OLD `index.js` loaded in memory.
+
+**What happens:**
+
+- The old `singlePageCheckout` Alpine component will call `/api/merchello/checkout/*` JSON endpoints — these are **preserved** (see "Existing JSON API Endpoints Stay" section). The user completes checkout normally with the old flow.
+- A user opening the checkout fresh after deployment gets the new `index.js` (HTMX-based) and hits `/checkout/partials/*` which now exists.
+- No special handling required. The JSON API preservation makes this a zero-downtime migration.
+
+**Dangerous intermediate state:** If Phase 3 (HTMX attributes on views) deploys WITHOUT Phase 4 (new `index.js`), the views will have `hx-post` attributes but the browser will still load the old `index.js`. The old Alpine component ignores HTMX attributes, so mutations fall back to the old Alpine/API flow — degraded but not broken.
+
+**Recommendation:** Deploy Phase 3 and Phase 4 atomically as a single PR (already documented under "PR 2" in "Phase Ordering & Atomic Deployment"). Never deploy Phase 3 in isolation to production.
+
+**Cache busting:** The checkout assets are served at stable paths (no content hash). After deployment, browsers may serve the old `index.js` from cache until TTL expires or user hard-refreshes. If your CDN or reverse proxy caches these files, ensure you purge `/App_Plugins/Merchello/js/checkout/*` as part of the deployment pipeline.
+
+---
 
 ## Decision: `Return.cshtml` Inline Component
 
@@ -3497,6 +3642,110 @@ export function paymentForm(): AlpineComponent<any> {
 
 ---
 
+### Gap 4: Complete `build-checkout.mjs` Script
+
+The `build:checkout:js` npm script runs `node scripts/build-checkout.mjs`. Full implementation:
+
+```javascript
+// scripts/build-checkout.mjs
+// Located at: src/Merchello/Client/scripts/build-checkout.mjs
+
+import * as esbuild from 'esbuild';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const outDir = resolve(__dirname, '../wwwroot/App_Plugins/Merchello/js/checkout');
+const srcDir = resolve(__dirname, '../src/checkout');
+const isWatch = process.argv.includes('--watch');
+
+// ESM bundles — checkout.ts and payment.ts each import their own dependencies.
+// Alpine and @alpinejs/collapse are external: resolved at runtime via the import map in _Layout.cshtml.
+const esmEntries = [
+  resolve(srcDir, 'checkout.ts'),
+  resolve(srcDir, 'payment.ts'),
+];
+
+// Classic IIFE bundles — analytics scripts that assign to window globals
+const iifeEntries = [
+  resolve(srcDir, 'analytics.ts'),
+  resolve(srcDir, 'single-page-analytics.ts'),
+  resolve(srcDir, 'confirmation.ts'),
+  resolve(srcDir, 'post-purchase.ts'),
+];
+
+// Payment adapter IIFE bundles — all output into adapters/ subdirectory.
+// Each adapter self-registers: window.MerchelloPaymentAdapters[key] = {...}
+// globalName is NOT needed in esbuild config — adapters use explicit window property assignment.
+const adapterEntries = [
+  resolve(srcDir, 'adapters/adapter-interface.ts'),
+  resolve(srcDir, 'adapters/stripe-payment-adapter.ts'),
+  resolve(srcDir, 'adapters/stripe-card-elements-adapter.ts'),
+  resolve(srcDir, 'adapters/stripe-express-adapter.ts'),
+  resolve(srcDir, 'adapters/braintree-payment-adapter.ts'),
+  resolve(srcDir, 'adapters/braintree-local-payment-adapter.ts'),
+  resolve(srcDir, 'adapters/braintree-express-adapter.ts'),
+  resolve(srcDir, 'adapters/paypal-unified-adapter.ts'),
+  resolve(srcDir, 'adapters/worldpay-payment-adapter.ts'),
+  resolve(srcDir, 'adapters/worldpay-express-adapter.ts'),
+];
+
+const baseConfig = {
+  bundle: true,
+  sourcemap: true,
+  target: ['es2022', 'chrome100', 'firefox100', 'safari15'],
+  logLevel: 'info',
+};
+
+const esmConfig = {
+  ...baseConfig,
+  entryPoints: esmEntries,
+  format: 'esm',
+  external: ['alpinejs', '@alpinejs/collapse'],
+  outdir: outDir,
+  entryNames: '[name]',
+};
+
+const iifeConfig = {
+  ...baseConfig,
+  entryPoints: iifeEntries,
+  format: 'iife',
+  outdir: outDir,
+  entryNames: '[name]',
+};
+
+const adapterConfig = {
+  ...baseConfig,
+  entryPoints: adapterEntries,
+  format: 'iife',
+  outdir: resolve(outDir, 'adapters'),
+  entryNames: '[name]',
+};
+
+if (isWatch) {
+  const [esmCtx, iifeCtx, adapterCtx] = await Promise.all([
+    esbuild.context(esmConfig),
+    esbuild.context(iifeConfig),
+    esbuild.context(adapterConfig),
+  ]);
+  await Promise.all([esmCtx.watch(), iifeCtx.watch(), adapterCtx.watch()]);
+  console.log('[build-checkout] Watching for changes...');
+} else {
+  await Promise.all([
+    esbuild.build(esmConfig),
+    esbuild.build(iifeConfig),
+    esbuild.build(adapterConfig),
+  ]);
+  console.log('[build-checkout] Build complete.');
+}
+```
+
+**Note on `adapter-interface.ts` dual usage:** It is built as an IIFE here for backoffice compatibility but is also imported as an ESM module by `payment.ts`. esbuild handles this cleanly — the IIFE `adapters/adapter-interface.js` is the backoffice-compatible standalone; the ESM-bundled `payment.js` inlines the adapter-interface module directly. No duplication concern.
+
+**Note on `Promise.all` in watch mode:** The `Promise.all([esmCtx.watch(), ...])` in watch mode is safe here — this is a build tool script, not a request handler. It does NOT go through Umbraco's `IEFCoreScopeProvider`. The EFCoreScope `Task.WhenAll` ban applies only to service/controller code touching the database.
+
+---
+
 ### Gap 5: `BuildBasketUpdatedTrigger()` Helper in `CheckoutPartialsController`
 
 Add this private method to `CheckoutPartialsController`:
@@ -3649,14 +3898,17 @@ iOS Safari zooms in when focused inputs have `font-size < 16px`. Prevent uncondi
 ```css
 /* checkout.css */
 .checkout-sticky-bar {
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    /* Use max() not calc() — ensures padding is at least 1rem AND at least the safe area */
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 body.checkout-page {
     /* Prevent content from hiding under sticky bar + home indicator */
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(5rem, calc(4rem + env(safe-area-inset-bottom)));
 }
 ```
+
+**Why `max()` not `calc()`:** `calc(1rem + env(safe-area-inset-bottom, 0px))` always adds 1rem even when `safe-area-inset-bottom` is 0 (flat phones, desktop), resulting in unnecessary extra padding. `max(1rem, env(safe-area-inset-bottom))` gives exactly 1rem on flat screens and correctly uses the safe area height on notched phones without double-padding.
 
 Add `checkout-page` class to `<body>` in `_Layout.cshtml` when rendering the checkout view.
 
@@ -3979,8 +4231,9 @@ bool paymentAmountChanged = previousTotal != newTotal;
 
 var oobFragments = new List<(string partial, string targetId, object vm)>
 {
-    ("_OrderSummary", "order-summary", summaryVm),
-    ("_MobileTotal",  "mobile-total",  mobileTotalVm),
+    ("_OrderSummary", "order-summary",        summaryVm),
+    ("_MobileTotal",  "mobile-total",         mobileTotalVm),
+    ("_MobileTotal",  "mobile-summary-total", mobileTotalVm), // inside mobile collapse toggle header
 };
 
 if (paymentAmountChanged)
@@ -4270,6 +4523,128 @@ Code location: `src/Merchello/Controllers/MerchelloCheckoutController.cs`, metho
 
 ---
 
+### Gap 19: `validation.ts` Full Component Spec
+
+Alpine `x-data` factory for real-time field validation UX. Used on the address form (`x-data="validation"`).
+
+```typescript
+// src/Merchello/Client/src/checkout/components/validation.ts
+
+export function validation() {
+    return {
+        errors: {} as Record<string, string>,
+        touched: {} as Record<string, boolean>,
+        _rules: {} as Record<string, (v: string) => string | null>,
+
+        init() {
+            this.$el.querySelectorAll<HTMLInputElement>('[data-validate]').forEach(input => {
+                input.addEventListener('blur', () => {
+                    this.touched[input.name] = true;
+                    this.validateField(input.name, input.value);
+                });
+                input.addEventListener('input', () => {
+                    if (this.touched[input.name] && this.errors[input.name]) {
+                        delete this.errors[input.name];
+                    }
+                });
+            });
+        },
+
+        validateField(name: string, value: string): boolean {
+            const rule = this._rules[name];
+            if (!rule) return true;
+            const error = rule(value.trim());
+            if (error) {
+                this.errors[name] = error;
+                return false;
+            }
+            delete this.errors[name];
+            return true;
+        },
+
+        validateAll(): boolean {
+            let valid = true;
+            this.$el.querySelectorAll<HTMLInputElement>('[data-validate]').forEach(input => {
+                this.touched[input.name] = true;
+                if (!this.validateField(input.name, input.value)) valid = false;
+            });
+            if (!valid) {
+                const count = Object.keys(this.errors).length;
+                window.MerchelloLogger?.announce?.(
+                    `Form has ${count} error${count > 1 ? 's' : ''}. Please correct and try again.`
+                );
+            }
+            return valid;
+        },
+
+        hasError(name: string): boolean {
+            return !!this.errors[name];
+        },
+
+        errorFor(name: string): string {
+            return this.errors[name] ?? '';
+        },
+    };
+}
+
+// Built-in validation rules (registered in checkout.ts via Alpine.data)
+// Used by _AddressForm.cshtml fields with data-validate attribute
+export const ValidationRules = {
+    required: (v: string) => v.length === 0 ? 'This field is required.' : null,
+    email: (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : 'Please enter a valid email address.',
+    phone: (v: string) =>
+        v.replace(/[\s\-+()\d]/g, '').length === 0 && v.replace(/\D/g, '').length >= 7
+            ? null : 'Please enter a valid phone number.',
+    postalCode: (v: string) => v.length >= 3 ? null : 'Please enter a valid postal code.',
+};
+```
+
+**How it gates HTMX submission:** The address form's `hx-on:htmx:before-request` handler calls `validateAll()`. If it returns `false`, the handler calls `event.preventDefault()` to abort the HTMX request:
+
+```html
+<form x-data="validation"
+      hx-post="/checkout/partials/addresses"
+      hx-target="#shipping-section"
+      hx-on:htmx:before-request="if (!validateAll()) event.preventDefault()">
+    <input name="billingFirstName" data-validate required />
+    <!-- remaining fields -->
+</form>
+```
+
+**Rule binding:** Rules are registered once in `checkout.ts` after Alpine is initialised:
+
+```typescript
+// In checkout.ts init block
+import { validation, ValidationRules } from './components/validation.js';
+Alpine.data('validation', () => ({
+    ...validation(),
+    _rules: {
+        billingFirstName: ValidationRules.required,
+        billingLastName:  ValidationRules.required,
+        billingEmail:     ValidationRules.email,
+        billingPhone:     ValidationRules.phone,
+        billingAddressOne: ValidationRules.required,
+        billingTownCity:   ValidationRules.required,
+        billingPostalCode: ValidationRules.postalCode,
+        // shipping rules added when sameAsBilling === false
+    },
+}));
+```
+
+Error display in `_AddressForm.cshtml` (per-field):
+
+```html
+<input name="billingFirstName"
+       data-validate
+       class="form-input"
+       :class="{ 'border-red-500': hasError('billingFirstName') }" />
+<p x-show="hasError('billingFirstName')"
+   class="text-red-500 text-xs mt-1"
+   x-text="errorFor('billingFirstName')"></p>
+```
+
+---
+
 ### Gap 20: `address-autocomplete.ts` Full Component Spec
 
 ```typescript
@@ -4499,7 +4874,7 @@ The single-page checkout branch replaces the existing Alpine `$store.checkout`-d
                     @if (item.SelectedOptions.Any())
                     {
                         <p class="text-sm text-gray-500">
-                            @string.Join(", ", item.SelectedOptions.Select(o => o.Value))
+                            @string.Join(", ", item.SelectedOptions)
                         </p>
                     }
                     @foreach (var addon in item.Addons)
@@ -4518,11 +4893,12 @@ The single-page checkout branch replaces the existing Alpine `$store.checkout`-d
             <div class="flex justify-between items-center px-4 py-2 text-green-700">
                 <div class="flex items-center gap-2">
                     <span>@discount.Name</span>
-                    <form hx-delete="/checkout/partials/discount/@discount.DiscountId"
-                          hx-target="#order-summary" hx-swap="innerHTML">
-                        @Html.AntiForgeryToken()
-                        <button type="submit" class="text-xs underline">Remove</button>
-                    </form>
+                    @* Note: no @Html.AntiForgeryToken() here — token lives outside all swap targets in SinglePage.cshtml.
+                       HTMX sends it via RequestVerificationToken header (set in htmx:configRequest handler in checkout.ts). *@
+                    <button type="button"
+                            hx-delete="/checkout/partials/discount/@discount.Id"
+                            hx-target="#order-summary" hx-swap="outerHTML"
+                            class="text-xs underline">Remove</button>
                 </div>
                 <span>-@discount.FormattedAmount</span>
             </div>
@@ -4819,4 +5195,305 @@ protected async Task<IActionResult> PartialViewWithOob(
 
     return Content(sb.ToString(), "text/html");
 }
+```
+
+#### OOB Mobile Order Summary — Required in All Mutation Endpoints
+
+Every controller action that updates `#order-summary` MUST also include `#mobile-order-summary` as a second OOB target. The mobile sticky bar shows a collapsible order summary on small screens — it must stay in sync with the desktop sidebar on every mutation.
+
+Pattern (used in `SaveShipping`, `ApplyDiscount`, `RemoveDiscount`, `AddUpsell`):
+
+```csharp
+return await PartialViewWithOob("_ShippingOptions", shippingVm,
+    ("_OrderSummary", "order-summary",        summaryVm),
+    ("_MobileTotal",  "mobile-total",         mobileTotalVm),
+    ("_OrderSummary", "mobile-order-summary", summaryVm with { IsPartialSwap = true }));
+```
+
+The same `_OrderSummary.cshtml` partial is reused for both OOB targets:
+
+- `IsPartialSwap = false` (desktop sidebar) — renders full summary, no collapse toggle
+- `IsPartialSwap = true` (mobile sticky bar) — renders with Alpine `expanded` state and a collapse button
+
+The `mobile-order-summary` element is inside the mobile sticky action bar in `SinglePage.cshtml`:
+
+```html
+<div id="mobile-order-summary" class="lg:hidden">
+    @* Initial render: full page load populates this from CheckoutViewModel.OrderSummaryViewModel *@
+    @if (Model.OrderSummaryViewModel != null)
+    {
+        @await Html.PartialAsync("_OrderSummary",
+            Model.OrderSummaryViewModel with { IsPartialSwap = true })
+    }
+</div>
+```
+
+---
+
+### Gap 25: Initial Page Render — Sequential Build Pattern in `MerchelloCheckoutController`
+
+`RenderSinglePageCheckoutAsync()` builds all ViewModels sequentially before returning the full page. No `Task.WhenAll` — EFCoreScope `AsyncLocal` ambient transaction forbids concurrent DB calls.
+
+```csharp
+public async Task<IActionResult> RenderSinglePageCheckoutAsync(CancellationToken ct)
+{
+    // 1. Basket (always needed — redirect if empty)
+    var basket = await _checkoutService.GetBasket(new GetBasketParameters(), ct);
+    if (basket is null || basket.LineItems.Count == 0)
+        return Redirect("/");
+
+    // 2. Session (needed for restore-on-refresh logic)
+    var session = await _sessionService.GetSessionAsync(basket.Id, ct);
+
+    // 3. Google auto-discount (from middleware cookie set upstream)
+    var googleDiscount = HttpContext.Items["MerchelloGoogleAutoDiscount"] as GoogleAutoDiscountActiveDto;
+    if (googleDiscount != null && _checkoutDiscountService != null)
+    {
+        await _checkoutDiscountService.ApplyGoogleAutoDiscountAsync(
+            new ApplyGoogleAutoDiscountParameters { BasketId = basket.Id, Discount = googleDiscount }, ct);
+        // Reload basket to get updated totals
+        basket = await _checkoutService.GetBasket(new GetBasketParameters(), ct) ?? basket;
+    }
+
+    // 4. Upsell suggestions (null engine = feature disabled, graceful degradation)
+    IReadOnlyList<UpsellSuggestionDto> upsellSuggestions = [];
+    if (_upsellEngine != null && basket.LineItems.Count > 0)
+    {
+        var context = await _upsellContextBuilder!.BuildContextAsync(basket, ct);
+        upsellSuggestions = await _upsellEngine.GetSuggestionsAsync(context, ct);
+    }
+
+    // 5. Order summary (always shown on initial load)
+    var summaryVm = await _viewModelBuilder.BuildOrderSummaryAsync(basket, ct);
+
+    // 6. Shipping options (only if addresses already saved — restore-on-refresh)
+    ShippingOptionsViewModel? shippingVm = null;
+    if (session?.BillingAddress != null)
+    {
+        var calcResult = await _checkoutService.CalculateBasketAsync(
+            new CalculateBasketParameters { BasketId = basket.Id, AutoSelectShipping = true }, ct);
+        shippingVm = await _viewModelBuilder.BuildShippingOptionsAsync(calcResult.OrderGroupingResult, ct);
+    }
+
+    // 7. Payment methods (only if shipping already selected — restore-on-refresh)
+    PaymentMethodsViewModel? paymentVm = null;
+    if (session?.SelectedShippingOptions?.Count > 0)
+    {
+        paymentVm = await _viewModelBuilder.BuildPaymentMethodsAsync(
+            session, runCreditCheck: false, ct);
+    }
+
+    // 8. Address lookup config (for autocomplete component data-* attributes)
+    var addressLookupVm = await _viewModelBuilder.BuildAddressLookupConfigAsync(ct);
+
+    // 9. Assemble full CheckoutViewModel
+    var viewModel = new CheckoutViewModel
+    {
+        // ... existing properties populated by current code ...
+        UpsellSuggestions        = upsellSuggestions,
+        OrderSummaryViewModel    = summaryVm,
+        ShippingOptionsViewModel = shippingVm,
+        PaymentMethodsViewModel  = paymentVm,
+        AddressLookupConfig      = addressLookupVm,
+    };
+
+    return View("SinglePage", viewModel);
+}
+```
+
+All steps sequential, no `Task.WhenAll`. This is the only correct pattern given EFCoreScope constraints.
+
+---
+
+### Gap 26: Service Method Verification Before Implementing `CheckoutPartialsController`
+
+Before writing controller code, verify these service method names against the actual codebase. The JSON API controller (`CheckoutApiController.cs`) is the authoritative reference for currently working method names.
+
+| Method Name Used in This Doc | Verify In | Status |
+|---|---|---|
+| `ICheckoutService.SaveAddressesAsync()` | `CheckoutService.cs` | Exists — no change needed |
+| `ICheckoutService.CalculateBasketAsync()` | `CheckoutService.cs` | Exists — single source of truth |
+| `ICheckoutDiscountService.ApplyDiscountCodeAsync()` | `CheckoutDiscountService.cs` | **Verify name** — may be `ApplyDiscountAsync()` |
+| `ICheckoutDiscountService.RemovePromotionalDiscountAsync()` | `CheckoutDiscountService.cs` | **Verify name** — may be `RemoveDiscountAsync()` |
+| `ICheckoutService.CheckEmailAsync()` | Look in `CheckoutApiController.cs` `CheckEmail` action | **May not exist** — check if it uses `ICustomerService.GetByEmailAsync()` directly |
+| `ICheckoutService.AddUpsellToBasketAsync()` | Look in upsell controllers | **May not exist** — may be `IStorefrontService.AddToBasketAsync()` or similar |
+| `ILocalityService.GetRegionsAsync(countryCode)` | `CheckoutApiController.cs` `GetRegions` action | **Verify service + method name** |
+
+**Resolution:** Open `CheckoutApiController.cs` and find how each operation is currently called. Use the exact same service + method in `CheckoutPartialsController`. Never invent a new method name — call what already exists.
+
+---
+
+### Gap 27: Antiforgery Token in Email Check Endpoint
+
+The `POST /checkout/partials/check-email` endpoint uses `[ValidateAntiForgeryToken]`. The email input triggers an HTMX request on `blur`. Clarification on how the token reaches the server:
+
+The token does NOT need to be inside `#email-status` (the HTMX swap target). It is placed once in `SinglePage.cshtml` **outside all swap targets** and is never replaced by any HTMX swap. The `htmx:configRequest` handler in `checkout.ts` reads it from the DOM and adds it as the `RequestVerificationToken` request header on every HTMX request.
+
+```typescript
+// In checkout.ts htmx:configRequest handler
+document.addEventListener('htmx:configRequest', (e: Event) => {
+    const event = e as CustomEvent<{ headers: Record<string, string> }>;
+    const token = document.querySelector<HTMLInputElement>(
+        'input[name="__RequestVerificationToken"]'
+    )?.value;
+    if (token) {
+        event.detail.headers['RequestVerificationToken'] = token;
+    }
+});
+```
+
+Email input HTMX attributes:
+
+```html
+<input id="checkout-email"
+       name="email"
+       type="email"
+       hx-post="/checkout/partials/check-email"
+       hx-target="#email-status"
+       hx-trigger="blur delay:300ms"
+       hx-swap="innerHTML"
+       hx-sync="this:replace"
+       autocomplete="email"
+       inputmode="email"
+       data-email-capture />
+```
+
+`[ValidateAntiForgeryToken]` on ASP.NET Core checks both the form field `__RequestVerificationToken` AND the `RequestVerificationToken` header — no special configuration needed.
+
+---
+
+### Gap 28: Antiforgery Token in OOB Swap Partials
+
+**Do NOT place `@Html.AntiForgeryToken()` inside any partial that is returned as an HTMX OOB swap.**
+
+The original `_DiscountForm.cshtml` template in Gap 10 includes `@Html.AntiForgeryToken()` inside the form. This must be removed. When `_DiscountForm.cshtml` is swapped into `#discount-form` as an OOB target, the new token would be inserted into the DOM alongside the existing token (from `SinglePage.cshtml`). Two tokens in the DOM causes `querySelector('input[name="__RequestVerificationToken"]')` to find whichever comes first in DOM order — this can be the stale OOB-swapped token if placement order differs.
+
+The `htmx:configRequest` handler reads the token from the single persistent token in `SinglePage.cshtml` which is placed before all swap targets and is NEVER replaced. This is safe because:
+
+1. `SinglePage.cshtml` renders `@Html.AntiForgeryToken()` once, outside all HTMX swap targets
+2. That token is valid for the lifetime of the page session
+3. ASP.NET Core antiforgery tokens don't expire during normal checkout flow (they are session-tied, not time-limited)
+
+**Rule:** No OOB swap partial should contain `@Html.AntiForgeryToken()`. Remove it from `_DiscountForm.cshtml`. The only `@Html.AntiForgeryToken()` call in the checkout is in `SinglePage.cshtml`.
+
+---
+
+### Gap 29: Consolidated `CheckoutViewModel` Property Additions
+
+All new properties added to `src/Merchello/Models/CheckoutViewModel.cs` (additions only — existing properties unchanged):
+
+```csharp
+// In CheckoutViewModel.cs — add these properties:
+
+/// <summary>Upsell suggestions for interstitial display above the checkout form.</summary>
+public IReadOnlyList<UpsellSuggestionDto> UpsellSuggestions { get; set; } = [];
+
+/// <summary>
+/// Order summary for initial page render.
+/// Built by ICheckoutViewModelBuilder.BuildOrderSummaryAsync().
+/// </summary>
+public OrderSummaryViewModel? OrderSummaryViewModel { get; set; }
+
+/// <summary>
+/// Shipping options for initial page render.
+/// Populated only when session already has a billing address saved (restore-on-refresh).
+/// Null on first visit — shipping section shows address form only.
+/// </summary>
+public ShippingOptionsViewModel? ShippingOptionsViewModel { get; set; }
+
+/// <summary>
+/// Payment methods for initial page render.
+/// Populated only when session.SelectedShippingOptions.Count > 0 (restore-on-refresh).
+/// Null until shipping is confirmed.
+/// </summary>
+public PaymentMethodsViewModel? PaymentMethodsViewModel { get; set; }
+
+/// <summary>
+/// Address lookup autocomplete config. Rendered as data-* attributes on the
+/// address-autocomplete Alpine component to avoid an extra fetch on init.
+/// </summary>
+public AddressLookupConfigViewModel AddressLookupConfig { get; set; } = new();
+```
+
+New file `src/Merchello/Models/Checkout/AddressLookupConfigViewModel.cs`:
+
+```csharp
+namespace Merchello.Models.Checkout;
+
+public class AddressLookupConfigViewModel
+{
+    public bool IsEnabled { get; init; }
+    public string ProviderAlias { get; init; } = "";
+    public int MinQueryLength { get; init; } = 3;
+    public IReadOnlyList<string> SupportedCountries { get; init; } = [];
+}
+```
+
+---
+
+### Gap 30: `_sessionResolver` Naming Clarification and DI Registration
+
+**`_sessionResolver` in Gap 24 is NOT an injected service.** It is shorthand for the private helper method `ResolveSessionAsync()` on `CheckoutPartialsController`. Replace every reference to `await _sessionResolver.ResolveAsync(ct)` with `await ResolveSessionAsync(ct)`.
+
+```csharp
+// Private method on CheckoutPartialsController — NOT a separate DI service
+private async Task<(Basket? basket, CheckoutSession? session)> ResolveSessionAsync(CancellationToken ct)
+{
+    var basket = await _checkoutService.GetBasket(new GetBasketParameters(), ct);
+    if (basket is null || basket.LineItems.Count == 0)
+        return (null, null);
+    var session = await _sessionService.GetSessionAsync(basket.Id, ct);
+    return (basket, session);
+}
+```
+
+**DI registrations for new services** (add in `src/Merchello/Startup.cs` alongside `ICheckoutDtoMapper` registration):
+
+```csharp
+builder.Services.AddScoped<ICheckoutViewModelBuilder, CheckoutViewModelBuilder>();
+builder.Services.AddScoped<Filters.CheckoutPartialsExceptionFilter>();
+```
+
+**Express checkout and `_PaymentMethods.cshtml` — two locations:**
+
+Express checkout appears in two places:
+
+1. **Above the checkout form** (always rendered) — `_ExpressCheckout.cshtml` included in `SinglePage.cshtml` outside all HTMX swap targets. This is the primary express location.
+2. **Inside the payment section** (optional) — rendered inside `_PaymentMethods.cshtml` when `Model.ShowExpressAbovePayment` is `true` (controlled by `CheckoutSettings.ShowExpressInPaymentSection`). Defaults to `false`.
+
+The `ExpressProviders` on `PaymentMethodsViewModel` comes from `ICheckoutPaymentsOrchestrationService.GetPaymentOptionsAsync()` — it returns express providers alongside standard payment methods in one call.
+
+**New ViewModel files list** (all go in `src/Merchello/Models/Checkout/`):
+
+- `ShippingOptionsViewModel.cs`
+- `ShippingGroupViewModel.cs` ← new (was missing from Phase 3 task list)
+- `ShippingOptionViewModel.cs` ← new (was missing from Phase 3 task list)
+- `OrderSummaryViewModel.cs`
+- `OrderSummaryLineItemViewModel.cs`
+- `OrderSummaryAddonViewModel.cs`
+- `OrderSummaryDiscountViewModel.cs`
+- `PaymentMethodsViewModel.cs`
+- `EmailStatusViewModel.cs`
+- `DiscountFormViewModel.cs`
+- `MobileTotalViewModel.cs`
+- `ValidationErrorsViewModel.cs`
+- `RegionSelectViewModel.cs` ← defined in Gap 10, file must be created
+- `AddressFormViewModel.cs` ← required by `_AddressForm.cshtml` @model directive
+- `AddressLookupConfigViewModel.cs` ← new (was missing from Phase 3 task list)
+
+**Phase 3 task 23 correction:** Change "Create 7 ViewModel classes" to "Create 15 ViewModel classes" (the 7 original + 8 additional identified above).
+
+**AGENTS.md additions** (if `src/Merchello/AGENTS.md` exists, add a checkout section):
+
+```markdown
+## Checkout HTMX Architecture
+
+- Source of truth for checkout runtime JS: `src/Merchello/Client/src/checkout/*.ts`
+- Build command: `npm run build:checkout` (Tailwind CSS + esbuild TypeScript)
+- HTMX vendored at: `Client/public/js/vendor/htmx.min.js` (pinned to 2.0.4)
+- `CheckoutPartialsController` at `src/Merchello/Controllers/CheckoutPartialsController.cs` returns HTML fragments (not JSON)
+- `ICheckoutViewModelBuilder` at `src/Merchello/Services/CheckoutViewModelBuilder.cs` builds all partial ViewModels
+- NEVER use `Task.WhenAll` in checkout controller or any service it calls (EFCoreScope constraint)
+- Antiforgery token: placed once in SinglePage.cshtml OUTSIDE all HTMX swap targets; sent via RequestVerificationToken header
+- Do NOT put `@Html.AntiForgeryToken()` inside any OOB swap partial
 ```
