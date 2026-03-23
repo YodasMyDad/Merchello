@@ -636,7 +636,8 @@ public class ServiceTestFixture : IDisposable
                 {
                     Checkout = true,
                     Order = true,
-                    IdentityLinking = false
+                    IdentityLinking = false,
+                    Cart = true
                 },
                 Extensions = new UcpExtensionSettings
                 {
