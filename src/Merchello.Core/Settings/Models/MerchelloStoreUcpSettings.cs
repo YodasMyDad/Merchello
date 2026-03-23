@@ -29,6 +29,15 @@ public class MerchelloStoreUcpSettings
     /// <summary>Overrides UcpCapabilitySettings.IdentityLinking. Null = use appsettings default.</summary>
     public bool? CapabilityIdentityLinking { get; set; }
 
+    /// <summary>Overrides UcpCapabilitySettings.Cart. Null = use appsettings default.</summary>
+    public bool? CapabilityCart { get; set; }
+
+    /// <summary>Overrides UcpCapabilitySettings.CatalogSearch. Null = use appsettings default.</summary>
+    public bool? CapabilityCatalogSearch { get; set; }
+
+    /// <summary>Overrides UcpCapabilitySettings.CatalogLookup. Null = use appsettings default.</summary>
+    public bool? CapabilityCatalogLookup { get; set; }
+
     /// <summary>Overrides UcpExtensionSettings.Discount. Null = use appsettings default.</summary>
     public bool? ExtensionDiscount { get; set; }
 

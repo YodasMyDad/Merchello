@@ -21,4 +21,7 @@ public class UcpCreateSessionRequestDto
 
     [JsonPropertyName("fulfillment")]
     public UcpFulfillmentRequestDto? Fulfillment { get; set; }
+
+    [JsonPropertyName("cart_id")]
+    public string? CartId { get; set; }
 }

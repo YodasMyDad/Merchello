@@ -70,5 +70,23 @@ public class ProtocolAdapterDiscoveryIntegrationTests
 
         public Task<object?> NegotiateCapabilitiesAsync(object fullManifest, IReadOnlyList<string> agentCapabilities, CancellationToken ct = default) =>
             Task.FromResult<object?>(fullManifest);
+
+        public Task<ProtocolResponse> CreateCartAsync(object request, AgentIdentity? agentIdentity, CancellationToken ct = default) =>
+            Task.FromResult(ProtocolResponse.Ok(new { }));
+
+        public Task<ProtocolResponse> GetCartAsync(string cartId, AgentIdentity? agentIdentity, CancellationToken ct = default) =>
+            Task.FromResult(ProtocolResponse.Ok(new { }));
+
+        public Task<ProtocolResponse> UpdateCartAsync(string cartId, object request, AgentIdentity? agentIdentity, CancellationToken ct = default) =>
+            Task.FromResult(ProtocolResponse.Ok(new { }));
+
+        public Task<ProtocolResponse> CancelCartAsync(string cartId, AgentIdentity? agentIdentity, CancellationToken ct = default) =>
+            Task.FromResult(ProtocolResponse.Ok(new { }));
+
+        public Task<ProtocolResponse> SearchCatalogAsync(object request, AgentIdentity? agentIdentity, CancellationToken ct = default) =>
+            Task.FromResult(ProtocolResponse.BadRequest("Not implemented"));
+
+        public Task<ProtocolResponse> LookupCatalogItemAsync(string itemId, AgentIdentity? agentIdentity, CancellationToken ct = default) =>
+            Task.FromResult(ProtocolResponse.BadRequest("Not implemented"));
     }
 }

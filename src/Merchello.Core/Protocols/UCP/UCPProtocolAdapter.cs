@@ -171,24 +171,46 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
 
             var ucpRequest = request as UcpCreateSessionRequestDto;
 
-            // Determine currency - use request currency or store default
-            var currency = ucpRequest?.Currency ?? _merchelloSettings.StoreCurrencyCode;
+            Basket basket;
 
-            // Create a new basket
-            var basket = _checkoutService.CreateBasket(currency, _merchelloSettings.CurrencySymbol);
-
-            // Add line items if provided
-            if (ucpRequest?.LineItems != null)
+            // Cart-to-Checkout conversion: reuse existing cart basket
+            if (!string.IsNullOrEmpty(ucpRequest?.CartId))
             {
-                foreach (var lineItem in ucpRequest.LineItems)
+                if (!Guid.TryParse(ucpRequest.CartId, out var cartBasketId))
                 {
-                    await AddLineItemToBasketAsync(basket, lineItem, ct);
+                    return ProtocolResponse.BadRequest("Invalid cart_id format");
                 }
-            }
 
-            // Save basket first - must exist in DB before applying buyer info or discounts
-            // because SaveAddressesAsync and ApplyDiscountCodeAsync use Update()
-            await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
+                var existingBasket = await _checkoutService.GetBasketByIdAsync(
+                    new GetBasketByIdParameters { BasketId = cartBasketId }, ct);
+                if (existingBasket == null)
+                {
+                    return ProtocolResponse.NotFound($"Cart '{ucpRequest.CartId}' not found");
+                }
+
+                basket = existingBasket;
+            }
+            else
+            {
+                // Determine currency - use request currency or store default
+                var currency = ucpRequest?.Currency ?? _merchelloSettings.StoreCurrencyCode;
+
+                // Create a new basket
+                basket = _checkoutService.CreateBasket(currency, _merchelloSettings.CurrencySymbol);
+
+                // Add line items if provided
+                if (ucpRequest?.LineItems != null)
+                {
+                    foreach (var lineItem in ucpRequest.LineItems)
+                    {
+                        await AddLineItemToBasketAsync(basket, lineItem, ct);
+                    }
+                }
+
+                // Save basket first - must exist in DB before applying buyer info or discounts
+                // because SaveAddressesAsync and ApplyDiscountCodeAsync use Update()
+                await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
+            }
 
             // Apply buyer info if provided (updates the basket in DB)
             if (ucpRequest?.Buyer != null)
@@ -1608,6 +1630,39 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             });
         }
 
+        if (settings.Capabilities.Cart)
+        {
+            capabilities.Add(new UcpCapability
+            {
+                Name = UcpCapabilityNames.Cart,
+                Version = ProtocolVersions.DraftVersion,
+                Spec = "https://ucp.dev/draft/specification/cart/",
+                Schema = "https://ucp.dev/schemas/shopping/cart.json"
+            });
+        }
+
+        if (settings.Capabilities.CatalogSearch)
+        {
+            capabilities.Add(new UcpCapability
+            {
+                Name = UcpCapabilityNames.CatalogSearch,
+                Version = ProtocolVersions.DraftVersion,
+                Spec = "https://ucp.dev/draft/specification/catalog/",
+                Schema = "https://ucp.dev/schemas/shopping/catalog-search.json"
+            });
+        }
+
+        if (settings.Capabilities.CatalogLookup)
+        {
+            capabilities.Add(new UcpCapability
+            {
+                Name = UcpCapabilityNames.CatalogLookup,
+                Version = ProtocolVersions.DraftVersion,
+                Spec = "https://ucp.dev/draft/specification/catalog/",
+                Schema = "https://ucp.dev/schemas/shopping/catalog-lookup.json"
+            });
+        }
+
         return capabilities;
     }
 
@@ -2042,8 +2097,308 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.Order, Version = settings.Version });
         if (settings.Capabilities.IdentityLinking)
             capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.IdentityLinking, Version = settings.Version });
+        if (settings.Capabilities.Cart)
+            capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.Cart, Version = ProtocolVersions.DraftVersion });
+        if (settings.Capabilities.CatalogSearch)
+            capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.CatalogSearch, Version = ProtocolVersions.DraftVersion });
+        if (settings.Capabilities.CatalogLookup)
+            capabilities.Add(new UcpResponseCapability { Name = UcpCapabilityNames.CatalogLookup, Version = ProtocolVersions.DraftVersion });
 
         return capabilities;
+    }
+
+    /// <inheritdoc />
+    public async Task<ProtocolResponse> CreateCartAsync(
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var creatingNotification = new ProtocolCartCreatingNotification(
+                request, ProtocolAliases.Ucp, agentIdentity);
+            if (await _notificationPublisher.PublishCancelableAsync(creatingNotification, ct))
+            {
+                return ProtocolResponse.BadRequest(
+                    creatingNotification.CancelReason ?? "Cart creation cancelled");
+            }
+
+            var ucpRequest = request as UcpCreateCartRequestDto;
+
+            var currency = ucpRequest?.Currency
+                ?? ucpRequest?.Context?.Currency
+                ?? _merchelloSettings.StoreCurrencyCode;
+
+            var basket = _checkoutService.CreateBasket(currency, _merchelloSettings.CurrencySymbol);
+
+            if (ucpRequest?.LineItems != null)
+            {
+                foreach (var lineItem in ucpRequest.LineItems)
+                {
+                    await AddLineItemToBasketAsync(basket, lineItem, ct);
+                }
+            }
+
+            await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
+
+            // Apply context as address hints for tax estimation
+            if (ucpRequest?.Context != null)
+            {
+                await ApplyCartContextAsync(basket, ucpRequest.Context, ct);
+            }
+
+            if (ucpRequest?.Buyer != null)
+            {
+                await ApplyBuyerInfoAsync(basket, ucpRequest.Buyer, ct);
+            }
+
+            var sessionState = await _checkoutService.GetSessionStateAsync(
+                new GetSessionStateParameters { BasketId = basket.Id },
+                ct);
+            if (sessionState == null)
+            {
+                return ProtocolResponse.NotFound("Failed to create cart");
+            }
+
+            await _notificationPublisher.PublishAsync(
+                new ProtocolCartCreatedNotification(sessionState, ProtocolAliases.Ucp, agentIdentity), ct);
+
+            var envelope = WrapCartInEnvelope(sessionState, ucpRequest?.Context, ucpRequest?.Signals);
+            return ProtocolResponse.Created(envelope);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create UCP cart");
+            return ProtocolResponse.BadRequest(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ProtocolResponse> GetCartAsync(
+        string cartId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(cartId, out var basketId))
+        {
+            return ProtocolResponse.BadRequest("Invalid cart ID format");
+        }
+
+        var sessionState = await _checkoutService.GetSessionStateAsync(
+            new GetSessionStateParameters { BasketId = basketId },
+            ct);
+        if (sessionState == null)
+        {
+            return ProtocolResponse.NotFound($"Cart '{cartId}' not found");
+        }
+
+        var envelope = WrapCartInEnvelope(sessionState, null, null);
+        return ProtocolResponse.Ok(envelope);
+    }
+
+    /// <inheritdoc />
+    public async Task<ProtocolResponse> UpdateCartAsync(
+        string cartId,
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(cartId, out var basketId))
+        {
+            return ProtocolResponse.BadRequest("Invalid cart ID format");
+        }
+
+        try
+        {
+            var updatingNotification = new ProtocolCartUpdatingNotification(
+                cartId, request, ProtocolAliases.Ucp, agentIdentity);
+            if (await _notificationPublisher.PublishCancelableAsync(updatingNotification, ct))
+            {
+                return ProtocolResponse.BadRequest(
+                    updatingNotification.CancelReason ?? "Cart update cancelled");
+            }
+
+            var ucpRequest = request as UcpUpdateCartRequestDto;
+
+            var basket = await _checkoutService.GetBasketByIdAsync(
+                new GetBasketByIdParameters { BasketId = basketId },
+                ct);
+            if (basket == null)
+            {
+                return ProtocolResponse.NotFound($"Cart '{cartId}' not found");
+            }
+
+            if (ucpRequest?.LineItems != null)
+            {
+                await ApplyLineItemsAsync(basket, ucpRequest.LineItems, ct);
+            }
+
+            if (ucpRequest?.Context != null)
+            {
+                await ApplyCartContextAsync(basket, ucpRequest.Context, ct);
+            }
+
+            if (ucpRequest?.Buyer != null)
+            {
+                await ApplyBuyerInfoAsync(basket, ucpRequest.Buyer, ct);
+            }
+
+            await _checkoutService.SaveBasketAsync(new SaveBasketParameters { Basket = basket }, ct);
+
+            var sessionState = await _checkoutService.GetSessionStateAsync(
+                new GetSessionStateParameters { BasketId = basketId },
+                ct);
+            if (sessionState == null)
+            {
+                return ProtocolResponse.NotFound($"Cart '{cartId}' not found after update");
+            }
+
+            await _notificationPublisher.PublishAsync(
+                new ProtocolCartUpdatedNotification(sessionState, ProtocolAliases.Ucp, agentIdentity), ct);
+
+            var envelope = WrapCartInEnvelope(sessionState, ucpRequest?.Context, ucpRequest?.Signals);
+            return ProtocolResponse.Ok(envelope);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update UCP cart {CartId}", cartId);
+            return ProtocolResponse.BadRequest(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ProtocolResponse> CancelCartAsync(
+        string cartId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default)
+    {
+        if (!Guid.TryParse(cartId, out var basketId))
+        {
+            return ProtocolResponse.BadRequest("Invalid cart ID format");
+        }
+
+        try
+        {
+            var basket = await _checkoutService.GetBasketByIdAsync(
+                new GetBasketByIdParameters { BasketId = basketId },
+                ct);
+            if (basket == null)
+            {
+                return ProtocolResponse.NotFound($"Cart '{cartId}' not found");
+            }
+
+            await _checkoutService.DeleteBasket(basketId, ct);
+
+            await _notificationPublisher.PublishAsync(
+                new ProtocolCartCanceledNotification(cartId, ProtocolAliases.Ucp, agentIdentity), ct);
+
+            var cancelData = new
+            {
+                id = cartId,
+                status = ProtocolSessionStatuses.Canceled
+            };
+
+            return ProtocolResponse.Ok(WrapDataInEnvelope(cancelData));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cancel UCP cart {CartId}", cartId);
+            return ProtocolResponse.BadRequest(ex.Message);
+        }
+    }
+
+    /// <inheritdoc />
+    public Task<ProtocolResponse> SearchCatalogAsync(
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default)
+    {
+        return Task.FromResult(
+            ProtocolResponse.BadRequest("Catalog search capability not yet implemented", "not_implemented"));
+    }
+
+    /// <inheritdoc />
+    public Task<ProtocolResponse> LookupCatalogItemAsync(
+        string itemId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default)
+    {
+        return Task.FromResult(
+            ProtocolResponse.BadRequest("Catalog lookup capability not yet implemented", "not_implemented"));
+    }
+
+    /// <summary>
+    /// Applies cart context (location hints) as shipping address for tax estimation.
+    /// </summary>
+    private async Task ApplyCartContextAsync(
+        Basket basket,
+        UcpCartContextDto context,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(context.AddressCountry))
+        {
+            return;
+        }
+
+        var addressDto = new UcpAddressDto
+        {
+            CountryCode = context.AddressCountry,
+            AdministrativeArea = context.AddressRegion,
+            PostalCode = context.PostalCode
+        };
+
+        var buyer = new UcpBuyerInfoDto
+        {
+            ShippingAddress = addressDto
+        };
+
+        await ApplyBuyerInfoAsync(basket, buyer, ct);
+    }
+
+    /// <summary>
+    /// Wraps a cart session in the UCP envelope without payment handlers.
+    /// </summary>
+    private object WrapCartInEnvelope(
+        CheckoutSessionState session,
+        UcpCartContextDto? context,
+        UcpCartSignalsDto? signals)
+    {
+        var cartResponse = MapCartToUcpResponse(session, context, signals);
+
+        var ucp = new UcpMetadata
+        {
+            Version = _protocolSettings.Ucp.Version,
+            Capabilities = GetActiveCapabilities(),
+            PaymentHandlers = null
+        };
+
+        return MergeWithUcpMetadata(cartResponse, ucp);
+    }
+
+    /// <summary>
+    /// Maps a session state to a UCP cart response (simpler than checkout — no fulfillment groups, no payment).
+    /// </summary>
+    private object MapCartToUcpResponse(
+        CheckoutSessionState session,
+        UcpCartContextDto? context,
+        UcpCartSignalsDto? signals)
+    {
+        return new
+        {
+            id = session.SessionId,
+            currency = session.Currency,
+            line_items = session.LineItems.Select(li => MapSessionLineItem(li, session.Currency)).ToList(),
+            buyer = MapBuyer(session),
+            context,
+            signals,
+            totals = MapSessionTotals(session.Totals),
+            messages = session.Messages.Select(MapSessionMessage).ToList(),
+            continue_url = string.IsNullOrWhiteSpace(session.ContinueUrl)
+                ? null
+                : BuildAbsoluteUrl(session.ContinueUrl),
+            expires_at = session.ExpiresAt,
+            links = BuildLegalLinks()
+        };
     }
 
     private MerchelloStoreUcpSettings GetEffectiveUcpStoreSettings()
@@ -2079,7 +2434,10 @@ public class UCPProtocolAdapter : ICommerceProtocolAdapter
             {
                 Checkout = db.CapabilityCheckout ?? cfg.Capabilities.Checkout,
                 Order = db.CapabilityOrder ?? cfg.Capabilities.Order,
-                IdentityLinking = db.CapabilityIdentityLinking ?? cfg.Capabilities.IdentityLinking
+                IdentityLinking = db.CapabilityIdentityLinking ?? cfg.Capabilities.IdentityLinking,
+                Cart = db.CapabilityCart ?? cfg.Capabilities.Cart,
+                CatalogSearch = db.CapabilityCatalogSearch ?? cfg.Capabilities.CatalogSearch,
+                CatalogLookup = db.CapabilityCatalogLookup ?? cfg.Capabilities.CatalogLookup
             },
             Extensions = new UcpExtensionSettings
             {

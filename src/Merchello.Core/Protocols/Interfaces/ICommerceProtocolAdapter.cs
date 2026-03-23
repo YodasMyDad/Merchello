@@ -83,6 +83,55 @@ public interface ICommerceProtocolAdapter
         CancellationToken ct = default);
 
     /// <summary>
+    /// Creates a new cart session for pre-checkout exploration (draft spec).
+    /// </summary>
+    Task<ProtocolResponse> CreateCartAsync(
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Retrieves a cart session in protocol-specific format (draft spec).
+    /// </summary>
+    Task<ProtocolResponse> GetCartAsync(
+        string cartId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates a cart session from a protocol-specific request (draft spec).
+    /// </summary>
+    Task<ProtocolResponse> UpdateCartAsync(
+        string cartId,
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Cancels a cart session (draft spec).
+    /// </summary>
+    Task<ProtocolResponse> CancelCartAsync(
+        string cartId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Searches the product catalog (draft spec).
+    /// </summary>
+    Task<ProtocolResponse> SearchCatalogAsync(
+        object request,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Looks up a product or variant by identifier (draft spec).
+    /// </summary>
+    Task<ProtocolResponse> LookupCatalogItemAsync(
+        string itemId,
+        AgentIdentity? agentIdentity,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Filters the manifest to the intersection of agent and business capabilities.
     /// Implements UCP's "server-selects" negotiation model where the business
     /// returns only capabilities both parties support.

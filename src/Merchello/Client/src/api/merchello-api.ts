@@ -665,6 +665,9 @@ export interface StoreConfigurationUcpDto {
   capabilityCheckout?: boolean | null;
   capabilityOrder?: boolean | null;
   capabilityIdentityLinking?: boolean | null;
+  capabilityCart?: boolean | null;
+  capabilityCatalogSearch?: boolean | null;
+  capabilityCatalogLookup?: boolean | null;
   extensionDiscount?: boolean | null;
   extensionFulfillment?: boolean | null;
   extensionBuyerConsent?: boolean | null;
