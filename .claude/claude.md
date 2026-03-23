@@ -4,11 +4,13 @@
 Enterprise ecommerce NuGet for Umbraco v17+.
 Ethos: making enterprise ecommerce simple; avoid over-engineered code.
 
+For comprehensive service method catalogs, API endpoints, entity relationships, and notification event listings, see `docs/Architecture-Diagrams.md`.
+
 ## Read First (CRITICAL)
 1. Trace real code paths before changing anything.
 - Do not assume docs are correct.
 - Start from controller to service to factory/provider, then modify.
-- If you are asked about architecture, read docs/Architecture-Diagrams.md first to get up to speed then check the code base
+- If you are asked about architecture, read `docs/Architecture-Diagrams.md` first to get up to speed then check the code base.
 
 2. Preserve architecture boundaries.
 - Controllers: HTTP orchestration only; no business logic; no `DbContext`.
@@ -24,28 +26,27 @@ Ethos: making enterprise ecommerce simple; avoid over-engineered code.
 | Basket totals | `CheckoutService.CalculateBasketAsync()` |
 | Tax rate lookup | `TaxService.GetApplicableRateAsync()` |
 | Shipping tax proportional math | `ITaxCalculationService.CalculateProportionalShippingTax()` |
-| Payment status | `PaymentService.CalculatePaymentStatus()` |
+| Payment status | `PaymentService.CalculatePaymentStatus()` (sync, not async) |
 | Inventory reserve/allocate/release/reverse | `InventoryService` |
 | Shipping base cost fallback chain | `ShippingCostResolver.ResolveBaseCost()` |
 | Shipping quote retrieval | `IShippingQuoteService.GetQuotes*()` |
 
 4. Multi-currency invariants are strict.
-- Basket amounts are stored in store currency and do not change on display currency changes.
-- Display uses multiply: `amount * rate`.
-- Checkout/payment (invoice creation) uses divide: `amount / rate`.
-- Lock rate at invoice creation (`PricingExchangeRate`, source, timestamp).
-- Never charge from display amounts.
+- Basket amounts are stored in store currency and NEVER change when display currency changes. Display is calculated on-the-fly.
+- Rate is stored as presentment-to-store (e.g., 1.25 means 1 GBP = 1.25 USD).
+- Display uses multiply: `amount * rate`. Checkout/payment uses divide: `amount / rate`.
+- Lock rate at invoice creation: must capture `PricingExchangeRate`, `PricingExchangeRateSource`, and `PricingExchangeRateTimestampUtc` for audit.
+- Never charge from display amounts; always use the invoice conversion path.
 
 5. Shipping tax invariants are strict.
 - Never hardcode shipping tax rates.
-- Always query provider:
-  - `ITaxProviderManager.IsShippingTaxedForLocationAsync()`
-  - `ITaxProviderManager.GetShippingTaxRateForLocationAsync()`
-- Return semantics:
-  - `0m`: explicitly not taxed
-  - `> 0`: use specific rate
-  - `null`: use proportional shipping tax calculation
-- Required entry points: checkout calculation, storefront display context, invoice shipping tax recalculation.
+- Always query via `ITaxProviderManager.GetShippingTaxConfigurationAsync(countryCode, stateCode)`.
+- Returns `ShippingTaxConfigurationResult` with `Mode` and `Rate`:
+  - `NotTaxed`: shipping explicitly not taxable.
+  - `FixedRate`: apply the returned `Rate`.
+  - `Proportional`: use `ITaxCalculationService.CalculateProportionalShippingTax()`.
+  - `ProviderCalculated`: provider determines from full order context.
+- Required entry points: `CheckoutService.CalculateBasketAsync()`, `StorefrontContextService.GetDisplayContextAsync()`, invoice shipping tax recalculation.
 
 6. Persistence/serialization pitfalls to avoid.
 - SQLite EF projection aggregates: do not use `Min()`/`Max()` in projected SQL for SQLite. Use in-memory group aggregation pattern.
@@ -119,6 +120,10 @@ Product tax:
 - Preserve `TaxGroupId` from product root through line items into orders/invoice tax payloads.
 - External tax providers depend on this mapping for tax code selection.
 
+Tax orchestration:
+- `ITaxOrchestrationService` coordinates tax calculations between checkout and providers.
+- Do not call tax providers directly from controllers; go through the orchestration or checkout services.
+
 Shipping tax:
 - Use provider decision and rate methods, then fallback to proportional when needed.
 - Do not reimplement proportional formulas outside `ITaxCalculationService`.
@@ -130,16 +135,14 @@ Shipping tax:
 
 ### Digital Products
 Store digital settings in `ProductRoot.ExtendedData` constant keys (do not add model properties):
-- `DigitalDeliveryMethod`
-- `DigitalFileIds`
-- `DownloadLinkExpiryDays`
-- `MaxDownloadsPerLink`
+`DigitalDeliveryMethod`, `DigitalFileIds`, `DownloadLinkExpiryDays`, `MaxDownloadsPerLink`.
 
-Rules:
-- Digital products require customer account (no guest checkout).
-- Digital products cannot use variant options (`IsVariant = false` add-ons only).
+Key constraints:
+- Require customer account (no guest checkout).
+- Cannot use variant options (`IsVariant = false` add-ons only).
 - Digital-only invoices auto-complete after successful payment.
 - Download security: HMAC-signed tokens, constant-time validation, rate limiting.
+See `docs/Architecture-Diagrams.md` Section 2.12 for delivery methods and full details.
 
 ### Fulfilment vs Shipping
 - Shipping providers determine customer-facing rates/options.
@@ -149,9 +152,13 @@ Rules:
   1. category mapping
   2. default provider method
   3. raw shipping service code fallback
+- Supplier Direct trigger policy:
+  - `OnPaid`: auto-submission from payment-created flow.
+  - `ExplicitRelease`: staff-triggered only via `POST /orders/{orderId}/fulfillment/release` (paid-gated, Supplier Direct-only).
+  - Dynamic/non-Supplier Direct providers are unaffected.
 
 ### Order Source Tracking
-- Preserve `Invoice.Source` semantics for analytics/audit (`web`, `ucp`, `api`, `pos`, `draft`).
+- Preserve `Invoice.Source` semantics for analytics/audit. See `docs/Architecture-Diagrams.md` Section 2.4 for source types.
 
 ## Provider Architecture
 ### Extension Manager
@@ -185,16 +192,8 @@ Vendor-grouping requirements:
 ## Integrations and Operations
 ### Notifications
 `[NotificationHandlerPriority(N)]` lower runs first; default `1000`.
-
-| Range | Purpose |
-| --- | --- |
-| 100-500 | Validation/blocking |
-| 1000 | Default business logic |
-| 1500-1900 | Post-processing (digital delivery, fulfilment, post-purchase) |
-| 2000 | Internal audit/timeline |
-| 2100 | Email dispatch |
-| 2200 | Webhook dispatch |
-| 3000 | Protocol-specific |
+Ranges: 100-500 validation, 1000 business logic, 1500-1900 post-processing, 2000 audit, 2100 email, 2200 webhook, 3000 protocol.
+See `docs/Architecture-Diagrams.md` Section 8 for full handler priority listing.
 
 ### Email and Webhooks
 - Both queue through outbound delivery processing and retry jobs.
@@ -202,18 +201,11 @@ Vendor-grouping requirements:
 - Preserve auth/signing behaviors and retry semantics.
 
 ### Background Jobs
-Important jobs include discount status transitions, outbound delivery retries, abandoned checkout detection/recovery, invoice reminders, fulfilment polling/retry/cleanup, exchange rate refresh, and upsell status transitions.
+Use `IHostedService`. See `docs/Architecture-Diagrams.md` Section 11 for job inventory.
 
 ### Caching
-Use `ICacheService`:
-- `GetOrCreateAsync(key, factory, ttl, tags)`
-- `RemoveAsync(key)`
-- `RemoveByTagAsync(tag)`
-
-Common prefixes:
-- `merchello:exchange-rates:*`
-- `merchello:locality:*`
-- `merchello:shipping:*`
+Use `ICacheService`: `GetOrCreateAsync(key, factory, ttl, tags)`, `RemoveAsync(key)`, `RemoveByTagAsync(tag)`.
+See `docs/Architecture-Diagrams.md` Section 12 for cache prefixes and deduplication patterns.
 
 ## .NET Standards
 ### Style
