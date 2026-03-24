@@ -1159,20 +1159,7 @@ public class InvoiceService(
             }
 
             // Release stock reservations for all line items
-            foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
-            {
-                var releaseResult = await inventoryService.ReleaseReservationAsync(
-                    lineItem.ProductId!.Value,
-                    order.WarehouseId,
-                    lineItem.Quantity,
-                    cancellationToken);
-
-                if (!releaseResult.ResultObject)
-                {
-                    logger.LogWarning("Failed to release stock reservation for line item {LineItemId} in order {OrderId}",
-                        lineItem.Id, orderId);
-                }
-            }
+            await ReleaseOrderStockReservationsAsync(order, "order cancellation", cancellationToken);
 
             // Update order status to cancelled
             var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
@@ -1303,21 +1290,7 @@ public class InvoiceService(
             foreach (var order in cancellableOrders)
             {
                 // Release stock reservations
-                foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
-                {
-                    var releaseResult = await inventoryService.ReleaseReservationAsync(
-                        lineItem.ProductId!.Value,
-                        order.WarehouseId,
-                        lineItem.Quantity,
-                        cancellationToken);
-
-                    if (!releaseResult.ResultObject)
-                    {
-                        logger.LogWarning(
-                            "Failed to release stock for line item {LineItemId} in order {OrderId} during invoice cancellation",
-                            lineItem.Id, order.Id);
-                    }
-                }
+                await ReleaseOrderStockReservationsAsync(order, "invoice cancellation", cancellationToken);
 
                 // Update order status
                 var canTransition = await statusHandler.CanTransitionAsync(order, OrderStatus.Cancelled, cancellationToken);
@@ -1801,6 +1774,28 @@ public class InvoiceService(
                 return purchaseOrder;
             },
             cancellationToken);
+    }
+
+    private async Task ReleaseOrderStockReservationsAsync(
+        Order order,
+        string context,
+        CancellationToken cancellationToken)
+    {
+        foreach (var lineItem in (order.LineItems ?? []).Where(li => li.ProductId.HasValue))
+        {
+            var releaseResult = await inventoryService.ReleaseReservationAsync(
+                lineItem.ProductId!.Value,
+                order.WarehouseId,
+                lineItem.Quantity,
+                cancellationToken);
+
+            if (!releaseResult.ResultObject)
+            {
+                logger.LogWarning(
+                    "Failed to release stock reservation for line item {LineItemId} in order {OrderId} ({Context})",
+                    lineItem.Id, order.Id, context);
+            }
+        }
     }
 
     private async Task<CrudResult<T>> UpdateInvoiceFieldAsync<T>(

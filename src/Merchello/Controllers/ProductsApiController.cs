@@ -170,45 +170,7 @@ public class ProductsApiController(
     [HttpPost("products/variants/by-ids")]
     [ProducesResponseType<List<VariantLookupDto>>(StatusCodes.Status200OK)]
     public async Task<List<VariantLookupDto>> GetVariantsByIds([FromBody] List<Guid> variantIds, CancellationToken ct)
-    {
-        var variants = await productService.GetVariantsByIds(variantIds, ct);
-
-        // Build results for all requested IDs, marking missing ones as not found
-        List<VariantLookupDto> results = [];
-        foreach (var requestedId in variantIds)
-        {
-            var variant = variants.FirstOrDefault(v => v.Id == requestedId);
-            if (variant != null)
-            {
-                // Get the first image URL, falling back to root images
-                var imageUrl = variant.Images.FirstOrDefault()
-                    ?? variant.ProductRoot?.RootImages.FirstOrDefault();
-
-                results.Add(new VariantLookupDto
-                {
-                    Id = variant.Id,
-                    Found = true,
-                    ProductRootId = variant.ProductRootId,
-                    RootName = variant.ProductRoot?.RootName,
-                    Name = variant.Name,
-                    Sku = variant.Sku,
-                    Price = variant.Price,
-                    ImageUrl = imageUrl
-                });
-            }
-            else
-            {
-                // Not found - mark as such
-                results.Add(new VariantLookupDto
-                {
-                    Id = requestedId,
-                    Found = false
-                });
-            }
-        }
-
-        return results;
-    }
+        => await productService.GetVariantLookupsAsync(variantIds, ct);
 
     #endregion
 

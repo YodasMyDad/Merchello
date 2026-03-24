@@ -1914,13 +1914,13 @@ Backoffice APIs for store management. All endpoints require Umbraco backoffice a
 
 | Category | Controllers |
 |----------|-------------|
-| Products | ProductsApiController, FiltersApiController, ProductTypesApiController, ProductCollectionsApiController, ProductFeedsApiController |
-| Orders | OrdersApiController, ShippingOptionsApiController, ShipmentsApiController |
+| Products | ProductsApiController (includes product type and collection endpoints), FiltersApiController, ProductFeedsApiController |
+| Orders | OrdersApiController (includes shipment endpoints), ShippingOptionsApiController |
 | Customers | CustomersApiController, CustomerSegmentsApiController |
 | Payments | PaymentsApiController, SavedPaymentMethodsApiController, PaymentLinksApiController |
 | Providers | PaymentProvidersApiController, ShippingProvidersApiController, TaxProvidersApiController, FulfilmentProvidersApiController, ExchangeRateProvidersApiController, AddressLookupProvidersApiController |
 | Marketing | DiscountsApiController, UpsellsApiController, AbandonedCheckoutApiController |
-| Configuration | SettingsApiController, TaxApiController, WarehousesApiController, SuppliersApiController |
+| Configuration | SettingsApiController, TaxApiController, WarehousesApiController (includes supplier endpoints) |
 | Notifications | EmailConfigurationApiController, WebhooksApiController, NotificationsApiController |
 | Reporting | ReportingApiController |
 

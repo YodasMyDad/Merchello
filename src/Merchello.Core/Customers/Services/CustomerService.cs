@@ -409,14 +409,7 @@ public class CustomerService(
         {
             var query = db.Customers.AsNoTracking();
 
-            if (!string.IsNullOrWhiteSpace(searchTerm))
-            {
-                var term = searchTerm.Trim().ToLowerInvariant();
-                query = query.Where(c =>
-                    c.Email.Contains(term) ||
-                    (c.FirstName != null && c.FirstName.ToLower().Contains(term)) ||
-                    (c.LastName != null && c.LastName.ToLower().Contains(term)));
-            }
+            query = ApplySearchFilter(query, searchTerm);
 
             return await query
                 .OrderByDescending(c => c.DateCreated)
@@ -443,14 +436,7 @@ public class CustomerService(
             var query = db.Customers.AsNoTracking();
 
             // Apply search filter
-            if (!string.IsNullOrWhiteSpace(parameters.Search))
-            {
-                var term = parameters.Search.Trim().ToLowerInvariant();
-                query = query.Where(c =>
-                    c.Email.Contains(term) ||
-                    (c.FirstName != null && c.FirstName.ToLower().Contains(term)) ||
-                    (c.LastName != null && c.LastName.ToLower().Contains(term)));
-            }
+            query = ApplySearchFilter(query, parameters.Search);
 
             // Exclude specific IDs (applied before pagination for consistent page sizes)
             if (parameters.ExcludeIds is { Count: > 0 })
@@ -769,6 +755,17 @@ public class CustomerService(
     {
         var key = $"{address.AddressOne?.Trim().ToLower()}|{address.TownCity?.Trim().ToLower()}|{address.PostalCode?.Trim().ToLower()}|{address.CountryCode?.Trim().ToLower()}";
         return key;
+    }
+
+    private static IQueryable<Customer> ApplySearchFilter(IQueryable<Customer> query, string? searchTerm)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm)) return query;
+
+        var term = searchTerm.Trim().ToLowerInvariant();
+        return query.Where(c =>
+            c.Email.Contains(term) ||
+            (c.FirstName != null && c.FirstName.ToLower().Contains(term)) ||
+            (c.LastName != null && c.LastName.ToLower().Contains(term)));
     }
 
     private static CustomerListItemDto MapToCustomerListItemDto(Customer customer, int orderCount)

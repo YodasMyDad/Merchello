@@ -70,6 +70,12 @@ public interface IProductService
     /// </summary>
     Task<List<Product>> GetVariantsByIds(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Looks up product variants by their IDs and returns lookup DTOs with a found flag.
+    /// Used by property editors to detect deleted products and load display data.
+    /// </summary>
+    Task<List<VariantLookupDto>> GetVariantLookupsAsync(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default);
+
     // Query/count operations for seeding
     Task<bool> AnyProductsExistAsync(CancellationToken cancellationToken = default);
     Task<int> GetProductCountAsync(CancellationToken cancellationToken = default);

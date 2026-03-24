@@ -50,14 +50,15 @@ public class WarehouseProviderConfigServiceTests
         var result = await _service.CreateAsync(config);
 
         // Assert
-        result.ShouldNotBeNull();
-        result.Id.ShouldNotBe(Guid.Empty);
-        result.WarehouseId.ShouldBe(config.WarehouseId);
-        result.ProviderKey.ShouldBe("fedex");
-        result.IsEnabled.ShouldBeTrue();
-        result.DefaultMarkupPercent.ShouldBe(10m);
-        result.CreateDate.ShouldBeGreaterThan(DateTime.MinValue);
-        result.UpdateDate.ShouldBeGreaterThan(DateTime.MinValue);
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.Id.ShouldNotBe(Guid.Empty);
+        result.ResultObject.WarehouseId.ShouldBe(config.WarehouseId);
+        result.ResultObject.ProviderKey.ShouldBe("fedex");
+        result.ResultObject.IsEnabled.ShouldBeTrue();
+        result.ResultObject.DefaultMarkupPercent.ShouldBe(10m);
+        result.ResultObject.CreateDate.ShouldBeGreaterThan(DateTime.MinValue);
+        result.ResultObject.UpdateDate.ShouldBeGreaterThan(DateTime.MinValue);
     }
 
     [Fact]
@@ -76,7 +77,8 @@ public class WarehouseProviderConfigServiceTests
         var result = await _service.CreateAsync(config);
 
         // Assert
-        result.Id.ShouldNotBe(Guid.Empty);
+        result.Success.ShouldBeTrue();
+        result.ResultObject!.Id.ShouldNotBe(Guid.Empty);
     }
 
     [Fact]
@@ -96,7 +98,8 @@ public class WarehouseProviderConfigServiceTests
         var result = await _service.CreateAsync(config);
 
         // Assert
-        result.Id.ShouldBe(expectedId);
+        result.Success.ShouldBeTrue();
+        result.ResultObject!.Id.ShouldBe(expectedId);
     }
 
     [Fact]
@@ -270,11 +273,13 @@ public class WarehouseProviderConfigServiceTests
         var result = await _service.UpdateAsync(config);
 
         // Assert
-        result.IsEnabled.ShouldBeFalse();
-        result.DefaultMarkupPercent.ShouldBe(25m);
-        result.DefaultDaysFromOverride.ShouldBe(3);
-        result.DefaultDaysToOverride.ShouldBe(7);
-        result.UpdateDate.ShouldBeGreaterThanOrEqualTo(originalUpdateDate);
+        result.Success.ShouldBeTrue();
+        result.ResultObject.ShouldNotBeNull();
+        result.ResultObject.IsEnabled.ShouldBeFalse();
+        result.ResultObject.DefaultMarkupPercent.ShouldBe(25m);
+        result.ResultObject.DefaultDaysFromOverride.ShouldBe(3);
+        result.ResultObject.DefaultDaysToOverride.ShouldBe(7);
+        result.ResultObject.UpdateDate.ShouldBeGreaterThanOrEqualTo(originalUpdateDate);
 
         // Verify persisted
         _fixture.DbContext.ChangeTracker.Clear();
@@ -418,7 +423,8 @@ public class WarehouseProviderConfigServiceTests
             DefaultMarkupPercent = markupPercent
         };
 
-        return await _service.CreateAsync(config);
+        var result = await _service.CreateAsync(config);
+        return result.ResultObject!;
     }
 
     private async Task EnsureWarehouseAsync(Guid warehouseId)

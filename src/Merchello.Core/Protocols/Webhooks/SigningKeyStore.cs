@@ -18,7 +18,7 @@ namespace Merchello.Core.Protocols.Webhooks;
 public class SigningKeyStore(
     IEFCoreScopeProvider<MerchelloDbContext> efCoreScopeProvider,
     ICacheService cacheService,
-    ILogger<SigningKeyStore> logger) : ISigningKeyStore, IDisposable
+    ILogger<SigningKeyStore> logger) : ISigningKeyStore, IDisposable, IAsyncDisposable
 {
     private readonly SemaphoreSlim _keyLock = new(1, 1);
 
@@ -29,7 +29,41 @@ public class SigningKeyStore(
     private bool _disposed;
 
     /// <summary>
-    /// Disposes all cached ECDsa keys.
+    /// Asynchronously disposes all cached ECDsa keys.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        await _keyLock.WaitAsync();
+        try
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            foreach (var key in _keyCache.Values)
+            {
+                key.Dispose();
+            }
+            _keyCache.Clear();
+            _disposed = true;
+        }
+        finally
+        {
+            _keyLock.Release();
+        }
+
+        _keyLock.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Synchronously disposes all cached ECDsa keys (fallback for non-async contexts).
     /// </summary>
     public void Dispose()
     {

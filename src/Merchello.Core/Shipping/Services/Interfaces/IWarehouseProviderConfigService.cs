@@ -1,3 +1,4 @@
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Models;
 
 namespace Merchello.Core.Shipping.Services.Interfaces;
@@ -22,9 +23,9 @@ public interface IWarehouseProviderConfigService
 
     Task<IReadOnlyList<WarehouseProviderConfig>> GetAllEnabledAsync(CancellationToken ct = default);
 
-    Task<WarehouseProviderConfig> CreateAsync(WarehouseProviderConfig config, CancellationToken ct = default);
+    Task<CrudResult<WarehouseProviderConfig>> CreateAsync(WarehouseProviderConfig config, CancellationToken ct = default);
 
-    Task<WarehouseProviderConfig> UpdateAsync(WarehouseProviderConfig config, CancellationToken ct = default);
+    Task<CrudResult<WarehouseProviderConfig>> UpdateAsync(WarehouseProviderConfig config, CancellationToken ct = default);
 
     Task DeleteAsync(Guid id, CancellationToken ct = default);
 
