@@ -27,13 +27,15 @@ public class AgentAuthenticationMiddleware(
     [
         "/.well-known/ucp",
         "/api/v1/checkout-sessions",
-        "/api/v1/orders"
+        "/api/v1/orders",
+        "/api/v1/carts"
     ];
 
     private static readonly string[] TransactionalUcpPaths =
     [
         "/api/v1/checkout-sessions",
-        "/api/v1/orders"
+        "/api/v1/orders",
+        "/api/v1/carts"
     ];
 
     public async Task InvokeAsync(
