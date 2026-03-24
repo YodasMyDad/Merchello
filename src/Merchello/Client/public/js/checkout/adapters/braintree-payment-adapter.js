@@ -307,9 +307,11 @@
                 hostedFieldsInstance.on('cardTypeChange', (event) => {
                     if (cardIconContainer && event.cards.length === 1) {
                         const card = event.cards[0];
-                        cardIconContainer.innerHTML = this.getCardIcon(card.type);
+                        const template = document.createElement('template');
+                        template.innerHTML = this.getCardIcon(card.type);
+                        cardIconContainer.replaceChildren(template.content);
                     } else if (cardIconContainer) {
-                        cardIconContainer.innerHTML = '';
+                        cardIconContainer.replaceChildren();
                     }
                 });
 
