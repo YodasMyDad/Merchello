@@ -9,18 +9,6 @@
 import { checkoutApi } from '../services/api.js';
 
 /**
- * Calculates positive discount delta from basket state changes.
- * @param {number} previousDiscount
- * @param {number} currentDiscount
- * @returns {number}
- */
-export function calculateDiscountDelta(previousDiscount, currentDiscount) {
-    const previous = Number.isFinite(previousDiscount) ? previousDiscount : 0;
-    const current = Number.isFinite(currentDiscount) ? currentDiscount : 0;
-    return Math.max(0, current - previous);
-}
-
-/**
  * Initialize the order summary Alpine.data component
  */
 export function initOrderSummary() {
@@ -269,7 +257,6 @@ export function initOrderSummary() {
             this.applyingDiscount = true;
             this.discountError = '';
             this.discountSuccess = '';
-            const previousDiscount = Number(this.discount ?? 0);
 
             try {
                 const data = await checkoutApi.applyDiscount(appliedCode);
@@ -298,13 +285,11 @@ export function initOrderSummary() {
                         document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
                     }
 
-                    // Track analytics with basket-state delta (response does not include discountAmount)
+                    // Track analytics using backend-provided discount delta
                     if (window.MerchelloCheckout) {
-                        const currentDiscount = Number(this.discount ?? 0);
-                        const discountDelta = calculateDiscountDelta(previousDiscount, currentDiscount);
                         window.MerchelloCheckout.emit('checkout:coupon_applied', {
                             coupon: appliedCode,
-                            discount_amount: discountDelta
+                            discount_amount: data.discountDelta ?? 0
                         });
                     }
 
@@ -332,7 +317,6 @@ export function initOrderSummary() {
             this.removingDiscount = discountId;
             this.discountError = '';
             this.discountSuccess = '';
-            const previousDiscount = Number(this.discount ?? 0);
 
             try {
                 const data = await checkoutApi.removeDiscount(discountId);
@@ -360,13 +344,11 @@ export function initOrderSummary() {
                         document.dispatchEvent(new CustomEvent('merchello:payment-reinit-needed'));
                     }
 
-                    // Track analytics with basket-state delta
+                    // Track analytics using backend-provided discount delta
                     if (window.MerchelloCheckout) {
-                        const currentDiscount = Number(this.discount ?? 0);
-                        const removedDiscountAmount = calculateDiscountDelta(currentDiscount, previousDiscount);
                         window.MerchelloCheckout.emit('checkout:coupon_removed', {
                             discount_id: discountId,
-                            discount_amount: removedDiscountAmount
+                            discount_amount: data.discountDelta ?? 0
                         });
                     }
 

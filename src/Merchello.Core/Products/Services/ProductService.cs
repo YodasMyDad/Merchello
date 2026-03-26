@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using Merchello.Core.Accounting.Models;
 using Merchello.Core.Data;
@@ -238,23 +239,7 @@ public class ProductService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            IQueryable<ProductRoot> query = db.RootProducts
-                .AsNoTracking()
-                .Include(pr => pr.Collections)
-                .Include(pr => pr.ProductType)
-                .Include(pr => pr.TaxGroup);
-
-            if (includeProducts)
-            {
-                query = query.Include(pr => pr.Products);
-            }
-
-            if (includeWarehouses)
-            {
-                query = query.Include(pr => pr.ProductRootWarehouses)
-                    .ThenInclude(prw => prw.Warehouse);
-            }
-
+            var query = BuildProductRootQuery(db, includeProducts, includeWarehouses);
             return await query.FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
         });
         scope.Complete();
@@ -286,33 +271,15 @@ public class ProductService(
     /// Updates variant shipping restrictions to exclude specific shipping options.
     /// Sets ShippingRestrictionMode to ExcludeList when exclusions provided, otherwise resets to None.
     /// </summary>
-    public async Task<CrudResult<bool>> UpdateVariantExcludedShippingOptions(
+    public Task<CrudResult<bool>> UpdateVariantExcludedShippingOptions(
         Guid variantId,
         List<Guid> excludedShippingOptionIds,
         CancellationToken cancellationToken = default)
-    {
-        var result = new CrudResult<bool>();
-        using var scope = efCoreScopeProvider.CreateScope();
-
-        await scope.ExecuteWithContextAsync<bool>(async db =>
-        {
-            var variants = await db.Products
-                .Include(p => p.ExcludedShippingOptions)
-                .Where(p => p.Id == variantId)
-                .ToListAsync(cancellationToken);
-
-            return await UpdateShippingExclusionsAsync(
-                db,
-                variants,
-                excludedShippingOptionIds,
-                result,
-                "Variant not found",
-                cancellationToken);
-        });
-
-        scope.Complete();
-        return result;
-    }
+        => UpdateExcludedShippingOptionsCore(
+            p => p.Id == variantId,
+            excludedShippingOptionIds,
+            "Variant not found",
+            cancellationToken);
 
     /// <inheritdoc />
     public async Task<List<ShippingOptionExclusionDto>?> GetAvailableShippingOptionsAsync(
@@ -370,29 +337,82 @@ public class ProductService(
     }
 
     /// <inheritdoc />
-    public async Task<CrudResult<bool>> UpdateProductRootExcludedShippingOptionsAsync(
+    public Task<CrudResult<bool>> UpdateProductRootExcludedShippingOptionsAsync(
         Guid productRootId,
         List<Guid> excludedShippingOptionIds,
         CancellationToken cancellationToken = default)
+        => UpdateExcludedShippingOptionsCore(
+            p => p.ProductRootId == productRootId,
+            excludedShippingOptionIds,
+            "Product not found",
+            cancellationToken);
+
+    private static IQueryable<ProductRoot> BuildProductRootQuery(
+        MerchelloDbContext db,
+        bool includeProducts = false,
+        bool includeWarehouses = false,
+        bool includeDetailIncludes = false)
+    {
+        IQueryable<ProductRoot> query = db.RootProducts
+            .AsNoTracking()
+            .Include(pr => pr.Collections)
+            .Include(pr => pr.ProductType)
+            .Include(pr => pr.TaxGroup);
+
+        if (includeProducts && includeDetailIncludes)
+        {
+            query = query
+                .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ProductWarehouses)
+                        .ThenInclude(pw => pw.Warehouse)
+                .Include(pr => pr.Products)
+                    .ThenInclude(p => p.ExcludedShippingOptions);
+        }
+        else if (includeProducts)
+        {
+            query = query.Include(pr => pr.Products);
+        }
+
+        if (includeWarehouses && includeDetailIncludes)
+        {
+            query = query
+                .Include(pr => pr.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse)
+                        .ThenInclude(w => w!.ShippingOptions);
+        }
+        else if (includeWarehouses)
+        {
+            query = query
+                .Include(pr => pr.ProductRootWarehouses)
+                    .ThenInclude(prw => prw.Warehouse);
+        }
+
+        if (includeDetailIncludes)
+        {
+            query = query.AsSplitQuery();
+        }
+
+        return query;
+    }
+
+    private async Task<CrudResult<bool>> UpdateExcludedShippingOptionsCore(
+        Expression<Func<Product, bool>> variantFilter,
+        List<Guid> excludedShippingOptionIds,
+        string notFoundMessage,
+        CancellationToken cancellationToken)
     {
         var result = new CrudResult<bool>();
         using var scope = efCoreScopeProvider.CreateScope();
 
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
-            // Get all variants for this product root
             var variants = await db.Products
                 .Include(p => p.ExcludedShippingOptions)
-                .Where(p => p.ProductRootId == productRootId)
+                .Where(variantFilter)
                 .ToListAsync(cancellationToken);
 
             return await UpdateShippingExclusionsAsync(
-                db,
-                variants,
-                excludedShippingOptionIds,
-                result,
-                "Product not found",
-                cancellationToken);
+                db, variants, excludedShippingOptionIds, result, notFoundMessage, cancellationToken);
         });
 
         scope.Complete();
@@ -1392,20 +1412,7 @@ public class ProductService(
         using var scope = efCoreScopeProvider.CreateScope();
         var result = await scope.ExecuteWithContextAsync(async db =>
         {
-            var productRoot = await db.RootProducts
-                .AsNoTracking()
-                .Include(pr => pr.TaxGroup)
-                .Include(pr => pr.ProductType)
-                .Include(pr => pr.Collections)
-                .Include(pr => pr.ProductRootWarehouses)
-                    .ThenInclude(prw => prw.Warehouse)
-                        .ThenInclude(w => w!.ShippingOptions)
-                .Include(pr => pr.Products)
-                    .ThenInclude(p => p.ProductWarehouses)
-                        .ThenInclude(pw => pw.Warehouse)
-                .Include(pr => pr.Products)
-                    .ThenInclude(p => p.ExcludedShippingOptions)
-                .AsSplitQuery()
+            var productRoot = await BuildProductRootQuery(db, includeProducts: true, includeWarehouses: true, includeDetailIncludes: true)
                 .FirstOrDefaultAsync(pr => pr.Id == productRootId, cancellationToken);
 
             if (productRoot == null)
@@ -3072,6 +3079,50 @@ public class ProductService(
                 .AsSplitQuery()
                 .Where(p => idList.Contains(p.Id))
                 .ToListAsync(cancellationToken));
+        scope.Complete();
+        return result;
+    }
+
+    /// <inheritdoc />
+    public async Task<List<VariantLookupDto>> GetVariantLookupsAsync(IEnumerable<Guid> variantIds, CancellationToken cancellationToken = default)
+    {
+        var idList = variantIds.ToList();
+        if (idList.Count == 0) return [];
+
+        using var scope = efCoreScopeProvider.CreateScope();
+        var result = await scope.ExecuteWithContextAsync(async db =>
+        {
+            var variants = await db.Products
+                .Include(p => p.ProductRoot)
+                .AsNoTracking()
+                .Where(p => idList.Contains(p.Id))
+                .ToListAsync(cancellationToken);
+
+            var variantMap = variants.ToDictionary(v => v.Id);
+
+            return idList.Select(requestedId =>
+            {
+                if (variantMap.TryGetValue(requestedId, out var variant))
+                {
+                    var imageUrl = variant.Images.FirstOrDefault()
+                        ?? variant.ProductRoot?.RootImages.FirstOrDefault();
+
+                    return new VariantLookupDto
+                    {
+                        Id = variant.Id,
+                        Found = true,
+                        ProductRootId = variant.ProductRootId,
+                        RootName = variant.ProductRoot?.RootName,
+                        Name = variant.Name,
+                        Sku = variant.Sku,
+                        Price = variant.Price,
+                        ImageUrl = imageUrl
+                    };
+                }
+
+                return new VariantLookupDto { Id = requestedId, Found = false };
+            }).ToList();
+        });
         scope.Complete();
         return result;
     }

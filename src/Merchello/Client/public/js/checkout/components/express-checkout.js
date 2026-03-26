@@ -152,9 +152,8 @@ export function initExpressCheckout() {
                         this.config.subTotal = e.detail.subTotal;
                     }
 
-                    // Check if amount changed by at least one minor unit for this currency
-                    const threshold = Math.pow(10, -(this.config.decimalPlaces ?? 2));
-                    const amountChanged = Math.abs(newAmount - oldAmount) > threshold;
+                    // Backend provides properly rounded amounts; any difference warrants re-render
+                    const amountChanged = newAmount !== oldAmount;
                     if (amountChanged) {
                         // Skip actual re-render during payment form initialization
                         // but mark that we need to re-render later

@@ -190,6 +190,34 @@ ICheckoutDiscountService:
 - GetApplicableAutomaticDiscountsAsync() - Get applicable automatic discounts for basket
 - AddDiscountToBasketAsync() - Add a discount to the basket
 - RemoveDiscountFromBasketAsync() - Remove a discount from the basket
+- ApplyGoogleAutoDiscountAsync() - Apply Google auto discount to a product in the basket (replaces existing for same SKU)
+
+Internal Checkout Coordination Services:
+
+ICheckoutSessionService:
+- GetSessionAsync() - Get or create checkout session for a basket
+- SaveAddressesAsync() - Save billing/shipping addresses to session
+- SetCurrentStepAsync() - Set current checkout step
+- SaveShippingSelectionsAsync() - Save shipping selections to session
+- ClearSessionAsync() - Clear session for basket
+- SaveEmailAsync() - Save email for abandoned checkout capture (does NOT clear shipping selections)
+- SetInvoiceIdAsync() - Record invoice ID created from checkout (security validation)
+- AddUpsellImpressionsAsync() - Store upsell impressions for conversion attribution
+- TrackRemovedAutoAddAsync() - Record customer-removed auto-added upsell products
+
+ICheckoutValidator:
+- ValidateShippingSelections() - Validate all order groups have valid shipping selection (multi-fallback key matching)
+- AugmentShippingSelections() - Augment selections with GroupId and WarehouseId keys for stable lookups
+- ValidateAddressRequest() - Validate checkout address request
+- ValidateAddress() - Validate a single address
+
+ICheckoutMemberService:
+- CheckEmailAsync() - Check if email has existing member account
+- ValidatePasswordAsync() - Validate password against Umbraco requirements
+- SignInAsync() / SignOutAsync() - Member sign-in/out
+- CreateMemberAsync() - Create new member and sign in
+- InitiatePasswordResetAsync() - Start password reset (always returns success to prevent enumeration)
+- ValidateResetTokenAsync() / ResetPasswordAsync() - Token validation and password reset
 
 IAbandonedCheckoutService:
 - TrackCheckoutActivityAsync() - Track customer checkout progress (resets Recovered/Abandoned → Active for re-abandonment)
@@ -211,13 +239,31 @@ Active → Abandoned → Recovered → Converted
 
 IInvoiceService:
 - CreateOrderFromBasketAsync(basket, session, source?) - Create invoice and orders from basket with optional source tracking
-- CreateDraftOrderAsync() - Create draft order for manual entry
+- CreateManualOrderAsync() - Create manual order from admin backoffice
 - CancelInvoiceAsync() - Cancel invoice and release stock
+- CancelOrderAsync() - Cancel a single order
 - QueryInvoices(parameters) - Query with filtering including SourceType
+- GetInvoiceAsync() - Get invoice by ID with all related data
+- GetOrderWithDetailsAsync() - Get order with full details
+- UpdateOrderStatusAsync() - Update order status
+- UpdateBillingAddressAsync() / UpdateShippingAddressAsync() - Update invoice addresses
+- UpdatePurchaseOrderAsync() - Update PO number
+- AddNoteAsync() - Add note to invoice
+- SetDueDateAsync() - Set or clear due date
+- BackdateInvoiceAsync() - Backdate invoice for testing/seeding
+- SoftDeleteInvoicesAsync() - Soft-delete multiple invoices
+- InvoiceExistsAsync() - Check if invoice exists
+- GetInvoiceCountAsync() / GetInvoiceCountByBillingEmailAsync() - Invoice counts
+- GetInvoicesByBillingEmailAsync() - Get invoices by customer email
+- GetShippingOptionNamesAsync() - Get shipping option names by IDs
+- ApplyPromotionalDiscountAsync() - Apply promotional discount to existing invoice
+- GetUnpaidInvoiceForBasketAsync() - Get unpaid invoice for basket (prevents ghost orders)
+- PublishDeferredInvoiceNotificationsAsync() - Publish deferred notifications after payment confirmed
 
 IInvoiceEditService:
 - GetInvoiceForEditAsync() - Get invoice data prepared for editing
 - PreviewInvoiceEditAsync() - Preview edit without saving
+- PreviewDiscountAsync() - Preview discount calculation values for UI
 - EditInvoiceAsync() - Apply edits to invoice
 
 Invoice Source Tracking:
@@ -304,12 +350,24 @@ Resolution Priority: State > Country > Universal(*) > FixedCost
 ### 2.6 Payments
 
 IPaymentService:
-- CalculatePaymentStatus() - Calculate invoice payment status (single source of truth)
+- CalculatePaymentStatus(CalculatePaymentStatusParameters) - Calculate payment status (single source of truth, **synchronous**)
+- GetInvoicePaymentStatusAsync() - Get payment status for invoice (async convenience)
 - CreatePaymentSessionAsync() - Create payment session with provider
 - ProcessPaymentAsync() - Process payment callback
 - RecordPaymentAsync() - Record payment result
-- ProcessRefundAsync() - Process refund
 - RecordManualPaymentAsync() - Record offline payment
+- RecordManualRefundAsync() - Record manual refund (provider refund already processed externally)
+- ProcessRefundAsync() - Process refund via provider
+- PreviewRefundAsync() - Preview refund calculation without processing
+- GetPaymentsForInvoiceAsync() - Get all payments for an invoice
+- GetPaymentAsync() - Get payment by ID
+- GetPaymentByTransactionIdAsync() - Get payment by provider transaction ID
+- BatchMarkAsPaidAsync() - Batch mark invoices as paid (offline payments)
+
+Supporting Services:
+- IPaymentIdempotencyService - Payment deduplication tracking
+- IPaymentLinkService - Payment link creation/deactivation
+- ISavedPaymentMethodService - Saved payment method CRUD (vault)
 
 Risk Level: Backend calculates RiskLevel enum: high | medium | low | minimal
 
@@ -325,7 +383,10 @@ ITaxService:
 
 ITaxProviderManager:
 - GetActiveProviderAsync() - Get active tax provider
-- GetShippingTaxConfigurationAsync() - Get shipping tax mode/rate for a location
+- GetShippingTaxConfigurationAsync(countryCode, stateCode) - Returns `ShippingTaxConfigurationResult` with `Mode` (ShippingTaxMode enum) and `Rate`
+
+ITaxOrchestrationService:
+- CalculateAsync(TaxOrchestrationRequest) - Coordinates tax calculations between checkout flow and active tax provider
 
 See [Section 3: Tax System](#3-tax-system) for detailed shipping tax documentation.
 
@@ -443,9 +504,13 @@ IFulfilmentService:
 - ProcessStatusUpdateAsync() - Process status update from provider webhook
 - ProcessShipmentUpdateAsync() - Process shipment update from provider webhook
 - GetOrdersForPollingAsync() - Get orders needing status polling
+- GetOrdersReadyForRetryAsync() - Get orders ready for retry based on count and delay
 - ResolveProviderForWarehouseAsync() - Resolve fulfilment provider for warehouse
 - IsDuplicateWebhookAsync() - Check webhook idempotency
 - TryLogWebhookAsync() - Atomic webhook idempotency insert (returns false on duplicate)
+- CompleteWebhookLogAsync() - Finalize logged webhook after successful processing
+- RemoveWebhookLogAsync() - Remove webhook log for retry
+- LogWebhookAsync() - Log processed webhook for tracking
 
 IFulfilmentSubmissionService:
 - SubmitOrderAsync(parameters) - Trigger-aware submission coordinator used by payment-created automation and explicit staff release workflows
@@ -502,6 +567,11 @@ Resolver contracts:
 Language and targeting requirements:
 - `LanguageCode` is required for Product Feed create/update (ISO 639-1, e.g. `en`).
 - `CountryCode`, `CurrencyCode`, and `LanguageCode` are all required because Google product and promotions feeds are market-targeted.
+
+Google Shopping Integration:
+- IGoogleAutoDiscountService - Validates and parses Google auto-discount PV2 tokens
+- IGoogleShoppingCategoryService - Google Shopping category taxonomy lookup
+- IGoogleProductFeedGenerator / IGooglePromotionFeedGenerator - XML feed generation for Google Merchant Center
 
 ## 3. Tax System
 
@@ -1332,9 +1402,11 @@ class Syncer : INotificationAsyncHandler<OrderCreatedNotification>
 | 1900 | FulfilmentAutoShipmentHandler | Auto-shipment creation on order submission |
 | 1900 | PaymentPostPurchaseHandler | Post-purchase upsell window initialization |
 | 2000 | InvoiceTimelineHandler | Internal audit/timeline logging |
+| 2000 | FulfilmentTimelineHandler | Fulfilment audit/timeline logging |
 | 2050 | UpsellEmailEnrichmentHandler | Enriches emails with upsell data |
 | 2100 | EmailNotificationHandler | Email delivery |
 | 2200 | WebhookNotificationHandler | Webhook delivery |
+| 2200 | UpsellConversionHandler | Upsell conversion tracking |
 | 2300 | AutoAddUpsellHandler | Auto-adds recommended upsells to baskets |
 | 2300 | AutoAddRemovalTracker | Tracks removal of auto-added items |
 | 3000 | UcpOrderWebhookHandler | UCP protocol webhooks |
@@ -1842,13 +1914,13 @@ Backoffice APIs for store management. All endpoints require Umbraco backoffice a
 
 | Category | Controllers |
 |----------|-------------|
-| Products | ProductsApiController, FiltersApiController, ProductTypesApiController, ProductCollectionsApiController, ProductFeedsApiController |
-| Orders | OrdersApiController, ShippingOptionsApiController, ShipmentsApiController |
+| Products | ProductsApiController (includes product type and collection endpoints), FiltersApiController, ProductFeedsApiController |
+| Orders | OrdersApiController (includes shipment endpoints), ShippingOptionsApiController |
 | Customers | CustomersApiController, CustomerSegmentsApiController |
 | Payments | PaymentsApiController, SavedPaymentMethodsApiController, PaymentLinksApiController |
 | Providers | PaymentProvidersApiController, ShippingProvidersApiController, TaxProvidersApiController, FulfilmentProvidersApiController, ExchangeRateProvidersApiController, AddressLookupProvidersApiController |
 | Marketing | DiscountsApiController, UpsellsApiController, AbandonedCheckoutApiController |
-| Configuration | SettingsApiController, TaxApiController, WarehousesApiController, SuppliersApiController |
+| Configuration | SettingsApiController, TaxApiController, WarehousesApiController (includes supplier endpoints) |
 | Notifications | EmailConfigurationApiController, WebhooksApiController, NotificationsApiController |
 | Reporting | ReportingApiController |
 

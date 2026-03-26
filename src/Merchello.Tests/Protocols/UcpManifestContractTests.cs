@@ -47,7 +47,9 @@ public class UcpManifestContractTests : IClassFixture<ServiceTestFixture>
         {
             capability.Spec.ShouldNotBeNullOrWhiteSpace();
             capability.Schema.ShouldNotBeNullOrWhiteSpace();
-            capability.Spec.ShouldStartWith("https://ucp.dev/specification/");
+            capability.Spec.ShouldSatisfyAllConditions(
+                () => capability.Spec.ShouldStartWith("https://ucp.dev/"),
+                () => capability.Spec.ShouldContain("/specification/"));
             capability.Schema.ShouldStartWith("https://ucp.dev/schemas/");
         }
     }

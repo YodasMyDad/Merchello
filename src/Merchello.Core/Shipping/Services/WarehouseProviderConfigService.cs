@@ -1,4 +1,6 @@
 using Merchello.Core.Data;
+using Merchello.Core.Shared.Extensions;
+using Merchello.Core.Shared.Models;
 using Merchello.Core.Shipping.Models;
 using Merchello.Core.Shipping.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -130,8 +132,10 @@ public class WarehouseProviderConfigService(
         return configs;
     }
 
-    public async Task<WarehouseProviderConfig> CreateAsync(WarehouseProviderConfig config, CancellationToken ct = default)
+    public async Task<CrudResult<WarehouseProviderConfig>> CreateAsync(WarehouseProviderConfig config, CancellationToken ct = default)
     {
+        var result = new CrudResult<WarehouseProviderConfig>();
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
@@ -140,6 +144,7 @@ public class WarehouseProviderConfigService(
 
             if (warehouse == null)
             {
+                result.AddErrorMessage($"Warehouse {config.WarehouseId} not found.");
                 return false;
             }
 
@@ -151,14 +156,17 @@ public class WarehouseProviderConfigService(
             configs.Add(config);
             warehouse.SetProviderConfigs(configs);
             await db.SaveChangesAsync(ct);
+            result.ResultObject = config;
             return true;
         });
         scope.Complete();
-        return config;
+        return result;
     }
 
-    public async Task<WarehouseProviderConfig> UpdateAsync(WarehouseProviderConfig config, CancellationToken ct = default)
+    public async Task<CrudResult<WarehouseProviderConfig>> UpdateAsync(WarehouseProviderConfig config, CancellationToken ct = default)
     {
+        var result = new CrudResult<WarehouseProviderConfig>();
+
         using var scope = efCoreScopeProvider.CreateScope();
         await scope.ExecuteWithContextAsync<bool>(async db =>
         {
@@ -167,6 +175,7 @@ public class WarehouseProviderConfigService(
 
             if (warehouse == null)
             {
+                result.AddErrorMessage($"Warehouse {config.WarehouseId} not found.");
                 return false;
             }
 
@@ -174,6 +183,7 @@ public class WarehouseProviderConfigService(
             var existing = configs.FirstOrDefault(c => c.Id == config.Id);
             if (existing == null)
             {
+                result.AddErrorMessage($"Provider config {config.Id} not found.");
                 return false;
             }
 
@@ -188,10 +198,11 @@ public class WarehouseProviderConfigService(
 
             warehouse.SetProviderConfigs(configs);
             await db.SaveChangesAsync(ct);
+            result.ResultObject = existing;
             return true;
         });
         scope.Complete();
-        return config;
+        return result;
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken ct = default)

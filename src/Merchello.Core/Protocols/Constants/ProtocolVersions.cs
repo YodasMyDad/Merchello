@@ -6,4 +6,5 @@ namespace Merchello.Core.Protocols;
 public static class ProtocolVersions
 {
     public const string CurrentUcpVersion = "2026-01-23";
+    public const string DraftVersion = "draft";
 }

@@ -19,4 +19,19 @@ public class UcpCapabilitySettings
     /// Enable Identity Linking capability.
     /// </summary>
     public bool IdentityLinking { get; set; } = false;
+
+    /// <summary>
+    /// Enable Cart capability (draft spec).
+    /// </summary>
+    public bool Cart { get; set; } = false;
+
+    /// <summary>
+    /// Enable Catalog Search capability (draft spec).
+    /// </summary>
+    public bool CatalogSearch { get; set; } = false;
+
+    /// <summary>
+    /// Enable Catalog Lookup capability (draft spec).
+    /// </summary>
+    public bool CatalogLookup { get; set; } = false;
 }

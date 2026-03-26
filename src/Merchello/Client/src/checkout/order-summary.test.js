@@ -1,20 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateDiscountDelta, getEffectiveDiscount } from "./order-summary.js";
-
-describe("checkout order-summary analytics helpers", () => {
-  it("returns the positive delta when discount increases", () => {
-    expect(calculateDiscountDelta(5, 12)).toBe(7);
-  });
-
-  it("returns zero when discount decreases", () => {
-    expect(calculateDiscountDelta(12, 5)).toBe(0);
-  });
-
-  it("treats non-finite values as zero", () => {
-    expect(calculateDiscountDelta(Number.NaN, Infinity)).toBe(0);
-    expect(calculateDiscountDelta(Number.NaN, 4)).toBe(4);
-  });
-});
+import { getEffectiveDiscount } from "./order-summary.js";
 
 describe("getEffectiveDiscount - tax-inclusive discount display", () => {
   // Exact bug scenario: Tee ($19.99) + Beanie ($14.99), 20% VAT, 10% off Tee

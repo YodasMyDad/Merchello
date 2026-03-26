@@ -22,6 +22,12 @@ public class StoreConfigurationUcpDto
 
     public bool? CapabilityIdentityLinking { get; set; }
 
+    public bool? CapabilityCart { get; set; }
+
+    public bool? CapabilityCatalogSearch { get; set; }
+
+    public bool? CapabilityCatalogLookup { get; set; }
+
     public bool? ExtensionDiscount { get; set; }
 
     public bool? ExtensionFulfillment { get; set; }

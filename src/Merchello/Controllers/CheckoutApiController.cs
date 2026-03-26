@@ -402,6 +402,10 @@ public class CheckoutApiController(
             });
         }
 
+        // Capture display-currency discount before the operation for analytics delta
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        var displayDiscountBefore = checkoutDtoMapper.MapBasketToDto(basket, displayContext).DisplayDiscount;
+
         var result = await checkoutDiscountService.ApplyDiscountCodeAsync(
             basket,
             request.Code.Trim(),
@@ -430,11 +434,14 @@ public class CheckoutApiController(
 
         logger.LogInformation("Discount code {Code} applied to basket {BasketId}", request.Code, basket.Id);
 
+        var basketDto = updatedBasket != null ? checkoutDtoMapper.MapBasketToDto(updatedBasket, displayContext) : null;
+
         return Ok(new ApplyDiscountResponseDto
         {
             Success = true,
             Message = "Discount applied successfully.",
-            Basket = updatedBasket != null ? await checkoutDtoMapper.MapBasketToDtoWithCurrencyAsync(updatedBasket, ct) : null
+            Basket = basketDto,
+            DiscountDelta = Math.Abs((basketDto?.DisplayDiscount ?? 0m) - displayDiscountBefore)
         });
     }
 
@@ -722,6 +729,10 @@ public class CheckoutApiController(
             });
         }
 
+        // Capture display-currency discount before the operation for analytics delta
+        var displayContext = await storefrontContext.GetDisplayContextAsync(ct);
+        var displayDiscountBefore = checkoutDtoMapper.MapBasketToDto(basket, displayContext).DisplayDiscount;
+
         var result = await checkoutDiscountService.RemovePromotionalDiscountAsync(
             basket,
             discountId,
@@ -750,11 +761,14 @@ public class CheckoutApiController(
 
         logger.LogInformation("Discount {DiscountId} removed from basket {BasketId}", discountId, basket.Id);
 
+        var basketDto = updatedBasket != null ? checkoutDtoMapper.MapBasketToDto(updatedBasket, displayContext) : null;
+
         return Ok(new ApplyDiscountResponseDto
         {
             Success = true,
             Message = "Discount removed successfully.",
-            Basket = updatedBasket != null ? await checkoutDtoMapper.MapBasketToDtoWithCurrencyAsync(updatedBasket, ct) : null
+            Basket = basketDto,
+            DiscountDelta = Math.Abs((basketDto?.DisplayDiscount ?? 0m) - displayDiscountBefore)
         });
     }
 
