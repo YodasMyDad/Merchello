@@ -536,7 +536,19 @@ public class PaymentProviderManager(
     {
         var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
         var expressMethods = allMethods.Where(m => m.IsExpressCheckout).ToList();
-        return DeduplicateByMethodType(expressMethods);
+
+        if (expressMethods.Count == 0)
+            return [];
+
+        // Single-provider express checkout: only the provider with the lowest sort order
+        // that has express methods handles all express checkout buttons.
+        var winningAlias = await GetWinningExpressProviderAliasAsync(expressMethods, cancellationToken);
+        if (winningAlias == null)
+            return [];
+
+        return expressMethods
+            .Where(m => string.Equals(m.ProviderAlias, winningAlias, StringComparison.OrdinalIgnoreCase))
+            .ToList();
     }
 
     /// <inheritdoc />
@@ -631,12 +643,34 @@ public class PaymentProviderManager(
         List<CheckoutMethodPreviewDto> redirectMethods = [];
         List<CheckoutMethodPreviewDto> hiddenMethods = [];
 
-        // Track winners per MethodType for express and standard separately
+        // Single-provider express checkout: determine the winning express provider
+        // (lowest provider sort order with at least one express method)
+        string? winningExpressProviderAlias = null;
+        string? winningExpressProviderDisplayName = null;
+        foreach (var provider in enabledProviders)
+        {
+            var hasExpress = sortedMethods.Any(m =>
+            {
+                if (!string.Equals(m.ProviderAlias, provider.Metadata.Alias, StringComparison.OrdinalIgnoreCase))
+                    return false;
+                var mDef = provider.Provider.GetAvailablePaymentMethods()
+                    .FirstOrDefault(md => string.Equals(md.Alias, m.MethodAlias, StringComparison.OrdinalIgnoreCase));
+                return mDef?.IsExpressCheckout ?? false;
+            });
+
+            if (hasExpress)
+            {
+                winningExpressProviderAlias = provider.Metadata.Alias;
+                winningExpressProviderDisplayName = provider.DisplayName;
+                break;
+            }
+        }
+
+        // Track winners per MethodType for standard methods only
         // Redirect methods are NOT deduplicated - they go in their own "Or pay with" section
-        var expressWinners = new Dictionary<string, CheckoutMethodPreviewDto>();
         var standardWinners = new Dictionary<string, CheckoutMethodPreviewDto>();
 
-        // First pass: identify winners (methods with lowest sort order per type)
+        // First pass: categorize methods
         foreach (var method in sortedMethods)
         {
             // Get the provider's available methods to check if this is express checkout
@@ -656,29 +690,37 @@ public class PaymentProviderManager(
                 continue;
             }
 
-            if (string.IsNullOrEmpty(method.MethodType))
+            if (isExpress)
             {
-                // Not deduplicated - always active
-                if (isExpress)
+                // Single-provider express: only winning provider's express methods are active
+                if (string.Equals(method.ProviderAlias, winningExpressProviderAlias, StringComparison.OrdinalIgnoreCase))
+                {
                     expressMethods.Add(method);
+                }
                 else
-                    standardMethods.Add(method);
+                {
+                    method.IsActive = false;
+                    method.OutrankedBy = winningExpressProviderDisplayName;
+                    hiddenMethods.Add(method);
+                }
+            }
+            else if (string.IsNullOrEmpty(method.MethodType))
+            {
+                // Standard methods without a MethodType are not deduplicated
+                standardMethods.Add(method);
             }
             else
             {
-                var winners = isExpress ? expressWinners : standardWinners;
-                var targetList = isExpress ? expressMethods : standardMethods;
-
-                if (!winners.ContainsKey(method.MethodType))
+                if (!standardWinners.ContainsKey(method.MethodType))
                 {
                     // First one wins (lowest sort order)
-                    winners[method.MethodType] = method;
-                    targetList.Add(method);
+                    standardWinners[method.MethodType] = method;
+                    standardMethods.Add(method);
                 }
                 else
                 {
                     // This one is outranked
-                    var winner = winners[method.MethodType];
+                    var winner = standardWinners[method.MethodType];
                     method.IsActive = false;
                     method.OutrankedBy = winner.ProviderDisplayName;
                     hiddenMethods.Add(method);
@@ -747,6 +789,35 @@ public class PaymentProviderManager(
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Determines which provider should handle all express checkout.
+    /// Returns the alias of the enabled provider with the lowest sort order
+    /// that has at least one express checkout method.
+    /// </summary>
+    private async Task<string?> GetWinningExpressProviderAliasAsync(
+        List<PaymentMethodDto> expressMethods,
+        CancellationToken cancellationToken)
+    {
+        var enabledProviders = await GetEnabledProvidersAsync(cancellationToken);
+        var expressProviderAliases = new HashSet<string>(
+            expressMethods.Select(m => m.ProviderAlias),
+            StringComparer.OrdinalIgnoreCase);
+
+        // enabledProviders is already sorted by SortOrder then DisplayName
+        var winner = enabledProviders.FirstOrDefault(p =>
+            expressProviderAliases.Contains(p.Metadata.Alias));
+
+        if (winner != null)
+        {
+            logger.LogDebug(
+                "Express checkout: provider '{Provider}' (sort order {SortOrder}) selected as sole express provider",
+                winner.Metadata.Alias,
+                winner.SortOrder);
+        }
+
+        return winner?.Metadata.Alias;
     }
 
     /// <inheritdoc />
