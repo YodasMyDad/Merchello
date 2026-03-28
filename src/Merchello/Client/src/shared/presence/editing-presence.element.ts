@@ -87,8 +87,13 @@ export class MerchelloEditingPresenceElement extends UmbElementMixin(LitElement)
   override render() {
     if (this._users.length === 0) return nothing;
 
-    const visible = this._users.slice(0, MAX_VISIBLE_AVATARS);
-    const overflow = this._users.length - MAX_VISIBLE_AVATARS;
+    const currentUserKey = this.#presenceContext?.currentUserKey;
+    const me = this._users.find((u) => u.userKey === currentUserKey);
+    const others = this._users.filter((u) => u.userKey !== currentUserKey);
+    const visible = me
+      ? [...others.slice(0, MAX_VISIBLE_AVATARS - 1), me]
+      : this._users.slice(0, MAX_VISIBLE_AVATARS);
+    const overflow = this._users.length - visible.length;
 
     return html`
       <div class="presence-container" aria-label="Users currently editing">

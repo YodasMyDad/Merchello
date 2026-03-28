@@ -35,7 +35,7 @@ dotnet new merchello-starter -n MyStore --projectName MyCustomProjectName
 If you already have an Umbraco v17+ site and want to add Merchello to it, install the NuGet package directly:
 
 ```bash
-dotnet add package Umbraco.Community.Merchello@1.0.0-beta.4
+dotnet add package Umbraco.Community.Merchello --version 1.0.0-beta.4
 ```
 
 ### Register Merchello in Program.cs
