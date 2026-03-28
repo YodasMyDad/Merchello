@@ -1,6 +1,6 @@
 # Payment Provider Development Guide (Code-Verified)
 
-Last verified: February 28, 2026.
+Last verified: March 26, 2026.
 
 This is the single source of truth for Merchello payment provider architecture and implementation. It is based on traced runtime code paths and is intended to be handed to an LLM or engineer as the implementation reference for new Merchello payment providers.
 
@@ -77,6 +77,25 @@ Optional members (defaulted in `PaymentProviderBase`):
 - payment links: `CreatePaymentLinkAsync`, `DeactivatePaymentLinkAsync`
 - vault: `CreateVaultSetupSessionAsync`, `ConfirmVaultSetupAsync`, `ChargeVaultedMethodAsync`, `DeleteVaultedMethodAsync`
 
+### PaymentProviderMetadata Properties
+
+| Property | Type | Default | Purpose |
+|----------|------|---------|---------|
+| `Alias` | `string` | required | Unique immutable identifier (e.g., `"stripe"`, `"braintree"`) |
+| `DisplayName` | `string` | required | Display name shown in UI |
+| `Icon` | `string?` | `null` | Icon URL or CSS class for admin |
+| `IconHtml` | `string?` | `null` | SVG icon markup (takes precedence over `Icon`) |
+| `Description` | `string?` | `null` | Provider description |
+| `SupportsRefunds` | `bool` | `true` | Whether refunds are supported |
+| `SupportsPartialRefunds` | `bool` | `true` | Whether partial refunds are supported |
+| `SupportsAuthAndCapture` | `bool` | `false` | Whether authorize-then-capture is supported |
+| `RequiresWebhook` | `bool` | `false` | Whether webhook setup is required |
+| `SupportsPaymentLinks` | `bool` | `false` | Whether shareable payment links are supported |
+| `SupportsVaultedPayments` | `bool` | `false` | Whether saving payment methods is supported |
+| `RequiresProviderCustomerId` | `bool` | `false` | Whether provider-level customer must be created first |
+| `SetupInstructions` | `string?` | `null` | Markdown-formatted setup guide |
+| `WebhookPath` | `string` | computed | Read-only: `/umbraco/merchello/webhooks/payments/{Alias}` |
+
 Minimal skeleton:
 
 ```csharp
@@ -125,15 +144,21 @@ public sealed class MyGatewayPaymentProvider(ILogger<MyGatewayPaymentProvider> l
 
 Each provider can expose many methods via `PaymentMethodDefinition`.
 
-Critical fields:
+All fields:
 
-- `Alias`
-- `DisplayName`
-- `IntegrationType` (`Redirect`, `HostedFields`, `Widget`, `DirectForm`)
-- `IsExpressCheckout`
-- `DefaultSortOrder`
-- `MethodType` for dedupe
-- `IconHtml` — custom SVG icon for checkout display (no hard-coded icon mappings)
+- `Alias` (required) — method identifier within provider (e.g., `"cards"`, `"applepay"`)
+- `DisplayName` (required) — customer-visible name
+- `IntegrationType` (required) — `Redirect`, `HostedFields`, `Widget`, `DirectForm`
+- `IsExpressCheckout` — appears at checkout start (Apple Pay, Google Pay, PayPal buttons)
+- `DefaultSortOrder` — default display order when first created
+- `MethodType` — deduplication key (use `PaymentMethodTypes` constants); `null` = never deduped
+- `Icon` — icon identifier for admin UI
+- `IconHtml` — custom SVG icon for admin UI
+- `CheckoutIconHtml` — separate icon HTML for customer checkout display
+- `CheckoutStyle` — inline styles for checkout container (`PaymentMethodCheckoutStyle`)
+- `Description` — customer-visible description text
+- `ShowInCheckoutByDefault` — defaults `true`; set `false` to hide from checkout (e.g., Manual Payment)
+- `SupportedRegions` — ISO 3166-1 alpha-2 codes restricting where method appears (e.g., `[NL]` for iDEAL, `[EU]` for SEPA)
 
 Use `PaymentMethodTypes` constants for shared methods:
 
@@ -150,10 +175,18 @@ Use `PaymentMethodTypes` constants for shared methods:
 
 Deduplication behavior from `PaymentProviderManager`:
 
+**Standard methods** (non-express):
+
 1. Dedupes by `MethodType` and lowest `SortOrder`.
 2. Methods with `MethodType == null` are never deduped.
-3. Redirect methods are never deduped.
-4. Express and standard lists are deduped separately.
+3. Redirect methods are never deduped (shown individually in "Or pay with" section).
+
+**Express checkout methods** use a single-provider winner model (not MethodType deduplication):
+
+1. The enabled provider with the lowest sort order that has express methods wins.
+2. ALL express methods come from that single winning provider only.
+3. Other providers' express methods are excluded entirely.
+4. This ensures a consistent express checkout experience (e.g., all buttons from Stripe OR all from Braintree, never mixed).
 
 ## Integration Types
 
@@ -332,14 +365,17 @@ window.MerchelloPaymentAdapters['provider-alias'] = {
 
     // Submit payment - called when user clicks Pay (for form-based flows)
     // Returns: { success: boolean, error?: string, transactionId?: string }
-    async submit(sessionId, data) { },
+    async submit(invoiceId, options) { },
 
     // Get payment token without submitting (for backoffice testing)
     // Returns: { success: boolean, nonce?: string, error?: string, isButtonFlow?: boolean }
     async tokenize() { },
 
-    // Cleanup when switching methods
-    teardown(sessionId) { },
+    // Cleanup when switching methods (methodAlias is optional)
+    teardown(methodAlias) { },
+
+    // Cleanup all instances (optional, for adapters managing multiple sub-components)
+    async teardownAll() { },
 
     // Extract customer data from provider response (for express checkout)
     extractCustomerData(data, context) { }
@@ -347,10 +383,13 @@ window.MerchelloPaymentAdapters['provider-alias'] = {
 ```
 
 Registry functions (from `src/Merchello/Client/public/js/checkout/adapters/adapter-interface.js`):
+
 - `registerAdapter(name, adapter)` — registers for both standard and express based on config
 - `getAdapter(name, forExpress)` — gets adapter by name
 - `hasAdapter(name, forExpress)` — checks if registered
+- `getRegisteredAdapters(forExpress)` — gets all registered adapter names
 - `unregisterAdapter(name)` — removes adapter
+- `createAdapterConfig(name, options)` — helper to build adapter config object
 
 ### Built-in Adapters
 
@@ -385,6 +424,7 @@ Registry functions (from `src/Merchello/Client/public/js/checkout/adapters/adapt
 | GET | `/api/merchello/checkout/cancel` | Handle cancel from payment gateway |
 | GET | `/api/merchello/checkout/payment-options` | Get providers + saved methods |
 | POST | `/api/merchello/checkout/process-saved-payment` | Pay with saved method |
+| POST | `/api/merchello/checkout/worldpay/apple-pay-validate` | WorldPay Apple Pay merchant validation (provider-specific) |
 
 ### Backoffice (Admin)
 
@@ -394,10 +434,15 @@ Controller: `src/Merchello/Controllers/PaymentProvidersApiController.cs`
 |--------|----------|---------|
 | GET | `/api/v1/payment-providers/available` | All discovered providers |
 | GET | `/api/v1/payment-providers` | All configured settings |
+| GET | `/api/v1/payment-providers/{id}` | Get single provider setting |
+| GET | `/api/v1/payment-providers/{alias}/fields` | Get provider configuration fields |
 | POST | `/api/v1/payment-providers` | Create provider config |
+| PUT | `/api/v1/payment-providers/{id}` | Update provider config |
+| DELETE | `/api/v1/payment-providers/{id}` | Delete provider config |
 | PUT | `/api/v1/payment-providers/{id}/toggle` | Toggle provider enabled/disabled |
+| PUT | `/api/v1/payment-providers/reorder` | Reorder providers |
 | GET | `/api/v1/payment-providers/{id}/methods` | Methods for a provider |
-| PUT | `/api/v1/payment-providers/{id}/methods/{alias}` | Enable/disable method |
+| PUT | `/api/v1/payment-providers/{id}/methods/{alias}` | Update method setting |
 | PUT | `/api/v1/payment-providers/{id}/methods/reorder` | Reorder methods |
 | GET | `/api/v1/payment-providers/checkout-preview` | Preview checkout method list |
 
@@ -410,8 +455,11 @@ Controller: `src/Merchello/Controllers/PaymentProvidersApiController.cs`
 | GET | `/api/v1/payment-providers/{id}/test/express-config` | Get express checkout config |
 | GET | `/api/v1/payment-providers/{id}/test/webhook-events` | Get available webhook templates |
 | POST | `/api/v1/payment-providers/{id}/test/simulate-webhook` | Simulate webhook event |
-
-Vault test endpoints also exist for testing saved payment method flows.
+| POST | `/api/v1/payment-providers/{id}/test/payment-link` | Test payment link creation |
+| POST | `/api/v1/payment-providers/{id}/test/vault-setup` | Test vault setup session |
+| POST | `/api/v1/payment-providers/{id}/test/vault-confirm` | Test vault confirmation |
+| POST | `/api/v1/payment-providers/{id}/test/vault-charge` | Test vault charge |
+| DELETE | `/api/v1/payment-providers/{id}/test/vault/{providerMethodId}` | Test vault deletion |
 
 ## Braintree Reference Implementation
 
@@ -448,12 +496,14 @@ Webhook events currently handled in processing:
 - `local_payment_expired`
 - `local_payment_funded`
 
-### Version Status (Verified February 20, 2026)
+Note: Webhook simulation templates (`GetWebhookEventTemplatesAsync`) may include additional event types beyond those handled in `ProcessWebhookAsync` (e.g., `dispute_under_review`, `transaction_disbursed`). These template-only events are useful for testing but map to `Unknown` event type in processing.
+
+### Version Status (Verified March 26, 2026)
 
 From current project file (`src/Merchello.Core/Merchello.Core.csproj`):
 
 - `Braintree` NuGet: `5.39.0`
-- `Stripe.net`: `50.3.0`
+- `Stripe.net`: `50.4.0`
 - `PayPalServerSDK`: `2.2.0`
 - `Amazon.Pay.API.SDK`: `2.7.4`
 
@@ -469,6 +519,18 @@ Registry checks on February 20, 2026:
 - `SEPA` now follows the same Braintree local-payment nonce flow as other local methods in `braintree-local-payment-adapter.js` (it posts `paymentMethodToken` to `/api/merchello/checkout/process-payment`).
 - Webhook simulation templates and test-payload generation include all handled local-payment events: `local_payment_funded`, `local_payment_completed`, `local_payment_reversed`, `local_payment_expired`.
 - Braintree can be used as the canonical in-repo reference for cards, express, local methods, webhooks, and vault behavior.
+
+## Stripe Reference Notes
+
+Stripe is the broadest built-in provider and the only one implementing payment links:
+
+- **Payment Links:** `SupportsPaymentLinks = true` — `CreatePaymentLinkAsync` and `DeactivatePaymentLinkAsync` are fully implemented
+- **Multiple integration modes:** Stripe Checkout (Redirect), Payment Element (HostedFields), Card Elements (HostedFields), Express Element (Widget)
+- **Express checkout:** Single Express Element handles Apple Pay, Google Pay, Link, Amazon Pay, PayPal, and Klarna via `stripe-express-adapter.js`
+- **Vault:** Uses Stripe SetupIntents API; creates/reuses Stripe Customer by email
+- **Webhooks:** `checkout.session.completed`, `payment_intent.succeeded`, `payment_intent.payment_failed`, `charge.refunded`, `charge.dispute.created`
+- **JS SDK:** Uses named versioning (`https://js.stripe.com/clover/stripe.js`) rather than semver URLs
+- Use Stripe as the reference for payment links and multi-integration-mode providers; use Braintree for local payment methods and express checkout patterns.
 
 ## Vaulted Payments (Saved Payment Methods)
 
@@ -632,20 +694,26 @@ Task<bool> DeleteVaultedMethodAsync(
 ```
 src/Merchello.Core/Payments/
 ├── Providers/
+│   ├── Interfaces/
+│   │   ├── IPaymentProvider.cs
+│   │   └── IPaymentProviderManager.cs
 │   ├── BuiltIn/
 │   │   └── ManualPaymentProvider.cs      # Built-in, auto-enabled on startup
 │   ├── Stripe/
-│   │   └── StripePaymentProvider.cs
+│   │   ├── StripePaymentProvider.cs
+│   │   └── ChargeInfo.cs
 │   ├── PayPal/
 │   │   └── PayPalPaymentProvider.cs
 │   ├── Braintree/
 │   │   └── BraintreePaymentProvider.cs
-│   ├── IPaymentProvider.cs
+│   ├── WorldPay/
+│   │   └── WorldPayPaymentProvider.cs
+│   ├── AmazonPay/
+│   │   └── AmazonPayPaymentProvider.cs
 │   ├── PaymentProviderBase.cs
 │   ├── PaymentProviderMetadata.cs
 │   ├── PaymentProviderConfigurationField.cs
 │   ├── PaymentProviderConfiguration.cs
-│   ├── IPaymentProviderManager.cs
 │   ├── PaymentProviderManager.cs
 │   └── RegisteredPaymentProvider.cs
 ├── Models/
@@ -678,11 +746,18 @@ src/Merchello.Core/Payments/
 │   └── TestWebhookParameters.cs
 ├── Services/
 │   ├── Interfaces/IPaymentService.cs
-│   └── PaymentService.cs
+│   ├── Parameters/
+│   ├── PaymentService.cs
+│   ├── PaymentIdempotencyService.cs
+│   ├── PaymentLinkService.cs
+│   ├── SavedPaymentMethodService.cs
+│   └── WebhookSecurityService.cs
 ├── Handlers/
 │   └── EnsureBuiltInPaymentProvidersHandler.cs
 ├── Dtos/
 │   └── PaymentMethodDto.cs
+├── Factories/
+├── Mapping/
 └── ../Shared/Providers/
     └── ProviderConfigurationDbMapping.cs
 
