@@ -165,7 +165,9 @@ using Umbraco.Cms.Core.DependencyInjection;
 using Umbraco.Cms.Core.Notifications;
 using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Persistence.EFCore;
+using Umbraco.Cms.Web.Common.ApplicationBuilder;
 using Umbraco.Extensions;
+using Merchello.Extensions;
 
 namespace Merchello;
 
@@ -259,6 +261,12 @@ public static class Startup
         // Keep Merchello middleware registration internal once the host has opted in.
         builder.Services.AddTransient<IStartupFilter, MerchelloStartupFilter>();
 
+        // Register Merchello SignalR hubs via Umbraco's pipeline filter (no Program.cs changes required).
+        builder.Services.Configure<UmbracoPipelineOptions>(options =>
+            options.AddFilter(new UmbracoPipelineFilter(
+                "Merchello",
+                endpoints: app => app.UseEndpoints(endpoints => endpoints.MapMerchelloHubs()))));
+
         builder.Services.Configure<RazorViewEngineOptions>(options =>
         {
             options.ViewLocationFormats.Add("/Views/{1}/{0}.cshtml");
@@ -337,6 +345,9 @@ public static class Startup
         builder.Services.AddSingleton<ILocalityCatalog, DefaultLocalityCatalog>();
         builder.Services.AddSingleton<ILocalityCacheInvalidator, LocalityCacheInvalidator>();
         builder.Services.AddSingleton<SlugHelper>();
+
+        // Real-time editing presence (SignalR)
+        builder.Services.AddSingleton<Presence.Services.Interfaces.IPresenceTrackingService, Presence.Services.PresenceTrackingService>();
 
         // =====================================================
         // Factories (Singletons - stateless object creators)
@@ -590,6 +601,7 @@ public static class Startup
         builder.Services.AddHostedService<ProductFeedRefreshJob>();            // Rebuilds enabled product/promotions feeds on a schedule
         builder.Services.AddHostedService<ProductSyncWorkerJob>();             // Processes queued product import/export runs
         builder.Services.AddHostedService<ProductSyncCleanupJob>();            // Cleans up old product sync runs and artifacts
+        builder.Services.AddHostedService<Presence.Services.PresenceCleanupHostedService>(); // Sweeps stale editing presence records
 
         // =====================================================
         // Notification Handlers
