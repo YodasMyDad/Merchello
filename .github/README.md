@@ -22,7 +22,7 @@ Just create a fork of this project, and run the app (Make sure you have cleared 
 To get the starter site (With Merchello already installed) use the .NET Template
 
 ```bash
-dotnet new install Umbraco.Community.Merchello.StarterSite
+dotnet new install Umbraco.Community.Merchello.StarterSite@1.0.0-beta.4
 dotnet new merchello-starter -n MyStore
 ```
 
@@ -37,7 +37,7 @@ dotnet new merchello-starter -n MyStore --projectName MyCustomProjectName
 Or if you want to use the Nuget package directly and build out your own front end, just install the latest version of Umbraco and then install the Merchello nuget package. **Remember, you are only installing Merchello and not the Starter Site (Front end)**.
 
 ```bash
-dotnet add package Umbraco.Community.Merchello
+dotnet add package Umbraco.Community.Merchello@1.0.0-beta.4
 ```
 
 Then you need to add merchello to the Umbraco builder

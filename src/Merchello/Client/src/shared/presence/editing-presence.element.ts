@@ -73,7 +73,14 @@ export class MerchelloEditingPresenceElement extends UmbElementMixin(LitElement)
 
     this.#presenceContext.joinEntity(this.entityKey);
     this.observe(this.#presenceContext.presenceUsers, (users) => {
-      this._users = users;
+      // Sort: other users first, current user last (leftmost and on top in row-reverse layout)
+      const currentUserKey = this.#presenceContext?.currentUserKey;
+      const sorted = [...users].sort((a, b) => {
+        const aIsMe = a.userKey === currentUserKey ? 1 : 0;
+        const bIsMe = b.userKey === currentUserKey ? 1 : 0;
+        return aIsMe - bIsMe;
+      });
+      this._users = sorted;
     }, "_presenceUsers");
   }
 
@@ -94,12 +101,14 @@ export class MerchelloEditingPresenceElement extends UmbElementMixin(LitElement)
   }
 
   #renderAvatar(user: PresenceUser) {
+    const isCurrentUser = user.userKey === this.#presenceContext?.currentUserKey;
     const avatarUrl = user.avatarUrls?.[0];
-    const title = user.displayName;
+    const title = isCurrentUser ? "You" : user.displayName;
+    const youClass = isCurrentUser ? " you" : "";
 
     if (avatarUrl) {
       return html`
-        <div class="avatar" title=${title}>
+        <div class="avatar${youClass}" title=${title}>
           <img src=${avatarUrl} alt=${title} loading="lazy" />
         </div>
       `;
@@ -109,7 +118,7 @@ export class MerchelloEditingPresenceElement extends UmbElementMixin(LitElement)
     const bgColor = getColorForUser(user.userKey);
 
     return html`
-      <div class="avatar initials" title=${title} style="background-color: ${bgColor}">
+      <div class="avatar initials${youClass}" title=${title} style="background-color: ${bgColor}">
         ${initials}
       </div>
     `;
@@ -162,6 +171,11 @@ export class MerchelloEditingPresenceElement extends UmbElementMixin(LitElement)
       font-weight: 600;
       letter-spacing: 0.02em;
       user-select: none;
+    }
+
+    .avatar.you {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 1px #22c55e, 0 1px 3px rgba(0, 0, 0, 0.12);
     }
 
     .avatar.overflow {

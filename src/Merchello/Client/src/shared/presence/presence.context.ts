@@ -20,6 +20,10 @@ export class MerchelloPresenceContext extends UmbContextBase {
   #presenceUsers = new UmbArrayState<PresenceUser>([], (u) => u.userKey);
   readonly presenceUsers = this.#presenceUsers.asObservable();
 
+  get currentUserKey(): string | undefined {
+    return this.#currentUserKey;
+  }
+
   constructor(host: UmbControllerHost) {
     super(host, MERCHELLO_PRESENCE_CONTEXT);
 
@@ -111,9 +115,7 @@ export class MerchelloPresenceContext extends UmbContextBase {
         .build();
 
       this.#connection.on("PresenceUpdated", (_entityKey: string, users: PresenceUser[]) => {
-        // Filter out current user
-        const otherUsers = users.filter((u) => u.userKey !== this.#currentUserKey);
-        this.#presenceUsers.setValue(otherUsers);
+        this.#presenceUsers.setValue(users);
       });
 
       this.#connection.onreconnected(async () => {
