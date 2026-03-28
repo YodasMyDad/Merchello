@@ -98,7 +98,7 @@ jobs:
           fi
 
           # Find the latest beta tag and increment
-          latest_beta="$(git tag -l 'v1.0.0-beta.*' --sort=-v:refname | head -n 1 || true)"
+          latest_beta="$(git tag -l 'v1.0.0-beta.[0-9]*' --sort=-v:refname | head -n 1 || true)"
           if [[ -z "${latest_beta}" ]]; then
             beta_num=1
           else

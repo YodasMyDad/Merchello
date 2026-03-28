@@ -535,7 +535,7 @@ public class PaymentProviderManager(
         CancellationToken cancellationToken = default)
     {
         var allMethods = await GetEnabledPaymentMethodsAsync(cancellationToken);
-        var expressMethods = allMethods.Where(m => m.IsExpressCheckout).ToList();
+        var expressMethods = allMethods.Where(m => m.IsExpressCheckout && m.ShowInCheckout).ToList();
 
         if (expressMethods.Count == 0)
             return [];
