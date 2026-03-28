@@ -37,6 +37,7 @@ import { getProductsListHref, getVariantDetailHref } from "@shared/utils/navigat
 import { formatCurrency } from "@shared/utils/formatting.js";
 import "@shared/components/editable-text-list.element.js";
 import "@shared/components/actions-dropdown.element.js";
+import "@shared/presence/editing-presence.element.js";
 
 // Shared components
 import "@products/components/variant-basic-info.element.js";
@@ -2652,6 +2653,9 @@ export class MerchelloProductDetailElement extends UmbElementMixin(LitElement) {
             aria-required="true">
           </uui-input>
           ${!isNew ? html`
+            <merchello-editing-presence
+              entity-key=${"product:" + this._product?.id}
+            ></merchello-editing-presence>
             <merchello-actions-dropdown
               category="productRoot"
               .productRootId=${this._product?.id}

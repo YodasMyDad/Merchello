@@ -34,6 +34,7 @@ import "@orders/components/payment-link-panel.element.js";
 // Import shared components
 import "@shared/components/line-item-identity.element.js";
 import "@shared/components/actions-dropdown.element.js";
+import "@shared/presence/editing-presence.element.js";
 
 @customElement("merchello-order-detail")
 export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
@@ -938,6 +939,9 @@ export class MerchelloOrderDetailElement extends UmbElementMixin(LitElement) {
           <span class="badge ${order.fulfillmentStatusCssClass}">${order.fulfillmentStatus}</span>
           ${order.isCancelled ? html`<span class="badge cancelled">Cancelled</span>` : nothing}
           ${this._renderSourceBadge(order)}
+          <merchello-editing-presence
+            entity-key=${"invoice:" + order.id}
+          ></merchello-editing-presence>
           <merchello-actions-dropdown
             category="invoice"
             .invoiceId=${order.id}
