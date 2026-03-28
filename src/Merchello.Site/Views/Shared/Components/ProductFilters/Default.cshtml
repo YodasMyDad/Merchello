@@ -23,14 +23,14 @@
                     <div class="color-swatch-grid">
                         @foreach (var filter in group.Filters.OrderBy(f => f.SortOrder))
                         {
-                            var isSelected = Model.SelectedFilterKeys.Contains(filter.Id);
-                            <label class="color-swatch-item @(isSelected ? "selected" : "")"
+                            <label class="color-swatch-item"
+                                   :class="{ selected: selectedFilters.includes('@filter.Id') }"
                                    title="@filter.Name">
                                 <input type="checkbox"
                                        class="visually-hidden"
                                        id="filter-@filter.Id"
                                        value="@filter.Id"
-                                       @(isSelected ? "checked" : "")
+                                       :checked="selectedFilters.includes('@filter.Id')"
                                        @@change="toggleFilter('@filter.Id')">
                                 <span class="color-swatch" style="background-color: @filter.HexColour;"></span>
                             </label>
@@ -43,25 +43,13 @@
                     <div class="filter-options">
                         @foreach (var filter in group.Filters.OrderBy(f => f.SortOrder))
                         {
-                            var isSelected = Model.SelectedFilterKeys.Contains(filter.Id);
                             <div class="form-check mb-2">
-                                @if (isSelected)
-                                {
-                                    <input class="form-check-input filter-checkbox"
-                                           type="checkbox"
-                                           id="filter-@filter.Id"
-                                           value="@filter.Id"
-                                           checked
-                                           @@change="toggleFilter('@filter.Id')">
-                                }
-                                else
-                                {
-                                    <input class="form-check-input filter-checkbox"
-                                           type="checkbox"
-                                           id="filter-@filter.Id"
-                                           value="@filter.Id"
-                                           @@change="toggleFilter('@filter.Id')">
-                                }
+                                <input class="form-check-input filter-checkbox"
+                                       type="checkbox"
+                                       id="filter-@filter.Id"
+                                       value="@filter.Id"
+                                       :checked="selectedFilters.includes('@filter.Id')"
+                                       @@change="toggleFilter('@filter.Id')">
                                 <label class="form-check-label" for="filter-@filter.Id">
                                     @filter.Name
                                 </label>
