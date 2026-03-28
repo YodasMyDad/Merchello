@@ -107,6 +107,18 @@ body {
     font-size: 0.68rem;
 }
 
+.site-header-burger,
+.site-country-btn,
+.site-basket-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.site-header-burger {
+    border-radius: 999px;
+}
+
 #siteNav .list-group-item {
     border-left: 0;
     border-right: 0;
@@ -117,8 +129,20 @@ body {
 }
 
 @media (max-width: 991.98px) {
-    .site-brand-text {
-        font-size: 0.95rem;
+    .site-country-btn::after {
+        display: none;
+    }
+
+    .site-country-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .site-header-burger,
+    .site-country-btn,
+    .site-basket-btn {
+        padding: 0.35rem 0.5rem;
+        line-height: 0;
     }
 }
 
@@ -126,10 +150,32 @@ body {
     .site-header-utility {
         gap: 0.45rem !important;
     }
+}
 
-    .site-header-utility .btn {
-        padding-left: 0.6rem;
-        padding-right: 0.6rem;
+/* ==========================================================================
+   Basket Page
+   ========================================================================== */
+
+@media (min-width: 992px) {
+    .w-lg-auto {
+        width: auto !important;
+    }
+}
+
+/* ==========================================================================
+   Category Page - Filter Offcanvas
+   ========================================================================== */
+
+#filterPanel .offcanvas-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+}
+
+@media (max-width: 991.98px) {
+    #filterPanel .card {
+        border: 0;
+        box-shadow: none;
     }
 }
 

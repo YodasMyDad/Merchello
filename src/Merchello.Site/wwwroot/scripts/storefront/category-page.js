@@ -8,6 +8,34 @@ export function registerCategoryPage(Alpine) {
         rangeMin: config.rangeMin,
         rangeMax: config.rangeMax,
         debounceTimer: null,
+        deferApply: false,
+        pendingChanges: false,
+        _filterSnapshot: null,
+
+        init() {
+            const panel = document.getElementById('filterPanel');
+            if (panel) {
+                panel.addEventListener('show.bs.offcanvas', () => {
+                    this.deferApply = true;
+                    this.pendingChanges = false;
+                    this._filterSnapshot = {
+                        selectedFilters: [...this.selectedFilters],
+                        priceMin: this.priceMin,
+                        priceMax: this.priceMax
+                    };
+                });
+                panel.addEventListener('hidden.bs.offcanvas', () => {
+                    if (this.pendingChanges && this._filterSnapshot) {
+                        this.selectedFilters = this._filterSnapshot.selectedFilters;
+                        this.priceMin = this._filterSnapshot.priceMin;
+                        this.priceMax = this._filterSnapshot.priceMax;
+                    }
+                    this.deferApply = false;
+                    this.pendingChanges = false;
+                    this._filterSnapshot = null;
+                });
+            }
+        },
 
         toggleFilter(filterId) {
             const index = this.selectedFilters.indexOf(filterId);
@@ -17,13 +45,21 @@ export function registerCategoryPage(Alpine) {
                 this.selectedFilters.push(filterId);
             }
             this.currentPage = 1;
-            this.applyFilters();
+            if (this.deferApply) {
+                this.pendingChanges = true;
+            } else {
+                this.applyFilters();
+            }
         },
 
         clearFilters() {
             this.selectedFilters = [];
             this.currentPage = 1;
-            this.applyFilters();
+            if (this.deferApply) {
+                this.pendingChanges = true;
+            } else {
+                this.applyFilters();
+            }
         },
 
         onPriceChange() {
@@ -31,7 +67,11 @@ export function registerCategoryPage(Alpine) {
                 [this.priceMin, this.priceMax] = [this.priceMax, this.priceMin];
             }
             this.currentPage = 1;
-            this.debouncedApply();
+            if (this.deferApply) {
+                this.pendingChanges = true;
+            } else {
+                this.debouncedApply();
+            }
         },
 
         debouncedApply() {
@@ -52,7 +92,31 @@ export function registerCategoryPage(Alpine) {
             this.priceMax = this.rangeMax;
             this.sortBy = 0;
             this.currentPage = 1;
+            if (this.deferApply) {
+                this.pendingChanges = true;
+            } else {
+                this.applyFilters();
+            }
+        },
+
+        applyAndClose() {
+            const panel = document.getElementById('filterPanel');
+            const offcanvas = bootstrap.Offcanvas.getInstance(panel);
+            this.pendingChanges = false;
+            this._filterSnapshot = null;
+            this.deferApply = false;
+            if (offcanvas) {
+                offcanvas.hide();
+            }
             this.applyFilters();
+        },
+
+        activeFilterCount() {
+            let count = this.selectedFilters.length;
+            if (this.priceMin > this.rangeMin || this.priceMax < this.rangeMax) {
+                count++;
+            }
+            return count;
         },
 
         applyFilters() {
