@@ -1,0 +1,149 @@
+# Reporting and Analytics
+
+Merchello provides a reporting system for tracking sales performance, understanding trends, and exporting data. All reporting data is served through the `IReportingService` and exposed via the backoffice API.
+
+## KPI Summary
+
+The summary endpoint gives you the key metrics at a glance:
+
+```
+GET /api/v1/reporting/summary?startDate=2025-01-01&endDate=2025-01-31
+```
+
+Returns an `AnalyticsSummaryDto` with:
+
+- **Gross sales** -- Total revenue before adjustments
+- **Returning customers** -- Customers who have ordered before
+- **Orders fulfilled** -- Completed orders in the period
+- **Total orders** -- All orders in the period
+
+### Period Comparison
+
+Every summary endpoint supports comparison with a previous period. You can use automatic or custom comparison:
+
+```
+GET /api/v1/reporting/summary?startDate=2025-01-01&endDate=2025-01-31&compareMode=Previous
+```
+
+Compare modes:
+- `Previous` -- Automatically compares with the preceding period of equal length
+- `Custom` -- Provide explicit `comparisonStartDate` and `comparisonEndDate`
+
+The response includes percentage changes for each metric.
+
+## Sales Breakdown
+
+Get a detailed breakdown of how your sales numbers are composed:
+
+```
+GET /api/v1/reporting/breakdown?startDate=2025-01-01&endDate=2025-01-31
+```
+
+Returns a `SalesBreakdownDto` with:
+
+| Metric | Description |
+|---|---|
+| Gross sales | Total product revenue |
+| Discounts | Total discount amounts applied |
+| Returns | Refunded amounts |
+| Net sales | Gross - discounts - returns |
+| Shipping | Shipping charges collected |
+| Taxes | Tax amounts collected |
+| Total | Final total |
+
+This also supports `compareMode` for period-over-period comparison.
+
+## Time Series Data
+
+Merchello provides daily time series data for charts and graphs.
+
+### Sales Time Series
+
+```
+GET /api/v1/reporting/sales-timeseries?startDate=2025-01-01&endDate=2025-01-31
+```
+
+Returns a list of `TimeSeriesDataPointDto` with date and value for each day.
+
+### Sales Time Series with Totals (Preferred)
+
+```
+GET /api/v1/reporting/sales-timeseries-with-totals?startDate=2025-01-01&endDate=2025-01-31
+```
+
+Returns a `TimeSeriesResultDto` that includes:
+- Daily data points
+- Period totals calculated on the backend
+- Percentage change vs. comparison period
+
+> **Tip:** Use the `-with-totals` endpoints whenever possible. They calculate totals and percentage changes on the backend so your frontend does not need to duplicate that math.
+
+### Average Order Value Time Series
+
+```
+GET /api/v1/reporting/aov-timeseries-with-totals?startDate=2025-01-01&endDate=2025-01-31
+```
+
+Same structure as sales time series, but for average order value (AOV).
+
+### Date Range Limit
+
+Time series queries are limited to a maximum of 730 days (2 years) to prevent unbounded database queries. If you request a range exceeding this limit, the end date is automatically capped.
+
+## Best Sellers
+
+The reporting service can return your best-selling products:
+
+```csharp
+var bestSellers = await reportingService.GetBestSellersAsync(
+    take: 8,
+    fromDate: DateTime.UtcNow.AddDays(-30),
+    toDate: DateTime.UtcNow);
+```
+
+Products are ranked by total quantity sold (descending).
+
+## Order Statistics
+
+Quick stats for today's operations:
+
+```csharp
+var stats = await reportingService.GetOrderStatsAsync();
+// stats.Orders, stats.Items, stats.Fulfilled, stats.Outstanding
+```
+
+## Dashboard Statistics
+
+Monthly metrics with percentage changes for the main dashboard:
+
+```csharp
+var dashboard = await reportingService.GetDashboardStatsAsync();
+```
+
+## CSV Export
+
+Export order data for a date range as CSV:
+
+```csharp
+var exportData = await reportingService.GetOrdersForExportAsync(
+    fromDate: new DateTime(2025, 1, 1),
+    toDate: new DateTime(2025, 1, 31));
+```
+
+Returns a list of `OrderExportItemDto` records that include all the fields needed for a comprehensive CSV export (order number, customer, line items, totals, etc.).
+
+## API Summary
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/reporting/summary` | GET | KPI summary with comparison |
+| `/api/v1/reporting/breakdown` | GET | Sales breakdown with comparison |
+| `/api/v1/reporting/sales-timeseries` | GET | Daily sales data points |
+| `/api/v1/reporting/sales-timeseries-with-totals` | GET | Sales data with calculated totals |
+| `/api/v1/reporting/aov-timeseries` | GET | Daily average order value |
+| `/api/v1/reporting/aov-timeseries-with-totals` | GET | AOV data with calculated totals |
+
+## Related Topics
+
+- [Orders](../orders/)
+- [Background Jobs](../background-jobs/background-jobs.md)

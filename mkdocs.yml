@@ -1,0 +1,223 @@
+site_name: Merchello Documentation
+site_description: Enterprise ecommerce for Umbraco v17+ — developer documentation
+site_url: https://YodasMyDad.github.io/Merchello/
+repo_url: https://github.com/YodasMyDad/Merchello
+repo_name: YodasMyDad/Merchello
+edit_uri: edit/main/docs/documentation/
+
+docs_dir: docs/documentation
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/YodasMyDad/Merchello
+    - icon: fontawesome/solid/box
+      link: https://www.nuget.org/packages/Umbraco.Community.Merchello
+
+nav:
+  - Home: index.md
+
+  - Getting Started:
+    - Installing Merchello: getting-started/installation.md
+    - Project Structure: getting-started/project-structure.md
+    - Seed Data: getting-started/seed-data.md
+    - Configuration Reference: getting-started/configuration-reference.md
+    - Starter Site Walkthrough: getting-started/starter-site-walkthrough.md
+
+  - Store Configuration:
+    - Store Settings: store-configuration/store-settings.md
+    - Countries and Regions: store-configuration/countries-and-regions.md
+    - Warehouses: store-configuration/warehouses.md
+    - Suppliers: store-configuration/suppliers.md
+
+  - Products and Catalogue:
+    - Products Overview: products/products-overview.md
+    - Variants, Options, and Add-ons: products/variants-and-options.md
+    - Product Page Routing: products/product-routing.md
+    - Building Product Views: products/product-views.md
+    - Element Type Properties: products/element-type-properties.md
+    - Product Collections: products/collections-and-categories.md
+    - Product Filters: products/product-filters.md
+    - Product Types: products/product-types.md
+    - Digital Products: products/digital-products.md
+    - Inventory and Stock: products/inventory-and-stock.md
+    - Product Import / Export (CSV): products/product-import-export.md
+
+  - Storefront:
+    - Storefront Context: storefront/storefront-context.md
+    - Price Display: storefront/price-display.md
+    - Product Availability: storefront/product-availability.md
+
+  - Shopping and Cart:
+    - Basket Service: shopping/basket-service.md
+    - Basket API: shopping/basket-api.md
+
+  - Checkout:
+    - Checkout Flow: checkout/checkout-flow.md
+    - Session Management: checkout/checkout-session.md
+    - Addresses: checkout/checkout-addresses.md
+    - Shipping Selection: checkout/checkout-shipping.md
+    - Discounts: checkout/checkout-discounts.md
+    - Authentication: checkout/checkout-authentication.md
+    - Checkout API: checkout/checkout-api.md
+    - Customizing Views: checkout/checkout-razor.md
+    - Express Checkout: checkout/express-checkout.md
+    - Abandoned Cart Recovery: checkout/abandoned-cart.md
+
+  - Payments:
+    - Payment System Overview: payments/payment-system-overview.md
+    - Built-in Providers: payments/payment-providers.md
+    - Saved Payment Methods: payments/saved-payment-methods.md
+    - Payment Links: payments/payment-links.md
+    - Refunds: payments/refunds.md
+
+  - Shipping:
+    - Shipping Overview: shipping/shipping-overview.md
+    - Flat Rate Shipping: shipping/flat-rate-shipping.md
+    - Dynamic Providers (UPS, FedEx): shipping/dynamic-shipping-providers.md
+    - Order Grouping: shipping/order-grouping.md
+    - Package Configuration: shipping/package-configuration.md
+    - Shipments: shipping/shipments.md
+
+  - Tax:
+    - Tax Overview: tax/tax-overview.md
+    - Shipping Tax: tax/shipping-tax.md
+    - Tax Providers: tax/tax-providers.md
+
+  - Customers:
+    - Customer Management: customers/customer-management.md
+    - Customer Segments: customers/customer-segments.md
+
+  - Orders and Invoices:
+    - Orders Overview: orders/orders-overview.md
+    - Invoice Editing: orders/invoice-editing.md
+    - Manual Orders: orders/manual-orders.md
+    - Customer Statements: orders/statements.md
+
+  - Discounts:
+    - Discount Engine: discounts/discounts-overview.md
+
+  - Multi-Currency:
+    - Multi-Currency Overview: multi-currency/multi-currency-overview.md
+    - Exchange Rate Providers: multi-currency/exchange-rate-providers.md
+
+  - Fulfilment:
+    - Fulfilment Overview: fulfilment/fulfilment-overview.md
+    - ShipBob: fulfilment/shipbob.md
+    - Supplier Direct: fulfilment/supplier-direct.md
+
+  - Upsells:
+    - Upsells Overview: upsells/upsells-overview.md
+
+  - Email:
+    - Email System: email/email-overview.md
+
+  - Webhooks:
+    - Outbound Webhooks: webhooks/webhooks-overview.md
+
+  - Notifications:
+    - Notification System: notifications/notification-system.md
+
+  - Reporting:
+    - Reporting and Analytics: reporting/reporting-overview.md
+
+  - Product Feeds:
+    - Google Shopping Feeds: product-feeds/product-feeds-overview.md
+
+  - UCP:
+    - Universal Commerce Protocol: ucp/ucp-overview.md
+
+  - Health Checks:
+    - Health Checks: health-checks/health-checks.md
+
+  - Background Jobs:
+    - Background Jobs: background-jobs/background-jobs.md
+
+  - Caching:
+    - Caching: caching/caching.md
+
+  - Extending Merchello:
+    - Extension Manager: extending/extension-manager.md
+    - Custom Payment Providers: extending/creating-payment-providers.md
+    - Custom Shipping Providers: extending/creating-shipping-providers.md
+    - Custom Tax Providers: extending/creating-tax-providers.md
+    - Custom Fulfilment Providers: extending/creating-fulfilment-providers.md
+    - Custom Exchange Rate Providers: extending/creating-exchange-rate-providers.md
+    - Custom Address Lookup Providers: extending/creating-address-lookup-providers.md
+    - Custom Order Grouping: extending/custom-order-grouping.md
+    - Product Feed Resolvers: extending/creating-product-feed-resolvers.md
+    - Notification Handlers: extending/notification-handlers.md
+    - Commerce Protocol Adapters: extending/commerce-protocol-adapters.md
+
+  - API Reference:
+    - Storefront API: api/storefront-api.md
+    - Checkout API: api/checkout-api.md
+    - Admin API: api/admin-api.md
+    - Webhook API: api/webhook-api.md
+    - Downloads API: api/downloads-api.md
+    - OpenAPI / Swagger: api/openapi-swagger.md
+
+  - Advanced:
+    - Factories: advanced/factories.md
+    - CrudResult Pattern: advanced/crud-result-pattern.md
+    - Entity Relationships: advanced/entity-relationships.md
+    - Asset Pipeline: advanced/checkout-asset-pipeline.md
+    - Actions System: advanced/actions-system.md
+    - Google Auto Discount: advanced/google-auto-discount.md
+    - Rate Limiting: advanced/rate-limiting.md
+    - PDF Generation: advanced/pdf-generation.md
+    - Umbraco EF Core Notes: advanced/umbraco-ef-core.md
+
+  - Backoffice:
+    - Backoffice UI Development: backoffice/backoffice-overview.md
+
+  - Planned Features:
+    - Coming Soon: planned/planned-features.md
