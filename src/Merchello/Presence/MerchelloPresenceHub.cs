@@ -5,17 +5,22 @@ using Merchello.Presence.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Umbraco.Cms.Core;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Web.Common.Authorization;
 
 namespace Merchello.Presence;
 
 [Authorize(Policy = AuthorizationPolicies.SectionAccessContent)]
-public sealed class MerchelloPresenceHub(IPresenceTrackingService presenceService) : Hub
+public sealed class MerchelloPresenceHub(
+    IPresenceTrackingService presenceService,
+    IUserService userService) : Hub
 {
-    public async Task JoinEntity(string entityKey, string displayName, string[] avatarUrls)
+    public async Task JoinEntity(string entityKey)
     {
         var userKey = GetUserKey();
         if (userKey == Guid.Empty) return;
+
+        var (displayName, avatarUrls) = await GetUserInfoAsync(userKey);
 
         var record = new EntityPresenceRecord(
             userKey,
@@ -67,6 +72,16 @@ public sealed class MerchelloPresenceHub(IPresenceTrackingService presenceServic
             .Select(g => g.OrderByDescending(r => r.LastSeen).First())
             .Select(r => new PresenceUserDto(r.UserKey.ToString(), r.DisplayName, r.AvatarUrls))
             .ToList();
+
+    private async Task<(string DisplayName, string[] AvatarUrls)> GetUserInfoAsync(Guid userKey)
+    {
+        var user = await userService.GetAsync(userKey);
+        if (user is null) return ("Unknown", []);
+
+        var displayName = user.Name ?? "Unknown";
+        var avatarUrls = string.IsNullOrEmpty(user.Avatar) ? [] : new[] { user.Avatar };
+        return (displayName, avatarUrls);
+    }
 
     private Guid GetUserKey()
     {

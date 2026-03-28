@@ -15,9 +15,7 @@ export class MerchelloPresenceContext extends UmbContextBase {
   #heartbeatTimer?: ReturnType<typeof setInterval>;
   #currentUserKey?: string;
   #currentEntityKey?: string;
-  #currentDisplayName?: string;
-  #currentAvatarUrls: string[] = [];
-  #isConnecting = false;
+  #connectingPromise?: Promise<void>;
 
   #presenceUsers = new UmbArrayState<PresenceUser>([], (u) => u.userKey);
   readonly presenceUsers = this.#presenceUsers.asObservable();
@@ -29,8 +27,6 @@ export class MerchelloPresenceContext extends UmbContextBase {
       this.observe(context?.currentUser, (user) => {
         if (user) {
           this.#currentUserKey = user.unique;
-          this.#currentDisplayName = user.name ?? user.userName ?? "Unknown";
-          this.#currentAvatarUrls = [...(user.avatarUrls ?? [])];
         }
       }, "_currentUser");
     });
@@ -47,13 +43,12 @@ export class MerchelloPresenceContext extends UmbContextBase {
     this.#currentEntityKey = entityKey;
     await this.#ensureConnected();
 
+    // Guard: if another joinEntity() call overtook this one during the
+    // async connect, bail out — the newer call owns the entity key now.
+    if (this.#currentEntityKey !== entityKey) return;
+
     if (this.#connection?.state === HubConnectionState.Connected) {
-      await this.#connection.invoke(
-        "JoinEntity",
-        entityKey,
-        this.#currentDisplayName ?? "Unknown",
-        this.#currentAvatarUrls,
-      );
+      await this.#connection.invoke("JoinEntity", entityKey);
     }
   }
 
@@ -88,10 +83,17 @@ export class MerchelloPresenceContext extends UmbContextBase {
 
   async #ensureConnected(): Promise<void> {
     if (this.#connection?.state === HubConnectionState.Connected) return;
-    if (this.#isConnecting) return;
+    if (this.#connectingPromise) return this.#connectingPromise;
 
-    this.#isConnecting = true;
+    this.#connectingPromise = this.#doConnect();
+    try {
+      await this.#connectingPromise;
+    } finally {
+      this.#connectingPromise = undefined;
+    }
+  }
 
+  async #doConnect(): Promise<void> {
     try {
       // Get auth token from Umbraco's auth context
       const authContext = await this.getContext(UMB_AUTH_CONTEXT);
@@ -117,12 +119,7 @@ export class MerchelloPresenceContext extends UmbContextBase {
       this.#connection.onreconnected(async () => {
         // Re-join entity after reconnect
         if (this.#currentEntityKey) {
-          await this.#connection!.invoke(
-            "JoinEntity",
-            this.#currentEntityKey,
-            this.#currentDisplayName ?? "Unknown",
-            this.#currentAvatarUrls,
-          );
+          await this.#connection!.invoke("JoinEntity", this.#currentEntityKey);
         }
       });
 
@@ -135,8 +132,6 @@ export class MerchelloPresenceContext extends UmbContextBase {
       this.#startHeartbeat();
     } catch (err) {
       console.error("[MerchelloPresence] Failed to connect:", err);
-    } finally {
-      this.#isConnecting = false;
     }
   }
 
