@@ -2,6 +2,12 @@
 
 The `Merchello.Site` project is a working example store that shows you how to build a storefront with Merchello. Whether you used the .NET template or cloned the repo, this guide walks you through every piece so you understand how it all fits together.
 
+## Video Walkthrough
+
+Watch this quick video to see the starter site in action, including how to install the content using uSync:
+
+[![Starter Site YouTube Video](https://img.youtube.com/vi/jRSXaJpZekE/0.jpg)](https://www.youtube.com/watch?v=jRSXaJpZekE)
+
 ## Overview
 
 The starter site is deliberately simple -- it is a bare-bones example showing the key integration points. It uses Umbraco's standard MVC patterns (route hijacking via `SurfaceController`) and demonstrates:
