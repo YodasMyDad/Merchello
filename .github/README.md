@@ -42,7 +42,7 @@ dotnet add package Umbraco.Community.Merchello@1.0.0-beta.4
 
 Then you need to add merchello to the Umbraco builder
 
-```
+```csharp
 builder.CreateUmbracoBuilder()
     .AddBackOffice()
     .AddWebsite()
@@ -53,29 +53,40 @@ builder.CreateUmbracoBuilder()
 
 It's important you set some starting settings in your appSettings to your preference before starting up the project, these are the defaults (If you don't want seed data set that to false)
 
-```
+```json
+{
   "Merchello": {
     "InstallSeedData": true,
     "StoreCurrencyCode": "USD",
     "DefaultShippingCountry": "US"
   }
+}
 ```
 
 By all means change the StoreCurrencyCode (ISO 4217 code) and DefaultShippingCountry (ISO 3166-1 alpha-2 country code) to whatever you want.
 
 Once installed, you need to enable the Merchello section in the Admin users group (Like you would do any new section).
 
-#### Seed Data
+### Seed Data
 
 If you left InstallSeedData = true and now click on the main Merchello root branch in the tree, you should see an Install Seed data panel. If you click install, that will install a lot of test data, it can take some time, the panel will disappear when it's done.
 
-#### usync
+### uSync
 
-Don't forget to watch the video about using usync to get the starter content and doc types setup and running. 
+Don't forget to watch the video about using uSync to get the starter content and doc types setup and running.
 
-## Docs
+## Documentation
 
-Sorry, not quite got there yet, but will try and get something up soon. With AI, you can now get it to summarise things if need be in the meantime. 
+Full developer documentation is available at **[YodasMyDad.github.io/Merchello](https://YodasMyDad.github.io/Merchello/)**.
+
+The docs cover everything from installation and building your first store through to creating custom payment, shipping, tax, and fulfilment providers. Highlights include:
+
+- [Installation Guide](https://YodasMyDad.github.io/Merchello/getting-started/installation/) — get up and running in minutes
+- [Starter Site Walkthrough](https://YodasMyDad.github.io/Merchello/getting-started/starter-site-walkthrough/) — guided tour of the example store
+- [Configuration Reference](https://YodasMyDad.github.io/Merchello/getting-started/configuration-reference/) — every `appsettings.json` option explained
+- [Checkout Flow](https://YodasMyDad.github.io/Merchello/checkout/checkout-flow/) — the complete checkout pipeline
+- [Extending Merchello](https://YodasMyDad.github.io/Merchello/extending/extension-manager/) — build custom providers and plugins
+- [API Reference](https://YodasMyDad.github.io/Merchello/api/storefront-api/) — storefront, checkout, admin, and webhook APIs
 
 ## What's Included
 
