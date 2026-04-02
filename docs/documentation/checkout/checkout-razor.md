@@ -1,28 +1,16 @@
 # Customizing Checkout Views
 
-Merchello ships with an integrated Shopify-style checkout that renders via Razor views. This guide covers how the views work, what data they receive, and how to customize them.
+Merchello ships with a Shopify-style checkout rendered via Razor views. This guide covers where the views live, what data they receive, and how to customize them.
 
 ## How Checkout Rendering Works
 
-Merchello's checkout uses Umbraco's route hijacking. When a content node has the `MerchelloCheckout` content type alias, the `MerchelloCheckoutController` handles the request and renders the appropriate Razor view based on the checkout step.
-
-The controller is a standard Umbraco `RenderController`:
-
-```csharp
-public class MerchelloCheckoutController : RenderController
-{
-    public async Task<IActionResult> Index(CancellationToken ct)
-    {
-        // Determines the step, loads data, returns the right view
-    }
-}
-```
+When a content node uses the `MerchelloCheckout` content type alias, the `MerchelloCheckoutController` handles the request and renders the appropriate Razor view based on the checkout step. This uses Umbraco's standard route hijacking.
 
 ---
 
 ## View Locations
 
-All checkout views live in the Razor Class Library (RCL) at:
+All checkout views are served from the Merchello RCL at:
 
 ```
 ~/App_Plugins/Merchello/Views/Checkout/
@@ -37,13 +25,13 @@ All checkout views live in the Razor Class Library (RCL) at:
 | `Cancel.cshtml` | PaymentCancelled | Payment cancellation page |
 | `ResetPassword.cshtml` | N/A | Password reset form |
 
-The single-page checkout handles the Information, Shipping, and Payment steps in a single view with client-side step navigation.
+The single-page checkout handles Information, Shipping, and Payment steps in one view with client-side step navigation.
 
 ---
 
 ## The CheckoutViewModel
 
-Every checkout view receives a `CheckoutViewModel` with all the data needed for rendering. Here are the key properties:
+Every checkout view receives a `CheckoutViewModel` with all the data needed for rendering.
 
 ### Core Properties
 
@@ -113,11 +101,13 @@ Every checkout view receives a `CheckoutViewModel` with all the data needed for 
 | `AddressLookup` | `AddressLookupClientConfigDto?` | Address lookup provider config |
 | `ExpressCheckoutConfig` | `ExpressCheckoutConfigDto?` | Express checkout SDK config |
 
+> **Tip:** All monetary calculations are done server-side. Your views should display the pre-calculated values from the view model rather than doing math in Razor.
+
 ---
 
 ## Overriding Views
 
-To customize the checkout views, create your own view files that override the defaults. Because the views are served from an RCL, the standard ASP.NET Core view discovery order applies -- views in your project take priority over RCL views.
+Views in your project take priority over RCL views, following standard ASP.NET Core view discovery.
 
 ### Option 1: Override in Your Project
 
@@ -131,11 +121,11 @@ YourProject/
       Confirmation.cshtml     <-- overrides the RCL version
 ```
 
-> **Warning:** When you override a view, you take ownership of it. Future Merchello updates to that view won't automatically apply to your override. Keep your customizations minimal to reduce maintenance.
+> **Warning:** When you override a view, you take ownership of it. Future Merchello updates to that view won't automatically apply to your override. Keep customizations minimal to reduce maintenance.
 
 ### Option 2: Custom Confirmation Redirect
 
-If you only need to customize the confirmation page, you can configure a redirect URL instead of overriding the view:
+If you only need to customize the confirmation page, configure a redirect URL instead:
 
 ```json
 {
@@ -147,83 +137,13 @@ If you only need to customize the confirmation page, you can configure a redirec
 }
 ```
 
-When set, the checkout redirects to your custom URL with query parameters:
+The checkout redirects to your URL with query parameters:
 
 ```
 /thank-you?invoiceId=abc123&invoiceNumber=INV-001
 ```
 
 This lets you build the confirmation page however you want while keeping the rest of the checkout intact.
-
----
-
-## Checkout Steps
-
-The checkout controller determines the step from the `MerchelloCheckoutPage` content node:
-
-```csharp
-public enum CheckoutStep
-{
-    Information,
-    Shipping,
-    Payment,
-    Confirmation,
-    PaymentReturn,
-    PaymentCancelled,
-    PostPurchase
-}
-```
-
-For the single-page checkout, Information, Shipping, and Payment are all handled in `SinglePage.cshtml` with JavaScript managing step navigation.
-
----
-
-## Security Features
-
-The checkout views include several security measures you should preserve in any overrides:
-
-### Confirmation Page Security
-
-The confirmation page uses a cookie-based token to prevent unauthorized access:
-
-```csharp
-// Token is set when payment succeeds
-var confirmationToken = Request.Cookies[Core.Constants.Cookies.ConfirmationToken];
-// Must match the invoice ID
-if (tokenInvoiceId != checkoutPage.InvoiceId.Value)
-{
-    // Show "order not found" -- don't reveal whether the invoice exists
-}
-```
-
-### Cache Prevention
-
-The confirmation and post-purchase pages set no-cache headers to prevent shared computer users from seeing previous orders:
-
-```csharp
-Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0";
-```
-
-### Basket Cleanup
-
-After a successful order, the basket cookie is deleted:
-
-```csharp
-Response.Cookies.Delete(Core.Constants.Cookies.BasketId);
-```
-
----
-
-## Cart Recovery Links
-
-The checkout controller handles recovery links at `/checkout/recover/{token}`. When a customer clicks a recovery link from an abandoned cart email, the controller:
-
-1. Validates the recovery token
-2. Restores the basket from the abandoned checkout snapshot
-3. Sets the basket cookie
-4. Redirects to `/checkout/information`
-
-This is handled automatically -- you don't need to add any code for it to work.
 
 ---
 
@@ -253,15 +173,25 @@ The `CheckoutSettings` object in the view model controls branding:
 
 ---
 
-## Data Flow Summary
+## Cart Recovery Links
 
-Here's how data flows from the controller to your views:
+The checkout handles recovery links at `/checkout/recover/{token}` automatically. When a customer clicks a recovery link from an abandoned cart email:
 
-1. **Controller loads basket** via `ICheckoutService.GetBasket()`
-2. **Controller initializes checkout** with the customer's country to get shipping groups
-3. **Controller resolves display currency** via `IStorefrontContextService.GetDisplayContextAsync()`
-4. **Controller calculates display amounts** with proper currency conversion and tax-inclusive math
-5. **Controller builds `CheckoutViewModel`** with all pre-calculated values
-6. **View receives the model** and renders the UI
+1. The recovery token is validated.
+2. The basket is restored from the abandoned checkout snapshot.
+3. The basket cookie is set.
+4. The customer is redirected to `/checkout/information`.
 
-> **Tip:** All monetary calculations are done server-side in the controller. Your views should display the pre-calculated values rather than doing math in Razor. This keeps the single source of truth for calculations in C#.
+No additional code is needed for this to work.
+
+---
+
+## Security Notes for View Overrides
+
+If you override checkout views, keep these behaviors intact:
+
+- **Confirmation page access** is protected by a cookie token -- only the customer who placed the order can view confirmation details.
+- **Confirmation and post-purchase pages** set no-cache headers to prevent shared computer users from seeing previous orders.
+- **Basket cleanup** happens automatically after a successful order (the basket cookie is deleted).
+
+These are handled by the controller, so they work automatically unless you bypass the standard rendering pipeline.

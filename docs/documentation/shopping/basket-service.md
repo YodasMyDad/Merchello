@@ -6,19 +6,17 @@ The basket (shopping cart) is at the heart of the shopping experience. Merchello
 
 ### Basket Storage
 
-- All amounts in the basket are stored in the **store currency** (your base currency).
-- Display currency conversions happen on-the-fly and never modify stored amounts.
-- The basket is identified by a cookie (`BasketId`). Anonymous and logged-in users both get baskets.
+- All amounts are stored in the **store currency** (your base currency). Display currency conversions happen on-the-fly and never modify stored amounts.
+- The basket is identified by a cookie (`BasketId`). Both anonymous and logged-in users get baskets.
 - Each basket has a `Currency` property that tracks the customer's selected display currency.
 
 ### Line Items
 
-A basket contains line items. Each line item represents a product (variant) with a quantity, price, and optional add-on adjustments. Line items can also represent discounts (negative amounts).
+A basket contains line items. Each line item represents a product variant with a quantity, price, and optional add-on adjustments. Discount line items (negative amounts) can also appear.
 
 ## Getting the Basket
 
 ```csharp
-// In a controller or service
 var basket = await checkoutService.GetBasket(new GetBasketParameters(), cancellationToken);
 
 if (basket == null || basket.LineItems.Count == 0)
@@ -27,35 +25,13 @@ if (basket == null || basket.LineItems.Count == 0)
 }
 ```
 
-The `GetBasketParameters` uses the current HTTP context to identify the basket via cookie. If no basket exists, `null` is returned.
+`GetBasketParameters` uses the current HTTP context to identify the basket via cookie. Returns `null` if no basket exists.
 
 ## Adding Items
 
-### Simple Add
+### Add with Add-Ons (Recommended)
 
-```csharp
-// Create a line item from a product
-var lineItem = checkoutService.CreateLineItem(product, quantity: 2);
-
-// Add to basket
-await checkoutService.AddToBasketAsync(basket, lineItem, countryCode, cancellationToken);
-```
-
-### Add with Automatic Basket Retrieval
-
-If you do not have the basket loaded yet:
-
-```csharp
-await checkoutService.AddToBasket(new AddToBasketParameters
-{
-    ProductId = productId,
-    Quantity = 1
-}, cancellationToken);
-```
-
-### Add with Add-Ons
-
-The recommended approach for storefront use. Handles product validation, availability checking, and add-on line item creation:
+This is the recommended approach for storefront use. It handles product validation, stock checking, and add-on line item creation:
 
 ```csharp
 var result = await checkoutService.AddProductWithAddonsAsync(
@@ -80,12 +56,21 @@ else
 }
 ```
 
-This is the method used by the `StorefrontApiController.AddToBasket` endpoint. It:
+This method:
 - Validates the product exists and is available for purchase
 - Checks stock availability
 - Creates the main product line item
 - Creates separate line items for any selected add-ons with price adjustments
 - Recalculates basket totals
+
+### Simple Add
+
+If you already have the basket loaded and a line item ready:
+
+```csharp
+var lineItem = checkoutService.CreateLineItem(product, quantity: 2);
+await checkoutService.AddToBasketAsync(basket, lineItem, countryCode, cancellationToken);
+```
 
 ## Updating Quantities
 
@@ -93,7 +78,7 @@ This is the method used by the `StorefrontApiController.AddToBasket` endpoint. I
 await checkoutService.UpdateLineItemQuantity(
     lineItemId,
     newQuantity: 3,
-    countryCode: null,  // optional, for recalculation
+    countryCode: null,
     cancellationToken);
 ```
 
@@ -111,43 +96,11 @@ await checkoutService.RemoveLineItem(lineItemId, countryCode: null, cancellation
 await checkoutService.DeleteBasket(basketId, cancellationToken);
 ```
 
-This permanently deletes the basket and all its line items.
-
-## Creating a Basket
-
-Baskets are typically created automatically when the first item is added. If you need to create one explicitly:
-
-```csharp
-var basket = checkoutService.CreateBasket(
-    currency: "USD",          // optional, defaults to store currency
-    currencySymbol: "$",      // optional
-    customerId: customerGuid  // optional, for logged-in users
-);
-```
-
-## Basket Calculation
-
-After modifying a basket, totals are recalculated. The `CalculateBasketAsync` method handles:
-- Line item subtotals
-- Tax calculation
-- Discount application
-- Shipping estimation (if applicable)
-
-```csharp
-await checkoutService.CalculateBasketAsync(
-    new CalculateBasketParameters
-    {
-        Basket = basket,
-        CountryCode = "GB"
-    },
-    cancellationToken);
-```
-
-> **Note:** `CalculateBasketAsync` is the single source of truth for basket totals. Never calculate totals manually.
+Permanently deletes the basket and all its line items.
 
 ## Currency Conversion
 
-When a customer changes their display currency, basket amounts need to be converted:
+When a customer changes their display currency:
 
 ```csharp
 var result = await checkoutService.ConvertBasketCurrencyAsync(
@@ -159,23 +112,25 @@ var result = await checkoutService.ConvertBasketCurrencyAsync(
 
 if (!result.Success)
 {
-    // Exchange rate unavailable or operation cancelled
+    // Exchange rate unavailable or conversion cancelled
 }
 ```
 
 This fires `BasketCurrencyChangingNotification` (cancellable) before conversion and `BasketCurrencyChangedNotification` after.
 
-For silent sync (no notifications -- used internally before payment):
+## Digital Products in Basket
+
+Check whether the basket contains digital products before proceeding to checkout:
 
 ```csharp
-var basket = await checkoutService.EnsureBasketCurrencyAsync(
-    new EnsureBasketCurrencyParameters
-    {
-        Basket = basket,
-        CurrencyCode = "USD",
-        CurrencySymbol = "$"
-    },
+bool hasDigital = await checkoutService.BasketHasDigitalProductsAsync(
+    new BasketHasDigitalProductsParameters(),
     cancellationToken);
+
+if (hasDigital)
+{
+    // Enforce account creation -- digital products require login
+}
 ```
 
 ## MVC Example: The .Site Basket Page
@@ -208,26 +163,15 @@ public async Task<IActionResult> Basket(
 }
 ```
 
-## Digital Products in Basket
-
-When a basket contains digital products, you can check for them before proceeding to checkout:
-
-```csharp
-bool hasDigital = await checkoutService.BasketHasDigitalProductsAsync(
-    new BasketHasDigitalProductsParameters(),
-    cancellationToken);
-
-if (hasDigital)
-{
-    // Enforce account creation -- digital products require login
-}
-```
+Key points from this example:
+- Use `GetDisplayContextAsync` to get the customer's currency and exchange rate context.
+- Use `GetBasketAvailabilityAsync` to check stock and shipping availability for all items in one call.
+- Use `storefrontDtoMapper.MapBasket` to convert the basket into a frontend-ready DTO with formatted display amounts.
 
 ## Key Points
 
 - Basket amounts are always stored in **store currency**. Display currency is applied on-the-fly.
 - Use `AddProductWithAddonsAsync` for storefront add-to-cart -- it handles validation, availability, and add-ons.
-- `CalculateBasketAsync` is the single source of truth for totals. Never duplicate the math.
-- `ConvertBasketCurrencyAsync` fires notifications and can be cancelled. `EnsureBasketCurrencyAsync` is silent.
+- Never calculate totals manually -- the checkout service handles this automatically when items are added, updated, or removed.
 - The basket is cookie-based. Anonymous users get baskets, and baskets can be associated with customers.
 - Baskets support both product line items and discount line items (negative amounts).

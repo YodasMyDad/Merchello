@@ -1,30 +1,17 @@
-# Checkout Session Management
+# Checkout Session
 
-The checkout session tracks the customer's progress through the checkout flow. It stores addresses, shipping selections, the current step, and other state that needs to persist across page loads during checkout.
+The checkout session tracks the customer's progress through the checkout flow. It stores addresses, shipping selections, and the current step across page loads.
 
 ## What the Session Stores
 
-A `CheckoutSession` contains:
+Each basket has one session, created automatically on first access. The session holds:
 
-```csharp
-public class CheckoutSession
-{
-    public Guid BasketId { get; set; }
-    public Address BillingAddress { get; set; }
-    public Address ShippingAddress { get; set; }
-    public bool ShippingSameAsBilling { get; set; }
-    public Dictionary<Guid, string> SelectedShippingOptions { get; set; }
-    public Dictionary<Guid, QuotedShippingCost> QuotedShippingCosts { get; set; }
-    public Dictionary<Guid, DateTime> SelectedDeliveryDates { get; set; }
-    public CheckoutStep CurrentStep { get; set; }
-    public bool AcceptsMarketing { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime LastActivityAt { get; set; }
-    public Guid? InvoiceId { get; set; }
-}
-```
-
-Each basket has one session. The session is created automatically the first time it is requested.
+- Billing and shipping addresses
+- Shipping option selections (per order group)
+- Quoted shipping costs (locked at selection time)
+- The current checkout step
+- Marketing opt-in preference
+- The invoice ID (set after order creation)
 
 ## Getting a Session
 
@@ -32,7 +19,7 @@ Each basket has one session. The session is created automatically the first time
 var session = await checkoutSessionService.GetSessionAsync(basketId, ct);
 ```
 
-If no session exists for the basket, a new one is created with default values.
+If no session exists, a new one is created with default values.
 
 ## Saving Addresses
 
@@ -51,23 +38,20 @@ When `ShippingSameAsBilling` is `true`, the shipping address is set to match the
 
 ## Email Capture
 
-You can save just the email without touching the rest of the session. This is used for abandoned checkout recovery -- capture the email early so you can send a recovery link if the customer leaves:
+Save just the email early in the flow for abandoned checkout recovery:
 
 ```csharp
 await checkoutSessionService.SaveEmailAsync(basketId, "customer@example.com", ct);
 ```
 
-> **Note:** `SaveEmailAsync` does NOT clear shipping selections, unlike `SaveAddressesAsync`. This is intentional -- it is a lightweight operation for early email capture.
+This is a lightweight operation -- it does not clear shipping selections or reset other session state.
 
 ## Setting the Checkout Step
 
 Track which step the customer has reached:
 
 ```csharp
-await checkoutSessionService.SetCurrentStepAsync(
-    basketId,
-    CheckoutStep.Shipping,
-    ct);
+await checkoutSessionService.SetCurrentStepAsync(basketId, CheckoutStep.Shipping, ct);
 ```
 
 ## Saving Shipping Selections
@@ -82,8 +66,8 @@ await checkoutSessionService.SaveShippingSelectionsAsync(
         Selections = new Dictionary<Guid, string>
         {
             // GroupId -> SelectionKey
-            [warehouseGroupId] = "so:flat-rate-guid",    // Flat-rate selection
-            [anotherGroupId] = "dyn:fedex:FEDEX_GROUND"  // Dynamic carrier selection
+            [warehouseGroupId] = "so:flat-rate-guid",
+            [anotherGroupId] = "dyn:fedex:FEDEX_GROUND"
         },
         QuotedCosts = new Dictionary<Guid, QuotedShippingCost>
         {
@@ -93,28 +77,16 @@ await checkoutSessionService.SaveShippingSelectionsAsync(
     }, ct);
 ```
 
-### Shipping Selection Key Format
+### Selection Key Format
 
-The selection key follows a stable contract:
-
-- **Flat-rate:** `so:{guid}` -- where guid is the shipping option ID.
+- **Flat-rate:** `so:{guid}` -- the shipping option ID.
 - **Dynamic carrier:** `dyn:{provider}:{serviceCode}` -- e.g. `dyn:fedex:FEDEX_GROUND`.
 
-> **Warning:** Do not change this key format. It is parsed by the order creation pipeline to set `ShippingProviderKey`, `ShippingServiceCode`, and `ShippingServiceName` on orders.
+See [Checkout Shipping](checkout-shipping.md) for more on how selection keys work.
 
 ### Quoted Shipping Costs
 
-The `QuotedShippingCosts` dictionary preserves the shipping rate that was shown to the customer at the time of selection. This quoted rate is honoured through checkout completion, even if the provider's live rates change between selection and payment.
-
-## Setting the Invoice ID
-
-When an invoice is created from the checkout, the session records it for security validation:
-
-```csharp
-await checkoutSessionService.SetInvoiceIdAsync(basketId, invoiceId, ct);
-```
-
-This ensures the session owns the invoice being paid -- preventing one session from paying for another session's invoice.
+The `QuotedCosts` dictionary captures the shipping rate shown to the customer at selection time. This rate is honoured through to order creation, even if the provider's live rates change between selection and payment.
 
 ## Clearing the Session
 
@@ -122,58 +94,12 @@ This ensures the session owns the invoice being paid -- preventing one session f
 await checkoutSessionService.ClearSessionAsync(basketId, ct);
 ```
 
-This resets the session to its default state. Typically called after order completion.
-
-## Per-Request Basket Caching
-
-The session service provides a per-request cache to avoid loading the basket from the database multiple times in the same HTTP request:
-
-```csharp
-// Cache the basket (stored in HttpContext.Items)
-checkoutSessionService.CacheBasket(basket);
-
-// Retrieve later in the same request
-var cached = checkoutSessionService.GetCachedBasket();
-```
-
-This is used internally by the checkout pipeline to avoid redundant database calls.
-
-## Session Timeouts
-
-The checkout session tracks two timestamps:
-
-- **CreatedAt** -- when the session was first created. Used with absolute timeout settings.
-- **LastActivityAt** -- when the session was last accessed or modified. Used with sliding timeout settings.
-
-These are used in conjunction with your checkout settings to expire stale sessions.
-
-## Upsell Tracking
-
-The session can track upsell impressions for conversion attribution:
-
-```csharp
-await checkoutSessionService.AddUpsellImpressionsAsync(
-    new AddUpsellImpressionsParameters
-    {
-        BasketId = basketId,
-        Impressions = [...]
-    }, ct);
-```
-
-It also tracks auto-added upsell products that the customer explicitly removed, preventing re-addition:
-
-```csharp
-await checkoutSessionService.TrackRemovedAutoAddAsync(
-    basketId,
-    new RemovedAutoAddRecord { ProductId = productId },
-    ct);
-```
+Resets the session to its default state. Call this after order completion to clean up session data.
 
 ## Key Points
 
-- One session per basket. Created automatically on first access.
-- `SaveEmailAsync` is a lightweight operation for early email capture (abandoned checkout recovery).
+- One session per basket, created automatically on first access.
+- `SaveEmailAsync` is lightweight -- use it early for abandoned checkout recovery.
 - Shipping selection keys follow a stable contract: `so:{guid}` or `dyn:{provider}:{serviceCode}`.
 - Quoted shipping costs are preserved from selection time through to order creation.
-- The `InvoiceId` on the session provides security validation during payment.
-- Per-request basket caching avoids redundant database loads within a single HTTP request.
+- The session records the invoice ID after order creation for security validation during payment.

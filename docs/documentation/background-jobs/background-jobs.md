@@ -1,124 +1,42 @@
 # Background Jobs
 
-Merchello uses .NET's `IHostedService` / `BackgroundService` pattern to run background tasks. These jobs handle everything from retry queues and polling to cleanup and scheduled refreshes. All jobs use the `HostedServiceRuntimeGate` to wait for Umbraco to reach the `Run` level before starting, and each job runs in an isolated scope to avoid EF Core scope conflicts.
+Merchello runs several background jobs that handle tasks like sending emails, polling fulfillment providers, refreshing exchange rates, and cleaning up old data. These jobs start automatically when your site boots and run on configurable intervals.
+
+---
 
 ## Job Inventory
 
-Here are all the background jobs in Merchello:
+### Outbound Delivery
 
-### Delivery and Communication
+**OutboundDeliveryJob** -- Processes pending webhook and email deliveries. Handles retries for failed deliveries and cleans up old delivery logs based on retention settings.
 
-| Job | Location | Purpose |
-|---|---|---|
-| `OutboundDeliveryJob` | Webhooks | Processes pending webhook and email deliveries, handles retries, and cleans up old delivery logs |
+Configured via `Merchello:Webhooks` and `Merchello:Email`:
 
-### Fulfilment
-
-| Job | Location | Purpose |
-|---|---|---|
-| `FulfilmentPollingJob` | Fulfilment | Polls 3PL providers for order status updates at a configurable interval (default: 15 min) |
-| `FulfilmentRetryJob` | Fulfilment | Retries failed fulfilment submissions with exponential backoff |
-| `FulfilmentCleanupJob` | Fulfilment | Cleans up old sync logs and webhook logs based on retention settings |
-
-### Checkout and Recovery
-
-| Job | Location | Purpose |
-|---|---|---|
-| `AbandonedCheckoutDetectionJob` | Checkout | Detects abandoned checkouts, schedules recovery emails, and expires old recovery tokens |
-
-### Products and Catalog
-
-| Job | Location | Purpose |
-|---|---|---|
-| `ProductFeedRefreshJob` | Product Feeds | Periodically rebuilds all enabled Google Shopping feeds (default: every 3 hours) |
-| `ProductSyncWorkerJob` | Product Sync | Processes product sync operations from external sources |
-| `ProductSyncCleanupJob` | Product Sync | Cleans up completed/expired sync records |
-
-### Finance and Accounting
-
-| Job | Location | Purpose |
-|---|---|---|
-| `InvoiceReminderJob` | Accounting | Sends payment reminders and overdue notifications for unpaid invoices |
-| `ExchangeRateRefreshJob` | Exchange Rates | Refreshes currency exchange rates from configured providers |
-
-### Status Management
-
-| Job | Location | Purpose |
-|---|---|---|
-| `DiscountStatusJob` | Discounts | Transitions discount status based on start/end dates (activating scheduled, expiring ended) |
-| `UpsellStatusJob` | Upsells | Transitions upsell rules from Active to Expired when their end date passes |
-
-### Security and Protocol
-
-| Job | Location | Purpose |
-|---|---|---|
-| `UcpSigningKeyRotationJob` | Protocols | Rotates ES256 signing keys for UCP webhook authentication |
-
-### Cleanup
-
-| Job | Location | Purpose |
-|---|---|---|
-| `EmailAttachmentCleanupJob` | Email | Removes orphaned email attachment files after the retention period (default: 72 hours) |
-
-## Job Pattern
-
-All Merchello background jobs follow the same pattern:
-
-```csharp
-public class MyJob(
-    IServiceScopeFactory serviceScopeFactory,
-    IRuntimeState runtimeState,
-    ILogger<MyJob> logger) : BackgroundService
+```json
 {
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
-        => HostedServiceRuntimeGate.RunIsolatedAsync(ExecuteCoreAsync, stoppingToken);
-
-    private async Task ExecuteCoreAsync(CancellationToken stoppingToken)
-    {
-        // 1. Wait for Umbraco to be ready
-        if (!await HostedServiceRuntimeGate.WaitForRunLevelAsync(
-                runtimeState, logger, nameof(MyJob), stoppingToken))
-        {
-            return;
-        }
-
-        // 2. Main loop
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                using var scope = serviceScopeFactory.CreateScope();
-                var service = scope.ServiceProvider.GetRequiredService<IMyService>();
-                await service.DoWorkAsync(stoppingToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Error in MyJob");
-            }
-
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
-        }
+  "Merchello": {
+    "Webhooks": {
+      "DeliveryIntervalSeconds": 10,
+      "MaxRetries": 5,
+      "RetryDelaysSeconds": [60, 300, 900, 3600, 14400],
+      "DeliveryLogRetentionDays": 30
+    },
+    "Email": {
+      "MaxRetries": 3,
+      "RetryDelaysSeconds": [60, 300, 900],
+      "DeliveryRetentionDays": 30
     }
+  }
 }
 ```
 
-### Key Points
+### Fulfillment
 
-1. **`RunIsolatedAsync`** -- Wraps the job in an isolated execution context. This is critical because Umbraco's `EFCoreScope` uses `AsyncLocal` ambient state, and background tasks need their own scope chain.
+**FulfilmentPollingJob** -- Polls 3PL providers for order status updates at a configurable interval.
 
-2. **`WaitForRunLevelAsync`** -- Blocks until Umbraco has finished booting and is at the `Run` level. This prevents jobs from running during migrations or initialization.
+**FulfilmentRetryJob** -- Retries failed fulfillment submissions with exponential backoff.
 
-3. **`IServiceScopeFactory`** -- Each iteration creates a new DI scope. This ensures fresh service instances and avoids scope lifetime issues.
-
-4. **Error handling** -- Jobs catch all exceptions (except cancellation) to prevent a single failure from killing the background service.
-
-> **Warning:** Never use `Task.WhenAll` to parallelize database calls inside background jobs. Umbraco's EFCoreScope uses AsyncLocal state, and concurrent database operations will corrupt scope ordering. See the [EFCoreScope documentation](../../) for details.
-
-## Configuration
-
-Most jobs have their intervals and behavior configured through settings objects in `appsettings.json`. Here are the key settings:
-
-### Fulfilment Jobs
+**FulfilmentCleanupJob** -- Cleans up old sync logs and webhook logs based on retention settings.
 
 ```json
 {
@@ -134,7 +52,29 @@ Most jobs have their intervals and behavior configured through settings objects 
 }
 ```
 
-### Product Feed Refresh
+### Abandoned Checkout Recovery
+
+**AbandonedCheckoutDetectionJob** -- Detects abandoned checkouts, schedules recovery emails, and expires old recovery tokens.
+
+```json
+{
+  "Merchello": {
+    "AbandonedCheckout": {
+      "CheckIntervalMinutes": 15,
+      "AbandonmentThresholdHours": 1.0,
+      "FirstEmailDelayHours": 1,
+      "ReminderEmailDelayHours": 24,
+      "FinalEmailDelayHours": 48,
+      "MaxRecoveryEmails": 3,
+      "RecoveryExpiryDays": 30
+    }
+  }
+}
+```
+
+### Product Feeds
+
+**ProductFeedRefreshJob** -- Periodically rebuilds all enabled Google Shopping feeds to keep product and promotion data current.
 
 ```json
 {
@@ -147,32 +87,108 @@ Most jobs have their intervals and behavior configured through settings objects 
 }
 ```
 
-### Email Cleanup
+Set `AutoRefreshEnabled` to `false` to disable automatic feed rebuilds entirely.
+
+### Product Sync
+
+**ProductSyncWorkerJob** -- Processes product import/export operations from the sync queue.
+
+**ProductSyncCleanupJob** -- Cleans up completed and expired sync records.
+
+```json
+{
+  "Merchello": {
+    "ProductSync": {
+      "WorkerIntervalSeconds": 10,
+      "RunRetentionDays": 90,
+      "ArtifactRetentionDays": 30
+    }
+  }
+}
+```
+
+### Invoice Reminders
+
+**InvoiceReminderJob** -- Sends payment reminders before due dates and overdue notifications for unpaid invoices.
+
+```json
+{
+  "Merchello": {
+    "InvoiceReminders": {
+      "CheckIntervalHours": 24,
+      "ReminderDaysBeforeDue": 7,
+      "OverdueReminderIntervalDays": 7,
+      "MaxOverdueReminders": 3
+    }
+  }
+}
+```
+
+### Exchange Rate Refresh
+
+**ExchangeRateRefreshJob** -- Refreshes currency exchange rates from your configured provider at a regular interval.
+
+```json
+{
+  "Merchello": {
+    "ExchangeRates": {
+      "RefreshIntervalMinutes": 60
+    }
+  }
+}
+```
+
+### Status Management
+
+**DiscountStatusJob** -- Checks every minute for discounts whose scheduled end date has passed and transitions them from Active to Expired. Also activates scheduled discounts whose start date has arrived. This job runs on a fixed 1-minute interval and is not configurable.
+
+**UpsellStatusJob** -- Transitions upsell rules from Active to Expired when their end date passes. Also cleans up old analytics events based on the retention setting.
+
+```json
+{
+  "Merchello": {
+    "Upsells": {
+      "EventRetentionDays": 90
+    }
+  }
+}
+```
+
+### Email Attachment Cleanup
+
+**EmailAttachmentCleanupJob** -- Removes orphaned email attachment files after the retention period.
 
 ```json
 {
   "Merchello": {
     "Email": {
-      "DeliveryRetentionDays": 30,
       "AttachmentRetentionHours": 72
     }
   }
 }
 ```
 
+### Signing Key Rotation
+
+**UcpSigningKeyRotationJob** -- Rotates ES256 signing keys used for UCP (Umbraco Commerce Protocol) webhook authentication. This runs automatically and requires no configuration.
+
+---
+
 ## Monitoring
 
-Background jobs log their activity through Microsoft.Extensions.Logging. Key log patterns to watch for:
+Background jobs log their activity through the standard .NET logging pipeline. Key log messages to watch for:
 
-- `{JobName} started with {Interval}` -- Job has started successfully
-- `Error in {JobName}` -- Job iteration failed (will retry next cycle)
-- Job-specific messages (e.g., "Polled {Count} orders from ShipBob")
+- **Startup**: `{JobName} started with {Interval}` -- Confirms the job is running with its configured interval.
+- **Errors**: `Error in {JobName}` -- A job iteration failed. The job will retry on the next cycle.
+- **Activity**: Job-specific messages like `Polled {Count} orders from {Provider}` or `Cleaned up {Count} delivery records`.
 
-Consider setting up log alerts for `Error` level messages from background jobs to catch recurring failures.
+All errors are logged at the `Error` level. Consider setting up log alerts for recurring errors from background jobs to catch issues early.
+
+---
 
 ## Related Topics
 
-- [Fulfilment System](../fulfilment/fulfilment-overview.md)
+- [Fulfillment System](../fulfilment/fulfilment-overview.md)
 - [Email System](../email/email-overview.md)
 - [Outbound Webhooks](../webhooks/webhooks-overview.md)
 - [Product Feeds](../product-feeds/product-feeds-overview.md)

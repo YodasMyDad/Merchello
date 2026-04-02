@@ -18,6 +18,10 @@ The `TaxProviderManager` manages provider lifecycle:
 - Maintains exactly one active provider
 - Falls back to the Manual provider if none is explicitly activated
 
+Provider activation and configuration is done through the Merchello backoffice under **Settings > Tax**.
+
+---
+
 ## Built-in: Manual Tax Provider
 
 **Alias:** `manual`
@@ -41,6 +45,8 @@ For shipping tax, it follows the 4-tier priority system described in [Shipping T
 
 > **Tip:** The Manual provider is ideal for businesses operating in a single country or a small number of jurisdictions. If you sell into many US states with varying tax rules, consider Avalara instead.
 
+---
+
 ## Built-in: Avalara AvaTax
 
 **Alias:** `avalara`
@@ -52,6 +58,8 @@ Avalara AvaTax provides real-time, jurisdiction-accurate tax calculation via the
 - Special tax rules for specific product types
 
 ### Configuration
+
+All Avalara settings are configured in the backoffice:
 
 | Setting | Description |
 |---------|-------------|
@@ -92,13 +100,32 @@ If the Avalara API fails:
 
 This ensures invoices always have accurate tax calculations, while checkout remains resilient to temporary API issues.
 
+---
+
 ## Single Provider Constraint
 
 Only one tax provider can be active at a time. When you activate a provider, any previously active provider is automatically deactivated. This is by design -- mixing tax calculation sources would lead to inconsistent results.
 
-```http
-PUT /umbraco/api/v1/tax-providers/{alias}/activate
-```
+Provider activation is managed through the backoffice.
+
+---
+
+## Tax Pipeline Flow
+
+Understanding the full flow helps when building or debugging providers:
+
+1. `CheckoutService.CalculateBasketAsync()` builds `TaxableLineItem` inputs
+2. `ITaxOrchestrationService.CalculateAsync()` resolves the active provider
+3. If provider is `manual`, orchestration uses the centralized calculation path
+4. If provider is external, orchestration calls `provider.CalculateOrderTaxAsync()`
+5. On success: authoritative line tax rates and totals from the provider are applied
+6. On failure: fallback to estimate (checkout) or fail closed (invoice)
+
+`ITaxOrchestrationService` is the developer entry point for tax calculations. Do not call tax providers directly from controllers -- always go through the orchestration or checkout services.
+
+> **Warning:** Source line types sent to providers are `Product`, `Custom`, and `Addon` only. Discount line items are not sent directly to external providers.
+
+---
 
 ## Building a Custom Tax Provider
 
@@ -159,7 +186,7 @@ public class MyTaxProvider : TaxProviderBase
 
 ### 2. Package and install
 
-Package your provider as a NuGet package that references `Merchello.Core`. When the host application calls `builder.AddMerchello()`, your provider assembly is scanned and the provider appears in the backoffice.
+Package your provider as a NuGet package that references `Merchello.Core`. When the host application calls `builder.AddMerchello()`, your provider assembly is scanned and the provider appears in the backoffice for activation.
 
 ### 3. Key interfaces
 
@@ -181,15 +208,4 @@ Package your provider as a NuGet package that references `Merchello.Core`. When 
 
 > **Warning:** Sensitive configuration values (API keys, secrets) are automatically encrypted at rest by `IProviderSettingsProtector`. Mark sensitive fields with `IsSensitive = true` in your configuration field definitions.
 
-## Tax Pipeline Flow
-
-Understanding the full flow helps when building or debugging providers:
-
-1. `CheckoutService.CalculateBasketAsync()` builds `TaxableLineItem` inputs
-2. `TaxOrchestrationService.CalculateAsync()` resolves the active provider
-3. If provider is `manual`, orchestration uses the centralized calculation path
-4. If provider is external, orchestration calls `provider.CalculateOrderTaxAsync()`
-5. On success: authoritative line tax rates and totals from the provider are applied
-6. On failure: fallback to estimate (checkout) or fail closed (invoice)
-
-> **Warning:** Source line types sent to providers are `Product`, `Custom`, and `Addon` only. Discount line items are not sent directly to external providers.
+For more on creating tax providers, see [Creating Tax Providers](../extending/creating-tax-providers.md).

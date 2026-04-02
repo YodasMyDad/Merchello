@@ -2,52 +2,104 @@
 
 After an invoice is created, you may need to modify it -- adding products, adjusting quantities, removing items, or applying discounts. Merchello's `InvoiceEditService` handles this with full recalculation of tax, shipping, and totals.
 
-## When Can You Edit an Invoice?
+## Available Operations
 
-Not all invoices can be edited. The service checks whether editing is allowed based on the order statuses. Generally, you can edit invoices where orders haven't been fully shipped yet. If all items are shipped or delivered, editing is blocked to prevent inconsistencies.
+The `EditInvoiceDto` request supports the following operations in a single call:
 
-## Getting an Invoice for Editing
+| Operation | DTO | Description |
+| --------- | --- | ----------- |
+| Adjust quantities | `EditLineItemDto` | Change quantity on existing line items, with optional return-to-stock control |
+| Remove line items | `RemoveLineItemDto` | Remove items with optional stock return (`ShouldReturnToStock`) |
+| Add products | `AddProductToOrderDto` | Add product variants with add-on selections, warehouse, and shipping option |
+| Add custom items | `AddCustomItemDto` | Add non-catalog items with name, SKU, price, cost, and tax group |
+| Apply line-item discounts | `LineItemDiscountDto` | Fixed amount, percentage, or free -- attached to a line item edit |
+| Apply order-level discounts | `LineItemDiscountDto` | Discounts not tied to specific line items |
+| Apply discount codes | `OrderDiscountCodes` | Promotional codes evaluated through checkout discount rules |
+| Override shipping costs | `OrderShippingUpdateDto` | Set a specific shipping cost per order |
+| Remove tax | `ShouldRemoveTax` | Remove tax from all line items (VAT exemption) |
 
-Before editing, load the invoice with all the context needed for the edit UI:
+An `EditReason` can be provided for audit trail and timeline logging.
+
+## EditInvoiceDto Contract
 
 ```csharp
-var editDto = await invoiceEditService.GetInvoiceForEditAsync(invoiceId, cancellationToken);
+public class EditInvoiceDto
+{
+    public List<EditLineItemDto> LineItems { get; set; } = [];
+    public List<RemoveLineItemDto> RemovedLineItems { get; set; } = [];
+    public List<Guid> RemovedOrderDiscounts { get; set; } = [];
+    public List<AddCustomItemDto> CustomItems { get; set; } = [];
+    public List<AddProductToOrderDto> ProductsToAdd { get; set; } = [];
+    public List<LineItemDiscountDto> OrderDiscounts { get; set; } = [];
+    public List<string> OrderDiscountCodes { get; set; } = [];
+    public List<OrderShippingUpdateDto> OrderShippingUpdates { get; set; } = [];
+    public string? EditReason { get; set; }
+    public bool ShouldRemoveTax { get; set; }
+}
 ```
 
-This returns an `InvoiceForEditDto` containing:
-- Whether the invoice can be edited (and why not, if it can't)
-- All orders with their line items
-- Shipping option names for display
-- Stock availability for each product line item (is stock tracked? how much is available?)
-- Currency information
+### Key Sub-DTOs
 
-## What You Can Edit
+**EditLineItemDto** -- Adjust an existing line item:
 
-### Adding line items
+```csharp
+public class EditLineItemDto
+{
+    public Guid Id { get; set; }
+    public int? Quantity { get; set; }              // null = no change
+    public bool ShouldReturnToStock { get; set; } = true; // false for damaged/faulty
+    public LineItemDiscountDto? Discount { get; set; }
+}
+```
 
-You can add new products to an existing order. The service:
-1. Looks up the product and validates stock availability
-2. Creates the line item with correct pricing
-3. Recalculates tax using the active tax provider
-4. Recalculates order totals
+**AddProductToOrderDto** -- Add a product variant to an order:
 
-### Removing line items
+```csharp
+public class AddProductToOrderDto
+{
+    public Guid ProductId { get; set; }
+    public int Quantity { get; set; } = 1;
+    public Guid WarehouseId { get; set; }
+    public Guid ShippingOptionId { get; set; }
+    public string? SelectionKey { get; set; }  // "so:{guid}" or "dyn:{provider}:{serviceCode}"
+    public List<OrderAddonDto> Addons { get; set; } = [];
+}
+```
 
-Remove line items from an order. If removing a line item leaves an order empty, the order itself may be removed.
+**LineItemDiscountDto** -- Discount applied to a line item or at order level:
 
-### Adjusting quantities
+```csharp
+public class LineItemDiscountDto
+{
+    public string? DisplayName { get; set; }
+    public DiscountValueType Type { get; set; }  // FixedAmount, Percentage, or Free
+    public decimal Value { get; set; }
+    public string? Reason { get; set; }
+    public bool IsVisibleToCustomer { get; set; }
+}
+```
 
-Change the quantity of existing line items. The service validates that sufficient stock is available for tracked inventory items.
+## IInvoiceEditService Interface
 
-### Previewing edits
+The service exposes three main methods:
 
-Before committing changes, you can preview what the invoice will look like after edits. This shows the recalculated totals, tax, and shipping costs without actually saving anything.
+```csharp
+public interface IInvoiceEditService
+{
+    // Load invoice with editing context (stock availability, editability check)
+    Task<InvoiceForEditDto?> GetInvoiceForEditAsync(Guid invoiceId, CancellationToken ct);
 
-> **Tip:** Always use the preview endpoint first in your UI. It lets the admin review the financial impact of changes before committing them.
+    // Preview recalculated totals without persisting -- single source of truth for calculations
+    Task<PreviewEditResultDto?> PreviewInvoiceEditAsync(
+        Guid invoiceId, EditInvoiceDto request, CancellationToken ct);
 
-### Applying discounts
+    // Apply the edit and persist
+    Task<OperationResult<EditInvoiceResultDto>> EditInvoiceAsync(
+        EditInvoiceParameters parameters, CancellationToken ct);
+}
+```
 
-You can apply discounts to existing invoices through the edit flow. The discount engine evaluates eligibility and calculates the discount amount, which is added as a discount line item.
+Always call `PreviewInvoiceEditAsync` before `EditInvoiceAsync` in your integration. The preview returns a `PreviewEditResultDto` with fully recalculated `SubTotal`, `DiscountTotal`, `AdjustedSubTotal`, `ShippingTotal`, `Tax`, and `Total`, plus per-line-item breakdowns and any validation warnings.
 
 ## How Recalculation Works
 
@@ -55,18 +107,16 @@ When you edit an invoice, Merchello rebuilds a virtual basket from the modified 
 
 1. **Order grouping** -- re-evaluates how items should be grouped (using the same strategy as checkout)
 2. **Shipping recalculation** -- recalculates shipping costs based on new item weights and quantities
-3. **Tax recalculation** -- runs through the active tax provider with the updated line items
+3. **Tax recalculation** -- runs through the active tax provider with the updated line items, preserving `TaxGroupId` from product roots
 4. **Discount refresh** -- re-evaluates applicable discounts
 5. **Total recalculation** -- updates subtotal, tax, discount, and total
 
 This ensures consistency -- the same calculation logic used at checkout is used for edits.
 
-## Key Dependencies
-
-The `InvoiceEditService` coordinates several services:
+### Service Dependencies
 
 | Service | Role in editing |
-|---------|----------------|
+| ------- | --------------- |
 | `IShippingService` | Recalculate shipping costs |
 | `IInventoryService` | Check stock availability |
 | `ITaxProviderManager` | Recalculate tax |
@@ -80,13 +130,11 @@ The `InvoiceEditService` coordinates several services:
 When editing involves quantity changes:
 
 - **Increasing quantity** -- the service checks `GetAvailableStockAsync()` to ensure enough stock exists
-- **Decreasing quantity** -- releases the difference back to available stock
-- **Removing items** -- releases all reserved stock for those items
-
-The edit UI includes stock information (`IsTracked`, `Available`) so admins can see stock levels while making changes.
+- **Decreasing quantity** -- releases the difference back to available stock (unless `ShouldReturnToStock = false` for damaged/faulty items)
+- **Removing items** -- releases all reserved stock for those items (controlled by `ShouldReturnToStock`)
 
 ## Multi-Currency Considerations
 
-For invoices in a non-store currency, edits recalculate using the locked exchange rate from the original invoice. The `PricingExchangeRate` captured at invoice creation is preserved -- edits don't use current market rates.
+For invoices in a non-store currency, edits recalculate using the locked exchange rate from the original invoice. The `PricingExchangeRate` captured at invoice creation is preserved -- edits do not use current market rates. This prevents discrepancies between the original and edited totals when exchange rates have moved.
 
-> **Warning:** Invoice editing uses the same exchange rate that was locked at creation time. This prevents discrepancies between the original and edited totals when exchange rates have moved.
+The `PreviewEditResultDto` includes both the invoice currency totals and `TotalInStoreCurrency` for reference.

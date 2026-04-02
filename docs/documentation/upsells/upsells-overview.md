@@ -1,169 +1,259 @@
 # Upsells and Post-Purchase Offers
 
-Merchello's upsell system lets you recommend additional products to customers based on what is in their basket, who they are, and where they are in the purchase journey. You define rules that determine when upsells trigger, what products to suggest, and who is eligible to see them.
+Merchello's upsell system recommends additional products to customers based on what is in their basket, the products they are viewing, and where they are in the purchase journey. Upsell rules are configured in the Umbraco backoffice; this page covers the storefront API and display integration.
 
-## Core Concepts
+## Display Locations
 
-### Upsell Rules
+Upsells can appear in multiple places during the shopping experience:
 
-An upsell rule is the core entity. Each rule has three components:
+| Location | When it shows |
+| ---------- | --------------- |
+| **Product page** | While browsing a product, before adding to basket |
+| **Basket** | On the basket/cart page, alongside current items |
+| **Checkout** | During the checkout flow (inline, interstitial, or order bump) |
+| **Post-purchase** | After payment, before the confirmation page (one-click add via saved payment) |
+| **Email** | In transactional emails (order confirmation, etc.) |
 
-1. **Trigger rules** -- When should this upsell fire? (e.g., "when Product A is in the basket", "when cart value exceeds $50")
-2. **Recommendation rules** -- What products should we suggest? (e.g., "products from collection X", "specific products")
-3. **Eligibility rules** -- Who can see this upsell? (e.g., "all customers", "VIP segment only")
+## Fetching Upsell Suggestions
 
-### Display Locations
+### Product Page
 
-Upsells can appear in multiple places (this is a flags enum, so one rule can target several):
+Fetch upsell suggestions for a specific product:
 
-| Location | Value | Description |
-|---|---|---|
-| `Checkout` | 1 | During the checkout flow |
-| `Basket` | 2 | On the basket/cart page |
-| `ProductPage` | 4 | On product detail pages |
-| `Email` | 8 | In transactional emails |
-| `Confirmation` | 16 | On the order confirmation page |
-
-### Checkout Modes
-
-When an upsell targets the checkout, you choose how it displays:
-
-| Mode | Description |
-|---|---|
-| **Inline** | Collapsible section at the top of the checkout page |
-| **Interstitial** | Replaces checkout content until the customer dismisses it |
-| **OrderBump** | Checkbox integrated into the checkout form (supports `DefaultChecked` for opt-out) |
-| **PostPurchase** | Shown after payment, before confirmation. Uses saved payment methods for one-click purchase |
-
-## Trigger Types
-
-Trigger rules define the conditions that activate an upsell:
-
-- **Product-based** -- Fires when specific products, product types, or collections are in the basket
-- **Cart value thresholds** -- `MinimumCartValue`, `MaximumCartValue`, or `CartValueBetween`
-- **Extract filters** -- Narrow trigger matching to specific variants or filters
-
-## Recommendation Types
-
-Recommendation rules define which products to suggest:
-
-| Type | Description |
-|---|---|
-| `ProductTypes` | Products matching specific product types |
-| `ProductFilters` | Products matching filter criteria |
-| `Collections` | Products from specific collections |
-| `SpecificProducts` | Explicitly chosen products |
-| `Suppliers` | Products from specific suppliers |
-
-## Eligibility Types
-
-Eligibility rules control who sees the upsell:
-
-| Type | Description |
-|---|---|
-| `AllCustomers` | Everyone (default) |
-| `CustomerSegments` | Only customers in specific segments |
-| `SpecificCustomers` | Only specific customer accounts |
-
-## Configuration Options
-
-Each upsell rule has these settings:
-
-| Setting | Default | Description |
-|---|---|---|
-| `Priority` | 1000 | Lower values show first |
-| `MaxProducts` | 4 | Maximum products to display |
-| `SortBy` | -- | How to order suggestions (price, name, etc.) |
-| `SuppressIfInCart` | true | Hide products already in the basket |
-| `AutoAddToBasket` | false | Auto-add recommended products (opt-out model) |
-| `StartsAt` | now | When the rule becomes active |
-| `EndsAt` | null | When the rule expires (null = never) |
-| `Timezone` | null | Timezone for display (e.g., "Europe/London") |
-| `DisplayStyles` | null | Per-surface style overrides |
-
-## Lifecycle and Status
-
-Upsell rules go through these statuses:
-
-- **Draft** -- Created but not active
-- **Active** -- Currently showing to customers
-- **Expired** -- Past the end date
-- **Deactivated** -- Manually turned off
-
-You manage status through the API:
-
-```
-POST /api/v1/upsells/{id}/activate
-POST /api/v1/upsells/{id}/deactivate
+```http
+GET /api/merchello/storefront/upsells/product/{productId}?countryCode=GB&regionCode=ENG
 ```
 
-The `UpsellStatusJob` background job automatically transitions rules from Active to Expired when their `EndsAt` date passes.
+Returns an array of `UpsellSuggestionDto`, each containing a heading, optional message, and a list of recommended products with full pricing details.
+
+### Basket Page
+
+Fetch upsell suggestions based on the current basket contents:
+
+```http
+GET /api/merchello/storefront/upsells?location=Basket&countryCode=GB&regionCode=ENG
+```
+
+The `location` parameter is a `UpsellDisplayLocation` value: `Checkout` (1), `Basket` (2), `ProductPage` (4), `Email` (8), `Confirmation` (16).
+
+Country and region codes are optional -- if omitted, the API falls back to the basket shipping address and then the store's default tax location.
+
+### Response Shape
+
+```json
+[
+    {
+        "upsellRuleId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "heading": "Complete the look",
+        "message": "Customers who bought this also loved these items",
+        "checkoutMode": "Inline",
+        "defaultChecked": false,
+        "displayStyles": null,
+        "products": [
+            {
+                "productId": "...",
+                "productRootId": "...",
+                "name": "Leather Belt",
+                "sku": "BELT-BRN-M",
+                "price": 29.99,
+                "formattedPrice": "$29.99",
+                "priceIncludesTax": false,
+                "taxRate": 0.20,
+                "taxAmount": 6.00,
+                "formattedTaxAmount": "$6.00",
+                "onSale": false,
+                "previousPrice": null,
+                "formattedPreviousPrice": null,
+                "url": "/products/leather-belt/",
+                "imageUrl": "/media/products/belt.jpg",
+                "productTypeName": "Accessories",
+                "availableForPurchase": true,
+                "hasVariants": true,
+                "variants": [
+                    {
+                        "productId": "...",
+                        "name": "Medium",
+                        "sku": "BELT-BRN-M",
+                        "price": 29.99,
+                        "formattedPrice": "$29.99",
+                        "availableForPurchase": true
+                    }
+                ]
+            }
+        ]
+    }
+]
+```
+
+## Displaying Upsells in Views
+
+The starter site includes a Razor partial for product page upsells at `src/Merchello.Site/Views/Products/Partials/_ProductUpsells.cshtml`. It uses Alpine.js to render suggestions fetched from the API:
+
+```html
+<template x-if="upsellSuggestions.length > 0">
+    <div>
+        <template x-for="suggestion in upsellSuggestions" :key="suggestion.upsellRuleId">
+            <section class="product-upsells mt-5 pt-4 border-top">
+                <h2 class="h4 mb-3" x-text="suggestion.heading"></h2>
+                <template x-if="suggestion.message">
+                    <p class="text-muted mb-3" x-text="suggestion.message"></p>
+                </template>
+                <div class="row g-3">
+                    <template x-for="product in suggestion.products" :key="product.productId">
+                        <div class="col-6 col-md-3">
+                            <a :href="product.url || '#'" class="card text-decoration-none h-100"
+                               @click="trackProductUpsellClick(suggestion.upsellRuleId, product.productId)">
+                                <template x-if="product.imageUrl">
+                                    <img :src="product.imageUrl" :alt="product.name"
+                                         class="card-img-top" style="height: 180px; object-fit: contain;">
+                                </template>
+                                <div class="card-body text-center">
+                                    <h6 class="card-title" x-text="product.name"></h6>
+                                    <div class="text-primary fw-bold" x-text="product.formattedPrice"></div>
+                                    <template x-if="product.onSale && product.formattedPreviousPrice">
+                                        <div class="text-muted text-decoration-line-through small"
+                                             x-text="product.formattedPreviousPrice"></div>
+                                    </template>
+                                </div>
+                            </a>
+                        </div>
+                    </template>
+                </div>
+            </section>
+        </template>
+    </div>
+</template>
+```
+
+### JavaScript Integration
+
+The starter site's product page and basket page both fetch upsells using `MerchelloApi`:
+
+```js
+// Product page -- fetch suggestions for the current product
+const result = await api.upsells.getProductSuggestions(productId);
+if (result.success) {
+    this.upsellSuggestions = result.data || [];
+}
+
+// Basket page -- fetch suggestions for the basket at the Basket location
+const result = await api.upsells.getSuggestions("Basket", {
+    countryCode,
+    regionCode
+});
+if (result.success) {
+    this.upsellSuggestions = result.data || [];
+}
+```
+
+Upsells are re-fetched on the basket page when the country or region changes, since suggestions may vary by location.
+
+## Checkout Modes
+
+When upsells target the checkout, the `checkoutMode` field indicates how to render them:
+
+| Mode | Behavior |
+| ------ | ---------- |
+| `Inline` | Collapsible section at the top of the checkout page |
+| `Interstitial` | Replaces checkout content until dismissed |
+| `OrderBump` | Checkbox integrated into the checkout form. When `defaultChecked` is `true`, the item is pre-selected (opt-out model) |
+| `PostPurchase` | Shown after payment, before confirmation. Uses saved payment methods for one-click purchase |
 
 ## Post-Purchase Upsells
 
-Post-purchase upsells are a special flow that shows offers to the customer after payment but before the confirmation page. They require:
+Post-purchase upsells appear after successful payment but before the order confirmation page. They require a saved payment method (vaulted card) so the customer can add items with one click.
 
-1. A saved payment method (vaulted card)
-2. The upsell rule's `CheckoutMode` set to `PostPurchase`
-
-### Storefront API
-
-The post-purchase flow uses a separate controller with cookie-based authentication (the confirmation token cookie):
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/merchello/checkout/post-purchase/{invoiceId}` | GET | Get available upsell suggestions |
-| `/api/merchello/checkout/post-purchase/{invoiceId}/preview` | POST | Preview price, tax, and shipping for an item |
-| `/api/merchello/checkout/post-purchase/{invoiceId}/add` | POST | Add item and charge saved payment method |
-| `/api/merchello/checkout/post-purchase/{invoiceId}/skip` | POST | Skip upsells and release fulfilment hold |
-
-> **Note:** Post-purchase additions use idempotency keys to prevent duplicate charges. The preview endpoint calculates the exact cost including tax and shipping before the customer commits.
-
-### How It Works
-
-1. After successful payment, the checkout redirects to the confirmation page
-2. If post-purchase upsells are available, they are displayed before the confirmation content
-3. The customer can preview the cost of adding an item
-4. Adding an item charges their saved payment method and adds it to the existing order
-5. Skipping releases any fulfilment hold and shows the confirmation
-
-## Analytics and Tracking
-
-Merchello tracks upsell performance with event-based analytics:
-
-| Metric | Description |
-|---|---|
-| Impressions | How many times the upsell was shown |
-| Clicks | How many times a customer interacted |
-| Conversions | How many times a suggested product was purchased |
-| Revenue | Total revenue attributed to upsell conversions |
+The flow uses cookie-based authentication via the confirmation token cookie.
 
 ### API Endpoints
 
-| Endpoint | Description |
-|---|---|
-| `GET /api/v1/upsells/{id}/performance` | Detailed performance for a specific rule |
-| `GET /api/v1/upsells/dashboard` | Dashboard overview of all upsell performance |
-| `GET /api/v1/upsells/summary` | Summary with top N performers |
+| Method | Endpoint | Description |
+| -------- | ---------- | ------------- |
+| GET | `/api/merchello/checkout/post-purchase/{invoiceId}` | Get available upsell suggestions |
+| POST | `/api/merchello/checkout/post-purchase/{invoiceId}/preview` | Preview price, tax, and shipping for an item |
+| POST | `/api/merchello/checkout/post-purchase/{invoiceId}/add` | Add item and charge saved payment method |
+| POST | `/api/merchello/checkout/post-purchase/{invoiceId}/skip` | Skip upsells and release fulfilment hold |
 
-Derived metrics (click-through rate, conversion rate) are calculated automatically:
-- **CTR** = clicks / impressions * 100
-- **Conversion rate** = conversions / clicks * 100
+### Flow
 
-## Backoffice API
+1. After successful payment, the checkout redirects to the confirmation page.
+2. If post-purchase upsells are available, they display before the confirmation content.
+3. The customer can preview the exact cost (including tax and shipping) of adding an item.
+4. Adding an item charges their saved payment method and adds the item to the existing order.
+5. Skipping releases any fulfilment hold and shows the confirmation.
 
-Full CRUD is available for managing upsell rules:
+### Preview Request
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/v1/upsells` | GET | List upsells (filterable by status, location, search) |
-| `/api/v1/upsells/{id}` | GET | Get upsell detail |
-| `/api/v1/upsells` | POST | Create upsell rule |
-| `/api/v1/upsells/{id}` | PUT | Update upsell rule |
-| `/api/v1/upsells/{id}` | DELETE | Delete upsell rule |
+```http
+POST /api/merchello/checkout/post-purchase/{invoiceId}/preview
+Content-Type: application/json
+
+{
+    "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "quantity": 1,
+    "addons": []
+}
+```
+
+### Add to Order Request
+
+```http
+POST /api/merchello/checkout/post-purchase/{invoiceId}/add
+Content-Type: application/json
+
+{
+    "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "quantity": 1,
+    "upsellRuleId": "...",
+    "savedPaymentMethodId": "...",
+    "idempotencyKey": "unique-key-per-attempt",
+    "addons": []
+}
+```
+
+The `idempotencyKey` prevents duplicate charges if the request is retried.
+
+## Tracking Impressions and Clicks
+
+Record upsell analytics events by posting to the events endpoint:
+
+```http
+POST /api/merchello/storefront/upsells/events
+Content-Type: application/json
+
+{
+    "events": [
+        {
+            "upsellRuleId": "...",
+            "eventType": "Impression",
+            "productId": "...",
+            "displayLocation": 4
+        }
+    ]
+}
+```
+
+Event types are `Impression` and `Click`. Display location values match the `UpsellDisplayLocation` enum (`Checkout` = 1, `Basket` = 2, `ProductPage` = 4).
+
+Impressions are also recorded automatically by the suggestions endpoint when it returns results for a basket, so you typically only need to record click events manually.
+
+The starter site tracks events like this:
+
+```js
+// Record a click when a customer interacts with an upsell product
+api.upsells.recordEvents([{
+    upsellRuleId,
+    eventType: "Click",
+    productId,
+    displayLocation: 4  // ProductPage
+}]);
+```
+
+## Backoffice Configuration
+
+Upsell rules are created and managed in the Umbraco backoffice. Configuration includes trigger rules (when to show), recommendation rules (what to suggest), eligibility rules (who sees it), display settings, scheduling, and priority ordering.
 
 ## Related Topics
 
-- [Checkout](../checkout/)
+- [Checkout Overview](../checkout/)
 - [Email System](../email/email-overview.md)
-- [Notification System](../notifications/notification-system.md)
