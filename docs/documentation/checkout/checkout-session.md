@@ -94,7 +94,7 @@ The `QuotedCosts` dictionary captures the shipping rate shown to the customer at
 await checkoutSessionService.ClearSessionAsync(basketId, ct);
 ```
 
-Resets the session to its default state. This is called automatically after order completion.
+Resets the session to its default state. Call this after order completion to clean up session data.
 
 ## Key Points
 
