@@ -36,20 +36,20 @@
     <PackageReference Include="Umbraco.Cms.Persistence.EFCore" Version="*" />
 
     <!-- Other packages -->
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" Version="10.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Facebook" Version="10.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="10.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.4" />
     <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.1.0" />
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.2" />
-    <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.4" />
     <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="Humanizer" Version="3.0.8" />
+    <PackageReference Include="Humanizer" Version="3.0.10" />
 
     <!-- RFC 8941 Structured Field Values parsing for UCP-Agent headers -->
-    <PackageReference Include="StructuredFieldValues" Version="0.7.6" />
+    <PackageReference Include="StructuredFieldValues" Version="0.7.7" />
 
     <!-- PDF Generation (MIT licensed, free for commercial use) -->
     <PackageReference Include="PDFsharp" Version="6.2.4" />
@@ -58,15 +58,15 @@
     <PackageReference Include="Mjml.Net" Version="4.11.0" />
 
     <!-- Provider dependencies -->
-    <PackageReference Include="Avalara.AvaTax" Version="26.2.0" />
+    <PackageReference Include="Avalara.AvaTax" Version="26.3.2" />
     <PackageReference Include="Amazon.Pay.API.SDK" Version="2.7.4" />
     <PackageReference Include="Braintree" Version="5.39.0" />
     <PackageReference Include="PayPalServerSDK" Version="2.2.0" />
-    <PackageReference Include="Stripe.net" Version="50.4.0" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
+    <PackageReference Include="Stripe.net" Version="51.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.4" />
 
     <!-- FTP/SFTP for Supplier Direct fulfilment provider -->
-    <PackageReference Include="FluentFTP" Version="53.0.2" />
+    <PackageReference Include="FluentFTP" Version="54.1.0" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
   </ItemGroup>
 
