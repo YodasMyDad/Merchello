@@ -1,244 +1,176 @@
-# Discount Engine
+# Discounts
 
-Merchello's discount system gives you Shopify-like promotional capabilities -- percentage discounts, fixed amount off, buy-one-get-one, free shipping, and more. Discounts can be triggered by codes or applied automatically when conditions are met.
+Merchello supports percentage discounts, fixed amount off, buy-one-get-one, and free shipping promotions. Discounts can be triggered by codes the customer enters or applied automatically when basket conditions are met. All discount rules are configured in the Umbraco backoffice.
 
-## Discount Categories
-
-| Category | Description | Example |
-|----------|-------------|---------|
-| `AmountOffProducts` | Discount on specific products or collections | "20% off all running shoes" |
-| `AmountOffOrder` | Discount on the entire order total | "10 off orders over 50" |
-| `BuyXGetY` | Buy qualifying items, get other items discounted | "Buy 2 shirts, get 1 free" |
-| `FreeShipping` | Free or discounted shipping | "Free shipping on orders over 75" |
-
-## Discount Methods
-
-| Method | How It Works |
-|--------|-------------|
-| `Code` | Customer enters a discount code at checkout |
-| `Automatic` | Discount is applied automatically when conditions are met |
-
-Automatic discounts are evaluated during checkout calculation and refreshed after any basket-affecting change (adding/removing items, changing quantities).
-
-## Value Types
+## Discount Types
 
 | Type | Description |
-|------|-------------|
-| `FixedAmount` | Fixed amount off (e.g., 5 off) |
-| `Percentage` | Percentage off (e.g., 10% off) |
-| `Free` | 100% off (used primarily for BuyXGetY) |
+| ------ | ------------- |
+| **Amount off products** | Discount on specific products, collections, or product types |
+| **Amount off order** | Discount on the entire order total |
+| **Buy X Get Y** | Buy qualifying items, get other items free or discounted |
+| **Free shipping** | Free or discounted shipping |
 
-## Creating a Discount
+Each discount is either **code-based** (customer enters a code) or **automatic** (applied when conditions are met).
 
-### Percentage off products
+## Applying a Discount Code
+
+Use the checkout API to apply a discount code to the current basket:
 
 ```http
-POST /umbraco/api/v1/discounts
+POST /api/merchello/checkout/discount/apply
 Content-Type: application/json
 
 {
-  "name": "Summer Sale",
-  "category": "AmountOffProducts",
-  "method": "Automatic",
-  "valueType": "Percentage",
-  "value": 20,
-  "startsAt": "2026-06-01T00:00:00Z",
-  "endsAt": "2026-08-31T23:59:59Z",
-  "targetRules": [
-    {
-      "type": "Collections",
-      "collectionIds": ["guid-of-summer-collection"]
-    }
-  ]
+    "code": "SAVE10"
 }
 ```
 
-### Code-based order discount
-
-```http
-POST /umbraco/api/v1/discounts
-Content-Type: application/json
-
-{
-  "name": "Welcome 10",
-  "category": "AmountOffOrder",
-  "method": "Code",
-  "code": "WELCOME10",
-  "valueType": "FixedAmount",
-  "value": 10,
-  "requirementType": "MinimumPurchaseAmount",
-  "requirementValue": 50,
-  "perCustomerUsageLimit": 1
-}
-```
-
-## Targeting Rules
-
-Targets control *what* the discount applies to:
-
-| Target Type | Applies To |
-|-------------|-----------|
-| `AllProducts` | Every product in the store |
-| `SpecificProducts` | Listed products and variants |
-| `Collections` | Products in specific collections |
-| `ProductFilters` | Products matching filter values |
-| `ProductTypes` | Products of specific types |
-| `Suppliers` | Products from specific suppliers |
-| `Warehouses` | Products from specific warehouses |
-
-## Eligibility Rules
-
-Eligibility controls *who* can use the discount:
-
-| Eligibility Type | Who Qualifies |
-|-----------------|---------------|
-| `AllCustomers` | Everyone |
-| `CustomerSegments` | Customers in specific segments |
-| `SpecificCustomers` | Named individual customers |
-
-### Segment-based eligibility
-
-This is where [Customer Segments](../customers/customer-segments.md) shine. You can create automated segments like "Customers who spent over 500" and then target discounts exclusively to them:
+**Success response:**
 
 ```json
 {
-  "eligibilityRules": [
-    {
-      "type": "CustomerSegments",
-      "segmentIds": ["guid-of-high-spenders-segment"]
-    }
-  ]
+    "success": true,
+    "message": "Discount applied successfully.",
+    "basket": { ... },
+    "discountDelta": 5.00
 }
 ```
 
-## Minimum Requirements
+The `discountDelta` shows how much the discount total changed (in display currency), useful for showing a toast or animation.
 
-| Requirement Type | Description |
-|-----------------|-------------|
-| `None` | No minimum required |
-| `MinimumPurchaseAmount` | Order must be at least X amount |
-| `MinimumQuantity` | Cart must contain at least X items |
-
-## Usage Limits
-
-Control how many times a discount can be used:
-
-| Limit | Description |
-|-------|-------------|
-| `TotalUsageLimit` | Maximum total uses across all customers |
-| `PerCustomerUsageLimit` | Maximum uses per customer |
-| `PerOrderUsageLimit` | Maximum applications per order (relevant for BOGO) |
-
-## Scheduling
-
-Discounts support time-based activation:
-
-- `StartsAt` -- when the discount becomes active (UTC)
-- `EndsAt` -- when the discount expires (null for no expiry)
-- `Timezone` -- timezone for display purposes (scheduling uses UTC dates)
-
-A background job (`DiscountStatusJob`) automatically transitions discounts between `Scheduled`, `Active`, and `Expired` statuses.
-
-## Discount Statuses
-
-| Status | Description |
-|--------|-------------|
-| `Draft` | Not yet active, being configured |
-| `Active` | Currently usable |
-| `Scheduled` | Will become active at `StartsAt` |
-| `Expired` | Past `EndsAt`, no longer usable |
-| `Disabled` | Manually deactivated |
-
-### Activating and deactivating
-
-```http
-POST /umbraco/api/v1/discounts/{id}/activate
-POST /umbraco/api/v1/discounts/{id}/deactivate
-```
-
-## Combination Rules
-
-Control whether discounts can stack:
-
-| Property | Controls |
-|----------|---------|
-| `CanCombineWithProductDiscounts` | Can this stack with product-level discounts? |
-| `CanCombineWithOrderDiscounts` | Can this stack with order-level discounts? |
-| `CanCombineWithShippingDiscounts` | Can this stack with shipping discounts? |
-
-## Priority
-
-When multiple discounts could apply, `Priority` determines the order (lower value = higher priority, default 1000). If combination rules prevent stacking, the highest-priority discount wins.
-
-## Buy X Get Y
-
-The BOGO configuration supports flexible promotions:
+**Failure response:**
 
 ```json
 {
-  "category": "BuyXGetY",
-  "buyXGetYConfig": {
-    "buyQuantity": 2,
-    "getQuantity": 1,
-    "buyTriggerType": "SpecificProducts",
-    "buyProductIds": ["guid-1", "guid-2"],
-    "selectionMethod": "LowestPrice",
-    "getValueType": "Free",
-    "getValue": 0
-  }
+    "success": false,
+    "message": "This discount code has expired."
 }
 ```
 
-The `SelectionMethod` determines which items become the "get" items:
-- `LowestPrice` -- cheapest qualifying items are discounted
-- `HighestPrice` -- most expensive qualifying items are discounted
+Common failure reasons include expired codes, minimum order value not met, and per-customer usage limits exceeded.
 
-## Free Shipping
+### Removing a Discount
 
-Free shipping discounts can be scoped to specific countries:
+```http
+DELETE /api/merchello/checkout/discount/{discountId}
+```
+
+Returns the same response shape with the updated basket and `discountDelta`.
+
+### JavaScript Example (Checkout Runtime)
+
+The checkout runtime JS (`/App_Plugins/Merchello/js/checkout/services/api.js`) exposes these methods:
+
+```js
+// Apply a code
+const result = await api.applyDiscount("SAVE10");
+if (result.success) {
+    // result.basket contains updated totals
+    // result.discountDelta shows the change in discount amount
+}
+
+// Remove a discount
+await api.removeDiscount(discountId);
+```
+
+## How Automatic Discounts Work
+
+Automatic discounts require no customer action. The checkout service evaluates all active automatic discounts after every basket-affecting change:
+
+- Adding or removing items
+- Changing quantities
+- Saving addresses (some discounts are location-dependent)
+- Selecting shipping options
+
+If a customer adds a fourth item and triggers a "Buy 3 Get 1 Free" promotion, the discount appears automatically. If they remove an item and no longer qualify, the discount is removed and a warning is included in the response.
+
+You do not need to call any API to trigger automatic discount evaluation -- it happens internally whenever basket state changes.
+
+## How Discounts Appear in the Basket
+
+Discounts are stored as line items with **negative amounts**. The basket DTO includes several discount-related fields:
 
 ```json
 {
-  "category": "FreeShipping",
-  "freeShippingConfig": {
-    "countryScope": "SpecificCountries",
-    "countryCodes": ["GB", "US", "DE"]
-  }
+    "subTotal": 120.00,
+    "discount": 12.00,
+    "tax": 21.60,
+    "shipping": 5.99,
+    "total": 135.59,
+    "formattedDiscount": "$12.00",
+    "formattedDisplayDiscount": "12.00",
+    "appliedDiscounts": [
+        {
+            "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "name": "Summer Sale",
+            "code": null,
+            "amount": 12.00,
+            "formattedAmount": "$12.00",
+            "isAutomatic": true
+        }
+    ]
 }
 ```
 
-When shipping options are configured on the discount, the free-shipping check validates against all selected shipping groups (`SelectedShippingOptionIds`).
+Key fields for storefront display:
 
-## Tax Interaction: ApplyAfterTax
+| Field | Description |
+| ------- | ------------- |
+| `discount` / `formattedDiscount` | Total discount in store currency |
+| `displayDiscount` / `formattedDisplayDiscount` | Total discount in display currency (for multi-currency stores) |
+| `taxInclusiveDisplayDiscount` / `formattedTaxInclusiveDisplayDiscount` | Tax-inclusive discount (when displaying prices inc. tax) |
+| `appliedDiscounts` | Array of individual discounts with name, code, amount, and whether automatic |
 
-By default, discounts are calculated on the pre-tax subtotal. Setting `ApplyAfterTax = true` changes this:
+### Displaying "You Saved" on the Storefront
 
-- The discount is calculated based on the tax-inclusive total
-- Then reverse-calculated to determine the pre-tax discount amount
-- The customer sees the expected saving (e.g., 10% off 120 inc. tax = 12 saved)
+Use the `appliedDiscounts` array or the aggregate `formattedDisplayDiscount` field:
 
-This is important for jurisdictions where promotions must reflect the tax-inclusive price the customer sees.
+```html
+<!-- Show total savings -->
+<template x-if="formattedDisplayDiscount && discount > 0">
+    <div class="text-success">
+        You saved <span x-text="formattedDisplayDiscount"></span>
+    </div>
+</template>
 
-## Code Validation
-
-Check if a discount code is available:
-
-```http
-GET /umbraco/api/v1/discounts/validate-code?code=WELCOME10
+<!-- List individual discounts -->
+<template x-for="d in appliedDiscounts" :key="d.id">
+    <div class="d-flex justify-content-between">
+        <span x-text="d.code ? d.name + ' (' + d.code + ')' : d.name"></span>
+        <span class="text-success" x-text="'-' + d.formattedAmount"></span>
+    </div>
+</template>
 ```
 
-Returns whether the code exists, is currently active, and hasn't exceeded usage limits.
+Code-based discounts have a `code` value (e.g., "SAVE10"); automatic discounts have `code: null` and `isAutomatic: true`.
 
-## Centralized Calculation
+## Discount Lifecycle During Checkout
 
-All discount logic flows through centralized services:
+1. **Add to basket** -- Automatic discounts are evaluated. Google auto-discounts are applied if the customer arrived via a Google Shopping promotion.
+2. **Save addresses** -- Automatic discounts are refreshed (some may be location-dependent).
+3. **Save shipping** -- Automatic discounts are refreshed (some may be shipping-dependent, e.g., free shipping).
+4. **Apply discount code** -- Code is validated and applied. Automatic discounts are also refreshed.
+5. **Payment** -- All discounts are included in the invoice as discount line items.
 
-- `IDiscountEngine` -- evaluates which discounts apply and calculates amounts
-- `IDiscountService.CalculateDiscount()` -- core calculation
-- `ILineItemService.AddDiscountLineItem()` -- adds discount as a line item
+At each stage, if a previously valid discount becomes invalid (e.g., customer removed items below the minimum threshold), it is automatically removed and a warning message is included in the response.
 
-> **Warning:** Never calculate discounts outside these services. The engine handles combination rules, priority ordering, usage tracking, and currency rounding.
+## Order Confirmation
 
-## Checkout Integration
+The order confirmation DTO includes the same discount fields so you can display savings on the confirmation page:
 
-During checkout, the `ICheckoutDiscountService.RefreshPromotionalDiscountsAsync()` method refreshes both code-based and automatic discounts after any basket-affecting change. This ensures discounts stay accurate as the customer modifies their cart.
+- `formattedDisplayDiscount` -- the total discount
+- `formattedTaxInclusiveDisplayDiscount` -- the tax-inclusive discount (when relevant)
+
+## Multi-Currency Stores
+
+In multi-currency stores, use the `display*` variants of discount fields. The `discount` and `formattedDiscount` fields are in the store's base currency; the `displayDiscount` and `formattedDisplayDiscount` fields reflect the customer's selected display currency.
+
+## Backoffice Configuration
+
+Discount rules are created and managed in the Umbraco backoffice. Configuration includes targeting rules (which products), eligibility rules (which customers), minimum requirements, usage limits, scheduling, combination rules, and priority ordering. See the backoffice for full configuration options.
+
+## Related Topics
+
+- [Checkout Discounts](../checkout/checkout-discounts.md) -- detailed service-level API for discount operations
+- [Checkout Overview](../checkout/)

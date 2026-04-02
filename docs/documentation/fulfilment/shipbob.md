@@ -5,7 +5,7 @@ ShipBob is a built-in fulfilment provider that connects Merchello to [ShipBob's]
 ## Capabilities
 
 | Feature | Supported |
-|---|---|
+| ------- | --------- |
 | Order submission | Yes |
 | Order cancellation | Yes |
 | Webhook status updates | Yes |
@@ -14,70 +14,35 @@ ShipBob is a built-in fulfilment provider that connects Merchello to [ShipBob's]
 | Inventory sync | Yes |
 | Shipment on submission | No (shipments come via webhooks) |
 
-## Setup
+## Configuration Fields
 
-### 1. Get Your ShipBob Credentials
-
-1. Log into your [ShipBob Dashboard](https://app.shipbob.com)
-2. Navigate to **Settings** > **Integrations** > **Developer API**
-3. Create a new **Personal Access Token** (PAT)
-4. Copy the **Channel ID** from your account settings
-5. For webhooks, copy the **Webhook Secret** from your webhook configuration
-
-Your PAT needs these scopes:
-- `orders_read`, `orders_write` -- Create and manage orders
-- `products_read`, `products_write` -- Sync product catalog
-- `inventory_read` -- Retrieve inventory levels
-- `webhooks_read`, `webhooks_write` -- Configure webhooks
-
-### 2. Configure in Merchello
-
-In the Merchello backoffice, go to **Settings** > **Fulfilment** and add the ShipBob provider. You will be prompted for:
+The ShipBob provider requires:
 
 | Field | Required | Description |
-|---|---|---|
-| Personal Access Token | Yes | Your ShipBob PAT (stored encrypted) |
-| Channel ID | Yes | Your ShipBob channel identifier |
-| Webhook Secret | No (recommended) | Secret for validating webhook signatures |
+| ----- | -------- | ----------- |
+| Personal Access Token | Yes | ShipBob PAT (stored encrypted) |
+| Channel ID | Yes | ShipBob channel identifier |
+| Webhook Secret | No (recommended) | Secret for validating webhook signatures (HMAC-SHA256) |
 | API Version | No | Defaults to `2026-01` |
 | Default Fulfillment Center | No | Force all orders to a specific center |
 | Debug Logging | No | Log API requests for troubleshooting |
 
-### 3. Configure Shipping Method Mapping
+Your PAT needs these scopes: `orders_read`, `orders_write`, `products_read`, `products_write`, `inventory_read`, `webhooks_read`, `webhooks_write`.
 
-ShipBob maps Merchello's shipping service categories to ShipBob shipping methods. The defaults are:
+## Shipping Method Mapping
+
+ShipBob maps Merchello's shipping service categories to ShipBob shipping methods:
 
 | Merchello Category | ShipBob Method |
-|---|---|
+| ------------------ | -------------- |
 | Standard (4-7 days) | Ground |
 | Express (2-3 days) | 2-Day |
 | Overnight (next day) | Overnight |
 | Economy (8+ days) | Standard |
 
-You can customize these in the provider configuration. If no category mapping matches, the **Default Shipping Method** (default: "Standard") is used.
+The mapping priority is: category mapping, then default provider method, then raw shipping service code fallback. If no category mapping matches, the default shipping method ("Standard") is used.
 
-### 4. Set Up Webhooks
-
-Configure ShipBob to send webhooks to:
-
-```
-https://your-site.com/umbraco/merchello/webhooks/fulfilment/shipbob
-```
-
-ShipBob supports these webhook events:
-
-| Event | Description |
-|---|---|
-| `order.shipped` | Order has been shipped with tracking info |
-| `order.delivered` | Order has been delivered |
-| `order.cancelled` | Order has been cancelled |
-| `shipment.created` | New shipment created with tracking details |
-
-> **Warning:** While the webhook secret is optional, it is strongly recommended. Without it, anyone can send fake webhook payloads to your endpoint. ShipBob uses HMAC-SHA256 signature validation.
-
-## How It Works
-
-### Order Submission
+## Order Submission
 
 When an order is submitted to ShipBob, Merchello:
 
@@ -87,11 +52,26 @@ When an order is submitted to ShipBob, Merchello:
 
 The response includes extended data: `ShipBobOrderNumber`, `ShipBobReferenceId`, `ShipBobStatus`, and `ShipBobCreatedAt`.
 
-### Order Cancellation
+## Order Cancellation
 
 ShipBob cancellation works by cancelling each shipment on the order. Orders that are already `fulfilled`, `completed`, or `delivered` cannot be cancelled.
 
-### Webhook Processing
+## Webhook Processing
+
+Webhooks should be configured to point at:
+
+```text
+POST /umbraco/merchello/webhooks/fulfilment/shipbob
+```
+
+Supported webhook events:
+
+| Event | Description |
+| ----- | ----------- |
+| `order.shipped` | Order has been shipped with tracking info |
+| `order.delivered` | Order has been delivered |
+| `order.cancelled` | Order has been cancelled |
+| `shipment.created` | New shipment created with tracking details |
 
 When ShipBob sends a webhook:
 
@@ -100,48 +80,31 @@ When ShipBob sends a webhook:
 3. Status updates map ShipBob statuses to Merchello order statuses
 4. Shipment updates extract tracking number, URL, carrier, and shipped items
 
-### Status Polling
+While the webhook secret is optional, it is strongly recommended. Without it, anyone can send fake webhook payloads to your endpoint.
 
-The polling job queries ShipBob for order status updates. It can look up orders by:
-- ShipBob order ID (numeric)
-- Reference ID (fallback for non-numeric references)
+## Status Polling
 
-### Product Sync
+The polling job queries ShipBob for order status updates. It can look up orders by ShipBob order ID (numeric) or reference ID (fallback for non-numeric references). This serves as a fallback when webhooks are unreliable -- the polling job runs every 15 minutes by default.
+
+## Product Sync
 
 Product sync is an upsert operation -- it checks if a product exists by SKU and updates it, or creates a new one. The sync sends: name, SKU, barcode, reference ID, and unit price.
 
-### Inventory Sync
+## Inventory Sync
 
 Inventory levels are returned per fulfillment center, including:
+
 - **Available quantity** (fulfillable)
 - **Reserved quantity** (committed)
 - **Incoming quantity** (awaiting)
 
-## Testing
-
-You can simulate webhook events from the backoffice using the webhook simulation feature. ShipBob supports test payloads for:
-- Order shipped
-- Order delivered
-- Order cancelled
-- Shipment created
-
-The test payloads include valid HMAC signatures when a webhook secret is configured.
-
 ## Troubleshooting
 
-**Connection test fails:**
-- Verify your PAT has the required scopes
-- Check the Channel ID is correct
-- Enable debug logging to see raw API responses
+**Connection test fails:** Verify your PAT has the required scopes and the Channel ID is correct. Enable debug logging to see raw API responses.
 
-**Webhooks not arriving:**
-- Confirm the webhook URL is publicly accessible
-- Check ShipBob's webhook delivery history in their dashboard
-- Look at the fulfilment webhook logs in Merchello's backoffice
+**Webhooks not arriving:** Confirm the webhook URL is publicly accessible and check ShipBob's webhook delivery history in their dashboard.
 
-**Orders stuck in submitted status:**
-- Ensure webhooks are configured in ShipBob
-- The polling job (default: every 15 minutes) will pick up status changes as a fallback
+**Orders stuck in submitted status:** Ensure webhooks are configured in ShipBob. The polling job will pick up status changes as a fallback.
 
 ## Related Topics
 

@@ -1,83 +1,58 @@
 # Product Feeds (Google Shopping)
 
-Merchello can generate XML product feeds for Google Shopping (Google Merchant Center). You configure feeds with language, country, and currency targeting, and Merchello generates compliant XML that Google can consume. Feeds are rebuilt automatically on a schedule and served via token-protected public URLs.
+Merchello can generate XML product feeds for Google Shopping (Google Merchant Center). You configure feeds in the backoffice with language, country, and currency targeting, and Merchello generates compliant XML that Google can consume. Feeds are rebuilt automatically on a schedule and served via public URLs.
 
-## Core Concepts
+## How It Works
 
 A **product feed** is a configuration that defines:
 
-- Which products to include (via filters)
+- Which products to include (via filters on product type, collection, or custom criteria)
 - How to format the data (country, currency, language)
 - Whether to include tax in prices
-- Custom labels, custom fields, and promotion data
+- Custom labels and custom fields for Google Ads campaign segmentation
 
-Each feed has a **slug** that forms part of its public URL.
+Each feed has a **slug** that forms part of its public URL. You create and manage feeds in the Umbraco backoffice under **Settings > Product Feeds**.
 
-## Creating a Feed
+## Public Feed URLs
 
-### Via the Backoffice
+Once a feed is configured and enabled, it is served at a public URL that you submit to Google Merchant Center:
 
-Go to **Settings** > **Product Feeds** and click "Create Feed".
+| URL | Description |
+| --- | --- |
+| `/api/merchello/feeds/{slug}.xml` | Main product feed |
+| `/api/merchello/feeds/{slug}/promotions.xml` | Promotions feed |
+| `/api/merchello/feeds/auto-discount/active` | Active auto-discount info |
 
-### Via the API
+For example, a feed with slug `us-shopping` would be accessible at:
 
-```
-POST /api/v1/product-feeds
-```
-
-```json
-{
-  "name": "US Google Shopping Feed",
-  "slug": "us-shopping",
-  "countryCode": "US",
-  "currencyCode": "USD",
-  "languageCode": "en",
-  "includeTaxInPrice": false
-}
+```text
+https://your-site.com/api/merchello/feeds/us-shopping.xml
 ```
 
-### Feed Properties
+Submit this URL to Google Merchant Center as your product data feed.
+
+## Feed Properties
 
 | Property | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `Name` | -- | Display name in the backoffice |
-| `Slug` | -- | URL-safe identifier for the public feed URL |
+| `Slug` | -- | URL-safe identifier used in the public feed URL |
 | `CountryCode` | `US` | Target country for the feed |
 | `CurrencyCode` | `USD` | Currency for prices |
-| `LanguageCode` | `en` | Language for product titles/descriptions |
+| `LanguageCode` | `en` | Language for product titles and descriptions |
 | `IncludeTaxInPrice` | null | Whether prices include tax (null = use store default) |
 | `IsEnabled` | true | Whether the feed is active |
 
-## Product Filtering
-
-You can filter which products appear in the feed using a filter configuration. This lets you include/exclude products based on:
-
-- Product type
-- Collection membership
-- Custom filter values
-
-Filters are stored as JSON in the `FilterConfigJson` field and support grouped filter values for complex inclusion/exclusion rules.
-
-## Custom Fields and Labels
-
-### Custom Labels
-
-Google Shopping supports up to 5 custom labels (`custom_label_0` through `custom_label_4`). You can map these to product data for campaign segmentation in Google Ads.
-
-### Custom Fields
-
-Add arbitrary fields to the feed output. This is useful for non-standard attributes that your feed consumers need.
-
 ## Promotions Feed
 
-In addition to the main product feed, Merchello can generate a **promotions feed** (`promotions.xml`) for Google Merchant Promotions. This includes:
+In addition to the main product feed, Merchello can generate a **promotions feed** for Google Merchant Promotions. This includes:
 
-- **Manual promotions** -- Explicitly configured promotional offers
-- **Auto-discount integration** -- Automatic discounts surfaced as Google promotions
+- **Manual promotions** -- explicitly configured promotional offers
+- **Auto-discount integration** -- automatic discounts surfaced as Google promotions
 
-### Auto-Discount Configuration
+## Auto-Discount Configuration
 
-Merchello can validate and surface Google auto-discount tokens. The `GoogleAutoDiscountService` uses Google's ES256 public key to verify JWT signatures:
+Merchello can validate and surface Google auto-discount tokens. Configure the public key URL in `appsettings.json`:
 
 ```json
 {
@@ -89,31 +64,11 @@ Merchello can validate and surface Google auto-discount tokens. The `GoogleAutoD
 }
 ```
 
-## Public Feed URLs
+## Automatic Refresh
 
-Feeds are served at predictable public URLs:
+Feeds are cached in the database so serving them is a fast read, not a full product query. A background job (`ProductFeedRefreshJob`) periodically rebuilds all enabled feeds.
 
-| URL | Description |
-|---|---|
-| `/api/merchello/feeds/{slug}.xml` | Main product feed |
-| `/api/merchello/feeds/{slug}/promotions.xml` | Promotions feed |
-| `/api/merchello/feeds/auto-discount/active` | Active auto-discount info |
-
-For example, a feed with slug `us-shopping` would be accessible at:
-
-```
-https://your-site.com/api/merchello/feeds/us-shopping.xml
-```
-
-Submit this URL to Google Merchant Center as your product data feed.
-
-## Feed Generation and Caching
-
-Feeds are generated by the `GoogleProductFeedGenerator` and `GooglePromotionFeedGenerator` services. The generated XML is cached in the database (`LastSuccessfulProductFeedXml` and `LastSuccessfulPromotionsFeedXml`), so serving a feed is a fast database read -- not a full product query.
-
-### Automatic Refresh
-
-The `ProductFeedRefreshJob` background service periodically rebuilds all enabled feeds:
+Configure the refresh schedule in `appsettings.json`:
 
 ```json
 {
@@ -126,60 +81,23 @@ The `ProductFeedRefreshJob` background service periodically rebuilds all enabled
 }
 ```
 
-### Manual Rebuild
+You can also trigger a manual rebuild from the backoffice at any time.
 
-You can trigger a rebuild at any time:
-
-```
-POST /api/v1/product-feeds/{id}/rebuild
-```
-
-This returns a `ProductFeedRebuildResultDto` with the number of items generated and any errors.
-
-## Validation
-
-Before submitting a feed to Google, you can validate it:
-
-```
-POST /api/v1/product-feeds/{id}/validate
-```
-
-The validation checks for common issues:
-- Missing required fields (title, description, price, etc.)
-- Invalid values (bad URLs, unsupported currencies)
-- Products that would be rejected by Google
-
-The result includes a list of issues per product and a preview of the feed fields.
-
-## Preview
-
-Preview the feed output before it goes live:
-
-```
-GET /api/v1/product-feeds/{id}/preview
-```
-
-Returns a `ProductFeedPreviewDto` showing what the generated XML will contain.
-
-## Feed Resolver System
+## Custom Field Resolvers
 
 Product feed field values are resolved through a pluggable resolver system. Built-in resolvers handle standard Google Shopping fields (title, description, price, availability, etc.), but you can register custom resolvers for specialized needs.
 
 Each resolver receives a `ProductFeedResolverContext` with the product data, feed configuration, and store settings, and returns the resolved field value.
 
-## Backoffice API
+## Multiple Feeds
 
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/v1/product-feeds` | GET | List all feeds |
-| `/api/v1/product-feeds/{id}` | GET | Get feed detail |
-| `/api/v1/product-feeds` | POST | Create feed |
-| `/api/v1/product-feeds/{id}` | PUT | Update feed |
-| `/api/v1/product-feeds/{id}` | DELETE | Delete feed |
-| `/api/v1/product-feeds/{id}/rebuild` | POST | Trigger rebuild |
-| `/api/v1/product-feeds/{id}/preview` | GET | Preview feed output |
-| `/api/v1/product-feeds/{id}/validate` | POST | Validate feed |
-| `/api/v1/product-feeds/resolvers` | GET | List available field resolvers |
+You can create multiple feeds targeting different countries, currencies, or product subsets. For example:
+
+- `us-shopping` -- US products in USD
+- `gb-shopping` -- UK products in GBP with tax included
+- `de-shopping` -- German products in EUR
+
+Each feed has its own public URL to submit to Google Merchant Center.
 
 ## Related Topics
 

@@ -24,13 +24,6 @@ Dynamic providers set `UsesLiveRates = true` in their metadata and must **not** 
 
 Real-time FedEx shipping rates via the FedEx REST API.
 
-#### Setup
-
-1. Create a FedEx Developer account at [developer.fedex.com](https://developer.fedex.com)
-2. Create an API Project and select the **Rate API**
-3. Get your **API Key** (Client ID) and **Secret Key** (Client Secret)
-4. Get your **FedEx Account Number**
-
 #### Configuration Fields
 
 | Field | Description |
@@ -43,8 +36,6 @@ Real-time FedEx shipping rates via the FedEx REST API.
 | `childSecret` | (Optional) Child Secret for CSP/parent-child OAuth |
 
 #### Supported Service Types
-
-FedEx provides many service levels. Common ones include:
 
 | Service Code | Description |
 |-------------|-------------|
@@ -61,12 +52,7 @@ FedEx provides many service levels. Common ones include:
 
 #### Testing
 
-For sandbox testing:
-- Use your own API Key and Secret Key from the Developer Portal
-- Use FedEx's test account number: `740561073`
-- Test with real addresses -- sandbox returns simulated rates
-
-> **Warning:** Do not use your production account number in sandbox mode.
+For sandbox testing, use your own API Key and Secret Key from the [FedEx Developer Portal](https://developer.fedex.com), FedEx's test account number `740561073`, and real addresses (sandbox returns simulated rates). Do not use your production account number in sandbox mode.
 
 ---
 
@@ -75,13 +61,6 @@ For sandbox testing:
 **Provider Key:** `ups`
 
 Real-time UPS shipping rates via the UPS REST API.
-
-#### Setup
-
-1. Create a UPS Developer account at [developer.ups.com](https://developer.ups.com)
-2. Create an Application and select the **Rating** API
-3. Get your **Client ID** and **Client Secret**
-4. Get your **UPS Account Number** (shipper number)
 
 #### Configuration Fields
 
@@ -111,73 +90,15 @@ Real-time UPS shipping rates via the UPS REST API.
 
 #### Testing
 
-- Your Client ID and Secret work for both sandbox and production
-- Sandbox returns simulated rates
-- Production rates reflect your negotiated pricing
-
----
-
-## Warehouse Provider Configuration
-
-Each warehouse can have its own configuration for dynamic providers. This is managed in the backoffice under **Warehouses > [Warehouse] > Shipping Providers**.
-
-### Per-Warehouse Settings
-
-| Setting | Description |
-|---------|-------------|
-| **Enabled** | Whether this provider is active for this warehouse |
-| **Markup Percentage** | Percentage to add on top of carrier rates (e.g., 10% markup) |
-| **Excluded Services** | Service types to hide from customers |
-
-### How It Works
-
-1. The provider is configured globally with API credentials
-2. Each warehouse enables the provider and sets its own markup/exclusions
-3. At checkout, when items are grouped by warehouse:
-   - The system checks which dynamic providers are enabled for that warehouse
-   - Fetches rates from each enabled provider
-   - Applies markup percentages
-   - Filters out excluded service types
-   - Returns the remaining options to the customer
-
-### Markup Example
-
-If FedEx Ground quotes $8.47 and the warehouse has a 15% markup:
-
-```
-Base rate:  $8.47
-Markup:     $1.27 (15% of $8.47)
-Shown cost: $9.74
-```
-
-### Service Exclusions
-
-You might want to exclude certain service types. For example:
-- Exclude overnight shipping from a warehouse that can't process same-day
-- Exclude freight services for a warehouse without a loading dock
-- Exclude international services from a domestic-only warehouse
-
----
-
-## Provider Visibility
-
-Dynamic provider options appear at checkout when:
-
-1. The provider is **globally enabled** (configured with API credentials)
-2. The provider is **enabled for the warehouse** serving the items
-3. The product allows external carrier shipping (`ProductRoot.AllowExternalCarrierShipping != false`)
-4. The carrier can service the route (origin warehouse to destination address)
-
-If any of these conditions fail, the dynamic options are silently hidden -- the customer only sees flat-rate options.
+Your Client ID and Secret work for both sandbox and production. Sandbox returns simulated rates; production rates reflect your negotiated pricing.
 
 ---
 
 ## Rate Fetching at Checkout
 
-When the customer's shipping address is known, the system fetches rates:
+When the customer's shipping address is known, `IShippingQuoteService` fetches rates from all applicable providers:
 
 ```csharp
-// IShippingQuoteService fetches quotes from all applicable providers
 var quotes = await shippingQuoteService.GetQuotesForWarehouseAsync(
     new GetWarehouseQuotesParameters
     {
@@ -208,6 +129,13 @@ The `QuotedCosts` dictionary in the shipping selection request preserves these r
 }
 ```
 
+### Selection Key Contract
+
+Shipping selection keys follow a stable contract that is parsed into order fields (`ShippingProviderKey`, `ShippingServiceCode`, `ShippingServiceName`):
+
+- Flat-rate: `so:{guid}`
+- Dynamic: `dyn:{provider}:{serviceCode}`
+
 ---
 
 ## Fallback Behavior
@@ -236,7 +164,7 @@ Carrier APIs may return rates in a different currency than your store currency. 
 
 ## Creating a Custom Dynamic Provider
 
-To add support for another carrier, extend `ShippingProviderBase`:
+To add support for another carrier, implement `IShippingProvider` (or extend `ShippingProviderBase` for sensible defaults):
 
 ```csharp
 public class MyCarrierProvider : ShippingProviderBase
@@ -261,29 +189,43 @@ public class MyCarrierProvider : ShippingProviderBase
 
 Your provider is automatically discovered by `ExtensionManager` and available for configuration in the backoffice.
 
+### Blocking Dynamic Options per Product
+
+Set `ProductRoot.AllowExternalCarrierShipping = false` to prevent dynamic carrier options from appearing for specific products. Those products will only show flat-rate shipping options at checkout.
+
 ---
 
 ## IShippingProvider Reference
 
-### Required Methods
+### Required Members
 
-| Method | Purpose |
-|--------|---------|
+| Member | Purpose |
+| ------ | ------- |
 | `Metadata` | Provider name, key, capabilities |
 | `IsAvailableFor(request)` | Quick check if provider can service the request |
 | `GetRatesAsync(request)` | Fetch all available rates |
 
-### Optional Methods
+### Configuration Members
 
-| Method | Purpose |
-|--------|---------|
+| Member | Purpose |
+| ------ | ------- |
 | `GetConfigurationFieldsAsync()` | Global config fields (API keys, etc.) |
 | `GetMethodConfigFieldsAsync()` | Per-method config fields |
 | `GetSupportedServiceTypesAsync()` | List all service types |
 | `ConfigureAsync(config)` | Apply saved configuration |
+
+### Extended Rate Methods
+
+| Method | Purpose |
+|--------|---------|
 | `GetRatesForServicesAsync(request, services, options)` | Fetch rates for specific service types |
-| `GetRatesForAllServicesAsync(request, warehouseConfig)` | Fetch all rates with warehouse config applied |
+| `GetRatesForAllServicesAsync(request, warehouseConfig)` | Fetch all rates with warehouse config applied (markup, exclusions) |
 | `GetAvailableServicesAsync(origin, destination)` | Discover available services for a route |
+
+### Delivery Date Methods
+
+| Method | Purpose |
+|--------|---------|
 | `GetAvailableDeliveryDatesAsync(request, service)` | Get selectable delivery dates |
-| `CalculateDeliveryDateSurchargeAsync(request, service, date)` | Calculate surcharge for a date |
-| `ValidateDeliveryDateAsync(request, service, date)` | Validate a delivery date |
+| `CalculateDeliveryDateSurchargeAsync(request, service, date)` | Calculate surcharge for a specific date |
+| `ValidateDeliveryDateAsync(request, service, date)` | Validate a delivery date is still available |
