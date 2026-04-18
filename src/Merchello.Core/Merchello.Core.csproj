@@ -41,7 +41,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.MicrosoftAccount" Version="10.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.5.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.4" />
     <PackageReference Include="Microsoft.Extensions.Localization" Version="10.0.4" />
     <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
@@ -58,7 +58,7 @@
     <PackageReference Include="Mjml.Net" Version="4.11.0" />
 
     <!-- Provider dependencies -->
-    <PackageReference Include="Avalara.AvaTax" Version="26.3.2" />
+    <PackageReference Include="Avalara.AvaTax" Version="26.4.0" />
     <PackageReference Include="Amazon.Pay.API.SDK" Version="2.7.4" />
     <PackageReference Include="Braintree" Version="5.39.0" />
     <PackageReference Include="PayPalServerSDK" Version="2.2.0" />
@@ -66,7 +66,7 @@
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.4" />
 
     <!-- FTP/SFTP for Supplier Direct fulfilment provider -->
-    <PackageReference Include="FluentFTP" Version="54.1.0" />
+    <PackageReference Include="FluentFTP" Version="54.1.1" />
     <PackageReference Include="SSH.NET" Version="2025.1.0" />
   </ItemGroup>
 
