@@ -1,6 +1,6 @@
 # Reporting and Analytics
 
-Merchello provides a reporting system for tracking sales performance, understanding trends, and exporting data. All reporting data is served through [`IReportingService`](../../../src/Merchello.Core/Reporting/Services/Interfaces/IReportingService.cs) ([implementation](../../../src/Merchello.Core/Reporting/Services/ReportingService.cs)) and exposed via the backoffice API in [`ReportingApiController`](../../../src/Merchello/Controllers/ReportingApiController.cs).
+Merchello provides a reporting system for tracking sales performance, understanding trends, and exporting data. All reporting data is served through [`IReportingService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Reporting/Services/Interfaces/IReportingService.cs) ([implementation](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Reporting/Services/ReportingService.cs)) and exposed via the backoffice API in [`ReportingApiController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/ReportingApiController.cs).
 
 ## KPI Summary
 
@@ -111,7 +111,7 @@ Quick stats for today's operations — exposed via the Orders API:
 GET /api/v1/orders/stats
 ```
 
-Returns `OrderStatsDto` with today's counts (`Orders`, `Items`, `Fulfilled`, `Outstanding`). Implementation: [OrdersApiController.GetOrderStats](../../../src/Merchello/Controllers/OrdersApiController.cs#L120).
+Returns `OrderStatsDto` with today's counts (`Orders`, `Items`, `Fulfilled`, `Outstanding`). Implementation: [OrdersApiController.GetOrderStats](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/OrdersApiController.cs#L120).
 
 ## Dashboard Statistics
 
@@ -121,7 +121,7 @@ Monthly metrics with percentage changes for the main dashboard:
 GET /api/v1/orders/dashboard-stats
 ```
 
-Returns `DashboardStatsDto`. Implementation: [OrdersApiController.GetDashboardStats](../../../src/Merchello/Controllers/OrdersApiController.cs#L130).
+Returns `DashboardStatsDto`. Implementation: [OrdersApiController.GetDashboardStats](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/OrdersApiController.cs#L130).
 
 ## CSV Export
 
@@ -137,11 +137,11 @@ Content-Type: application/json
 }
 ```
 
-Returns a list of `OrderExportItemDto` records with all fields needed for a comprehensive CSV export (order number, customer, line items, totals). Implementation: [OrdersApiController.ExportOrders](../../../src/Merchello/Controllers/OrdersApiController.cs#L140).
+Returns a list of `OrderExportItemDto` records with all fields needed for a comprehensive CSV export (order number, customer, line items, totals). Implementation: [OrdersApiController.ExportOrders](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/OrdersApiController.cs#L140).
 
 ## API Summary
 
-Reporting endpoints live under `/api/v1/reporting` (see [ReportingApiController.cs](../../../src/Merchello/Controllers/ReportingApiController.cs)). Order stats / dashboard / export live under `/api/v1/orders`.
+Reporting endpoints live under `/api/v1/reporting` (see [ReportingApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/ReportingApiController.cs)). Order stats / dashboard / export live under `/api/v1/orders`.
 
 | Endpoint | Method | Description |
 |---|---|---|

@@ -6,7 +6,7 @@ Warehouses drive two storefront behaviours: they determine which shipping option
 
 ## The Warehouse Model
 
-Source: [Warehouse.cs](../../../src/Merchello.Core/Warehouses/Models/Warehouse.cs)
+Source: [Warehouse.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Warehouses/Models/Warehouse.cs)
 
 A warehouse has an origin address (used as the shipping "ship-from"), a collection of service regions, and a `SupplierId` in multi-vendor setups.
 
@@ -30,7 +30,7 @@ public class WarehouseServiceRegion
 }
 ```
 
-Source: [WarehouseServiceRegion.cs](../../../src/Merchello.Core/Warehouses/Models/WarehouseServiceRegion.cs)
+Source: [WarehouseServiceRegion.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Warehouses/Models/WarehouseServiceRegion.cs)
 
 Country codes use ISO 3166-1 alpha-2 (e.g. `"GB"`) and region codes use the ISO 3166-2 suffix (e.g. `"CA"`, not `"US-CA"`). Use `"*"` as a wildcard country to service everywhere with optional exclusions.
 
@@ -44,7 +44,7 @@ When multiple warehouses can fulfil an order, Merchello picks one using a strict
 2. **Service region eligibility** -- the warehouse must be able to ship to the customer's country/region.
 3. **Stock availability** -- `Stock - ReservedStock >= requested quantity` at the selected warehouse.
 
-Source: [WarehouseService.cs:35](../../../src/Merchello.Core/Warehouses/Services/WarehouseService.cs#L35), selection parameters in [SelectWarehouseForProductParameters.cs](../../../src/Merchello.Core/Warehouses/Services/Parameters/SelectWarehouseForProductParameters.cs).
+Source: [WarehouseService.cs:35](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Warehouses/Services/WarehouseService.cs#L35), selection parameters in [SelectWarehouseForProductParameters.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Warehouses/Services/Parameters/SelectWarehouseForProductParameters.cs).
 
 See [Inventory and Stock](../products/inventory-and-stock.md) for the full stock lifecycle and [Products Overview](../products/products-overview.md) for how `ProductRootWarehouse` priority is set.
 

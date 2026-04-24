@@ -1,6 +1,6 @@
 # Refunds
 
-Merchello supports processing refunds through payment providers, recording manual (externally-processed) refunds, and previewing refund calculations before committing. All refund operations live on [`IPaymentService`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs).
+Merchello supports processing refunds through payment providers, recording manual (externally-processed) refunds, and previewing refund calculations before committing. All refund operations live on [`IPaymentService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs).
 
 ## Refund Types
 
@@ -16,7 +16,7 @@ A refund recorded in Merchello when the money was returned outside the system (r
 
 ## Processing a Provider Refund
 
-All refund parameters live on [`ProcessRefundParameters`](../../../src/Merchello.Core/Payments/Services/Parameters/ProcessRefundParameters.cs). `Reason` is **required**.
+All refund parameters live on [`ProcessRefundParameters`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Parameters/ProcessRefundParameters.cs). `Reason` is **required**.
 
 ```csharp
 var result = await paymentService.ProcessRefundAsync(
@@ -89,7 +89,7 @@ var preview = await paymentService.PreviewRefundAsync(
     cancellationToken);
 ```
 
-The preview returns a [`RefundPreviewDto`](../../../src/Merchello.Core/Payments/Dtos/RefundPreviewDto.cs):
+The preview returns a [`RefundPreviewDto`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Dtos/RefundPreviewDto.cs):
 
 | Property | Description |
 |----------|-------------|
@@ -108,7 +108,7 @@ The preview returns a [`RefundPreviewDto`](../../../src/Merchello.Core/Payments/
 
 ## Recording a Manual Refund
 
-When a refund was processed outside Merchello (directly in the provider dashboard, cash in-store, etc.), record it for accounting via [`RecordManualRefundParameters`](../../../src/Merchello.Core/Payments/Services/Parameters/RecordManualRefundParameters.cs). Note that this is keyed off the **original payment** — not the invoice:
+When a refund was processed outside Merchello (directly in the provider dashboard, cash in-store, etc.), record it for accounting via [`RecordManualRefundParameters`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Parameters/RecordManualRefundParameters.cs). Note that this is keyed off the **original payment** — not the invoice:
 
 ```csharp
 var result = await paymentService.RecordManualRefundAsync(
@@ -127,7 +127,7 @@ No gateway call is made — the refund row is created and invoice status recalcu
 
 ## Backoffice API
 
-All backoffice refund operations go through the single [`PaymentsApiController`](../../../src/Merchello/Controllers/PaymentsApiController.cs) endpoint. Manual refunds share the same URL and are selected via `isManualRefund: true` in the body.
+All backoffice refund operations go through the single [`PaymentsApiController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/PaymentsApiController.cs) endpoint. Manual refunds share the same URL and are selected via `isManualRefund: true` in the body.
 
 ### Process Refund (provider or manual)
 

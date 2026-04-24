@@ -32,7 +32,7 @@ Add-on values can adjust price, cost, SKU, and weight.
 
 ## The ProductOption Model
 
-Source: [ProductOption.cs](../../../src/Merchello.Core/Products/Models/ProductOption.cs), values in [ProductOptionValue.cs](../../../src/Merchello.Core/Products/Models/ProductOptionValue.cs).
+Source: [ProductOption.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Products/Models/ProductOption.cs), values in [ProductOptionValue.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Products/Models/ProductOptionValue.cs).
 
 ```csharp
 public class ProductOption
@@ -140,7 +140,7 @@ public IReadOnlyList<ProductOption> AddOnOptions { get; }    // IsVariant == fal
 
 The starter site renders variant options as interactive selectors. When a customer selects different option values, the page updates to show the matching variant's price, stock, and images.
 
-The [Default.cshtml product view](../../../src/Merchello.Site/Views/Products/Default.cshtml) passes a JSON configuration object to the frontend JavaScript (see the `variantOptions` block, [Default.cshtml:127](../../../src/Merchello.Site/Views/Products/Default.cshtml#L127)):
+The [Default.cshtml product view](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Default.cshtml) passes a JSON configuration object to the frontend JavaScript (see the `variantOptions` block, [Default.cshtml:127](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Default.cshtml#L127)):
 
 ```csharp
 variantOptions = viewModel.VariantOptions
@@ -199,7 +199,7 @@ When a product page loads, the selected variant is determined from the URL:
 - `/mesh-office-chair` -- selects the default variant
 - `/mesh-office-chair/blue-large` -- selects the "blue-large" variant by matching `Product.Url`
 
-The `VariantOptionsKey` on each variant identifies which option values created it. The starter site uses this to pre-select the correct options in the UI ([Default.cshtml:51-67](../../../src/Merchello.Site/Views/Products/Default.cshtml#L51)):
+The `VariantOptionsKey` on each variant identifies which option values created it. The starter site uses this to pre-select the correct options in the UI ([Default.cshtml:51-67](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Default.cshtml#L51)):
 
 ```csharp
 var selectedValueIds = viewModel.SelectedVariant.VariantOptionsKey

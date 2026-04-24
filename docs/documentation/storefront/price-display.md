@@ -21,7 +21,7 @@ This is configured in your store settings and is automatically included in the `
 
 ## How the .Site Project Does It
 
-Here is the pattern from the example product page ([Views/Products/Default.cshtml:23-79](../../../src/Merchello.Site/Views/Products/Default.cshtml#L23)):
+Here is the pattern from the example product page ([Views/Products/Default.cshtml:23-79](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Default.cshtml#L23)):
 
 ```csharp
 // 1. Get the display context (currency, tax settings, exchange rate)

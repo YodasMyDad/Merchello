@@ -30,8 +30,8 @@ Customer enters address
 
 Merchello distinguishes two provider flavors by the `ConfigCapabilities.UsesLiveRates` flag on your `ShippingProviderMetadata`:
 
-- **Flat-rate** (`UsesLiveRates = false`): rates come from the configured `ShippingOption` / `ShippingCost` tables. Selection keys use the `so:{guid}` format. Built-in example: [FlatRateShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs).
-- **Dynamic / live-rate** (`UsesLiveRates = true`): rates are fetched from a carrier API at checkout time. Selection keys use the `dyn:{providerKey}:{serviceCode}` format. The provider **must not** rely on fixed-cost entries. Visibility is gated by provider enablement *and* the owning warehouse's provider config. `ProductRoot.AllowExternalCarrierShipping = false` blocks dynamic options for that product. Built-in examples: [FedExShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs), [UpsShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs).
+- **Flat-rate** (`UsesLiveRates = false`): rates come from the configured `ShippingOption` / `ShippingCost` tables. Selection keys use the `so:{guid}` format. Built-in example: [FlatRateShippingProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs).
+- **Dynamic / live-rate** (`UsesLiveRates = true`): rates are fetched from a carrier API at checkout time. Selection keys use the `dyn:{providerKey}:{serviceCode}` format. The provider **must not** rely on fixed-cost entries. Visibility is gated by provider enablement *and* the owning warehouse's provider config. `ProductRoot.AllowExternalCarrierShipping = false` blocks dynamic options for that product. Built-in examples: [FedExShippingProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs), [UpsShippingProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs).
 
 Both live on the same `ShippingProviderBase`; it's the metadata flag and the source of cost data that differ.
 
@@ -339,8 +339,8 @@ The base class includes `ApplyMarkup()` which applies percentage markups from wa
 
 | Provider | Location | Notes |
 |---|---|---|
-| Flat Rate | [FlatRateShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs) | Configured rates, no API calls. `UsesLiveRates = false`. |
-| FedEx | [FedExShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs) | Live rates from FedEx API. `UsesLiveRates = true`. |
-| UPS | [UpsShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs) | Live rates from UPS API. `UsesLiveRates = true`. |
+| Flat Rate | [FlatRateShippingProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs) | Configured rates, no API calls. `UsesLiveRates = false`. |
+| FedEx | [FedExShippingProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs) | Live rates from FedEx API. `UsesLiveRates = true`. |
+| UPS | [UpsShippingProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs) | Live rates from UPS API. `UsesLiveRates = true`. |
 
-Base class: [ShippingProviderBase.cs](../../../src/Merchello.Core/Shipping/Providers/ShippingProviderBase.cs). Metadata: [ShippingProviderMetadata.cs](../../../src/Merchello.Core/Shipping/Providers/ShippingProviderMetadata.cs). Capability flags: [ProviderConfigCapabilities.cs](../../../src/Merchello.Core/Shipping/Providers/ProviderConfigCapabilities.cs).
+Base class: [ShippingProviderBase.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/ShippingProviderBase.cs). Metadata: [ShippingProviderMetadata.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/ShippingProviderMetadata.cs). Capability flags: [ProviderConfigCapabilities.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/ProviderConfigCapabilities.cs).

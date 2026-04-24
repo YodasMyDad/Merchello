@@ -6,7 +6,7 @@ The checkout address step captures the customer's billing and shipping addresses
 
 **Why it matters:** Saving the address also triggers a basket recalculation because tax rates, shipping options, and some automatic discounts depend on the shipping destination. This is not just a data save — it is the entry point for location-dependent checkout state.
 
-Source: [CheckoutApiController.SaveAddresses](../../../src/Merchello/Controllers/CheckoutApiController.cs), [ICheckoutService.SaveAddressesAsync](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs), [ICheckoutValidator.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutValidator.cs).
+Source: [CheckoutApiController.SaveAddresses](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutApiController.cs), [ICheckoutService.SaveAddressesAsync](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs), [ICheckoutValidator.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutValidator.cs).
 
 ## Saving Addresses
 

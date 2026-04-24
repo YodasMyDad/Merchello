@@ -61,7 +61,7 @@ Extensions add optional features to the checkout flow:
 
 ## Checkout Sessions
 
-The primary UCP flow is the checkout session. An agent creates a session, adds items, sets addresses, and completes payment. All transactional endpoints are implemented in [`UcpCheckoutSessionsController`](../../../src/Merchello/Controllers/UcpCheckoutSessionsController.cs) and delegate to [`UCPProtocolAdapter`](../../../src/Merchello.Core/Protocols/UCP/UCPProtocolAdapter.cs).
+The primary UCP flow is the checkout session. An agent creates a session, adds items, sets addresses, and completes payment. All transactional endpoints are implemented in [`UcpCheckoutSessionsController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/UcpCheckoutSessionsController.cs) and delegate to [`UCPProtocolAdapter`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/UCP/UCPProtocolAdapter.cs).
 
 ### Session Lifecycle
 
@@ -84,7 +84,7 @@ Each session tracks:
 
 ## Cart API (Draft)
 
-The cart API provides pre-checkout exploration. Agents can create carts, add/remove items, and see pricing before committing to a checkout session. Source: [`UcpCartController`](../../../src/Merchello/Controllers/UcpCartController.cs).
+The cart API provides pre-checkout exploration. Agents can create carts, add/remove items, and see pricing before committing to a checkout session. Source: [`UcpCartController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/UcpCartController.cs).
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -95,7 +95,7 @@ The cart API provides pre-checkout exploration. Agents can create carts, add/rem
 
 ## Orders API
 
-Agents can query order status after checkout. Source: [`UcpOrdersController`](../../../src/Merchello/Controllers/UcpOrdersController.cs).
+Agents can query order status after checkout. Source: [`UcpOrdersController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/UcpOrdersController.cs).
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -112,7 +112,7 @@ Agents can browse and search the product catalog:
 
 UCP uses the `UCP-Agent` header for agent identification. The header contains a profile URI pointing to the agent's own `/.well-known/ucp` manifest.
 
-Merchello's [`AgentAuthenticationMiddleware`](../../../src/Merchello/Middleware/AgentAuthenticationMiddleware.cs) processes this header to:
+Merchello's [`AgentAuthenticationMiddleware`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Middleware/AgentAuthenticationMiddleware.cs) processes this header to:
 
 1. Parse the agent identity
 2. Fetch the agent's profile (if needed)
@@ -123,7 +123,7 @@ The middleware only activates on UCP paths: `/.well-known/ucp`, `/api/v1/checkou
 
 ### Signing Keys
 
-UCP uses ES256 (ECDSA with P-256) for request signing. The [`UcpSigningKeyRotationJob`](../../../src/Merchello.Core/Protocols/Webhooks/UcpSigningKeyRotationJob.cs) background service enforces the configured rotation policy (daily check, rotation after `Ucp:SigningKeyRotationDays`, default 90). Setting `SigningKeyRotationDays` to 0 disables automatic rotation.
+UCP uses ES256 (ECDSA with P-256) for request signing. The [`UcpSigningKeyRotationJob`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/Webhooks/UcpSigningKeyRotationJob.cs) background service enforces the configured rotation policy (daily check, rotation after `Ucp:SigningKeyRotationDays`, default 90). Setting `SigningKeyRotationDays` to 0 disables automatic rotation.
 
 ### OAuth 2.0 Integration
 
@@ -142,7 +142,7 @@ This returns OAuth 2.0 Authorization Server Metadata (RFC 8414) with:
 
 ## Configuration
 
-Configure UCP in `appsettings.json` (binds to [`ProtocolSettings`](../../../src/Merchello.Core/Protocols/Models/ProtocolSettings.cs) / [`UcpSettings`](../../../src/Merchello.Core/Protocols/Models/UcpSettings.cs)):
+Configure UCP in `appsettings.json` (binds to [`ProtocolSettings`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/Models/ProtocolSettings.cs) / [`UcpSettings`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/Models/UcpSettings.cs)):
 
 ```json
 {
@@ -177,9 +177,9 @@ Configure UCP in `appsettings.json` (binds to [`ProtocolSettings`](../../../src/
 
 ## Protocol Adapter Architecture
 
-UCP is implemented through the [`ICommerceProtocolAdapter`](../../../src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs) interface, which is discovered by Merchello's `ExtensionManager`. The [`UCPProtocolAdapter`](../../../src/Merchello.Core/Protocols/UCP/UCPProtocolAdapter.cs) translates between UCP's protocol format and Merchello's internal checkout/payment models.
+UCP is implemented through the [`ICommerceProtocolAdapter`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs) interface, which is discovered by Merchello's `ExtensionManager`. The [`UCPProtocolAdapter`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/UCP/UCPProtocolAdapter.cs) translates between UCP's protocol format and Merchello's internal checkout/payment models.
 
-The [`ICommerceProtocolManager`](../../../src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolManager.cs) coordinates adapters and handles:
+The [`ICommerceProtocolManager`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolManager.cs) coordinates adapters and handles:
 
 - Protocol support detection
 - Manifest generation and caching
@@ -190,7 +190,7 @@ This architecture means you could implement adapters for other commerce protocol
 
 ## Testing
 
-Merchello includes a UCP test agent profile endpoint for development (implemented in [`WellKnownController`](../../../src/Merchello/Controllers/WellKnownController.cs)):
+Merchello includes a UCP test agent profile endpoint for development (implemented in [`WellKnownController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/WellKnownController.cs)):
 
 ```
 GET /.well-known/ucp-test-agent/{agentId}
@@ -198,11 +198,11 @@ GET /.well-known/ucp-test-agent/{agentId}
 
 This returns a simulated agent profile with the store's published signing keys and negotiated capabilities, making it easier to test UCP flows without a real agent.
 
-The [`UcpTestApiController`](../../../src/Merchello/Controllers/UcpTestApiController.cs) provides additional testing endpoints backed by [`IUcpFlowTestService`](../../../src/Merchello.Core/Protocols/UCP/Services/Interfaces/IUcpFlowTestService.cs) for validating create/update/complete session flows end-to-end.
+The [`UcpTestApiController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/UcpTestApiController.cs) provides additional testing endpoints backed by [`IUcpFlowTestService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/UCP/Services/Interfaces/IUcpFlowTestService.cs) for validating create/update/complete session flows end-to-end.
 
 ## UCP Webhooks
 
-UCP supports webhook notifications for session state changes. These are separate from Merchello's standard [outbound webhooks](../webhooks/webhooks-overview.md) and follow UCP's webhook specification with ES256-signed payloads, dispatched by [`UcpOrderWebhookHandler`](../../../src/Merchello.Core/Protocols/UCP/Handlers/UcpOrderWebhookHandler.cs) (priority 3000).
+UCP supports webhook notifications for session state changes. These are separate from Merchello's standard [outbound webhooks](../webhooks/webhooks-overview.md) and follow UCP's webhook specification with ES256-signed payloads, dispatched by [`UcpOrderWebhookHandler`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/UCP/Handlers/UcpOrderWebhookHandler.cs) (priority 3000).
 
 ## Related Topics
 
@@ -210,4 +210,4 @@ UCP supports webhook notifications for session state changes. These are separate
 - [Notification System](../notifications/notification-system.md) (UCP handler priority 3000)
 - [Outbound Webhooks](../webhooks/webhooks-overview.md)
 - [Background Jobs](../background-jobs/background-jobs.md)
-- [Developer reference - docs/UCP.md](../../UCP.md) (internal integration guide)
+- [Developer reference - docs/UCP.md](https://github.com/YodasMyDad/Merchello/blob/main/docs/UCP.md) (internal integration guide)

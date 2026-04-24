@@ -4,7 +4,7 @@ Merchello customers are created automatically during checkout -- you do not need
 
 ## How It Works
 
-At checkout, `ICustomerService.GetOrCreateByEmailAsync(...)` ([ICustomerService.cs:61](../../../src/Merchello.Core/Customers/Services/Interfaces/ICustomerService.cs#L61)) checks for an existing customer record matching the billing email address. If one exists, the invoice is linked to it. If not, a new customer record is created from the billing address details.
+At checkout, `ICustomerService.GetOrCreateByEmailAsync(...)` ([ICustomerService.cs:61](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Customers/Services/Interfaces/ICustomerService.cs#L61)) checks for an existing customer record matching the billing email address. If one exists, the invoice is linked to it. If not, a new customer record is created from the billing address details.
 
 This means guest checkout works out of the box. Returning guests are matched by email to their previous orders automatically without needing to sign in.
 
@@ -19,7 +19,7 @@ Merchello `Customer` and Umbraco `Member` are separate concepts:
 
 ## Accessing Customer Data in Storefront Code
 
-Inject [`ICustomerService`](../../../src/Merchello.Core/Customers/Services/Interfaces/ICustomerService.cs) to look up customers from Razor controllers or view components:
+Inject [`ICustomerService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Customers/Services/Interfaces/ICustomerService.cs) to look up customers from Razor controllers or view components:
 
 ```csharp
 public class AccountController(ICustomerService customerService)

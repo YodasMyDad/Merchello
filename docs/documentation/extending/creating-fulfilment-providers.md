@@ -346,7 +346,7 @@ public override async Task<IReadOnlyList<FulfilmentInventoryLevel>> GetInventory
 
 ## Submission Trigger Policies
 
-How orders get submitted to fulfilment providers is controlled by trigger policies. The values are defined on the Supplier Direct-style enum ([SupplierDirectSubmissionTrigger.cs](../../../src/Merchello.Core/Fulfilment/Providers/SupplierDirect/SupplierDirectSubmissionTrigger.cs)):
+How orders get submitted to fulfilment providers is controlled by trigger policies. The values are defined on the Supplier Direct-style enum ([SupplierDirectSubmissionTrigger.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Fulfilment/Providers/SupplierDirect/SupplierDirectSubmissionTrigger.cs)):
 
 | Policy | Behavior |
 |---|---|
@@ -363,7 +363,7 @@ How orders get submitted to fulfilment providers is controlled by trigger polici
 
 | Provider | Location | Notes |
 |---|---|---|
-| ShipBob | [ShipBobFulfilmentProvider.cs](../../../src/Merchello.Core/Fulfilment/Providers/ShipBob/ShipBobFulfilmentProvider.cs) | Full REST API integration with webhooks |
-| Supplier Direct | [SupplierDirectFulfilmentProvider.cs](../../../src/Merchello.Core/Fulfilment/Providers/SupplierDirect/SupplierDirectFulfilmentProvider.cs) | CSV/FTP-based submission; supports `OnPaid` and `ExplicitRelease` triggers |
+| ShipBob | [ShipBobFulfilmentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Fulfilment/Providers/ShipBob/ShipBobFulfilmentProvider.cs) | Full REST API integration with webhooks |
+| Supplier Direct | [SupplierDirectFulfilmentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Fulfilment/Providers/SupplierDirect/SupplierDirectFulfilmentProvider.cs) | CSV/FTP-based submission; supports `OnPaid` and `ExplicitRelease` triggers |
 
-Base class: [FulfilmentProviderBase.cs](../../../src/Merchello.Core/Fulfilment/Providers/FulfilmentProviderBase.cs). Metadata: [FulfilmentProviderMetadata.cs](../../../src/Merchello.Core/Fulfilment/Providers/FulfilmentProviderMetadata.cs). Interface: [IFulfilmentProvider.cs](../../../src/Merchello.Core/Fulfilment/Providers/Interfaces/IFulfilmentProvider.cs).
+Base class: [FulfilmentProviderBase.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Fulfilment/Providers/FulfilmentProviderBase.cs). Metadata: [FulfilmentProviderMetadata.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Fulfilment/Providers/FulfilmentProviderMetadata.cs). Interface: [IFulfilmentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Fulfilment/Providers/Interfaces/IFulfilmentProvider.cs).

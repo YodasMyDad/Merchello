@@ -6,7 +6,7 @@ Industry data shows 60-80% of shopping carts are abandoned. Merchello's abandone
 
 **Why you use it:** You do not have to write any tracking code — the existing checkout services update abandoned-checkout records automatically. You enable it by registering `IAbandonedCheckoutService` (configured in `Startup.cs`) and configuring the recovery email topics.
 
-Source: [AbandonedCheckoutDetectionJob.cs](../../../src/Merchello.Core/Checkout/Services/AbandonedCheckoutDetectionJob.cs), [AbandonedCheckoutSettings.cs](../../../src/Merchello.Core/Checkout/AbandonedCheckoutSettings.cs), [CheckoutAbandonedNotificationBase.cs](../../../src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotificationBase.cs).
+Source: [AbandonedCheckoutDetectionJob.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/AbandonedCheckoutDetectionJob.cs), [AbandonedCheckoutSettings.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/AbandonedCheckoutSettings.cs), [CheckoutAbandonedNotificationBase.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotificationBase.cs).
 
 ## How It Works
 
@@ -162,7 +162,7 @@ Subscribe to webhook topics to trigger external platforms (Klaviyo, Mailchimp, e
 
 ## Notification Properties
 
-All recovery email notifications inherit from [`CheckoutAbandonedNotificationBase`](../../../src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotificationBase.cs):
+All recovery email notifications inherit from [`CheckoutAbandonedNotificationBase`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotificationBase.cs):
 
 | Property | Type | Description |
 |----------|------|-------------|

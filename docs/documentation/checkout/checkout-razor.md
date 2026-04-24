@@ -8,7 +8,7 @@ Merchello ships with a Shopify-style checkout rendered via Razor views. This gui
 
 ## How Checkout Rendering Works
 
-[`CheckoutContentFinder`](../../../src/Merchello/Routing/CheckoutContentFinder.cs) intercepts any `/checkout/*` URL, parses the step and optional invoice ID from the path, and sets a virtual `IPublishedContent` (`MerchelloCheckoutPage`) whose content type alias is `"MerchelloCheckout"`. Umbraco's route hijacking then resolves [`MerchelloCheckoutController`](../../../src/Merchello/Controllers/MerchelloCheckoutController.cs) by controller-name convention and its `Index(CancellationToken)` action renders the Razor view for the current step.
+[`CheckoutContentFinder`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Routing/CheckoutContentFinder.cs) intercepts any `/checkout/*` URL, parses the step and optional invoice ID from the path, and sets a virtual `IPublishedContent` (`MerchelloCheckoutPage`) whose content type alias is `"MerchelloCheckout"`. Umbraco's route hijacking then resolves [`MerchelloCheckoutController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/MerchelloCheckoutController.cs) by controller-name convention and its `Index(CancellationToken)` action renders the Razor view for the current step.
 
 You do not create Umbraco content nodes for checkout pages — the virtual content is generated from the URL.
 
@@ -157,8 +157,8 @@ This lets you build the confirmation page however you want while keeping the res
 
 Branding is split across two configuration sections:
 
-- `Merchello:Store` binds [`StoreSettings`](../../../src/Merchello.Core/Shared/Models/StoreSettings.cs) — things that are the store's identity (name, **logo URL**, contact details).
-- `Merchello:Checkout` binds [`CheckoutSettings`](../../../src/Merchello.Core/Checkout/Models/CheckoutSettings.cs) — checkout-specific colours, typography, and behaviour.
+- `Merchello:Store` binds [`StoreSettings`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shared/Models/StoreSettings.cs) — things that are the store's identity (name, **logo URL**, contact details).
+- `Merchello:Checkout` binds [`CheckoutSettings`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Models/CheckoutSettings.cs) — checkout-specific colours, typography, and behaviour.
 
 ```json
 {

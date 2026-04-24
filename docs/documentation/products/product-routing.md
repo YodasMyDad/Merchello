@@ -6,9 +6,9 @@ One of Merchello's most distinctive features is that products render at root-lev
 
 The routing pipeline has three components:
 
-1. **ProductContentFinder** -- intercepts requests and looks up products. Source: [ProductContentFinder.cs](../../../src/Merchello/Routing/ProductContentFinder.cs).
-2. **MerchelloPublishedProduct** -- a virtual `IPublishedContent` that Umbraco's rendering pipeline can work with. Source: [MerchelloPublishedProduct.cs](../../../src/Merchello/Models/MerchelloPublishedProduct.cs).
-3. **MerchelloProductController** -- renders the product view. Source: [MerchelloProductController.cs](../../../src/Merchello/Controllers/MerchelloProductController.cs).
+1. **ProductContentFinder** -- intercepts requests and looks up products. Source: [ProductContentFinder.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Routing/ProductContentFinder.cs).
+2. **MerchelloPublishedProduct** -- a virtual `IPublishedContent` that Umbraco's rendering pipeline can work with. Source: [MerchelloPublishedProduct.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Models/MerchelloPublishedProduct.cs).
+3. **MerchelloProductController** -- renders the product view. Source: [MerchelloProductController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/MerchelloProductController.cs).
 
 ### Step 1: ProductContentFinder
 

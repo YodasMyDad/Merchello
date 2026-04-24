@@ -6,7 +6,7 @@ Merchello is an enterprise ecommerce package for Umbraco v17+. This guide walks 
 
 Before you begin, make sure you have:
 
-- **.NET 10 SDK** installed (Merchello targets `net10.0`; see [Merchello.csproj](../../../src/Merchello/Merchello.csproj))
+- **.NET 10 SDK** installed (Merchello targets `net10.0`; see [Merchello.csproj](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Merchello.csproj))
 - **Umbraco v17+** (Merchello is built specifically for this major version)
 - A code editor (Visual Studio, VS Code, Rider, etc.)
 
@@ -16,7 +16,7 @@ Merchello is in public beta. The current package versions are visible on [nuget.
 
 ## Option 1: .NET Template (Recommended for New Projects)
 
-The fastest way to get started is with the Merchello starter site template. This gives you a working example store with products, categories, basket, and checkout already wired up. The template mirrors the in-repo example at [src/Merchello.Site](../../../src/Merchello.Site) (see [the prepare-starter-template script](../../../scripts/prepare-starter-template.ps1) for how it is produced) with Merchello referenced as a NuGet package instead of a project reference.
+The fastest way to get started is with the Merchello starter site template. This gives you a working example store with products, categories, basket, and checkout already wired up. The template mirrors the in-repo example at [src/Merchello.Site](https://github.com/YodasMyDad/Merchello/tree/main/src/Merchello.Site) (see [the prepare-starter-template script](https://github.com/YodasMyDad/Merchello/blob/main/scripts/prepare-starter-template.ps1) for how it is produced) with Merchello referenced as a NuGet package instead of a project reference.
 
 ```bash
 # Install the template (once per machine)
@@ -26,7 +26,7 @@ dotnet new install Umbraco.Community.Merchello.StarterSite::<version>
 dotnet new merchello-starter -n MyStore
 ```
 
-This creates a project named `MyStore.Web` (the `.Web` suffix is added automatically by the template, defined in [.template.config/template.json](../../../src/Merchello.Site/.template.config/template.json)). If you want a different project name, use the `--projectName` flag:
+This creates a project named `MyStore.Web` (the `.Web` suffix is added automatically by the template, defined in [.template.config/template.json](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/.template.config/template.json)). If you want a different project name, use the `--projectName` flag:
 
 ```bash
 dotnet new merchello-starter -n MyStore --projectName MyCustomProjectName
@@ -46,7 +46,7 @@ dotnet add package Umbraco.Community.Merchello --version <version>
 
 ### Register Merchello in Program.cs
 
-After installing the package, you need to add Merchello to the Umbraco builder pipeline. Open your `Program.cs` and add `.AddMerchello()`. This mirrors exactly what the starter site does in [Program.cs](../../../src/Merchello.Site/Program.cs):
+After installing the package, you need to add Merchello to the Umbraco builder pipeline. Open your `Program.cs` and add `.AddMerchello()`. This mirrors exactly what the starter site does in [Program.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Program.cs):
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -77,7 +77,7 @@ app.UseUmbraco()
 await app.RunAsync();
 ```
 
-The `AddMerchello()` extension registers every Merchello service, factory, background job, notification handler, email/webhook handler, content finder, and SignalR hub in one call. See [Startup.cs](../../../src/Merchello/Startup.cs) for the full registration list. You do not need to wire up middleware manually -- Merchello installs itself via an `IStartupFilter` and an `UmbracoPipelineFilter` internally.
+The `AddMerchello()` extension registers every Merchello service, factory, background job, notification handler, email/webhook handler, content finder, and SignalR hub in one call. See [Startup.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Startup.cs) for the full registration list. You do not need to wire up middleware manually -- Merchello installs itself via an `IStartupFilter` and an `UmbracoPipelineFilter` internally.
 
 > **Note:** Merchello shares Umbraco's database. It registers its own `MerchelloDbContext` against Umbraco's configured database provider (SQLite or SQL Server) -- you do not need a separate connection string.
 
@@ -131,7 +131,7 @@ See the [Seed Data](./seed-data.md) guide for details on exactly what gets creat
 
 When Merchello starts for the first time, it automatically:
 
-1. **Runs database migrations** -- `RunMerchMigration` (wired in [Startup.cs](../../../src/Merchello/Startup.cs)) applies EF Core migrations and creates every Merchello table alongside your Umbraco tables.
+1. **Runs database migrations** -- `RunMerchMigration` (wired in [Startup.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Startup.cs)) applies EF Core migrations and creates every Merchello table alongside your Umbraco tables.
 2. **Ensures built-in payment providers** -- the Manual Payment provider is created and enabled so you can process test orders without configuring a gateway.
 3. **Installs essential data types** -- the product description TipTap rich text editor is registered. This runs regardless of `InstallSeedData`.
 4. **Registers product routing** -- if `EnableProductRendering` is `true` (the default), `ProductContentFinder` resolves product root URLs directly without an Umbraco content node.

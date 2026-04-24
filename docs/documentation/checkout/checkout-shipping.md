@@ -6,7 +6,7 @@ During checkout the customer selects a shipping method for each order group. Thi
 
 **Why you need to understand it:** Every basket is at least one order group (one warehouse). Multi-warehouse or vendor baskets produce multiple groups and the customer must pick shipping for each one. Getting the order-grouping, selection-key, and quoted-cost contracts right is what makes multi-warehouse and live-rate carrier checkouts work.
 
-Source: [ICheckoutService.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs), [DefaultOrderGroupingStrategy.cs](../../../src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs), [OrderGroup.cs](../../../src/Merchello.Core/Checkout/Strategies/Models/OrderGroup.cs).
+Source: [ICheckoutService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs), [DefaultOrderGroupingStrategy.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs), [OrderGroup.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Strategies/Models/OrderGroup.cs).
 
 ## Order Grouping
 

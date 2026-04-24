@@ -17,7 +17,7 @@ dotnet new merchello-starter -n MyStore
 dotnet add package Umbraco.Community.Merchello --version <version>
 ```
 
-Then add Merchello to your Umbraco builder (see [Program.cs](../../src/Merchello.Site/Program.cs)):
+Then add Merchello to your Umbraco builder (see [Program.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Program.cs)):
 
 ```csharp
 builder.CreateUmbracoBuilder()
@@ -28,7 +28,7 @@ builder.CreateUmbracoBuilder()
     .Build();
 ```
 
-Configure your store in `appsettings.json` (see the [starter site appsettings.json](../../src/Merchello.Site/appsettings.json) for a full example):
+Configure your store in `appsettings.json` (see the [starter site appsettings.json](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/appsettings.json) for a full example):
 
 ```json
 {

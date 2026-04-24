@@ -29,7 +29,7 @@ Not all providers support payment links. The provider must declare `SupportsPaym
 | WorldPay | No |
 | Manual | No |
 
-Payment link creation, retrieval, and deactivation are all managed through the backoffice UI — backed by [`PaymentLinksApiController`](../../../src/Merchello/Controllers/PaymentLinksApiController.cs) under `/umbraco/api/v1/` and orchestrated by [`IPaymentLinkService`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentLinkService.cs). The link URL and provider info are persisted on `Invoice.ExtendedData`. There is no storefront-facing API for payment links — they are an admin-only feature.
+Payment link creation, retrieval, and deactivation are all managed through the backoffice UI — backed by [`PaymentLinksApiController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/PaymentLinksApiController.cs) under `/umbraco/api/v1/` and orchestrated by [`IPaymentLinkService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Interfaces/IPaymentLinkService.cs). The link URL and provider info are persisted on `Invoice.ExtendedData`. There is no storefront-facing API for payment links — they are an admin-only feature.
 
 ---
 
@@ -48,7 +48,7 @@ The system sends two types of reminders:
 
 ### Configuration
 
-Bound from `Merchello:Invoices:Reminders` in `appsettings.json` (see [`InvoiceReminderSettings.cs`](../../../src/Merchello.Core/Accounting/InvoiceReminderSettings.cs) and the `Startup.cs` binding):
+Bound from `Merchello:Invoices:Reminders` in `appsettings.json` (see [`InvoiceReminderSettings.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/InvoiceReminderSettings.cs) and the `Startup.cs` binding):
 
 ```json
 {

@@ -47,7 +47,7 @@ Each rate has:
 
 ## Rate Lookup Chain
 
-When Merchello needs to calculate tax for a product, it uses [`ITaxService.GetApplicableRateAsync()`](../../../src/Merchello.Core/Accounting/Services/Interfaces/ITaxService.cs) which follows a strict priority:
+When Merchello needs to calculate tax for a product, it uses [`ITaxService.GetApplicableRateAsync()`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Services/Interfaces/ITaxService.cs) which follows a strict priority:
 
 ```
 1. State-specific rate   -->  Found? Use it.
@@ -89,8 +89,8 @@ The checkout basket DTO includes reactive fields for tax-inclusive display:
 
 1. **Product setup**: You assign a `TaxGroupId` to each `ProductRoot`.
 2. **Basket creation**: When a product is added to the basket, the `TaxGroupId` is captured on the line item by the line-item factory.
-3. **Checkout calculation**: [`CheckoutService.CalculateBasketAsync()`](../../../src/Merchello.Core/Checkout/Services/CheckoutService.cs) triggers tax calculation.
-4. **Tax orchestration**: [`ITaxOrchestrationService`](../../../src/Merchello.Core/Tax/Services/Interfaces/ITaxOrchestrationService.cs) coordinates with the active tax provider ([`TaxOrchestrationService`](../../../src/Merchello.Core/Tax/Services/TaxOrchestrationService.cs)).
+3. **Checkout calculation**: [`CheckoutService.CalculateBasketAsync()`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/CheckoutService.cs) triggers tax calculation.
+4. **Tax orchestration**: [`ITaxOrchestrationService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Services/Interfaces/ITaxOrchestrationService.cs) coordinates with the active tax provider ([`TaxOrchestrationService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Services/TaxOrchestrationService.cs)).
 5. **Rate application**: The provider (manual or external) returns rates per line item.
 6. **Invoice creation**: Tax amounts are locked into the invoice.
 

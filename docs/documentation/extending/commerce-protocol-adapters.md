@@ -254,6 +254,6 @@ Protocol adapters have their own notification events:
 
 | Adapter | Location | Notes |
 |---|---|---|
-| UCP | [UCPProtocolAdapter.cs](../../../src/Merchello.Core/Protocols/UCP/UCPProtocolAdapter.cs) | Full UCP implementation with checkout, catalog, payments, capability negotiation |
+| UCP | [UCPProtocolAdapter.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/UCP/UCPProtocolAdapter.cs) | Full UCP implementation with checkout, catalog, payments, capability negotiation |
 
-Interface: [ICommerceProtocolAdapter.cs](../../../src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs). For deeper UCP-specific protocol internals see [`docs/UCP.md`](../../UCP.md).
+Interface: [ICommerceProtocolAdapter.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs). For deeper UCP-specific protocol internals see [`docs/UCP.md`](https://github.com/YodasMyDad/Merchello/blob/main/docs/UCP.md).

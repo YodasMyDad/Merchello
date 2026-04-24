@@ -18,20 +18,20 @@ App Starts
 
 ## What Gets Discovered
 
-Merchello scans for implementations of these interfaces (see [`DiscoverProviderAssemblies()` in `Startup.cs`](../../../src/Merchello/Startup.cs) for the authoritative list):
+Merchello scans for implementations of these interfaces (see [`DiscoverProviderAssemblies()` in `Startup.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Startup.cs) for the authoritative list):
 
 | Interface | Purpose |
 |---|---|
-| [`IPaymentProvider`](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs) | Payment gateways (Stripe, PayPal, etc.) |
-| [`IShippingProvider`](../../../src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs) | Shipping rate providers (FedEx, UPS, flat-rate) |
-| [`ITaxProvider`](../../../src/Merchello.Core/Tax/Providers/Interfaces/ITaxProvider.cs) | Tax calculation providers (Avalara, manual rates) |
-| [`IFulfilmentProvider`](../../../src/Merchello.Core/Fulfilment/Providers/Interfaces/IFulfilmentProvider.cs) | 3PL fulfilment providers (ShipBob, Supplier Direct) |
-| [`IExchangeRateProvider`](../../../src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs) | Currency exchange rate sources |
-| [`IAddressLookupProvider`](../../../src/Merchello.Core/AddressLookup/Providers/Interfaces/IAddressLookupProvider.cs) | Address autocomplete/validation providers |
-| [`IOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/Interfaces/IOrderGroupingStrategy.cs) | Custom order grouping strategies |
-| [`ICommerceProtocolAdapter`](../../../src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs) | Commerce protocol adapters (UCP) |
-| [`IProductFeedValueResolver`](../../../src/Merchello.Core/ProductFeeds/Services/Interfaces/IProductFeedValueResolver.cs) | Custom product feed field resolvers |
-| `IMerchelloAction` | Custom checkout/invoice actions (see [MerchelloActions.md](../../MerchelloActions.md)) |
+| [`IPaymentProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs) | Payment gateways (Stripe, PayPal, etc.) |
+| [`IShippingProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs) | Shipping rate providers (FedEx, UPS, flat-rate) |
+| [`ITaxProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Providers/Interfaces/ITaxProvider.cs) | Tax calculation providers (Avalara, manual rates) |
+| [`IFulfilmentProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Fulfilment/Providers/Interfaces/IFulfilmentProvider.cs) | 3PL fulfilment providers (ShipBob, Supplier Direct) |
+| [`IExchangeRateProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs) | Currency exchange rate sources |
+| [`IAddressLookupProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/AddressLookup/Providers/Interfaces/IAddressLookupProvider.cs) | Address autocomplete/validation providers |
+| [`IOrderGroupingStrategy`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Strategies/Interfaces/IOrderGroupingStrategy.cs) | Custom order grouping strategies |
+| [`ICommerceProtocolAdapter`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs) | Commerce protocol adapters (UCP) |
+| [`IProductFeedValueResolver`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/Interfaces/IProductFeedValueResolver.cs) | Custom product feed field resolvers |
+| `IMerchelloAction` | Custom checkout/invoice actions (see [MerchelloActions.md](https://github.com/YodasMyDad/Merchello/blob/main/docs/MerchelloActions.md)) |
 | `IHealthCheck` | Custom health checks surfaced in the backoffice |
 | `IEmailAttachment` | Custom email attachment providers |
 
@@ -65,7 +65,7 @@ builder.CreateUmbracoBuilder()
 
 ## How ExtensionManager Instantiates Providers
 
-The [`ExtensionManager`](../../../src/Merchello.Core/Shared/Reflection/ExtensionManager.cs) uses `ActivatorUtilities.CreateInstance()` from the DI container. This means your providers can use **constructor injection** for any registered service:
+The [`ExtensionManager`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shared/Reflection/ExtensionManager.cs) uses `ActivatorUtilities.CreateInstance()` from the DI container. This means your providers can use **constructor injection** for any registered service:
 
 ```csharp
 public class AcmeShippingProvider(

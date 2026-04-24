@@ -2,7 +2,7 @@
 
 Merchello's upsell system recommends additional products to customers based on what is in their basket, the products they are viewing, and where they are in the purchase journey. Upsell rules are configured in the Merchello backoffice; this page covers the storefront API and display integration.
 
-> **Upsells are separate from the cart/checkout flow.** The upsell engine ([`IUpsellEngine`](../../../src/Merchello.Core/Upsells/Services/Interfaces/IUpsellEngine.cs)) only produces suggestions and records analytics events. It does not add anything to the basket, modify pricing, or change the checkout state. The one exception is **post-purchase** upsells, which run **after** successful payment against a saved payment method and apply as an **invoice edit** on the already-paid invoice via [`IPostPurchaseUpsellService`](../../../src/Merchello.Core/Upsells/Services/Interfaces/IPostPurchaseUpsellService.cs) -- they still do not touch the original cart/checkout flow.
+> **Upsells are separate from the cart/checkout flow.** The upsell engine ([`IUpsellEngine`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Upsells/Services/Interfaces/IUpsellEngine.cs)) only produces suggestions and records analytics events. It does not add anything to the basket, modify pricing, or change the checkout state. The one exception is **post-purchase** upsells, which run **after** successful payment against a saved payment method and apply as an **invoice edit** on the already-paid invoice via [`IPostPurchaseUpsellService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Upsells/Services/Interfaces/IPostPurchaseUpsellService.cs) -- they still do not touch the original cart/checkout flow.
 
 ## Display Locations
 
@@ -18,7 +18,7 @@ Upsells can appear in multiple places during the shopping experience:
 
 ## Fetching Upsell Suggestions
 
-Endpoints live on [`StorefrontUpsellController.cs`](../../../src/Merchello/Controllers/StorefrontUpsellController.cs).
+Endpoints live on [`StorefrontUpsellController.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/StorefrontUpsellController.cs).
 
 ### Product Page
 
@@ -38,7 +38,7 @@ Fetch upsell suggestions based on the current basket contents:
 GET /api/merchello/storefront/upsells?location=Basket&countryCode=GB&regionCode=ENG
 ```
 
-The `location` parameter is a [`UpsellDisplayLocation`](../../../src/Merchello.Core/Upsells/Models/UpsellDisplayLocation.cs) flags enum: `Checkout` (1), `Basket` (2), `ProductPage` (4), `Email` (8), `Confirmation` (16). Because it is `[Flags]`, a single rule can target multiple locations.
+The `location` parameter is a [`UpsellDisplayLocation`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Upsells/Models/UpsellDisplayLocation.cs) flags enum: `Checkout` (1), `Basket` (2), `ProductPage` (4), `Email` (8), `Confirmation` (16). Because it is `[Flags]`, a single rule can target multiple locations.
 
 Country and region codes are optional. If omitted, the API falls back to the basket shipping address, then to the storefront display context (`IStorefrontContextService.GetDisplayContextAsync()`).
 
@@ -154,7 +154,7 @@ Upsells are re-fetched on the basket page when the country or region changes, si
 
 ## Checkout Modes
 
-When upsells target the checkout, the `checkoutMode` field ([`CheckoutUpsellMode.cs`](../../../src/Merchello.Core/Upsells/Models/CheckoutUpsellMode.cs)) indicates how to render them:
+When upsells target the checkout, the `checkoutMode` field ([`CheckoutUpsellMode.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Upsells/Models/CheckoutUpsellMode.cs)) indicates how to render them:
 
 | Mode | Behavior |
 | ---- | -------- |
@@ -176,7 +176,7 @@ Key constraints:
 
 ### API Endpoints
 
-All four endpoints are routed under `/api/merchello/checkout/post-purchase` ([`PostPurchaseUpsellController.cs`](../../../src/Merchello/Controllers/PostPurchaseUpsellController.cs)):
+All four endpoints are routed under `/api/merchello/checkout/post-purchase` ([`PostPurchaseUpsellController.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/PostPurchaseUpsellController.cs)):
 
 | Method | Endpoint | Description |
 | ------ | -------- | ----------- |
@@ -244,11 +244,11 @@ Content-Type: application/json
 }
 ```
 
-Event types are `Impression`, `Click`, and `Conversion` ([`UpsellEventType.cs`](../../../src/Merchello.Core/Upsells/Models/UpsellEventType.cs)). The display location numeric values match the `UpsellDisplayLocation` flags enum (`Checkout` = 1, `Basket` = 2, `ProductPage` = 4, `Email` = 8, `Confirmation` = 16).
+Event types are `Impression`, `Click`, and `Conversion` ([`UpsellEventType.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Upsells/Models/UpsellEventType.cs)). The display location numeric values match the `UpsellDisplayLocation` flags enum (`Checkout` = 1, `Basket` = 2, `ProductPage` = 4, `Email` = 8, `Confirmation` = 16).
 
 > **Impressions are recorded for you.** `GET /api/merchello/storefront/upsells` automatically captures an impression record for every suggestion it returns with products. You typically only need to `POST` click events manually.
 
-The starter site tracks events like this (source of truth: [`merchello-api.js`](../../../src/Merchello.Site/wwwroot/scripts/merchello-api.js)):
+The starter site tracks events like this (source of truth: [`merchello-api.js`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/wwwroot/scripts/merchello-api.js)):
 
 ```js
 // Record a click when a customer interacts with an upsell product

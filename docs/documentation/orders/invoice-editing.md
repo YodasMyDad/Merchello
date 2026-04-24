@@ -1,6 +1,6 @@
 # Invoice Editing
 
-After an invoice is created, you may need to modify it — adding products, adjusting quantities, removing items, or applying discounts. [`IInvoiceEditService`](../../../src/Merchello.Core/Accounting/Services/Interfaces/IInvoiceEditService.cs) handles this with full recalculation of tax, shipping, and totals, reusing the same calculation pipeline as checkout.
+After an invoice is created, you may need to modify it — adding products, adjusting quantities, removing items, or applying discounts. [`IInvoiceEditService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Services/Interfaces/IInvoiceEditService.cs) handles this with full recalculation of tax, shipping, and totals, reusing the same calculation pipeline as checkout.
 
 > **Scope note:** Invoice editing recalculates totals and updates line items. It does **not** refund payments. If an edit lowers the total below what's been paid, reconcile via a [refund](../payments/refunds.md) — payment status is still calculated by `IPaymentService.CalculatePaymentStatus`.
 

@@ -1,8 +1,8 @@
 # Payment System Overview
 
-Merchello's payment system is built around a provider-based architecture. Payment providers (Stripe, PayPal, etc.) are plugins that handle the specifics of each payment gateway, while [`IPaymentService`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs) owns the payment lifecycle — recording payments, dedupe, refunds, and status.
+Merchello's payment system is built around a provider-based architecture. Payment providers (Stripe, PayPal, etc.) are plugins that handle the specifics of each payment gateway, while [`IPaymentService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs) owns the payment lifecycle — recording payments, dedupe, refunds, and status.
 
-> **Single source of truth:** Never recompute payment status, refund totals, or balance-due in controllers, views, or JS. Call [`IPaymentService.CalculatePaymentStatus`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114) (sync, on already-loaded payments) or `GetInvoicePaymentStatusAsync` (async, fetches payments for you). See [Architecture Diagrams §2.6 Payments](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md).
+> **Single source of truth:** Never recompute payment status, refund totals, or balance-due in controllers, views, or JS. Call [`IPaymentService.CalculatePaymentStatus`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114) (sync, on already-loaded payments) or `GetInvoicePaymentStatusAsync` (async, fetches payments for you). See [Architecture Diagrams §2.6 Payments](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md).
 
 ## Key Concepts
 
@@ -14,7 +14,7 @@ A payment provider represents a payment gateway (Stripe, PayPal, Braintree, etc.
 - Offers one or more **payment methods** (card, PayPal, Apple Pay, Google Pay, etc.)
 - Handles **payment sessions**, **processing**, **refunds**, and **webhooks**
 
-Providers implement [`IPaymentProvider`](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs) (or extend `PaymentProviderBase` for sensible defaults) and are discovered automatically by the `ExtensionManager`. See [Creating Payment Providers](../extending/creating-payment-providers.md) for a full walkthrough.
+Providers implement [`IPaymentProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs) (or extend `PaymentProviderBase` for sensible defaults) and are discovered automatically by the `ExtensionManager`. See [Creating Payment Providers](../extending/creating-payment-providers.md) for a full walkthrough.
 
 ### Payment Methods
 
@@ -47,7 +47,7 @@ A payment session represents a single payment attempt. When a customer clicks "P
 
 ## Payment Flow
 
-Here is the standard payment flow from checkout to completed order. Storefront endpoints live under `/api/merchello/checkout/*` (see [Checkout API](../checkout/checkout-api.md)), implemented in [`CheckoutPaymentsApiController.cs`](../../../src/Merchello/Controllers/CheckoutPaymentsApiController.cs):
+Here is the standard payment flow from checkout to completed order. Storefront endpoints live under `/api/merchello/checkout/*` (see [Checkout API](../checkout/checkout-api.md)), implemented in [`CheckoutPaymentsApiController.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutPaymentsApiController.cs):
 
 ```text
 Customer clicks "Pay"
@@ -85,13 +85,13 @@ Redirect to /checkout/confirmation/{invoiceId}
 
 ## Payment Status
 
-Payment status is calculated centrally by [`IPaymentService.CalculatePaymentStatus`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114). This is the single source of truth — never recompute it in controllers, views, or JS.
+Payment status is calculated centrally by [`IPaymentService.CalculatePaymentStatus`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114). This is the single source of truth — never recompute it in controllers, views, or JS.
 
-The method returns [`PaymentStatusDetails`](../../../src/Merchello.Core/Payments/Models/PaymentStatusDetails.cs):
+The method returns [`PaymentStatusDetails`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Models/PaymentStatusDetails.cs):
 
 | Property | Description |
 |----------|-------------|
-| `Status` | `Unpaid`, `AwaitingPayment`, `PartiallyPaid`, `Paid`, `PartiallyRefunded`, `Refunded` (see [`InvoicePaymentStatus`](../../../src/Merchello.Core/Payments/Models/InvoicePaymentStatus.cs)) |
+| `Status` | `Unpaid`, `AwaitingPayment`, `PartiallyPaid`, `Paid`, `PartiallyRefunded`, `Refunded` (see [`InvoicePaymentStatus`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Models/InvoicePaymentStatus.cs)) |
 | `StatusDisplay` | Human-readable label (`"Partially Refunded"`, etc.) |
 | `TotalPaid` / `TotalPaidInStoreCurrency` | Sum of successful `PaymentType.Payment` rows |
 | `TotalRefunded` / `TotalRefundedInStoreCurrency` | Sum of refund rows (positive numbers) |
@@ -122,7 +122,7 @@ var status = await paymentService.GetInvoicePaymentStatusAsync(invoiceId, ct);
 
 ## Idempotency & Dedupe (Invariant)
 
-`Payment.IdempotencyKey` and `Payment.WebhookEventId` are how Merchello prevents double-charges. Both fields live on the [`Payment`](../../../src/Merchello.Core/Accounting/Models/Payment.cs) record and **must be preserved** by every flow that records or updates a payment.
+`Payment.IdempotencyKey` and `Payment.WebhookEventId` are how Merchello prevents double-charges. Both fields live on the [`Payment`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Models/Payment.cs) record and **must be preserved** by every flow that records or updates a payment.
 
 ### Idempotency keys
 
@@ -140,7 +140,7 @@ Provider webhooks store the event ID on `Payment.WebhookEventId`. Before process
 
 ## IPaymentService Reference
 
-Full interface: [`IPaymentService.cs`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs).
+Full interface: [`IPaymentService.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs).
 
 ### Payment processing
 
@@ -190,7 +190,7 @@ Handlers with lower `[NotificationHandlerPriority(N)]` run first. Custom handler
 
 ## Provider Interface
 
-Payment providers implement [`IPaymentProvider`](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs). Here are the required and optional methods:
+Payment providers implement [`IPaymentProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs). Here are the required and optional methods:
 
 ### Required (must implement)
 
@@ -218,7 +218,7 @@ Payment providers implement [`IPaymentProvider`](../../../src/Merchello.Core/Pay
 
 ## Webhooks
 
-Payment providers that use webhooks have a dedicated endpoint handled by [`PaymentWebhookController.cs`](../../../src/Merchello/Controllers/PaymentWebhookController.cs):
+Payment providers that use webhooks have a dedicated endpoint handled by [`PaymentWebhookController.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/PaymentWebhookController.cs):
 
 ```text
 POST /umbraco/merchello/webhooks/payments/{providerAlias}
@@ -259,4 +259,4 @@ See [Multi-Currency Overview](../multi-currency/multi-currency-overview.md) for 
 - [Orders Overview](../orders/orders-overview.md) — how payments attach to invoices and orders
 - [Checkout API](../checkout/checkout-api.md) — the storefront endpoints that drive payment sessions
 - [Webhook API](../api/webhook-api.md) — incoming provider webhooks
-- [Creating Payment Providers](../extending/creating-payment-providers.md) and the [PaymentProviders DevGuide](../../PaymentProviders-DevGuide.md)
+- [Creating Payment Providers](../extending/creating-payment-providers.md) and the [PaymentProviders DevGuide](https://github.com/YodasMyDad/Merchello/blob/main/docs/PaymentProviders-DevGuide.md)

@@ -214,6 +214,6 @@ The exchange rate service decides when to refresh rates from your provider (it c
 
 | Provider | Location | Notes |
 |---|---|---|
-| Frankfurter | [FrankfurterExchangeRateProvider.cs](../../../src/Merchello.Core/ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs) | Free ECB rates, no API key needed |
+| Frankfurter | [FrankfurterExchangeRateProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs) | Free ECB rates, no API key needed |
 
-Metadata: [ExchangeRateProviderMetadata.cs](../../../src/Merchello.Core/ExchangeRates/Models/ExchangeRateProviderMetadata.cs). Interface: [IExchangeRateProvider.cs](../../../src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs).
+Metadata: [ExchangeRateProviderMetadata.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Models/ExchangeRateProviderMetadata.cs). Interface: [IExchangeRateProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs).

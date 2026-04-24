@@ -13,7 +13,7 @@ A **product feed** is a configuration that defines:
 
 Each feed has a **slug** that forms part of its public URL. You create and manage feeds in the Umbraco backoffice under **Settings > Product Feeds**.
 
-The feed generators live in [Merchello.Core/ProductFeeds/Services](../../../src/Merchello.Core/ProductFeeds/Services) ([`GoogleProductFeedGenerator`](../../../src/Merchello.Core/ProductFeeds/Services/GoogleProductFeedGenerator.cs), [`GooglePromotionFeedGenerator`](../../../src/Merchello.Core/ProductFeeds/Services/GooglePromotionFeedGenerator.cs)) and the public controller is [`ProductFeedsPublicController`](../../../src/Merchello/Controllers/ProductFeedsPublicController.cs).
+The feed generators live in [Merchello.Core/ProductFeeds/Services](https://github.com/YodasMyDad/Merchello/tree/main/src/Merchello.Core/ProductFeeds/Services) ([`GoogleProductFeedGenerator`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/GoogleProductFeedGenerator.cs), [`GooglePromotionFeedGenerator`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/GooglePromotionFeedGenerator.cs)) and the public controller is [`ProductFeedsPublicController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/ProductFeedsPublicController.cs).
 
 ## Public Feed URLs
 
@@ -68,9 +68,9 @@ Merchello can validate and surface Google auto-discount tokens. Configure the pu
 
 ## Automatic Refresh
 
-Feeds are cached in the database so serving them is a fast read, not a full product query. A background job ([`ProductFeedRefreshJob`](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedRefreshJob.cs)) periodically rebuilds all enabled feeds.
+Feeds are cached in the database so serving them is a fast read, not a full product query. A background job ([`ProductFeedRefreshJob`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/ProductFeedRefreshJob.cs)) periodically rebuilds all enabled feeds.
 
-Configure the refresh schedule in `appsettings.json` (binds to [`ProductFeedSettings`](../../../src/Merchello.Core/ProductFeeds/ProductFeedSettings.cs)):
+Configure the refresh schedule in `appsettings.json` (binds to [`ProductFeedSettings`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/ProductFeedSettings.cs)):
 
 ```json
 {
@@ -83,15 +83,15 @@ Configure the refresh schedule in `appsettings.json` (binds to [`ProductFeedSett
 }
 ```
 
-You can also trigger a manual rebuild from the backoffice or via `POST /api/v1/product-feeds/{id}/rebuild` (see [ProductFeedsApiController](../../../src/Merchello/Controllers/ProductFeedsApiController.cs)).
+You can also trigger a manual rebuild from the backoffice or via `POST /api/v1/product-feeds/{id}/rebuild` (see [ProductFeedsApiController](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/ProductFeedsApiController.cs)).
 
 ## Custom Field Resolvers
 
 Product feed field values are resolved through a pluggable resolver system. Built-in resolvers handle standard Google Shopping fields (title, description, price, availability, etc.), but you can register custom resolvers for specialized needs.
 
-Each resolver receives a [`ProductFeedResolverContext`](../../../src/Merchello.Core/ProductFeeds/Models/ProductFeedResolverContext.cs) with the product data, feed configuration, and store settings, and returns the resolved field value. Resolvers are discovered via `ExtensionManager`.
+Each resolver receives a [`ProductFeedResolverContext`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Models/ProductFeedResolverContext.cs) with the product data, feed configuration, and store settings, and returns the resolved field value. Resolvers are discovered via `ExtensionManager`.
 
-For the full developer guide (registering resolvers, field aliases, testing) see [docs/Product-Feed-Resolvers.md](../../Product-Feed-Resolvers.md).
+For the full developer guide (registering resolvers, field aliases, testing) see [docs/Product-Feed-Resolvers.md](https://github.com/YodasMyDad/Merchello/blob/main/docs/Product-Feed-Resolvers.md).
 
 ## Multiple Feeds
 
@@ -105,7 +105,7 @@ Each feed has its own public URL to submit to Google Merchant Center.
 
 ## Backoffice API
 
-Source: [ProductFeedsApiController.cs](../../../src/Merchello/Controllers/ProductFeedsApiController.cs).
+Source: [ProductFeedsApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/ProductFeedsApiController.cs).
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -123,5 +123,5 @@ Source: [ProductFeedsApiController.cs](../../../src/Merchello/Controllers/Produc
 
 - [Products](../products/)
 - [Google Auto Discount](../advanced/google-auto-discount.md)
-- [Product Feed Resolvers (dev guide)](../../Product-Feed-Resolvers.md)
+- [Product Feed Resolvers (dev guide)](https://github.com/YodasMyDad/Merchello/blob/main/docs/Product-Feed-Resolvers.md)
 - [Background Jobs](../background-jobs/background-jobs.md)

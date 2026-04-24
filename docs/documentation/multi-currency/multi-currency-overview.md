@@ -46,7 +46,7 @@ The two directions are intentional and non-negotiable. Display and checkout use 
 
 ## Rate Locking at Invoice Creation
 
-When an invoice is created at checkout, the exchange rate is **locked** onto the invoice with three audit fields on [`Invoice.cs`](../../../src/Merchello.Core/Accounting/Models/Invoice.cs#L90):
+When an invoice is created at checkout, the exchange rate is **locked** onto the invoice with three audit fields on [`Invoice.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Models/Invoice.cs#L90):
 
 | Field | Description | Example |
 |-------|-------------|---------|
@@ -59,7 +59,7 @@ These fields serve two purposes:
 1. **Financial accuracy** -- the customer pays exactly what they saw at checkout, regardless of rate fluctuations after the order is placed.
 2. **Audit trail** -- you can always trace back to the exact rate used and where it came from (useful for reconciling refunds and disputes).
 
-The rate, timestamp and source are populated from an [`ExchangeRateQuote`](../../../src/Merchello.Core/ExchangeRates/Models/ExchangeRateQuote.cs) returned by `IExchangeRateCache.GetRateQuoteAsync()` at invoice creation time.
+The rate, timestamp and source are populated from an [`ExchangeRateQuote`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Models/ExchangeRateQuote.cs) returned by `IExchangeRateCache.GetRateQuoteAsync()` at invoice creation time.
 
 ## Store Currency Equivalents
 
@@ -146,7 +146,7 @@ The GET counterpart returns the current display currency:
 GET /api/merchello/storefront/currency
 ```
 
-Endpoints live on [`StorefrontApiController.cs:273-310`](../../../src/Merchello/Controllers/StorefrontApiController.cs#L273).
+Endpoints live on [`StorefrontApiController.cs:273-310`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/StorefrontApiController.cs#L273).
 
 ## Best Practices
 

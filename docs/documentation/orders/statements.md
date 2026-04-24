@@ -25,7 +25,7 @@ Closing Balance:                    525.00
 
 ## Generating Statement Data
 
-Use [`IStatementService.GetStatementDataAsync`](../../../src/Merchello.Core/Accounting/Services/Interfaces/IStatementService.cs) to load a statement. Parameters live on [`GenerateStatementParameters`](../../../src/Merchello.Core/Accounting/Services/Parameters/GenerateStatementParameters.cs):
+Use [`IStatementService.GetStatementDataAsync`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Services/Interfaces/IStatementService.cs) to load a statement. Parameters live on [`GenerateStatementParameters`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Services/Parameters/GenerateStatementParameters.cs):
 
 ```csharp
 var statement = await statementService.GetStatementDataAsync(
