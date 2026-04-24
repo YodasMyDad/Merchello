@@ -1,10 +1,16 @@
 # Customizing Checkout Views
 
-Merchello ships with a Shopify-style checkout rendered via Razor views. This guide covers where the views live, what data they receive, and how to customize them.
+Merchello ships with a Shopify-style checkout rendered via Razor views. This guide covers where the views live, what data they receive, and how to customize them safely.
+
+**What it is:** A set of Razor views in the Merchello RCL under `~/App_Plugins/Merchello/Views/Checkout/`, driven by `MerchelloCheckoutController` and fed a `CheckoutViewModel`.
+
+**Why customize:** Most stores only need logo, colours, and a custom confirmation URL — all of which are configuration, not code. Reach for view overrides only when branding requirements go beyond the built-in settings.
 
 ## How Checkout Rendering Works
 
-When a content node uses the `MerchelloCheckout` content type alias, the `MerchelloCheckoutController` handles the request and renders the appropriate Razor view based on the checkout step. This uses Umbraco's standard route hijacking.
+[`CheckoutContentFinder`](../../../src/Merchello/Routing/CheckoutContentFinder.cs) intercepts any `/checkout/*` URL, parses the step and optional invoice ID from the path, and sets a virtual `IPublishedContent` (`MerchelloCheckoutPage`) whose content type alias is `"MerchelloCheckout"`. Umbraco's route hijacking then resolves [`MerchelloCheckoutController`](../../../src/Merchello/Controllers/MerchelloCheckoutController.cs) by controller-name convention and its `Index(CancellationToken)` action renders the Razor view for the current step.
+
+You do not create Umbraco content nodes for checkout pages — the virtual content is generated from the URL.
 
 ---
 
@@ -101,7 +107,7 @@ Every checkout view receives a `CheckoutViewModel` with all the data needed for 
 | `AddressLookup` | `AddressLookupClientConfigDto?` | Address lookup provider config |
 | `ExpressCheckoutConfig` | `ExpressCheckoutConfigDto?` | Express checkout SDK config |
 
-> **Tip:** All monetary calculations are done server-side. Your views should display the pre-calculated values from the view model rather than doing math in Razor.
+> **Invariant:** All monetary calculations are server-side via `CheckoutService.CalculateBasketAsync()`. Views must render the pre-calculated `Display*` / `TaxInclusive*` fields — never compute totals, tax, or currency conversion in Razor or JS. Multi-currency: display uses multiply (`amount * rate`); the actual charge flow uses divide (`amount / rate`). Charging from display amounts is forbidden — see [Multi-Currency Overview](../multi-currency/multi-currency-overview.md).
 
 ---
 
@@ -149,27 +155,52 @@ This lets you build the confirmation page however you want while keeping the res
 
 ## Checkout Settings
 
-The `CheckoutSettings` object in the view model controls branding:
+Branding is split across two configuration sections:
+
+- `Merchello:Store` binds [`StoreSettings`](../../../src/Merchello.Core/Shared/Models/StoreSettings.cs) — things that are the store's identity (name, **logo URL**, contact details).
+- `Merchello:Checkout` binds [`CheckoutSettings`](../../../src/Merchello.Core/Checkout/Models/CheckoutSettings.cs) — checkout-specific colours, typography, and behaviour.
 
 ```json
 {
   "Merchello": {
+    "Store": {
+      "Name": "My Store",
+      "LogoUrl": "/img/logo.png"
+    },
     "Checkout": {
-      "LogoUrl": "/img/logo.png",
       "LogoPosition": "Left",
-      "AccentColor": "#6366f1",
-      "ConfirmationRedirectUrl": null
+      "LogoMaxWidth": 200,
+      "PrimaryColor": "#000000",
+      "AccentColor": "#0066FF",
+      "BackgroundColor": "#FFFFFF",
+      "TextColor": "#333333",
+      "ErrorColor": "#DC2626",
+      "HeadingFontFamily": "system-ui",
+      "BodyFontFamily": "system-ui",
+      "BillingPhoneRequired": true,
+      "ConfirmationRedirectUrl": null,
+      "HeaderBackgroundImageUrl": null,
+      "HeaderBackgroundColor": null,
+      "SessionSlidingTimeoutMinutes": 30,
+      "SessionAbsoluteTimeoutMinutes": 240,
+      "CustomScriptUrl": null
     }
   }
 }
 ```
 
-| Setting | Description |
-|---------|-------------|
-| `LogoUrl` | URL to your store logo |
-| `LogoPosition` | `Left`, `Center`, or `Right` alignment |
-| `AccentColor` | Primary accent color for buttons and highlights |
-| `ConfirmationRedirectUrl` | Custom URL to redirect after order completion |
+| Setting | Section | Description |
+|---------|---------|-------------|
+| `LogoUrl` | `Store` | URL to your store logo (used in checkout header + email header) |
+| `LogoPosition` | `Checkout` | `Left`, `Center`, or `Right` alignment |
+| `LogoMaxWidth` | `Checkout` | Max logo width in pixels (default 200) |
+| `PrimaryColor`, `AccentColor`, `BackgroundColor`, `TextColor`, `ErrorColor` | `Checkout` | Theme colours exposed as CSS custom properties in `_Layout.cshtml` |
+| `HeadingFontFamily`, `BodyFontFamily` | `Checkout` | Font stacks exposed as CSS custom properties |
+| `HeaderBackgroundImageUrl`, `HeaderBackgroundColor` | `Checkout` | Banner image/colour above the logo |
+| `BillingPhoneRequired` | `Checkout` | Require a phone on the billing address |
+| `ConfirmationRedirectUrl` | `Checkout` | Custom URL to redirect after order completion (skips built-in confirmation page) |
+| `SessionSlidingTimeoutMinutes`, `SessionAbsoluteTimeoutMinutes` | `Checkout` | Checkout session timeouts (0 disables) — see [Checkout Session](checkout-session.md) |
+| `CustomScriptUrl` | `Checkout` | URL to a custom JS file loaded in the checkout (analytics, A/B testing) |
 
 ---
 

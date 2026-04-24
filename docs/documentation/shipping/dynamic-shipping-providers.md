@@ -14,6 +14,13 @@ Dynamic shipping providers fetch live rates from carrier APIs at checkout. Merch
 
 Dynamic providers set `UsesLiveRates = true` in their metadata and must **not** rely on fixed-cost entries in the database.
 
+> **Invariant (CLAUDE.md):** If you want a carrier-named option at a fixed cost (e.g., "FedEx Ground $8.99"), create it as a flat-rate `ShippingOption` (`ProviderKey = "flat-rate"`). Assigning a dynamic provider key to a fixed-cost entry will cause the option to be hidden or rendered as "Calculated at checkout".
+
+Built-in dynamic providers:
+
+- [`FedExShippingProvider`](../../../src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs) (`fedex`)
+- [`UpsShippingProvider`](../../../src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs) (`ups`)
+
 ---
 
 ## Built-in Providers
@@ -193,6 +200,8 @@ Your provider is automatically discovered by `ExtensionManager` and available fo
 
 Set `ProductRoot.AllowExternalCarrierShipping = false` to prevent dynamic carrier options from appearing for specific products. Those products will only show flat-rate shipping options at checkout.
 
+> **Invariant (CLAUDE.md):** `AllowExternalCarrierShipping = false` must suppress dynamic options for the entire shipping group containing that product. The default order grouping strategy enforces this -- custom strategies must honour it too.
+
 ---
 
 ## IShippingProvider Reference
@@ -229,3 +238,12 @@ Set `ProductRoot.AllowExternalCarrierShipping = false` to prevent dynamic carrie
 | `GetAvailableDeliveryDatesAsync(request, service)` | Get selectable delivery dates |
 | `CalculateDeliveryDateSurchargeAsync(request, service, date)` | Calculate surcharge for a specific date |
 | `ValidateDeliveryDateAsync(request, service, date)` | Validate a delivery date is still available |
+
+See the full interface at [`IShippingProvider.cs`](../../../src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs).
+
+## Related Topics
+
+- [Shipping Overview](shipping-overview.md)
+- [Flat Rate Shipping](flat-rate-shipping.md)
+- [Package Configuration](package-configuration.md) -- weight/dimensions used by carrier APIs
+- [Creating Shipping Providers](../extending/creating-shipping-providers.md)

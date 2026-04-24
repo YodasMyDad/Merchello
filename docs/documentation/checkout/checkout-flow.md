@@ -2,6 +2,23 @@
 
 Merchello provides a built-in, Shopify-style checkout experience. It is a consistent, mobile-first flow that handles everything from basket to payment confirmation. The checkout is rendered using MVC Razor views from the Merchello RCL (Razor Class Library) and uses Alpine.js for interactivity.
 
+**What it is:** A drop-in, opinionated checkout that works out of the box with any enabled payment and shipping provider.
+
+**Why you use it:** You get a fully-tested, mobile-first checkout with multi-currency, abandoned-cart recovery, express checkout, and tax-inclusive display without writing any UI code. You only override views when you need brand-specific customisation (see [Customizing Checkout Views](checkout-razor.md)).
+
+**How it fits together:**
+
+| Layer | Responsibility | Source |
+|-------|----------------|--------|
+| `CheckoutContentFinder` | Resolves `/checkout/*` URLs into a virtual page | [CheckoutContentFinder.cs](../../../src/Merchello/Routing/CheckoutContentFinder.cs) |
+| `MerchelloCheckoutController` | Razor-hijacked controller that renders each step | [MerchelloCheckoutController.cs](../../../src/Merchello/Controllers/MerchelloCheckoutController.cs) |
+| `CheckoutApiController` | Public AJAX surface at `/api/merchello/checkout` | [CheckoutApiController.cs](../../../src/Merchello/Controllers/CheckoutApiController.cs) |
+| `CheckoutPaymentsApiController` | Payment/express-checkout endpoints on the same base path | [CheckoutPaymentsApiController.cs](../../../src/Merchello/Controllers/CheckoutPaymentsApiController.cs) |
+| `ICheckoutService` | Business logic: basket math, order grouping, address/shipping saves | [ICheckoutService.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs) |
+| `ICheckoutSessionService` | Per-basket session state (step, addresses, shipping selections, invoice id) | [ICheckoutSessionService.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutSessionService.cs) |
+
+> **Invariant:** Controllers never touch `DbContext`. All persistence and calculation flows through services. Basket totals are always computed by `CheckoutService.CalculateBasketAsync()` — never in views, controllers, or JS.
+
 ## Design Philosophy
 
 The checkout intentionally mirrors Shopify's checkout patterns. Shoppers who buy online frequently are already familiar with this flow, which means:

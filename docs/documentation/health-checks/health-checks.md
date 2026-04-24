@@ -57,8 +57,10 @@ Finds product option values (like color swatches) that are missing their associa
 ### List Available Checks
 
 ```
-GET /api/v1/health-checks
+GET /umbraco/api/v1/health-checks
 ```
+
+> **Auth:** All health check endpoints require an authenticated Umbraco backoffice session (content section access).
 
 Returns metadata for all registered health checks:
 
@@ -77,7 +79,7 @@ Returns metadata for all registered health checks:
 ### Run a Check
 
 ```
-POST /api/v1/health-checks/{alias}/run
+POST /umbraco/api/v1/health-checks/{alias}/run
 ```
 
 Returns the check result:
@@ -97,7 +99,7 @@ Returns the check result:
 ### Get Check Details
 
 ```
-GET /api/v1/health-checks/{alias}/details?page=1&pageSize=25
+GET /umbraco/api/v1/health-checks/{alias}/details?page=1&pageSize=25
 ```
 
 Returns a paginated list of affected items:
@@ -174,6 +176,18 @@ public class ProductsWithoutDescriptionHealthCheck : IHealthCheck
 ```
 
 Register it in your DI container and it will appear automatically in the health checks UI.
+
+## Key Files
+
+| File | Description |
+|---|---|
+| `Merchello.Core/HealthChecks/Interfaces/IHealthCheck.cs` | Interface implemented by every check |
+| `Merchello.Core/HealthChecks/Models/HealthCheckMetadata.cs` | Metadata record |
+| `Merchello.Core/HealthChecks/Models/HealthCheckResult.cs` | Result model (status + summary + count) |
+| `Merchello.Core/HealthChecks/Models/HealthCheckStatus.cs` | Status enum (`Success`, `Warning`, `Error`) |
+| `Merchello.Core/HealthChecks/Services/HealthCheckService.cs` | Resolves and runs registered checks |
+| `Merchello.Core/HealthChecks/BuiltIn/` | Built-in checks (`ProductsMissingImages`, `ProductsMissingWarehouses`, `UnpublishedProducts`, `OptionValuesMissingMedia`) |
+| `Merchello/Controllers/HealthChecksApiController.cs` | Admin API (`GET/POST /umbraco/api/v1/health-checks`) |
 
 ## Related Topics
 

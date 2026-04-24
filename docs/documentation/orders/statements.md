@@ -25,20 +25,22 @@ Closing Balance:                    525.00
 
 ## Generating Statement Data
 
-Use `IStatementService.GetStatementDataAsync()` to get statement data:
+Use [`IStatementService.GetStatementDataAsync`](../../../src/Merchello.Core/Accounting/Services/Interfaces/IStatementService.cs) to load a statement. Parameters live on [`GenerateStatementParameters`](../../../src/Merchello.Core/Accounting/Services/Parameters/GenerateStatementParameters.cs):
 
 ```csharp
 var statement = await statementService.GetStatementDataAsync(
     new GenerateStatementParameters
     {
-        CustomerId = customerId,
-        PeriodStart = new DateTime(2026, 1, 1),
-        PeriodEnd = new DateTime(2026, 3, 31)
+        CustomerId    = customerId,
+        PeriodStart   = new DateTime(2026, 1, 1),
+        PeriodEnd     = new DateTime(2026, 3, 31),
+        CompanyName   = "Acme Ltd",    // optional, appears in PDF header
+        CompanyAddress = "1 Main St"   // optional, appears in PDF header
     },
     cancellationToken);
 ```
 
-If you don't specify a period, it defaults to all history up to the current date.
+If you don't specify a period, it returns all history up to the current date. All balance math uses `IPaymentService.CalculatePaymentStatus` — the single source of truth — so statement totals, outstanding lists, and invoice detail screens always agree.
 
 ## Statement Data Structure
 
@@ -113,18 +115,21 @@ The PDF is generated using PdfSharp and includes:
 
 ## Outstanding Invoices
 
-Beyond statements, you can query for outstanding (unpaid or partially paid) invoices:
+For outstanding (unpaid or partially paid) invoices, use the dedicated methods on `IStatementService` — they apply `CalculatePaymentStatus` per invoice so results stay consistent with the payment source of truth:
 
 ```csharp
-var outstandingInvoices = await invoiceService.QueryAsync(new InvoiceQueryParameters
-{
-    CustomerId = customerId,
-    PaymentStatus = "Unpaid", // or "PartiallyPaid"
-    PageSize = 50
-});
+// All outstanding invoices for one customer, sorted by due date
+var outstanding = await statementService.GetOutstandingInvoicesForCustomerAsync(customerId, ct);
+
+// Headline totals for the customer (overdue, credit, etc.)
+var summary = await statementService.GetOutstandingBalanceAsync(customerId, ct);
+
+// Paged "Outstanding" sidebar across all customers
+var paged = await statementService.GetOutstandingInvoicesPagedAsync(
+    new OutstandingInvoicesQueryParameters { CurrentPage = 1, AmountPerPage = 50 }, ct);
 ```
 
-This powers the "Outstanding Balance" view in the backoffice.
+For simpler "is this invoice unpaid?" filtering when you already have an invoice query, use `InvoiceQueryParameters.PaymentStatusFilter = InvoicePaymentStatusFilter.Unpaid`.
 
 ## Integration with Account Terms
 
@@ -137,19 +142,8 @@ Statements work hand-in-hand with customer account terms:
 
 > **Tip:** Use statement data combined with `DueDate` to build aged debtor reports -- group outstanding invoices by age (current, 30 days, 60 days, 90+ days).
 
-## Paged Queries
+## Related
 
-For customers with many transactions, statement queries are pageable:
-
-```csharp
-var statement = await statementService.GetStatementDataAsync(
-    new GenerateStatementParameters
-    {
-        CustomerId = customerId,
-        PeriodStart = periodStart,
-        PeriodEnd = periodEnd,
-        PageNumber = 1,
-        PageSize = 50
-    },
-    cancellationToken);
-```
+- [Orders Overview](orders-overview.md) — invoice hierarchy and querying
+- [Payment System Overview](../payments/payment-system-overview.md) — `CalculatePaymentStatus`, the single source of truth behind every balance number
+- [Payment Links & Invoice Reminders](../payments/payment-links.md) — automated follow-ups for overdue invoices

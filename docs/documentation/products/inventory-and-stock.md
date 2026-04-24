@@ -2,6 +2,10 @@
 
 Merchello tracks stock levels per product variant per warehouse. This guide covers the stock lifecycle, multi-warehouse stock, availability checking, and the notifications that fire at each stage.
 
+> **Invariant:** All stock mutations must go through `IInventoryService`. Never adjust `Stock`, `ReservedStock`, or `TrackStock` directly on a `ProductWarehouse` -- the service enforces the lifecycle rules below, handles optimistic concurrency, and publishes the notifications that other subsystems listen on.
+
+Source: [IInventoryService.cs](../../../src/Merchello.Core/Products/Services/Interfaces/IInventoryService.cs), [ProductWarehouse.cs](../../../src/Merchello.Core/Products/Models/ProductWarehouse.cs).
+
 ## Core Concepts
 
 ### Stock Tracking
@@ -185,13 +189,13 @@ The `LowStockNotification` fires after allocation when remaining stock drops to 
 
 ## Multi-Warehouse Stock
 
-When a product exists in multiple warehouses, Merchello selects the best warehouse based on:
+When a product exists in multiple warehouses, Merchello selects the best warehouse using a strict priority order that must be preserved by any custom grouping logic:
 
-1. **ProductRootWarehouse priority** -- warehouses assigned to the product with a priority value.
+1. **`ProductRootWarehouse.Priority`** -- warehouses linked to the product with a priority value.
 2. **Service region eligibility** -- the warehouse must be able to ship to the customer's country/region.
 3. **Stock availability** -- the warehouse must have `Stock - ReservedStock >= requested quantity`.
 
-> **Tip:** Use `IWarehouseService.SelectWarehouseForProduct()` to get the best warehouse for a product and shipping destination. This is what the checkout flow uses internally.
+> **Tip:** Use [`IWarehouseService.SelectWarehouseForProduct()`](../../../src/Merchello.Core/Warehouses/Services/WarehouseService.cs#L35) to get the best warehouse for a product and shipping destination. This is what the checkout order grouping strategy uses internally ([DefaultOrderGroupingStrategy.cs:84](../../../src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs#L84)).
 
 ## Key Points
 

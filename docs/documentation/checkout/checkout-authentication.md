@@ -2,6 +2,12 @@
 
 Customer authentication during checkout -- how Merchello handles email checks, sign-in, sign-up, guest checkout, password validation, and password resets.
 
+**What it is:** A thin layer over Umbraco's member system scoped to the checkout flow. It creates/authenticates members, links them to the basket, and manages password-reset tokens — without forcing customers to leave the checkout page.
+
+**Why it exists:** Standard ecommerce flows need all three of guest / sign-in / sign-up from one screen, plus a password-reset path that doesn't dump users back to a generic Umbraco login page. Merchello keeps these inside the checkout UI so conversion isn't broken by authentication detours.
+
+Source: [ICheckoutMemberService.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutMemberService.cs), [CheckoutApiController.cs](../../../src/Merchello/Controllers/CheckoutApiController.cs), [CheckoutPasswordResetController.cs](../../../src/Merchello/Controllers/CheckoutPasswordResetController.cs).
+
 ## Overview
 
 Merchello's checkout supports three customer states:
@@ -12,7 +18,7 @@ Merchello's checkout supports three customer states:
 
 All authentication operations are handled by `ICheckoutMemberService` and exposed through the checkout API.
 
-> **Note:** Digital products (downloads, licenses) always require an account. If the basket contains digital products, guest checkout is disabled and the customer must sign in or create an account.
+> **Digital products always require an account.** If the basket contains digital products, guest checkout is disabled (`CheckoutViewModel.HasDigitalProducts = true`) and the customer must sign in or create an account. This is enforced server-side in `CheckoutService.BasketHasDigitalProductsAsync()` — do not rely on UI checks alone.
 
 ---
 

@@ -15,7 +15,7 @@ A product might be "in stock" at your New York warehouse but "unavailable" for a
 
 ## The ProductLocationAvailability Record
 
-Every availability check returns a `ProductLocationAvailability` record:
+Every availability check returns a [`ProductLocationAvailability`](../../../src/Merchello.Core/Storefront/Models/ProductLocationAvailability.cs) record:
 
 ```csharp
 public record ProductLocationAvailability(
@@ -114,7 +114,7 @@ const availability = await response.json();
 
 ## Displaying Stock on Product Pages
 
-The `.Site` project demonstrates the pattern for showing stock status on a product page:
+The starter site demonstrates the pattern for showing stock status on a product page ([Default.cshtml:37-49](../../../src/Merchello.Site/Views/Products/Default.cshtml#L37)):
 
 ```csharp
 // Get availability for each variant

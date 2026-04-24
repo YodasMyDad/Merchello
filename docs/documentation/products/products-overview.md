@@ -4,9 +4,11 @@ Products in Merchello use a two-level hierarchy: **ProductRoot** and **Product**
 
 ## ProductRoot vs Product
 
+> **Invariant:** The `ProductRoot` holds parent-level config (`TaxGroupId`, option definitions, default package config, SEO, collections). The `Product` (variant) holds SKU, price, stock, and per-variant shipping/package overrides. Never mix these responsibilities -- for example, tax groups only live on the root and flow through to every variant.
+
 ### ProductRoot (The Parent)
 
-A `ProductRoot` represents the conceptual product -- "Mesh Office Chair" or "Classic T-Shirt". It holds everything that is shared across all variants:
+A `ProductRoot` represents the conceptual product -- "Mesh Office Chair" or "Classic T-Shirt". It holds everything that is shared across all variants. Source: [ProductRoot.cs](../../../src/Merchello.Core/Products/Models/ProductRoot.cs).
 
 ```csharp
 public class ProductRoot
@@ -48,7 +50,7 @@ public class ProductRoot
 
 ### Product (The Variant)
 
-A `Product` represents a specific purchasable SKU -- "Mesh Office Chair - Blue / Large". Each product root has at least one product (the default variant):
+A `Product` represents a specific purchasable SKU -- "Mesh Office Chair - Blue / Large". Each product root has at least one product (the default variant). Source: [Product.cs](../../../src/Merchello.Core/Products/Models/Product.cs).
 
 ```csharp
 public class Product
@@ -119,7 +121,7 @@ The `RootUrl` is auto-generated from the product name when creating a product ro
 
 ## Creating Products
 
-Products are created through `IProductService`. You create the root first, then variants are generated from options:
+Products are created through [`IProductService`](../../../src/Merchello.Core/Products/Services/Interfaces/IProductService.cs). You create the root first, then variants are generated from options:
 
 ```csharp
 // Step 1: Create the product root with a default variant
@@ -158,10 +160,13 @@ Product types are categories used to classify products (e.g., "T-Shirts", "Offic
 ## Digital Products
 
 When `IsDigitalProduct` is `true`:
+
 - No warehouse assignment or shipping is required
 - Digital-only invoices auto-complete after successful payment
 - Customer account is required (no guest checkout)
-- Download settings are stored in `ExtendedData` using constant keys
+- Download settings are stored in `ExtendedData` using constant keys -- never add model properties for them
+
+See [Digital Products](./digital-products.md) for the full list of extended-data keys, delivery methods, and download security rules.
 
 ## Shipping Restrictions
 

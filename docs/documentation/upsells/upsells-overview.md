@@ -1,6 +1,8 @@
 # Upsells and Post-Purchase Offers
 
-Merchello's upsell system recommends additional products to customers based on what is in their basket, the products they are viewing, and where they are in the purchase journey. Upsell rules are configured in the Umbraco backoffice; this page covers the storefront API and display integration.
+Merchello's upsell system recommends additional products to customers based on what is in their basket, the products they are viewing, and where they are in the purchase journey. Upsell rules are configured in the Merchello backoffice; this page covers the storefront API and display integration.
+
+> **Upsells are separate from the cart/checkout flow.** The upsell engine ([`IUpsellEngine`](../../../src/Merchello.Core/Upsells/Services/Interfaces/IUpsellEngine.cs)) only produces suggestions and records analytics events. It does not add anything to the basket, modify pricing, or change the checkout state. The one exception is **post-purchase** upsells, which run **after** successful payment against a saved payment method and apply as an **invoice edit** on the already-paid invoice via [`IPostPurchaseUpsellService`](../../../src/Merchello.Core/Upsells/Services/Interfaces/IPostPurchaseUpsellService.cs) -- they still do not touch the original cart/checkout flow.
 
 ## Display Locations
 
@@ -16,6 +18,8 @@ Upsells can appear in multiple places during the shopping experience:
 
 ## Fetching Upsell Suggestions
 
+Endpoints live on [`StorefrontUpsellController.cs`](../../../src/Merchello/Controllers/StorefrontUpsellController.cs).
+
 ### Product Page
 
 Fetch upsell suggestions for a specific product:
@@ -24,7 +28,7 @@ Fetch upsell suggestions for a specific product:
 GET /api/merchello/storefront/upsells/product/{productId}?countryCode=GB&regionCode=ENG
 ```
 
-Returns an array of `UpsellSuggestionDto`, each containing a heading, optional message, and a list of recommended products with full pricing details.
+Returns an array of `UpsellSuggestionDto`, each containing a heading, optional message, and a list of recommended products with full pricing details already resolved in the caller's display currency.
 
 ### Basket Page
 
@@ -34,9 +38,9 @@ Fetch upsell suggestions based on the current basket contents:
 GET /api/merchello/storefront/upsells?location=Basket&countryCode=GB&regionCode=ENG
 ```
 
-The `location` parameter is a `UpsellDisplayLocation` value: `Checkout` (1), `Basket` (2), `ProductPage` (4), `Email` (8), `Confirmation` (16).
+The `location` parameter is a [`UpsellDisplayLocation`](../../../src/Merchello.Core/Upsells/Models/UpsellDisplayLocation.cs) flags enum: `Checkout` (1), `Basket` (2), `ProductPage` (4), `Email` (8), `Confirmation` (16). Because it is `[Flags]`, a single rule can target multiple locations.
 
-Country and region codes are optional -- if omitted, the API falls back to the basket shipping address and then the store's default tax location.
+Country and region codes are optional. If omitted, the API falls back to the basket shipping address, then to the storefront display context (`IStorefrontContextService.GetDisplayContextAsync()`).
 
 ### Response Shape
 
@@ -150,25 +154,32 @@ Upsells are re-fetched on the basket page when the country or region changes, si
 
 ## Checkout Modes
 
-When upsells target the checkout, the `checkoutMode` field indicates how to render them:
+When upsells target the checkout, the `checkoutMode` field ([`CheckoutUpsellMode.cs`](../../../src/Merchello.Core/Upsells/Models/CheckoutUpsellMode.cs)) indicates how to render them:
 
 | Mode | Behavior |
-| ------ | ---------- |
+| ---- | -------- |
 | `Inline` | Collapsible section at the top of the checkout page |
 | `Interstitial` | Replaces checkout content until dismissed |
 | `OrderBump` | Checkbox integrated into the checkout form. When `defaultChecked` is `true`, the item is pre-selected (opt-out model) |
-| `PostPurchase` | Shown after payment, before confirmation. Uses saved payment methods for one-click purchase |
+| `PostPurchase` | Shown after payment, before confirmation. Uses saved payment methods for one-click purchase (requires vaulted payments) |
 
 ## Post-Purchase Upsells
 
-Post-purchase upsells appear after successful payment but before the order confirmation page. They require a saved payment method (vaulted card) so the customer can add items with one click.
+Post-purchase upsells appear **after** successful payment but before the order confirmation page. They are a separate concern from cart/checkout discounts and from the basket-building flow -- the order is already paid, and the customer simply opts in to add an additional item at the vaulted card's one-click cost.
 
-The flow uses cookie-based authentication via the confirmation token cookie.
+Key constraints:
+
+- Requires a **saved payment method** (vaulted card). Providers that do not support vaulting cannot participate.
+- Authenticated via the confirmation token cookie set during checkout success.
+- Adding an item records a **new** payment (same `Invoice`, additional `Payment` with an `IdempotencyKey`) and then applies an invoice edit; if recording the payment fails, the upsell fails closed so the customer is never charged without the invoice being updated.
+- Any fulfilment hold placed on the original order is released either when the upsell is added or when the customer skips.
 
 ### API Endpoints
 
+All four endpoints are routed under `/api/merchello/checkout/post-purchase` ([`PostPurchaseUpsellController.cs`](../../../src/Merchello/Controllers/PostPurchaseUpsellController.cs)):
+
 | Method | Endpoint | Description |
-| -------- | ---------- | ------------- |
+| ------ | -------- | ----------- |
 | GET | `/api/merchello/checkout/post-purchase/{invoiceId}` | Get available upsell suggestions |
 | POST | `/api/merchello/checkout/post-purchase/{invoiceId}/preview` | Preview price, tax, and shipping for an item |
 | POST | `/api/merchello/checkout/post-purchase/{invoiceId}/add` | Add item and charge saved payment method |
@@ -233,11 +244,11 @@ Content-Type: application/json
 }
 ```
 
-Event types are `Impression` and `Click`. Display location values match the `UpsellDisplayLocation` enum (`Checkout` = 1, `Basket` = 2, `ProductPage` = 4).
+Event types are `Impression`, `Click`, and `Conversion` ([`UpsellEventType.cs`](../../../src/Merchello.Core/Upsells/Models/UpsellEventType.cs)). The display location numeric values match the `UpsellDisplayLocation` flags enum (`Checkout` = 1, `Basket` = 2, `ProductPage` = 4, `Email` = 8, `Confirmation` = 16).
 
-Impressions are also recorded automatically by the suggestions endpoint when it returns results for a basket, so you typically only need to record click events manually.
+> **Impressions are recorded for you.** `GET /api/merchello/storefront/upsells` automatically captures an impression record for every suggestion it returns with products. You typically only need to `POST` click events manually.
 
-The starter site tracks events like this:
+The starter site tracks events like this (source of truth: [`merchello-api.js`](../../../src/Merchello.Site/wwwroot/scripts/merchello-api.js)):
 
 ```js
 // Record a click when a customer interacts with an upsell product
@@ -251,9 +262,11 @@ api.upsells.recordEvents([{
 
 ## Backoffice Configuration
 
-Upsell rules are created and managed in the Umbraco backoffice. Configuration includes trigger rules (when to show), recommendation rules (what to suggest), eligibility rules (who sees it), display settings, scheduling, and priority ordering.
+Upsell rules are created and managed in the Merchello backoffice. Configuration includes trigger rules (when to show), recommendation rules (what to suggest), eligibility rules (who sees it), display settings, scheduling, and priority ordering.
 
 ## Related Topics
 
 - [Checkout Overview](../checkout/)
-- [Email System](../email/email-overview.md)
+- [Payments: Saved Payment Methods](../payments/saved-payment-methods.md) -- required for post-purchase upsells
+- [Email System](../email/email-overview.md) -- rendering upsells in transactional email
+- [Architecture-Diagrams Section 2.15](../../Architecture-Diagrams.md) -- upsell service map

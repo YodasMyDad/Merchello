@@ -4,7 +4,9 @@ When a customer checks out, Merchello needs to figure out *how* to split their b
 
 ## How It Works
 
-During checkout, `IShippingService.GetShippingOptionsForBasket()` is called. Internally this builds an `OrderGroupingContext` and passes it to the active grouping strategy. The strategy returns an `OrderGroupingResult` containing the groups, available shipping options per group, and any errors.
+During checkout, [`IShippingService.GetShippingOptionsForBasket()`](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs) is called. Internally this builds an `OrderGroupingContext` and passes it to the active [`IOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/Interfaces/IOrderGroupingStrategy.cs). The strategy returns an `OrderGroupingResult` containing the groups, available shipping options per group, and any errors.
+
+> **Invariant (CLAUDE.md):** `GetShippingOptionsForBasket()` is the basket-level entry point -- it uses the active grouping strategy internally. Do not call grouping strategies from controllers.
 
 ```
 Basket --> OrderGroupingContext --> IOrderGroupingStrategy --> OrderGroupingResult
@@ -24,7 +26,7 @@ Each `OrderGroup` contains:
 
 ## The Default Strategy: Warehouse Grouping
 
-Out of the box, Merchello uses `DefaultOrderGroupingStrategy` (key: `"default-warehouse"`). It groups items by warehouse based on stock availability and shipping region.
+Out of the box, Merchello uses [`DefaultOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs) (key: `"default-warehouse"`). It groups items by warehouse based on stock availability and shipping region.
 
 ### What it does step by step
 
@@ -182,3 +184,11 @@ The default strategy publishes two notifications you can hook into:
 - **`OrderGroupingNotification`** -- read-only; fired after grouping completes for observation/logging.
 
 > **Tip:** Use `OrderGroupingModifyingNotification` to add surcharges, modify group names, or enforce business rules before the customer sees shipping options.
+
+## Related Topics
+
+- [Shipping Overview](shipping-overview.md)
+- [Flat Rate Shipping](flat-rate-shipping.md)
+- [Dynamic Shipping Providers](dynamic-shipping-providers.md)
+- [Checkout Shipping Selection](../checkout/checkout-shipping.md)
+- [Custom Order Grouping Strategies](../extending/custom-order-grouping.md)

@@ -1,6 +1,8 @@
 # Invoice Editing
 
-After an invoice is created, you may need to modify it -- adding products, adjusting quantities, removing items, or applying discounts. Merchello's `InvoiceEditService` handles this with full recalculation of tax, shipping, and totals.
+After an invoice is created, you may need to modify it — adding products, adjusting quantities, removing items, or applying discounts. [`IInvoiceEditService`](../../../src/Merchello.Core/Accounting/Services/Interfaces/IInvoiceEditService.cs) handles this with full recalculation of tax, shipping, and totals, reusing the same calculation pipeline as checkout.
+
+> **Scope note:** Invoice editing recalculates totals and updates line items. It does **not** refund payments. If an edit lowers the total below what's been paid, reconcile via a [refund](../payments/refunds.md) — payment status is still calculated by `IPaymentService.CalculatePaymentStatus`.
 
 ## Available Operations
 
@@ -133,8 +135,17 @@ When editing involves quantity changes:
 - **Decreasing quantity** -- releases the difference back to available stock (unless `ShouldReturnToStock = false` for damaged/faulty items)
 - **Removing items** -- releases all reserved stock for those items (controlled by `ShouldReturnToStock`)
 
-## Multi-Currency Considerations
+## Multi-Currency Considerations (Invariant)
 
-For invoices in a non-store currency, edits recalculate using the locked exchange rate from the original invoice. The `PricingExchangeRate` captured at invoice creation is preserved -- edits do not use current market rates. This prevents discrepancies between the original and edited totals when exchange rates have moved.
+Exchange rates are locked at invoice creation and **never refreshed** on edit. Edits recalculate using the invoice's captured `PricingExchangeRate`, `PricingExchangeRateSource`, and `PricingExchangeRateTimestampUtc` — not current market rates. This prevents discrepancies between the original and edited totals when rates have moved, and keeps the audit trail intact.
 
-The `PreviewEditResultDto` includes both the invoice currency totals and `TotalInStoreCurrency` for reference.
+`PreviewEditResultDto` exposes both invoice-currency totals and store-currency equivalents (`CurrencyCode`, `CurrencySymbol`, `StoreCurrencyCode`, `StoreCurrencySymbol`, `PricingExchangeRate`, `TotalInStoreCurrency`) so the UI can show both views.
+
+See [Multi-Currency Overview](../multi-currency/multi-currency-overview.md) for the full conversion model.
+
+## Related
+
+- [Orders Overview](orders-overview.md) — invoice/order structure
+- [Payment System Overview](../payments/payment-system-overview.md) — payment status recalculation after edits
+- [Refunds](../payments/refunds.md) — how to reverse charges when an edit reduces the total
+- [Checkout Flow](../checkout/checkout-flow.md) — the calculation pipeline the edit service reuses

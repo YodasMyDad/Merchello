@@ -97,7 +97,7 @@ Use `ProductAvailabilityFilter` to control which products appear:
 
 ## Building Category Pages
 
-The starter site demonstrates the recommended pattern for category pages. Here is how it works:
+The starter site demonstrates the recommended pattern for category pages in [CategoryController.cs](../../../src/Merchello.Site/Category/Controllers/CategoryController.cs) and the [Category.cshtml view](../../../src/Merchello.Site/Views/Category.cshtml). Here is how it works:
 
 ### Step 1: Create an Umbraco Document Type
 
@@ -181,6 +181,8 @@ public class CategoryController(
 The `Category.cshtml` view renders the product grid, filter sidebar, and pagination.
 
 ## Product Filters
+
+For the full filter API and UI rendering pattern, see [Product Filters](./product-filters.md). A short summary:
 
 Product filters are separate from collections but work closely with them. Filters are organized into **filter groups** (like "Color" or "Size"), each containing individual **filter values** (like "Red", "Blue", "Large").
 

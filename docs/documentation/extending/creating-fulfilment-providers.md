@@ -346,18 +346,24 @@ public override async Task<IReadOnlyList<FulfilmentInventoryLevel>> GetInventory
 
 ## Submission Trigger Policies
 
-How orders get submitted to fulfilment providers is controlled by trigger policies:
+How orders get submitted to fulfilment providers is controlled by trigger policies. The values are defined on the Supplier Direct-style enum ([SupplierDirectSubmissionTrigger.cs](../../../src/Merchello.Core/Fulfilment/Providers/SupplierDirect/SupplierDirectSubmissionTrigger.cs)):
 
 | Policy | Behavior |
 |---|---|
-| `OnPaid` | Auto-submitted when payment is confirmed |
-| `ExplicitRelease` | Staff must manually release via `POST /orders/{orderId}/fulfillment/release` |
+| `OnPaid` | Auto-submitted from the payment-created flow when the invoice is fully paid |
+| `ExplicitRelease` | Staff must manually release via `POST /orders/{orderId}/fulfillment/release` (paid-gated) |
 
-The trigger policy is configured per-provider in the backoffice. `ExplicitRelease` is only available for Supplier Direct providers and requires the order to be paid before release.
+> **Note:** `ExplicitRelease` is a Supplier Direct-style policy. Dynamic / non-Supplier-Direct providers (for example ShipBob) are unaffected and follow their own submission lifecycle -- typically driven by `OnPaid` or by the provider's own webhook-triggered flow. Do not repurpose `ExplicitRelease` for arbitrary providers.
+
+## Dependency Injection
+
+> **Warning:** Use **constructor injection only**. `ExtensionManager` activates fulfilment providers via `ActivatorUtilities.CreateInstance`; setter injection and post-construction configuration hooks are not supported. See [Extension Manager](extension-manager.md).
 
 ## Built-in Providers for Reference
 
 | Provider | Location | Notes |
 |---|---|---|
-| ShipBob | `Fulfilment/Providers/ShipBob/ShipBobFulfilmentProvider.cs` | Full REST API integration with webhooks |
-| Supplier Direct | `Fulfilment/Providers/SupplierDirect/SupplierDirectFulfilmentProvider.cs` | CSV/FTP-based submission for traditional suppliers |
+| ShipBob | [ShipBobFulfilmentProvider.cs](../../../src/Merchello.Core/Fulfilment/Providers/ShipBob/ShipBobFulfilmentProvider.cs) | Full REST API integration with webhooks |
+| Supplier Direct | [SupplierDirectFulfilmentProvider.cs](../../../src/Merchello.Core/Fulfilment/Providers/SupplierDirect/SupplierDirectFulfilmentProvider.cs) | CSV/FTP-based submission; supports `OnPaid` and `ExplicitRelease` triggers |
+
+Base class: [FulfilmentProviderBase.cs](../../../src/Merchello.Core/Fulfilment/Providers/FulfilmentProviderBase.cs). Metadata: [FulfilmentProviderMetadata.cs](../../../src/Merchello.Core/Fulfilment/Providers/FulfilmentProviderMetadata.cs). Interface: [IFulfilmentProvider.cs](../../../src/Merchello.Core/Fulfilment/Providers/Interfaces/IFulfilmentProvider.cs).

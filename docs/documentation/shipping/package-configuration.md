@@ -89,3 +89,10 @@ For flat-rate shipping, Merchello uses the total package weight of a group to de
 2. **Set dimensions for carrier shipping** -- FedEx and UPS use dimensional weight pricing. Without dimensions, you may get inaccurate or failed quotes.
 3. **Use root defaults** -- set packages on the `ProductRoot` and only override at the variant level when genuinely different.
 4. **Keep units consistent** -- weight is always in kilograms, dimensions always in centimetres. The system does not perform unit conversion.
+
+## Related Topics
+
+- [Shipping Overview](shipping-overview.md)
+- [Flat Rate Shipping](flat-rate-shipping.md) -- weight tier pricing
+- [Dynamic Shipping Providers](dynamic-shipping-providers.md) -- carrier APIs consume weight and dimensions
+- [Products Overview](../products/products-overview.md)

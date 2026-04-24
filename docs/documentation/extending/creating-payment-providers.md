@@ -21,7 +21,8 @@ using Merchello.Core.Payments.Models;
 using Merchello.Core.Payments.Providers;
 using Merchello.Core.Shared.Providers;
 
-public class AcmePaymentProvider : PaymentProviderBase
+public class AcmePaymentProvider(
+    ILogger<AcmePaymentProvider> logger) : PaymentProviderBase
 {
     // 1. Define metadata
     public override PaymentProviderMetadata Metadata => new()
@@ -53,8 +54,10 @@ public class AcmePaymentProvider : PaymentProviderBase
         PaymentRequest request,
         CancellationToken cancellationToken = default)
     {
-        // Call your gateway's API to create a session
-        var redirectUrl = $"https://pay.acme.com/checkout?amount={request.Amount}&currency={request.CurrencyCode}";
+        // Call your gateway's API to create a session.
+        // NOTE: request.Amount is already in invoice currency (locked at invoice
+        // creation via PricingExchangeRate). Never charge from display amounts.
+        var redirectUrl = $"https://pay.acme.com/checkout?amount={request.Amount}&currency={request.Currency}";
 
         return Task.FromResult(new PaymentSessionResult
         {
@@ -255,18 +258,38 @@ public override async Task<WebhookProcessingResult> ProcessWebhookAsync(
     // Parse the webhook payload and return the result
     var webhookEvent = JsonSerializer.Deserialize<AcmeWebhookEvent>(payload);
 
-    return new WebhookProcessingResult
+    // If this event has already been processed, return a Duplicate result.
+    // Merchello's PaymentService dedupes by Payment.WebhookEventId, but
+    // returning Duplicate here short-circuits further processing cleanly.
+    if (await AlreadySeenAsync(webhookEvent.EventId, cancellationToken))
     {
-        Success = true,
-        TransactionId = webhookEvent.TransactionId,
-        PaymentStatus = MapStatus(webhookEvent.Status),
-        Amount = webhookEvent.Amount,
-        WebhookEventId = webhookEvent.EventId  // For deduplication
-    };
+        return WebhookProcessingResult.Duplicate(webhookEvent.TransactionId);
+    }
+
+    return WebhookProcessingResult.Successful(
+        eventType: MapEventType(webhookEvent.Status),
+        transactionId: webhookEvent.TransactionId,
+        invoiceId: webhookEvent.InvoiceId,
+        amount: webhookEvent.Amount);
 }
 ```
 
 > **Warning:** Always validate webhook signatures. Never trust unvalidated webhook payloads. Merchello calls `ValidateWebhookAsync()` before `ProcessWebhookAsync()`.
+
+### Idempotency and Webhook Dedupe (CRITICAL)
+
+Merchello enforces idempotency at two layers -- preserve both:
+
+- `ProcessPaymentRequest.IdempotencyKey` -- callers (checkout, backoffice test panel, API) pass a client-generated key. `PaymentIdempotencyService` caches the result for 24 hours so a retried request returns the cached outcome instead of re-charging. Do not strip or regenerate this key in your provider.
+- `Payment.WebhookEventId` -- when you record a payment from a webhook, the gateway's event ID flows through `RecordPaymentParameters.WebhookEventId` into `Payment.WebhookEventId`. `PaymentService` rejects a second record with the same `(InvoiceId, WebhookEventId)`, so always surface the gateway event ID from `ProcessWebhookAsync()`.
+
+See [PaymentIdempotencyService.cs](../../../src/Merchello.Core/Payments/Services/PaymentIdempotencyService.cs) and [PaymentService.cs](../../../src/Merchello.Core/Payments/Services/PaymentService.cs) for the authoritative implementations.
+
+### Multi-Currency and Rate Locking (CRITICAL)
+
+- Never charge customers from display amounts. `PaymentRequest.Amount` + `PaymentRequest.Currency` are already the invoice-currency values; use them as-is.
+- The invoice's exchange rate is locked at creation (`PricingExchangeRate`, `PricingExchangeRateSource`, `PricingExchangeRateTimestampUtc`). Do not re-quote or re-convert inside your provider.
+- If your gateway settles in a different currency, return the settlement detail via `WebhookProcessingResult.SettlementCurrency` / `SettlementExchangeRate` / `SettlementAmount` so the audit trail is complete.
 
 ### Step 6: Refunds
 
@@ -381,6 +404,8 @@ public class AcmePaymentProvider(
 }
 ```
 
+> **Warning:** Use **constructor injection only**. `ExtensionManager` activates providers via `ActivatorUtilities.CreateInstance`, so setter injection, service locator calls, and post-construction "configure" handlers are not supported. See [Extension Manager](extension-manager.md) for the discovery/activation contract.
+
 ## Testing Your Provider
 
 After creating your provider:
@@ -400,7 +425,9 @@ Study these built-in providers for real-world patterns:
 
 | Provider | Location | Notes |
 |---|---|---|
-| Manual Payment | `Payments/Providers/BuiltIn/ManualPaymentProvider.cs` | Simplest example, `DirectForm` integration |
-| Stripe | `Payments/Providers/Stripe/StripePaymentProvider.cs` | Full-featured: webhooks, refunds, auth/capture, vaulting, payment links |
-| PayPal | `Payments/Providers/PayPal/PayPalPaymentProvider.cs` | Redirect flow |
-| Braintree | `Payments/Providers/Braintree/BraintreePaymentProvider.cs` | SDK embed flow |
+| Manual Payment | [ManualPaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/BuiltIn/ManualPaymentProvider.cs) | Simplest example, `DirectForm` integration |
+| Stripe | [StripePaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/Stripe/StripePaymentProvider.cs) | Full-featured: webhooks, refunds, auth/capture, vaulting, payment links |
+| PayPal | [PayPalPaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/PayPal/PayPalPaymentProvider.cs) | Redirect flow |
+| Braintree | [BraintreePaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/Braintree/BraintreePaymentProvider.cs) | SDK embed flow |
+
+Base class: [PaymentProviderBase.cs](../../../src/Merchello.Core/Payments/Providers/PaymentProviderBase.cs). Metadata: [PaymentProviderMetadata.cs](../../../src/Merchello.Core/Payments/Providers/PaymentProviderMetadata.cs). Interface: [IPaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs).

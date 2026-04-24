@@ -15,10 +15,11 @@ There is no base class for exchange rate providers -- you implement the interfac
 
 A few important points about multi-currency:
 
-- Basket amounts are stored in the **store currency** and never change when the display currency changes
-- Display amounts are calculated on-the-fly: `amount * rate`
-- Rates are cached by the exchange rate service to avoid hammering your provider
-- At invoice creation, the rate is locked for audit (`PricingExchangeRate`, `PricingExchangeRateSource`, `PricingExchangeRateTimestampUtc`)
+- Basket amounts are stored in the **store currency** and never change when the display currency changes.
+- The rate is stored as **presentment-to-store** (for example a rate of `1.25` means 1 GBP = 1.25 USD). Display uses `amount * rate`; checkout/payment uses `amount / rate`. Your provider only needs to produce honest directional quotes -- don't invert them.
+- Display amounts are calculated on-the-fly: `amount * rate`.
+- Rates are cached by the exchange rate service (TTL + fallback) so customers are insulated if your provider is briefly unreachable. Return a failed `ExchangeRateResult` rather than throwing so the cache can fall back cleanly.
+- At invoice creation the rate is locked for audit (`PricingExchangeRate`, `PricingExchangeRateSource`, `PricingExchangeRateTimestampUtc`). Never recompute or overwrite these values later.
 
 ## Full Example
 
@@ -201,8 +202,18 @@ public ValueTask ConfigureAsync(
     => ValueTask.CompletedTask;
 ```
 
+## Dependency Injection
+
+> **Warning:** Use **constructor injection only**. `ExtensionManager` activates exchange-rate providers via `ActivatorUtilities.CreateInstance`; setter injection and post-construction configuration hooks are not supported. Store configuration in a private field inside `ConfigureAsync`, not via a later setter. See [Extension Manager](extension-manager.md).
+
+## Update Frequency
+
+The exchange rate service decides when to refresh rates from your provider (it caches results and honours its own TTL plus a background refresh job). Your provider should return the freshest rates it can on every call and expose a meaningful `TimestampUtc` -- do not add your own in-process caching layer on top.
+
 ## Built-in Provider for Reference
 
 | Provider | Location | Notes |
 |---|---|---|
-| Frankfurter | `ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs` | Free ECB rates, no API key needed |
+| Frankfurter | [FrankfurterExchangeRateProvider.cs](../../../src/Merchello.Core/ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs) | Free ECB rates, no API key needed |
+
+Metadata: [ExchangeRateProviderMetadata.cs](../../../src/Merchello.Core/ExchangeRates/Models/ExchangeRateProviderMetadata.cs). Interface: [IExchangeRateProvider.cs](../../../src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs).

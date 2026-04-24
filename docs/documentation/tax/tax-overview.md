@@ -23,6 +23,8 @@ Each tax group has:
 
 Products are linked to tax groups through `ProductRoot.TaxGroupId`. This is important because the tax group ID flows through the entire order pipeline -- from basket line items to invoice tax calculations.
 
+> **Invariant (CLAUDE.md):** `TaxGroupId` must be preserved from `ProductRoot` -> basket line item -> order line item -> `TaxableLineItem` payload sent to the provider. External providers (Avalara, TaxJar, etc.) rely on this mapping to select the correct tax code.
+
 ### Tax Group Rates (Geographic Overrides)
 
 The default rate on a tax group is just the fallback. You can define location-specific rates using **Tax Group Rates**:
@@ -45,7 +47,7 @@ Each rate has:
 
 ## Rate Lookup Chain
 
-When Merchello needs to calculate tax for a product, it uses `TaxService.GetApplicableRateAsync()` which follows a strict priority:
+When Merchello needs to calculate tax for a product, it uses [`ITaxService.GetApplicableRateAsync()`](../../../src/Merchello.Core/Accounting/Services/Interfaces/ITaxService.cs) which follows a strict priority:
 
 ```
 1. State-specific rate   -->  Found? Use it.
@@ -86,13 +88,13 @@ The checkout basket DTO includes reactive fields for tax-inclusive display:
 ## How Tax Flows Through the System
 
 1. **Product setup**: You assign a `TaxGroupId` to each `ProductRoot`.
-2. **Basket creation**: When a product is added to the basket, the `TaxGroupId` is captured on the line item.
-3. **Checkout calculation**: `CheckoutService.CalculateBasketAsync()` triggers tax calculation.
-4. **Tax orchestration**: `ITaxOrchestrationService` coordinates with the active tax provider.
+2. **Basket creation**: When a product is added to the basket, the `TaxGroupId` is captured on the line item by the line-item factory.
+3. **Checkout calculation**: [`CheckoutService.CalculateBasketAsync()`](../../../src/Merchello.Core/Checkout/Services/CheckoutService.cs) triggers tax calculation.
+4. **Tax orchestration**: [`ITaxOrchestrationService`](../../../src/Merchello.Core/Tax/Services/Interfaces/ITaxOrchestrationService.cs) coordinates with the active tax provider ([`TaxOrchestrationService`](../../../src/Merchello.Core/Tax/Services/TaxOrchestrationService.cs)).
 5. **Rate application**: The provider (manual or external) returns rates per line item.
 6. **Invoice creation**: Tax amounts are locked into the invoice.
 
-> **Warning:** Never call tax providers directly from controllers. Always go through `ITaxOrchestrationService` or `CheckoutService`. The orchestration layer handles provider selection, fallback behavior, and caching.
+> **Invariant (CLAUDE.md):** Controllers must never call a tax provider directly. Always go through `ITaxOrchestrationService` or `CheckoutService`. The orchestration layer handles provider selection, fallback behavior, and caching. Only `Product`, `Custom`, and `Addon` line types are sent to providers -- `Discount` lines are not sent directly.
 
 ## Managing Tax Groups via API
 

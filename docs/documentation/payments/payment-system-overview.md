@@ -1,6 +1,8 @@
 # Payment System Overview
 
-Merchello's payment system is built around a provider-based architecture. Payment providers (Stripe, PayPal, etc.) are plugins that handle the specifics of each payment gateway, while `IPaymentService` orchestrates the business logic.
+Merchello's payment system is built around a provider-based architecture. Payment providers (Stripe, PayPal, etc.) are plugins that handle the specifics of each payment gateway, while [`IPaymentService`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs) owns the payment lifecycle — recording payments, dedupe, refunds, and status.
+
+> **Single source of truth:** Never recompute payment status, refund totals, or balance-due in controllers, views, or JS. Call [`IPaymentService.CalculatePaymentStatus`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114) (sync, on already-loaded payments) or `GetInvoicePaymentStatusAsync` (async, fetches payments for you). See [Architecture Diagrams §2.6 Payments](../../Architecture-Diagrams.md).
 
 ## Key Concepts
 
@@ -12,7 +14,7 @@ A payment provider represents a payment gateway (Stripe, PayPal, Braintree, etc.
 - Offers one or more **payment methods** (card, PayPal, Apple Pay, Google Pay, etc.)
 - Handles **payment sessions**, **processing**, **refunds**, and **webhooks**
 
-Providers implement `IPaymentProvider` (or extend `PaymentProviderBase` for sensible defaults) and are discovered automatically by the `ExtensionManager`.
+Providers implement [`IPaymentProvider`](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs) (or extend `PaymentProviderBase` for sensible defaults) and are discovered automatically by the `ExtensionManager`. See [Creating Payment Providers](../extending/creating-payment-providers.md) for a full walkthrough.
 
 ### Payment Methods
 
@@ -35,7 +37,7 @@ Each method has an `IntegrationType` that determines how the frontend renders it
 
 A payment session represents a single payment attempt. When a customer clicks "Pay", the system:
 
-1. Creates an invoice from the basket (if not already created)
+1. Creates an invoice from the basket (if not already created). The invoice captures the exchange rate snapshot (`PricingExchangeRate`, `PricingExchangeRateSource`, `PricingExchangeRateTimestampUtc`) for multi-currency audit — see [Multi-Currency Overview](../multi-currency/multi-currency-overview.md).
 2. Calls the provider's `CreatePaymentSessionAsync()` to get frontend configuration
 3. Returns SDK config, redirect URL, or form fields to the frontend
 4. The frontend renders the payment UI based on the integration type
@@ -45,123 +47,150 @@ A payment session represents a single payment attempt. When a customer clicks "P
 
 ## Payment Flow
 
-Here's the standard payment flow from checkout to completed order:
+Here is the standard payment flow from checkout to completed order. Storefront endpoints live under `/api/merchello/checkout/*` (see [Checkout API](../checkout/checkout-api.md)), implemented in [`CheckoutPaymentsApiController.cs`](../../../src/Merchello/Controllers/CheckoutPaymentsApiController.cs):
 
-```
+```text
 Customer clicks "Pay"
     |
     v
-Checkout API: InitiatePayment
-    |-- Creates invoice from basket
-    |-- Calls provider.CreatePaymentSessionAsync()
-    |-- Returns: { clientSecret, sdkConfig, redirectUrl }
+POST /api/merchello/checkout/pay  (InitiatePaymentDto)
+    |-- CheckoutPaymentsOrchestrationService creates or reuses the invoice
+    |-- Invoice locks PricingExchangeRate + source + timestamp
+    |-- Calls IPaymentService.CreatePaymentSessionAsync -> provider.CreatePaymentSessionAsync
+    |-- Returns PaymentSessionResultDto { integrationType, clientSecret, sdkConfig, redirectUrl, formFields }
     |
     v
-Frontend: Renders payment UI
-    |-- Redirect: window.location = redirectUrl
-    |-- HostedFields: stripe.confirmPayment(clientSecret)
-    |-- DirectForm: submit PO number
+Frontend renders payment UI (per integrationType)
+    |-- Redirect     : window.location = redirectUrl
+    |-- HostedFields : provider SDK confirms with clientSecret
+    |-- Widget       : provider Buttons/Widget captures
+    |-- DirectForm   : user fills fields (e.g. PO number)
     |
     v
-Checkout API: ProcessPayment (or HandleReturn for redirects)
-    |-- Calls provider.ProcessPaymentAsync()
-    |-- Records payment in database
-    |-- Updates invoice payment status
-    |-- Fires PaymentCreatedNotification
+POST /api/merchello/checkout/process-payment (or GET /checkout/return for redirect flows)
+    |-- provider.ProcessPaymentAsync or webhook confirms the charge
+    |-- IPaymentService records the Payment row
+    |   * Payment.IdempotencyKey -> dedupes retries
+    |   * Payment.WebhookEventId -> dedupes provider retries
+    |-- Invoice payment status recomputed via CalculatePaymentStatus
+    |-- PaymentCreatedNotification fires (see notifications below)
     |
     v
 Redirect to /checkout/confirmation/{invoiceId}
 ```
 
+> **Digital-only invoices** auto-complete after a successful payment — the `DigitalProductPaymentHandler` (subscribed to `PaymentCreatedNotification`) issues download tokens and marks the order complete. See [Digital Products](../products/digital-products.md) and [Architecture Diagrams §2.12](../../Architecture-Diagrams.md).
+
 ---
 
 ## Payment Status
 
-Payment status is calculated centrally by `IPaymentService.CalculatePaymentStatus()`. This is the single source of truth -- never calculate payment status yourself.
+Payment status is calculated centrally by [`IPaymentService.CalculatePaymentStatus`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114). This is the single source of truth — never recompute it in controllers, views, or JS.
 
-The method returns `PaymentStatusDetails` which includes:
+The method returns [`PaymentStatusDetails`](../../../src/Merchello.Core/Payments/Models/PaymentStatusDetails.cs):
 
 | Property | Description |
 |----------|-------------|
-| `Status` | `Unpaid`, `AwaitingPayment`, `PartiallyPaid`, `Paid`, `PartiallyRefunded`, `Refunded` |
-| `TotalPaid` | Sum of all positive payments |
-| `TotalRefunded` | Sum of all refunds (positive number) |
-| `BalanceDue` | Remaining amount to pay (clamped to 0) |
-| `CreditDue` | Overpayment amount |
+| `Status` | `Unpaid`, `AwaitingPayment`, `PartiallyPaid`, `Paid`, `PartiallyRefunded`, `Refunded` (see [`InvoicePaymentStatus`](../../../src/Merchello.Core/Payments/Models/InvoicePaymentStatus.cs)) |
+| `StatusDisplay` | Human-readable label (`"Partially Refunded"`, etc.) |
+| `TotalPaid` / `TotalPaidInStoreCurrency` | Sum of successful `PaymentType.Payment` rows |
+| `TotalRefunded` / `TotalRefundedInStoreCurrency` | Sum of refund rows (positive numbers) |
+| `NetPayment` / `NetPaymentInStoreCurrency` | `TotalPaid - TotalRefunded` |
+| `BalanceDue` / `BalanceDueInStoreCurrency` | Remaining amount to pay (clamped to 0) |
+| `CreditDue` / `CreditDueInStoreCurrency` | Overpayment that should be refunded |
+| `MaxRiskScore`, `MaxRiskScoreSource`, `RiskLevel` | Max fraud/risk across payments (`high`/`medium`/`low`/`minimal`) |
 
 ```csharp
-// Calculate payment status for an invoice
-var details = paymentService.CalculatePaymentStatus(
-    new CalculatePaymentStatusParameters
-    {
-        Payments = payments,
-        InvoiceTotal = invoice.Total,
-        CurrencyCode = invoice.CurrencyCode,
-        InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
-        StoreCurrencyCode = invoice.StoreCurrencyCode
-    });
+// Already have the payments loaded? Use the sync version:
+var details = paymentService.CalculatePaymentStatus(new CalculatePaymentStatusParameters
+{
+    Payments = payments,
+    InvoiceTotal = invoice.Total,
+    CurrencyCode = invoice.CurrencyCode,
+    // Multi-currency: pass store-currency fields too so balances are accurate
+    InvoiceTotalInStoreCurrency = invoice.TotalInStoreCurrency,
+    StoreCurrencyCode = invoice.StoreCurrencyCode
+});
+
+// Don't have them? Let the service fetch + calculate:
+var status = await paymentService.GetInvoicePaymentStatusAsync(invoiceId, ct);
 ```
 
-> **Warning:** `CalculatePaymentStatus` is synchronous (not async). This is intentional -- it operates on in-memory payment data only.
+> **Warning:** `CalculatePaymentStatus` is intentionally synchronous — it operates on in-memory payments only. Use `GetInvoicePaymentStatusAsync` when you need the service to load payments for you.
 
 ---
 
-## Idempotency
+## Idempotency & Dedupe (Invariant)
 
-Merchello uses two mechanisms to prevent duplicate payments:
+`Payment.IdempotencyKey` and `Payment.WebhookEventId` are how Merchello prevents double-charges. Both fields live on the [`Payment`](../../../src/Merchello.Core/Accounting/Models/Payment.cs) record and **must be preserved** by every flow that records or updates a payment.
 
-### Idempotency Keys
+### Idempotency keys
 
-Each payment attempt generates an `IdempotencyKey`. If a duplicate request arrives with the same key, the original payment is returned instead of creating a new one. This prevents double-charges from network retries or webhook race conditions.
+Every payment-creating operation accepts an optional `IdempotencyKey`. If a second request arrives with the same key, the service short-circuits and returns the original payment instead of charging again. Pass one for:
 
-### Webhook Event IDs
+- Saved-method charges — `ProcessSavedPaymentMethodDto.IdempotencyKey` and `ChargeSavedMethodParameters.IdempotencyKey`
+- Refunds — `ProcessRefundParameters.IdempotencyKey`
+- Any retry-prone integration that can re-issue the same logical request
 
-Webhook handlers store the `WebhookEventId` from the provider. Before processing a webhook, the system checks if that event ID has already been processed. This prevents duplicate payment recording when providers retry webhook delivery.
+### Webhook event IDs
+
+Provider webhooks store the event ID on `Payment.WebhookEventId`. Before processing, the webhook pipeline checks whether that event has already been recorded for this provider, so Stripe/PayPal/Braintree retries do not create duplicate payments. Custom provider webhook handlers must populate this field — see [Creating Payment Providers](../extending/creating-payment-providers.md).
 
 ---
 
 ## IPaymentService Reference
 
-The payment service provides all payment operations:
+Full interface: [`IPaymentService.cs`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs).
 
-### Payment Processing
+### Payment processing
 
 | Method | Purpose |
 |--------|---------|
-| `CreatePaymentSessionAsync(params)` | Create a session with the provider |
-| `ProcessPaymentAsync(request)` | Process payment after client interaction |
-| `RecordPaymentAsync(params)` | Record a payment (from webhook or return URL) |
+| `CreatePaymentSessionAsync(CreatePaymentSessionParameters)` | Create a session with the provider |
+| `ProcessPaymentAsync(ProcessPaymentRequest)` | Process payment after client interaction |
+| `RecordPaymentAsync(RecordPaymentParameters)` | Record a payment (from webhook or return URL) |
 
 ### Refunds
 
 | Method | Purpose |
 |--------|---------|
-| `ProcessRefundAsync(params)` | Process a refund through the provider |
-| `PreviewRefundAsync(params)` | Preview refund calculation without processing |
-| `RecordManualRefundAsync(params)` | Record a manual/external refund |
+| `ProcessRefundAsync(ProcessRefundParameters)` | Process a refund through the provider |
+| `PreviewRefundAsync(PreviewRefundParameters)` | Preview refund calculation without processing |
+| `RecordManualRefundAsync(RecordManualRefundParameters)` | Record a refund processed externally |
 
 ### Queries
 
 | Method | Purpose |
 |--------|---------|
-| `GetPaymentsForInvoiceAsync(invoiceId)` | Get all payments for an invoice |
+| `GetPaymentsForInvoiceAsync(invoiceId)` | Get all payments (and nested refunds) for an invoice |
 | `GetPaymentAsync(paymentId)` | Get a specific payment |
 | `GetPaymentByTransactionIdAsync(txnId)` | Find payment by provider transaction ID |
-| `GetInvoicePaymentStatusAsync(invoiceId)` | Get calculated payment status |
-| `CalculatePaymentStatus(params)` | Calculate status from loaded payments (sync) |
+| `GetInvoicePaymentStatusAsync(invoiceId)` | Load payments and return `InvoicePaymentStatus` |
+| `CalculatePaymentStatus(CalculatePaymentStatusParameters)` | Sync status calculation from already-loaded payments |
 
-### Manual / Backoffice
+### Manual / backoffice
 
 | Method | Purpose |
 |--------|---------|
-| `RecordManualPaymentAsync(params)` | Record cash, check, or bank transfer |
-| `BatchMarkAsPaidAsync(params)` | Mark multiple invoices as paid at once |
+| `RecordManualPaymentAsync(RecordManualPaymentParameters)` | Record cash, cheque, or bank transfer |
+| `BatchMarkAsPaidAsync(BatchMarkAsPaidParameters)` | Mark multiple invoices as paid in one call (see [Manual Orders](../orders/manual-orders.md)) |
 
 ---
 
+## Notifications
+
+Payment events dispatch notifications that email, webhook, and custom handlers subscribe to. See [Architecture Diagrams §8](../../Architecture-Diagrams.md) for the full handler priority ordering.
+
+| Notification | Fired when | Handlers include |
+|--------------|------------|------------------|
+| `PaymentCreatedNotification` | A successful payment is recorded | Digital download issuance, fulfilment release (`OnPaid`), invoice.paid webhook, confirmation emails |
+| `PaymentRefundedNotification` | A refund is processed or recorded | invoice.refunded webhook, refund email |
+
+Handlers with lower `[NotificationHandlerPriority(N)]` run first. Custom handlers must catch and log — never rethrow — so downstream notifications (emails, webhooks) still fire.
+
 ## Provider Interface
 
-Payment providers implement `IPaymentProvider`. Here are the required and optional methods:
+Payment providers implement [`IPaymentProvider`](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs). Here are the required and optional methods:
 
 ### Required (must implement)
 
@@ -189,30 +218,45 @@ Payment providers implement `IPaymentProvider`. Here are the required and option
 
 ## Webhooks
 
-Payment providers that use webhooks have a dedicated endpoint:
+Payment providers that use webhooks have a dedicated endpoint handled by [`PaymentWebhookController.cs`](../../../src/Merchello/Controllers/PaymentWebhookController.cs):
 
-```
-/umbraco/merchello/webhooks/payments/{providerAlias}
+```text
+POST /umbraco/merchello/webhooks/payments/{providerAlias}
 ```
 
 The webhook flow:
 
-1. Provider sends webhook to the endpoint
-2. System calls `provider.ValidateWebhookAsync()` to verify the signature
+1. Provider POSTs the webhook to the endpoint
+2. System calls `provider.ValidateWebhookAsync()` to verify the signature (fails closed — default returns `false`)
 3. System calls `provider.ProcessWebhookAsync()` to handle the event
-4. Duplicate webhooks are detected via `WebhookEventId`
+4. Duplicate webhooks are detected via `Payment.WebhookEventId`
 5. Payment is recorded or updated based on the webhook event type
 
-> **Tip:** Each provider documents its required webhook events in the `SetupInstructions` on its metadata. Check [Payment Providers](payment-providers.md) for provider-specific webhook setup.
+> **Tip:** Each provider documents its required webhook events in the `SetupInstructions` on its metadata. See [Payment Providers](payment-providers.md) for provider-specific setup and [Webhook API](../api/webhook-api.md) for the incoming webhook contract.
 
 ---
 
-## Multi-Currency Payments
+## Multi-Currency Payments (Invariant)
 
-When a store uses multiple currencies:
+See [Multi-Currency Overview](../multi-currency/multi-currency-overview.md) for the full model. Payment-specific rules:
 
-- The invoice stores amounts in **both** the presentment currency (what the customer sees) and the store currency (for accounting)
-- Exchange rate, rate source, and timestamp are captured at invoice creation for audit
-- Payment status calculations support multi-currency via `InvoiceTotalInStoreCurrency` and `StoreCurrencyCode` parameters
+- The invoice stores amounts in **both** the presentment currency (what the customer sees) and the store currency (for accounting).
+- Exchange rate, rate source, and timestamp are **locked at invoice creation** — `PricingExchangeRate`, `PricingExchangeRateSource`, `PricingExchangeRateTimestampUtc`. Edits and subsequent charges use this locked rate; they never refetch market rates.
+- The rate is stored as presentment-to-store (e.g. `1.25` means `1 GBP = 1.25 USD`). Display multiplies (`amount * rate`); checkout/payment divides (`amount / rate`).
+- `CalculatePaymentStatus` accepts `InvoiceTotalInStoreCurrency` + `StoreCurrencyCode`. Pass both whenever you have them so store-currency totals, refunds, and balances stay coherent.
+- Providers may report a settlement currency (e.g. Stripe converting GBP to USD on deposit). Those values land on `Payment.SettlementCurrencyCode`, `SettlementAmount`, `SettlementExchangeRate`, `SettlementExchangeRateSource` — they are informational and never drive balance math.
 
-> **Warning:** Never charge from display amounts. Always use the invoice conversion path. Display currency is for showing prices to customers; the invoice currency is what gets charged.
+> **Warning:** Never charge from display amounts. Always charge the invoice amount (store currency divided by the locked `PricingExchangeRate` when needed). Display currency is only for showing prices to the customer; the invoice is the contract.
+
+---
+
+## Related
+
+- [Payment Providers](payment-providers.md) — per-provider capabilities and setup
+- [Refunds](refunds.md) — provider refunds, manual refunds, preview
+- [Saved Payment Methods](saved-payment-methods.md) — vaulting and off-session charging
+- [Payment Links & Invoice Reminders](payment-links.md) — admin-generated pay URLs and automated follow-ups
+- [Orders Overview](../orders/orders-overview.md) — how payments attach to invoices and orders
+- [Checkout API](../checkout/checkout-api.md) — the storefront endpoints that drive payment sessions
+- [Webhook API](../api/webhook-api.md) — incoming provider webhooks
+- [Creating Payment Providers](../extending/creating-payment-providers.md) and the [PaymentProviders DevGuide](../../PaymentProviders-DevGuide.md)

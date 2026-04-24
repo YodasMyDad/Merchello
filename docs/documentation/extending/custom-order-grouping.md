@@ -24,13 +24,13 @@ Customer submits shipping address
 
 ## The Default Strategy
 
-The built-in `DefaultOrderGroupingStrategy` groups items by warehouse. It:
+The built-in [`DefaultOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs) (key `default-warehouse`) groups items by warehouse. It:
 
-1. Selects the best warehouse for each product (by priority, region eligibility, stock availability)
-2. Groups items shipping from the same warehouse together
-3. Handles multi-warehouse fulfillment (splitting a line item across warehouses)
-4. Resolves flat-rate shipping costs and fetches dynamic carrier rates
-5. Publishes `OrderGroupingModifyingNotification` and `OrderGroupingNotification`
+1. Selects the best warehouse for each product using the standard warehouse selection order: `ProductRootWarehouse` priority → service region eligibility → stock availability (`Stock - Reserved >= qty`).
+2. Groups items shipping from the same warehouse together.
+3. Handles multi-warehouse fulfillment (splitting a line item across warehouses).
+4. Resolves flat-rate shipping costs (via `ShippingCostResolver.ResolveBaseCost()`) and fetches dynamic carrier rates (via `IShippingQuoteService`).
+5. Publishes `OrderGroupingModifyingNotification` (cancelable) and `OrderGroupingNotification` (read-only).
 
 ## Creating a Vendor Grouping Strategy
 
@@ -263,3 +263,7 @@ await notificationPublisher.PublishAsync(
 3. **Use `UnwrapJsonElement()`** when reading values from `ExtendedData`. Dictionary values may be `JsonElement` rather than CLR types after deserialization.
 
 4. **Never use `Task.WhenAll`** for parallel service calls. Umbraco's `EFCoreScope` uses `AsyncLocal` state that breaks with concurrent tasks.
+
+5. **Use constructor injection only.** Strategies are activated via `ActivatorUtilities.CreateInstance`. Do not rely on setter injection, service locator calls, or post-construction configuration. See [Extension Manager](extension-manager.md).
+
+6. **Honor the shipping selection key contract** when populating `OrderGroup.SelectedShippingOptionId`. Use `so:{guid}` for flat-rate selections and `dyn:{providerKey}:{serviceCode}` for dynamic carrier selections -- the checkout parses these into `Order.ShippingProviderKey` / `ShippingServiceCode` / `ShippingServiceName`. See [Creating Shipping Providers](creating-shipping-providers.md#shipping-selection-key-contract).
