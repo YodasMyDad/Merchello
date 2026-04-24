@@ -269,4 +269,4 @@ Upsell rules are created and managed in the Merchello backoffice. Configuration 
 - [Checkout Overview](../checkout/)
 - [Payments: Saved Payment Methods](../payments/saved-payment-methods.md) -- required for post-purchase upsells
 - [Email System](../email/email-overview.md) -- rendering upsells in transactional email
-- [Architecture-Diagrams Section 2.15](../../Architecture-Diagrams.md) -- upsell service map
+- [Architecture-Diagrams Section 2.15](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) -- upsell service map

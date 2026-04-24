@@ -309,4 +309,4 @@ Source: [WebhooksApiController.cs](../../../src/Merchello/Controllers/WebhooksAp
 - [Email System](../email/email-overview.md)
 - [Background Jobs](../background-jobs/background-jobs.md)
 - [UCP Protocol](../ucp/ucp-overview.md) (uses a separate ES256-signed webhook stream for agents)
-- [Architecture Diagrams - Webhooks](../../Architecture-Diagrams.md)
+- [Architecture Diagrams - Webhooks](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md)

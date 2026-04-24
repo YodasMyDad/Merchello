@@ -2,7 +2,7 @@
 
 Merchello's payment system is built around a provider-based architecture. Payment providers (Stripe, PayPal, etc.) are plugins that handle the specifics of each payment gateway, while [`IPaymentService`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs) owns the payment lifecycle — recording payments, dedupe, refunds, and status.
 
-> **Single source of truth:** Never recompute payment status, refund totals, or balance-due in controllers, views, or JS. Call [`IPaymentService.CalculatePaymentStatus`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114) (sync, on already-loaded payments) or `GetInvoicePaymentStatusAsync` (async, fetches payments for you). See [Architecture Diagrams §2.6 Payments](../../Architecture-Diagrams.md).
+> **Single source of truth:** Never recompute payment status, refund totals, or balance-due in controllers, views, or JS. Call [`IPaymentService.CalculatePaymentStatus`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs#L114) (sync, on already-loaded payments) or `GetInvoicePaymentStatusAsync` (async, fetches payments for you). See [Architecture Diagrams §2.6 Payments](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md).
 
 ## Key Concepts
 
@@ -79,7 +79,7 @@ POST /api/merchello/checkout/process-payment (or GET /checkout/return for redire
 Redirect to /checkout/confirmation/{invoiceId}
 ```
 
-> **Digital-only invoices** auto-complete after a successful payment — the `DigitalProductPaymentHandler` (subscribed to `PaymentCreatedNotification`) issues download tokens and marks the order complete. See [Digital Products](../products/digital-products.md) and [Architecture Diagrams §2.12](../../Architecture-Diagrams.md).
+> **Digital-only invoices** auto-complete after a successful payment — the `DigitalProductPaymentHandler` (subscribed to `PaymentCreatedNotification`) issues download tokens and marks the order complete. See [Digital Products](../products/digital-products.md) and [Architecture Diagrams §2.12](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md).
 
 ---
 
@@ -179,7 +179,7 @@ Full interface: [`IPaymentService.cs`](../../../src/Merchello.Core/Payments/Serv
 
 ## Notifications
 
-Payment events dispatch notifications that email, webhook, and custom handlers subscribe to. See [Architecture Diagrams §8](../../Architecture-Diagrams.md) for the full handler priority ordering.
+Payment events dispatch notifications that email, webhook, and custom handlers subscribe to. See [Architecture Diagrams §8](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) for the full handler priority ordering.
 
 | Notification | Fired when | Handlers include |
 |--------------|------------|------------------|

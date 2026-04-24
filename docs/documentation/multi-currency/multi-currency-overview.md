@@ -40,7 +40,7 @@ For example, if the store currency is USD and the customer shops in GBP with a s
 - **Display** uses multiply: `amount * rate`
 - **Checkout/payment** uses divide: `amount / rate`
 
-The two directions are intentional and non-negotiable. Display and checkout use **the same stored rate** but in opposite directions because display and invoice-conversion paths have different input/output currencies. See [Architecture-Diagrams Section 5.4 and 5.5](../../Architecture-Diagrams.md) for the full worked examples, including tax-inclusive math.
+The two directions are intentional and non-negotiable. Display and checkout use **the same stored rate** but in opposite directions because display and invoice-conversion paths have different input/output currencies. See [Architecture-Diagrams Section 5.4 and 5.5](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) for the full worked examples, including tax-inclusive math.
 
 > **Warning.** Never charge from display amounts. Always use the invoice conversion path with the locked rate.
 
@@ -75,7 +75,7 @@ On the invoice, the primary monetary fields (`Total`, `SubTotal`, `Tax`, `Discou
 | `LineItem.Amount` | `LineItem.AmountInStoreCurrency` |
 | `LineItem.Cost` | `LineItem.CostInStoreCurrency` |
 
-Reporting queries always use the `*InStoreCurrency` fields so totals can be summed across invoices without looking up historical exchange rates. See [Architecture-Diagrams.md Section 5.6](../../Architecture-Diagrams.md) for the full field matrix.
+Reporting queries always use the `*InStoreCurrency` fields so totals can be summed across invoices without looking up historical exchange rates. See [Architecture-Diagrams.md Section 5.6](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) for the full field matrix.
 
 ## How Display Conversion Works
 

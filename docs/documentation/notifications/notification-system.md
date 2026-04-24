@@ -2,7 +2,7 @@
 
 Merchello uses Umbraco's built-in notification system to broadcast events throughout the application. When something happens -- an order is created, a product is saved, a shipment status changes -- a notification is published. Your code can subscribe to these notifications to extend Merchello's behavior without modifying the core.
 
-Merchello's two integration bridges ([Email](../email/email-overview.md) and [Webhooks](../webhooks/webhooks-overview.md)) are also notification handlers, so everything you read below applies to them as well. For the full notification inventory and handler priority table see [Architecture-Diagrams.md §8](../../Architecture-Diagrams.md).
+Merchello's two integration bridges ([Email](../email/email-overview.md) and [Webhooks](../webhooks/webhooks-overview.md)) are also notification handlers, so everything you read below applies to them as well. For the full notification inventory and handler priority table see [Architecture-Diagrams.md §8](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md).
 
 ## Base Classes
 
@@ -246,4 +246,4 @@ Merchello includes several built-in notification handlers. Verify priorities aga
 - [Fulfilment System](../fulfilment/fulfilment-overview.md)
 - [UCP Protocol](../ucp/ucp-overview.md)
 - [Background Jobs](../background-jobs/background-jobs.md)
-- [Architecture Diagrams - Notification System](../../Architecture-Diagrams.md)
+- [Architecture Diagrams - Notification System](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md)

@@ -39,4 +39,4 @@ No storefront code is needed to make segment-restricted discounts work: the cust
 
 - [Customer Management](customer-management.md) -- how customers themselves are created and linked to Umbraco Members
 - [Discounts Overview](../discounts/discounts-overview.md) -- how segments feed `DiscountEligibilityType`
-- [Architecture-Diagrams Section 2.8](../../Architecture-Diagrams.md) -- full service map for customers and segments
+- [Architecture-Diagrams Section 2.8](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) -- full service map for customers and segments
