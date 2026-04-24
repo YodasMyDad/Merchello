@@ -89,7 +89,7 @@ jobs:
           git fetch --tags --force
 
           # If HEAD already has a stable vX.Y.Z tag, reuse it (idempotent re-runs).
-          existing_tag="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          existing_tag="$(git tag --points-at HEAD | grep -E '^v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
           if [[ -n "${existing_tag}" ]]; then
             echo "tag_already_exists=true" >> "$GITHUB_OUTPUT"
             echo "tag=${existing_tag}" >> "$GITHUB_OUTPUT"
@@ -98,7 +98,7 @@ jobs:
           fi
 
           # Find the latest stable (non-prerelease) tag anywhere in history.
-          latest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          latest="$(git tag -l 'v[1-9]*' | grep -E '^v[1-9][0-9]*\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
           if [[ -z "${latest}" ]]; then
             # No stable tag yet — this push becomes v1.0.0.
             version="1.0.0"
