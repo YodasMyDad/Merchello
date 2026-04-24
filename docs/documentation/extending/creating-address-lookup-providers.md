@@ -223,6 +223,6 @@ You don't need to create any controllers -- your provider is called automaticall
 
 | Provider | Location | Notes |
 |---|---|---|
-| getAddress | [GetAddressLookupProvider.cs](../../../src/Merchello.Core/AddressLookup/Providers/BuiltIn/GetAddressLookupProvider.cs) | UK address lookup, uses getAddress.io API |
+| getAddress | [GetAddressLookupProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/AddressLookup/Providers/BuiltIn/GetAddressLookupProvider.cs) | UK address lookup, uses getAddress.io API |
 
-Base class: [AddressLookupProviderBase.cs](../../../src/Merchello.Core/AddressLookup/Providers/AddressLookupProviderBase.cs). Interface: [IAddressLookupProvider.cs](../../../src/Merchello.Core/AddressLookup/Providers/Interfaces/IAddressLookupProvider.cs).
+Base class: [AddressLookupProviderBase.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/AddressLookup/Providers/AddressLookupProviderBase.cs). Interface: [IAddressLookupProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/AddressLookup/Providers/Interfaces/IAddressLookupProvider.cs).

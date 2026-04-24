@@ -2,7 +2,7 @@
 
 The storefront API provides REST endpoints for basket operations at `/api/merchello/storefront`. These endpoints are designed for JavaScript-driven storefronts -- you can build your entire shopping cart experience with these APIs.
 
-Source: [StorefrontApiController.cs](../../../src/Merchello/Controllers/StorefrontApiController.cs). For the service-level basket contract behind these endpoints, see [Basket Service](./basket-service.md).
+Source: [StorefrontApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/StorefrontApiController.cs). For the service-level basket contract behind these endpoints, see [Basket Service](./basket-service.md).
 
 ## Base URL
 

@@ -283,7 +283,7 @@ Merchello enforces idempotency at two layers -- preserve both:
 - `ProcessPaymentRequest.IdempotencyKey` -- callers (checkout, backoffice test panel, API) pass a client-generated key. `PaymentIdempotencyService` caches the result for 24 hours so a retried request returns the cached outcome instead of re-charging. Do not strip or regenerate this key in your provider.
 - `Payment.WebhookEventId` -- when you record a payment from a webhook, the gateway's event ID flows through `RecordPaymentParameters.WebhookEventId` into `Payment.WebhookEventId`. `PaymentService` rejects a second record with the same `(InvoiceId, WebhookEventId)`, so always surface the gateway event ID from `ProcessWebhookAsync()`.
 
-See [PaymentIdempotencyService.cs](../../../src/Merchello.Core/Payments/Services/PaymentIdempotencyService.cs) and [PaymentService.cs](../../../src/Merchello.Core/Payments/Services/PaymentService.cs) for the authoritative implementations.
+See [PaymentIdempotencyService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/PaymentIdempotencyService.cs) and [PaymentService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/PaymentService.cs) for the authoritative implementations.
 
 ### Multi-Currency and Rate Locking (CRITICAL)
 
@@ -425,9 +425,9 @@ Study these built-in providers for real-world patterns:
 
 | Provider | Location | Notes |
 |---|---|---|
-| Manual Payment | [ManualPaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/BuiltIn/ManualPaymentProvider.cs) | Simplest example, `DirectForm` integration |
-| Stripe | [StripePaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/Stripe/StripePaymentProvider.cs) | Full-featured: webhooks, refunds, auth/capture, vaulting, payment links |
-| PayPal | [PayPalPaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/PayPal/PayPalPaymentProvider.cs) | Redirect flow |
-| Braintree | [BraintreePaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/Braintree/BraintreePaymentProvider.cs) | SDK embed flow |
+| Manual Payment | [ManualPaymentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/BuiltIn/ManualPaymentProvider.cs) | Simplest example, `DirectForm` integration |
+| Stripe | [StripePaymentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/Stripe/StripePaymentProvider.cs) | Full-featured: webhooks, refunds, auth/capture, vaulting, payment links |
+| PayPal | [PayPalPaymentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/PayPal/PayPalPaymentProvider.cs) | Redirect flow |
+| Braintree | [BraintreePaymentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/Braintree/BraintreePaymentProvider.cs) | SDK embed flow |
 
-Base class: [PaymentProviderBase.cs](../../../src/Merchello.Core/Payments/Providers/PaymentProviderBase.cs). Metadata: [PaymentProviderMetadata.cs](../../../src/Merchello.Core/Payments/Providers/PaymentProviderMetadata.cs). Interface: [IPaymentProvider.cs](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs).
+Base class: [PaymentProviderBase.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/PaymentProviderBase.cs). Metadata: [PaymentProviderMetadata.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/PaymentProviderMetadata.cs). Interface: [IPaymentProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs).

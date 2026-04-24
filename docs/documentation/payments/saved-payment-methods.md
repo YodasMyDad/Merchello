@@ -1,6 +1,6 @@
 # Saved Payment Methods (Vaulting)
 
-Saved payment methods let customers store their card details for faster checkout on future orders. Merchello handles vaulting through the payment provider — card details are never stored in your database. Full service surface: [`ISavedPaymentMethodService.cs`](../../../src/Merchello.Core/Payments/Services/Interfaces/ISavedPaymentMethodService.cs). For a deeper dive into the design and payment-side wiring, see [VaultedPayments.md](../../VaultedPayments.md) in the repo root.
+Saved payment methods let customers store their card details for faster checkout on future orders. Merchello handles vaulting through the payment provider — card details are never stored in your database. Full service surface: [`ISavedPaymentMethodService.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Interfaces/ISavedPaymentMethodService.cs). For a deeper dive into the design and payment-side wiring, see [VaultedPayments.md](https://github.com/YodasMyDad/Merchello/blob/main/docs/VaultedPayments.md) in the repo root.
 
 ## How Vaulting Works
 
@@ -35,7 +35,7 @@ To enable vaulting for a provider, toggle the **Enable Card Vaulting** option in
 
 The simplest way for customers to save a payment method is during checkout. When the customer opts in to "Save this card for future purchases", the method is saved after successful payment.
 
-The checkout API handles this via `savePaymentMethod: true` in [`InitiatePaymentDto`](../../../src/Merchello.Core/Payments/Dtos/InitiatePaymentDto.cs) posted to `POST /api/merchello/checkout/pay`:
+The checkout API handles this via `savePaymentMethod: true` in [`InitiatePaymentDto`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Dtos/InitiatePaymentDto.cs) posted to `POST /api/merchello/checkout/pay`:
 
 ```json
 {
@@ -53,7 +53,7 @@ After the payment succeeds, `ISavedPaymentMethodService.SaveFromCheckoutAsync()`
 
 ## Standalone Vault Setup
 
-Customers can also save payment methods outside of checkout (e.g. from an account settings page). This uses a two-step setup flow exposed by [`StorefrontSavedPaymentMethodsController`](../../../src/Merchello/Controllers/StorefrontSavedPaymentMethodsController.cs).
+Customers can also save payment methods outside of checkout (e.g. from an account settings page). This uses a two-step setup flow exposed by [`StorefrontSavedPaymentMethodsController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/StorefrontSavedPaymentMethodsController.cs).
 
 ### Step 1: Create Setup Session
 
@@ -71,7 +71,7 @@ Content-Type: application/json
 }
 ```
 
-**Response ([`VaultSetupResponseDto`](../../../src/Merchello.Core/Payments/Dtos/VaultSetupResponseDto.cs)):**
+**Response ([`VaultSetupResponseDto`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Dtos/VaultSetupResponseDto.cs)):**
 
 ```json
 {
@@ -129,9 +129,9 @@ When a logged-in customer reaches the payment step, the checkout API returns the
 GET /api/merchello/checkout/payment-options
 ```
 
-Returns [`CheckoutPaymentOptionsDto`](../../../src/Merchello.Core/Checkout/Dtos/CheckoutPaymentOptionsDto.cs) — provider methods + saved methods + `CanSavePaymentMethods` flag.
+Returns [`CheckoutPaymentOptionsDto`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Dtos/CheckoutPaymentOptionsDto.cs) — provider methods + saved methods + `CanSavePaymentMethods` flag.
 
-To pay with a saved method, POST [`ProcessSavedPaymentMethodDto`](../../../src/Merchello.Core/Payments/Dtos/ProcessSavedPaymentMethodDto.cs):
+To pay with a saved method, POST [`ProcessSavedPaymentMethodDto`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Dtos/ProcessSavedPaymentMethodDto.cs):
 
 ```http
 POST /api/merchello/checkout/process-saved-payment
@@ -260,7 +260,7 @@ Saved methods can be charged off-session for scenarios like:
 - Repeat purchases
 - Subscription renewals
 
-`ChargeAsync` always attaches the charge to an **invoice** — create one first if the charge doesn't originate from an existing order. See [`ChargeSavedMethodParameters`](../../../src/Merchello.Core/Payments/Services/Parameters/ChargeSavedMethodParameters.cs):
+`ChargeAsync` always attaches the charge to an **invoice** — create one first if the charge doesn't originate from an existing order. See [`ChargeSavedMethodParameters`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Services/Parameters/ChargeSavedMethodParameters.cs):
 
 ```csharp
 var result = await savedPaymentMethodService.ChargeAsync(

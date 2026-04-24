@@ -4,8 +4,8 @@ Complete REST API reference for all checkout endpoints. These are public-facing 
 
 All checkout endpoints are prefixed with `/api/merchello/checkout` and accept JSON request bodies. The surface is split across two controllers that share the route prefix:
 
-- [`CheckoutApiController`](../../../src/Merchello/Controllers/CheckoutApiController.cs) — basket, countries, addresses, shipping, discounts, auth, address lookup, recovery.
-- [`CheckoutPaymentsApiController`](../../../src/Merchello/Controllers/CheckoutPaymentsApiController.cs) — payment methods, payment session creation, express checkout, widget orders, provider returns.
+- [`CheckoutApiController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutApiController.cs) — basket, countries, addresses, shipping, discounts, auth, address lookup, recovery.
+- [`CheckoutPaymentsApiController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutPaymentsApiController.cs) — payment methods, payment session creation, express checkout, widget orders, provider returns.
 
 > **Invariant:** Controllers do no business logic. They validate input, delegate to `ICheckoutService` / `ICheckoutPaymentsOrchestrationService`, and map the result. Basket totals are always produced by `CheckoutService.CalculateBasketAsync()`.
 
@@ -21,7 +21,7 @@ Retrieves the current basket with formatted totals in the customer's display cur
 GET /api/merchello/checkout/basket
 ```
 
-**Response** `200 OK` -- [`CheckoutBasketDto`](../../../src/Merchello.Core/Checkout/Dtos/CheckoutBasketDto.cs)
+**Response** `200 OK` -- [`CheckoutBasketDto`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Dtos/CheckoutBasketDto.cs)
 
 The DTO carries **both** store-currency amounts (for calculation reconciliation) and display-currency amounts (for rendering). Pre-formatted strings are included so views never need to format money themselves.
 

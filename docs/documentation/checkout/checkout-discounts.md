@@ -1,6 +1,6 @@
 # Checkout Discounts
 
-Merchello supports three types of discounts during checkout: manual discount codes, automatic discounts, and Google auto-discounts. All discount logic is handled by [`ICheckoutDiscountService`](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutDiscountService.cs).
+Merchello supports three types of discounts during checkout: manual discount codes, automatic discounts, and Google auto-discounts. All discount logic is handled by [`ICheckoutDiscountService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutDiscountService.cs).
 
 **What it is:** The checkout-side façade over the discount engine. It knows how to apply, remove, and refresh discounts against a basket while keeping totals in sync.
 

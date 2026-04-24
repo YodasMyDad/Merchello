@@ -18,8 +18,8 @@ Dynamic providers set `UsesLiveRates = true` in their metadata and must **not** 
 
 Built-in dynamic providers:
 
-- [`FedExShippingProvider`](../../../src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs) (`fedex`)
-- [`UpsShippingProvider`](../../../src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs) (`ups`)
+- [`FedExShippingProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs) (`fedex`)
+- [`UpsShippingProvider`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs) (`ups`)
 
 ---
 
@@ -239,7 +239,7 @@ Set `ProductRoot.AllowExternalCarrierShipping = false` to prevent dynamic carrie
 | `CalculateDeliveryDateSurchargeAsync(request, service, date)` | Calculate surcharge for a specific date |
 | `ValidateDeliveryDateAsync(request, service, date)` | Validate a delivery date is still available |
 
-See the full interface at [`IShippingProvider.cs`](../../../src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs).
+See the full interface at [`IShippingProvider.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs).
 
 ## Related Topics
 

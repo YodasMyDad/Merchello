@@ -17,13 +17,13 @@ The starter site is deliberately simple -- it is a bare-bones example showing th
 - A basket/cart page
 - Product detail pages (handled by Merchello's built-in routing via `ProductContentFinder`)
 
-Source: [src/Merchello.Site](../../../src/Merchello.Site). The entry point is [Program.cs](../../../src/Merchello.Site/Program.cs) (a vanilla Umbraco host with `.AddMerchello()` added to the builder pipeline).
+Source: [src/Merchello.Site](https://github.com/YodasMyDad/Merchello/tree/main/src/Merchello.Site). The entry point is [Program.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Program.cs) (a vanilla Umbraco host with `.AddMerchello()` added to the builder pipeline).
 
 ## First Run: 15-Minute Flow
 
 1. `dotnet run` and complete the Umbraco install wizard.
 2. In the backoffice, enable the **Merchello** section on your user group (Settings > User Groups > Allowed Sections).
-3. Run the uSync dashboard import to load the sample document types and content tree from [uSync/v17](../../../src/Merchello.Site/uSync/v17).
+3. Run the uSync dashboard import to load the sample document types and content tree from [uSync/v17](https://github.com/YodasMyDad/Merchello/tree/main/src/Merchello.Site/uSync/v17).
 4. Open the **Merchello** section, click the root node, and click **Install Seed Data**. This populates products, warehouses, suppliers, customers, and sample invoices (see [Seed Data](./seed-data.md)).
 5. Browse the homepage -- `HomeController` renders best sellers pulled from `IReportingService`.
 6. Click a category (e.g. "Clothing") -- `CategoryController` renders a filtered, paged product grid.
@@ -61,7 +61,7 @@ Merchello.Site/
 
 ## The Base Controller
 
-All site controllers inherit from `BaseController` ([Shared/Controllers/BaseController.cs](../../../src/Merchello.Site/Shared/Controllers/BaseController.cs)), which extends Umbraco's `SurfaceController` and implements `IRenderController`:
+All site controllers inherit from `BaseController` ([Shared/Controllers/BaseController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Shared/Controllers/BaseController.cs)), which extends Umbraco's `SurfaceController` and implements `IRenderController`:
 
 ```csharp
 public class BaseController(
@@ -88,7 +88,7 @@ This gives you Umbraco's route hijacking -- when a content node uses a document 
 
 ## HomeController
 
-The homepage shows best-selling products using Merchello's reporting service. Source: [Home/Controllers/HomeController.cs](../../../src/Merchello.Site/Home/Controllers/HomeController.cs).
+The homepage shows best-selling products using Merchello's reporting service. Source: [Home/Controllers/HomeController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Home/Controllers/HomeController.cs).
 
 ```csharp
 public class HomeController(
@@ -108,11 +108,11 @@ Key points:
 
 - The controller injects `IReportingService` from Merchello
 - `GetBestSellersAsync(take: 8)` queries the top 8 best-selling products by order volume (ranked by paid-order line quantity)
-- The model is the Umbraco published content model `Home`. The `BestSellers` property is defined on the partial class in [Home/Models/Home.cs](../../../src/Merchello.Site/Home/Models/Home.cs) as `List<Merchello.Core.Products.Models.Product>`.
+- The model is the Umbraco published content model `Home`. The `BestSellers` property is defined on the partial class in [Home/Models/Home.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Home/Models/Home.cs) as `List<Merchello.Core.Products.Models.Product>`.
 
 ## BasketController
 
-The basket page loads the customer's current basket and maps it for display. Source: [Basket/Controllers/BasketController.cs](../../../src/Merchello.Site/Basket/Controllers/BasketController.cs).
+The basket page loads the customer's current basket and maps it for display. Source: [Basket/Controllers/BasketController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Basket/Controllers/BasketController.cs).
 
 ```csharp
 public class BasketController(
@@ -158,7 +158,7 @@ Key concepts:
 
 ## CategoryController
 
-The category page demonstrates querying products with filtering, sorting, and pagination. Source: [Category/Controllers/CategoryController.cs](../../../src/Merchello.Site/Category/Controllers/CategoryController.cs) and [Category/Models/CategoryPageViewModel.cs](../../../src/Merchello.Site/Category/Models/CategoryPageViewModel.cs).
+The category page demonstrates querying products with filtering, sorting, and pagination. Source: [Category/Controllers/CategoryController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Category/Controllers/CategoryController.cs) and [Category/Models/CategoryPageViewModel.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Category/Models/CategoryPageViewModel.cs).
 
 ```csharp
 public class CategoryController(
@@ -238,14 +238,14 @@ When a request comes in for a URL like `/mesh-office-chair`, Merchello's `Produc
 
 You do not write a controller for product pages. Instead, you create Razor views in `~/Views/Products/` -- the location is controlled by the `ProductViewLocations` config key ([Configuration Reference](./configuration-reference.md#product-view-locations)). See the [Product Routing](../products/product-routing.md) and [Building Product Views](../products/product-views.md) guides for full details.
 
-The starter site includes [Views/Products/Default.cshtml](../../../src/Merchello.Site/Views/Products/Default.cshtml) which demonstrates:
+The starter site includes [Views/Products/Default.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Default.cshtml) which demonstrates:
 
-- Image gallery with variant-specific images ([_ProductGallery.cshtml](../../../src/Merchello.Site/Views/Products/Partials/_ProductGallery.cshtml))
+- Image gallery with variant-specific images ([_ProductGallery.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Partials/_ProductGallery.cshtml))
 - Price display with tax and multi-currency support via `IStorefrontContextService.GetDisplayContextAsync()`
-- Variant option selectors (color swatches, size dropdowns) in [_ProductPurchasePanel.cshtml](../../../src/Merchello.Site/Views/Products/Partials/_ProductPurchasePanel.cshtml)
+- Variant option selectors (color swatches, size dropdowns) in [_ProductPurchasePanel.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Partials/_ProductPurchasePanel.cshtml)
 - Add-on options (`IsVariant = false`) with `PriceAdjustment` and `SkuSuffix`
 - Stock availability display via `GetProductAvailabilityAsync`
-- Post-purchase upsells via [_ProductUpsells.cshtml](../../../src/Merchello.Site/Views/Products/Partials/_ProductUpsells.cshtml)
+- Post-purchase upsells via [_ProductUpsells.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Products/Partials/_ProductUpsells.cshtml)
 - Schema.org structured data and SEO meta tags
 - Add-to-cart wired to the storefront basket API
 
@@ -253,19 +253,19 @@ The starter site includes [Views/Products/Default.cshtml](../../../src/Merchello
 
 ### Website.cshtml (Layout)
 
-[Views/Website.cshtml](../../../src/Merchello.Site/Views/Website.cshtml) wraps all pages with a consistent header, navigation, and footer. All page views reference it via `Layout = "Website.cshtml"`.
+[Views/Website.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Website.cshtml) wraps all pages with a consistent header, navigation, and footer. All page views reference it via `Layout = "Website.cshtml"`.
 
 ### Home.cshtml
 
-[Views/Home.cshtml](../../../src/Merchello.Site/Views/Home.cshtml) renders the homepage content and loops through `Model.BestSellers` to show product cards (via the `ProductBox` view component).
+[Views/Home.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Home.cshtml) renders the homepage content and loops through `Model.BestSellers` to show product cards (via the `ProductBox` view component).
 
 ### Basket.cshtml
 
-[Views/Basket.cshtml](../../../src/Merchello.Site/Views/Basket.cshtml) reads the basket data from `ViewBag.BasketData` (set by `BasketController`) and renders line items with quantities, prices, and a checkout link.
+[Views/Basket.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Basket.cshtml) reads the basket data from `ViewBag.BasketData` (set by `BasketController`) and renders line items with quantities, prices, and a checkout link.
 
 ### Category.cshtml
 
-[Views/Category.cshtml](../../../src/Merchello.Site/Views/Category.cshtml) uses the `CategoryPageViewModel` to render a product grid with sidebar filters (color, size, etc.), price range slider, sort dropdown, and pagination.
+[Views/Category.cshtml](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Category.cshtml) uses the `CategoryPageViewModel` to render a product grid with sidebar filters (color, size, etc.), price range slider, sort dropdown, and pagination.
 
 ## How to Extend
 
@@ -277,7 +277,7 @@ The starter site is a starting point, not a finished store. Common ways to exten
 4. **Style the checkout** -- the integrated checkout reads theme tokens from the `Merchello:Checkout` configuration section (see [Configuration Reference](./configuration-reference.md#checkout-settings)).
 5. **Override order grouping** -- set `OrderGroupingStrategy` in config or implement `IOrderGroupingStrategy` and register it. See [Custom Order Grouping](../extending/custom-order-grouping.md).
 
-> **Controller rule:** Site controllers orchestrate HTTP and delegate to Merchello services. Never access `DbContext` directly, and never duplicate business math (basket totals, tax, shipping cost, payment status) -- always call the designated service. See the invariants in the [project rules](../../../.claude/CLAUDE.md).
+> **Controller rule:** Site controllers orchestrate HTTP and delegate to Merchello services. Never access `DbContext` directly, and never duplicate business math (basket totals, tax, shipping cost, payment status) -- always call the designated service. See the invariants in the [project rules](https://github.com/YodasMyDad/Merchello/blob/main/.claude/claude.md).
 
 ## Next Steps
 

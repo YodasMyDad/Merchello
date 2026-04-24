@@ -6,21 +6,21 @@ This page covers the storefront surface: the API, how discounts appear in the ba
 
 ## Discount Categories
 
-Four `DiscountCategory` values ([`DiscountCategory.cs`](../../../src/Merchello.Core/Discounts/Models/DiscountCategory.cs)):
+Four `DiscountCategory` values ([`DiscountCategory.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Discounts/Models/DiscountCategory.cs)):
 
 | Category | Description | Notes |
 | -------- | ----------- | ----- |
 | `AmountOffProducts` | Discount on specific products, collections, or product types | Targeted via `DiscountTargetRule` (SKUs, collections, product types, tags) |
 | `AmountOffOrder` | Discount on the entire order subtotal | Applied at order level; honors `RequirementType` / `RequirementValue` |
-| `BuyXGetY` | Buy qualifying items, get other items free or discounted | Uses `DiscountBuyXGetYConfig` and [`IBuyXGetYCalculator`](../../../src/Merchello.Core/Discounts/Services/Interfaces/IBuyXGetYCalculator.cs); respects `PerOrderUsageLimit` |
+| `BuyXGetY` | Buy qualifying items, get other items free or discounted | Uses `DiscountBuyXGetYConfig` and [`IBuyXGetYCalculator`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Discounts/Services/Interfaces/IBuyXGetYCalculator.cs); respects `PerOrderUsageLimit` |
 | `FreeShipping` | Free or discounted shipping | Uses `DiscountFreeShippingConfig`; free-shipping allow-lists validate against all selected shipping groups (`DiscountContext.SelectedShippingOptionIds`) |
 
-Each discount has a **method** that controls how it activates ([`DiscountMethod.cs`](../../../src/Merchello.Core/Discounts/Models/DiscountMethod.cs)):
+Each discount has a **method** that controls how it activates ([`DiscountMethod.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Discounts/Models/DiscountMethod.cs)):
 
 - `Code` -- customer enters a code at checkout
 - `Automatic` -- applied whenever conditions are met, no code needed
 
-And a **value type** ([`DiscountValueType.cs`](../../../src/Merchello.Core/Accounting/Models/DiscountValueType.cs)):
+And a **value type** ([`DiscountValueType.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Models/DiscountValueType.cs)):
 
 - `FixedAmount` -- e.g. £5 off
 - `Percentage` -- e.g. 10% off
@@ -30,7 +30,7 @@ And a **value type** ([`DiscountValueType.cs`](../../../src/Merchello.Core/Accou
 
 ## Applying a Discount Code
 
-Use the checkout API to apply a discount code to the current basket ([`CheckoutApiController.cs:383`](../../../src/Merchello/Controllers/CheckoutApiController.cs#L383)):
+Use the checkout API to apply a discount code to the current basket ([`CheckoutApiController.cs:383`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutApiController.cs#L383)):
 
 ```http
 POST /api/merchello/checkout/discount/apply
@@ -71,11 +71,11 @@ Common failure reasons include expired codes, minimum order value not met, and p
 DELETE /api/merchello/checkout/discount/{discountId}
 ```
 
-Returns the same response shape with the updated basket and `discountDelta`. See [`CheckoutApiController.cs:719`](../../../src/Merchello/Controllers/CheckoutApiController.cs#L719).
+Returns the same response shape with the updated basket and `discountDelta`. See [`CheckoutApiController.cs:719`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutApiController.cs#L719).
 
 ### JavaScript Example (Checkout Runtime)
 
-The checkout runtime JS at `/App_Plugins/Merchello/js/checkout/services/api.js` exposes these methods (source of truth: [`Client/public/js/checkout/services/api.js`](../../../src/Merchello/Client/public/js/checkout/services/api.js)):
+The checkout runtime JS at `/App_Plugins/Merchello/js/checkout/services/api.js` exposes these methods (source of truth: [`Client/public/js/checkout/services/api.js`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Client/public/js/checkout/services/api.js)):
 
 ```js
 // Apply a code
@@ -109,7 +109,7 @@ Automatic discounts require no customer action. The checkout service evaluates a
 
 If a customer adds a fourth item and triggers a "Buy 3 Get 1 Free" promotion, the discount appears automatically. If they remove an item and no longer qualify, the discount is removed and a warning is included in the response.
 
-You do not need to call any API to trigger automatic discount evaluation -- it happens internally whenever basket state changes. See [`ICheckoutDiscountService`](../../../src/Merchello.Core/Discounts/Services/Interfaces/IDiscountEngine.cs) and [Checkout Discounts](../checkout/checkout-discounts.md) for the service-level contract.
+You do not need to call any API to trigger automatic discount evaluation -- it happens internally whenever basket state changes. See [`ICheckoutDiscountService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Discounts/Services/Interfaces/IDiscountEngine.cs) and [Checkout Discounts](../checkout/checkout-discounts.md) for the service-level contract.
 
 ## How Discounts Appear in the Basket
 
@@ -181,7 +181,7 @@ At each stage, if a previously valid discount becomes invalid (e.g. the customer
 
 ## Segment Targeting
 
-A discount's `EligibilityType` ([`DiscountEligibilityType.cs`](../../../src/Merchello.Core/Discounts/Models/DiscountEligibilityType.cs)) decides who qualifies:
+A discount's `EligibilityType` ([`DiscountEligibilityType.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Discounts/Models/DiscountEligibilityType.cs)) decides who qualifies:
 
 - `AllCustomers` -- no restriction
 - `CustomerSegments` -- only members of one or more [customer segments](../customers/customer-segments.md) (manual or automated)

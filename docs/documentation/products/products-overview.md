@@ -8,7 +8,7 @@ Products in Merchello use a two-level hierarchy: **ProductRoot** and **Product**
 
 ### ProductRoot (The Parent)
 
-A `ProductRoot` represents the conceptual product -- "Mesh Office Chair" or "Classic T-Shirt". It holds everything that is shared across all variants. Source: [ProductRoot.cs](../../../src/Merchello.Core/Products/Models/ProductRoot.cs).
+A `ProductRoot` represents the conceptual product -- "Mesh Office Chair" or "Classic T-Shirt". It holds everything that is shared across all variants. Source: [ProductRoot.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Products/Models/ProductRoot.cs).
 
 ```csharp
 public class ProductRoot
@@ -50,7 +50,7 @@ public class ProductRoot
 
 ### Product (The Variant)
 
-A `Product` represents a specific purchasable SKU -- "Mesh Office Chair - Blue / Large". Each product root has at least one product (the default variant). Source: [Product.cs](../../../src/Merchello.Core/Products/Models/Product.cs).
+A `Product` represents a specific purchasable SKU -- "Mesh Office Chair - Blue / Large". Each product root has at least one product (the default variant). Source: [Product.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Products/Models/Product.cs).
 
 ```csharp
 public class Product
@@ -121,7 +121,7 @@ The `RootUrl` is auto-generated from the product name when creating a product ro
 
 ## Creating Products
 
-Products are created through [`IProductService`](../../../src/Merchello.Core/Products/Services/Interfaces/IProductService.cs). You create the root first, then variants are generated from options:
+Products are created through [`IProductService`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Products/Services/Interfaces/IProductService.cs). You create the root first, then variants are generated from options:
 
 ```csharp
 // Step 1: Create the product root with a default variant

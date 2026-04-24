@@ -36,15 +36,15 @@ Shipping functionality is split across three services:
 
 | Service | Purpose | Source |
 |---------|---------|--------|
-| `IShippingService` | Business logic and orchestration for basket/product shipping | [IShippingService.cs](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs) |
-| `IShippingQuoteService` | Fetches quotes from shipping providers (FedEx, UPS, flat-rate) | [IShippingQuoteService.cs](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingQuoteService.cs) |
-| `IShippingCostResolver` | Resolves costs from flat-rate shipping option configurations | [ShippingCostResolver.cs](../../../src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs) |
+| `IShippingService` | Business logic and orchestration for basket/product shipping | [IShippingService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs) |
+| `IShippingQuoteService` | Fetches quotes from shipping providers (FedEx, UPS, flat-rate) | [IShippingQuoteService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Services/Interfaces/IShippingQuoteService.cs) |
+| `IShippingCostResolver` | Resolves costs from flat-rate shipping option configurations | [ShippingCostResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs) |
 
 > **Invariant (CLAUDE.md):** `IShippingService.GetShippingOptionsForBasket()` is the basket-level entry point; it uses the active `IOrderGroupingStrategy` internally. `IShippingQuoteService.GetQuotes*()` is the source of truth for quote retrieval. `ShippingCostResolver.ResolveBaseCost()` is the single source of truth for the flat-rate fallback chain -- do not reimplement the match logic anywhere else.
 
 ### Cost Resolution Priority
 
-For flat-rate shipping, costs are resolved in this strict priority order by [`ShippingCostResolver.ResolveBaseCost()`](../../../src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs):
+For flat-rate shipping, costs are resolved in this strict priority order by [`ShippingCostResolver.ResolveBaseCost()`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs):
 
 1. **State/Region** -- A cost entry matching the exact country + state/province code
 2. **Country** -- A cost entry matching the country code with no region
@@ -116,7 +116,7 @@ Shipping selections use a stable key format that must remain unchanged:
 | Flat-rate | `so:{guid}` | `so:abc12345-...` |
 | Dynamic | `dyn:{provider}:{serviceCode}` | `dyn:fedex:FEDEX_GROUND` |
 
-These keys are parsed by [`SelectionKeyExtensions.TryParse()`](../../../src/Merchello.Core/Shipping/Extensions/SelectionKeyExtensions.cs) into order fields (`ShippingProviderKey`, `ShippingServiceCode`, `ShippingServiceName`) and must remain stable across the checkout flow and any custom grouping strategies.
+These keys are parsed by [`SelectionKeyExtensions.TryParse()`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Extensions/SelectionKeyExtensions.cs) into order fields (`ShippingProviderKey`, `ShippingServiceCode`, `ShippingServiceName`) and must remain stable across the checkout flow and any custom grouping strategies.
 
 > **Invariant (CLAUDE.md):** Treat this contract as wire-protocol. Checkout, order edit, notifications, and fulfilment all rely on it. Keep the parsed rate in `QuotedCosts` so dynamic rates seen at selection time are what the customer pays.
 
@@ -146,7 +146,7 @@ See [Flat Rate Shipping](flat-rate-shipping.md) and [Dynamic Shipping Providers]
 
 ## IShippingService Reference
 
-Defined in [`IShippingService.cs`](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs):
+Defined in [`IShippingService.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs):
 
 | Method | Purpose |
 |--------|---------|
@@ -173,7 +173,7 @@ Shipping can be taxable depending on jurisdiction. Merchello supports four shipp
 | `Proportional` | Tax rate is a weighted average of basket item tax rates (EU/UK VAT) |
 | `ProviderCalculated` | Tax provider determines from full order context (e.g., Avalara) |
 
-The shipping tax configuration is queried via [`ITaxProviderManager.GetShippingTaxConfigurationAsync(countryCode, stateCode)`](../../../src/Merchello.Core/Tax/Providers/Interfaces/ITaxProviderManager.cs) and returned as a [`ShippingTaxConfigurationResult`](../../../src/Merchello.Core/Tax/Providers/Models/ShippingTaxConfigurationResult.cs). Proportional math is centralized in [`ITaxCalculationService.CalculateProportionalShippingTax()`](../../../src/Merchello.Core/Tax/Services/Interfaces/ITaxCalculationService.cs). See [Shipping Tax](../tax/shipping-tax.md) for the full model.
+The shipping tax configuration is queried via [`ITaxProviderManager.GetShippingTaxConfigurationAsync(countryCode, stateCode)`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Providers/Interfaces/ITaxProviderManager.cs) and returned as a [`ShippingTaxConfigurationResult`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Providers/Models/ShippingTaxConfigurationResult.cs). Proportional math is centralized in [`ITaxCalculationService.CalculateProportionalShippingTax()`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Services/Interfaces/ITaxCalculationService.cs). See [Shipping Tax](../tax/shipping-tax.md) for the full model.
 
 > **Invariant (CLAUDE.md):** Never hardcode shipping tax rates. Always query the tax provider. Never reimplement the proportional formula outside `ITaxCalculationService`.
 

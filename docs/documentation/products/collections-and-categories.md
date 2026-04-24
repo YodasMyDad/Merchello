@@ -97,7 +97,7 @@ Use `ProductAvailabilityFilter` to control which products appear:
 
 ## Building Category Pages
 
-The starter site demonstrates the recommended pattern for category pages in [CategoryController.cs](../../../src/Merchello.Site/Category/Controllers/CategoryController.cs) and the [Category.cshtml view](../../../src/Merchello.Site/Views/Category.cshtml). Here is how it works:
+The starter site demonstrates the recommended pattern for category pages in [CategoryController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Category/Controllers/CategoryController.cs) and the [Category.cshtml view](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Site/Views/Category.cshtml). Here is how it works:
 
 ### Step 1: Create an Umbraco Document Type
 

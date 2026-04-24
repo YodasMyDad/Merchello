@@ -1,6 +1,6 @@
 # Built-in Payment Providers
 
-Merchello ships with six payment providers out of the box (including the built-in `Manual` provider). Each provider is a plugin discovered by the `ExtensionManager` — you configure them in the backoffice under **Settings > Payment Providers**. For an in-depth developer walkthrough including hosted fields, webhooks, vaulting, express checkout, and payment links, see the repo-root [PaymentProviders-DevGuide](../../PaymentProviders-DevGuide.md). To build your own, see [Creating Payment Providers](../extending/creating-payment-providers.md).
+Merchello ships with six payment providers out of the box (including the built-in `Manual` provider). Each provider is a plugin discovered by the `ExtensionManager` — you configure them in the backoffice under **Settings > Payment Providers**. For an in-depth developer walkthrough including hosted fields, webhooks, vaulting, express checkout, and payment links, see the repo-root [PaymentProviders-DevGuide](https://github.com/YodasMyDad/Merchello/blob/main/docs/PaymentProviders-DevGuide.md). To build your own, see [Creating Payment Providers](../extending/creating-payment-providers.md).
 
 > **Alias stability:** The `Alias` on a provider is permanent — it's used for webhook URLs, stored settings, and `Payment.PaymentProviderAlias`. Never change it after deployment.
 
@@ -254,7 +254,7 @@ WorldPay uses `HostedFields` integration -- the Access Checkout SDK renders card
 
 ## Manual Payment
 
-**Provider alias:** `manual` (see [`ManualPaymentProvider.cs`](../../../src/Merchello.Core/Payments/Providers/BuiltIn/ManualPaymentProvider.cs))
+**Provider alias:** `manual` (see [`ManualPaymentProvider.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Payments/Providers/BuiltIn/ManualPaymentProvider.cs))
 
 The Manual Payment provider handles offline payments and purchase orders. It's automatically enabled on install — no configuration needed.
 

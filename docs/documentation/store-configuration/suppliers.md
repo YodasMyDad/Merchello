@@ -18,7 +18,7 @@ Suppliers are managed in the Merchello backoffice. Each supplier has:
 - A collection of warehouses they own.
 - Optional Supplier Direct fulfilment settings (CSV/FTP/email delivery for purchase orders).
 
-See the DTO contracts in [SupplierDetailDto.cs](../../../src/Merchello.Core/Warehouses/Dtos/SupplierDetailDto.cs) and related `CreateSupplierDto` / `UpdateSupplierDto` for the full set of fields.
+See the DTO contracts in [SupplierDetailDto.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Warehouses/Dtos/SupplierDetailDto.cs) and related `CreateSupplierDto` / `UpdateSupplierDto` for the full set of fields.
 
 ## Vendor Order Grouping
 

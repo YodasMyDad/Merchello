@@ -4,7 +4,7 @@ Merchello's email system handles all transactional emails -- order confirmations
 
 ## How It Works
 
-The email system connects internal Merchello [notifications](../notifications/notification-system.md) to email templates through a topic registry. When something happens in the system (an order is created, a shipment ships, a cart is abandoned), a notification fires. The [`EmailNotificationHandler`](../../../src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs) picks it up, finds all email configurations for that topic, and queues a delivery for each one.
+The email system connects internal Merchello [notifications](../notifications/notification-system.md) to email templates through a topic registry. When something happens in the system (an order is created, a shipment ships, a cart is abandoned), a notification fires. The [`EmailNotificationHandler`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs) picks it up, finds all email configurations for that topic, and queues a delivery for each one.
 
 ```
 Notification fires -> EmailNotificationHandler (priority 2100) -> Find configs for topic -> Queue deliveries
@@ -12,7 +12,7 @@ Notification fires -> EmailNotificationHandler (priority 2100) -> Find configs f
 
 This means you can have multiple email configurations for the same topic. For example, you might send an order confirmation to the customer and a different notification to your warehouse team -- both triggered by the same `order.created` topic.
 
-> **CLAUDE.md invariant:** The handler swallows (catch/log) all dispatch errors and never rethrows. An email delivery failure must never break the business operation that triggered it. See [EmailNotificationHandler.cs:ProcessEmailsAsync](../../../src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs#L194).
+> **CLAUDE.md invariant:** The handler swallows (catch/log) all dispatch errors and never rethrows. An email delivery failure must never break the business operation that triggered it. See [EmailNotificationHandler.cs:ProcessEmailsAsync](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs#L194).
 
 ## Email Configurations
 
@@ -46,7 +46,7 @@ Available tokens vary by topic and are listed in the backoffice when you edit an
 
 ## Email Topics
 
-Topics are registered in `IEmailTopicRegistry` and defined as constants in [Constants.cs:EmailTopics](../../../src/Merchello.Core/Constants.cs#L303). Each topic maps to a notification type and lists its available tokens. Here are the built-in topics by category:
+Topics are registered in `IEmailTopicRegistry` and defined as constants in [Constants.cs:EmailTopics](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Constants.cs#L303). Each topic maps to a notification type and lists its available tokens. Here are the built-in topics by category:
 
 ### Orders
 - `order.created` -- New order placed
@@ -101,13 +101,13 @@ Topics are registered in `IEmailTopicRegistry` and defined as constants in [Cons
 
 Merchello uses [MJML](https://mjml.io) for email templates. MJML is a markup language that compiles to responsive HTML email. You write simple markup and it generates the complex table-based HTML that email clients need.
 
-Templates are Razor (`.cshtml`) files whose rendered output is compiled to HTML by the `IMjmlCompiler` ([MjmlCompiler.cs](../../../src/Merchello.Core/Email/Services/MjmlCompiler.cs)) and support theme settings (colors, fonts, logo) from `EmailThemeSettings` ([EmailThemeSettings.cs](../../../src/Merchello.Core/Email/EmailThemeSettings.cs)). The provided HTML helpers live in `Merchello.Email.Extensions` so you can mix helpers (`@Html.Mjml().EmailStart(...)`) with raw MJML elements.
+Templates are Razor (`.cshtml`) files whose rendered output is compiled to HTML by the `IMjmlCompiler` ([MjmlCompiler.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Email/Services/MjmlCompiler.cs)) and support theme settings (colors, fonts, logo) from `EmailThemeSettings` ([EmailThemeSettings.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Email/EmailThemeSettings.cs)). The provided HTML helpers live in `Merchello.Email.Extensions` so you can mix helpers (`@Html.Mjml().EmailStart(...)`) with raw MJML elements.
 
-Sample templates ship in the example site at [src/Merchello.Site/Views/Emails/](../../../src/Merchello.Site/Views/Emails/) (`OrderConfirmation.cshtml`, `AbandonedCartFirst.cshtml`, `AbandonedCartReminder.cshtml`, `AbandonedCartFinal.cshtml`, `DigitalProductDelivered.cshtml`, `PasswordReset.cshtml`, `SupplierOrder.cshtml`). Copy one as a starting point — they already demonstrate the strongly-typed `EmailModel<TNotification>` pattern.
+Sample templates ship in the example site at [src/Merchello.Site/Views/Emails/](https://github.com/YodasMyDad/Merchello/tree/main/src/Merchello.Site/Views/Emails) (`OrderConfirmation.cshtml`, `AbandonedCartFirst.cshtml`, `AbandonedCartReminder.cshtml`, `AbandonedCartFinal.cshtml`, `DigitalProductDelivered.cshtml`, `PasswordReset.cshtml`, `SupplierOrder.cshtml`). Copy one as a starting point — they already demonstrate the strongly-typed `EmailModel<TNotification>` pattern.
 
 ### Template Locations
 
-Templates are resolved from the view locations configured in [EmailSettings.TemplateViewLocations](../../../src/Merchello.Core/Email/EmailSettings.cs#L12) (in order):
+Templates are resolved from the view locations configured in [EmailSettings.TemplateViewLocations](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Email/EmailSettings.cs#L12) (in order):
 
 1. `/App_Plugins/Merchello/Views/Emails/{template}.cshtml`
 2. `/Views/Emails/{template}.cshtml`
@@ -143,7 +143,7 @@ The `EmailAttachmentCleanupJob` removes orphaned attachment files after 72 hours
 
 ## Delivery Queue and Retries
 
-Emails are not sent immediately. They are queued as `OutboundDelivery` records ([OutboundDelivery.cs](../../../src/Merchello.Core/Webhooks/Models/OutboundDelivery.cs)) and processed by the `OutboundDeliveryJob` background service ([OutboundDeliveryJob.cs](../../../src/Merchello.Core/Webhooks/Services/OutboundDeliveryJob.cs)). Email and [webhook](../webhooks/webhooks-overview.md) deliveries share the same queue and job; the `DeliveryType` column distinguishes them (`Webhook = 0`, `Email = 1`).
+Emails are not sent immediately. They are queued as `OutboundDelivery` records ([OutboundDelivery.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Webhooks/Models/OutboundDelivery.cs)) and processed by the `OutboundDeliveryJob` background service ([OutboundDeliveryJob.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Webhooks/Services/OutboundDeliveryJob.cs)). Email and [webhook](../webhooks/webhooks-overview.md) deliveries share the same queue and job; the `DeliveryType` column distinguishes them (`Webhook = 0`, `Email = 1`).
 
 This means:
 
@@ -209,7 +209,7 @@ Full email settings in `appsettings.json`:
 
 ## Backoffice API
 
-Routes are relative to the Umbraco management API prefix. Source: [EmailConfigurationApiController.cs](../../../src/Merchello/Controllers/EmailConfigurationApiController.cs), [EmailMetadataApiController.cs](../../../src/Merchello/Controllers/EmailMetadataApiController.cs).
+Routes are relative to the Umbraco management API prefix. Source: [EmailConfigurationApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/EmailConfigurationApiController.cs), [EmailMetadataApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/EmailMetadataApiController.cs).
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -239,4 +239,4 @@ The `EmailNotificationHandler` runs at priority **2100**, which means it execute
 - [Outbound Webhooks](../webhooks/webhooks-overview.md)
 - [Background Jobs](../background-jobs/background-jobs.md)
 - [Abandoned Cart Recovery](../checkout/abandoned-cart.md)
-- [Developer reference - docs/EmailSystem.md](../../EmailSystem.md) (internal guide, not shipped as documentation)
+- [Developer reference - docs/EmailSystem.md](https://github.com/YodasMyDad/Merchello/blob/main/docs/EmailSystem.md) (internal guide, not shipped as documentation)

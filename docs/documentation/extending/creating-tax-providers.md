@@ -310,7 +310,7 @@ Tax calculation is coordinated by `ITaxOrchestrationService` (which is itself in
 
 | Provider | Location | Notes |
 |---|---|---|
-| Manual Tax | [ManualTaxProvider.cs](../../../src/Merchello.Core/Tax/Providers/BuiltIn/ManualTaxProvider.cs) | Uses manually configured rates per country/region |
-| Avalara | [AvalaraTaxProvider.cs](../../../src/Merchello.Core/Tax/Providers/BuiltIn/AvalaraTaxProvider.cs) | Real-time tax calculation via AvaTax API |
+| Manual Tax | [ManualTaxProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Providers/BuiltIn/ManualTaxProvider.cs) | Uses manually configured rates per country/region |
+| Avalara | [AvalaraTaxProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Providers/BuiltIn/AvalaraTaxProvider.cs) | Real-time tax calculation via AvaTax API |
 
-Base class: [TaxProviderBase.cs](../../../src/Merchello.Core/Tax/Providers/TaxProviderBase.cs). Interface: [ITaxProvider.cs](../../../src/Merchello.Core/Tax/Providers/Interfaces/ITaxProvider.cs).
+Base class: [TaxProviderBase.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Providers/TaxProviderBase.cs). Interface: [ITaxProvider.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Tax/Providers/Interfaces/ITaxProvider.cs).

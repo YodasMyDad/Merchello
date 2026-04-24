@@ -24,7 +24,7 @@ Customer submits shipping address
 
 ## The Default Strategy
 
-The built-in [`DefaultOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs) (key `default-warehouse`) groups items by warehouse. It:
+The built-in [`DefaultOrderGroupingStrategy`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs) (key `default-warehouse`) groups items by warehouse. It:
 
 1. Selects the best warehouse for each product using the standard warehouse selection order: `ProductRootWarehouse` priority → service region eligibility → stock availability (`Stock - Reserved >= qty`).
 2. Groups items shipping from the same warehouse together.

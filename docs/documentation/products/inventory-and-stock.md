@@ -4,7 +4,7 @@ Merchello tracks stock levels per product variant per warehouse. This guide cove
 
 > **Invariant:** All stock mutations must go through `IInventoryService`. Never adjust `Stock`, `ReservedStock`, or `TrackStock` directly on a `ProductWarehouse` -- the service enforces the lifecycle rules below, handles optimistic concurrency, and publishes the notifications that other subsystems listen on.
 
-Source: [IInventoryService.cs](../../../src/Merchello.Core/Products/Services/Interfaces/IInventoryService.cs), [ProductWarehouse.cs](../../../src/Merchello.Core/Products/Models/ProductWarehouse.cs).
+Source: [IInventoryService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Products/Services/Interfaces/IInventoryService.cs), [ProductWarehouse.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Products/Models/ProductWarehouse.cs).
 
 ## Core Concepts
 
@@ -195,7 +195,7 @@ When a product exists in multiple warehouses, Merchello selects the best warehou
 2. **Service region eligibility** -- the warehouse must be able to ship to the customer's country/region.
 3. **Stock availability** -- the warehouse must have `Stock - ReservedStock >= requested quantity`.
 
-> **Tip:** Use [`IWarehouseService.SelectWarehouseForProduct()`](../../../src/Merchello.Core/Warehouses/Services/WarehouseService.cs#L35) to get the best warehouse for a product and shipping destination. This is what the checkout order grouping strategy uses internally ([DefaultOrderGroupingStrategy.cs:84](../../../src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs#L84)).
+> **Tip:** Use [`IWarehouseService.SelectWarehouseForProduct()`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Warehouses/Services/WarehouseService.cs#L35) to get the best warehouse for a product and shipping destination. This is what the checkout order grouping strategy uses internally ([DefaultOrderGroupingStrategy.cs:84](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs#L84)).
 
 ## Key Points
 

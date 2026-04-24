@@ -4,18 +4,18 @@ Merchello uses a pluggable provider system for fetching exchange rates. Out of t
 
 ## Provider Architecture
 
-Exchange rate providers follow the same pattern as other Merchello providers (see [`IExchangeRateProvider.cs`](../../../src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs)):
+Exchange rate providers follow the same pattern as other Merchello providers (see [`IExchangeRateProvider.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs)):
 
 1. Discovered automatically by `ExtensionManager` during startup.
 2. Configured through the backoffice with provider-specific settings (`GetConfigurationFieldsAsync` + `ConfigureAsync`).
-3. **Only one provider can be active at a time** -- radio selection, enforced by [`ExchangeRateProviderManager.SetActiveProviderAsync(...)`](../../../src/Merchello.Core/ExchangeRates/Providers/ExchangeRateProviderManager.cs#L149).
+3. **Only one provider can be active at a time** -- radio selection, enforced by [`ExchangeRateProviderManager.SetActiveProviderAsync(...)`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Providers/ExchangeRateProviderManager.cs#L149).
 
-When you activate a provider, any previously active provider is automatically deactivated. If no provider is explicitly activated, the manager falls back to Frankfurter when it is present ([ExchangeRateProviderManager.cs:117](../../../src/Merchello.Core/ExchangeRates/Providers/ExchangeRateProviderManager.cs#L117)).
+When you activate a provider, any previously active provider is automatically deactivated. If no provider is explicitly activated, the manager falls back to Frankfurter when it is present ([ExchangeRateProviderManager.cs:117](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Providers/ExchangeRateProviderManager.cs#L117)).
 
 ## Built-in: Frankfurter (ECB Rates)
 
 **Alias:** `frankfurter`  
-**Source:** [`FrankfurterExchangeRateProvider.cs`](../../../src/Merchello.Core/ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs)
+**Source:** [`FrankfurterExchangeRateProvider.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Providers/FrankfurterExchangeRateProvider.cs)
 
 The Frankfurter provider fetches rates from [frankfurter.dev](https://frankfurter.dev), which sources data from the European Central Bank. It is free, requires no API key and supports all major currencies.
 
@@ -34,7 +34,7 @@ The Frankfurter provider fetches rates from [frankfurter.dev](https://frankfurte
 GET https://api.frankfurter.dev/v1/latest?base=GBP
 ```
 
-The provider normalizes the response and returns an [`ExchangeRateResult`](../../../src/Merchello.Core/ExchangeRates/Models/ExchangeRateResult.cs) containing the base currency, a `Dictionary<string, decimal>` of rates and a UTC timestamp.
+The provider normalizes the response and returns an [`ExchangeRateResult`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Models/ExchangeRateResult.cs) containing the base currency, a `Dictionary<string, decimal>` of rates and a UTC timestamp.
 
 ### Limitations
 
@@ -53,7 +53,7 @@ Consider building a custom provider ([guide](../extending/creating-exchange-rate
 
 ## Exchange Rate Cache
 
-Rates are not fetched on every request. Merchello uses a multi-layer cache via [`IExchangeRateCache`](../../../src/Merchello.Core/ExchangeRates/Services/Interfaces/IExchangeRateCache.cs):
+Rates are not fetched on every request. Merchello uses a multi-layer cache via [`IExchangeRateCache`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Services/Interfaces/IExchangeRateCache.cs):
 
 ### Cache flow
 
@@ -72,7 +72,7 @@ Request for rate
 
 ### Cache configuration
 
-Configured via [`ExchangeRateOptions`](../../../src/Merchello.Core/ExchangeRates/Models/ExchangeRateOptions.cs) bound from `appsettings.json`:
+Configured via [`ExchangeRateOptions`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Models/ExchangeRateOptions.cs) bound from `appsettings.json`:
 
 ```json
 {
@@ -133,7 +133,7 @@ Snapshots serve as the fallback when:
 
 ## Rate Quotes
 
-When you request a rate via `IExchangeRateCache.GetRateQuoteAsync(...)`, you get an [`ExchangeRateQuote`](../../../src/Merchello.Core/ExchangeRates/Models/ExchangeRateQuote.cs) containing:
+When you request a rate via `IExchangeRateCache.GetRateQuoteAsync(...)`, you get an [`ExchangeRateQuote`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Models/ExchangeRateQuote.cs) containing:
 
 | Property | Description |
 |----------|-------------|
@@ -231,7 +231,7 @@ Package your provider as a NuGet package referencing `Merchello.Core`. When the 
 ### Key points for custom providers
 
 - **Identity rate short-circuit**: if `fromCurrency == toCurrency`, return `1m` before doing anything else.
-- **Error handling**: return `ExchangeRateResult(Success: false, ..., ErrorMessage: "...")` rather than throwing. The cache and [refresh job](../../../src/Merchello.Core/ExchangeRates/Services/ExchangeRateRefreshJob.cs) handle failures gracefully and fall back to the last stored snapshot.
+- **Error handling**: return `ExchangeRateResult(Success: false, ..., ErrorMessage: "...")` rather than throwing. The cache and [refresh job](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ExchangeRates/Services/ExchangeRateRefreshJob.cs) handle failures gracefully and fall back to the last stored snapshot.
 - **Rate direction**: return rates as "1 baseCurrency = X targetCurrency". If base is USD and target is EUR, return `0.92` (1 USD = 0.92 EUR). The cache inverts / cross-computes as needed.
 - **Sensitive fields**: mark API keys with `IsSensitive = true` -- Merchello encrypts them at rest.
 - **Metadata**: set `SupportsHistoricalRates` and `SupportedCurrencies` accurately. An empty `SupportedCurrencies` array means all currencies are supported.

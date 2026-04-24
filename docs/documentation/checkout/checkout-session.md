@@ -6,7 +6,7 @@ The checkout session is per-basket state that tracks where the customer is in th
 
 **Why it exists:** The basket stores the latest-saved addresses and totals, but the session tracks checkout-specific signals the basket doesn't know about — like which shipping options the customer picked, what rate they were quoted, and which invoice they're paying for. It also enforces security by binding the active invoice to the session cookie so someone with a stolen URL can't pay for someone else's order.
 
-Source: [CheckoutSession.cs](../../../src/Merchello.Core/Checkout/Models/CheckoutSession.cs), [CheckoutSessionService.cs](../../../src/Merchello.Core/Checkout/Services/CheckoutSessionService.cs)
+Source: [CheckoutSession.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Models/CheckoutSession.cs), [CheckoutSessionService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/CheckoutSessionService.cs)
 
 ## What the Session Stores
 

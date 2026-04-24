@@ -2,7 +2,7 @@
 
 Merchello can send HTTP webhooks to external systems when events happen in your store. When an order is placed, a product is updated, or a shipment ships, Merchello posts a JSON payload to your configured URL. This lets you integrate with ERPs, marketing tools, analytics platforms, or any system that can receive HTTP requests.
 
-Webhooks are driven by the same [notification pipeline](../notifications/notification-system.md) as the [email system](../email/email-overview.md). The [`WebhookNotificationHandler`](../../../src/Merchello.Core/Webhooks/Handlers/WebhookNotificationHandler.cs) runs at priority **2200** and queues an `OutboundDelivery` row for each active subscription whose topic and filter match.
+Webhooks are driven by the same [notification pipeline](../notifications/notification-system.md) as the [email system](../email/email-overview.md). The [`WebhookNotificationHandler`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Webhooks/Handlers/WebhookNotificationHandler.cs) runs at priority **2200** and queues an `OutboundDelivery` row for each active subscription whose topic and filter match.
 
 ```
 Notification -> WebhookNotificationHandler (2200) -> IWebhookService.QueueDeliveryAsync
@@ -14,7 +14,7 @@ Notification -> WebhookNotificationHandler (2200) -> IWebhookService.QueueDelive
 
 ## Key Features
 
-- **36 event topics** across 11 categories (see [WebhookTopicRegistry.cs](../../../src/Merchello.Core/Webhooks/Services/WebhookTopicRegistry.cs))
+- **36 event topics** across 11 categories (see [WebhookTopicRegistry.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Webhooks/Services/WebhookTopicRegistry.cs))
 - **HMAC-SHA256 / SHA512 signing** for payload verification
 - **Multiple auth types** (HMAC, Bearer Token, API Key, Basic Auth, None)
 - **Automatic retry** with configurable backoff and stale-send recovery
@@ -107,7 +107,7 @@ Webhooks are organized by category. Here are all the available topics:
 | `fulfilment.inventory_updated` | Inventory synced from 3PL |
 | `fulfilment.product_synced` | Products synced to 3PL |
 
-> **Topic naming:** Keys use dots as category separators and underscores within a word. Always reference the constants in [Constants.cs:WebhookTopics](../../../src/Merchello.Core/Constants.cs#L239) rather than copy/pasting strings.
+> **Topic naming:** Keys use dots as category separators and underscores within a word. Always reference the constants in [Constants.cs:WebhookTopics](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Constants.cs#L239) rather than copy/pasting strings.
 
 ## Creating a Webhook Subscription
 
@@ -152,7 +152,7 @@ POST /api/v1/webhooks
 
 ### HMAC Signing
 
-When you create a subscription with HMAC auth, Merchello generates a secret key. Each webhook delivery includes a signature header computed from the UTF-8 bytes of the raw request body, Base64-encoded (see [WebhookDispatcher.AddSignature](../../../src/Merchello.Core/Webhooks/Services/WebhookDispatcher.cs#L236)):
+When you create a subscription with HMAC auth, Merchello generates a secret key. Each webhook delivery includes a signature header computed from the UTF-8 bytes of the raw request body, Base64-encoded (see [WebhookDispatcher.AddSignature](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Webhooks/Services/WebhookDispatcher.cs#L236)):
 
 ```
 X-Merchello-Hmac-SHA256: {base64-encoded-signature}
@@ -187,7 +187,7 @@ POST /api/v1/webhooks/{id}/regenerate-secret
 
 ## Delivery and Retries
 
-Webhooks are delivered asynchronously through the [`OutboundDeliveryJob`](../../../src/Merchello.Core/Webhooks/Services/OutboundDeliveryJob.cs) background service, which also processes [email](../email/email-overview.md) deliveries. This means:
+Webhooks are delivered asynchronously through the [`OutboundDeliveryJob`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Webhooks/Services/OutboundDeliveryJob.cs) background service, which also processes [email](../email/email-overview.md) deliveries. This means:
 
 - Webhook dispatch never blocks the main operation
 - Failed deliveries are automatically retried
@@ -207,7 +207,7 @@ Webhooks are delivered asynchronously through the [`OutboundDeliveryJob`](../../
 
 ### Retry Policy
 
-Configurable via [`WebhookSettings`](../../../src/Merchello.Core/Webhooks/Models/WebhookSettings.cs) (binds from `Merchello:Webhooks`):
+Configurable via [`WebhookSettings`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Webhooks/Models/WebhookSettings.cs) (binds from `Merchello:Webhooks`):
 
 ```json
 {
@@ -276,7 +276,7 @@ Returns aggregate statistics for webhook deliveries: success count, failure coun
 
 ## URL Security
 
-Webhook target URLs are validated before delivery by [`UrlSecurityValidator.TryValidatePublicHttpUrl`](../../../src/Merchello.Core/Shared/Security/UrlSecurityValidator.cs). Enforced rules:
+Webhook target URLs are validated before delivery by [`UrlSecurityValidator.TryValidatePublicHttpUrl`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shared/Security/UrlSecurityValidator.cs). Enforced rules:
 - Must be a valid HTTP/HTTPS URL
 - Private/internal IP addresses are blocked (SSRF protection)
 - The URL validation runs on every delivery attempt, not just at subscription creation
@@ -284,7 +284,7 @@ Webhook target URLs are validated before delivery by [`UrlSecurityValidator.TryV
 
 ## Backoffice API Summary
 
-Source: [WebhooksApiController.cs](../../../src/Merchello/Controllers/WebhooksApiController.cs).
+Source: [WebhooksApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/WebhooksApiController.cs).
 
 | Endpoint | Method | Description |
 |---|---|---|

@@ -6,7 +6,7 @@ Customer authentication during checkout -- how Merchello handles email checks, s
 
 **Why it exists:** Standard ecommerce flows need all three of guest / sign-in / sign-up from one screen, plus a password-reset path that doesn't dump users back to a generic Umbraco login page. Merchello keeps these inside the checkout UI so conversion isn't broken by authentication detours.
 
-Source: [ICheckoutMemberService.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutMemberService.cs), [CheckoutApiController.cs](../../../src/Merchello/Controllers/CheckoutApiController.cs), [CheckoutPasswordResetController.cs](../../../src/Merchello/Controllers/CheckoutPasswordResetController.cs).
+Source: [ICheckoutMemberService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutMemberService.cs), [CheckoutApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutApiController.cs), [CheckoutPasswordResetController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutPasswordResetController.cs).
 
 ## Overview
 

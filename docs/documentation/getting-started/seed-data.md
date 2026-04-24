@@ -6,7 +6,7 @@ Merchello includes a comprehensive seed data system that populates your store wi
 
 Seed data is a set of sample products, warehouses, suppliers, customers, invoices, discounts, and more that gets installed into your Merchello store. It uses the same services your application code uses (no direct `DbContext` access), so it also serves as a battle test of the entire order flow.
 
-Source: [src/Merchello.Core/Data/Seeding/DbSeeder.cs](../../../src/Merchello.Core/Data/Seeding/DbSeeder.cs). The seeder is registered as a scoped service in [Startup.cs](../../../src/Merchello/Startup.cs) and is invoked from the backoffice install action -- not from `AddMerchello()` or any startup handler.
+Source: [src/Merchello.Core/Data/Seeding/DbSeeder.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Data/Seeding/DbSeeder.cs). The seeder is registered as a scoped service in [Startup.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Startup.cs) and is invoked from the backoffice install action -- not from `AddMerchello()` or any startup handler.
 
 ## How to Install
 

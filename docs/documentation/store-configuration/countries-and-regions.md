@@ -4,7 +4,7 @@ Merchello includes a built-in locality data system that provides country and reg
 
 ## How Locality Data Works
 
-Locality data in Merchello comes from a static, auto-generated dataset based on [country-region-data](https://github.com/country-regions/country-region-data). The data lives in [LocalityData.cs](../../../src/Merchello.Core/Locality/Data/LocalityData.cs) and includes:
+Locality data in Merchello comes from a static, auto-generated dataset based on [country-region-data](https://github.com/country-regions/country-region-data). The data lives in [LocalityData.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Locality/Data/LocalityData.cs) and includes:
 
 - **All countries** from .NET's `CultureInfo` plus additional territories (Guernsey, Isle of Man, Jersey)
 - **Subdivisions** (states, provinces, regions) for each country using ISO 3166-2 suffix codes
@@ -42,12 +42,12 @@ public class CountyState
 
 These are lightweight read-only records returned by the locality catalog:
 
-- `CountryInfo(string Code, string Name)` -- e.g., `("US", "United States")`. See [CountryInfo.cs](../../../src/Merchello.Core/Locality/Models/CountryInfo.cs).
-- `SubdivisionInfo(string CountryCode, string RegionCode, string Name)` -- e.g., `("US", "CA", "California")`. See [SubdivisionInfo.cs](../../../src/Merchello.Core/Locality/Models/SubdivisionInfo.cs).
+- `CountryInfo(string Code, string Name)` -- e.g., `("US", "United States")`. See [CountryInfo.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Locality/Models/CountryInfo.cs).
+- `SubdivisionInfo(string CountryCode, string RegionCode, string Name)` -- e.g., `("US", "CA", "California")`. See [SubdivisionInfo.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Locality/Models/SubdivisionInfo.cs).
 
 ## The Locality Catalog
 
-The `ILocalityCatalog` service provides access to the locality data. It is the main entry point for querying countries and regions. See [ILocalityCatalog.cs](../../../src/Merchello.Core/Locality/Services/Interfaces/ILocalityCatalog.cs).
+The `ILocalityCatalog` service provides access to the locality data. It is the main entry point for querying countries and regions. See [ILocalityCatalog.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Locality/Services/Interfaces/ILocalityCatalog.cs).
 
 ### Getting All Countries
 
@@ -123,7 +123,7 @@ Shipping costs can be configured at different geographic levels with a priority 
 
 Merchello uses a consistent `Address` model across all address contexts (warehouse origin, supplier contact, customer billing/shipping):
 
-The model is an EF Core owned type, meaning it is stored as columns on the parent entity's table rather than in its own table. See [Address.cs](../../../src/Merchello.Core/Locality/Models/Address.cs) and the API contract in [AddressDto.cs](../../../src/Merchello.Core/Locality/Dtos/AddressDto.cs).
+The model is an EF Core owned type, meaning it is stored as columns on the parent entity's table rather than in its own table. See [Address.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Locality/Models/Address.cs) and the API contract in [AddressDto.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Locality/Dtos/AddressDto.cs).
 
 > **Warning:** When working with addresses across the C#/TypeScript boundary, use the canonical field names defined in the project conventions: `AddressOne` (not `address1`), `TownCity` (not `city`), `CountyState` (not `state`), `RegionCode` (not `stateCode`). This is a cross-boundary invariant -- see the CLAUDE.md naming conventions for the full list.
 

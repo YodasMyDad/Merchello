@@ -159,12 +159,12 @@ Merchello includes several built-in resolvers you can use as reference:
 
 | Resolver | Alias | Description | Location |
 |---|---|---|---|
-| On Sale | `on-sale` | Returns "true" when sale pricing is active | [ProductFeedOnSaleResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedOnSaleResolver.cs) |
-| Stock Status | `stock-status` | Returns availability based on stock levels | [ProductFeedStockStatusResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedStockStatusResolver.cs) |
-| Product Type | `product-type` | Returns the Google product type | [ProductFeedProductTypeResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedProductTypeResolver.cs) |
-| Collections | `collections` | Returns collection membership | [ProductFeedCollectionsResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedCollectionsResolver.cs) |
-| Supplier | `supplier` | Returns supplier information | [ProductFeedSupplierResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedSupplierResolver.cs) |
-| Native Commerce | `native-commerce` | Composite resolver for OpenAI / native-commerce feed extras | [ProductFeedNativeCommerceResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedNativeCommerceResolver.cs) |
+| On Sale | `on-sale` | Returns "true" when sale pricing is active | [ProductFeedOnSaleResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/ProductFeedOnSaleResolver.cs) |
+| Stock Status | `stock-status` | Returns availability based on stock levels | [ProductFeedStockStatusResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/ProductFeedStockStatusResolver.cs) |
+| Product Type | `product-type` | Returns the Google product type | [ProductFeedProductTypeResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/ProductFeedProductTypeResolver.cs) |
+| Collections | `collections` | Returns collection membership | [ProductFeedCollectionsResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/ProductFeedCollectionsResolver.cs) |
+| Supplier | `supplier` | Returns supplier information | [ProductFeedSupplierResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/ProductFeedSupplierResolver.cs) |
+| Native Commerce | `native-commerce` | Composite resolver for OpenAI / native-commerce feed extras | [ProductFeedNativeCommerceResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/ProductFeedNativeCommerceResolver.cs) |
 
 ## Example: On Sale Resolver (Built-in)
 
@@ -217,4 +217,4 @@ The backoffice uses this registry to show available resolvers in the feed config
 - **Resolver aliases must be unique** across all discovered assemblies.
 - **Don't use `Task.WhenAll`** around database-touching work inside a resolver. Umbraco's `EFCoreScope` uses `AsyncLocal` ambient state and concurrent DB calls corrupt it.
 
-Interface: [IProductFeedValueResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/Interfaces/IProductFeedValueResolver.cs). Context: [ProductFeedResolverContext.cs](../../../src/Merchello.Core/ProductFeeds/Models/ProductFeedResolverContext.cs).
+Interface: [IProductFeedValueResolver.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Services/Interfaces/IProductFeedValueResolver.cs). Context: [ProductFeedResolverContext.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/ProductFeeds/Models/ProductFeedResolverContext.cs).

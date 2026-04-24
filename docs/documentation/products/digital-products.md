@@ -6,7 +6,7 @@ Digital products let you sell downloadable items like software, ebooks, music, o
 
 ## How Digital Products Work
 
-A digital product is a regular product root with `IsDigitalProduct = true`. All digital-specific settings are stored in `ProductRoot.ExtendedData` using constant keys accessed via [ProductRootDigitalExtensions.cs](../../../src/Merchello.Core/DigitalProducts/Extensions/ProductRootDigitalExtensions.cs) -- there are no extra database columns. Service contract: [IDigitalProductService.cs](../../../src/Merchello.Core/DigitalProducts/Services/Interfaces/IDigitalProductService.cs).
+A digital product is a regular product root with `IsDigitalProduct = true`. All digital-specific settings are stored in `ProductRoot.ExtendedData` using constant keys accessed via [ProductRootDigitalExtensions.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/DigitalProducts/Extensions/ProductRootDigitalExtensions.cs) -- there are no extra database columns. Service contract: [IDigitalProductService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/DigitalProducts/Services/Interfaces/IDigitalProductService.cs).
 
 ### Key Constraints
 

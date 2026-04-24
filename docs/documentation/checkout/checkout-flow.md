@@ -10,12 +10,12 @@ Merchello provides a built-in, Shopify-style checkout experience. It is a consis
 
 | Layer | Responsibility | Source |
 |-------|----------------|--------|
-| `CheckoutContentFinder` | Resolves `/checkout/*` URLs into a virtual page | [CheckoutContentFinder.cs](../../../src/Merchello/Routing/CheckoutContentFinder.cs) |
-| `MerchelloCheckoutController` | Razor-hijacked controller that renders each step | [MerchelloCheckoutController.cs](../../../src/Merchello/Controllers/MerchelloCheckoutController.cs) |
-| `CheckoutApiController` | Public AJAX surface at `/api/merchello/checkout` | [CheckoutApiController.cs](../../../src/Merchello/Controllers/CheckoutApiController.cs) |
-| `CheckoutPaymentsApiController` | Payment/express-checkout endpoints on the same base path | [CheckoutPaymentsApiController.cs](../../../src/Merchello/Controllers/CheckoutPaymentsApiController.cs) |
-| `ICheckoutService` | Business logic: basket math, order grouping, address/shipping saves | [ICheckoutService.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs) |
-| `ICheckoutSessionService` | Per-basket session state (step, addresses, shipping selections, invoice id) | [ICheckoutSessionService.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutSessionService.cs) |
+| `CheckoutContentFinder` | Resolves `/checkout/*` URLs into a virtual page | [CheckoutContentFinder.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Routing/CheckoutContentFinder.cs) |
+| `MerchelloCheckoutController` | Razor-hijacked controller that renders each step | [MerchelloCheckoutController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/MerchelloCheckoutController.cs) |
+| `CheckoutApiController` | Public AJAX surface at `/api/merchello/checkout` | [CheckoutApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutApiController.cs) |
+| `CheckoutPaymentsApiController` | Payment/express-checkout endpoints on the same base path | [CheckoutPaymentsApiController.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/CheckoutPaymentsApiController.cs) |
+| `ICheckoutService` | Business logic: basket math, order grouping, address/shipping saves | [ICheckoutService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs) |
+| `ICheckoutSessionService` | Per-basket session state (step, addresses, shipping selections, invoice id) | [ICheckoutSessionService.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutSessionService.cs) |
 
 > **Invariant:** Controllers never touch `DbContext`. All persistence and calculation flows through services. Basket totals are always computed by `CheckoutService.CalculateBasketAsync()` — never in views, controllers, or JS.
 

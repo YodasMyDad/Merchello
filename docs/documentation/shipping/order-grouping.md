@@ -4,7 +4,7 @@ When a customer checks out, Merchello needs to figure out *how* to split their b
 
 ## How It Works
 
-During checkout, [`IShippingService.GetShippingOptionsForBasket()`](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs) is called. Internally this builds an `OrderGroupingContext` and passes it to the active [`IOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/Interfaces/IOrderGroupingStrategy.cs). The strategy returns an `OrderGroupingResult` containing the groups, available shipping options per group, and any errors.
+During checkout, [`IShippingService.GetShippingOptionsForBasket()`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs) is called. Internally this builds an `OrderGroupingContext` and passes it to the active [`IOrderGroupingStrategy`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Strategies/Interfaces/IOrderGroupingStrategy.cs). The strategy returns an `OrderGroupingResult` containing the groups, available shipping options per group, and any errors.
 
 > **Invariant (CLAUDE.md):** `GetShippingOptionsForBasket()` is the basket-level entry point -- it uses the active grouping strategy internally. Do not call grouping strategies from controllers.
 
@@ -26,7 +26,7 @@ Each `OrderGroup` contains:
 
 ## The Default Strategy: Warehouse Grouping
 
-Out of the box, Merchello uses [`DefaultOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs) (key: `"default-warehouse"`). It groups items by warehouse based on stock availability and shipping region.
+Out of the box, Merchello uses [`DefaultOrderGroupingStrategy`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Checkout/Strategies/DefaultOrderGroupingStrategy.cs) (key: `"default-warehouse"`). It groups items by warehouse based on stock availability and shipping region.
 
 ### What it does step by step
 

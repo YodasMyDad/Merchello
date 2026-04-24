@@ -1,6 +1,6 @@
 # Orders and Invoices Overview
 
-Merchello uses a three-level hierarchy for commerce transactions: **Invoices** contain **Orders**, and Orders contain **Shipments**. The invoice is the financial contract; orders are fulfilment units; shipments are packages. Full domain model: [`Invoice.cs`](../../../src/Merchello.Core/Accounting/Models/Invoice.cs), [`OrderStatus.cs`](../../../src/Merchello.Core/Accounting/Models/OrderStatus.cs). See [Architecture Diagrams §2.4](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) for the full service catalog.
+Merchello uses a three-level hierarchy for commerce transactions: **Invoices** contain **Orders**, and Orders contain **Shipments**. The invoice is the financial contract; orders are fulfilment units; shipments are packages. Full domain model: [`Invoice.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Models/Invoice.cs), [`OrderStatus.cs`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Models/OrderStatus.cs). See [Architecture Diagrams §2.4](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) for the full service catalog.
 
 ## The Hierarchy
 
@@ -115,11 +115,11 @@ Line items represent individual products or charges on an order:
 
 ## Invoice Source Tracking (Invariant)
 
-The [`Invoice.Source`](../../../src/Merchello.Core/Accounting/Models/InvoiceSource.cs) property tracks where and how an invoice was created — essential for analytics and auditing. **Preserve these semantics in every invoice-creating flow.** See [Architecture Diagrams §2.4](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) for the full source-type catalog.
+The [`Invoice.Source`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Models/InvoiceSource.cs) property tracks where and how an invoice was created — essential for analytics and auditing. **Preserve these semantics in every invoice-creating flow.** See [Architecture Diagrams §2.4](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) for the full source-type catalog.
 
 | Property | Description |
 |----------|-------------|
-| `Type` | Well-known values from [`Constants.InvoiceSources`](../../../src/Merchello.Core/Constants.cs): `"web"`, `"ucp"`, `"api"`, `"pos"`, `"draft"` (alias `"manual"`), `"mobile"`, `"import"`, `"other"` |
+| `Type` | Well-known values from [`Constants.InvoiceSources`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Constants.cs): `"web"`, `"ucp"`, `"api"`, `"pos"`, `"draft"` (alias `"manual"`), `"mobile"`, `"import"`, `"other"` |
 | `DisplayName` | Human-readable name (e.g., "Online Store", "Point of Sale") |
 | `SourceId` | Unique identifier for the source instance (agent ID, API key ID, terminal ID) |
 | `SourceName` | Label for the source instance |
@@ -139,7 +139,7 @@ await invoiceService.QueryInvoices(new InvoiceQueryParameters { SourceType = Con
 
 ## Querying Orders
 
-Use [`IInvoiceService.QueryInvoices`](../../../src/Merchello.Core/Accounting/Services/Interfaces/IInvoiceService.cs) for paged, filterable queries:
+Use [`IInvoiceService.QueryInvoices`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Services/Interfaces/IInvoiceService.cs) for paged, filterable queries:
 
 ```csharp
 var result = await invoiceService.QueryInvoices(new InvoiceQueryParameters

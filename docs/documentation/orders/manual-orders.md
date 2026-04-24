@@ -14,7 +14,7 @@ Not every order comes through the website checkout. Sometimes you need to create
 
 ## Creating a Manual Order
 
-The backoffice "New order" flow posts [`CreateManualOrderDto`](../../../src/Merchello.Core/Accounting/Dtos/CreateManualOrderDto.cs) to `POST /umbraco/api/v1/orders/manual` — handled by [`OrdersApiController`](../../../src/Merchello/Controllers/OrdersApiController.cs) which calls `invoiceService.CreateManualOrderAsync`:
+The backoffice "New order" flow posts [`CreateManualOrderDto`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Accounting/Dtos/CreateManualOrderDto.cs) to `POST /umbraco/api/v1/orders/manual` — handled by [`OrdersApiController`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/OrdersApiController.cs) which calls `invoiceService.CreateManualOrderAsync`:
 
 ```json
 POST /umbraco/api/v1/orders/manual
@@ -82,7 +82,7 @@ Manual orders are created as drafts (unpaid). They progress through the same ord
 
 ## Batch Mark-as-Paid
 
-For B2B scenarios where customers pay on account, you can mark multiple invoices as paid in one call. Handled by [`OrdersApiController.BatchMarkAsPaid`](../../../src/Merchello/Controllers/OrdersApiController.cs) → `IPaymentService.BatchMarkAsPaidAsync`:
+For B2B scenarios where customers pay on account, you can mark multiple invoices as paid in one call. Handled by [`OrdersApiController.BatchMarkAsPaid`](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello/Controllers/OrdersApiController.cs) → `IPaymentService.BatchMarkAsPaidAsync`:
 
 ```http
 POST /umbraco/api/v1/orders/batch-mark-paid
@@ -102,7 +102,7 @@ The service creates one payment per invoice for that invoice's outstanding balan
 
 ## Line Items for Manual Orders
 
-Once a draft is created, add products and custom items through the [invoice edit API](invoice-editing.md). Under the hood line items are created via [`InvoiceFactory`](../../../src/Merchello.Core/Accounting/Factories/) / [`LineItemFactory`](../../../src/Merchello.Core/Accounting/Factories/) — **never `new LineItem {}` directly in controllers** (see [CLAUDE.md Layering Rules](../../../.claude/CLAUDE.md)).
+Once a draft is created, add products and custom items through the [invoice edit API](invoice-editing.md). Under the hood line items are created via [`InvoiceFactory`](https://github.com/YodasMyDad/Merchello/tree/main/src/Merchello.Core/Accounting/Factories) / [`LineItemFactory`](https://github.com/YodasMyDad/Merchello/tree/main/src/Merchello.Core/Accounting/Factories) — **never `new LineItem {}` directly in controllers** (see [CLAUDE.md Layering Rules](https://github.com/YodasMyDad/Merchello/blob/main/.claude/claude.md)).
 
 > **Warning:** Custom line items must set `TaxGroupId` to be taxed correctly. Tax providers select rates by `TaxGroupId`; without it the item is treated as non-taxable.
 

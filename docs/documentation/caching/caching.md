@@ -114,7 +114,7 @@ This means you do not need to manually handle distributed invalidation -- just u
 
 ## Common Cache Key Prefixes
 
-Merchello's canonical cache key/tag constants live in `Merchello.Core/Constants.cs` under `CacheKeys` and `CacheTags` (see [Constants.cs](../../../src/Merchello.Core/Constants.cs)). Services that own their own cache also define local constants. Current prefixes in use:
+Merchello's canonical cache key/tag constants live in `Merchello.Core/Constants.cs` under `CacheKeys` and `CacheTags` (see [Constants.cs](https://github.com/YodasMyDad/Merchello/blob/main/src/Merchello.Core/Constants.cs)). Services that own their own cache also define local constants. Current prefixes in use:
 
 | Prefix / Key | Used For | Source |
 |---|---|---|
