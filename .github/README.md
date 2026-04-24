@@ -5,8 +5,6 @@
 
 **Enterprise ecommerce for Umbraco v17+.** a full-featured online store with an optional integrated Shopify-style checkout, backoffice management UI, and a pluggable provider architecture.
 
-> **Status:** Beta - actively developed, contributions and feedback welcome.
-
 I will try and keep breaking changes minimal, but be aware that until this is out of Beta, there could be breaking changes.
 
 ## Example Starter Site
