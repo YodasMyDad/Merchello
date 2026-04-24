@@ -6,41 +6,47 @@ Merchello is an enterprise ecommerce package for Umbraco v17+. This guide walks 
 
 Before you begin, make sure you have:
 
-- **.NET 9+** installed
-- **Umbraco v17+** (Merchello is built specifically for this version)
+- **.NET 10 SDK** installed (Merchello targets `net10.0`; see [Merchello.csproj](../../../src/Merchello/Merchello.csproj))
+- **Umbraco v17+** (Merchello is built specifically for this major version)
 - A code editor (Visual Studio, VS Code, Rider, etc.)
+
+## Which Version?
+
+Merchello is in public beta. The current package versions are visible on [nuget.org](https://www.nuget.org/packages/Umbraco.Community.Merchello) and the [GitHub releases page](https://github.com/YodasMyDad/Merchello/releases). Replace `<version>` in the commands below (for example `1.0.0-beta.7`). The starter template and the main package are always released together on matching versions.
 
 ## Option 1: .NET Template (Recommended for New Projects)
 
-The fastest way to get started is with the Merchello starter site template. This gives you a fully working example store with products, categories, basket, and checkout already wired up.
+The fastest way to get started is with the Merchello starter site template. This gives you a working example store with products, categories, basket, and checkout already wired up. The template mirrors the in-repo example at [src/Merchello.Site](../../../src/Merchello.Site) (see [the prepare-starter-template script](../../../scripts/prepare-starter-template.ps1) for how it is produced) with Merchello referenced as a NuGet package instead of a project reference.
 
 ```bash
-# Install the template
-dotnet new install Umbraco.Community.Merchello.StarterSite@1.0.0-beta.4
+# Install the template (once per machine)
+dotnet new install Umbraco.Community.Merchello.StarterSite::<version>
 
-# Create your project
+# Scaffold your project
 dotnet new merchello-starter -n MyStore
 ```
 
-This creates a project named `MyStore.Web` (the `.Web` suffix is added automatically). If you want a different project name, use the `--projectName` flag:
+This creates a project named `MyStore.Web` (the `.Web` suffix is added automatically by the template, defined in [.template.config/template.json](../../../src/Merchello.Site/.template.config/template.json)). If you want a different project name, use the `--projectName` flag:
 
 ```bash
 dotnet new merchello-starter -n MyStore --projectName MyCustomProjectName
 ```
 
-> **Tip:** The starter site comes with everything pre-configured. After running the template, just start the application, install Umbraco, and you are ready to go. Watch the [setup video](https://www.youtube.com/watch?v=jRSXaJpZekE) for a walkthrough including uSync content import.
+The template ships with uSync content pre-exported under `uSync/v17/` so first-run imports sample pages (homepage, categories, basket) automatically. See the [Starter Site Walkthrough](./starter-site-walkthrough.md) for a tour of what you get.
+
+> **Tip:** After scaffolding, just start the application, complete the Umbraco install wizard, then log in and run uSync to import the sample content. Watch the [setup video](https://www.youtube.com/watch?v=jRSXaJpZekE) for an end-to-end walkthrough.
 
 ## Option 2: NuGet Package (Existing Project)
 
 If you already have an Umbraco v17+ site and want to add Merchello to it, install the NuGet package directly:
 
 ```bash
-dotnet add package Umbraco.Community.Merchello --version 1.0.0-beta.4
+dotnet add package Umbraco.Community.Merchello --version <version>
 ```
 
 ### Register Merchello in Program.cs
 
-After installing the package, you need to add Merchello to the Umbraco builder pipeline. Open your `Program.cs` and add `.AddMerchello()`:
+After installing the package, you need to add Merchello to the Umbraco builder pipeline. Open your `Program.cs` and add `.AddMerchello()`. This mirrors exactly what the starter site does in [Program.cs](../../../src/Merchello.Site/Program.cs):
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -71,7 +77,9 @@ app.UseUmbraco()
 await app.RunAsync();
 ```
 
-That single `.AddMerchello()` call registers all Merchello services, controllers, background jobs, and middleware. No other startup code is needed.
+The `AddMerchello()` extension registers every Merchello service, factory, background job, notification handler, email/webhook handler, content finder, and SignalR hub in one call. See [Startup.cs](../../../src/Merchello/Startup.cs) for the full registration list. You do not need to wire up middleware manually -- Merchello installs itself via an `IStartupFilter` and an `UmbracoPipelineFilter` internally.
+
+> **Note:** Merchello shares Umbraco's database. It registers its own `MerchelloDbContext` against Umbraco's configured database provider (SQLite or SQL Server) -- you do not need a separate connection string.
 
 ### Configure appsettings.json
 
@@ -88,12 +96,12 @@ Add a `Merchello` section to your `appsettings.json` with at least these core se
 ```
 
 | Setting | Description |
-|---------|-------------|
-| `InstallSeedData` | When `true`, enables the seed data installer in the backoffice. Set to `false` if you do not want sample products. |
-| `StoreCurrencyCode` | ISO 4217 currency code for your store (e.g., `"GBP"`, `"EUR"`, `"USD"`). This is the base currency for all transactions. |
-| `DefaultShippingCountry` | ISO 3166-1 alpha-2 country code (e.g., `"GB"`, `"US"`). Used as the default when no customer preference is set. |
+| --- | --- |
+| `InstallSeedData` | When `true`, exposes the seed data installer panel in the backoffice. Set to `false` if you do not want sample products. |
+| `StoreCurrencyCode` | ISO 4217 currency code for your store (e.g. `"GBP"`, `"EUR"`, `"USD"`). This is the base currency for all stored amounts -- see the multi-currency invariants in [Multi-Currency Overview](../multi-currency/multi-currency-overview.md). |
+| `DefaultShippingCountry` | ISO 3166-1 alpha-2 country code (e.g. `"GB"`, `"US"`). Used as the default when no customer preference is set. |
 
-> **Note:** Change these values to match your store before the first startup. The `StoreCurrencyCode` becomes the base currency for all pricing and transactions.
+> **Invariant:** `StoreCurrencyCode` is the store currency. Basket amounts are stored in this currency and never change when a customer views prices in a different display currency. Display conversion is calculated on-the-fly; checkout and payment always use the stored value. Changing `StoreCurrencyCode` after go-live is not supported.
 
 For a full list of every configuration option, see the [Configuration Reference](./configuration-reference.md).
 
@@ -123,15 +131,30 @@ See the [Seed Data](./seed-data.md) guide for details on exactly what gets creat
 
 When Merchello starts for the first time, it automatically:
 
-1. **Runs database migrations** -- creates all the Merchello tables in your Umbraco database
-2. **Installs essential data types** -- these are always installed regardless of the `InstallSeedData` setting
-3. **Registers product routing** -- if `EnableProductRendering` is `true` (the default), products can be accessed at root-level URLs without Umbraco content nodes
-4. **Registers checkout routing** -- if `EnableCheckout` is `true` (the default), the integrated checkout is available at `/checkout`
-5. **Starts background jobs** -- exchange rate syncing, abandoned cart detection, webhook delivery, and more
+1. **Runs database migrations** -- `RunMerchMigration` (wired in [Startup.cs](../../../src/Merchello/Startup.cs)) applies EF Core migrations and creates every Merchello table alongside your Umbraco tables.
+2. **Ensures built-in payment providers** -- the Manual Payment provider is created and enabled so you can process test orders without configuring a gateway.
+3. **Installs essential data types** -- the product description TipTap rich text editor is registered. This runs regardless of `InstallSeedData`.
+4. **Registers product routing** -- if `EnableProductRendering` is `true` (the default), `ProductContentFinder` resolves product root URLs directly without an Umbraco content node.
+5. **Registers checkout routing** -- if `EnableCheckout` is `true` (the default), `CheckoutContentFinder` serves the integrated checkout at `/checkout`.
+6. **Starts background jobs** -- exchange rate refresh, abandoned cart detection, outbound delivery (emails/webhooks), fulfilment polling, UCP signing key rotation, product sync worker, and more. See [Background Jobs](../background-jobs/background-jobs.md) for the full list.
+
+## First 15 Minutes (Starter Template Flow)
+
+After `dotnet new merchello-starter`:
+
+1. Run the site (`dotnet run`) and complete the Umbraco install wizard.
+2. Log into the backoffice and enable the **Merchello** section on your user group (see above).
+3. Open the **uSync** dashboard and run an import to load the sample content tree (homepage, categories, basket page, product listing templates).
+4. Open the **Merchello** section and click the root node. If `InstallSeedData` is `true`, click **Install Seed Data** to populate products, warehouses, customers, and sample invoices.
+5. Browse the storefront -- homepage shows the seeded best sellers, category pages list products with filters, and any product URL (e.g. `/mesh-office-chair`) renders via `ProductContentFinder`.
+6. Add a product to the basket, then visit `/checkout` to see the integrated Shopify-style checkout using the Manual Payment provider.
+
+See [Starter Site Walkthrough](./starter-site-walkthrough.md) for a file-by-file tour of what each page does.
 
 ## Next Steps
 
+- [Starter Site Walkthrough](./starter-site-walkthrough.md) -- explore the example store page by page
 - [Project Structure](./project-structure.md) -- understand how Merchello is organized
-- [Starter Site Walkthrough](./starter-site-walkthrough.md) -- explore the example store
-- [Configuration Reference](./configuration-reference.md) -- all available settings
-- [Store Settings](../store-configuration/store-settings.md) -- configure your store identity and currency
+- [Seed Data](./seed-data.md) -- what the seeder creates and why
+- [Configuration Reference](./configuration-reference.md) -- every available setting with defaults
+- [Store Settings](../store-configuration/store-settings.md) -- backoffice-managed store identity and contact details

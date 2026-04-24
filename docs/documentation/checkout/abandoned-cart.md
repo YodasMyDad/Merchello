@@ -2,6 +2,12 @@
 
 Industry data shows 60-80% of shopping carts are abandoned. Merchello's abandoned cart recovery system helps you reclaim 5-15% of that lost revenue through automatic detection, recovery emails, and restoration links.
 
+**What it is:** An opt-in system that snapshots in-flight checkouts, detects abandonment after an inactivity threshold, sends up to three recovery emails on a configurable schedule, and restores the basket when the customer clicks a recovery link.
+
+**Why you use it:** You do not have to write any tracking code — the existing checkout services update abandoned-checkout records automatically. You enable it by registering `IAbandonedCheckoutService` (configured in `Startup.cs`) and configuring the recovery email topics.
+
+Source: [AbandonedCheckoutDetectionJob.cs](../../../src/Merchello.Core/Checkout/Services/AbandonedCheckoutDetectionJob.cs), [AbandonedCheckoutSettings.cs](../../../src/Merchello.Core/Checkout/AbandonedCheckoutSettings.cs), [CheckoutAbandonedNotificationBase.cs](../../../src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotificationBase.cs).
+
 ## How It Works
 
 Abandoned cart tracking is built into the checkout -- no extra code required. The system automatically tracks activity through existing checkout operations:
@@ -46,7 +52,7 @@ Each abandoned checkout moves through these states:
 
 ## Configuration
 
-Configure abandoned cart behavior in `appsettings.json`:
+Configure abandoned cart behavior in `appsettings.json`. Both key paths are bound in `Startup.cs` so either works, with `Merchello:Checkout:AbandonedCart` taking precedence when both are present:
 
 ```json
 {
@@ -156,19 +162,21 @@ Subscribe to webhook topics to trigger external platforms (Klaviyo, Mailchimp, e
 
 ## Notification Properties
 
-All recovery email notifications include:
+All recovery email notifications inherit from [`CheckoutAbandonedNotificationBase`](../../../src/Merchello.Core/Notifications/CheckoutNotifications/CheckoutAbandonedNotificationBase.cs):
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `AbandonedCheckoutId` | `Guid` | ID of the abandoned checkout |
-| `BasketId` | `Guid` | ID of the abandoned basket |
+| `AbandonedCheckoutId` | `Guid` | ID of the abandoned checkout record |
+| `BasketId` | `Guid?` | ID of the abandoned basket |
 | `CustomerEmail` | `string?` | Customer's email address |
 | `CustomerName` | `string?` | Customer's name |
-| `BasketTotal` | `decimal` | Total value of the abandoned basket |
+| `BasketTotal` | `decimal` | Total value of the abandoned basket (in basket currency) |
 | `CurrencyCode` | `string?` | Currency code (e.g., "USD") |
-| `FormattedTotal` | `string` | Formatted total with currency symbol |
+| `CurrencySymbol` | `string?` | Currency symbol (e.g., "$") |
+| `FormattedTotal` | `string` | Pre-formatted total with currency symbol |
 | `RecoveryLink` | `string?` | Link to restore the basket |
 | `EmailSequenceNumber` | `int` | Which email in the sequence (1, 2, or 3) |
+| `ItemCount` | `int` | Number of items in the abandoned basket |
 
 ---
 

@@ -71,7 +71,7 @@ You can also iterate over all properties:
 
 ### MerchelloPublishedElementFactory
 
-When `ProductContentFinder` resolves a product, it checks if the `ProductRoot` has an `ElementTypeAlias`. If so, it uses `MerchelloPublishedElementFactory` to create an `IPublishedElement` from the stored JSON:
+When [`ProductContentFinder`](../../../src/Merchello/Routing/ProductContentFinder.cs) resolves a product, it checks if the `ProductRoot` has an `ElementTypeAlias`. If so, it uses [`MerchelloPublishedElementFactory`](../../../src/Merchello/Factories/MerchelloPublishedElementFactory.cs) to create an `IPublishedElement` from the stored JSON:
 
 ```csharp
 // In ProductContentFinder:

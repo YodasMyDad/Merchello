@@ -26,6 +26,15 @@ Customer enters address
 
 > **Note:** Shipping providers determine **customer-facing rates and options**. They are separate from fulfilment providers, which handle the physical shipment after an order is placed. Don't mix carrier quoting logic into fulfilment services.
 
+### Flat-Rate vs Dynamic Providers
+
+Merchello distinguishes two provider flavors by the `ConfigCapabilities.UsesLiveRates` flag on your `ShippingProviderMetadata`:
+
+- **Flat-rate** (`UsesLiveRates = false`): rates come from the configured `ShippingOption` / `ShippingCost` tables. Selection keys use the `so:{guid}` format. Built-in example: [FlatRateShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs).
+- **Dynamic / live-rate** (`UsesLiveRates = true`): rates are fetched from a carrier API at checkout time. Selection keys use the `dyn:{providerKey}:{serviceCode}` format. The provider **must not** rely on fixed-cost entries. Visibility is gated by provider enablement *and* the owning warehouse's provider config. `ProductRoot.AllowExternalCarrierShipping = false` blocks dynamic options for that product. Built-in examples: [FedExShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs), [UpsShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs).
+
+Both live on the same `ShippingProviderBase`; it's the metadata flag and the source of cost data that differ.
+
 ## Minimal Example
 
 ```csharp
@@ -100,11 +109,20 @@ public override ShippingProviderMetadata Metadata => new()
     SupportsInternational = true,           // Does it ship internationally?
     RequiresFullAddress = false,            // Does it need full address or just country/postal?
     SupportedCountries = null,              // null = all countries, or ["US", "CA", "GB"]
-    RatesIncludeTax = false                 // Are returned rates tax-inclusive? (Unusual)
+    RatesIncludeTax = false,                // Are returned rates tax-inclusive? (Unusual)
+    ConfigCapabilities = new ProviderConfigCapabilities
+    {
+        UsesLiveRates = true,               // true = dynamic provider (carrier API)
+        RequiresGlobalConfig = true,        // true = API credentials configured once globally
+        HasLocationBasedCosts = false,      // true only for flat-rate cost-table providers
+        HasWeightTiers = false              // true only for flat-rate weight-tier providers
+    }
 };
 ```
 
 > **Tip:** Most carrier APIs return **tax-exclusive** rates. Only set `RatesIncludeTax = true` if your carrier is explicitly configured to return gross rates (this is uncommon for B2B APIs).
+
+> **Note:** `ConfigCapabilities.UsesLiveRates` is what actually routes your provider into the dynamic-rate pipeline (`GetRatesForServicesAsync` + `GetRatesForAllServicesAsync`). `SupportsRealTimeRates` is a UI-facing capability flag only.
 
 ### Step 2: Configuration Fields
 
@@ -307,16 +325,22 @@ When customers select a shipping option, the selection is stored as a key:
 - **Flat-rate:** `so:{guid}` (references a ShippingOption record)
 - **Dynamic provider:** `dyn:{providerKey}:{serviceCode}` (e.g., `dyn:fedex:FEDEX_GROUND`)
 
-This contract must remain stable. When processing orders, the selection key is parsed into `ShippingProviderKey`, `ShippingServiceCode`, and `ShippingServiceName` on the order.
+> **Warning:** This contract is load-bearing and must remain stable. The checkout parses selection keys into `Order.ShippingProviderKey`, `Order.ShippingServiceCode`, and `Order.ShippingServiceName`, and honors rates quoted during the session. Emitting a different format (e.g., swapping the separator, lowercasing the service code) will break order creation and shipping rate reconciliation. Make sure `ServiceCode` values returned from `GetRatesAsync()` are stable across requests so selections survive session refreshes.
 
 ## The Markup System
 
 The base class includes `ApplyMarkup()` which applies percentage markups from warehouse configuration to carrier rates. You generally don't need to worry about this -- it's handled automatically by `GetRatesForAllServicesAsync()`.
 
+## Dependency Injection
+
+> **Warning:** Use **constructor injection only**. `ExtensionManager` activates providers via `ActivatorUtilities.CreateInstance`, so setter injection and post-construction configuration hooks are not supported. `ShippingProviderBase` requires `ICurrencyService` through its base constructor -- forward it from your own primary constructor. See [Extension Manager](extension-manager.md).
+
 ## Built-in Providers for Reference
 
 | Provider | Location | Notes |
 |---|---|---|
-| Flat Rate | `Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs` | Configured rates, no API calls |
-| FedEx | `Shipping/Providers/FedEx/FedExShippingProvider.cs` | Live rates from FedEx API |
-| UPS | `Shipping/Providers/UPS/UpsShippingProvider.cs` | Live rates from UPS API |
+| Flat Rate | [FlatRateShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs) | Configured rates, no API calls. `UsesLiveRates = false`. |
+| FedEx | [FedExShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/FedEx/FedExShippingProvider.cs) | Live rates from FedEx API. `UsesLiveRates = true`. |
+| UPS | [UpsShippingProvider.cs](../../../src/Merchello.Core/Shipping/Providers/UPS/UpsShippingProvider.cs) | Live rates from UPS API. `UsesLiveRates = true`. |
+
+Base class: [ShippingProviderBase.cs](../../../src/Merchello.Core/Shipping/Providers/ShippingProviderBase.cs). Metadata: [ShippingProviderMetadata.cs](../../../src/Merchello.Core/Shipping/Providers/ShippingProviderMetadata.cs). Capability flags: [ProviderConfigCapabilities.cs](../../../src/Merchello.Core/Shipping/Providers/ProviderConfigCapabilities.cs).

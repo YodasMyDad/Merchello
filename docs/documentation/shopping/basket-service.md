@@ -1,6 +1,8 @@
 # Basket / Shopping Cart
 
-The basket (shopping cart) is at the heart of the shopping experience. Merchello provides `ICheckoutService` as the main service for basket operations -- adding items, updating quantities, removing items, and calculating totals.
+The basket (shopping cart) is at the heart of the shopping experience. Merchello exposes basket operations on [`ICheckoutService`](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs) -- adding items, updating quantities, removing items, and calculating totals.
+
+> **Invariant:** Basket totals are calculated by `CheckoutService.CalculateBasketAsync()` -- never duplicate that math in controllers, views, or JS. Basket amounts are stored in store currency; display currency is applied on-the-fly. See [Storefront Context](../storefront/storefront-context.md) for the currency rules.
 
 ## Core Concepts
 
@@ -135,7 +137,7 @@ if (hasDigital)
 
 ## MVC Example: The .Site Basket Page
 
-The `.Site` project's `BasketController` shows how to render a basket page with availability data:
+The starter site's [BasketController.cs](../../../src/Merchello.Site/Basket/Controllers/BasketController.cs) (paired with [Basket.cshtml](../../../src/Merchello.Site/Views/Basket.cshtml)) shows how to render a basket page with availability data:
 
 ```csharp
 public async Task<IActionResult> Basket(

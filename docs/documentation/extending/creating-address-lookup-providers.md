@@ -215,8 +215,14 @@ Merchello exposes address lookup functionality through `AddressLookupProvidersAp
 
 You don't need to create any controllers -- your provider is called automatically.
 
+## Dependency Injection
+
+> **Warning:** Use **constructor injection only**. `ExtensionManager` activates address lookup providers via `ActivatorUtilities.CreateInstance`; setter injection and post-construction configuration hooks are not supported. See [Extension Manager](extension-manager.md).
+
 ## Built-in Provider for Reference
 
 | Provider | Location | Notes |
 |---|---|---|
-| getAddress | `AddressLookup/Providers/BuiltIn/GetAddressLookupProvider.cs` | UK address lookup, uses getAddress.io API |
+| getAddress | [GetAddressLookupProvider.cs](../../../src/Merchello.Core/AddressLookup/Providers/BuiltIn/GetAddressLookupProvider.cs) | UK address lookup, uses getAddress.io API |
+
+Base class: [AddressLookupProviderBase.cs](../../../src/Merchello.Core/AddressLookup/Providers/AddressLookupProviderBase.cs). Interface: [IAddressLookupProvider.cs](../../../src/Merchello.Core/AddressLookup/Providers/Interfaces/IAddressLookupProvider.cs).

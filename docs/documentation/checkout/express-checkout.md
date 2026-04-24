@@ -2,6 +2,16 @@
 
 Express checkout lets customers pay with Apple Pay, Google Pay, or PayPal in a single step -- no forms to fill out. The payment provider supplies both the payment authorization and the customer's shipping address, so the entire checkout can be completed with one tap.
 
+**What it is:** A parallel checkout path that skips the information/shipping/payment steps. The wallet (Apple Pay, Google Pay) or SDK (PayPal Buttons, Braintree Drop-in) returns an authorized token plus customer + shipping data, and Merchello creates the order and captures the payment in one server call.
+
+**Why it matters:** Expected on mobile. Express checkout methods live on payment providers that declare `IsExpressCheckout = true`; Merchello's job is to collect them, surface them in the checkout UI, and run the single-shot order creation.
+
+**How it relates to other docs:**
+
+- Payment providers that back express methods: [Payment Providers](../payments/payment-providers.md), [Payment System Overview](../payments/payment-system-overview.md).
+- How selection keys and basket totals flow through: [Checkout Flow](checkout-flow.md), [Checkout Shipping](checkout-shipping.md).
+- The underlying REST endpoints live on `CheckoutPaymentsApiController` — see [Checkout API Reference](checkout-api.md#express-checkout).
+
 ## How Express Checkout Works
 
 Unlike standard checkout (where the customer fills in address, selects shipping, then pays), express checkout collapses everything into one interaction:

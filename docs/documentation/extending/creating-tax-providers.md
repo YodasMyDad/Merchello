@@ -296,9 +296,21 @@ var providerTaxCode = GetTaxCodeForTaxGroup(lineItem.TaxGroupId);
 
 This mapping is configured by the store admin in the backoffice using the `TaxGroupMapping` field type.
 
+> **Warning:** `TaxGroupId` must flow through unchanged from `ProductRoot` into the order line items and into the tax payload you send to the provider. Do not mutate or re-derive it in the provider -- external services rely on the canonical mapping for tax-code selection.
+
+## Tax Orchestration Boundary
+
+Tax calculation is coordinated by `ITaxOrchestrationService` (which is itself invoked from `CheckoutService.CalculateBasketAsync()` and the invoice tax recalculation path). Do not call tax providers directly from controllers or views -- always go through the orchestration / checkout services. Your provider is a plug-in to that pipeline, not an entry point.
+
+## Dependency Injection
+
+> **Warning:** Use **constructor injection only**. `ExtensionManager` activates tax providers via `ActivatorUtilities.CreateInstance`; setter injection and post-construction configuration hooks are not supported. See [Extension Manager](extension-manager.md).
+
 ## Built-in Providers for Reference
 
 | Provider | Location | Notes |
 |---|---|---|
-| Manual Tax | `Tax/Providers/BuiltIn/ManualTaxProvider.cs` | Uses manually configured rates per country/region |
-| Avalara | `Tax/Providers/BuiltIn/AvalaraTaxProvider.cs` | Real-time tax calculation via AvaTax API |
+| Manual Tax | [ManualTaxProvider.cs](../../../src/Merchello.Core/Tax/Providers/BuiltIn/ManualTaxProvider.cs) | Uses manually configured rates per country/region |
+| Avalara | [AvalaraTaxProvider.cs](../../../src/Merchello.Core/Tax/Providers/BuiltIn/AvalaraTaxProvider.cs) | Real-time tax calculation via AvaTax API |
+
+Base class: [TaxProviderBase.cs](../../../src/Merchello.Core/Tax/Providers/TaxProviderBase.cs). Interface: [ITaxProvider.cs](../../../src/Merchello.Core/Tax/Providers/Interfaces/ITaxProvider.cs).

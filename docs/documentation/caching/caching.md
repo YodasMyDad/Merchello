@@ -114,18 +114,28 @@ This means you do not need to manually handle distributed invalidation -- just u
 
 ## Common Cache Key Prefixes
 
-Merchello uses consistent key prefixes for different data types:
+Merchello's canonical cache key/tag constants live in `Merchello.Core/Constants.cs` under `CacheKeys` and `CacheTags` (see [Constants.cs](../../../src/Merchello.Core/Constants.cs)). Services that own their own cache also define local constants. Current prefixes in use:
 
-| Prefix | Used For |
-|---|---|
-| `merchello:product:` | Individual product data |
-| `merchello:products:` | Product list/query results |
-| `merchello:basket:` | Shopping basket data |
-| `merchello:checkout:` | Checkout session data |
-| `merchello:shipping:` | Shipping quotes and options |
-| `merchello:exchange-rates:` | Currency exchange rates |
-| `merchello:store-settings:` | Store configuration |
-| `merchello:tax:` | Tax rate data |
+| Prefix / Key | Used For | Source |
+|---|---|---|
+| `merchello:exchange-rates:` | Currency exchange rates | `Constants.CacheKeys.ExchangeRatesPrefix` |
+| `merchello:locality:` | Countries, regions, locality lookups | `Constants.CacheKeys.LocalityPrefix` |
+| `merchello:locality:regions:` | Regions for a country | `Constants.CacheKeys.LocalityRegionsPrefix` |
+| `merchello:tax-rate:` | Tax rate lookups per country/region | `Constants.CacheKeys.TaxRatePrefix` |
+| `merchello:store-settings:` | Store runtime configuration | `Constants.CacheKeys.StoreSettingsPrefix` |
+| `merchello:products:google-shopping-taxonomy:` | Google Shopping taxonomy lookups | `Constants.CacheKeys.GoogleShoppingTaxonomyPrefix` |
+| `merchello:product-feeds:` | Product feed renders | `ProductFeedService` |
+| `merchello:protocols:manifest:` | Protocol manifest documents | `ProtocolCacheKeys.ManifestPrefix` |
+| `merchello:protocols:capabilities:` | Protocol capability lookups | `ProtocolCacheKeys.CapabilitiesPrefix` |
+| `merchello:protocols:signing-keys` | Active ES256 signing keys | `ProtocolCacheKeys.SigningKeys` |
+| `merchello:protocols:agent-profile:` | External agent profile data | `ProtocolCacheKeys.AgentProfilePrefix` |
+| `merchello:google-auto-discount:public-key` | Google auto-discount verifier key | `GoogleAutoDiscountService` |
+| `merchello:upsells:active` | Active upsell rules | `UpsellService` |
+| `shipping-quote:` (tag `shipping-quotes`) | Carrier rate quotes | `Constants.CacheKeys.ShippingQuotePrefix` |
+
+> **Tip:** When adding new caching, prefer to define a constant alongside the service (or add to `Constants.CacheKeys`/`CacheTags`) so consumers can reference the prefix rather than hardcoding strings.
+
+In-memory session cache keys live alongside the services that own them and follow a different convention (e.g., `CheckoutService`, `StorefrontContextService` use `"merchello:Basket"`, `"merchello:DisplayContext"`, `"merchello:ShippingLocation"`).
 
 ## Payment Deduplication
 

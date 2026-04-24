@@ -20,6 +20,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>merchello.png</PackageIcon>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <LocalNugetSource>$(MSBuildProjectDirectory)/../../NugetSource</LocalNugetSource>
   </PropertyGroup>
@@ -51,6 +52,7 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="Client\public\img\merchello.png" Pack="true" PackagePath="" />
   </ItemGroup>
   
   <ItemGroup>

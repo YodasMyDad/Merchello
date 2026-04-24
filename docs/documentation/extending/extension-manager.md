@@ -18,19 +18,22 @@ App Starts
 
 ## What Gets Discovered
 
-Merchello scans for implementations of these interfaces:
+Merchello scans for implementations of these interfaces (see [`DiscoverProviderAssemblies()` in `Startup.cs`](../../../src/Merchello/Startup.cs) for the authoritative list):
 
 | Interface | Purpose |
 |---|---|
-| `IPaymentProvider` | Payment gateways (Stripe, PayPal, etc.) |
-| `IShippingProvider` | Shipping rate providers (FedEx, UPS, flat-rate) |
-| `ITaxProvider` | Tax calculation providers (Avalara, manual rates) |
-| `IFulfilmentProvider` | 3PL fulfilment providers (ShipBob, Supplier Direct) |
-| `IExchangeRateProvider` | Currency exchange rate sources |
-| `IAddressLookupProvider` | Address autocomplete/validation providers |
-| `IOrderGroupingStrategy` | Custom order grouping strategies |
-| `ICommerceProtocolAdapter` | Commerce protocol adapters (UCP) |
-| `IProductFeedValueResolver` | Custom product feed field resolvers |
+| [`IPaymentProvider`](../../../src/Merchello.Core/Payments/Providers/Interfaces/IPaymentProvider.cs) | Payment gateways (Stripe, PayPal, etc.) |
+| [`IShippingProvider`](../../../src/Merchello.Core/Shipping/Providers/Interfaces/IShippingProvider.cs) | Shipping rate providers (FedEx, UPS, flat-rate) |
+| [`ITaxProvider`](../../../src/Merchello.Core/Tax/Providers/Interfaces/ITaxProvider.cs) | Tax calculation providers (Avalara, manual rates) |
+| [`IFulfilmentProvider`](../../../src/Merchello.Core/Fulfilment/Providers/Interfaces/IFulfilmentProvider.cs) | 3PL fulfilment providers (ShipBob, Supplier Direct) |
+| [`IExchangeRateProvider`](../../../src/Merchello.Core/ExchangeRates/Providers/Interfaces/IExchangeRateProvider.cs) | Currency exchange rate sources |
+| [`IAddressLookupProvider`](../../../src/Merchello.Core/AddressLookup/Providers/Interfaces/IAddressLookupProvider.cs) | Address autocomplete/validation providers |
+| [`IOrderGroupingStrategy`](../../../src/Merchello.Core/Checkout/Strategies/Interfaces/IOrderGroupingStrategy.cs) | Custom order grouping strategies |
+| [`ICommerceProtocolAdapter`](../../../src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs) | Commerce protocol adapters (UCP) |
+| [`IProductFeedValueResolver`](../../../src/Merchello.Core/ProductFeeds/Services/Interfaces/IProductFeedValueResolver.cs) | Custom product feed field resolvers |
+| `IMerchelloAction` | Custom checkout/invoice actions (see [MerchelloActions.md](../../MerchelloActions.md)) |
+| `IHealthCheck` | Custom health checks surfaced in the backoffice |
+| `IEmailAttachment` | Custom email attachment providers |
 
 ## Registering Your Plugin Assembly
 
@@ -62,7 +65,7 @@ builder.CreateUmbracoBuilder()
 
 ## How ExtensionManager Instantiates Providers
 
-The `ExtensionManager` uses `ActivatorUtilities.CreateInstance()` from the DI container. This means your providers can use **constructor injection** for any registered service:
+The [`ExtensionManager`](../../../src/Merchello.Core/Shared/Reflection/ExtensionManager.cs) uses `ActivatorUtilities.CreateInstance()` from the DI container. This means your providers can use **constructor injection** for any registered service:
 
 ```csharp
 public class AcmeShippingProvider(
@@ -75,7 +78,7 @@ public class AcmeShippingProvider(
 }
 ```
 
-> **Warning:** Always use constructor injection. Never use setter injection or service locator patterns -- Merchello relies on `ActivatorUtilities` to create instances, so all dependencies must be constructor parameters.
+> **Warning:** Always use **constructor injection**. Setter injection, service locator calls, and post-construction configuration hooks are not supported -- Merchello relies on `ActivatorUtilities` to create instances, so all dependencies must be constructor parameters. If `Merchello.Core` needs a dependency implemented in a web project, define the interface in `Merchello.Core` and register the concrete type via the host's DI container during startup.
 
 ## Assembly Scanning Details
 
@@ -92,11 +95,12 @@ The discovered assemblies are registered with `AssemblyManager.SetAssemblies()`,
 
 ## Provider Manager Pattern
 
-Each provider type has its own "manager" that wraps `ExtensionManager` and adds provider-specific logic (configuration loading, enabling/disabling, etc.). For example:
+Each provider type has its own "manager" that wraps `ExtensionManager` and adds provider-specific logic (configuration loading, enabling/disabling, saved settings, etc.). For example:
 
-- `PaymentProviderManager` manages `IPaymentProvider` instances
-- `ShippingProviderManager` manages `IShippingProvider` instances
-- `TaxProviderManager` manages `ITaxProvider` instances
+- `PaymentProviderManager` manages `IPaymentProvider` instances.
+- `ShippingProviderManager` manages `IShippingProvider` instances.
+- `TaxProviderManager` manages `ITaxProvider` instances.
+- `FulfilmentProviderManager`, `ExchangeRateProviderManager`, `AddressLookupProviderManager`, `CommerceProtocolManager` follow the same pattern.
 
 When a manager needs provider instances, it calls something like:
 
@@ -105,6 +109,22 @@ var providers = extensionManager.GetInstances<IPaymentProvider>(useCaching: true
 ```
 
 The `useCaching` flag tells `ExtensionManager` to cache the discovered types so subsequent calls don't re-scan assemblies.
+
+### Enabling and Disabling Providers
+
+Discovery is mechanical -- a matching class is **always** found by the scan. Whether a provider is actually used at runtime is a separate, per-manager decision:
+
+- Payment / shipping / tax / fulfilment / address lookup providers store an enabled flag in their provider-setting DTO (e.g., `PaymentProviderSettingDto`, `ShippingProviderSetting`), toggled from the backoffice.
+- Exchange rate providers are singular -- only one is active at a time, selected via `IExchangeRateProviderManager.SetActiveProviderAsync`.
+- `IOrderGroupingStrategy` is chosen via `appsettings.json`:
+
+  ```json
+  { "Merchello": { "OrderGroupingStrategy": "vendor-grouping" } }
+  ```
+
+- `ICommerceProtocolAdapter` exposes its own `IsEnabled` flag driven by configuration (see the `ProtocolSettings.EnabledProtocols` list).
+
+Removing a class from the build removes it from discovery entirely; disabling via settings leaves it discovered but unused.
 
 ## Caching Behavior
 

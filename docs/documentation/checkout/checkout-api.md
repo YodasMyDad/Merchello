@@ -2,7 +2,12 @@
 
 Complete REST API reference for all checkout endpoints. These are public-facing (anonymous) endpoints used by the checkout frontend.
 
-All checkout endpoints are prefixed with `/api/merchello/checkout` and accept JSON request bodies.
+All checkout endpoints are prefixed with `/api/merchello/checkout` and accept JSON request bodies. The surface is split across two controllers that share the route prefix:
+
+- [`CheckoutApiController`](../../../src/Merchello/Controllers/CheckoutApiController.cs) — basket, countries, addresses, shipping, discounts, auth, address lookup, recovery.
+- [`CheckoutPaymentsApiController`](../../../src/Merchello/Controllers/CheckoutPaymentsApiController.cs) — payment methods, payment session creation, express checkout, widget orders, provider returns.
+
+> **Invariant:** Controllers do no business logic. They validate input, delegate to `ICheckoutService` / `ICheckoutPaymentsOrchestrationService`, and map the result. Basket totals are always produced by `CheckoutService.CalculateBasketAsync()`.
 
 ---
 
@@ -16,24 +21,51 @@ Retrieves the current basket with formatted totals in the customer's display cur
 GET /api/merchello/checkout/basket
 ```
 
-**Response** `200 OK` -- `CheckoutBasketDto`
+**Response** `200 OK` -- [`CheckoutBasketDto`](../../../src/Merchello.Core/Checkout/Dtos/CheckoutBasketDto.cs)
+
+The DTO carries **both** store-currency amounts (for calculation reconciliation) and display-currency amounts (for rendering). Pre-formatted strings are included so views never need to format money themselves.
 
 ```json
 {
+  "id": "8b0a...",
   "isEmpty": false,
-  "lineItems": [...],
+  "lineItems": [],
+
   "subTotal": 99.99,
-  "shipping": 5.00,
-  "tax": 17.50,
+  "adjustedSubTotal": 99.99,
   "discount": 0,
+  "tax": 17.50,
+  "shipping": 5.00,
   "total": 122.49,
-  "displayCurrencyCode": "GBP",
-  "displayCurrencySymbol": "£",
-  "exchangeRate": 1.0
+  "currency": "GBP",
+  "currencySymbol": "£",
+  "formattedSubTotal": "£99.99",
+  "formattedTotal": "£122.49",
+
+  "displaySubTotal": 122.49,
+  "displayDiscount": 0,
+  "displayTax": 21.46,
+  "displayShipping": 6.13,
+  "displayTotal": 150.08,
+  "displayCurrencyCode": "USD",
+  "displayCurrencySymbol": "$",
+  "formattedDisplayTotal": "$150.08",
+  "exchangeRate": 1.2253,
+
+  "displayPricesIncTax": false,
+  "taxInclusiveDisplaySubTotal": 0,
+  "taxIncludedMessage": null,
+
+  "billingAddress": null,
+  "shippingAddress": null,
+  "appliedDiscounts": [],
+  "errors": []
 }
 ```
 
 If the basket is empty, `isEmpty` is `true` and all totals are zero.
+
+> **Invariant — multi-currency:** Basket amounts are always stored in **store currency**. Display amounts are produced on-the-fly by multiplying by `exchangeRate`. The payment/invoicing path divides by the locked rate — never charge from `displayTotal`. See [Multi-Currency Overview](../multi-currency/multi-currency-overview.md).
 
 ---
 
@@ -216,9 +248,12 @@ POST /api/merchello/checkout/shipping
 }
 ```
 
-Selection key formats:
+Selection key formats (stable contract — do not invent new shapes):
+
 - **Flat-rate:** `so:{shippingOptionGuid}`
 - **Dynamic (carrier):** `dyn:{providerKey}:{serviceCode}`
+
+`QuotedCosts` only needs entries for dynamic selections — flat-rate costs are re-computed deterministically by `ShippingCostResolver`. See [Checkout Shipping](checkout-shipping.md).
 
 **Response** `200 OK` -- `SelectShippingResponseDto` with updated basket and groups.
 

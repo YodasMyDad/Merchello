@@ -2,6 +2,8 @@
 
 Product views are Razor `.cshtml` files that render your product pages. They receive a `MerchelloProductViewModel` with all the data you need -- product details, pricing, variants, stock, images, and SEO metadata.
 
+The reference implementation is the starter site's [Default.cshtml](../../../src/Merchello.Site/Views/Products/Default.cshtml) -- it demonstrates every pattern shown in this guide.
+
 ## The Basics
 
 Product views live in `~/Views/Products/` and are selected based on the product's `ViewAlias`. The simplest starting point is `Default.cshtml`:
@@ -88,7 +90,11 @@ Model.Content.Value<T>("alias") // Type-safe property access
 
 ## Displaying Prices with Tax and Currency
 
-The raw `Model.Price` is a net price in your store currency. To display prices correctly (with tax, in the customer's currency), you need the display context:
+The raw `Model.Price` is a net price in your store currency. To display prices correctly (with tax, in the customer's currency), you need the display context.
+
+> **Invariant:** Stored prices never change when the customer's display currency changes. Display uses multiply (`amount * ExchangeRate`); checkout and payment use divide via the invoice conversion path. Never charge a customer using display amounts. See [Storefront Context](../storefront/storefront-context.md) and [Price Display](../storefront/price-display.md) for the rules.
+
+This pattern is lifted from [Default.cshtml:23-79](../../../src/Merchello.Site/Views/Products/Default.cshtml#L23):
 
 ```html
 @inject Merchello.Core.Storefront.Services.Interfaces.IStorefrontContextService StorefrontContext
@@ -303,7 +309,7 @@ The view model provides SEO properties. The starter site renders them in a `@sec
 
 ## Using Partials
 
-The starter site splits the product page into partials for maintainability:
+The starter site splits the product page into partials for maintainability ([Default.cshtml:261-282](../../../src/Merchello.Site/Views/Products/Default.cshtml#L261)):
 
 ```html
 <div class="row">

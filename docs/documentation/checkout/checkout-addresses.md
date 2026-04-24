@@ -2,6 +2,12 @@
 
 The checkout address step captures the customer's billing and shipping addresses, email, and marketing opt-in preference. Merchello validates addresses, supports "shipping same as billing", and integrates with address lookup providers for autocomplete.
 
+**What it is:** The information step of checkout — everything the customer fills in before they see shipping options.
+
+**Why it matters:** Saving the address also triggers a basket recalculation because tax rates, shipping options, and some automatic discounts depend on the shipping destination. This is not just a data save — it is the entry point for location-dependent checkout state.
+
+Source: [CheckoutApiController.SaveAddresses](../../../src/Merchello/Controllers/CheckoutApiController.cs), [ICheckoutService.SaveAddressesAsync](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutService.cs), [ICheckoutValidator.cs](../../../src/Merchello.Core/Checkout/Services/Interfaces/ICheckoutValidator.cs).
+
 ## Saving Addresses
 
 The main entry point for saving addresses during checkout is the `POST /api/merchello/checkout/addresses` endpoint, which delegates to `ICheckoutService.SaveAddressesAsync`.

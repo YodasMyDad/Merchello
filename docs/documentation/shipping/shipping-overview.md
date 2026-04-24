@@ -34,29 +34,33 @@ At checkout, basket items are grouped by warehouse. Each group has its own set o
 
 Shipping functionality is split across three services:
 
-| Service | Purpose |
-|---------|---------|
-| `IShippingService` | Business logic and orchestration for basket/product shipping |
-| `IShippingQuoteService` | Fetches quotes from shipping providers (FedEx, UPS, flat-rate) |
-| `IShippingCostResolver` | Resolves costs from flat-rate shipping option configurations |
+| Service | Purpose | Source |
+|---------|---------|--------|
+| `IShippingService` | Business logic and orchestration for basket/product shipping | [IShippingService.cs](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs) |
+| `IShippingQuoteService` | Fetches quotes from shipping providers (FedEx, UPS, flat-rate) | [IShippingQuoteService.cs](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingQuoteService.cs) |
+| `IShippingCostResolver` | Resolves costs from flat-rate shipping option configurations | [ShippingCostResolver.cs](../../../src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs) |
+
+> **Invariant (CLAUDE.md):** `IShippingService.GetShippingOptionsForBasket()` is the basket-level entry point; it uses the active `IOrderGroupingStrategy` internally. `IShippingQuoteService.GetQuotes*()` is the source of truth for quote retrieval. `ShippingCostResolver.ResolveBaseCost()` is the single source of truth for the flat-rate fallback chain -- do not reimplement the match logic anywhere else.
 
 ### Cost Resolution Priority
 
-For flat-rate shipping, costs are resolved in this priority order:
+For flat-rate shipping, costs are resolved in this strict priority order by [`ShippingCostResolver.ResolveBaseCost()`](../../../src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs):
 
-1. **State/Region** -- A cost entry matching the exact state/province code
-2. **Country** -- A cost entry matching the country code
-3. **Universal** -- A cost entry with country code `*` (wildcard)
-4. **Fixed Cost** -- The shipping option's fallback fixed cost
+1. **State/Region** -- A cost entry matching the exact country + state/province code
+2. **Country** -- A cost entry matching the country code with no region
+3. **Universal** -- A cost entry with country code `*` (wildcard, no region)
+4. **Fixed Cost** -- The shipping option's fallback `FixedCost` (normalized to `0` for flat-rate when null)
 
 ```csharp
 // IShippingCostResolver resolves in priority order
 decimal? cost = shippingCostResolver.ResolveBaseCost(
-    costs: shippingOption.Costs,
+    costs: shippingOption.ShippingCosts,
     countryCode: "US",
     regionCode: "CA",
     fixedCostFallback: shippingOption.FixedCost);
 ```
+
+> **Dynamic providers (`UsesLiveRates = true`) must NOT rely on fixed-cost entries.** Carrier rates are fetched live from the provider API at checkout. If you need a flat-rate option named after a carrier (e.g., "FedEx Ground" at a fixed $8.99), create it with `ProviderKey = "flat-rate"` rather than `ProviderKey = "fedex"`.
 
 ### Warehouse-Based Shipping
 
@@ -76,16 +80,17 @@ At checkout, items are allocated to warehouses based on:
 
 ## Shipping vs Fulfilment
 
-Merchello separates shipping from fulfilment -- this is an important distinction:
+Merchello keeps shipping (customer-facing rate quoting) strictly separate from fulfilment (back-of-house 3PL workflow). This is a CLAUDE.md invariant:
 
 | Concern | Shipping | Fulfilment |
 |---------|----------|------------|
 | Purpose | Customer-facing rates and delivery options | 3PL submission, status tracking, inventory sync |
 | When | At checkout (before payment) | After payment (order processing) |
 | Who sees it | The customer | The warehouse/3PL |
-| Providers | FedEx, UPS, Flat-rate | Fulfilment-specific providers |
+| Built-in providers | Flat Rate, FedEx, UPS | ShipBob, Supplier Direct |
+| Interfaces | `IShippingProvider` | `IFulfilmentProvider` |
 
-Never mix carrier quoting logic (shipping) with warehouse submission logic (fulfilment).
+**Never mix carrier quoting logic (shipping) with warehouse submission logic (fulfilment).** The shipping service category inferred at checkout (`Standard`, `Express`, `Overnight`, `Economy`) is passed to fulfilment providers, which map it to their own method names -- that is the only bridge. See [Fulfilment Overview](../fulfilment/fulfilment-overview.md).
 
 ---
 
@@ -104,14 +109,16 @@ Here's how shipping works during checkout:
 
 ### Selection Key Contract
 
-Shipping selections use a stable key format that you should never change:
+Shipping selections use a stable key format that must remain unchanged:
 
 | Type | Format | Example |
 |------|--------|---------|
 | Flat-rate | `so:{guid}` | `so:abc12345-...` |
 | Dynamic | `dyn:{provider}:{serviceCode}` | `dyn:fedex:FEDEX_GROUND` |
 
-These keys are parsed into order fields (`ShippingProviderKey`, `ShippingServiceCode`, `ShippingServiceName`) and must remain stable across the checkout flow.
+These keys are parsed by [`SelectionKeyExtensions.TryParse()`](../../../src/Merchello.Core/Shipping/Extensions/SelectionKeyExtensions.cs) into order fields (`ShippingProviderKey`, `ShippingServiceCode`, `ShippingServiceName`) and must remain stable across the checkout flow and any custom grouping strategies.
+
+> **Invariant (CLAUDE.md):** Treat this contract as wire-protocol. Checkout, order edit, notifications, and fulfilment all rely on it. Keep the parsed rate in `QuotedCosts` so dynamic rates seen at selection time are what the customer pays.
 
 ---
 
@@ -139,31 +146,45 @@ See [Flat Rate Shipping](flat-rate-shipping.md) and [Dynamic Shipping Providers]
 
 ## IShippingService Reference
 
+Defined in [`IShippingService.cs`](../../../src/Merchello.Core/Shipping/Services/Interfaces/IShippingService.cs):
+
 | Method | Purpose |
 |--------|---------|
-| `GetShippingOptionsForBasket(params)` | Get grouped shipping options for the basket |
-| `GetShippingSummaryForReview(basket, address, selections)` | Get shipping summary for order review |
-| `GetRequiredWarehouses(basket, address)` | Determine which warehouses are needed |
-| `GetAllShippingOptions()` | List all shipping options in the system |
-| `GetShippingOptionsForProductAsync(productId, country, region)` | Get options for a product page |
-| `GetShippingOptionByIdAsync(id)` | Get a specific shipping option |
-| `GetShippingOptionsForWarehouseAsync(warehouseId, country, state)` | Get options for a warehouse to a destination |
-| `GetFulfillmentOptionsForProductAsync(productId, country, state)` | Get best warehouse for a product |
-| `GetDefaultFulfillingWarehouseAsync(productId)` | Get default warehouse (no address known) |
+| `GetShippingOptionsForBasket(parameters, ct)` | Get grouped shipping options for the basket (uses the active `IOrderGroupingStrategy` internally) |
+| `GetShippingSummaryForReview(basket, address, selections, ct)` | Get shipping summary for order review |
+| `GetRequiredWarehouses(basket, address, ct)` | Determine which warehouses are needed to fulfill the basket |
+| `GetAllShippingOptions(ct)` | List all shipping options in the system |
+| `GetShippingOptionsForProductAsync(productId, country, region, ct)` | Get options for a product detail page |
+| `GetShippingOptionByIdAsync(id, ct)` | Get a specific shipping option |
+| `GetShippingOptionsForWarehouseAsync(warehouseId, country, state, ct)` | Get options for a warehouse to a destination |
+| `GetFulfillmentOptionsForProductAsync(productId, country, state, ct)` | Get best warehouse for a product at a destination |
+| `GetDefaultFulfillingWarehouseAsync(productId, ct)` | Get default warehouse for a product when no address is known |
 
 ---
 
 ## Shipping Tax
 
-Shipping can be taxable depending on jurisdiction. Merchello supports multiple shipping tax modes:
+Shipping can be taxable depending on jurisdiction. Merchello supports four shipping tax modes:
 
 | Mode | Behavior |
 |------|----------|
 | `NotTaxed` | Shipping is not taxable |
-| `FixedRate` | Apply a fixed tax rate to shipping |
-| `Proportional` | Tax rate proportional to basket item tax rates |
-| `ProviderCalculated` | Tax provider determines from full order context |
+| `FixedRate` | Apply the returned fixed tax rate to shipping |
+| `Proportional` | Tax rate is a weighted average of basket item tax rates (EU/UK VAT) |
+| `ProviderCalculated` | Tax provider determines from full order context (e.g., Avalara) |
 
-The shipping tax configuration is queried via `ITaxProviderManager.GetShippingTaxConfigurationAsync()`. See the tax documentation for details.
+The shipping tax configuration is queried via [`ITaxProviderManager.GetShippingTaxConfigurationAsync(countryCode, stateCode)`](../../../src/Merchello.Core/Tax/Providers/Interfaces/ITaxProviderManager.cs) and returned as a [`ShippingTaxConfigurationResult`](../../../src/Merchello.Core/Tax/Providers/Models/ShippingTaxConfigurationResult.cs). Proportional math is centralized in [`ITaxCalculationService.CalculateProportionalShippingTax()`](../../../src/Merchello.Core/Tax/Services/Interfaces/ITaxCalculationService.cs). See [Shipping Tax](../tax/shipping-tax.md) for the full model.
 
-> **Warning:** Never hardcode shipping tax rates. Always query the tax provider for the correct rate.
+> **Invariant (CLAUDE.md):** Never hardcode shipping tax rates. Always query the tax provider. Never reimplement the proportional formula outside `ITaxCalculationService`.
+
+## Related Topics
+
+- [Flat Rate Shipping](flat-rate-shipping.md)
+- [Dynamic Shipping Providers](dynamic-shipping-providers.md)
+- [Order Grouping Strategies](order-grouping.md)
+- [Package Configuration](package-configuration.md)
+- [Shipments (Fulfilment Records)](shipments.md)
+- [Checkout -- Shipping Selection](../checkout/checkout-shipping.md)
+- [Fulfilment Overview](../fulfilment/fulfilment-overview.md)
+- [Tax Overview](../tax/tax-overview.md)
+- [Creating Shipping Providers](../extending/creating-shipping-providers.md)

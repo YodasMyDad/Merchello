@@ -6,16 +6,18 @@
 
 ## Quick Start
 
+Merchello ships as two NuGet packages on [nuget.org](https://www.nuget.org/packages/Umbraco.Community.Merchello). Both are released in lockstep -- the latest version is shown on the [GitHub releases page](https://github.com/YodasMyDad/Merchello/releases). Replace `<version>` below (e.g. `1.0.0-beta.7`).
+
 ```bash
-# Option 1: Use the .NET template (includes starter site)
-dotnet new install Umbraco.Community.Merchello.StarterSite@1.0.0-beta.4
+# Option 1: Use the .NET template (scaffolds a complete starter site)
+dotnet new install Umbraco.Community.Merchello.StarterSite::<version>
 dotnet new merchello-starter -n MyStore
 
-# Option 2: Add to an existing Umbraco project
-dotnet add package Umbraco.Community.Merchello@1.0.0-beta.4
+# Option 2: Add to an existing Umbraco v17+ project
+dotnet add package Umbraco.Community.Merchello --version <version>
 ```
 
-Then add Merchello to your Umbraco builder:
+Then add Merchello to your Umbraco builder (see [Program.cs](../../src/Merchello.Site/Program.cs)):
 
 ```csharp
 builder.CreateUmbracoBuilder()
@@ -26,7 +28,7 @@ builder.CreateUmbracoBuilder()
     .Build();
 ```
 
-Configure your store in `appsettings.json`:
+Configure your store in `appsettings.json` (see the [starter site appsettings.json](../../src/Merchello.Site/appsettings.json) for a full example):
 
 ```json
 {
@@ -38,7 +40,13 @@ Configure your store in `appsettings.json`:
 }
 ```
 
-New to Merchello? Start with the [Installation Guide](getting-started/installation.md) and then follow the [Starter Site Walkthrough](getting-started/starter-site-walkthrough.md).
+New to Merchello? Follow this path:
+
+1. [Installation](getting-started/installation.md) -- get the package installed and booted
+2. [Starter Site Walkthrough](getting-started/starter-site-walkthrough.md) -- a tour of the example store (homepage, category, basket, product detail)
+3. [Project Structure](getting-started/project-structure.md) -- understand where code lives and how layers interact
+4. [Configuration Reference](getting-started/configuration-reference.md) -- every `appsettings.json` key with defaults
+5. [Seed Data](getting-started/seed-data.md) -- populate a dev database with realistic products, customers, and orders
 
 ---
 

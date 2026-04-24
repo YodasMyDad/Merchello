@@ -54,9 +54,11 @@ public class BrandResolver : IProductFeedValueResolver
         IReadOnlyDictionary<string, string> args,
         CancellationToken cancellationToken = default)
     {
-        // Get brand from product root's extended data
+        // Get brand from product root's extended data.
+        // ExtendedData values may be JsonElement after deserialization -- always
+        // UnwrapJsonElement() before treating them as CLR values.
         var brand = context.ProductRoot.ExtendedData
-            .GetValueOrDefault("Brand")?.ToString();
+            .GetValueOrDefault("Brand")?.UnwrapJsonElement()?.ToString();
 
         return Task.FromResult(brand);
     }
@@ -86,7 +88,7 @@ public class BrandResolver : IProductFeedValueResolver, IProductFeedResolverMeta
         CancellationToken cancellationToken = default)
     {
         var brand = context.ProductRoot.ExtendedData
-            .GetValueOrDefault("Brand")?.ToString();
+            .GetValueOrDefault("Brand")?.UnwrapJsonElement()?.ToString();
         return Task.FromResult(brand);
     }
 }
@@ -140,17 +142,29 @@ This gives you access to:
 - **ProductRoot**: Name, description, tax group, collection membership, images, all variants, extended data
 - **Feed**: Feed configuration, title, target country/currency settings
 
+## Google Shopping Feed Format
+
+Product feed resolvers are most commonly used to populate fields in a Google Shopping XML / RSS feed. Your resolver returns a plain string -- the feed generator places it inside the corresponding `<g:field>` element. Typical conventions:
+
+- **Booleans**: return the literal strings `"true"` / `"false"` (not `"True"` / `"1"`).
+- **Availability** (`g:availability`): return one of `"in_stock"`, `"out_of_stock"`, `"preorder"`, `"backorder"`.
+- **Prices** (`g:price`, `g:sale_price`): return `"<amount> <ISO currency>"`, e.g. `"19.99 GBP"`.
+- **Condition** (`g:condition`): return `"new"`, `"refurbished"`, or `"used"`.
+- **Identifiers** (`g:gtin`, `g:mpn`, `g:brand`): return a plain string with no surrounding markup.
+- Return `null` when the value is genuinely unknown so the generator can omit the element rather than emit an empty tag.
+
 ## Built-in Resolvers
 
 Merchello includes several built-in resolvers you can use as reference:
 
 | Resolver | Alias | Description | Location |
 |---|---|---|---|
-| On Sale | `on-sale` | Returns "true" when sale pricing is active | `ProductFeedOnSaleResolver.cs` |
-| Stock Status | `stock-status` | Returns availability based on stock levels | `ProductFeedStockStatusResolver.cs` |
-| Product Type | `product-type` | Returns the Google product type | `ProductFeedProductTypeResolver.cs` |
-| Collections | `collections` | Returns collection membership | `ProductFeedCollectionsResolver.cs` |
-| Supplier | `supplier` | Returns supplier information | `ProductFeedSupplierResolver.cs` |
+| On Sale | `on-sale` | Returns "true" when sale pricing is active | [ProductFeedOnSaleResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedOnSaleResolver.cs) |
+| Stock Status | `stock-status` | Returns availability based on stock levels | [ProductFeedStockStatusResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedStockStatusResolver.cs) |
+| Product Type | `product-type` | Returns the Google product type | [ProductFeedProductTypeResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedProductTypeResolver.cs) |
+| Collections | `collections` | Returns collection membership | [ProductFeedCollectionsResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedCollectionsResolver.cs) |
+| Supplier | `supplier` | Returns supplier information | [ProductFeedSupplierResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedSupplierResolver.cs) |
+| Native Commerce | `native-commerce` | Composite resolver for OpenAI / native-commerce feed extras | [ProductFeedNativeCommerceResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedNativeCommerceResolver.cs) |
 
 ## Example: On Sale Resolver (Built-in)
 
@@ -197,7 +211,10 @@ The backoffice uses this registry to show available resolvers in the feed config
 
 ## Tips
 
-- **Return `null`** when a value can't be resolved -- the feed generator handles null gracefully
-- **Keep resolvers fast** -- they're called once per product per feed generation, which can be thousands of calls
-- **Use constructor injection** for any services you need (HTTP clients, database services, etc.)
-- **Resolver aliases must be unique** across all discovered assemblies
+- **Return `null`** when a value can't be resolved -- the feed generator handles null gracefully.
+- **Keep resolvers fast** -- they're called once per product per feed generation, which can be thousands of calls. Avoid per-product database round-trips; preload everything you need outside the resolver when possible.
+- **Use constructor injection** for any services you need (HTTP clients, database services, etc.). Setter injection and service locator are not supported -- `ExtensionManager` activates resolvers via `ActivatorUtilities.CreateInstance`. See [Extension Manager](extension-manager.md).
+- **Resolver aliases must be unique** across all discovered assemblies.
+- **Don't use `Task.WhenAll`** around database-touching work inside a resolver. Umbraco's `EFCoreScope` uses `AsyncLocal` ambient state and concurrent DB calls corrupt it.
+
+Interface: [IProductFeedValueResolver.cs](../../../src/Merchello.Core/ProductFeeds/Services/Interfaces/IProductFeedValueResolver.cs). Context: [ProductFeedResolverContext.cs](../../../src/Merchello.Core/ProductFeeds/Models/ProductFeedResolverContext.cs).

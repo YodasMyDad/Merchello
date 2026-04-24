@@ -29,7 +29,7 @@ Not all providers support payment links. The provider must declare `SupportsPaym
 | WorldPay | No |
 | Manual | No |
 
-Payment link creation, retrieval, and deactivation are all managed through the backoffice UI. There is no storefront-facing API for payment links -- they are an admin-only feature.
+Payment link creation, retrieval, and deactivation are all managed through the backoffice UI — backed by [`PaymentLinksApiController`](../../../src/Merchello/Controllers/PaymentLinksApiController.cs) under `/umbraco/api/v1/` and orchestrated by [`IPaymentLinkService`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentLinkService.cs). The link URL and provider info are persisted on `Invoice.ExtendedData`. There is no storefront-facing API for payment links — they are an admin-only feature.
 
 ---
 
@@ -48,16 +48,18 @@ The system sends two types of reminders:
 
 ### Configuration
 
-Configure reminders in `appsettings.json`:
+Bound from `Merchello:Invoices:Reminders` in `appsettings.json` (see [`InvoiceReminderSettings.cs`](../../../src/Merchello.Core/Accounting/InvoiceReminderSettings.cs) and the `Startup.cs` binding):
 
 ```json
 {
   "Merchello": {
-    "InvoiceReminders": {
-      "ReminderDaysBeforeDue": 7,
-      "OverdueReminderIntervalDays": 7,
-      "MaxOverdueReminders": 3,
-      "CheckIntervalHours": 24
+    "Invoices": {
+      "Reminders": {
+        "ReminderDaysBeforeDue": 7,
+        "OverdueReminderIntervalDays": 7,
+        "MaxOverdueReminders": 3,
+        "CheckIntervalHours": 24
+      }
     }
   }
 }

@@ -246,8 +246,14 @@ Protocol adapters have their own notification events:
 | `ProtocolWebhookSendingNotification` | Before sending a protocol webhook |
 | `ProtocolWebhookSentNotification` | After sending a protocol webhook |
 
+## Dependency Injection
+
+> **Warning:** Use **constructor injection only**. `ExtensionManager` activates commerce protocol adapters via `ActivatorUtilities.CreateInstance`; setter injection and post-construction configuration hooks are not supported. See [Extension Manager](extension-manager.md).
+
 ## Built-in Adapter for Reference
 
 | Adapter | Location | Notes |
 |---|---|---|
-| UCP | `Protocols/UCP/UCPProtocolAdapter.cs` | Full UCP implementation with checkout, catalog, payments, capability negotiation |
+| UCP | [UCPProtocolAdapter.cs](../../../src/Merchello.Core/Protocols/UCP/UCPProtocolAdapter.cs) | Full UCP implementation with checkout, catalog, payments, capability negotiation |
+
+Interface: [ICommerceProtocolAdapter.cs](../../../src/Merchello.Core/Protocols/Interfaces/ICommerceProtocolAdapter.cs). For deeper UCP-specific protocol internals see [`docs/UCP.md`](../../UCP.md).

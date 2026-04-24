@@ -4,7 +4,7 @@ Store settings control how your storefront displays prices, stock levels, and cu
 
 ## Settings That Affect Your Storefront
 
-These settings are configured in `appsettings.json` under the `Merchello` key:
+These settings are configured in `appsettings.json` under the `Merchello` key and bind to [MerchelloSettings.cs](../../../src/Merchello.Core/Shared/Models/MerchelloSettings.cs):
 
 ```json
 {

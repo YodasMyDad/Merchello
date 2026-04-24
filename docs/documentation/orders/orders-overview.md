@@ -1,6 +1,6 @@
 # Orders and Invoices Overview
 
-Merchello uses a three-level hierarchy for commerce transactions: **Invoices** contain **Orders**, and Orders contain **Shipments**. Understanding this structure is key to working with Merchello's order management system.
+Merchello uses a three-level hierarchy for commerce transactions: **Invoices** contain **Orders**, and Orders contain **Shipments**. The invoice is the financial contract; orders are fulfilment units; shipments are packages. Full domain model: [`Invoice.cs`](../../../src/Merchello.Core/Accounting/Models/Invoice.cs), [`OrderStatus.cs`](../../../src/Merchello.Core/Accounting/Models/OrderStatus.cs). See [Architecture Diagrams §2.4](../../Architecture-Diagrams.md) for the full service catalog.
 
 ## The Hierarchy
 
@@ -45,14 +45,17 @@ An invoice is the top-level financial record. Key properties:
 | `DueDate` | Payment due date (for account customers) |
 | `Source` | Where/how the invoice was created |
 
-### Multi-currency fields
+### Multi-currency fields (invariant)
 
-For stores using multiple currencies, invoices also store:
-- `StoreCurrencyCode` -- the store's base currency
-- `PricingExchangeRate` -- the locked exchange rate (presentment -> store)
-- `PricingExchangeRateSource` -- where the rate came from (e.g., "frankfurter")
-- `PricingExchangeRateTimestampUtc` -- when the rate was locked
-- `*InStoreCurrency` variants of SubTotal, Tax, Discount, and Total for reporting
+Exchange rates are **locked at invoice creation** — never refetched on edit or payment. This is the store-of-record for audit and accounting. See [Multi-Currency Overview](../multi-currency/multi-currency-overview.md) for the full conversion model.
+
+- `StoreCurrencyCode` — the store's base currency
+- `PricingExchangeRate` — the locked rate (presentment → store; `amount * rate` for display, `amount / rate` for charging)
+- `PricingExchangeRateSource` — where the rate came from (e.g., `"frankfurter"`)
+- `PricingExchangeRateTimestampUtc` — when the rate was locked
+- `SubTotalInStoreCurrency`, `DiscountInStoreCurrency`, `TaxInStoreCurrency`, `TotalInStoreCurrency` — store-currency equivalents for reporting
+
+> **Warning:** Never charge customers based on display amounts. Charging flows always use the invoice's store-currency amounts divided by the locked `PricingExchangeRate`.
 
 ## Orders
 
@@ -110,65 +113,65 @@ Line items represent individual products or charges on an order:
 | `OriginalAmount` | Original price before manual adjustment |
 | `ExtendedData` | Additional data (variant options, product metadata) |
 
-## Invoice Source Tracking
+## Invoice Source Tracking (Invariant)
 
-The `InvoiceSource` property tracks where and how an invoice was created -- important for analytics and auditing:
+The [`Invoice.Source`](../../../src/Merchello.Core/Accounting/Models/InvoiceSource.cs) property tracks where and how an invoice was created — essential for analytics and auditing. **Preserve these semantics in every invoice-creating flow.** See [Architecture Diagrams §2.4](../../Architecture-Diagrams.md) for the full source-type catalog.
 
 | Property | Description |
 |----------|-------------|
-| `Type` | Source type: `"web"`, `"ucp"`, `"api"`, `"pos"`, `"mobile"`, `"manual"` |
+| `Type` | Well-known values from [`Constants.InvoiceSources`](../../../src/Merchello.Core/Constants.cs): `"web"`, `"ucp"`, `"api"`, `"pos"`, `"draft"` (alias `"manual"`), `"mobile"`, `"import"`, `"other"` |
 | `DisplayName` | Human-readable name (e.g., "Online Store", "Point of Sale") |
-| `SourceId` | Unique identifier for the source (agent ID, API key ID, terminal ID) |
+| `SourceId` | Unique identifier for the source instance (agent ID, API key ID, terminal ID) |
 | `SourceName` | Label for the source instance |
-| `ProtocolVersion` | Protocol version if applicable |
+| `ProtocolVersion` | Protocol version if applicable (e.g. UCP date string) |
 | `ProfileUri` | External agent profile URL |
-| `SessionId` | Session/transaction ID from the source system |
-| `Metadata` | Additional source-specific data |
+| `SessionId` | Session/transaction ID from the source system (basket ID, UCP session ID, POS txn) |
+| `Metadata` | Additional source-specific data (`Dictionary<string, object>`) |
+| `RecordedAtUtc` | When the source was captured |
 
-> **Tip:** Always preserve `Invoice.Source` semantics. This data powers analytics dashboards and audit trails, helping you understand where your orders come from.
+Query invoices by source:
+
+```csharp
+await invoiceService.QueryInvoices(new InvoiceQueryParameters { SourceType = Constants.InvoiceSources.Ucp });
+```
+
+> **Tip:** Use `Constants.InvoiceSources` rather than hard-coded strings. `Constants.InvoiceSources.Manual` is a legacy alias for `Draft` — prefer `Draft` in new code.
 
 ## Querying Orders
 
-Use `IInvoiceService` for querying:
+Use [`IInvoiceService.QueryInvoices`](../../../src/Merchello.Core/Accounting/Services/Interfaces/IInvoiceService.cs) for paged, filterable queries:
 
 ```csharp
-// Paged query with filters
-var result = await invoiceService.QueryAsync(new InvoiceQueryParameters
+var result = await invoiceService.QueryInvoices(new InvoiceQueryParameters
 {
-    PageNumber = 1,
-    PageSize = 25,
-    OrderStatus = OrderStatus.ReadyToFulfill,
-    CustomerId = customerId
+    CurrentPage         = 1,
+    AmountPerPage       = 25,
+    CustomerId          = customerId,
+    SourceType          = Constants.InvoiceSources.Web,
+    PaymentStatusFilter = InvoicePaymentStatusFilter.Unpaid,
+    Search              = "INV-0042"
 });
 ```
 
+Supported filters: `CustomerId`, `Channel`, `SourceType`, `DateFrom`/`DateTo`, `Search` (invoice number, billing/shipping name, postcode, email), `PaymentStatusFilter`, `FulfillmentStatusFilter`, `CancellationStatusFilter`, `IncludeDeleted`.
+
+For customer statements and outstanding balances, see [Customer Statements](statements.md).
+
 ## Invoice Cancellation
 
-Invoices can be cancelled (soft operation):
+Invoices are cancelled through `IInvoiceService.CancelInvoiceAsync` — **don't mutate `IsCancelled` directly**, the service also handles stock release, order state transitions, and audit notes. Individual orders within an invoice can be cancelled via `CancelOrderAsync`. Cancellation is a soft operation — the invoice remains for audit.
 
-```csharp
-invoice.IsCancelled = true;
-invoice.DateCancelled = DateTime.UtcNow;
-invoice.CancellationReason = "Customer requested cancellation";
-invoice.CancelledBy = "admin@store.com";
-```
-
-Cancellation does not delete the invoice -- it remains for audit purposes.
+Fields populated by cancellation: `IsCancelled`, `DateCancelled`, `CancellationReason`, `CancelledBy`.
 
 ## Soft Deletion
 
-Invoices can also be soft-deleted:
-
-```csharp
-invoice.IsDeleted = true;
-invoice.DateDeleted = DateTime.UtcNow;
-```
-
-Soft-deleted invoices are excluded from queries but remain in the database.
+Use `IInvoiceService.SoftDeleteInvoicesAsync` to bulk-soft-delete invoices. Soft-deleted invoices set `IsDeleted = true` and `DateDeleted`, and are excluded from queries unless `InvoiceQueryParameters.IncludeDeleted = true`.
 
 ## Next Steps
 
-- [Invoice Editing](invoice-editing.md) -- modifying invoices after creation
-- [Manual Orders](manual-orders.md) -- creating orders from the backoffice
-- [Customer Statements](statements.md) -- account balance tracking
-- [Shipments](../shipping/shipments.md) -- fulfilling orders
+- [Invoice Editing](invoice-editing.md) — modifying invoices after creation
+- [Manual Orders](manual-orders.md) — creating orders from the backoffice
+- [Customer Statements](statements.md) — account balance tracking
+- [Payment System Overview](../payments/payment-system-overview.md) — how payments attach to invoices
+- [Refunds](../payments/refunds.md) — reversing charges and keeping invoice totals accurate
+- [Shipments](../shipping/shipments.md) — fulfilling orders

@@ -13,15 +13,17 @@ A **product feed** is a configuration that defines:
 
 Each feed has a **slug** that forms part of its public URL. You create and manage feeds in the Umbraco backoffice under **Settings > Product Feeds**.
 
+The feed generators live in [Merchello.Core/ProductFeeds/Services](../../../src/Merchello.Core/ProductFeeds/Services) ([`GoogleProductFeedGenerator`](../../../src/Merchello.Core/ProductFeeds/Services/GoogleProductFeedGenerator.cs), [`GooglePromotionFeedGenerator`](../../../src/Merchello.Core/ProductFeeds/Services/GooglePromotionFeedGenerator.cs)) and the public controller is [`ProductFeedsPublicController`](../../../src/Merchello/Controllers/ProductFeedsPublicController.cs).
+
 ## Public Feed URLs
 
-Once a feed is configured and enabled, it is served at a public URL that you submit to Google Merchant Center:
+Once a feed is configured and enabled, it is served at a public URL that you submit to Google Merchant Center. These routes are served via the Storefront API (not the backoffice management API):
 
 | URL | Description |
 | --- | --- |
-| `/api/merchello/feeds/{slug}.xml` | Main product feed |
-| `/api/merchello/feeds/{slug}/promotions.xml` | Promotions feed |
-| `/api/merchello/feeds/auto-discount/active` | Active auto-discount info |
+| `/api/merchello/feeds/{slug}.xml` | Main product feed (`application/xml`) |
+| `/api/merchello/feeds/{slug}/promotions.xml` | Promotions feed (`application/xml`) |
+| `/api/merchello/feeds/auto-discount/active` | Active Google auto-discount payload (returns `204 No Content` when none active) |
 
 For example, a feed with slug `us-shopping` would be accessible at:
 
@@ -66,9 +68,9 @@ Merchello can validate and surface Google auto-discount tokens. Configure the pu
 
 ## Automatic Refresh
 
-Feeds are cached in the database so serving them is a fast read, not a full product query. A background job (`ProductFeedRefreshJob`) periodically rebuilds all enabled feeds.
+Feeds are cached in the database so serving them is a fast read, not a full product query. A background job ([`ProductFeedRefreshJob`](../../../src/Merchello.Core/ProductFeeds/Services/ProductFeedRefreshJob.cs)) periodically rebuilds all enabled feeds.
 
-Configure the refresh schedule in `appsettings.json`:
+Configure the refresh schedule in `appsettings.json` (binds to [`ProductFeedSettings`](../../../src/Merchello.Core/ProductFeeds/ProductFeedSettings.cs)):
 
 ```json
 {
@@ -81,13 +83,15 @@ Configure the refresh schedule in `appsettings.json`:
 }
 ```
 
-You can also trigger a manual rebuild from the backoffice at any time.
+You can also trigger a manual rebuild from the backoffice or via `POST /api/v1/product-feeds/{id}/rebuild` (see [ProductFeedsApiController](../../../src/Merchello/Controllers/ProductFeedsApiController.cs)).
 
 ## Custom Field Resolvers
 
 Product feed field values are resolved through a pluggable resolver system. Built-in resolvers handle standard Google Shopping fields (title, description, price, availability, etc.), but you can register custom resolvers for specialized needs.
 
-Each resolver receives a `ProductFeedResolverContext` with the product data, feed configuration, and store settings, and returns the resolved field value.
+Each resolver receives a [`ProductFeedResolverContext`](../../../src/Merchello.Core/ProductFeeds/Models/ProductFeedResolverContext.cs) with the product data, feed configuration, and store settings, and returns the resolved field value. Resolvers are discovered via `ExtensionManager`.
+
+For the full developer guide (registering resolvers, field aliases, testing) see [docs/Product-Feed-Resolvers.md](../../Product-Feed-Resolvers.md).
 
 ## Multiple Feeds
 
@@ -99,7 +103,25 @@ You can create multiple feeds targeting different countries, currencies, or prod
 
 Each feed has its own public URL to submit to Google Merchant Center.
 
+## Backoffice API
+
+Source: [ProductFeedsApiController.cs](../../../src/Merchello/Controllers/ProductFeedsApiController.cs).
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/v1/product-feeds` | GET | List feeds |
+| `/api/v1/product-feeds/{id}` | GET | Feed detail |
+| `/api/v1/product-feeds` | POST | Create feed |
+| `/api/v1/product-feeds/{id}` | PUT | Update feed |
+| `/api/v1/product-feeds/{id}` | DELETE | Delete feed |
+| `/api/v1/product-feeds/{id}/rebuild` | POST | Force immediate rebuild |
+| `/api/v1/product-feeds/{id}/preview` | GET | Preview generated items |
+| `/api/v1/product-feeds/{id}/validate` | POST | Validate feed output against Google rules |
+| `/api/v1/product-feeds/resolvers` | GET | List registered resolvers (for custom fields) |
+
 ## Related Topics
 
 - [Products](../products/)
+- [Google Auto Discount](../advanced/google-auto-discount.md)
+- [Product Feed Resolvers (dev guide)](../../Product-Feed-Resolvers.md)
 - [Background Jobs](../background-jobs/background-jobs.md)

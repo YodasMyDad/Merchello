@@ -1,6 +1,8 @@
 # Storefront Context and Display
 
-The `IStorefrontContextService` is the central service for everything your storefront needs to know about the current customer's context -- their shipping location, preferred currency, exchange rates, tax settings, and product availability. It reads from cookies, store settings, and fallback defaults to build a consistent context for every page render.
+The [`IStorefrontContextService`](../../../src/Merchello.Core/Storefront/Services/Interfaces/IStorefrontContextService.cs) is the central service for everything your storefront needs to know about the current customer's context -- their shipping location, preferred currency, exchange rates, tax settings, and product availability. It reads from cookies, store settings, and fallback defaults to build a consistent context for every page render.
+
+> **Invariant:** `GetDisplayContextAsync()` is the single source of truth for storefront display. Basket amounts are always stored in store currency; display currency is applied on-the-fly using multiply (`amount * ExchangeRate`). Never charge a customer from display amounts -- checkout and payment use the invoice conversion path (divide). See CLAUDE.md for the full multi-currency rule.
 
 ## Why You Need This
 
@@ -192,7 +194,7 @@ var availability = await storefrontContext.GetBasketAvailabilityAsync(
 
 ## Storefront REST API
 
-The `StorefrontApiController` exposes these operations as REST endpoints at `/api/merchello/storefront`:
+The [`StorefrontApiController`](../../../src/Merchello/Controllers/StorefrontApiController.cs) exposes these operations as REST endpoints at `/api/merchello/storefront`:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|

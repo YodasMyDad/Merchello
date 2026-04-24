@@ -14,6 +14,7 @@
         <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>merchello.png</PackageIcon>
         <LocalNugetSource>$(MSBuildProjectDirectory)/../../NugetSource</LocalNugetSource>
     </PropertyGroup>
 
@@ -72,6 +73,7 @@
 
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="..\Merchello\Client\public\img\merchello.png" Pack="true" PackagePath="" />
   </ItemGroup>
 
   <!-- Embedded Liberation Sans fonts for cross-platform PDF generation -->

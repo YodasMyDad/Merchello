@@ -1,6 +1,6 @@
 # Reporting and Analytics
 
-Merchello provides a reporting system for tracking sales performance, understanding trends, and exporting data. All reporting data is served through the `IReportingService` and exposed via the backoffice API.
+Merchello provides a reporting system for tracking sales performance, understanding trends, and exporting data. All reporting data is served through [`IReportingService`](../../../src/Merchello.Core/Reporting/Services/Interfaces/IReportingService.cs) ([implementation](../../../src/Merchello.Core/Reporting/Services/ReportingService.cs)) and exposed via the backoffice API in [`ReportingApiController`](../../../src/Merchello/Controllers/ReportingApiController.cs).
 
 ## KPI Summary
 
@@ -92,7 +92,7 @@ Time series queries are limited to a maximum of 730 days (2 years) to prevent un
 
 ## Best Sellers
 
-The reporting service can return your best-selling products:
+The reporting service can return your best-selling products (no dedicated API endpoint — consumed by the backoffice dashboard):
 
 ```csharp
 var bestSellers = await reportingService.GetBestSellersAsync(
@@ -105,45 +105,58 @@ Products are ranked by total quantity sold (descending).
 
 ## Order Statistics
 
-Quick stats for today's operations:
+Quick stats for today's operations — exposed via the Orders API:
 
-```csharp
-var stats = await reportingService.GetOrderStatsAsync();
-// stats.Orders, stats.Items, stats.Fulfilled, stats.Outstanding
 ```
+GET /api/v1/orders/stats
+```
+
+Returns `OrderStatsDto` with today's counts (`Orders`, `Items`, `Fulfilled`, `Outstanding`). Implementation: [OrdersApiController.GetOrderStats](../../../src/Merchello/Controllers/OrdersApiController.cs#L120).
 
 ## Dashboard Statistics
 
 Monthly metrics with percentage changes for the main dashboard:
 
-```csharp
-var dashboard = await reportingService.GetDashboardStatsAsync();
 ```
+GET /api/v1/orders/dashboard-stats
+```
+
+Returns `DashboardStatsDto`. Implementation: [OrdersApiController.GetDashboardStats](../../../src/Merchello/Controllers/OrdersApiController.cs#L130).
 
 ## CSV Export
 
-Export order data for a date range as CSV:
+Export order data for a date range — exposed via the Orders API:
 
-```csharp
-var exportData = await reportingService.GetOrdersForExportAsync(
-    fromDate: new DateTime(2025, 1, 1),
-    toDate: new DateTime(2025, 1, 31));
+```
+POST /api/v1/orders/export
+Content-Type: application/json
+
+{
+  "fromDate": "2025-01-01T00:00:00Z",
+  "toDate": "2025-01-31T23:59:59Z"
+}
 ```
 
-Returns a list of `OrderExportItemDto` records that include all the fields needed for a comprehensive CSV export (order number, customer, line items, totals, etc.).
+Returns a list of `OrderExportItemDto` records with all fields needed for a comprehensive CSV export (order number, customer, line items, totals). Implementation: [OrdersApiController.ExportOrders](../../../src/Merchello/Controllers/OrdersApiController.cs#L140).
 
 ## API Summary
+
+Reporting endpoints live under `/api/v1/reporting` (see [ReportingApiController.cs](../../../src/Merchello/Controllers/ReportingApiController.cs)). Order stats / dashboard / export live under `/api/v1/orders`.
 
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/v1/reporting/summary` | GET | KPI summary with comparison |
 | `/api/v1/reporting/breakdown` | GET | Sales breakdown with comparison |
 | `/api/v1/reporting/sales-timeseries` | GET | Daily sales data points |
-| `/api/v1/reporting/sales-timeseries-with-totals` | GET | Sales data with calculated totals |
+| `/api/v1/reporting/sales-timeseries-with-totals` | GET | Sales data with calculated totals and comparison |
 | `/api/v1/reporting/aov-timeseries` | GET | Daily average order value |
-| `/api/v1/reporting/aov-timeseries-with-totals` | GET | AOV data with calculated totals |
+| `/api/v1/reporting/aov-timeseries-with-totals` | GET | AOV data with calculated totals and comparison |
+| `/api/v1/orders/stats` | GET | Today's order stats |
+| `/api/v1/orders/dashboard-stats` | GET | Monthly dashboard stats with percent change |
+| `/api/v1/orders/export` | POST | Order export data for CSV generation |
 
 ## Related Topics
 
 - [Orders](../orders/)
 - [Background Jobs](../background-jobs/background-jobs.md)
+- [Admin API](../api/admin-api.md)

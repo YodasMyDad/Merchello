@@ -88,8 +88,8 @@ jobs:
           set -euo pipefail
           git fetch --tags --force
 
-          # Check if HEAD already has a beta tag
-          existing_tag="$(git tag --points-at HEAD | grep -E '^v1\.0\.0-beta\.[0-9]+$' | head -n 1 || true)"
+          # If HEAD already has a stable vX.Y.Z tag, reuse it (idempotent re-runs).
+          existing_tag="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
           if [[ -n "${existing_tag}" ]]; then
             echo "tag_already_exists=true" >> "$GITHUB_OUTPUT"
             echo "tag=${existing_tag}" >> "$GITHUB_OUTPUT"
@@ -97,16 +97,17 @@ jobs:
             exit 0
           fi
 
-          # Find the latest beta tag and increment
-          latest_beta="$(git tag -l 'v1.0.0-beta.[0-9]*' --sort=-v:refname | head -n 1 || true)"
-          if [[ -z "${latest_beta}" ]]; then
-            beta_num=1
+          # Find the latest stable (non-prerelease) tag anywhere in history.
+          latest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          if [[ -z "${latest}" ]]; then
+            # No stable tag yet — this push becomes v1.0.0.
+            version="1.0.0"
           else
-            beta_num="${latest_beta##*beta.}"
-            beta_num=$((beta_num + 1))
+            # Auto-increment patch.
+            IFS='.' read -r major minor patch <<< "${latest#v}"
+            version="${major}.${minor}.$((patch + 1))"
           fi
 
-          version="1.0.0-beta.${beta_num}"
           tag="v${version}"
           echo "tag_already_exists=false" >> "$GITHUB_OUTPUT"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"

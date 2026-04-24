@@ -4,7 +4,11 @@ Flat rate shipping lets you configure fixed shipping costs based on destination 
 
 ## How It Works
 
-The flat-rate provider (`flat-rate`) uses `ShippingOption` records with associated `ShippingCost` entries to determine the shipping price. You create shipping options (like "Standard Shipping" or "Express Delivery") and then add cost entries for each destination you ship to.
+The flat-rate provider ([`FlatRateShippingProvider`](../../../src/Merchello.Core/Shipping/Providers/BuiltIn/FlatRateShippingProvider.cs), key `flat-rate`) uses `ShippingOption` records with associated `ShippingCost` entries to determine the shipping price. You create shipping options (like "Standard Shipping" or "Express Delivery") and then add cost entries for each destination you ship to.
+
+Cost lookup is delegated to [`ShippingCostResolver`](../../../src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs) -- the single source of truth for flat-rate matching. `FlatRateShippingProvider` never duplicates the match logic; it consumes a pre-resolved `DestinationCost`.
+
+> **Invariant (CLAUDE.md):** Only flat-rate options carry fixed costs in the DB. Dynamic providers (`UsesLiveRates = true`) must NOT use fixed-cost entries. If you want a carrier-named option at a fixed price, create it as `ProviderKey = "flat-rate"`.
 
 ---
 
@@ -193,6 +197,14 @@ This happens automatically -- you don't need to store costs in multiple currenci
 
 > **Tip:** Use the universal (`*`) destination as a catch-all. Without it, customers in countries without a specific cost entry will only see the `fixedCost` fallback.
 
-> **Tip:** Set `fixedCost` to `0` for free shipping as a fallback. If you don't want free shipping as a fallback, make sure every destination has a cost entry or a universal entry.
+> **Tip:** Set `fixedCost` to `0` for free shipping as a fallback. For flat-rate options, a null `FixedCost` is normalized to `0` in [`ShippingCostResolver.GetTotalShippingCost()`](../../../src/Merchello.Core/Shipping/Services/ShippingCostResolver.cs) so the option always resolves.
 
 > **Tip:** The delivery day range (`daysFrom`/`daysTo`) is displayed to customers at checkout. Keep these realistic -- they set customer expectations.
+
+## Related Topics
+
+- [Shipping Overview](shipping-overview.md)
+- [Dynamic Shipping Providers](dynamic-shipping-providers.md) -- live carrier rates (cannot be combined with fixed costs)
+- [Order Grouping Strategies](order-grouping.md)
+- [Package Configuration](package-configuration.md) -- weight-tier inputs
+- [Shipping Tax](../tax/shipping-tax.md)

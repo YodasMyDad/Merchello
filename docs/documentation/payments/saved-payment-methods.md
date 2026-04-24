@@ -1,6 +1,6 @@
 # Saved Payment Methods (Vaulting)
 
-Saved payment methods let customers store their card details for faster checkout on future orders. Merchello handles vaulting through the payment provider -- card details are never stored in your database.
+Saved payment methods let customers store their card details for faster checkout on future orders. Merchello handles vaulting through the payment provider — card details are never stored in your database. Full service surface: [`ISavedPaymentMethodService.cs`](../../../src/Merchello.Core/Payments/Services/Interfaces/ISavedPaymentMethodService.cs). For a deeper dive into the design and payment-side wiring, see [VaultedPayments.md](../../VaultedPayments.md) in the repo root.
 
 ## How Vaulting Works
 
@@ -33,59 +33,64 @@ To enable vaulting for a provider, toggle the **Enable Card Vaulting** option in
 
 ## Saving Methods During Checkout
 
-The simplest way for customers to save a payment method is during checkout. When the customer checks "Save this card for future purchases", the method is saved after successful payment.
+The simplest way for customers to save a payment method is during checkout. When the customer opts in to "Save this card for future purchases", the method is saved after successful payment.
 
-The checkout API handles this via `savePaymentMethod: true` in the `InitiatePaymentDto`:
+The checkout API handles this via `savePaymentMethod: true` in [`InitiatePaymentDto`](../../../src/Merchello.Core/Payments/Dtos/InitiatePaymentDto.cs) posted to `POST /api/merchello/checkout/pay`:
 
 ```json
 {
   "providerAlias": "stripe",
-  "methodAlias": "card",
+  "methodAlias": "cards-elements",
+  "returnUrl": "/checkout/return",
+  "cancelUrl": "/checkout/cancel",
   "savePaymentMethod": true
 }
 ```
 
-After the payment succeeds, `ISavedPaymentMethodService.SaveFromCheckoutAsync()` stores the reference.
+After the payment succeeds, `ISavedPaymentMethodService.SaveFromCheckoutAsync()` stores the reference — the provider's vault token, card brand/last4/expiry, and `ConsentDateUtc` / `ConsentIpAddress`.
 
 ---
 
 ## Standalone Vault Setup
 
-Customers can also save payment methods outside of checkout (e.g., from their account settings page). This uses a two-step setup flow:
+Customers can also save payment methods outside of checkout (e.g. from an account settings page). This uses a two-step setup flow exposed by [`StorefrontSavedPaymentMethodsController`](../../../src/Merchello/Controllers/StorefrontSavedPaymentMethodsController.cs).
 
 ### Step 1: Create Setup Session
 
-```
+```http
 POST /api/merchello/storefront/payment-methods/setup
+Content-Type: application/json
 ```
 
 ```json
 {
   "providerAlias": "stripe",
-  "methodAlias": "card",
+  "methodAlias": "cards-elements",
   "returnUrl": "/account/payment-methods",
   "cancelUrl": "/account/payment-methods"
 }
 ```
 
-**Response:**
+**Response ([`VaultSetupResponseDto`](../../../src/Merchello.Core/Payments/Dtos/VaultSetupResponseDto.cs)):**
 
 ```json
 {
   "success": true,
   "setupSessionId": "seti_...",
   "clientSecret": "seti_..._secret_...",
+  "redirectUrl": null,
   "providerCustomerId": "cus_...",
-  "sdkConfig": { ... }
+  "sdkConfig": { }
 }
 ```
 
 ### Step 2: Confirm Setup
 
-After the customer completes the SDK form (enters their card, passes 3D Secure, etc.):
+After the customer completes the SDK form (enters card, passes 3D Secure, etc.):
 
-```
+```http
 POST /api/merchello/storefront/payment-methods/confirm
+Content-Type: application/json
 ```
 
 ```json
@@ -118,28 +123,32 @@ POST /api/merchello/storefront/payment-methods/confirm
 
 ## Using Saved Methods at Checkout
 
-When a logged-in customer reaches the payment step, the checkout API returns their saved methods in the payment options:
+When a logged-in customer reaches the payment step, the checkout API returns their saved methods alongside provider payment methods:
 
-```
+```http
 GET /api/merchello/checkout/payment-options
 ```
 
-To pay with a saved method:
+Returns [`CheckoutPaymentOptionsDto`](../../../src/Merchello.Core/Checkout/Dtos/CheckoutPaymentOptionsDto.cs) — provider methods + saved methods + `CanSavePaymentMethods` flag.
 
-```
+To pay with a saved method, POST [`ProcessSavedPaymentMethodDto`](../../../src/Merchello.Core/Payments/Dtos/ProcessSavedPaymentMethodDto.cs):
+
+```http
 POST /api/merchello/checkout/process-saved-payment
+Content-Type: application/json
 ```
 
 ```json
 {
-  "savedPaymentMethodId": "...",
-  "invoiceId": "..."
+  "invoiceId": "7d2a...",
+  "savedPaymentMethodId": "8e3c...",
+  "idempotencyKey": "order-123-retry-1"
 }
 ```
 
-This charges the saved method off-session (no CVV required). The provider handles the charge using the stored token.
+This charges the saved method off-session (no CVV required). The provider handles the charge using the stored token, and `Payment.IdempotencyKey` prevents duplicate charges if the client retries.
 
-> **Note:** Saved payment requires authentication. The endpoint returns `401 Unauthorized` for anonymous users.
+> **Note:** Saved payment requires authentication. The endpoint returns `401 Unauthorized` for anonymous users and enforces ownership — customers can only charge their own saved methods.
 
 ---
 
@@ -251,25 +260,29 @@ Saved methods can be charged off-session for scenarios like:
 - Repeat purchases
 - Subscription renewals
 
+`ChargeAsync` always attaches the charge to an **invoice** — create one first if the charge doesn't originate from an existing order. See [`ChargeSavedMethodParameters`](../../../src/Merchello.Core/Payments/Services/Parameters/ChargeSavedMethodParameters.cs):
+
 ```csharp
 var result = await savedPaymentMethodService.ChargeAsync(
     new ChargeSavedMethodParameters
     {
-        SavedPaymentMethodId = methodId,
-        Amount = 29.99m,
-        CurrencyCode = "GBP",
-        Description = "Monthly subscription"
+        InvoiceId            = invoiceId,                // required - charge is recorded against an invoice
+        SavedPaymentMethodId = methodId,                 // required
+        Amount               = 29.99m,                   // null = charge the invoice balance due
+        Description          = "Monthly subscription",
+        IdempotencyKey       = "sub-2026-04-renewal-1"   // recommended for subscriptions
     },
     cancellationToken);
 ```
 
-The charge is processed through the provider's `ChargeVaultedMethodAsync()` method. No customer interaction is needed.
+The currency comes from the invoice — the service does not take a `CurrencyCode`. Merchello validates the saved method is owned by the invoice's customer before charging.
 
 ---
 
 ## Security
 
-- **Ownership checks**: All storefront endpoints verify the payment method belongs to the current customer
-- **Authentication required**: Storefront endpoints return `401` for unauthenticated requests
-- **Consent tracking**: The service records `ConsentDateUtc` and `ConsentIpAddress` when a method is saved
-- **Expiry detection**: Methods are automatically flagged as expired based on `ExpiryMonth`/`ExpiryYear`
+- **Ownership checks** — Storefront endpoints verify the payment method belongs to the current customer; backoffice charges validate ownership against the invoice's customer.
+- **Authentication required** — Storefront endpoints return `401` for unauthenticated requests.
+- **Consent tracking** — `ConsentDateUtc` and `ConsentIpAddress` are recorded when a method is saved.
+- **Expiry detection** — Methods are automatically flagged as expired based on `ExpiryMonth`/`ExpiryYear`.
+- **Idempotency** — Pass an `IdempotencyKey` on saved-method charges and refunds to make retries safe (see [Payment System Overview](payment-system-overview.md#idempotency--dedupe-invariant)).

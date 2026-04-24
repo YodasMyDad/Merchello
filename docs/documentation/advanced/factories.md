@@ -27,6 +27,18 @@ Merchello.Core/
     TaxGroupFactory.cs
   Checkout/Factories/
     BasketFactory.cs
+  Customers/Factories/
+    CustomerFactory.cs
+    CustomerSegmentFactory.cs
+  DigitalProducts/Factories/
+    DownloadLinkFactory.cs
+  Discounts/Factories/
+    DiscountFactory.cs
+  Locality/Factories/
+    AddressFactory.cs
+  Payments/Factories/
+    PaymentFactory.cs
+    SavedPaymentMethodFactory.cs
   Products/Factories/
     ProductFactory.cs
     ProductRootFactory.cs
@@ -35,13 +47,20 @@ Merchello.Core/
     ProductFilterFactory.cs
     ProductFilterGroupFactory.cs
     ProductTypeFactory.cs
-  Customers/Factories/
-    CustomerFactory.cs
-    CustomerSegmentFactory.cs
-  Discounts/Factories/
-    DiscountFactory.cs
   ProductFeeds/Factories/
     ProductFeedFactory.cs
+  ProductSync/Factories/
+    ProductSyncIssueFactory.cs
+    ProductSyncRunFactory.cs
+  Shipping/Factories/
+    ShipmentFactory.cs
+    ShippingOptionFactory.cs
+  Suppliers/Factories/
+    SupplierFactory.cs
+  Upsells/Factories/
+    UpsellFactory.cs
+  Warehouses/Factories/
+    WarehouseFactory.cs
 ```
 
 Factories are registered in the DI container and injected into services via constructor injection. Some factories accept their own dependencies (e.g., `ICurrencyService` for rounding).
@@ -58,8 +77,8 @@ Creates `Invoice` instances. Requires `ICurrencyService` for looking up currency
 
 | Method | What it does |
 |---|---|
-| `CreateFromBasket(...)` | Creates an invoice from a checkout basket. Captures billing/shipping addresses, currency codes, payment terms, and purchase order numbers. |
-| `CreateManual(...)` | Creates a manual invoice for admin-created orders. Rounds amounts using the currency service and adds a system note. |
+| `CreateFromBasket(basket, invoiceNumber, billingAddress, shippingAddress, presentmentCurrency, storeCurrency, customerId, source?, hasAccountTerms, paymentTermsDays?, purchaseOrder?)` | Creates an invoice from a checkout basket. Captures billing/shipping addresses, currency codes, payment terms, and purchase order numbers. Default source is `InvoiceSources.Web`. |
+| `CreateManual(invoiceNumber, customerId, billingAddress, shippingAddress, currencyCode, subTotal, tax, total, authorName?, authorId?, hasAccountTerms, paymentTermsDays?)` | Creates a manual invoice for admin-created orders. Rounds amounts using the currency service and adds a system note. Source is `InvoiceSources.Draft`. |
 
 ```csharp
 // Creating an invoice from a basket during checkout

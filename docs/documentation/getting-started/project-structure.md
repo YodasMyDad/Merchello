@@ -6,38 +6,44 @@ Merchello is split into clearly separated projects, each with a specific respons
 
 ### Merchello.Core
 
-This is the heart of the system. It contains all business logic, domain models, services, data access, and provider architecture. It has **no dependency on Umbraco's web layer** -- it only depends on Umbraco's core EF libraries.
+This is the heart of the system. It contains all business logic, domain models, services, data access, and provider architecture. It has **no dependency on Umbraco's web layer** -- it only depends on Umbraco's core EF libraries. Browse at [src/Merchello.Core](../../../src/Merchello.Core).
 
 ```
 Merchello.Core/
   Accounting/          # Invoices, credit notes, statements
-  Actions/             # Business action abstractions
+  Actions/             # Business action abstractions (extension points)
   AddressLookup/       # Postcode/address lookup providers
+  Auditing/            # Audit trail for entity changes
   Caching/             # ICacheService, cache refreshers
-  Checkout/            # Basket, checkout session, strategies
-  Customers/           # Customer records, segments
-  Data/                # DbContext, migrations, seeding
-  Discounts/           # Discount engine, calculators
-  DigitalProducts/     # Download tokens, HMAC signing
-  Email/               # Email settings, templates
-  ExchangeRates/       # Currency conversion providers
-  Fulfilment/          # 3PL order submission, status sync
-  Locality/            # Countries, regions, address models
+  Checkout/            # Basket, checkout session, strategies, abandoned cart
+  Customers/           # Customer records, segments, criteria
+  Data/                # MerchelloDbContext, migrations, DbSeeder
+  DigitalProducts/     # Download tokens, HMAC signing, delivery
+  Discounts/           # Discount engine, calculators (including BuyXGetY)
+  Email/               # Email settings, token resolver, templates, MJML
+  ExchangeRates/       # Currency conversion providers (Frankfurter, etc.)
+  Fulfilment/          # 3PL order submission, status sync, Supplier Direct
+  HealthChecks/        # Built-in store diagnostics
+  Locality/            # Countries, regions, address models, locality catalog
   Notifications/       # Notification pipeline and handlers
-  Payments/            # Payment lifecycle, provider contracts
+  Payments/            # Payment lifecycle, provider contracts, idempotency
   ProductFeeds/        # Google Shopping feed generation
-  Products/            # Products, variants, collections, inventory
-  Protocols/           # UCP (Universal Commerce Protocol)
-  Reporting/           # Sales reports, KPIs
-  Settings/            # Persisted store settings
+  ProductSync/         # CSV import/export (Shopify, etc.)
+  Products/            # Products, variants, collections, inventory, filters
+  Protocols/           # UCP (Universal Commerce Protocol) for AI agents
+  Reporting/           # Sales reports, KPIs, best sellers
+  Settings/            # Persisted store settings (overrides appsettings)
   Shared/              # CrudResult, extensions, helpers
-  Shipping/            # Shipping providers, quotes
+  Shipping/            # Shipping providers, quotes, cost resolution
+  Storefront/          # StorefrontContextService, display context
   Suppliers/           # Supplier/vendor management
-  Tax/                 # Tax providers, calculation services
-  Upsells/             # Cross-sells, order bumps
-  Warehouses/          # Warehouse management, stock
-  Webhooks/            # Outbound webhook delivery
+  Tax/                 # Tax providers, orchestration, calculation services
+  Upsells/             # Cross-sells, order bumps, post-purchase
+  Warehouses/          # Warehouse management, stock, provider config
+  Webhooks/            # Outbound webhook delivery, topic registry
 ```
+
+Two sibling projects, [Merchello.Core.SqlServer](../../../src/Merchello.Core.SqlServer) and [Merchello.Core.Sqlite](../../../src/Merchello.Core.Sqlite), provide provider-specific EF Core migrations. Both ship as transitive dependencies of the `Umbraco.Community.Merchello` NuGet package.
 
 Each feature area follows a consistent internal structure:
 
@@ -57,39 +63,44 @@ Feature/
 
 ### Merchello (Web Project)
 
-This is the Umbraco integration layer. It handles HTTP concerns, routing, backoffice UI, and view rendering. It depends on `Merchello.Core` but never the other way around.
+This is the Umbraco integration layer. It handles HTTP concerns, routing, backoffice UI, and view rendering. It depends on `Merchello.Core` but never the other way around. Browse at [src/Merchello](../../../src/Merchello).
 
 ```
 Merchello/
-  Client/              # TypeScript/Vite source for backoffice UI
+  Client/              # TypeScript/Vite/Lit source for backoffice UI
   Composers/           # Umbraco composer registrations
   Controllers/         # API controllers (backoffice + storefront)
   Email/               # Email rendering (Razor-based)
   Extensions/          # View/media helper extensions
   Factories/           # MerchelloPublishedElementFactory
-  Filters/             # Action filters, middleware
-  Middleware/           # Request pipeline middleware
-  Models/              # View models (MerchelloProductViewModel, etc.)
+  Filters/             # Action filters (e.g. CheckoutExceptionFilter)
+  Middleware/          # Request pipeline middleware (MerchelloStartupFilter)
+  Models/              # View models (MerchelloProductViewModel, MerchelloSettings binding)
+  Presence/            # Real-time editing presence (SignalR)
   Routing/             # ProductContentFinder, CheckoutContentFinder
-  Services/            # Web-layer services (storefront mappers)
-  Startup.cs           # DI registration (AddMerchello)
+  Services/            # Web-layer services (storefront DTO mappers)
+  Startup.cs           # DI registration (AddMerchello extension)
   Tax/                 # Tax provider resolution for views
-  wwwroot/             # Static assets (App_Plugins/Merchello)
+  wwwroot/             # Static assets (built into App_Plugins/Merchello)
 ```
+
+The single `AddMerchello()` extension in [Startup.cs](../../../src/Merchello/Startup.cs) registers every service, factory, background job, notification handler, and content finder. You rarely need additional wiring in your own `Program.cs`.
 
 ### Merchello.Site (Example Store)
 
-This is the starter site -- a working example that shows how to build a storefront using Merchello. When you use the .NET template, you get a copy of this project. It demonstrates rendering products, categories, a basket page, and integrating with the Merchello checkout.
+This is the starter site -- a working example that shows how to build a storefront using Merchello. When you use the .NET template (via [Merchello.StarterSite.Template](../../../src/Merchello.StarterSite.Template)) you get a copy of this project with `Merchello` referenced as a NuGet package instead of a project reference. Browse at [src/Merchello.Site](../../../src/Merchello.Site).
 
 ```
 Merchello.Site/
   Basket/
     Controllers/       # BasketController
+    Models/            # Basket (published content model partial)
   Category/
     Controllers/       # CategoryController
-    Models/            # CategoryPageViewModel
+    Models/            # Category, CategoryPageViewModel
   Home/
     Controllers/       # HomeController
+    Models/            # Home (published content model with BestSellers)
   Shared/
     Controllers/       # BaseController (shared base)
   Views/
@@ -97,12 +108,15 @@ Merchello.Site/
     Basket.cshtml      # Basket/cart page
     Category.cshtml    # Category listing page
     Products/
-      Default.cshtml   # Product detail view
-      Partials/        # Gallery, purchase panel, upsells
+      Default.cshtml   # Product detail view (via ProductContentFinder)
+      Partials/        # _ProductGallery, _ProductPurchasePanel, _ProductUpsells
     Website.cshtml     # Layout template
+  uSync/v17/           # Exported content, data types, document types
   Program.cs           # Application entry point
   appsettings.json     # Full configuration example
 ```
+
+The starter template lives at [src/Merchello.StarterSite.Template](../../../src/Merchello.StarterSite.Template) and is regenerated from `Merchello.Site` by [scripts/prepare-starter-template.ps1](../../../scripts/prepare-starter-template.ps1) for each release.
 
 ## Architecture Principles
 

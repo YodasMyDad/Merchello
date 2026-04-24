@@ -1,10 +1,14 @@
 # Built-in Payment Providers
 
-Merchello ships with six payment providers out of the box. Each provider is a plugin discovered by the `ExtensionManager` -- you configure them in the backoffice under **Settings > Payment Providers**.
+Merchello ships with six payment providers out of the box (including the built-in `Manual` provider). Each provider is a plugin discovered by the `ExtensionManager` — you configure them in the backoffice under **Settings > Payment Providers**. For an in-depth developer walkthrough including hosted fields, webhooks, vaulting, express checkout, and payment links, see the repo-root [PaymentProviders-DevGuide](../../PaymentProviders-DevGuide.md). To build your own, see [Creating Payment Providers](../extending/creating-payment-providers.md).
+
+> **Alias stability:** The `Alias` on a provider is permanent — it's used for webhook URLs, stored settings, and `Payment.PaymentProviderAlias`. Never change it after deployment.
 
 ---
 
 ## Provider Comparison
+
+Capabilities below come directly from each provider's `PaymentProviderMetadata` (verified against source):
 
 | Feature | Stripe | PayPal | Amazon Pay | Braintree | WorldPay | Manual |
 |---------|--------|--------|------------|-----------|----------|--------|
@@ -12,12 +16,12 @@ Merchello ships with six payment providers out of the box. Each provider is a pl
 | PayPal | No | Yes | No | Yes | No | No |
 | Apple Pay | Yes | No | No | Yes | Yes | No |
 | Google Pay | Yes | No | No | Yes | Yes | No |
-| Refunds | Yes | Yes | No | Yes | Yes | Yes |
-| Partial Refunds | Yes | Yes | No | Yes | Yes | Yes |
+| Refunds | Yes | Yes | **No** | Yes | Yes | Yes (recording) |
+| Partial Refunds | Yes | Yes | **No** | Yes | Yes | Yes (recording) |
 | Auth & Capture | Yes | Yes | No | Yes | Yes | No |
 | Webhooks | Required | Required | No | Required | Required | No |
 | Payment Links | Yes | Yes | No | No | No | No |
-| Saved Cards (Vaulting) | Yes | Yes | No | Yes | No | No |
+| Saved Cards (Vaulting) | Yes | Yes | No | Yes | **No** | No |
 | Purchase Orders | No | No | No | No | No | Yes |
 
 ---
@@ -53,16 +57,24 @@ Stripe uses `HostedFields` integration -- the Stripe.js SDK renders payment fiel
 
 ### Payment Methods
 
-- **Card** -- Credit/debit cards via Payment Element (unified) or Card Elements (individual fields)
-- **Apple Pay** -- Express checkout (requires domain verification in Stripe Dashboard)
-- **Google Pay** -- Express checkout (works automatically in Chrome)
+Stripe exposes several method aliases — pick one in `InitiatePaymentDto.methodAlias` or let the checkout default apply:
+
+| Alias | Integration | Notes |
+|-------|-------------|-------|
+| `cards` | Redirect | Stripe Checkout hosted page |
+| `cards-elements` | HostedFields | Unified Payment Element (recommended inline card entry) |
+| `cards-hosted` | HostedFields | Individual card number/expiry/CVC fields with per-field styling |
+| `applepay` | Widget | Express checkout (requires domain verification in Stripe) |
+| `googlepay` | Widget | Express checkout (works in Chrome/Android) |
+| `link` | Widget | Link by Stripe |
+| `amazonpay` | Widget | Amazon Pay via Stripe |
 
 ### Capabilities
 
 - Full and partial refunds
 - Authorization and capture
 - Payment links (Stripe Checkout sessions)
-- Saved card vaulting (requires Stripe Customer ID)
+- Saved card vaulting (requires Stripe Customer ID — `RequiresProviderCustomerId = true`)
 
 ---
 
@@ -97,16 +109,17 @@ PayPal uses a widget-based flow -- the PayPal Buttons SDK renders in the checkou
 
 ### Payment Methods
 
-- **PayPal** -- Standard PayPal checkout
-- **Pay Later** -- PayPal's installment payment option
-- **PayPal Express** -- Express checkout from the cart page
+| Alias | Name | Notes |
+|-------|------|-------|
+| `paypal` | PayPal | Standard PayPal Buttons |
+| `paylater` | Pay Later | Installments / buy now pay later |
 
 ### Capabilities
 
 - Full and partial refunds
 - Authorization and capture
 - Payment links
-- Saved payment methods (vault tokens)
+- Saved payment methods (vault tokens, no separate provider customer ID required)
 
 ---
 
@@ -137,12 +150,12 @@ Amazon Pay uses `Redirect` integration -- the customer is sent to Amazon's check
 
 ### Payment Methods
 
-- **Amazon Pay** -- Pay with Amazon account
+- **Amazon Pay** (`amazonpay`) — Pay with Amazon account
 
 ### Capabilities
 
-- Basic payment processing
-- No refunds, webhooks, or vaulting (use Amazon Pay dashboard for refunds)
+- Basic payment processing (redirect-based)
+- **No** refunds, webhooks, or vaulting — to refund an Amazon Pay order, process it in the Amazon Pay dashboard and record it in Merchello via the [manual refund flow](refunds.md#recording-a-manual-refund).
 
 ---
 
@@ -176,12 +189,18 @@ Braintree uses `HostedFields` integration with multiple SDK components loaded dy
 
 ### Payment Methods
 
-- **Card** -- Credit/debit cards via Hosted Fields
-- **PayPal** -- Via Braintree's PayPal integration
-- **Apple Pay** -- Express checkout (requires Apple developer setup)
-- **Google Pay** -- Express checkout
-- **Venmo** -- Mobile payments
-- **Local Payments** -- iDEAL, Bancontact, SEPA, EPS, P24
+| Alias | Name |
+|-------|------|
+| `cards` | Credit/debit cards (Hosted Fields) |
+| `paypal` | PayPal via Braintree |
+| `applepay` | Apple Pay (requires Apple developer setup) |
+| `googlepay` | Google Pay |
+| `venmo` | Venmo |
+| `ideal` | iDEAL |
+| `bancontact` | Bancontact |
+| `sepa` | SEPA Direct Debit |
+| `eps` | eps |
+| `p24` | Przelewy24 |
 
 ### Capabilities
 
@@ -219,48 +238,40 @@ WorldPay uses `HostedFields` integration -- the Access Checkout SDK renders card
 
 ### Payment Methods
 
-- **Card** -- Credit/debit cards with 3D Secure
-- **Apple Pay** -- Express checkout (requires merchant validation endpoint)
-- **Google Pay** -- Express checkout
+| Alias | Name | Notes |
+|-------|------|-------|
+| `cards` | Credit/debit cards | Access Checkout SDK with 3D Secure |
+| `applepay` | Apple Pay | Uses the dedicated `/api/merchello/checkout/worldpay/apple-pay-validate` merchant validation endpoint |
+| `googlepay` | Google Pay | Loads Google's pay SDK |
 
 ### Capabilities
 
 - Full and partial refunds
 - Authorization and capture
-- Apple Pay merchant validation (dedicated endpoint)
+- No vaulting (not supported by this provider)
 
 ---
 
 ## Manual Payment
 
-**Alias:** `manual`
+**Provider alias:** `manual` (see [`ManualPaymentProvider.cs`](../../../src/Merchello.Core/Payments/Providers/BuiltIn/ManualPaymentProvider.cs))
 
-The Manual Payment provider handles offline payments and purchase orders. It's automatically enabled -- no configuration needed.
+The Manual Payment provider handles offline payments and purchase orders. It's automatically enabled on install — no configuration needed.
 
 ### Payment Methods
 
-#### Manual Payment (Backoffice Only)
+| Alias | Name | Checkout visibility | Use cases |
+|-------|------|---------------------|-----------|
+| `manual` | Manual Payment | Hidden (`ShowInCheckoutByDefault = false`) — backoffice only | Cash in-store, cheque payments (with cheque number), bank transfers / wire transfers |
+| `purchaseorder` | Purchase Order | Shown at checkout (`DirectForm` with a PO number field) | B2B orders with PO numbers, net terms for established accounts, government/education |
 
-Record offline payments from the order detail screen. This method is **hidden from the checkout** (`ShowInCheckoutByDefault = false`).
-
-Use cases:
-- Cash payments received in-store
-- Check payments (record check numbers)
-- Bank transfers / wire transfers
-
-#### Purchase Order (Checkout)
-
-Allows business customers to complete checkout using a purchase order number. Uses `DirectForm` integration -- a simple text input.
-
-Use cases:
-- B2B orders with purchase order numbers
-- Net terms for established customers
-- Government/education institutions
+Form field data is persisted on the resulting `Payment.ProviderData` — the Purchase Order method also saves the PO number onto `Invoice.PurchaseOrder` and adds a note.
 
 ### Capabilities
 
-- Full and partial refund recording (for accounting purposes)
-- No auth/capture (payment is immediate or deferred externally)
+- Full and partial refund recording (for accounting purposes — no gateway call)
+- No auth/capture (payment is either recorded after the fact or deferred externally)
+- No webhooks or vaulting
 
 ---
 

@@ -2,9 +2,11 @@
 
 Merchello uses Umbraco's built-in notification system to broadcast events throughout the application. When something happens -- an order is created, a product is saved, a shipment status changes -- a notification is published. Your code can subscribe to these notifications to extend Merchello's behavior without modifying the core.
 
+Merchello's two integration bridges ([Email](../email/email-overview.md) and [Webhooks](../webhooks/webhooks-overview.md)) are also notification handlers, so everything you read below applies to them as well. For the full notification inventory and handler priority table see [Architecture-Diagrams.md §8](../../Architecture-Diagrams.md).
+
 ## Base Classes
 
-All Merchello notifications extend one of two base classes:
+All Merchello notifications extend one of three base classes. The attribute is declared in [NotificationHandlerPriorityAttribute.cs](../../../src/Merchello.Core/Notifications/NotificationHandlerPriorityAttribute.cs) and the base classes live in [Merchello.Core/Notifications/Base](../../../src/Merchello.Core/Notifications/Base).
 
 ### MerchelloNotification
 
@@ -92,13 +94,15 @@ public class SyncToErpHandler : INotificationAsyncHandler<OrderSavedNotification
 |---|---|---|
 | 100-500 | Validation | Check business rules, cancel if invalid |
 | 1000 | Business logic | Core processing (default) |
-| 1500-1900 | Post-processing | Timeline logging, status updates |
-| 2000 | Audit | Audit trail recording |
+| 1500-1900 | Post-processing | Timeline logging, status updates, digital product delivery, fulfilment submission |
+| 2000 | Audit | Audit trail recording (`InvoiceTimelineHandler`, `FulfilmentTimelineHandler`) |
 | 2100 | Email | Email notification handler |
 | 2200 | Webhooks | Outbound webhook handler |
 | 3000 | Protocol | Commerce protocol (UCP) handlers |
 
 > **Tip:** Use the priority ranges as a guide. The key principle is: validation first, business logic in the middle, external communication last.
+>
+> **Enforced:** The `NotificationHandlerPriorityRangeAnalyzer` Roslyn analyzer (`MERCH020`) flags handlers outside these documented ranges at build time. See [NotificationHandlerPriorityRangeAnalyzer.cs](../../../src/Merchello.ArchitectureAnalyzers/Analyzers/NotificationHandlerPriorityRangeAnalyzer.cs).
 
 ## The State Dictionary
 
@@ -134,7 +138,7 @@ public class LogPriceChangeHandler : INotificationAsyncHandler<ProductSavedNotif
 
 ## Fault Tolerance
 
-Notification handlers must be fault-tolerant. A handler that throws an exception can break the entire notification pipeline, preventing downstream handlers from running.
+Notification handlers MUST be fault-tolerant. This is a CLAUDE.md invariant: a handler that throws an exception can break the entire notification pipeline, preventing downstream handlers from running -- including the email and webhook handlers that ship with Merchello. Built-in handlers follow this pattern (see for example the `try/catch` in [EmailNotificationHandler.ProcessEmailsAsync](../../../src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs#L194)).
 
 **Always catch and log exceptions in your handlers:**
 
@@ -215,19 +219,31 @@ Merchello publishes notifications across all major domains. Here is a summary by
 
 ## Built-In Handlers
 
-Merchello includes several built-in notification handlers:
+Merchello includes several built-in notification handlers. Verify priorities against source before overriding — the table below is generated from the `[NotificationHandlerPriority]` attributes on each class.
 
 | Handler | Priority | Purpose |
 |---|---|---|
-| `FulfilmentAutoShipmentHandler` | -- | Creates shipment records after fulfilment submission |
-| `FulfilmentCancellationHandler` | -- | Handles fulfilment cancellation side-effects |
-| `FulfilmentOrderSubmissionHandler` | -- | Submits orders to fulfilment providers |
-| `FulfilmentTimelineHandler` | -- | Logs fulfilment events to the order timeline |
-| `EmailNotificationHandler` | 2100 | Queues email deliveries |
-| `WebhookNotificationHandler` | 2200 | Queues outbound webhooks |
+| [`AbandonedCheckoutConversionHandler`](../../../src/Merchello.Core/Checkout/Handlers/AbandonedCheckoutConversionHandler.cs) | 1500 | Marks abandoned checkouts as recovered/converted |
+| [`DigitalProductPaymentHandler`](../../../src/Merchello.Core/DigitalProducts/Handlers/DigitalProductPaymentHandler.cs) | 1500 | Creates download links after successful payment |
+| [`FulfilmentOrderSubmissionHandler`](../../../src/Merchello.Core/Fulfilment/Handlers/FulfilmentOrderSubmissionHandler.cs) | 1800 | Submits paid orders to 3PL fulfilment providers (Supplier Direct respects trigger policy) |
+| [`FulfilmentCancellationHandler`](../../../src/Merchello.Core/Fulfilment/Handlers/FulfilmentCancellationHandler.cs) | 1800 | Handles fulfilment cancellation side-effects |
+| [`FulfilmentAutoShipmentHandler`](../../../src/Merchello.Core/Fulfilment/Handlers/FulfilmentAutoShipmentHandler.cs) | 1900 | Creates shipment records after fulfilment submission |
+| [`PaymentPostPurchaseHandler`](../../../src/Merchello.Core/Upsells/Services/PaymentPostPurchaseHandler.cs) | 1900 | Opens the post-purchase upsell window |
+| [`InvoiceTimelineHandler`](../../../src/Merchello.Core/Notifications/Handlers/InvoiceTimelineHandler.cs) | 2000 | Logs invoice/payment/order events to the timeline |
+| [`FulfilmentTimelineHandler`](../../../src/Merchello.Core/Fulfilment/Handlers/FulfilmentTimelineHandler.cs) | 2000 | Logs fulfilment events to the timeline |
+| [`UpsellEmailEnrichmentHandler`](../../../src/Merchello.Core/Upsells/Services/UpsellEmailEnrichmentHandler.cs) | 2050 | Enriches order emails with upsell data (runs before email send) |
+| [`EmailNotificationHandler`](../../../src/Merchello.Core/Email/Handlers/EmailNotificationHandler.cs) | 2100 | Queues email deliveries |
+| [`WebhookNotificationHandler`](../../../src/Merchello.Core/Webhooks/Handlers/WebhookNotificationHandler.cs) | 2200 | Queues outbound webhooks |
+| [`UpsellConversionHandler`](../../../src/Merchello.Core/Upsells/Services/UpsellConversionHandler.cs) | 2200 | Tracks upsell conversion metrics |
+| [`AutoAddUpsellHandler`](../../../src/Merchello.Core/Upsells/Services/AutoAddUpsellHandler.cs) | 2300 | Auto-adds recommended upsells to baskets |
+| [`AutoAddRemovalTracker`](../../../src/Merchello.Core/Upsells/Services/AutoAddRemovalTracker.cs) | 2300 | Tracks shopper removals of auto-added items |
+| [`UcpOrderWebhookHandler`](../../../src/Merchello.Core/Protocols/UCP/Handlers/UcpOrderWebhookHandler.cs) | 3000 | Delivers UCP protocol webhooks to registered agents |
 
 ## Related Topics
 
 - [Email System](../email/email-overview.md)
 - [Outbound Webhooks](../webhooks/webhooks-overview.md)
 - [Fulfilment System](../fulfilment/fulfilment-overview.md)
+- [UCP Protocol](../ucp/ucp-overview.md)
+- [Background Jobs](../background-jobs/background-jobs.md)
+- [Architecture Diagrams - Notification System](../../Architecture-Diagrams.md)

@@ -69,6 +69,8 @@ public class OrderCreatedSyncHandler(
 
 ## Registering Your Handler
 
+Unlike providers (which are auto-discovered), notification handlers must be **explicitly registered** against the Umbraco notification pipeline. This is standard Umbraco v17 behavior. See [`src/Merchello/Startup.cs`](../../../src/Merchello/Startup.cs) for how Merchello's own handlers are wired.
+
 Register handlers in your `Startup.cs` or a composer:
 
 ```csharp
@@ -91,6 +93,8 @@ public class MyNotificationComposer : IComposer
     }
 }
 ```
+
+> **Warning:** Use **constructor injection only** for dependencies. Setter injection and service locator are not supported. The handler class is instantiated per-publish by Umbraco's DI container, so any `Scoped` service is safe to inject.
 
 ## Handler Priorities
 
@@ -284,3 +288,10 @@ public async Task HandleAsync(OrderCreatedNotification notification, Cancellatio
 ```
 
 > **Warning:** The only exception to the "don't rethrow" rule is validation handlers in "Before" notifications. If validation fails, use `notification.CancelOperation("reason")` instead of throwing.
+
+## Reference
+
+- Priority attribute: [`NotificationHandlerPriorityAttribute.cs`](../../../src/Merchello.Core/Notifications/NotificationHandlerPriorityAttribute.cs) (default `1000`, lower runs first).
+- Cancelable base class: [`MerchelloCancelableNotification.cs`](../../../src/Merchello.Core/Notifications/Base/MerchelloCancelableNotification.cs) (exposes `Entity`, `CancelOperation(reason)`, `CancelReason`).
+- Built-in registrations: [`src/Merchello/Startup.cs`](../../../src/Merchello/Startup.cs) (search for `AddNotificationAsyncHandler`).
+- Real-world handler examples: built-in handlers such as `InvoiceTimelineHandler` and `WebhookNotificationHandler` wired from `Startup.cs`, plus the `Merchello.ActionExamples` project for action-driven handlers.

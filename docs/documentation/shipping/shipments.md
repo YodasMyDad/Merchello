@@ -165,3 +165,13 @@ Shipment operations fire notifications you can hook into:
 | `InvoiceAggregateChangedNotification` | After shipment affects invoice | No |
 
 > **Warning:** Notifications are published **after** the database scope completes to avoid nested scope issues. Keep this in mind if your handler needs to make further DB calls.
+
+> **Shipping vs Fulfilment:** Shipments are the record of what physically leaves the warehouse. Fulfilment providers (ShipBob, Supplier Direct) can create shipments automatically via webhook or on submission -- see [Fulfilment Overview](../fulfilment/fulfilment-overview.md).
+
+## Related Topics
+
+- [Shipping Overview](shipping-overview.md)
+- [Fulfilment Overview](../fulfilment/fulfilment-overview.md)
+- [ShipBob Integration](../fulfilment/shipbob.md)
+- [Supplier Direct Fulfilment](../fulfilment/supplier-direct.md)
+- [Orders](../orders/orders-overview.md)

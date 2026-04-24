@@ -46,7 +46,7 @@ This is the method used by the `.Site` example project's `CategoryController`.
 
 ## Real-World Example: Category Page
 
-Here is how the `.Site` project builds a category page with filters. The controller accepts filter selections from query parameters, queries products, and loads the relevant filter groups:
+The starter site's [CategoryController.cs](../../../src/Merchello.Site/Category/Controllers/CategoryController.cs) accepts filter selections from query parameters, queries products, and loads the relevant filter groups:
 
 ```csharp
 public async Task<IActionResult> Category(
@@ -94,7 +94,7 @@ public async Task<IActionResult> Category(
 
 ## Rendering Filters in a View
 
-The `.Site` project uses a `ProductFiltersViewComponent` to render filter UI. The component receives the filter groups and selected keys, then renders checkboxes (or colour swatches for colour groups):
+The starter site uses a [ProductFiltersViewComponent](../../../src/Merchello.Site/Shared/Components/ProductFilters/ProductFiltersViewComponent.cs) with the view at [Views/Shared/Components/ProductFilters/Default.cshtml](../../../src/Merchello.Site/Views/Shared/Components/ProductFilters/Default.cshtml). The component receives the filter groups and selected keys, then renders checkboxes (or colour swatches for colour groups):
 
 ```html
 @model ProductFiltersViewModel

@@ -2,9 +2,11 @@
 
 Digital products let you sell downloadable items like software, ebooks, music, or any file stored in the Umbraco Media Library. Merchello handles secure download links, expiry, download limits, and automatic order completion for digital-only purchases.
 
+> **Invariant:** All digital settings live in `ProductRoot.ExtendedData` under constant keys -- do not add model properties for them. Digital products require a customer account (no guest checkout) and cannot use variant options (`IsVariant = true`); use add-on options with `PriceAdjustment`/`CostAdjustment`/`SkuSuffix` instead.
+
 ## How Digital Products Work
 
-A digital product is a regular product root with `IsDigitalProduct = true`. All digital-specific settings are stored in `ProductRoot.ExtendedData` using constant keys -- there are no extra database columns. This keeps the data model clean and extensible.
+A digital product is a regular product root with `IsDigitalProduct = true`. All digital-specific settings are stored in `ProductRoot.ExtendedData` using constant keys accessed via [ProductRootDigitalExtensions.cs](../../../src/Merchello.Core/DigitalProducts/Extensions/ProductRootDigitalExtensions.cs) -- there are no extra database columns. Service contract: [IDigitalProductService.cs](../../../src/Merchello.Core/DigitalProducts/Services/Interfaces/IDigitalProductService.cs).
 
 ### Key Constraints
 

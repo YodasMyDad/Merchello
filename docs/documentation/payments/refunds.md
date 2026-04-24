@@ -1,41 +1,42 @@
 # Refunds
 
-Merchello supports processing refunds through payment providers, recording manual refunds, and previewing refund calculations before committing.
+Merchello supports processing refunds through payment providers, recording manual (externally-processed) refunds, and previewing refund calculations before committing. All refund operations live on [`IPaymentService`](../../../src/Merchello.Core/Payments/Services/Interfaces/IPaymentService.cs).
 
 ## Refund Types
 
-### Provider Refund
+### Provider refund
 
-A refund processed through the payment provider (e.g., Stripe, PayPal). The provider reverses the charge and Merchello records the refund.
+A refund processed through the payment gateway (Stripe, PayPal, Braintree, WorldPay). The provider reverses the charge and Merchello records a `Refund` / `PartialRefund` payment row linked to the original payment via `ParentPaymentId`.
 
-### Manual Refund
+### Manual refund
 
-A refund recorded in Merchello when the actual refund was processed outside the system (e.g., refunded directly in the Stripe Dashboard, cash refund in-store). This keeps the accounting records accurate without double-processing.
+A refund recorded in Merchello when the money was returned outside the system (refunded directly in the Stripe dashboard, cash refund in-store, bank transfer reversal). No gateway call is made — just the accounting record.
 
 ---
 
 ## Processing a Provider Refund
 
-To refund through the payment provider:
+All refund parameters live on [`ProcessRefundParameters`](../../../src/Merchello.Core/Payments/Services/Parameters/ProcessRefundParameters.cs). `Reason` is **required**.
 
 ```csharp
 var result = await paymentService.ProcessRefundAsync(
     new ProcessRefundParameters
     {
-        PaymentId = originalPaymentId,
-        Amount = 25.00m,           // null for full refund
-        Reason = "Customer return"
+        PaymentId      = originalPaymentId,
+        Amount         = 25.00m,              // null or 0 = full refundable amount
+        Reason         = "Customer return",   // required
+        IdempotencyKey = "refund-order-123"   // optional; dedupes retries
     },
     cancellationToken);
 ```
 
 The flow:
 
-1. `IPaymentService` looks up the original payment and its provider
-2. Calls `provider.RefundPaymentAsync()` which processes the refund with the gateway
-3. Creates a refund `Payment` record (with negative amount)
-4. Updates the invoice's payment status via `CalculatePaymentStatus()`
-5. Fires a `PaymentRefundedNotification`
+1. `IPaymentService` looks up the original payment and its provider.
+2. Calls `provider.RefundPaymentAsync()`, which reverses the charge at the gateway.
+3. Creates a child `Payment` record with `ParentPaymentId = originalPaymentId` and `PaymentType = Refund` (or `PartialRefund`). Amounts are stored as positive values; the status calculator subtracts them from `TotalPaid`.
+4. Recomputes invoice status via `CalculatePaymentStatus` (the single source of truth).
+5. Fires `PaymentRefundedNotification`, which in turn dispatches the `payment.refunded` / `invoice.refunded` email + webhook topics.
 
 ### Full Refunds
 
@@ -75,92 +76,93 @@ You can issue multiple partial refunds against the same payment, as long as the 
 
 ## Preview Before Refunding
 
-Before processing a refund, you can preview the calculation to show the customer or staff member what will happen:
+Before processing a refund, preview the calculation so staff see exactly what will happen:
 
 ```csharp
 var preview = await paymentService.PreviewRefundAsync(
     new PreviewRefundParameters
     {
-        PaymentId = originalPaymentId,
-        Amount = 25.00m
+        PaymentId  = originalPaymentId,
+        Amount     = 25.00m,   // exact amount, OR...
+        Percentage = null       // ...0-100 percentage of refundable amount (takes precedence if provided)
     },
     cancellationToken);
 ```
 
-The preview returns a `RefundPreviewDto` with:
+The preview returns a [`RefundPreviewDto`](../../../src/Merchello.Core/Payments/Dtos/RefundPreviewDto.cs):
 
 | Property | Description |
 |----------|-------------|
-| `RefundAmount` | The amount that will be refunded |
-| `OriginalPaymentAmount` | The original payment amount |
-| `AlreadyRefunded` | Total already refunded for this payment |
-| `RemainingRefundable` | Maximum amount still refundable |
-| `ProviderSupportsRefund` | Whether the provider can process this refund |
+| `PaymentId` | The payment being previewed |
+| `RefundableAmount` | Maximum still refundable (original amount minus prior refunds) |
+| `RequestedAmount` | Amount that will be refunded based on `Amount`/`Percentage` |
+| `CurrencyCode` | ISO currency code |
+| `SupportsRefund` | Whether the provider can refund at all |
+| `SupportsPartialRefund` | Whether the provider supports partial refunds |
+| `ProviderAlias` | The provider that will handle the refund |
+| `FormattedRefundableAmount` / `FormattedRequestedAmount` | Pre-formatted display strings |
 
-> **Tip:** Always show a preview to staff before processing refunds. It helps prevent accidental over-refunding.
+> **Tip:** Always show a preview to staff before processing refunds — it prevents accidental over-refunding and surfaces provider capability issues up front.
 
 ---
 
 ## Recording a Manual Refund
 
-When a refund is processed outside Merchello (directly in the provider dashboard, cash refund, etc.), record it for accounting:
+When a refund was processed outside Merchello (directly in the provider dashboard, cash in-store, etc.), record it for accounting via [`RecordManualRefundParameters`](../../../src/Merchello.Core/Payments/Services/Parameters/RecordManualRefundParameters.cs). Note that this is keyed off the **original payment** — not the invoice:
 
 ```csharp
 var result = await paymentService.RecordManualRefundAsync(
     new RecordManualRefundParameters
     {
-        InvoiceId = invoiceId,
-        Amount = 50.00m,
-        Reason = "Refunded via Stripe Dashboard",
-        TransactionId = "re_abc123"  // Optional provider reference
+        PaymentId = originalPaymentId,           // required
+        Amount    = 50.00m,                      // required, positive
+        Reason    = "Refunded via Stripe Dashboard" // required
     },
     cancellationToken);
 ```
 
-This creates a refund record without calling the payment provider. The invoice's payment status is updated accordingly.
+No gateway call is made — the refund row is created and invoice status recalculated.
 
 ---
 
 ## Backoffice API
 
-### Process Refund
+All backoffice refund operations go through the single [`PaymentsApiController`](../../../src/Merchello/Controllers/PaymentsApiController.cs) endpoint. Manual refunds share the same URL and are selected via `isManualRefund: true` in the body.
 
-```
+### Process Refund (provider or manual)
+
+```http
 POST /umbraco/api/v1/payments/{paymentId}/refund
+Content-Type: application/json
 ```
 
 ```json
 {
   "amount": 25.00,
-  "reason": "Customer return"
+  "reason": "Customer return",
+  "isManualRefund": false
 }
 ```
+
+- `amount` — `null` or `0` refunds the full remaining refundable amount.
+- `reason` — **required**, max 1000 chars.
+- `isManualRefund` — set `true` to record without calling the provider (e.g. refund already issued in the Stripe dashboard).
 
 ### Preview Refund
 
-```
-POST /umbraco/api/v1/payments/{paymentId}/refund/preview
-```
-
-```json
-{
-  "amount": 25.00
-}
-```
-
-### Record Manual Refund
-
-```
-POST /umbraco/api/v1/invoices/{invoiceId}/manual-refund
+```http
+POST /umbraco/api/v1/payments/{paymentId}/preview-refund
+Content-Type: application/json
 ```
 
 ```json
 {
-  "amount": 50.00,
-  "reason": "Refunded externally",
-  "transactionId": "re_abc123"
+  "amount": 25.00,
+  "percentage": null
 }
 ```
+
+Returns `RefundPreviewDto`. `percentage` (0–100) takes precedence over `amount` if both are supplied.
 
 ---
 
@@ -181,13 +183,15 @@ The status is always calculated by `IPaymentService.CalculatePaymentStatus()` --
 
 ## Provider Refund Support
 
-| Provider | Full Refund | Partial Refund | Notes |
+Capabilities come from each provider's `PaymentProviderMetadata.SupportsRefunds` / `SupportsPartialRefunds` flags. Always check `RefundPreviewDto.SupportsRefund` / `SupportsPartialRefund` before offering the action to staff — if a provider is disabled or incapable, fall back to a manual refund.
+
+| Provider | Full refund | Partial refund | Notes |
 |----------|-------------|----------------|-------|
 | Stripe | Yes | Yes | Via Stripe Refunds API |
 | PayPal | Yes | Yes | Via PayPal Payments V2 API |
 | Braintree | Yes | Yes | Via Braintree Transaction API |
 | WorldPay | Yes | Yes | Via Access Worldpay API |
-| Amazon Pay | No | No | Refund via Amazon Pay Dashboard |
+| Amazon Pay | No | No | Refund via Amazon Pay Dashboard, then record manually |
 | Manual | Yes | Yes | Recording only (no gateway call) |
 
 ---
@@ -213,4 +217,10 @@ if (!result.Success)
 }
 ```
 
-> **Warning:** If the provider refund succeeds but the Merchello record fails to save (unlikely but possible), the refund still happened at the provider. The manual refund recording feature lets you fix the accounting records in this scenario.
+> **Warning:** If the provider refund succeeds but the Merchello record fails to save (rare but possible), the refund still happened at the provider. Use `RecordManualRefundAsync` / the `isManualRefund` flag to reconcile the accounting records without double-refunding.
+
+## Related
+
+- [Payment System Overview](payment-system-overview.md) — payment status, idempotency, and the `IPaymentService` surface
+- [Payment Providers](payment-providers.md) — per-provider refund support
+- [Orders Overview](../orders/orders-overview.md) — how refunds appear on invoices and in customer statements
