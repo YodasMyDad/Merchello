@@ -285,4 +285,4 @@ The currency comes from the invoice — the service does not take a `CurrencyCod
 - **Authentication required** — Storefront endpoints return `401` for unauthenticated requests.
 - **Consent tracking** — `ConsentDateUtc` and `ConsentIpAddress` are recorded when a method is saved.
 - **Expiry detection** — Methods are automatically flagged as expired based on `ExpiryMonth`/`ExpiryYear`.
-- **Idempotency** — Pass an `IdempotencyKey` on saved-method charges and refunds to make retries safe (see [Payment System Overview](payment-system-overview.md#idempotency--dedupe-invariant)).
+- **Idempotency** — Pass an `IdempotencyKey` on saved-method charges and refunds to make retries safe (see [Payment System Overview](payment-system-overview.md#idempotency-dedupe-invariant)).

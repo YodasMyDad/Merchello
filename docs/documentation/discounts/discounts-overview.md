@@ -219,4 +219,4 @@ Discount rules are created and managed in the Merchello backoffice. Configuratio
 - [Checkout Discounts](../checkout/checkout-discounts.md) -- service-level integration (`ICheckoutDiscountService`)
 - [Customer Segments](../customers/customer-segments.md) -- how segments gate discount eligibility
 - [Multi-Currency Overview](../multi-currency/multi-currency-overview.md) -- currency invariants that affect discount math
-- [Architecture-Diagrams Section 2.9](../../Architecture-Diagrams.md) -- discount service map and calculator notes
+- [Architecture-Diagrams Section 2.9](https://github.com/YodasMyDad/Merchello/blob/main/docs/Architecture-Diagrams.md) -- discount service map and calculator notes
